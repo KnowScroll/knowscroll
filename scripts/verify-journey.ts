@@ -18,6 +18,7 @@ async function call(path:string,body?:unknown) {
 }
 try {
  const before=await call('/v1/universe'), feed=await call('/v1/feed');
+ assert.equal(before.universeId,feed.universeId,'feed must belong to the observed universe');
  const item=feed.items[0];if(!item) throw new Error('Starting library exhausted. Use an isolated journey database; do not erase personal history.');
  const exposureBody={decisionId:feed.decisionId,assetId:item.assetId,clientExposureId:randomUUID()};
  const exposure=await call('/v1/exposures',exposureBody);
@@ -26,8 +27,9 @@ try {
  let event;for(let i=0;i<40;i++){event=await call(`/v1/events/${accepted.eventId}`);if(event.projected)break;await setTimeout(250);}
  assert.equal(event.projected,true,'worker must apply the event');
  const after=await call('/v1/universe'), next=await call('/v1/feed');
+ assert.equal(after.universeId,feed.universeId,'projection must remain in the observed universe');
  assert.ok(after.traces.some((t:{eventId:string})=>t.eventId===accepted.eventId));assert.ok(!next.items.some((a:{assetId:string})=>a.assetId===item.assetId));
- assert.equal(event.causationId,exposure.eventId);
+ assert.equal(event.eventId,accepted.eventId);assert.equal(event.jobId,accepted.jobId);assert.equal(event.jobStatus,'completed');assert.equal(event.causationId,exposure.eventId);
  const persisted=await verifyPersistedJourney(pool,{universeId:feed.universeId,asset:item,decisionId:feed.decisionId,accountRevision:feed.accountRevision,exposure:{...exposure,clientExposureId:exposureBody.clientExposureId},accepted:{...accepted,clientEventId:body.clientEventId},beforeRevision:before.revision,afterRevision:after.revision});
  let head='unavailable',dirty=true;try{head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();dirty=Boolean(execFileSync('git',['status','--porcelain'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim());}catch{}
  const sourceHashes=Object.fromEntries(await Promise.all(['scripts/verify-journey.ts','scripts/journey-verifier.ts','apps/api/src/app.ts','apps/worker/src/project.ts','packages/db/migrations/0001_bootstrap.sql'].map(async path=>[path,createHash('sha256').update(await readFile(path)).digest('hex')])));

@@ -37,7 +37,7 @@ export async function verifyPersistedJourney(pool: Pick<Pool, 'query'>, journey:
       le.client_key::text AS exposure_client_key, le.universe_id AS ledger_exposure_universe_id, le.payload AS exposure_payload,
       lk.id AS keep_event_id, lk.kind AS keep_kind, lk.causation_id,
       lk.client_key::text AS keep_client_key, lk.universe_id AS keep_universe_id, lk.payload AS keep_payload,
-      j.id AS job_id, j.kind AS job_kind, j.status AS job_status,
+      j.id AS job_id, j.universe_id AS job_universe_id, j.kind AS job_kind, j.status AS job_status,
       j.attempts AS job_attempts, j.completed_at,
       t.event_id AS trace_event_id, t.asset_id AS trace_asset_id, t.universe_id AS trace_universe_id,
       a.revision AS accounts_revision, a.kept_asset_ids,
@@ -60,6 +60,7 @@ export async function verifyPersistedJourney(pool: Pick<Pool, 'query'>, journey:
   assert.equal(row.exposure_universe_id, journey.universeId);
   assert.equal(row.ledger_exposure_universe_id, journey.universeId);
   assert.equal(row.keep_universe_id, journey.universeId);
+  assert.equal(row.job_universe_id, journey.universeId);
   assert.equal(row.trace_universe_id, journey.universeId);
   assert.equal(row.exposure_id, journey.exposure.exposureId);
   assert.equal(row.exposure_event_id, journey.exposure.eventId);
