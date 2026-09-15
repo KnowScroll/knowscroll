@@ -61,7 +61,8 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 onKeep = viewModel::keep,
                 onReturn = viewModel::returnToUniverse,
                 onNext = viewModel::nextScroll,
-                onRetry = viewModel::retryScrollLoad
+                onRetry = viewModel::retryScrollLoad,
+                onReadingPosition = viewModel::updateReadingPosition
             )
         }
         }
