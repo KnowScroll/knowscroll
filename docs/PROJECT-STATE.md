@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-15. **Bootstrap complete locally; GitHub CI finalization in progress.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-16 (Asia/Kolkata). **Bootstrap complete; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## What exists
 
@@ -21,7 +21,9 @@ Native Android, TS API/worker, PostgreSQL, one product monorepo, external Cutroo
 
 ## Evidence and limits
 
-See [J001](journeys/J001.md). Backend implementation and HTTP journey passed. Three real Android instrumentation checks passed: sourced Scroll keep/return with Activity recreation; unavailable API; compact-screen recovery. Screenshots and source hashes are in the linked evidence. No user usefulness, load capacity, production deployment or model compatibility claim follows from those checks.
+See [J001](journeys/J001.md). Backend implementation and HTTP journey passed. Three real Android instrumentation checks passed: sourced Scroll keep/return with Activity recreation; unavailable API; compact-screen recovery. Screenshots and source hashes are in the linked evidence. [GitHub CI](https://github.com/KnowScroll/knowscroll/actions/runs/35007382446) passed backend and Android checks for `b95b2de`. No user usefulness, load capacity, production deployment or model compatibility claim follows from those checks.
+
+Last local observation: 2026-09-15 18:29 UTC (23:59 India). API healthy, worker heartbeat fresh, migration `0001_bootstrap.sql` applied and two projection jobs completed. Use `pnpm state` to refresh; this is a timestamped observation, not a promise that these processes remain running.
 
 ## Next parallel work
 
