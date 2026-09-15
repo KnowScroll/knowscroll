@@ -20,9 +20,10 @@ function databaseUrl(base:string,name:string) { const url=new URL(base);url.path
 function quoteIdentifier(value:string) { return `"${value.replaceAll('"','""')}"`; }
 function run(command:string,args:string[],env:NodeJS.ProcessEnv,quiet=false) {
   return new Promise<{stdout:string;stderr:string}>((resolveRun,reject) => {
-    const child=spawn(command,args,{cwd:root,env,stdio:quiet?['ignore','pipe','pipe']:'inherit'});
+    const child=spawn(command,args,{cwd:root,env,stdio:quiet?['ignore','pipe','pipe']:'inherit',detached:process.platform!=='win32'});
+    activeCommands.add(child);
     let stdout='',stderr='';child.stdout?.on('data',chunk=>stdout+=chunk);child.stderr?.on('data',chunk=>stderr+=chunk);
-    child.once('error',reject);child.once('exit',code=>code===0?resolveRun({stdout,stderr}):reject(new Error(`${command} ${args.join(' ')} exited ${code}: ${stderr || stdout}`)));
+    child.once('error',error=>{activeCommands.delete(child);reject(error);});child.once('exit',code=>{activeCommands.delete(child);code===0?resolveRun({stdout,stderr}):reject(new Error(`${command} ${args.join(' ')} exited ${code}: ${stderr || stdout}`));});
   });
 }
 type ManagedProcess={child:ChildProcess; startupError?:Error};
@@ -43,31 +44,59 @@ async function stop(managed:ManagedProcess|undefined) { const child=managed?.chi
 
 const suffix=randomBytes(8).toString('hex');
 const names={actual:`knowscroll_journey_${suffix}`,decoy:`knowscroll_journey_decoy_${suffix}`};
-let admin:pg.Client|undefined,api:ManagedProcess|undefined,worker:ManagedProcess|undefined;
+const createdDatabases:string[]=[];
+const activeCommands=new Set<ChildProcess>();
+let admin:pg.Client|undefined,api:ManagedProcess|undefined,worker:ManagedProcess|undefined,cleanupPromise:Promise<void>|undefined;
+let interrupted=false;
+function throwIfInterrupted() { if(interrupted) throw new Error('isolated journey runner interrupted'); }
+async function cleanup() {
+  if(cleanupPromise) return cleanupPromise;
+  cleanupPromise=(async()=>{
+    const errors:unknown[]=[];
+    for(const managed of [worker,api]) try { await stop(managed); } catch(error) { errors.push(error); }
+    if(admin) {
+      for(const name of createdDatabases) try { await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(name)} WITH (FORCE)`); } catch(error) { errors.push(error); }
+      try { await admin.end(); } catch(error) { errors.push(error); }
+    }
+    if(errors.length) throw new AggregateError(errors,'isolated journey cleanup failed');
+  })();
+  return cleanupPromise;
+}
+function onSignal() { interrupted=true;for(const child of activeCommands) {try { if(child.pid) globalThis.process.kill(-child.pid,'SIGTERM');else child.kill('SIGTERM'); } catch { child.kill('SIGTERM'); }} }
+const onInterrupt=()=>onSignal(),onTerminate=()=>onSignal();
+process.once('SIGINT',onInterrupt);process.once('SIGTERM',onTerminate);
+let primaryError:unknown;
 try {
   let config:Record<string,string>={};try { config=localConfig(await readFile(resolve(root,'.env'),'utf8')); } catch(error) { if((error as NodeJS.ErrnoException).code!=='ENOENT') throw error; }
   const sourceUrl=process.env.DATABASE_URL ?? config.DATABASE_URL;
   if(!sourceUrl) throw new Error('DATABASE_URL is required in the environment or local .env');
   const source=new URL(sourceUrl);
   if(source.hostname!=='127.0.0.1' && source.hostname!=='localhost' && source.hostname!=='::1') throw new Error('isolated runner only permits a loopback PostgreSQL server');
-  admin=new pg.Client({connectionString:databaseUrl(sourceUrl,'postgres')});await admin.connect();
-  for(const name of Object.values(names)) await admin.query(`CREATE DATABASE ${quoteIdentifier(name)}`);
+  admin=new pg.Client({connectionString:databaseUrl(sourceUrl,'postgres'),connectionTimeoutMillis:5000});await admin.connect();throwIfInterrupted();
+  for(const name of Object.values(names)) { await admin.query(`CREATE DATABASE ${quoteIdentifier(name)}`);createdDatabases.push(name);throwIfInterrupted(); }
   const port=await freePort();
   const token=randomBytes(32).toString('hex');
   const actualUrl=databaseUrl(sourceUrl,names.actual),decoyUrl=databaseUrl(sourceUrl,names.decoy);
-  const environment={...process.env,DATABASE_URL:actualUrl,KS_DEV_TOKEN:token,PORT:String(port),MINIMAX_API_KEY:'',CUTROOM_BASE_URL:'',NODE_ENV:'test'};
-  for(const url of [actualUrl,decoyUrl]) await run('pnpm',['exec','tsx','scripts/migrate.ts'],{...environment,DATABASE_URL:url},true);
-  await run('pnpm',['exec','tsx','scripts/seed.ts'],environment,true);
+  const runtimeEnvironment=Object.fromEntries(
+    ['PATH','HOME','LANG','LC_ALL','KS_DEV_ROOT','npm_config_cache','COREPACK_HOME','TMPDIR'].flatMap(name => {
+      const value=process.env[name];return value===undefined ? [] : [[name,value]];
+    })
+  );
+  const environment={...runtimeEnvironment,...Object.fromEntries(Object.keys(config).map(key=>[key,''])),DATABASE_URL:actualUrl,KS_DEV_TOKEN:token,PORT:String(port),NODE_ENV:'test'};
+  for(const url of [actualUrl,decoyUrl]) { await run('pnpm',['exec','tsx','scripts/migrate.ts'],{...environment,DATABASE_URL:url},true);throwIfInterrupted(); }
+  await run('pnpm',['exec','tsx','scripts/seed.ts'],environment,true);throwIfInterrupted();
   api=start('pnpm',['exec','tsx','apps/api/src/main.ts'],environment);
   worker=start('pnpm',['exec','tsx','apps/worker/src/main.ts'],environment);
-  const base=`http://127.0.0.1:${port}`;await waitForHealth(base,token,[api,worker]);
-  await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}.json`});
+  const base=`http://127.0.0.1:${port}`;await waitForHealth(base,token,[api,worker]);throwIfInterrupted();
+  await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}.json`});throwIfInterrupted();
   let wrongPathRejected=false;
-  try { await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_DATABASE_URL:decoyUrl,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}-wrong.json`},true); }
+  try { await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_DATABASE_URL:decoyUrl,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}-wrong.json`},true);throwIfInterrupted(); }
   catch(error) { if(/no single persisted decision\/exposure\/keep\/job\/Accounts\/Trace lineage exists/.test(String(error))) wrongPathRejected=true; else throw error; }
   if(!wrongPathRejected) throw new Error('negative proof unexpectedly passed: verifier accepted a different database than the API and worker');
   console.log(JSON.stringify({journey:'J001',result:'passed',runtime:{apiPort:port,database:'isolated disposable PostgreSQL',worker:'separate process'},negativeWrongRuntimePath:'rejected as expected'}));
+} catch(error) {
+  primaryError=error;throw error;
 } finally {
-  await stop(worker);await stop(api);
-  if(admin) { for(const name of Object.values(names)) await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(name)} WITH (FORCE)`); await admin.end(); }
+  process.off('SIGINT',onInterrupt);process.off('SIGTERM',onTerminate);
+  try { await cleanup(); } catch(error) { if(primaryError) console.error('isolated journey cleanup failed after primary error',error);else throw error; }
 }
