@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_label">KnowScroll</string>
+
+    <!-- Universe (origin) screen -->
+    <string name="universe_title">Your universe</string>
+    <string name="universe_empty">Your first path starts with a little curiosity.</string>
+    <string name="universe_loading">Opening the universe…</string>
+    <string name="universe_unavailable">The universe is unreachable.</string>
+    <string name="universe_unavailable_help">Your saved paths are still yours. Try connecting again.</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_enter_scroll">Enter Scroll</string>
+    <string name="traces_heading">Traces</string>
+    <string name="trace_unknown_title">Untitled Scroll</string>
+
+    <!-- Scroll (consumption) screen -->
+    <string name="scroll_unavailable">This Scroll is unavailable.</string>
+    <string name="action_keep">Keep</string>
+    <string name="action_kept">Kept</string>
+    <string name="action_return">Return</string>
+    <string name="action_next">Next Scroll</string>
+    <string name="action_open_source">Open source</string>
+    <string name="keep_pending">Saving your keep…</string>
+    <string name="keep_failed">Could not keep this Scroll.</string>
+
+    <!-- Capabilities: the slice does not promise them. -->
+
+    <!-- Decorative cosmos copy is intentionally absent; the cosmos is
+         drawn, not narrated. Decorative-only labels are not shipped. -->
+</resources>

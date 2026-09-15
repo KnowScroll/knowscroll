@@ -1,0 +1,30 @@
+{
+  "name": "knowscroll",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22.23.0 <23"
+  },
+  "scripts": {
+    "dev:api": "tsx apps/api/src/main.ts",
+    "dev:worker": "tsx apps/worker/src/main.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "./scripts/test.sh",
+    "verify:journey": "tsx scripts/verify-journey.ts",
+    "state": "tsx scripts/state.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.6.0",
+    "pg": "^8.16.3",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,233 @@
+[
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/README.md",
+    "destination": "docs/product/definition.md",
+    "category": "current-product-definition",
+    "sourceSha256": "d7e0cd55ba4dde1133ca1770a49441f74b1e1483f4bc1f9e37d99b450ab69968",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/00-README.md",
+    "destination": "docs/architecture/target/00-README.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "751fc7dd0da7922200b883cfa324e0f5bd7cd45705adc071755f5859d9188356",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/01-OVERVIEW.md",
+    "destination": "docs/architecture/target/01-OVERVIEW.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "aa691940a1fa41367d595d4031cf269f0f47157ed662884bb8d8f9e5511caf08",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/02-RESEARCH-FINDINGS.md",
+    "destination": "docs/architecture/target/02-RESEARCH-FINDINGS.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "9bc3035f16c52fb034eec34ec91f7908210af224ae8cdaec17fcb855c00a63ae",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/03-ARCHITECTURE.md",
+    "destination": "docs/architecture/target/03-ARCHITECTURE.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "c01f7db15ed65129c5c8b810ea27736ce512d868e01102ee680d49319dcc1cc8",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/04-EVENT-ARCHITECTURE.md",
+    "destination": "docs/architecture/target/04-EVENT-ARCHITECTURE.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "fa8f420c40bbc01eb8694ecc273f9d50e4b2d282101b1b7fb34d316206fc2dde",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/05-DATA-STATE-MODEL.md",
+    "destination": "docs/architecture/target/05-DATA-STATE-MODEL.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "c2754dac5d810d5d3cccdf334201f6c8e4d2da6d533356bb7c92751c27af7659",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/06-USER-WORLD-MODEL.md",
+    "destination": "docs/architecture/target/06-USER-WORLD-MODEL.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "1191ea6115f9811aae8fa2d4d10213dee84e39a81e5efc66de850aca9f6aa116",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/07-UNIVERSE-EVOLUTION.md",
+    "destination": "docs/architecture/target/07-UNIVERSE-EVOLUTION.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "2ad439e4367079d539353d3d1361a5feec4ecaa1c7627bebcb6dc493accebf31",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/08-RECOMMENDATION.md",
+    "destination": "docs/architecture/target/08-RECOMMENDATION.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "48a2322c692e161f58415411fac515d2a5599e5b0dd72fc5c03c080b879247ef",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/09-INTERDIMENSIONAL-CABLE.md",
+    "destination": "docs/architecture/target/09-INTERDIMENSIONAL-CABLE.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "83d7d59e0cf8f2bd7578bfe01be75028dfad61b0105daf076ec2c8d96f797844",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/10-CORE-AGENT.md",
+    "destination": "docs/architecture/target/10-CORE-AGENT.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "da6e0a46dba778c6f7e41eb8c81a883345be47f64efdcbeaea5f24cacbfdee4a",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/11-IDEA-ROOMS.md",
+    "destination": "docs/architecture/target/11-IDEA-ROOMS.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "671dd9ed58c00f9dd77a259f756ec24dcae4e17b327af36eeb0b9433f7252563",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/12-PERSISTENT-AGENTS.md",
+    "destination": "docs/architecture/target/12-PERSISTENT-AGENTS.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "6158ba364518c1843b329699a89274777f1fd240d2a286b50c3fb3e3bf009ecf",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/13-SOCIAL-BLEND.md",
+    "destination": "docs/architecture/target/13-SOCIAL-BLEND.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "10b44a448c36a2ce7f4f95b64e1ef638f1ae43621241427f71208d8f60add8be",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/14-QUALITY-ANTI-SLOP.md",
+    "destination": "docs/architecture/target/14-QUALITY-ANTI-SLOP.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "e90a91e3383a58f4fc463be1df97f3404a4d04dff8bad2f086b0740c900e31b4",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/15-VIDEO-SDK-INTEGRATION.md",
+    "destination": "docs/architecture/target/15-VIDEO-SDK-INTEGRATION.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "985c5b68ddf843998bb6ae57460e928eb262d3bc904dc5f463047ecfd931c29b",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/16-FEEDBACK-LOOPS.md",
+    "destination": "docs/architecture/target/16-FEEDBACK-LOOPS.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "748c810d885ac334fe197fb5e6df3ae6b89ae38d802fda621477bcc90da9b0ca",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/17-SCALING-COST.md",
+    "destination": "docs/architecture/target/17-SCALING-COST.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "e27c1c7ff3c2d09075a2520b64594629e294e3c79e73b8131b85ad5cf6f91b38",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/18-IMPLEMENTATION-PHASES.md",
+    "destination": "docs/architecture/target/18-IMPLEMENTATION-PHASES.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "2c02c686080b28e945e383ac3f04db82f08cff10bb1b2f192e4f247bd9cf245d",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/19-OPEN-QUESTIONS.md",
+    "destination": "docs/architecture/target/19-OPEN-QUESTIONS.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "4e458df9b7eea29190f2c21d5fcb442741c2f08049b564c48e30726e9bfb0633",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/20-WORKED-TRACES.md",
+    "destination": "docs/architecture/target/20-WORKED-TRACES.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "bc2fcd1cbb5b3019d9578c342b914bf5e8fd97b87475e31d8af6f983b089273a",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/21-REASONING-RUNTIME.md",
+    "destination": "docs/architecture/target/21-REASONING-RUNTIME.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "439e2e0a6211170f8707a73fd84548c33914c8e52e7262c3157cdded1b84ce29",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/22-GLOBAL-EXECUTION.md",
+    "destination": "docs/architecture/target/22-GLOBAL-EXECUTION.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "3defe74083bf544641ef1aaadc0f44beefa8991dce71b7780bcb637181ab63e4",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/23-CONTENT-DEMAND-AND-INVENTORY.md",
+    "destination": "docs/architecture/target/23-CONTENT-DEMAND-AND-INVENTORY.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "5dbba9f936fdef2bbd3b44bdf7dd28425e988545812940b51d521758fb95a816",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/24-REVIEW-GUIDE.md",
+    "destination": "docs/architecture/target/24-REVIEW-GUIDE.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "489c6e6d25b8ffa0e59fac3d86453097aa071a4f03b4a74c394f921595426fe2",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/core-engine/25-JOURNEY-AND-DATA-FLOWS.md",
+    "destination": "docs/architecture/target/25-JOURNEY-AND-DATA-FLOWS.md",
+    "category": "accepted-target-detail",
+    "sourceSha256": "9b31bb7ec09c8fa43c3951a573526514585e299da019397f0f2b3d9ec11fcd6f",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/2026-09-15-CORE-ENGINE-ARCHITECTURE-REVIEW.md",
+    "destination": "docs/research/2026-09-15-CORE-ENGINE-ARCHITECTURE-REVIEW.md",
+    "category": "historical-research",
+    "sourceSha256": "1031baecfd00e7423b5692c50280844f322ecb6f493d0228ebe2a86d6b06ae22",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/2026-09-15-CORE-ENGINE-REVIEW-SOURCES.md",
+    "destination": "docs/research/2026-09-15-CORE-ENGINE-REVIEW-SOURCES.md",
+    "category": "historical-research",
+    "sourceSha256": "fd11565ad92d9fac2d0d87c2b4938cdcb64e408767c398d317beacf6fff8aa2e",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/founding/2026-09-15-RUNTIME-AND-GLOBAL-EXECUTION-REVIEW.md",
+    "destination": "docs/research/2026-09-15-RUNTIME-AND-GLOBAL-EXECUTION-REVIEW.md",
+    "category": "historical-research",
+    "sourceSha256": "ac875221efade7d6eb14a4d9ebdede259bd29a278804d8ba74bd09ca7848f9c4",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/steering/DECISIONS.md",
+    "destination": "docs/archive/legacy-decisions.md",
+    "category": "historical-decisions",
+    "sourceSha256": "4dad54e761b6c1618aef0230fd7f5d7d62e97084bc8cd0053b48efe64a8b0f9b",
+    "transform": "adoption banner prepended"
+  },
+  {
+    "source": "/Volumes/Mrigesh SSD/Knowscroll-v2/docs/design/2026-09-08-cosmos.html",
+    "destination": "docs/product/references/cosmos.html",
+    "category": "primary-visual-reference",
+    "sourceSha256": "33af432f01c2310232709408a6b273c8c7b47bb820709ecee487055f1e335f4f",
+    "transform": "verbatim"
+  },
+  {
+    "source": "/Users/comreton/Documents/ChatGPT/Knowscroll/knowscroll-living-observatory.html",
+    "destination": "docs/product/references/living-observatory.html",
+    "category": "behavior-reference",
+    "sourceSha256": "b2aab98224f15383c6551b636f46f39693bb397d7d77cf6cd06b92974d2cbadb",
+    "transform": "verbatim"
+  }
+]

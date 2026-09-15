@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*.local
+local.properties
+.gradle/
+.kotlin/
+**/build/
+dist/
+artifacts/
+*.log
+.DS_Store

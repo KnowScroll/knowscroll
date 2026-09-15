@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark variant is the only variant the slice ships. values-night and
+     values resolve to the same theme so platform switching cannot
+     introduce a light variant. -->
+<resources>
+    <style name="Theme.KnowScroll" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/cosmos_dark</item>
+        <item name="android:statusBarColor">@color/cosmos_dark</item>
+        <item name="android:navigationBarColor">@color/cosmos_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

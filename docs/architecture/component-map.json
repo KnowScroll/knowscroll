@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "updated": "2026-09-15",
+  "note": "Paths are ownership roots, not proof every target module exists. No separate service is implied.",
+  "components": [
+    {
+      "component": "Mobile",
+      "responsibility": "Navigation, rendering, local state",
+      "path": "apps/mobile",
+      "status": "partial",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/3"
+    },
+    {
+      "component": "API",
+      "responsibility": "Authentication boundary, admission, HTTP contracts",
+      "path": "apps/api",
+      "status": "development-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/2"
+    },
+    {
+      "component": "Ledger",
+      "responsibility": "Canonical events, idempotency and causal history",
+      "path": "packages/db",
+      "status": "partial",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/4"
+    },
+    {
+      "component": "Accounts",
+      "responsibility": "Conservative signal projections",
+      "path": "apps/worker/src/project.ts",
+      "status": "explicit-keeps-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/4"
+    },
+    {
+      "component": "Composer",
+      "responsibility": "Eligible candidate selection and explanations",
+      "path": "packages/core/src/composer.ts",
+      "status": "editorial-unkept-v1",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/5"
+    },
+    {
+      "component": "Substrate",
+      "responsibility": "Sources, claims, concepts and semantic bridges",
+      "path": "content",
+      "status": "source-fields-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/6"
+    },
+    {
+      "component": "Cartographer / Chart",
+      "responsibility": "Typed semantic geography and lineage",
+      "path": "apps/worker",
+      "status": "trace-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/6"
+    },
+    {
+      "component": "Steward",
+      "responsibility": "Evidence-linked hypotheses and proposals",
+      "path": "apps/worker",
+      "status": "planned",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/6"
+    },
+    {
+      "component": "Reasoning Plane",
+      "responsibility": "Global jobs, steps, attempts, budgets and isolation",
+      "path": "apps/worker/src/providers",
+      "status": "port-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/7"
+    },
+    {
+      "component": "Quartermaster",
+      "responsibility": "Demand, reuse, adaptation, joins and funding",
+      "path": "apps/worker",
+      "status": "planned",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/8"
+    },
+    {
+      "component": "Inventory / Content Plane",
+      "responsibility": "Asset revisions, rights, eligibility and private binding",
+      "path": "content",
+      "status": "editorial-library-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/8"
+    },
+    {
+      "component": "Cutroom Adapter",
+      "responsibility": "External HTTP runs and verified asset import",
+      "path": "apps/worker/src/cutroom",
+      "status": "port-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/9"
+    },
+    {
+      "component": "Projector / Social",
+      "responsibility": "Authorized projections, visits and revocable Blend",
+      "path": "apps/api",
+      "status": "planned",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/11"
+    },
+    {
+      "component": "Rooms / Inhabitants",
+      "responsibility": "Bounded situated collaboration",
+      "path": "apps/worker",
+      "status": "planned",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/10"
+    },
+    {
+      "component": "Evaluation / Operations",
+      "responsibility": "Journey evidence and live inspection",
+      "path": "scripts",
+      "status": "J001-only",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/12"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cosmos palette. Dark cosmos ground is ink-near-black #03101a; the
+  Scroll sheet is cream #fffdf2; semantic accents are teal #33c4b4,
+  coral #ff684c, and yellow #ffd058. The decoration dots in the cosmos
+  are non-semantic — they are not Stars.
+-->
+<resources>
+    <color name="cosmos_dark">#FF03101A</color>
+</resources>

@@ -1,0 +1,28 @@
+# KnowScroll mobile — local.properties template
+#
+# Copy this file to local.properties and fill in real values. NEVER
+# commit local.properties. The .gitignore at the repo root already
+# excludes it.
+#
+# KS_DEV_TOKEN is the local debug token that pairs with the bootstrap
+# HTTP service at http://10.0.2.2:4310 (emulator) or http://127.0.0.1:4310
+# (host loopback). It is read from local.properties into BuildConfig in
+# debug builds only. Release builds never see this token.
+#
+# If you do not have a token yet, leave KS_DEV_TOKEN empty. Debug builds
+# still compile and the app surfaces a "missing token" runtime state
+# instead of failing fast — that is the intended behavior until the
+# coordinator provisions a real token.
+
+## Path to the Android SDK. The coordinator installs the SDK at the
+## path below on macOS / Linux hosts.
+sdk.dir=/Volumes/Mrigesh SSD/knowscroll-dev/android-sdk
+
+## Debug bearer token for /v1/*. Required for non-empty API responses.
+## Example (do not use this literal token — it is a placeholder):
+KS_DEV_TOKEN=
+
+## Optional: override the API base URL for debug builds. Default is
+## http://10.0.2.2:4310 which is the Android emulator's view of the
+## host loopback. If you run the API on a different port, override.
+## KS_DEBUG_API_BASE=http://10.0.2.2:4310

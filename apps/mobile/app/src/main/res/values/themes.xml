@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Theme: dark only. The Compose UI owns the actual visual style; this
+  XML theme exists to (1) prevent the platform's default light theme
+  from flashing before the Activity composes, and (2) declare the
+  edge-to-edge dark window background.
+-->
+<resources>
+    <style name="Theme.KnowScroll" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/cosmos_dark</item>
+        <item name="android:statusBarColor">@color/cosmos_dark</item>
+        <item name="android:navigationBarColor">@color/cosmos_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup rules. The slice stores nothing user-private beyond an
+  idempotency UUID per persisted POST; backup is disabled so those
+  UUIDs do not leak across devices and so we do not silently replicate
+  state we have not validated.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="ks_state.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="ks_state.xml" />
+    </device-transfer>
+</data-extraction-rules>
