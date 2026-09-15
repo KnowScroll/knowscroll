@@ -61,8 +61,8 @@ test('expiry is evaluated after waiting for the universe lock', async () => {
  } finally {
   if(!blockerReleased) {await blocker.query('ROLLBACK');blocker.release();}
   await auth.catch(()=>{});
-  await authClient.query('ROLLBACK');authClient.release();
- }
+   await authClient.query('ROLLBACK');authClient.release();
+  }
 });
 
 test('privacy epoch advancement invalidates an already minted session', async () => {
