@@ -45,16 +45,24 @@ test('expiry is evaluated after waiting for the universe lock', async () => {
  const authClient=await pool.connect();await authClient.query('BEGIN');
  const authPid=(await authClient.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
  const auth=authenticateAndLock(authClient,provisioned.token);
- let blocked=false;
- for(let attempt=0;attempt<20;attempt++) {
-  const blockers=(await pool.query('SELECT pg_blocking_pids($1) AS pids',[authPid])).rows[0].pids as number[];
-  if(blockers.includes(blockerPid)) {blocked=true;break;}
-  await new Promise(resolve=>setTimeout(resolve,20));
+ void auth.catch(()=>{});
+ let blockerReleased=false;
+ try {
+  let blocked=false;
+  for(let attempt=0;attempt<20;attempt++) {
+   const blockers=(await pool.query('SELECT pg_blocking_pids($1) AS pids',[authPid])).rows[0].pids as number[];
+   if(blockers.includes(blockerPid)) {blocked=true;break;}
+   await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  assert.equal(blocked,true,'authentication must be waiting on the universe lock before expiry');
+  await new Promise(resolve=>setTimeout(resolve,1_050));
+  await blocker.query('COMMIT');blocker.release();blockerReleased=true;
+  await assert.rejects(auth,UnauthorizedSession);
+ } finally {
+  if(!blockerReleased) {await blocker.query('ROLLBACK');blocker.release();}
+  await auth.catch(()=>{});
+  await authClient.query('ROLLBACK');authClient.release();
  }
- assert.equal(blocked,true,'authentication must be waiting on the universe lock before expiry');
- await new Promise(resolve=>setTimeout(resolve,1_050)); await blocker.query('COMMIT'); blocker.release();
- await assert.rejects(auth,UnauthorizedSession);
- await authClient.query('ROLLBACK');authClient.release();
 });
 
 test('privacy epoch advancement invalidates an already minted session', async () => {
