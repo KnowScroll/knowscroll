@@ -17,6 +17,10 @@ testenv={**env,'DATABASE_URL':urlunparse(u._replace(path='/'+name))}
 try:
  # The original integration test asserts bootstrap-wide counts and installs a
  # temporary failure trigger. Finish it before independently provisioned users.
- for cmd in [['pnpm','db:migrate'],['pnpm','db:seed'],['pnpm','exec','tsx','--test','tests/core.test.ts','tests/integration.test.ts','tests/migrations.test.ts'],['pnpm','exec','tsx','--test','--test-concurrency=1','tests/identity.test.ts','tests/worker-epochs.test.ts','tests/api-sessions.test.ts']]:subprocess.run(cmd,env=testenv,check=True)
+ baseline=['tests/core.test.ts','tests/integration.test.ts','tests/migrations.test.ts']
+ additional=sorted(str(path) for path in Path('tests').glob('*.test.ts') if str(path) not in baseline)
+ commands=[['pnpm','db:migrate'],['pnpm','db:seed'],['pnpm','exec','tsx','--test',*baseline]]
+ if additional:commands.append(['pnpm','exec','tsx','--test','--test-concurrency=1',*additional])
+ for cmd in commands:subprocess.run(cmd,env=testenv,check=True)
 finally:subprocess.run(['dropdb',*args,name],env=env,check=True)
 PY2
