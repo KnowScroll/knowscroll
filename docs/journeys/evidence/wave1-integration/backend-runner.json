@@ -1,0 +1,10 @@
+{
+  "journey": "J001",
+  "result": "passed",
+  "runtime": {
+    "apiPort": 58477,
+    "database": "isolated disposable PostgreSQL",
+    "worker": "separate process"
+  },
+  "negativeWrongRuntimePath": "rejected as expected"
+}

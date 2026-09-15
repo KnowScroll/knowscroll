@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-09-15T18:57:44.191446+00:00",
+  "sourceRevision": "2a5a51305272e8351da62dee815dd13384fe3471",
+  "signal": "SIGTERM",
+  "timing": "after real API and worker startup",
+  "exitCode": 1,
+  "apiPort": 58681,
+  "workerPid": 17391,
+  "apiPortClosed": true,
+  "workerExited": true,
+  "newDatabasesRemaining": [],
+  "result": "passed"
+}
