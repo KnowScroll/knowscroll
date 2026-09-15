@@ -17,4 +17,8 @@ export async function transaction<T>(fn: (client: pg.PoolClient) => Promise<T>):
  try { await c.query('BEGIN'); const out=await fn(c); await c.query('COMMIT'); return out; }
  catch(e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
 }
-export async function lockUniverse(c: pg.PoolClient) { await c.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [OWNER_ID]); }
+export async function lockUniverse(c: pg.PoolClient, universeId = OWNER_ID) {
+ const row = await c.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [universeId]);
+ if (!row.rowCount) throw new Error('Universe not found');
+}
+export * from './identity.ts';
