@@ -6,6 +6,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.knowscroll.mobile.data.ApiClient
+import com.knowscroll.mobile.data.ExposureRequest
+import com.knowscroll.mobile.data.InteractionRequest
+import com.knowscroll.mobile.data.StateStore
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -27,6 +30,67 @@ class RealJourneyTest {
         File(instrumentation.targetContext.filesDir,"$name.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG,100,it)
         }
+    }
+    private fun store() = StateStore(InstrumentationRegistry.getInstrumentation().targetContext)
+    private fun writeJson(name:String, json:JSONObject) =
+        File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,name).writeText(json.toString(2))
+
+    /** Phase one exits normally; the host then force-stops the package, which kills app and test processes. */
+    @Test fun processDeathPrepare() = runBlocking {
+        val expected=ApiClient().getFeed().items.firstOrNull() ?: error("Need one unkept Scroll")
+        waitText("Your universe")
+        compose.onNodeWithContentDescription("Enter Scroll").performClick()
+        waitText(expected.title)
+        compose.waitUntil(10000){store().read()?.exposureId?.isNotEmpty()==true}
+        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasText("SOURCE"))
+        compose.waitUntil(10000){(store().read()?.readingPosition ?: 0)>0}
+        val session=store().read() ?: error("Scroll retry envelope was not persisted")
+        val exposureRetry=ApiClient().postExposure(ExposureRequest(session.decisionId,session.item.assetId,session.clientExposureId))
+        assertEquals(session.exposureId,exposureRetry.exposureId)
+        assertEquals(session.exposureEventId,exposureRetry.eventId)
+        capture("wave1-process-before")
+        writeJson("wave1-process-before.json",JSONObject().apply {
+            put("assetId",session.item.assetId);put("decisionId",session.decisionId)
+            put("clientExposureId",session.clientExposureId);put("clientEventId",session.clientEventId)
+            put("exposureId",session.exposureId);put("exposureEventId",session.exposureEventId)
+            put("readingPosition",session.readingPosition);put("phase","before-force-stop")
+        })
+    }
+
+    /** Launched by a new instrumentation process after `am force-stop` and an explicit app relaunch. */
+    @Test fun processDeathRestoreKeepReturnAndNext() = runBlocking {
+        val before=JSONObject(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"wave1-process-before.json").readText())
+        waitText(before.getString("assetId").let { store().read()?.item?.title ?: error("Session missing after process death") })
+        val restored=store().read() ?: error("Retry envelope missing after process death")
+        assertEquals(before.getString("assetId"),restored.item.assetId)
+        assertEquals(before.getString("decisionId"),restored.decisionId)
+        assertEquals(before.getString("clientExposureId"),restored.clientExposureId)
+        assertEquals(before.getString("clientEventId"),restored.clientEventId)
+        assertEquals(before.getString("exposureId"),restored.exposureId)
+        assertEquals(before.getInt("readingPosition"),restored.readingPosition)
+        compose.onNodeWithContentDescription("Scroll reading content").assertExists()
+        capture("wave1-process-restored")
+        compose.onNodeWithContentDescription("Keep this Scroll").performClick()
+        waitText("Kept")
+        val kept=store().read() ?: error("Accepted keep was not persisted")
+        val retry=ApiClient().postInteraction(InteractionRequest(kept.clientEventId,kept.exposureId,kept.item.assetId,"keep"))
+        assertEquals(kept.keepEventId,retry.eventId);assertEquals(kept.keepJobId,retry.jobId)
+        compose.onNodeWithContentDescription("Return to the universe").performClick()
+        waitText("Your universe");waitText(restored.item.title)
+        compose.onNodeWithContentDescription("Enter Scroll").performClick()
+        compose.waitUntil(15000){store().read()?.item?.assetId?.let{it!=restored.item.assetId}==true}
+        val next=store().read() ?: error("Next Scroll was not persisted")
+        waitText(next.item.title);assertNotEquals(restored.item.assetId,next.item.assetId)
+        compose.onNodeWithContentDescription("Return to the universe").performClick();waitText("Your universe")
+        capture("wave1-process-return-next")
+        writeJson("wave1-process-after.json",JSONObject().apply {
+            put("assetId",restored.item.assetId);put("nextAssetId",next.item.assetId)
+            put("clientExposureId",restored.clientExposureId);put("clientEventId",restored.clientEventId)
+            put("exposureId",restored.exposureId);put("exposureEventId",restored.exposureEventId)
+            put("keepEventId",kept.keepEventId);put("keepJobId",kept.keepJobId)
+            put("readingPosition",restored.readingPosition);put("screenAfterReturn","universe")
+            put("processDeath","passed");put("idempotentRetries","passed")
+        })
     }
     @Test fun unavailableIsHonest() {
         waitText("The universe is unreachable.")
