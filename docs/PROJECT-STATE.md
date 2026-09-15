@@ -27,7 +27,7 @@ See [J001](journeys/J001.md). Backend implementation and HTTP journey passed. Th
 
 Wave-one review and combined runtime proof: [J001 evidence](journeys/evidence/wave1-integration/README.md). Twelve backend tests and two verifier rejection tests passed; all five Android instrumentation phases passed, including force-stop/cold relaunch with the same reading position and retry identities. These checks do not prove a lost response after admission, physical-device eviction timing, frame performance or user usefulness.
 
-Last development observation: 2026-09-15 18:52 UTC (00:22 India, September 16). API healthy, worker heartbeat fresh, pinned bootstrap checksum adopted and the same two projection jobs completed. Use `pnpm state` to refresh; this is a timestamped observation, not a promise that these processes remain running.
+Last development observation: 2026-09-15 19:01 UTC (00:31 India, September 16). API healthy, worker heartbeat fresh, pinned bootstrap checksum present and the same two projection jobs completed. The regular emulator app was rebuilt from merged implementation, installed with data preserved, and launched successfully. Use `pnpm state` to refresh; this is a timestamped observation, not a promise that these processes remain running.
 
 ## Next work after wave one
 
