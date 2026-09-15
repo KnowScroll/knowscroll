@@ -51,9 +51,20 @@ test('a locked universe does not block ready work for another universe',async()=
  await pool.query("UPDATE job SET available_at='1999-01-01T00:00:00Z' WHERE id=$1",[blocked.jobId]);
  const lock=await pool.connect();await lock.query('BEGIN');
  await lock.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE',[blocked.universeId]);
- assert.deepEqual(await projectOne(),{jobId:available.jobId,status:'completed'});
- assert.equal((await pool.query('SELECT status FROM job WHERE id=$1',[blocked.jobId])).rows[0].status,'pending');
- await lock.query('COMMIT');lock.release();
+ const projection=projectOne();
+ let timer: NodeJS.Timeout|undefined;
+ try {
+  const result=await Promise.race([
+   projection,
+   new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('projection blocked behind another universe')),2_000);}),
+  ]);
+  assert.deepEqual(result,{jobId:available.jobId,status:'completed'});
+  assert.equal((await pool.query('SELECT status FROM job WHERE id=$1',[blocked.jobId])).rows[0].status,'pending');
+ } finally {
+  if(timer) clearTimeout(timer);
+  await lock.query('ROLLBACK');lock.release();
+  await projection.catch(()=>{});
+ }
  assert.deepEqual(await projectOne(),{jobId:blocked.jobId,status:'completed'});
 });
 
