@@ -35,6 +35,8 @@ try:
   print(result)
   if 'OK (1 test)' not in result:raise RuntimeError('Android instrumentation did not pass')
  run(['adb','shell','wm','size','840x1680'])
+ process_size=subprocess.check_output(['adb','shell','wm','size'],text=True).strip()
+ display_density=subprocess.check_output(['adb','shell','wm','density'],text=True).strip()
  instrument('processDeathPrepare')
  component=package+'/com.knowscroll.mobile.MainActivity'
  run(['adb','shell','am','start','-W','-n',component])
@@ -48,6 +50,7 @@ try:
  if not after_pid or after_pid==before_pid:raise RuntimeError('Journey app did not relaunch in a new OS process')
  instrument('processDeathRestoreKeepReturnAndNext')
  run(['adb','shell','wm','size','reset'])
+ regular_size=subprocess.check_output(['adb','shell','wm','size'],text=True).strip()
  instrument('sourcedScrollKeepAndReturn')
  import signal
  os.killpg(api.pid,signal.SIGTERM);api.wait(timeout=10)
@@ -57,6 +60,7 @@ try:
   try:urllib.request.urlopen('http://127.0.0.1:4311/health',timeout=1);break
   except Exception:time.sleep(.25)
  run(['adb','shell','wm','size','840x1680'])
+ compact_size=subprocess.check_output(['adb','shell','wm','size'],text=True).strip()
  instrument('compactLayoutAndRecovery')
  for filename in ['wave1-process-before.json','wave1-process-after.json','wave1-process-before.png','wave1-process-restored.png','wave1-process-return-next.png','j001-android.json','j001-scroll.png','j001-return.png','j001-unavailable.png','j001-compact.png','j001-recovered.png']:
   (out/filename).write_bytes(subprocess.check_output(['adb','exec-out','run-as',package,'cat','files/'+filename]))
@@ -75,7 +79,7 @@ try:
  import hashlib
  hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('apps/mobile').rglob('*') if p.is_file() and 'build' not in p.parts and '.gradle' not in p.parts and '.kotlin' not in p.parts and p.name!='local.properties'}
  hashes['scripts/android-journey.py']=hashlib.sha256(Path('scripts/android-journey.py').read_bytes()).hexdigest()
- (out/'environment.json').write_text(json.dumps({'git':head,'observedAt':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),'sourceSha256':hashes,'database':'isolated disposable PostgreSQL','apiPort':4311,'emulator':'API36 arm64','regularSize':'1080x2400','compactSize':'840x1680','processDeath':{'forceStopPid':before_pid,'relaunchPid':after_pid,'readingPosition':process_receipt['readingPosition'],'sameRetryIdentity':True,'exposureRows':exposure_count,'exposureLedgerRows':exposure_ledger_count,'keepLedgerRows':keep_count},'result':'passed'},indent=2)+'\n')
+ (out/'environment.json').write_text(json.dumps({'git':head,'observedAt':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),'sourceSha256':hashes,'database':'isolated disposable PostgreSQL','apiPort':4311,'emulator':'API36 arm64','displayDensity':display_density,'regularSize':regular_size,'compactSize':compact_size,'processDeath':{'displaySize':process_size,'forceStopPid':before_pid,'relaunchPid':after_pid,'readingPosition':process_receipt['readingPosition'],'sameRetryIdentity':True,'exposureRows':exposure_count,'exposureLedgerRows':exposure_ledger_count,'keepLedgerRows':keep_count},'result':'passed'},indent=2)+'\n')
 finally:
  run(['adb','shell','wm','size','reset'])
  import signal

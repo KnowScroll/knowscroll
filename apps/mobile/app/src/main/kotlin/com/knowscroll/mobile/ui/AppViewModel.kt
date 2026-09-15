@@ -112,7 +112,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val updated=s.copy(readingPosition=position);store.writeReadingPosition(assetId,position);session=updated
     }
     fun returnToUniverse(){
-        navigationVersion++;_screen.value=Screen.Universe;savedState["screen"]="universe";store.writeScreen("universe");loadUniverse()
+        navigationVersion++;visited.clear();store.writeVisited(visited)
+        _screen.value=Screen.Universe;savedState["screen"]="universe";store.writeScreen("universe");loadUniverse()
     }
     private fun loadUniverse(){viewModelScope.launch{
         _universe.value=UniverseState.Loading

@@ -24,12 +24,27 @@ class RealJourneyTest {
     private fun waitText(text:String) = compose.waitUntil(15000) {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
-    private fun capture(name:String) {
+    private fun capture(name:String, requireLightSurface:Boolean=false) {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
-        val bitmap=instrumentation.uiAutomation.takeScreenshot()
-        File(instrumentation.targetContext.filesDir,"$name.png").outputStream().use {
-            bitmap.compress(Bitmap.CompressFormat.PNG,100,it)
+        var bitmap:Bitmap?=null
+        for(attempt in 0 until 5) {
+            compose.waitForIdle();instrumentation.waitForIdleSync();Thread.sleep(500)
+            bitmap=instrumentation.uiAutomation.takeScreenshot()
+            if(!requireLightSurface || hasLightSurface(bitmap!!))break
         }
+        val captured=bitmap ?: error("Android screenshot was unavailable")
+        if(requireLightSurface)assertTrue("Restored Scroll was not visibly drawn",hasLightSurface(captured))
+        File(instrumentation.targetContext.filesDir,"$name.png").outputStream().use {
+            captured.compress(Bitmap.CompressFormat.PNG,100,it)
+        }
+    }
+    private fun hasLightSurface(bitmap:Bitmap):Boolean {
+        var light=0;var sampled=0
+        for(y in 0 until bitmap.height step 20)for(x in 0 until bitmap.width step 20){
+            val pixel=bitmap.getPixel(x,y);sampled++
+            if(android.graphics.Color.red(pixel)+android.graphics.Color.green(pixel)+android.graphics.Color.blue(pixel)>540)light++
+        }
+        return light>sampled/5
     }
     private fun store() = StateStore(InstrumentationRegistry.getInstrumentation().targetContext)
     private fun writeJson(name:String, json:JSONObject) =
@@ -48,7 +63,7 @@ class RealJourneyTest {
         val exposureRetry=ApiClient().postExposure(ExposureRequest(session.decisionId,session.item.assetId,session.clientExposureId))
         assertEquals(session.exposureId,exposureRetry.exposureId)
         assertEquals(session.exposureEventId,exposureRetry.eventId)
-        capture("wave1-process-before")
+        capture("wave1-process-before",requireLightSurface=true)
         writeJson("wave1-process-before.json",JSONObject().apply {
             put("assetId",session.item.assetId);put("decisionId",session.decisionId)
             put("clientExposureId",session.clientExposureId);put("clientEventId",session.clientEventId)
@@ -69,7 +84,7 @@ class RealJourneyTest {
         assertEquals(before.getString("exposureId"),restored.exposureId)
         assertEquals(before.getInt("readingPosition"),restored.readingPosition)
         compose.onNodeWithContentDescription("Scroll reading content").assertExists()
-        capture("wave1-process-restored")
+        capture("wave1-process-restored",requireLightSurface=true)
         compose.onNodeWithContentDescription("Keep this Scroll").performClick()
         waitText("Kept")
         val kept=store().read() ?: error("Accepted keep was not persisted")
