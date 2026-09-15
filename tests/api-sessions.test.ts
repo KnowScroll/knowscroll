@@ -15,6 +15,17 @@ after(async () => { await app.close(); await pool.end(); });
 const headers = (token: string) => ({ authorization: `Bearer ${token}` });
 const getSession = (token: string) => app.inject({ url: '/v1/session', headers: headers(token) });
 
+async function waitForBlockedRequest(blockerPid: number) {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const row = (await pool.query(`SELECT pid, xact_start FROM pg_stat_activity
+      WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))`, [blockerPid])).rows[0];
+    if (row) return row as { pid: number; xact_start: Date };
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.fail('authenticated request never waited on the held universe lock');
+}
+
 async function feed(token: string) {
   const response = await app.inject({ url: '/v1/feed', headers: headers(token) });
   assert.equal(response.statusCode, 200, response.body);
@@ -44,6 +55,9 @@ test('two independent sessions retain server-owned scope and isolate API resourc
   assert.equal(secondSession.statusCode, 200);
   assert.equal(firstSession.json().universeId, first.scope.universeId);
   assert.equal(secondSession.json().universeId, first.scope.universeId);
+  const universe = await app.inject({ url: '/v1/universe', headers: headers(first.token) });
+  assert.equal(universe.statusCode, 200);
+  assert.equal(universe.json().privacyEpoch, 0);
 
   const other = await provisionIdentity();
   const firstFeed = await feed(first.token);
@@ -75,6 +89,7 @@ test('session authentication and revoke errors are strict, generic, and token-fr
     await app.inject({ url: '/v1/session' }),
     await app.inject({ url: '/v1/session', headers: { authorization: 'Basic no' } }),
     await app.inject({ url: '/v1/session', headers: headers(randomBytes(32).toString('hex')) }),
+    await app.inject({ method: 'POST', url: '/v1/exposures', payload: {} }),
   ];
   for (const response of invalidRequests) {
     assert.equal(response.statusCode, 401);
@@ -117,17 +132,24 @@ test('privacy epoch invalidates old sessions and rejects stale references before
     [oldFeed.decisionId, oldExposure.receipt.eventId, keep.json().eventId],
   );
   assert.deepEqual(stamps.rows[0], { decision_epoch: 0, exposure_epoch: 0, keep_epoch: 0, job_epoch: 0 });
+  await pool.query("UPDATE job SET status='discarded', discarded_at=clock_timestamp() WHERE id=$1", [keep.json().jobId]);
 });
 
 test('expiry is checked after a request finishes waiting for the universe lock', async () => {
   const identity = await provisionIdentity();
-  await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '200 milliseconds' WHERE id=$1", [identity.scope.sessionId]);
+  await pool.query("UPDATE device_session SET created_at=clock_timestamp()-interval '1 second', expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1", [identity.scope.sessionId]);
   const blocker = await pool.connect();
   try {
     await blocker.query('BEGIN');
     await blocker.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [identity.scope.universeId]);
-    const request = getSession(identity.token);
-    await new Promise(resolve => setTimeout(resolve, 300));
+    const blockerPid = Number((await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);
+    const request = Promise.resolve(getSession(identity.token));
+    const waiting = await waitForBlockedRequest(blockerPid);
+    const expiresAt = (await pool.query('SELECT expires_at FROM device_session WHERE id=$1', [identity.scope.sessionId])).rows[0].expires_at as Date;
+    assert.ok(waiting.xact_start < expiresAt, 'request transaction must begin before expiry');
+    while (!(await pool.query('SELECT clock_timestamp()>=$1 AS expired', [expiresAt])).rows[0].expired) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
     await blocker.query('COMMIT');
     const response = await request;
     assert.equal(response.statusCode, 401);
@@ -145,8 +167,9 @@ test('revocation committed while a request waits on the universe lock denies tha
     await blocker.query('BEGIN');
     await blocker.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [identity.scope.universeId]);
     await blocker.query('UPDATE device_session SET revoked_at=clock_timestamp() WHERE id=$1', [identity.scope.sessionId]);
-    const request = getSession(identity.token);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    const blockerPid = Number((await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);
+    const request = Promise.resolve(getSession(identity.token));
+    await waitForBlockedRequest(blockerPid);
     await blocker.query('COMMIT');
     const response = await request;
     assert.equal(response.statusCode, 401);

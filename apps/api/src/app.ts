@@ -52,8 +52,10 @@ export function buildApp(developmentToken: string) {
   app.get('/v1/session', async req => authenticated(req.headers.authorization, async scope => scope));
 
   app.post('/v1/session/revoke', async (req, reply) => {
-    if (!emptyObject(req.body)) throw new HttpError(400, 'Invalid revoke request');
-    await authenticated(req.headers.authorization, async (scope, client) => { await revokeSession(client, scope); });
+    await authenticated(req.headers.authorization, async (scope, client) => {
+      if (!emptyObject(req.body)) throw new HttpError(400, 'Invalid revoke request');
+      await revokeSession(client, scope);
+    });
     return reply.code(204).send();
   });
 
@@ -80,12 +82,12 @@ export function buildApp(developmentToken: string) {
   }));
 
   app.post('/v1/exposures', async (req, reply) => {
-    const parsed = exposureInput.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, 'Invalid exposure');
-    const body = parsed.data;
     const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const decision = (await client.query('SELECT universe_id, candidates, privacy_epoch FROM decision WHERE id=$1', [body.decisionId])).rows[0];
-      if (!decision || decision.universe_id !== scope.universeId) throw new HttpError(422, 'Asset was not selected in this decision');
+      const parsed = exposureInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid exposure');
+      const body = parsed.data;
+      const decision = (await client.query('SELECT candidates, privacy_epoch FROM decision WHERE id=$1 AND universe_id=$2', [body.decisionId, scope.universeId])).rows[0];
+      if (!decision) throw new HttpError(422, 'Asset was not selected in this decision');
       if (decision.privacy_epoch !== scope.privacyEpoch) throw new HttpError(409, 'Decision belongs to an older privacy epoch');
       const old = (await client.query('SELECT * FROM exposure WHERE universe_id=$1 AND client_key=$2', [scope.universeId, body.clientExposureId])).rows[0];
       if (old) {
@@ -103,19 +105,20 @@ export function buildApp(developmentToken: string) {
   });
 
   app.post('/v1/interactions', async (req, reply) => {
-    const parsed = interactionInput.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, 'Invalid interaction');
-    const body = parsed.data;
     const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const exposure = (await client.query(`SELECT e.universe_id, e.event_id, l.privacy_epoch
-        FROM exposure e JOIN ledger l ON l.id=e.event_id WHERE e.id=$1 AND e.asset_id=$2`, [body.exposureId, body.assetId])).rows[0];
-      if (!exposure || exposure.universe_id !== scope.universeId) throw new HttpError(422, 'A matching exposure is required');
+      const parsed = interactionInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid interaction');
+      const body = parsed.data;
+      const exposure = (await client.query(`SELECT e.event_id, e.asset_id, l.privacy_epoch
+        FROM exposure e JOIN ledger l ON l.id=e.event_id WHERE e.id=$1 AND e.universe_id=$2`, [body.exposureId, scope.universeId])).rows[0];
+      if (!exposure) throw new HttpError(422, 'A matching exposure is required');
       if (exposure.privacy_epoch !== scope.privacyEpoch) throw new HttpError(409, 'Exposure belongs to an older privacy epoch');
       const old = (await client.query(`SELECT l.id,l.payload,j.id AS job_id FROM ledger l JOIN job j ON j.event_id=l.id WHERE l.universe_id=$1 AND l.kind='keep' AND l.client_key=$2`, [scope.universeId, body.clientEventId])).rows[0];
       if (old) {
         if (old.payload.exposureId !== body.exposureId || old.payload.assetId !== body.assetId) throw new HttpError(409, 'Event key reused with different content');
         return { eventId: old.id, jobId: old.job_id, status: 'accepted' };
       }
+      if (exposure.asset_id !== body.assetId) throw new HttpError(422, 'A matching exposure is required');
       const eventId = randomUUID();
       const jobId = randomUUID();
       await client.query('INSERT INTO ledger(id,universe_id,kind,client_key,causation_id,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6,$7)', [eventId, scope.universeId, 'keep', body.clientEventId, exposure.event_id, JSON.stringify(body), scope.privacyEpoch]);
@@ -126,8 +129,8 @@ export function buildApp(developmentToken: string) {
   });
 
   app.get<{ Params: { eventId: string } }>('/v1/events/:eventId', async req => {
-    if (!uuid.safeParse(req.params.eventId).success) throw new HttpError(400, 'Invalid event ID');
     return authenticated(req.headers.authorization, async (scope, client) => {
+      if (!uuid.safeParse(req.params.eventId).success) throw new HttpError(400, 'Invalid event ID');
       const row = (await client.query(`SELECT l.id AS "eventId", l.causation_id AS "causationId", l.payload->>'exposureId' AS "exposureId", l.kind, j.id AS "jobId", j.status AS "jobStatus", COALESCE(j.status='completed',false) AS projected FROM ledger l LEFT JOIN job j ON j.event_id=l.id WHERE l.id=$1 AND l.universe_id=$2`, [req.params.eventId, scope.universeId])).rows[0];
       if (!row) throw new HttpError(404, 'Event not found');
       return row;
