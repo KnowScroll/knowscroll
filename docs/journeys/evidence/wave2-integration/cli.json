@@ -1,0 +1,8 @@
+{
+  "check": "session-provisioning-cli",
+  "result": "passed",
+  "mode": "0600",
+  "tokenInOutput": false,
+  "overwrite": "rejected",
+  "unignoredGitDestination": "rejected"
+}
