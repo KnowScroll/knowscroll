@@ -22,11 +22,16 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
@@ -34,6 +39,9 @@ import com.knowscroll.mobile.data.ScrollItem
 import com.knowscroll.mobile.ui.KeepState
 import com.knowscroll.mobile.ui.ScrollState
 import com.knowscroll.mobile.ui.theme.Cosmos
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
 
 @Composable
 fun ScrollScreen(
@@ -42,11 +50,12 @@ fun ScrollScreen(
     onReturn: () -> Unit,
     onNext: () -> Unit,
     onRetry: () -> Unit,
+    onReadingPosition: (String, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize().background(Cosmos.Dark)) {
         when (state) {
-            is ScrollState.Reading -> ReadingSheet(state.item, state.keep, onKeep, onReturn, onNext)
+            is ScrollState.Reading -> key(state.item.assetId) { ReadingSheet(state.item, state.keep, state.readingPosition, onKeep, onReturn, onNext, onReadingPosition) }
             is ScrollState.Unavailable -> UnavailableColumn(state.message, onReturn, onRetry)
             else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp)
@@ -71,8 +80,15 @@ private fun UnavailableColumn(message: String, onReturn: () -> Unit, onRetry: ()
 }
 
 @Composable
-private fun ReadingSheet(item: ScrollItem, keep: KeepState, onKeep: () -> Unit, onReturn: () -> Unit, onNext: () -> Unit) {
+private fun ReadingSheet(item: ScrollItem, keep: KeepState, initialPosition: Int, onKeep: () -> Unit, onReturn: () -> Unit, onNext: () -> Unit, onReadingPosition: (String, Int) -> Unit) {
     val context = LocalContext.current
+    val readingScroll = rememberScrollState(initialPosition)
+    LaunchedEffect(item.assetId, readingScroll) {
+        snapshotFlow { readingScroll.value }.distinctUntilChanged().collectLatest {
+            delay(200);onReadingPosition(item.assetId,it)
+        }
+    }
+    DisposableEffect(item.assetId,readingScroll){onDispose{onReadingPosition(item.assetId,readingScroll.value)}}
     Surface(
         color = Cosmos.Cream,
         contentColor = Cosmos.InkOnCream,
@@ -81,7 +97,8 @@ private fun ReadingSheet(item: ScrollItem, keep: KeepState, onKeep: () -> Unit, 
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 24.dp)) {
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = true).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = true).verticalScroll(readingScroll)
+                    .semantics { contentDescription = "Scroll reading content"; stateDescription = "Reading position ${readingScroll.value}" },
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text("SCROLL · ${item.truthState.uppercase()}", style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)

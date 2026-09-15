@@ -1,0 +1,42 @@
+{
+  "issue": 15,
+  "implementationCommit": "3dd8cef2a2c3d85b0736a51098020bbe2534363c",
+  "observedAt": "2026-09-15T18:55:23.389412+00:00",
+  "surface": "Android API 36 arm64 emulator + real HTTP API/worker + isolated disposable PostgreSQL",
+  "apiPort": 4311,
+  "display": {
+    "density": "Physical density: 420",
+    "regular": "Physical size: 1080x2400",
+    "processDeath": "Physical size: 1080x2400; Override size: 840x1680"
+  },
+  "processDeath": {
+    "forceStopPid": 8392,
+    "relaunchPid": 8438,
+    "assetId": "10000000-0000-4000-8000-000000000001",
+    "nextAssetId": "10000000-0000-4000-8000-000000000002",
+    "readingPositionBeforeAndAfter": 516,
+    "sameDecisionExposureAndKeepRetryIdentities": true,
+    "screenAfterReturn": "universe"
+  },
+  "databaseAssertions": {
+    "exposureRowsForClientKey": 1,
+    "exposureLedgerRowsForClientKey": 1,
+    "keepLedgerRowsForClientKey": 1
+  },
+  "commands": [
+    "./gradlew :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --console plain",
+    "python3 scripts/android-journey.py"
+  ],
+  "results": {
+    "buildAndLint": "passed",
+    "processDeathPrepare": "passed",
+    "processDeathRestoreKeepReturnAndNext": "passed",
+    "sourcedScrollKeepAndReturn": "passed",
+    "unavailableIsHonest": "passed",
+    "compactLayoutAndRecovery": "passed"
+  },
+  "limits": [
+    "The journey retries admitted exposure and keep requests with the same identities, but does not inject a transport loss after server admission and before the client receives the response.",
+    "The emulator journey does not prove low-memory eviction timing across physical Android devices."
+  ]
+}
