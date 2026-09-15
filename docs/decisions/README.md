@@ -10,6 +10,7 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0006 — AI SDK inside a bounded KnowScroll reasoning runtime](0006-ai-sdk-provider-port.md)
 - [ADR-0007 — Cutroom stays a separate video-generation system](0007-cutroom-separate-http-service.md)
 - [ADR-0008 — Adopt the full product foundation](ADR-0008-foundation-adoption.md)
+- [ADR-0009 — Device sessions and privacy epoch fences](0009-device-sessions-and-privacy-epochs.md)
 
 ## Process
 
