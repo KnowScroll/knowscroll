@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-09-15T19:35:12.519585+00:00",
+  "tables": {
+    "universe": {
+      "rows": 1,
+      "sha256": "55fe5eb298b529352c2f99097ee385170acce08c1949d564b4842abf40e6d63a"
+    },
+    "accounts": {
+      "rows": 1,
+      "sha256": "f3f7e9b68d8ed7c56d61360de2bb8b34fdf4cb7c38f68c102d71d973fe5b84e8"
+    },
+    "decision": {
+      "rows": 6,
+      "sha256": "949eb2908be1d026c52cb2b3ec3feed59e244da38422c1848bc9db7d6a2688dd"
+    },
+    "ledger": {
+      "rows": 5,
+      "sha256": "ac675dbdbe5c50d8c7fe32a1ef8a4556817b655871bd922d2263661e59e42fc6"
+    },
+    "exposure": {
+      "rows": 3,
+      "sha256": "76e331e8847ce4cd11cd4deba1136e2903a9271ccab3ad1de858f24996b8a8ff"
+    },
+    "job": {
+      "rows": 2,
+      "sha256": "9d89879e40914feeb95abe7df0447392f53fc556bb88e4e68a3d618f77394355"
+    },
+    "trace": {
+      "rows": 2,
+      "sha256": "fd9076b98e75c8023c862a99357c701358cc22ea8c15b179dbcd56efb9a6b849"
+    },
+    "asset": {
+      "rows": 3,
+      "sha256": "e573bcc67abe5564b69bb6abe7b431be16dfee08f91b1a6f37917cd5b4b3b28d"
+    }
+  }
+}

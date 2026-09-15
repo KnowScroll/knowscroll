@@ -1,0 +1,8 @@
+{
+  "observedAt": "2026-09-15T19:39:35.708242+00:00",
+  "test": "SIGTERM after separate worker startup",
+  "exitCode": 1,
+  "newDatabasesRemaining": 0,
+  "newApiWorkerProcessesRemaining": 0,
+  "result": "passed"
+}

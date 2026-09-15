@@ -33,6 +33,22 @@ pnpm dev:worker
 
 The initializer creates a random local database password and development token in ignored `.env` (mode0600), initializes only the dedicated cluster, applies migrations and seeds three sourced Scrolls without overwriting existing content. Do not use this local bearer identity for deployment; production start is guarded. PostgreSQL binaries must be on PATH; the Mac environment script adds the installed Homebrew location.
 
+### Local device sessions
+
+API startup enrolls the configured development token once for the existing owner universe. It then follows the same server-side expiry, revocation and epoch checks as other sessions. Restarting the API does not renew or restore it. Do not delete its row to bypass revocation.
+
+Operators can provision an independent universe and device session into a new private credential file:
+
+```sh
+pnpm exec tsx scripts/provision-session.ts --out artifacts/device-session.json
+```
+
+Use `--universe-id UUID` only to enroll another device in an existing universe. Optional `--device-id UUID` records the device binding; `--expires-in-hours N` accepts 1–720 hours (default 720). The file contains a bearer credential: keep it local, outside Git or in an ignored directory, and do not copy it into logs or evidence. The command refuses an existing destination. This is trusted operator provisioning, not public signup, account recovery or verified personal identity. Mobile session-switching UX remains future work.
+
+`GET /v1/session` returns non-secret metadata. `POST /v1/session/revoke` with `{}` revokes the caller's session; later requests return 401, including after API restart. Requests already holding the universe lock may finish before revocation commits. Expired or old-epoch sessions also return 401. Re-enrollment requires an explicitly minted replacement token; never silently extend an old token.
+
+Privacy epochs fence queued projection and old decision/exposure references. There is no clear/delete/pause or epoch-advance HTTP endpoint yet. Do not manually advance an owner's epoch as an improvised privacy operation; J002 exercises this internal boundary only on disposable data.
+
 `./scripts/db-start.sh` / `./scripts/db-stop.sh` control only the project cluster. API/worker stop with Ctrl-C. `pnpm state` queries actual migrations/jobs/heartbeats and health; a historical receipt never means a service is still running.
 
 ### Migration integrity
@@ -82,6 +98,8 @@ Install SDK packages sequentially: concurrent Android CLI downloads produced a t
 `python3 scripts/android-journey.py` (after sourcing scripts/env.sh) creates a disposable PostgreSQL database, runs API/worker on port4311, installs a separate `.journey` app, and proves process-death restoration, keep/recreation, unavailable-server behavior and compact-screen recovery. It preserves the normal development database and app. Receipts/screenshots go to ignored artifacts/android-journey; reviewed snapshots belong in docs/journeys/evidence.
 
 `pnpm exec tsx scripts/run-isolated-journey.ts` creates disposable actual/decoy databases and a dynamic API port, verifies real HTTP/worker/database lineage, and rejects the wrong verifier database. It accepts DATABASE_URL from the environment when no local `.env` exists and is exercised in CI.
+
+`pnpm exec tsx scripts/run-isolated-session-journey.ts` verifies the [J002 session and epoch journey](../journeys/J002.md) with separately launched API/worker processes and disposable PostgreSQL data. It provisions two universes without modifying normal owner data.
 
 `pnpm test` creates a uniquely named `knowscroll_test_*` database and removes only that disposable database. `pnpm verify:journey` mutates the selected real development universe by keeping one asset; library exhaustion is an honest result. [J001](../journeys/J001.md) separates API and Android proof.
 

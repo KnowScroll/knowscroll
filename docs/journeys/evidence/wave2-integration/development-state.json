@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-09-15T19:41:49.610Z",
+  "git": "1cbc5308eef0999049211fd13363376c04b70afa",
+  "migrations": [
+    {
+      "name": "0001_bootstrap.sql",
+      "applied_at": "2026-09-15T17:53:16.458Z",
+      "checksum": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "name": "0002_identity_epochs.sql",
+      "applied_at": "2026-09-15T19:41:02.262Z",
+      "checksum": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    }
+  ],
+  "jobs": [
+    {
+      "status": "completed",
+      "count": 2
+    }
+  ],
+  "workers": [
+    {
+      "worker_id": "local-82368",
+      "last_seen": "2026-09-15T19:41:49.280Z",
+      "recently_seen": true
+    },
+    {
+      "worker_id": "local-90222",
+      "last_seen": "2026-09-15T19:41:01.523Z",
+      "recently_seen": false
+    }
+  ],
+  "api": true,
+  "capabilities": {
+    "reasoning": false,
+    "cutroom": false,
+    "worldEvolution": false
+  }
+}

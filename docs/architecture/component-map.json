@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-09-15",
+  "updated": "2026-09-16",
   "note": "Paths are ownership roots, not proof every target module exists. No separate service is implied.",
   "components": [
     {
@@ -14,14 +14,14 @@
       "component": "API",
       "responsibility": "Authentication boundary, admission, HTTP contracts",
       "path": "apps/api",
-      "status": "development-only",
+      "status": "scoped-device-sessions-development-only",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/2"
     },
     {
       "component": "Ledger",
       "responsibility": "Canonical events, idempotency and causal history",
       "path": "packages/db",
-      "status": "partial",
+      "status": "owned-events-with-privacy-epochs",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/4"
     },
     {
@@ -105,7 +105,7 @@
       "component": "Evaluation / Operations",
       "responsibility": "Journey evidence and live inspection",
       "path": "scripts",
-      "status": "J001-only",
+      "status": "J001-and-J002",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/12"
     }
   ]
