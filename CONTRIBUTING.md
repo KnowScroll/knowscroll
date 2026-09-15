@@ -21,3 +21,7 @@ A PR explains the user-visible change, relevant issue/ADR, changed boundaries, i
 A substantial change reconnects six things: owner outcome → issue requirements → ADR/architecture → code → runtime receipt → next-session entry point. Update only artifacts whose truth changed. A fresh snapshot belongs in evidence; a new permanent capability belongs in PROJECT-STATE. Architecture changes supersede ADRs instead of editing history away.
 
 Do not mark a journey proven because typecheck passed. Do not mark target components implemented because an interface exists. Do not commit secrets, local database content, raw provider thinking, or large generated media.
+
+## GitHub enforcement limitation
+
+GitHub returned HTTP403 when enabling branch protection for this private repository on the current plan. The repository remains private. CI and PR templates are active, but required checks/reviews and force-push protection are not server-enforced. Use the documented review workflow; enabling enforcement later requires an eligible GitHub plan. No subscription was changed.
