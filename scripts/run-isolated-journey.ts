@@ -61,11 +61,11 @@ try {
   api=start('pnpm',['exec','tsx','apps/api/src/main.ts'],environment);
   worker=start('pnpm',['exec','tsx','apps/worker/src/main.ts'],environment);
   const base=`http://127.0.0.1:${port}`;await waitForHealth(base,token,[api,worker]);
+  await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}.json`});
   let wrongPathRejected=false;
   try { await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_DATABASE_URL:decoyUrl,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}-wrong.json`},true); }
   catch(error) { if(/no single persisted decision\/exposure\/keep\/job\/Accounts\/Trace lineage exists/.test(String(error))) wrongPathRejected=true; else throw error; }
   if(!wrongPathRejected) throw new Error('negative proof unexpectedly passed: verifier accepted a different database than the API and worker');
-  await run('pnpm',['exec','tsx','scripts/verify-journey.ts'],{...environment,JOURNEY_RECEIPT_PATH:`artifacts/j001-isolated-${suffix}.json`});
   console.log(JSON.stringify({journey:'J001',result:'passed',runtime:{apiPort:port,database:'isolated disposable PostgreSQL',worker:'separate process'},negativeWrongRuntimePath:'rejected as expected'}));
 } finally {
   await stop(worker);await stop(api);
