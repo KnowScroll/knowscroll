@@ -25,9 +25,12 @@ import subprocess,os
 from urllib.parse import urlparse
 entries=dict(x.split('=',1) for x in Path('.env').read_text().splitlines() if '=' in x and not x.startswith('#'))
 u=urlparse(entries['DATABASE_URL']);env={**os.environ,'PGPASSWORD':u.password}
+import re
+database=u.path.lstrip('/')
+if not re.fullmatch(r'knowscroll(?:_[a-z0-9_]+)?',database):raise SystemExit('Use a knowscroll or knowscroll_* local database name')
 base=['psql','-h',u.hostname,'-p',str(u.port),'-U',u.username,'-d','postgres','-tAc']
-exists=subprocess.check_output(base+["SELECT 1 FROM pg_database WHERE datname='knowscroll'"],env=env,text=True).strip()
-if not exists:subprocess.run(['createdb','-h',u.hostname,'-p',str(u.port),'-U',u.username,'knowscroll'],env=env,check=True)
+exists=subprocess.check_output(base+[f"SELECT 1 FROM pg_database WHERE datname='{database}'"],env=env,text=True).strip()
+if not exists:subprocess.run(['createdb','-h',u.hostname,'-p',str(u.port),'-U',u.username,database],env=env,check=True)
 PY2
 pnpm db:migrate
 pnpm db:seed

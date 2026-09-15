@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 values=dict(l.split('=',1) for l in Path('.env').read_text().splitlines() if '=' in l and not l.startswith('#'))
 p=Path('apps/mobile/local.properties')
-p.write_text('sdk.dir='+os.environ['ANDROID_HOME']+'\nKS_DEV_TOKEN='+values['KS_DEV_TOKEN']+'\n')
+p.write_text('sdk.dir='+os.environ['ANDROID_HOME']+'\nKS_DEV_TOKEN='+values['KS_DEV_TOKEN']+'\nKS_DEBUG_API_BASE=http://10.0.2.2:'+values.get('PORT','4310')+'\n')
 p.chmod(0o600)
 print('Android local configuration updated; token not printed.')
 PY2

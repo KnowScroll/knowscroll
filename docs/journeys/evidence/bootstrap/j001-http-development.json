@@ -1,0 +1,34 @@
+{
+  "observedAt": "2026-09-15T17:57:03.292Z",
+  "git": "uncommitted bootstrap",
+  "journey": "J001",
+  "surface": "real HTTP + separate worker + PostgreSQL; Android UI is separate proof",
+  "assetId": "10000000-0000-4000-8000-000000000001",
+  "decisionId": "8c5a863e-d16b-40d5-a32b-fba05dbbbc16",
+  "exposure": {
+    "exposureId": "19f11d19-e3eb-43b2-a5b5-f0c058c99d99",
+    "eventId": "edf02078-d24f-45e4-9556-c900f95a8190"
+  },
+  "accepted": {
+    "eventId": "a6e6bb46-dfa1-4f33-9e44-89060f171b6c",
+    "jobId": "09297025-c8c5-4db1-a078-444729ed43e5",
+    "status": "accepted"
+  },
+  "event": {
+    "eventId": "a6e6bb46-dfa1-4f33-9e44-89060f171b6c",
+    "causationId": "edf02078-d24f-45e4-9556-c900f95a8190",
+    "exposureId": "19f11d19-e3eb-43b2-a5b5-f0c058c99d99",
+    "kind": "keep",
+    "jobId": "09297025-c8c5-4db1-a078-444729ed43e5",
+    "jobStatus": "completed",
+    "projected": true
+  },
+  "beforeRevision": 0,
+  "afterRevision": 1,
+  "nextDecisionId": "62373068-e9b8-4344-8714-416d1b0303f2",
+  "nextAssetIds": [
+    "10000000-0000-4000-8000-000000000002",
+    "10000000-0000-4000-8000-000000000003"
+  ],
+  "result": "passed"
+}
