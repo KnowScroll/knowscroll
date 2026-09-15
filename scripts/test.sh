@@ -15,6 +15,8 @@ args=['-h',u.hostname,'-p',str(u.port or 5432),'-U',u.username]
 subprocess.run(['createdb',*args,name],env=env,check=True)
 testenv={**env,'DATABASE_URL':urlunparse(u._replace(path='/'+name))}
 try:
- for cmd in [['pnpm','db:migrate'],['pnpm','db:seed'],['pnpm','exec','tsx','--test','tests/core.test.ts','tests/integration.test.ts','tests/migrations.test.ts']]:subprocess.run(cmd,env=testenv,check=True)
+ # The original integration test asserts bootstrap-wide counts and installs a
+ # temporary failure trigger. Finish it before independently provisioned users.
+ for cmd in [['pnpm','db:migrate'],['pnpm','db:seed'],['pnpm','exec','tsx','--test','tests/core.test.ts','tests/integration.test.ts','tests/migrations.test.ts'],['pnpm','exec','tsx','--test','--test-concurrency=1','tests/identity.test.ts','tests/worker-epochs.test.ts','tests/api-sessions.test.ts']]:subprocess.run(cmd,env=testenv,check=True)
 finally:subprocess.run(['dropdb',*args,name],env=env,check=True)
 PY2

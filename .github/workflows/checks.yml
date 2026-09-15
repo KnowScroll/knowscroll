@@ -31,6 +31,8 @@ jobs:
       - run: pnpm exec tsx --test scripts/journey-verifier.test.ts
       - name: Verify isolated HTTP, worker and PostgreSQL journey
         run: pnpm exec tsx scripts/run-isolated-journey.ts
+      - name: Verify two-session isolation and privacy epoch fences
+        run: pnpm exec tsx scripts/run-isolated-session-journey.ts
   android:
     runs-on: ubuntu-latest
     steps:
