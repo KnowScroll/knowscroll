@@ -1,0 +1,10 @@
+{
+  "assetId": "10000000-0000-4000-8000-000000000001",
+  "decisionId": "e6ac0f1c-4b1c-4208-be7c-3f7df9ad9025",
+  "clientExposureId": "b0c9379d-a594-42ca-a1b8-85abf36201c8",
+  "clientEventId": "bc659b8b-6cea-428b-8300-a3bccbfb9f18",
+  "exposureId": "65b5ffae-b77c-46e6-a9f8-00cba06b650e",
+  "exposureEventId": "04f245d1-08a9-4dea-8c49-918edfb61f4d",
+  "readingPosition": 516,
+  "phase": "before-force-stop"
+}

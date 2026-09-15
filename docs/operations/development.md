@@ -35,6 +35,12 @@ The initializer creates a random local database password and development token i
 
 `./scripts/db-start.sh` / `./scripts/db-stop.sh` control only the project cluster. API/worker stop with Ctrl-C. `pnpm state` queries actual migrations/jobs/heartbeats and health; a historical receipt never means a service is still running.
 
+### Migration integrity
+
+`pnpm db:migrate` records SHA-256 checksums and serializes migration runners in one transaction. Applied migrations must remain an ordered prefix of the files on disk; changed, missing or inserted earlier files fail before pending SQL commits. Add a new numbered migration instead of editing an applied file.
+
+Existing bootstrap installations can adopt a checksum only for the pinned original `0001_bootstrap.sql`. This verifies the known migration file, not whether someone manually changed a historical database schema. An unknown checksum-less migration needs an explicit reviewed recovery decision; never delete migration history or reset personal state to bypass the error. `pnpm test` checks fresh installation, legacy adoption, drift, rollback and concurrent execution in a disposable database.
+
 ## Android
 
 ```sh
@@ -73,7 +79,9 @@ Install SDK packages sequentially: concurrent Android CLI downloads produced a t
 
 ## Verification and secrets
 
-`python3 scripts/android-journey.py` (after sourcing scripts/env.sh) creates a disposable PostgreSQL database, runs API/worker on port4311, installs a separate `.journey` app, and proves keep/recreation, unavailable-server behavior and compact-screen recovery. It preserves the normal development database and app. Receipts/screenshots go to ignored artifacts/android-journey; reviewed snapshots belong in docs/journeys/evidence.
+`python3 scripts/android-journey.py` (after sourcing scripts/env.sh) creates a disposable PostgreSQL database, runs API/worker on port4311, installs a separate `.journey` app, and proves process-death restoration, keep/recreation, unavailable-server behavior and compact-screen recovery. It preserves the normal development database and app. Receipts/screenshots go to ignored artifacts/android-journey; reviewed snapshots belong in docs/journeys/evidence.
+
+`pnpm exec tsx scripts/run-isolated-journey.ts` creates disposable actual/decoy databases and a dynamic API port, verifies real HTTP/worker/database lineage, and rejects the wrong verifier database. It accepts DATABASE_URL from the environment when no local `.env` exists and is exercised in CI.
 
 `pnpm test` creates a uniquely named `knowscroll_test_*` database and removes only that disposable database. `pnpm verify:journey` mutates the selected real development universe by keeping one asset; library exhaustion is an honest result. [J001](../journeys/J001.md) separates API and Android proof.
 
