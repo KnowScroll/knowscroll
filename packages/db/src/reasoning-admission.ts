@@ -355,6 +355,7 @@ export async function reserveAttemptInTransaction(
   await beforeResourceLocks?.(client, {policy, bindingHash});
   const buckets = await lockPolicyBuckets(client, policy);
   assertBucketBindings(policy, buckets);
+  if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash) deny('policy_binding_changed');
   if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version})) {
     deny('stale_context');
   }
@@ -565,6 +566,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         }
         const buckets = await lockPolicyBuckets(client, policy);
         assertBucketBindings(policy, buckets);
+        if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash) deny('policy_binding_changed');
         if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: attemptRow.context_id, policyVersion: job.policy_version})) {
           deny('stale_context');
         }
