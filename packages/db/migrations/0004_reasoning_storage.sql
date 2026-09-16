@@ -142,7 +142,7 @@ CREATE TABLE reasoning_settlement_adjustment (
  settlement_id uuid NOT NULL, attempt_id uuid NOT NULL, bucket_id uuid NOT NULL, unit reasoning_unit NOT NULL,
  delta bigint NOT NULL CHECK(delta BETWEEN -9007199254740991 AND 9007199254740991),
  FOREIGN KEY(settlement_id,attempt_id) REFERENCES reasoning_settlement(id,attempt_id) ON DELETE CASCADE,
- FOREIGN KEY(attempt_id,bucket_id,unit) REFERENCES reasoning_reservation(attempt_id,bucket_id,unit),
+ FOREIGN KEY(attempt_id,bucket_id,unit) REFERENCES reasoning_reservation(attempt_id,bucket_id,unit) ON DELETE CASCADE,
  PRIMARY KEY(settlement_id,bucket_id)
 );
 
