@@ -400,14 +400,18 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         assertBucketBindings(policy, buckets);
         const stillCurrent = await client.query(
           `SELECT 1 FROM reasoning_job WHERE id=$1 AND status='running' AND lease_owner=$2 AND lease_fence=$3::bigint
-           AND lease_expires_at>clock_timestamp() AND deadline>clock_timestamp()`,
-          [input.jobId, input.owner, input.leaseFence],
+           AND lease_expires_at>clock_timestamp() AND deadline>clock_timestamp() AND $4::timestamptz>clock_timestamp()`,
+          [input.jobId, input.owner, input.leaseFence, input.deadline],
         );
         if (stillCurrent.rowCount !== 1) deny('expired_lease_or_job');
         const reservations = policy.buckets.map((binding) => ({
           binding,
           amount: reservationAmount(binding, input.inputTokensUpperBound, input.maxOutputTokens, input.costCeilingMicroUsd),
         })).sort((a, b) => a.binding.bucketId.localeCompare(b.binding.bucketId));
+        for (const reservation of reservations) {
+          const bucket = buckets.get(reservation.binding.bucketId);
+          if (!bucket || BigInt(reservation.amount) > BigInt(bucket.capacity)) deny('impossible_capacity');
+        }
         for (const reservation of reservations) {
           const updated = await client.query(
             `UPDATE reasoning_bucket SET reserved=reserved+$2::bigint
@@ -453,7 +457,14 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
           [attemptId, input.jobId, input.stepId, input.contextId, input.universeId, input.privacyEpoch,
             input.leaseFence, input.requestHash, permitId, reservationSetId],
         );
-        await client.query("UPDATE reasoning_step SET status='active' WHERE id=$1 AND status='pending'", [input.stepId]);
+        const activated = await client.query(
+          `UPDATE reasoning_step SET status='active' WHERE id=$1 AND status='pending'
+           AND EXISTS(SELECT 1 FROM reasoning_job WHERE id=$2 AND status='running' AND lease_owner=$3
+             AND lease_fence=$4::bigint AND lease_expires_at>clock_timestamp() AND deadline>clock_timestamp())
+           AND $5::timestamptz>clock_timestamp()`,
+          [input.stepId, input.jobId, input.owner, input.leaseFence, input.deadline],
+        );
+        if (activated.rowCount !== 1) deny('expired_lease_or_job');
         return {
           attemptId,
           permitId,
@@ -548,13 +559,19 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         if (stillAuthorized.rowCount !== 1) deny('authorization_expired');
         const accountUpdate = await client.query(
           `UPDATE reasoning_accounting SET state='dispatch_committed',dispatch_id=$2,dispatch_committed_at=clock_timestamp()
-           WHERE attempt_id=$1 AND state='reserved' AND dispatch_id IS NULL`,
-          [input.attemptId, input.dispatchId],
+           WHERE attempt_id=$1 AND state='reserved' AND dispatch_id IS NULL AND deadline>clock_timestamp()
+             AND output_authority='eligible'
+             AND EXISTS(SELECT 1 FROM reasoning_job WHERE id=$3 AND status='running' AND lease_owner=$4
+               AND lease_fence=$5::bigint AND lease_expires_at>clock_timestamp() AND deadline>clock_timestamp())
+             AND EXISTS(SELECT 1 FROM reasoning_permit WHERE id=$6 AND attempt_id=$1
+               AND state='reserved' AND dispatch_id IS NULL AND expires_at>clock_timestamp())`,
+          [input.attemptId, input.dispatchId, input.jobId, input.owner, input.leaseFence, attemptRow.permit_id],
         );
         const permitUpdate = await client.query(
           `UPDATE reasoning_permit SET state='consumed',dispatch_id=$2,consumed_at=clock_timestamp()
-           WHERE id=$1 AND state='reserved' AND dispatch_id IS NULL`,
-          [attemptRow.permit_id, input.dispatchId],
+           WHERE id=$1 AND state='reserved' AND dispatch_id IS NULL AND expires_at>clock_timestamp()
+             AND EXISTS(SELECT 1 FROM reasoning_accounting WHERE attempt_id=$3 AND state='dispatch_committed' AND dispatch_id=$2)`,
+          [attemptRow.permit_id, input.dispatchId, input.attemptId],
         );
         if (accountUpdate.rowCount !== 1 || permitUpdate.rowCount !== 1) deny('dispatch_race_lost');
         return {
@@ -584,13 +601,13 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         const attempts = await client.query<{id: string; step_id: string; permit_id: string; state: string}>(
           `SELECT a.id,a.step_id,a.permit_id,ac.state FROM reasoning_attempt a
            JOIN reasoning_accounting ac ON ac.attempt_id=a.id
-           WHERE a.job_id=$1 AND a.active ORDER BY a.id FOR UPDATE OF a,ac`,
+           WHERE a.job_id=$1 ORDER BY a.id FOR UPDATE OF a,ac`,
           [input.jobId],
         );
         const heldBuckets = await client.query<{bucket_id: string}>(
           `SELECT DISTINCT r.bucket_id FROM reasoning_reservation r
            JOIN reasoning_attempt a ON a.id=r.attempt_id
-           WHERE a.job_id=$1 AND a.active AND r.state='held' ORDER BY r.bucket_id`,
+           WHERE a.job_id=$1 AND r.state='held' ORDER BY r.bucket_id`,
           [input.jobId],
         );
         if (heldBuckets.rows.length > 0) {
@@ -615,6 +632,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
           } else {
             await client.query("UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1", [attempt.id]);
             await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [attempt.id]);
+            if (attempt.state === 'unknown') preservedUnknown += 1;
           }
         }
         await client.query(
@@ -641,7 +659,10 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         );
         const job = jobResult.rows[0];
         if (!job) deny('unknown_job');
-        if (!job.lease_expires_at || (await client.query<{expired: boolean}>('SELECT $1::timestamptz<=clock_timestamp() AS expired', [job.lease_expires_at])).rows[0]?.expired !== true) {
+        const expiredLease = job.lease_expires_at !== null
+          && (await client.query<{expired: boolean}>('SELECT $1::timestamptz<=clock_timestamp() AS expired', [job.lease_expires_at])).rows[0]?.expired === true;
+        const continuingFencedRecovery = job.status === 'waiting' && job.lease_owner === null && job.lease_expires_at === null;
+        if (!expiredLease && !continuingFencedRecovery) {
           deny('lease_still_healthy');
         }
         if (['completed', 'failed', 'cancelled', 'expired'].includes(job.status)) deny('terminal_job');
@@ -665,11 +686,18 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
           await releaseUnconsumed(client, input.attemptId, attemptRow.permit_id);
           await client.query("UPDATE reasoning_step SET status='failed' WHERE id=$1", [input.stepId]);
           outcome = 'not_sent';
-        } else if (state === 'dispatch_committed') {
-          await client.query(
-            "UPDATE reasoning_accounting SET state='unknown',output_authority='withdrawn' WHERE attempt_id=$1 AND state='dispatch_committed'",
-            [input.attemptId],
-          );
+        } else if (state === 'dispatch_committed' || state === 'unknown') {
+          if (state === 'dispatch_committed') {
+            await client.query(
+              "UPDATE reasoning_accounting SET state='unknown',output_authority='withdrawn' WHERE attempt_id=$1 AND state='dispatch_committed'",
+              [input.attemptId],
+            );
+          } else {
+            await client.query(
+              "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1 AND state='unknown'",
+              [input.attemptId],
+            );
+          }
           await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [input.attemptId]);
           await client.query("UPDATE reasoning_step SET status='awaiting_reconciliation' WHERE id=$1", [input.stepId]);
           outcome = 'unknown';
@@ -703,21 +731,21 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         );
         const job = jobResult.rows[0];
         if (!job) return {outcome: 'private_state_gone' as const, outputWithdrawn: true};
-        if (job.lease_owner !== input.owner || job.lease_fence !== input.leaseFence) deny('stale_lease');
-        if (!job.lease_expires_at || !(await client.query<{valid: boolean}>('SELECT clock_timestamp()<$1::timestamptz AS valid', [job.lease_expires_at])).rows[0]?.valid) deny('stale_lease');
-        if (!['running', 'waiting'].includes(job.status)) deny('job_not_running');
+        const currentLease = job.lease_owner === input.owner && job.lease_fence === input.leaseFence
+          && job.lease_expires_at !== null
+          && (await client.query<{valid: boolean}>('SELECT clock_timestamp()<$1::timestamptz AS valid', [job.lease_expires_at])).rows[0]?.valid === true;
         const step = await client.query<{status: string}>(
           'SELECT status FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE', [input.stepId, input.jobId],
         );
         if (!step.rows[0]) return {outcome: 'private_state_gone' as const, outputWithdrawn: true};
-        const attempt = await client.query<{active: boolean}>(
-          `SELECT active FROM reasoning_attempt
+        const attempt = await client.query<{active: boolean; lease_fence: string}>(
+          `SELECT active,lease_fence FROM reasoning_attempt
            WHERE id=$1 AND job_id=$2 AND step_id=$3 AND universe_id=$4 AND privacy_epoch=$5 FOR UPDATE`,
           [input.attemptId, input.jobId, input.stepId, input.universeId, input.privacyEpoch],
         );
         if (!attempt.rows[0]) return {outcome: 'private_state_gone' as const, outputWithdrawn: true};
-        if (!attempt.rows[0].active) deny('attempt_not_active');
-        const withdrawOutput = input.reason === 'deadline' || input.reason === 'local_cancel';
+        if (attempt.rows[0].lease_fence !== input.leaseFence) deny('stale_attempt_fence');
+        const withdrawOutput = input.reason === 'deadline' || input.reason === 'local_cancel' || !currentLease;
         const accounting = await client.query(
           `UPDATE reasoning_accounting SET state='unknown',
             output_authority=CASE WHEN $2::boolean THEN 'withdrawn' ELSE output_authority END
@@ -725,9 +753,11 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
           [input.attemptId, withdrawOutput],
         );
         if (accounting.rowCount !== 1) deny('attempt_not_dispatched');
-        await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [input.attemptId]);
-        await client.query("UPDATE reasoning_step SET status='awaiting_reconciliation' WHERE id=$1", [input.stepId]);
-        await client.query("UPDATE reasoning_job SET status='waiting' WHERE id=$1 AND status='running'", [input.jobId]);
+        if (currentLease) {
+          await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [input.attemptId]);
+          await client.query("UPDATE reasoning_step SET status='awaiting_reconciliation' WHERE id=$1", [input.stepId]);
+          await client.query("UPDATE reasoning_job SET status='waiting' WHERE id=$1 AND status='running'", [input.jobId]);
+        }
         return {outcome: 'unknown' as const, outputWithdrawn: withdrawOutput};
       });
     },

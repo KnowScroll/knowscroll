@@ -197,6 +197,27 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
     });
   });
 
+  await t.test('a reservation may exactly fill capacity but an impossible request is permanently denied atomically', async () => {
+    await withSchema('impossiblecapacity', async (pool) => {
+      const authority = makeAuthority();
+      const fitting = await seedGraph(pool, '-2 seconds');
+      const impossible = await seedGraph(pool, '-1 second');
+      await installPolicy(pool, authority, fitting, makePolicy({universeId: fitting.universeId, privacyEpoch: 0, jobId: fitting.jobId}), 40);
+      const impossiblePolicy = await installPolicy(pool, authority, impossible, makePolicy({universeId: impossible.universeId, privacyEpoch: 0, jobId: impossible.jobId}), 39);
+      const admission = createReasoningAdmission(pool, authority);
+      const fittingClaim = await admission.claimJob({owner: 'worker-fit', leaseMs: 50_000});
+      const impossibleClaim = await admission.claimJob({owner: 'worker-impossible', leaseMs: 50_000});
+      assert(fittingClaim && impossibleClaim);
+      await admission.reserveAttempt(reservationInput(fitting, fittingClaim, {owner: 'worker-fit'}));
+      await assert.rejects(
+        admission.reserveAttempt(reservationInput(impossible, impossibleClaim, {owner: 'worker-impossible'})),
+        (error) => assertDenied(error, 'impossible_capacity'),
+      );
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_attempt WHERE job_id=$1', [impossible.jobId])).rows[0]?.count, 0);
+      assert.equal((await pool.query('SELECT coalesce(sum(reserved),0)::text AS value FROM reasoning_bucket WHERE id=ANY($1::uuid[])', [impossiblePolicy.buckets.map((binding) => binding.bucketId)])).rows[0]?.value, '0');
+    });
+  });
+
   await t.test('invalid, missing, stale policy and context bindings leave no partial admission', async () => {
     await withSchema('binding', async (pool) => {
       const authority = makeAuthority();
@@ -354,10 +375,11 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
       }), {outcome: 'unknown', outputWithdrawn: false});
       const account = (await pool.query('SELECT state,output_authority FROM reasoning_accounting WHERE attempt_id=$1', [value.reserved.attemptId])).rows[0];
       assert.deepEqual(account, {state: 'unknown', output_authority: 'eligible'});
-      await assert.rejects(value.admission.markAttemptUnknown({
-        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: graph.stepId,
-        attemptId: value.reserved.attemptId, owner: 'worker-a', leaseFence: value.claim.leaseFence, reason: 'transport_loss',
-      }), (error) => assertDenied(error, 'attempt_not_active'));
+      assert.deepEqual(await value.admission.withdrawJob({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId,
+        owner: 'worker-a', leaseFence: value.claim.leaseFence, reason: 'cancelled',
+      }), {closedNotSent: 0, preservedUnknown: 1});
+      assert.equal((await pool.query('SELECT output_authority FROM reasoning_accounting WHERE attempt_id=$1', [value.reserved.attemptId])).rows[0]?.output_authority, 'withdrawn');
     });
   });
 
@@ -382,6 +404,36 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
         universeId: graph.universeId, privacyEpoch: 1, jobId: graph.jobId, stepId: graph.stepId,
         attemptId: value.reserved.attemptId, owner: 'worker-a', leaseFence: value.claim.leaseFence, reason: 'transport_loss',
       }), {outcome: 'private_state_gone', outputWithdrawn: true});
+    });
+  });
+
+  await t.test('an expired lease may withdraw late output without mutating private execution state', async () => {
+    await withSchema('latecancel', async (pool) => {
+      const authority = makeAuthority();
+      const graph = await seedGraph(pool);
+      await installPolicy(pool, authority, graph);
+      const value = await claimAndReserve(pool, authority, graph);
+      await value.admission.authorizeDispatch({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: graph.stepId,
+        attemptId: value.reserved.attemptId, owner: 'worker-a', leaseFence: value.claim.leaseFence,
+        requestId: value.input.requestId, requestHash: value.input.requestHash,
+        inputTokensUpperBound: value.input.inputTokensUpperBound, maxOutputTokens: value.input.maxOutputTokens, dispatchId: randomUUID(),
+      });
+      await pool.query("UPDATE reasoning_job SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", [graph.jobId]);
+      assert.deepEqual(await value.admission.markAttemptUnknown({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: graph.stepId,
+        attemptId: value.reserved.attemptId, owner: 'worker-a', leaseFence: value.claim.leaseFence, reason: 'deadline',
+      }), {outcome: 'unknown', outputWithdrawn: true});
+      assert.deepEqual((await pool.query('SELECT state,output_authority FROM reasoning_accounting WHERE attempt_id=$1', [value.reserved.attemptId])).rows[0], {
+        state: 'unknown', output_authority: 'withdrawn',
+      });
+      assert.equal((await pool.query('SELECT status FROM reasoning_job WHERE id=$1', [graph.jobId])).rows[0]?.status, 'running');
+      assert.equal((await pool.query('SELECT status FROM reasoning_step WHERE id=$1', [graph.stepId])).rows[0]?.status, 'active');
+      assert.equal((await pool.query('SELECT active FROM reasoning_attempt WHERE id=$1', [value.reserved.attemptId])).rows[0]?.active, true);
+      assert.equal((await value.admission.recoverAttempt({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: graph.stepId,
+        attemptId: value.reserved.attemptId, owner: 'recovery-worker',
+      })).outcome, 'unknown');
     });
   });
 
@@ -456,6 +508,51 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
         attemptId: consumed.reserved.attemptId, owner: 'recovery-worker',
       })).outcome, 'unknown');
       assert.equal((await pool.query('SELECT state FROM reasoning_permit WHERE attempt_id=$1', [consumed.reserved.attemptId])).rows[0]?.state, 'consumed');
+    });
+  });
+
+  await t.test('fenced recovery can close every active Step without stranding later Attempts', async () => {
+    await withSchema('multirecover', async (pool) => {
+      const authority = makeAuthority();
+      const graph = await seedGraph(pool);
+      await installPolicy(pool, authority, graph);
+      const value = await claimAndReserve(pool, authority, graph);
+      const secondContextId = randomUUID();
+      const secondStepId = randomUUID();
+      await pool.query(
+        `INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version)
+         VALUES($1,$2,$3,0,$4,'policy-v1','source-v1')`,
+        [secondContextId, graph.jobId, graph.universeId, 'd'.repeat(64)],
+      );
+      await pool.query(
+        `INSERT INTO reasoning_context_read(context_id,universe_id,privacy_epoch,kind,scope_kind,scope_universe_id,entity_key,revision)
+         VALUES($1,$2,0,'source','public',NULL,'source:second',1)`,
+        [secondContextId, graph.universeId],
+      );
+      await pool.query(
+        `INSERT INTO reasoning_step(id,job_id,universe_id,privacy_epoch,context_id,ordinal,status)
+         VALUES($1,$2,$3,0,$4,2,'pending')`,
+        [secondStepId, graph.jobId, graph.universeId, secondContextId],
+      );
+      authority.validContexts.set(secondContextId, true);
+      const secondInput = reservationInput({...graph, contextId: secondContextId, stepId: secondStepId}, value.claim);
+      const second = await value.admission.reserveAttempt(secondInput);
+      await value.admission.authorizeDispatch({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: secondStepId,
+        attemptId: second.attemptId, owner: 'worker-a', leaseFence: value.claim.leaseFence,
+        requestId: secondInput.requestId, requestHash: secondInput.requestHash, inputTokensUpperBound: secondInput.inputTokensUpperBound,
+        maxOutputTokens: secondInput.maxOutputTokens, dispatchId: randomUUID(),
+      });
+      await pool.query("UPDATE reasoning_job SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", [graph.jobId]);
+      assert.equal((await value.admission.recoverAttempt({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: graph.stepId,
+        attemptId: value.reserved.attemptId, owner: 'recovery-worker',
+      })).outcome, 'not_sent');
+      assert.equal((await value.admission.recoverAttempt({
+        universeId: graph.universeId, privacyEpoch: 0, jobId: graph.jobId, stepId: secondStepId,
+        attemptId: second.attemptId, owner: 'recovery-worker',
+      })).outcome, 'unknown');
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_attempt WHERE job_id=$1 AND active', [graph.jobId])).rows[0]?.count, 0);
     });
   });
 
