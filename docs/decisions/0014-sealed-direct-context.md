@@ -1,0 +1,45 @@
+# ADR-0014 — Sealed direct Scroll context
+
+Date: 2026-09-16. Status: proposed for issue #60; independent review required. Extends ADR-0012 without enabling provider dispatch or proposal application.
+
+## Decision and purpose
+
+Implement `direct_scroll_evidence_v1`: an internal development Context Bundle containing literal explicit Keep facts and the complete sourced Scroll snapshot shown in their decision. An authenticated current device session can compile this bundle for a queued direct reasoning Job in the same universe/epoch. A Keep is evidence of an explicit action, not permission to infer belief, interest or learning, nor permission to start a paid task. No HTTP endpoint or ordinary job consumer is added. Creating a direct reasoning Job and authorizing a future product purpose remain separate gates. Its intent UUID is only a wake identity; it is not a foreign key to a Keep or a proof of task permission.
+
+The compiler accepts trusted `AuthScope`, Job ID, a new context ID and 1–16 selected Keep event IDs. Fixed V1 identities are `direct-scroll-evidence-v1`, `literal-keep-facts-v1` and `editorial-asset-pointer-v1`. It supports metadata compilation before a Step is created; later validation binds the existing Step to this exact context. It rejects duplicate IDs, foreign scope, non-direct or non-queued Jobs and missing lineage. It validates the full Keep → exposure event → exposure row → decision candidate chain. The candidate snapshot is the historical displayed input; its complete asset fields must still match the current asset revision and canonical field hash. Source title/URL are editorial attribution pointers, not versioned source evidence or independently verified claims.
+
+## Frozen representation
+
+A strict versioned payload records context/Job/direct-intent identity, universe/epoch, authenticating session ID and exact expiry, compiler/prompt/source-policy versions, complete resolved runtime-policy hash (including scope IDs, distinct from admission bindingHash), event high-water, selected evidence and asset snapshots, and typed dependencies. No bearer token/hash, arbitrary model content, inferred preferences, raw provider continuation or raw errors are stored.
+
+The selection is explicit, not a complete-history query. Record the maximum scoped Ledger sequence visible at compilation as an informational historical watermark; later unrelated events do not invalidate exact selected reads. The compiler never truncates body or silently omits selected facts. More than 16 selected facts or 65,536 UTF-8 canonical bytes fails before any context writes.
+
+Canonical JSON uses sorted object keys and fixed canonical array ordering (event sequence then UUID; assets by UUID; typed dependencies by kind/identity), preserves exact string bytes and represents PostgreSQL counters as decimal strings. SHA-256 covers the complete payload including identities and authorization. The read-set digest covers every typed dependency. Array order supplied by the caller does not change the result for the same context identity and snapshot.
+
+A new private payload/seal row references the existing context with scope-composite FK and ON DELETE CASCADE. Compiler inserts metadata, separate typed dependency rows, payload and seal in one transaction. A new trigger forbids adding either typed or generic reads once sealed, and serializes insertion/publication on the context row. Generic bigint-only rows are not used for this family; legacy contexts with generic reads cannot be sealed. Existing immutable context/read guards remain. Frozen rows cannot update or independently delete; only context erasure removes them. Legacy fixture contexts remain unsealed and fail this compiler's validator; existing injected fixture authorities remain test-only.
+
+## Authorization, freshness and locks
+
+Compile is an internal caller-owned transaction operation on the same client as server authentication; it reselects the authenticated session and never accepts AuthScope from a request body. Compile uses universe → session → Job → sorted public assets; all scope/epoch/session predicates are re-read after the universe lock. Reserve/dispatch validation uses the caller-held universe and Job/Step locks. The required `lock` phase runs at pre-resource callback sites, locks the exact session and sorted selected assets, and retains them to transaction end. The required `recheck` phase runs after scheduler/physical buckets; it rereads only the exact sealed dependencies and acquires no new locks or dependencies. There is no default phase or transaction token cached across pooled clients. No operation acquires another universe while holding a public asset lock. AuthScope must be supplied by the existing server authentication path; a session UUID from untrusted input is not authority.
+
+Typed reads cover exact scoped Keep/exposure Ledger identities and sequence plus canonical content hash; exposure/decision identity and canonical selected lineage; asset UUID/revision/field hash; session ID/universe/epoch/expiresAt plus live unrevoked/unexpired predicate; and exact compiler/source/runtime policy versions/hashes. Rows without revision columns use exact canonical hashes, not invented revisions. Relevant current rows and the stored seal must agree. Global Accounts/universe revisions are not freshness dependencies.
+
+Validation is local/SQL, with no network call. It returns valid or an enumerated refusal (missing, malformed, foreign, unsupported, obsolete_epoch, inactive_session, stale_lineage, stale_asset, changed_policy, corrupt_seal). It never repairs, rewrites or rebases a context. Success means context freshness only; it is not proposal validation or application authority. A factory adapts this concrete validator into the existing ReasoningAuthority hook while preserving the trusted policy resolver. Compilation and validation must resolve policy on the same trusted server path.
+
+Session revocation/expiry invalidates future uses of the frozen bundle; never substitute another session. An already committed dispatch intent may have escaped before revocation, so no prevention-of-egress claim follows. Accounting remains authorized by original retained identities. Output authority continues to require current context/fence/epoch validation; there is no output consumer or application in this issue.
+
+History clear erases payload/seal/reads with its existing context deletion in the same transaction. Revocation denies use but does not promise immediate erasure. Scheduled retirement remains a later privacy gate. Dirty/background, rooms, Blends, shared/private publication and full production identity are unsupported.
+
+## Verification
+
+Use real disposable PostgreSQL for atomic compile/rollback, foreign session and lineage, missing/changed candidate, same-revision asset drift, exact body/source snapshot, unrelated Keep, policy changes, concurrent clear/compile, session revocation/expiry and seal tampering. Exercise the concrete authority through fair reserve and dispatch, not only through direct validator calls. Clear must remove every private byte/hash while retaining original accounting. No provider calls or semantic application; ordinary reasoning remains false.
+
+## Deferred product decisions
+
+The task families an explicit Keep can feed, future proposal operations/evidence thresholds, durable background authorization, versioned source validity/withdrawal, privacy disclosures and provider budget policy remain outside this boundary. They cannot be inferred from this context schema.
+
+## Implementation API
+
+`compileDirectContext(client, authenticatedScope, input, resolvePolicy)` runs inside the existing server authentication transaction. `input` is the strict `compileDirectContextInput`; the resolver is the existing trusted local/SQL policy resolver. It returns IDs/hashes only, never logs payloads. `validateDirectContext(client, scope, resolvePolicy, phase)` returns `ContextValidation`. `createDirectContextAuthority(resolvePolicy)` implements the concrete `ReasoningAuthority`; enumerated failures use a typed denial prefixed `context_`. No caller may turn an unknown/malformed error into success. Canonicalization and complete-policy hashing live in this module and are tested independently.
+
+Migration 0007 owns canonical UTF-8 payload text and separately canonical typed dependency text. The scope composite FKs cascade solely from context; the dependency-to-seal constraint is deferred to permit atomic publication. Every insertion locks the parent context, closing read-append/seal races. Recomputing canonical payload and dependency hashes on validation detects missing/corrupted rows and divergent representations. No retained accounting references these tables.
