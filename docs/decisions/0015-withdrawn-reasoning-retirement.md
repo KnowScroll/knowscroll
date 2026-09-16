@@ -1,6 +1,6 @@
 # ADR-0015 — Seven-day retirement of withdrawn reasoning jobs
 
-Date: 2026-09-16. Status: owner retention choice accepted; implementation contract under independent review for #62. Extends ADR-0012. No provider or proposal enablement.
+Date: 2026-09-16. Status: accepted and independently reviewed for #62. Extends ADR-0012. No provider or proposal enablement.
 
 ## Context and decision
 
