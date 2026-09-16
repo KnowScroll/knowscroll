@@ -1,9 +1,10 @@
 -- #45: immutable settlement interpretation survives private graph erasure/config changes.
 -- Existing #44 fixture/storage rows remain legacy-unbound and cannot authorize dispatch.
 ALTER TABLE reasoning_accounting ADD COLUMN binding_hash text CHECK(binding_hash ~ '^[0-9a-f]{64}$');
+ALTER TABLE reasoning_accounting ADD COLUMN input_reservation_ceiling reasoning_count CHECK(input_reservation_ceiling>0);
 ALTER TABLE reasoning_accounting ADD COLUMN runtime_policy_version reasoning_label;
 ALTER TABLE reasoning_accounting ADD COLUMN price_basis reasoning_label;
-ALTER TABLE reasoning_accounting ADD CONSTRAINT reasoning_accounting_policy_version CHECK((binding_hash IS NULL AND runtime_policy_version IS NULL AND price_basis IS NULL) OR (binding_hash IS NOT NULL AND runtime_policy_version IS NOT NULL));
+ALTER TABLE reasoning_accounting ADD CONSTRAINT reasoning_accounting_policy_version CHECK((binding_hash IS NULL AND runtime_policy_version IS NULL AND price_basis IS NULL AND input_reservation_ceiling IS NULL) OR (binding_hash IS NOT NULL AND runtime_policy_version IS NOT NULL AND input_reservation_ceiling IS NOT NULL));
 ALTER TABLE reasoning_accounting ADD COLUMN review_required boolean NOT NULL DEFAULT false;
 ALTER TABLE reasoning_reservation ADD COLUMN usage_basis text NOT NULL DEFAULT 'unknown'
  CHECK(usage_basis IN ('unknown','input_tokens','output_tokens','total_tokens','cost_micro_usd','requests','remote_slots'));
@@ -20,7 +21,7 @@ ALTER TABLE reasoning_reservation ADD CONSTRAINT reasoning_reservation_interpret
 CREATE FUNCTION reasoning_runtime_binding_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_TABLE_NAME='reasoning_accounting' THEN
-  IF (NEW.binding_hash,NEW.runtime_policy_version,NEW.price_basis) IS DISTINCT FROM (OLD.binding_hash,OLD.runtime_policy_version,OLD.price_basis) THEN RAISE EXCEPTION 'Reasoning policy binding is immutable'; END IF;
+  IF (NEW.binding_hash,NEW.runtime_policy_version,NEW.price_basis,NEW.input_reservation_ceiling) IS DISTINCT FROM (OLD.binding_hash,OLD.runtime_policy_version,OLD.price_basis,OLD.input_reservation_ceiling) THEN RAISE EXCEPTION 'Reasoning policy binding is immutable'; END IF;
  ELSE
   IF (NEW.usage_basis,NEW.handling) IS DISTINCT FROM (OLD.usage_basis,OLD.handling) THEN RAISE EXCEPTION 'Reasoning settlement interpretation is immutable'; END IF;
   IF NEW.recognized<OLD.recognized THEN RAISE EXCEPTION 'Cumulative recognized usage cannot decrease'; END IF;
