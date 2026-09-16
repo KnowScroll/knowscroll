@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-16 (Asia/Kolkata). **Reliability, session/epoch and clear-history waves verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## What exists
 
@@ -17,9 +17,11 @@ Updated: 2026-09-16 (Asia/Kolkata). **Reliability, session/epoch and clear-histo
 
 - Migration `0003_history_clear.sql` and retryable Clear Scroll history: one locked transaction removes scoped bootstrap encounters and saved Traces, advances the privacy epoch, preserves the caller session and shared library, and invalidates other sessions. Android confirms the effects, persists uncertain requests and binds cached state to its universe.
 
+- Pinned AI SDK/MiniMax certification adapter, fsynced attempt journal and explicit quota-gated CLI. Three live synthetic cases passed on September 16: exact JSON, native thinking/tool call and native continuation. This separate tool does not dispatch ordinary product jobs.
+
 ## What is not built
 
-The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, MiniMax adapter, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. Provider ports are declarations; they are not live integrations.
+The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, production reasoning admission/dispatch, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. The MiniMax adapter is certified only for the bounded development cases below. The ordinary ReasoningProvider remains unready, and Cutroom remains a port declaration.
 
 ## Current decisions
 
@@ -35,13 +37,15 @@ Wave-two review and runtime proof: [session integration evidence](journeys/evide
 
 Wave-three review and runtime proof: [clear-history evidence](journeys/evidence/wave3-integration/README.md). Thirty-eight backend tests, two verifier rejection cases, isolated J001/J002/J003 and six Android privacy phases passed. Exact retries survive a dropped committed response and process death; foreign local universe bindings cannot dispatch a clear. Existing reading/keep/restore regression results and dated development observations are recorded alongside those receipts.
 
-Last development observation: `2026-09-16T05:01:20.753Z`. API healthy, worker heartbeat fresh, all three migration checksums present; the updated regular emulator app shows both existing Traces and the privacy control at epoch zero. Run `pnpm state` for current status.
+Wave-four proof: [certification evidence](journeys/evidence/wave4-certification/README.md). Sixty-six backend tests, two verifier rejection cases, J001/J002/J003 and all three live MiniMax cases passed. The run made three requests with 6,360 reserved units; usage and capability limits are recorded separately. No migration, owner history mutation or Android source change occurred.
 
-## Next work after wave three
+Last development observation: `2026-09-16T06:26:19.515Z`. API healthy, worker heartbeat fresh, all three migration checksums present; two completed jobs remain present. The earlier wave-three emulator observation showed both existing Traces and the privacy control at epoch zero; it was not rerun in this backend-only wave. Run `pnpm state` for current status.
+
+## Next work after wave four
 
 [Coordination #29](https://github.com/KnowScroll/knowscroll/issues/29) records the clear-history wave; [#21](https://github.com/KnowScroll/knowscroll/issues/21) and [#13](https://github.com/KnowScroll/knowscroll/issues/13) retain earlier delivery evidence. Parent epics remain open. ADR-0010 defines implemented bootstrap clear and separates future pause, semantic reset, account deletion, backup retention and typed semantic proposal read sets.
 
-Next: #7 provider certification preparation. Verify the configured MiniMax endpoint and token-plan coverage, define a bounded token experiment and response/timeout/cancellation evidence before live calls. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
+Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37) records completed provider certification. Next: [#42](https://github.com/KnowScroll/knowscroll/issues/42), the production reasoning admission and unknown-outcome protocol under #7. Specify durable Job/Step/Attempt, reservations, leases/fences, cancellation/late usage and privacy retention before enabling product dispatch. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
 
 ## Component lanes
 
@@ -49,10 +53,10 @@ Next: #7 provider certification preparation. Verify the configured MiniMax endpo
 |---|---|---|
 | Mobile | [#3](https://github.com/KnowScroll/knowscroll/issues/3) | apps/mobile; renderer/navigation contracts coordinated first |
 | Core | [#4](https://github.com/KnowScroll/knowscroll/issues/4), then #5/#6 | events, privacy lifecycle, full Composer and semantic substrate |
-| Reasoning | [#7](https://github.com/KnowScroll/knowscroll/issues/7) | worker runtime; certification before paid product calls |
+| Reasoning | [#7](https://github.com/KnowScroll/knowscroll/issues/7) | worker runtime; development certification complete, production protocol next |
 | Coordinator | [#2](https://github.com/KnowScroll/knowscroll/issues/2), [#12](https://github.com/KnowScroll/knowscroll/issues/12) | identity boundary, shared contracts, integration and journey evidence |
 
-The owner reports a token plan of 300 million tokens per five hours for future certification. Before #7 live calls, verify the configured provider endpoint/plan and encode a bounded run cap; a token allowance does not establish arbitrary cash spending permission. No paid provider call ran in wave two. Cutroom needs a reachable configured host and file-import transport. No provider key is needed for the sourced-Scroll journey. Do not paste credentials into issues or commits.
+The owner reports a token plan of 300 million tokens per five hours. ADR-0011 verifies the subscription route and enforces a much smaller cap plus a quota preflight before every certification request. Three live calls ran in wave four; post-run quota was 99% interval / 95% weekly. This is a dated shared-plan observation, not a current balance or cash-spend authorization. Cutroom needs a reachable configured host and file-import transport. No provider key is needed for the sourced-Scroll journey. Do not paste credentials into issues or commits.
 
 Prepared checkout paths, branch names, ports and databases: [parallel worktrees](operations/worktrees.md).
 

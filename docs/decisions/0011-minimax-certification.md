@@ -1,6 +1,6 @@
 # ADR-0011 — Bounded MiniMax certification before reasoning integration
 
-Date: 2026-09-16. Status: accepted for implementation in #37 (children #38/#39); live compatibility is unproved until receipts exist. Extends ADR-0006 without enabling ordinary model jobs.
+Date: 2026-09-16. Status: implemented in #37 (children #38/#39); three bounded live cases passed on 2026-09-16. See [receipts and limits](../journeys/evidence/wave4-certification/README.md). Extends ADR-0006 without enabling ordinary model jobs.
 
 ## Decision and scope
 

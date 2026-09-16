@@ -1,0 +1,6 @@
+[J002 pnpm] {"service":"api","port":59242,"identity":"local-development-only"}
+[J002 worker] {"service":"worker","workerId":"local-94234","kind":"deterministic-projection"}
+[J002 worker] {"jobId":"9d439def-78c7-4c79-8c90-cf19585391ea","status":"discarded"}
+[J002 worker] {"jobId":"655e07a9-e515-4436-977a-57921f10c91b","status":"completed"}
+{"journey":"J002","result":"passed","receiptPath":"artifacts/j002-isolated-be2992d986cee106.json"}
+{"journey":"J002","result":"passed","runtime":{"apiPort":59242,"database":"isolated disposable PostgreSQL","api":"separate process","worker":"separate process started only after stale job was arranged"}}

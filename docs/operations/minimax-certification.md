@@ -65,3 +65,7 @@ pnpm typecheck
 ```
 
 The tests use isolated ignored directories and local/fake HTTP boundaries. They verify exclusivity, permissions, pre-dispatch persistence, non-replay, budget accounting, quota rejection, dependency stopping, continuation fidelity and receipt redaction. Passing offline tests does not establish live MiniMax compatibility. A successful bounded live receipt still does not certify streaming, vision, remote cancellation, idempotency lookup, pricing, long-horizon behavior, production structured generation or semantic proposal application.
+
+## Recorded development run
+
+The [wave-four evidence](../journeys/evidence/wave4-certification/README.md) records three successful live cases on September 16, 2026, plus the exact source hashes and nullable usage. This dated result does not enable product jobs or exempt later experiments from the live gates. A quota rejection before dispatch creates no attempt; a pre-dispatch adapter failure can end the CLI without a resolved attempt. Inspect the new run directory after interruption instead of starting a replacement run automatically.

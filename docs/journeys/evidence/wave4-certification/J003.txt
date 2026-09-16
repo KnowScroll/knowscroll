@@ -1,0 +1,12 @@
+Applied 0001_bootstrap.sql
+Applied 0002_identity_epochs.sql
+Applied 0003_history_clear.sql
+Editorial library installed; existing content and user history preserved.
+{"service":"api","port":59266,"identity":"local-development-only"}
+[J003 worker] {"service":"worker","workerId":"local-94558","kind":"deterministic-projection"}
+[J003 worker] {"jobId":"660b7e60-3dab-4a30-a187-ecb307465f67","status":"completed"}
+[J003 worker] {"jobId":"f34d2b3f-b5cf-4025-b104-4c82d2f701d6","status":"completed"}
+[J003 worker] {"service":"worker","workerId":"local-94569","kind":"deterministic-projection"}
+[J003 worker] {"jobId":"a532aac8-d10c-492a-ba9d-7a2b28a6cd48","status":"completed"}
+{"journey":"J003","result":"passed","receiptPath":"artifacts/j003-isolated-3a657287b4b1c1cc.json"}
+{"journey":"J003","result":"passed"}

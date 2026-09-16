@@ -1,0 +1,433 @@
+
+> knowscroll@ test /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> ./scripts/test.sh
+
+
+> knowscroll@ db:migrate /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> tsx scripts/migrate.ts
+
+Applied 0001_bootstrap.sql
+Applied 0002_identity_epochs.sql
+Applied 0003_history_clear.sql
+
+> knowscroll@ db:seed /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> tsx scripts/seed.ts
+
+Editorial library installed; existing content and user history preserved.
+TAP version 13
+# Subtest: explicit keeps exclude an item without inferring interest
+ok 1 - explicit keeps exclude an item without inferring interest
+  ---
+  duration_ms: 0.509875
+  type: 'test'
+  ...
+# Subtest: closed admission rejects invented behavioral labels and missing exposure
+ok 2 - closed admission rejects invented behavioral labels and missing exposure
+  ---
+  duration_ms: 1.058584
+  type: 'test'
+  ...
+# Subtest: real PostgreSQL: admission, retry, atomic projection, ownership and causal lineage
+ok 3 - real PostgreSQL: admission, retry, atomic projection, ownership and causal lineage
+  ---
+  duration_ms: 53.832416
+  type: 'test'
+  ...
+# Subtest: migration integrity against disposable PostgreSQL
+    # Subtest: fresh install records checksums and repeat is a no-op
+    ok 1 - fresh install records checksums and repeat is a no-op
+      ---
+      duration_ms: 28.568292
+      type: 'test'
+      ...
+    # Subtest: changed and missing applied migrations fail closed
+    ok 2 - changed and missing applied migrations fail closed
+      ---
+      duration_ms: 13.643417
+      type: 'test'
+      ...
+    # Subtest: failed migration rolls back its SQL and ledger row
+    ok 3 - failed migration rolls back its SQL and ledger row
+      ---
+      duration_ms: 11.732583
+      type: 'test'
+      ...
+    # Subtest: concurrent runners serialize and apply once
+    ok 4 - concurrent runners serialize and apply once
+      ---
+      duration_ms: 220.942584
+      type: 'test'
+      ...
+    # Subtest: adopts only the known original bootstrap checksum
+    ok 5 - adopts only the known original bootstrap checksum
+      ---
+      duration_ms: 23.579292
+      type: 'test'
+      ...
+    # Subtest: rejects arbitrary checksum-less legacy SQL
+    ok 6 - rejects arbitrary checksum-less legacy SQL
+      ---
+      duration_ms: 11.946
+      type: 'test'
+      ...
+    # Subtest: unknown legacy rows reject before adoption or pending SQL
+    ok 7 - unknown legacy rows reject before adoption or pending SQL
+      ---
+      duration_ms: 24.252709
+      type: 'test'
+      ...
+    # Subtest: rejects an out-of-order migration before pending SQL
+    ok 8 - rejects an out-of-order migration before pending SQL
+      ---
+      duration_ms: 12.627291
+      type: 'test'
+      ...
+    1..8
+ok 4 - migration integrity against disposable PostgreSQL
+  ---
+  duration_ms: 348.770583
+  type: 'test'
+  ...
+1..4
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 451.216667
+TAP version 13
+# Subtest: two independent sessions retain server-owned scope and isolate API resources
+ok 1 - two independent sessions retain server-owned scope and isolate API resources
+  ---
+  duration_ms: 37.303209
+  type: 'test'
+  ...
+# Subtest: session authentication and revoke errors are strict, generic, and token-free
+ok 2 - session authentication and revoke errors are strict, generic, and token-free
+  ---
+  duration_ms: 4.417041
+  type: 'test'
+  ...
+# Subtest: privacy epoch invalidates old sessions and rejects stale references before replay
+ok 3 - privacy epoch invalidates old sessions and rejects stale references before replay
+  ---
+  duration_ms: 9.938125
+  type: 'test'
+  ...
+# Subtest: expiry is checked after a request finishes waiting for the universe lock
+ok 4 - expiry is checked after a request finishes waiting for the universe lock
+  ---
+  duration_ms: 513.350583
+  type: 'test'
+  ...
+# Subtest: revocation committed while a request waits on the universe lock denies that request
+ok 5 - revocation committed while a request waits on the universe lock denies that request
+  ---
+  duration_ms: 9.18675
+  type: 'test'
+  ...
+# Subtest: development enrollment on restart does not reactivate a revoked session
+ok 6 - development enrollment on restart does not reactivate a revoked session
+  ---
+  duration_ms: 13.915208
+  type: 'test'
+  ...
+# Subtest: journal durably prepares a private exclusive attempt before resolving it
+ok 7 - journal durably prepares a private exclusive attempt before resolving it
+  ---
+  duration_ms: 271.295792
+  type: 'test'
+  ...
+# Subtest: journal refuses replay, parallel attempts, excess bounds and an existing run
+ok 8 - journal refuses replay, parallel attempts, excess bounds and an existing run
+  ---
+  duration_ms: 225.226792
+  type: 'test'
+  ...
+# Subtest: journal enforces the aggregate reservation and request ceilings without refunds
+ok 9 - journal enforces the aggregate reservation and request ceilings without refunds
+  ---
+  duration_ms: 195.812083
+  type: 'test'
+  ...
+# Subtest: journal rejects non-ignored and symlinked artifact parents
+ok 10 - journal rejects non-ignored and symlinked artifact parents
+  ---
+  duration_ms: 288.929875
+  type: 'test'
+  ...
+# Subtest: inspection preserves a prepared attempt as unresolved and does not mutate it
+ok 11 - inspection preserves a prepared attempt as unresolved and does not mutate it
+  ---
+  duration_ms: 220.055417
+  type: 'test'
+  ...
+# Subtest: inspection treats a torn final append as unknown and never exposes its fragment
+ok 12 - inspection treats a torn final append as unknown and never exposes its fragment
+  ---
+  duration_ms: 226.218708
+  type: 'test'
+  ...
+# Subtest: inspection constructs its whitelist and drops extra fields from parsed disk records
+ok 13 - inspection constructs its whitelist and drops extra fields from parsed disk records
+  ---
+  duration_ms: 229.650709
+  type: 'test'
+  ...
+# Subtest: resolution refuses a null or inconsistent adapter request hash and preserves uncertainty
+ok 14 - resolution refuses a null or inconsistent adapter request hash and preserves uncertainty
+  ---
+  duration_ms: 155.306834
+  type: 'test'
+  ...
+# Subtest: quota preflight uses only the fixed URL, no redirects, and validates exact general percentages
+ok 15 - quota preflight uses only the fixed URL, no redirects, and validates exact general percentages
+  ---
+  duration_ms: 1.704291
+  type: 'test'
+  ...
+# Subtest: runner performs three serial quota-gated cases and preserves opaque native continuation only in memory
+ok 16 - runner performs three serial quota-gated cases and preserves opaque native continuation only in memory
+  ---
+  duration_ms: 206.48625
+  type: 'test'
+  ...
+# Subtest: invalid tool call stops the dependent continuation without fabricating a result
+ok 17 - invalid tool call stops the dependent continuation without fabricating a result
+  ---
+  duration_ms: 163.071
+  type: 'test'
+  ...
+# Subtest: runner drives the real SDK adapter through a local HTTP fixture with each prepared journal visible before transport
+ok 18 - runner drives the real SDK adapter through a local HTTP fixture with each prepared journal visible before transport
+  ---
+  duration_ms: 198.308583
+  type: 'test'
+  ...
+# Subtest: runner records a real SDK request deadline as timeout with unknown remote outcome
+ok 19 - runner records a real SDK request deadline as timeout with unknown remote outcome
+  ---
+  duration_ms: 4405.752917
+  type: 'test'
+  ...
+# Subtest: completed observations with inconsistent dispatch and HTTP evidence fail validation
+ok 20 - completed observations with inconsistent dispatch and HTTP evidence fail validation
+  ---
+  duration_ms: 215.203833
+  type: 'test'
+  ...
+# Subtest: runner refuses non-subscription keys before creating a journal or adapter
+ok 21 - runner refuses non-subscription keys before creating a journal or adapter
+  ---
+  duration_ms: 75.881833
+  type: 'test'
+  ...
+# Subtest: clears one nonempty history, rolls only caller, and exact replay preserves later activity
+ok 22 - clears one nonempty history, rolls only caller, and exact replay preserves later activity
+  ---
+  duration_ms: 40.98225
+  type: 'test'
+  ...
+# Subtest: auth precedes strict validation and malformed input changes nothing
+ok 23 - auth precedes strict validation and malformed input changes nothing
+  ---
+  duration_ms: 7.40675
+  type: 'test'
+  ...
+# Subtest: concurrent identical keys replay once and distinct keys from one epoch cannot both clear
+ok 24 - concurrent identical keys replay once and distinct keys from one epoch cannot both clear
+  ---
+  duration_ms: 19.970125
+  type: 'test'
+  ...
+# Subtest: clear waits for prior admission and removes what committed before it
+ok 25 - clear waits for prior admission and removes what committed before it
+  ---
+  duration_ms: 105.5445
+  type: 'test'
+  ...
+# Subtest: clear waits for a real worker commit and then erases its projection
+ok 26 - clear waits for a real worker commit and then erases its projection
+  ---
+  duration_ms: 731.421541
+  type: 'test'
+  ...
+# Subtest: mid-clear database failure rolls back epoch, session, revisions and every deletion
+ok 27 - mid-clear database failure rolls back epoch, session, revisions and every deletion
+  ---
+  duration_ms: 23.841625
+  type: 'test'
+  ...
+# Subtest: maximum epoch overflow fails transactionally without clearing or rolling session
+ok 28 - maximum epoch overflow fails transactionally without clearing or rolling session
+  ---
+  duration_ms: 12.097834
+  type: 'test'
+  ...
+# Subtest: receipt schema retains only retry metadata
+ok 29 - receipt schema retains only retry metadata
+  ---
+  duration_ms: 3.476375
+  type: 'test'
+  ...
+# Subtest: provisions isolated identities and authenticates only the matching scope
+ok 30 - provisions isolated identities and authenticates only the matching scope
+  ---
+  duration_ms: 13.500625
+  type: 'test'
+  ...
+# Subtest: explicit universe must exist and session scope follows its current epoch
+ok 31 - explicit universe must exist and session scope follows its current epoch
+  ---
+  duration_ms: 1.277041
+  type: 'test'
+  ...
+# Subtest: development enrollment never extends or reactivates its session
+ok 32 - development enrollment never extends or reactivates its session
+  ---
+  duration_ms: 3.537333
+  type: 'test'
+  ...
+# Subtest: expiry is evaluated after waiting for the universe lock
+ok 33 - expiry is evaluated after waiting for the universe lock
+  ---
+  duration_ms: 1062.830333
+  type: 'test'
+  ...
+# Subtest: privacy epoch advancement invalidates an already minted session
+ok 34 - privacy epoch advancement invalidates an already minted session
+  ---
+  duration_ms: 8.25775
+  type: 'test'
+  ...
+# Subtest: 0001 to 0002 preserves valid owner history and stamps epoch zero
+ok 35 - 0001 to 0002 preserves valid owner history and stamps epoch zero
+  ---
+  duration_ms: 40.422792
+  type: 'test'
+  ...
+# Subtest: 0002 rejects incompatible cross-universe history without rewriting it
+ok 36 - 0002 rejects incompatible cross-universe history without rewriting it
+  ---
+  duration_ms: 25.292333
+  type: 'test'
+  ...
+# Subtest: uses the real SDK route and preserves native ordered continuation blocks and tools
+ok 37 - uses the real SDK route and preserves native ordered continuation blocks and tools
+  ---
+  duration_ms: 21.729583
+  type: 'test'
+  ...
+# Subtest: continues from the exact raw thinking and tool-use response returned by the first invocation
+ok 38 - continues from the exact raw thinking and tool-use response returned by the first invocation
+  ---
+  duration_ms: 7.762
+  type: 'test'
+  ...
+# Subtest: does not retry HTTP 429
+ok 39 - does not retry HTTP 429
+  ---
+  duration_ms: 2.707125
+  type: 'test'
+  ...
+# Subtest: does not retry HTTP 500
+ok 40 - does not retry HTTP 500
+  ---
+  duration_ms: 2.930625
+  type: 'test'
+  ...
+# Subtest: rejects output and actual UTF-8 input bounds before dispatch
+ok 41 - rejects output and actual UTF-8 input bounds before dispatch
+  ---
+  duration_ms: 1.001375
+  type: 'test'
+  ...
+# Subtest: pre-abort and reservation rejection never fetch
+ok 42 - pre-abort and reservation rejection never fetch
+  ---
+  duration_ms: 0.62475
+  type: 'test'
+  ...
+# Subtest: deadline aborts an in-flight request and reports uncertain dispatched timeout
+ok 43 - deadline aborts an in-flight request and reports uncertain dispatched timeout
+  ---
+  duration_ms: 32.094167
+  type: 'test'
+  ...
+# Subtest: missing usage remains nullable and is an SDK compatibility failure
+ok 44 - missing usage remains nullable and is an SDK compatibility failure
+  ---
+  duration_ms: 4.701041
+  type: 'test'
+  ...
+# Subtest: caller abort after dispatch reports aborted with unknown remote outcome
+ok 45 - caller abort after dispatch reports aborted with unknown remote outcome
+  ---
+  duration_ms: 2.2285
+  type: 'test'
+  ...
+# Subtest: does not follow redirects or send credentials to the redirect target
+ok 46 - does not follow redirects or send credentials to the redirect target
+  ---
+  duration_ms: 2.061834
+  type: 'test'
+  ...
+# Subtest: HTTP 200 SDK validation failure retains independently valid raw usage
+ok 47 - HTTP 200 SDK validation failure retains independently valid raw usage
+  ---
+  duration_ms: 1.689792
+  type: 'test'
+  ...
+# Subtest: snapshots native input before waiting for the durable reservation
+ok 48 - snapshots native input before waiting for the durable reservation
+  ---
+  duration_ms: 6.654209
+  type: 'test'
+  ...
+# Subtest: classifies a fetch rejection as transport error without exposing it
+ok 49 - classifies a fetch rejection as transport error without exposing it
+  ---
+  duration_ms: 0.348958
+  type: 'test'
+  ...
+# Subtest: current-epoch work projects once and reports its actual outcome
+ok 50 - current-epoch work projects once and reports its actual outcome
+  ---
+  duration_ms: 13.810667
+  type: 'test'
+  ...
+# Subtest: epoch advancement discards queued work without projection or retry
+ok 51 - epoch advancement discards queued work without projection or retry
+  ---
+  duration_ms: 3.762916
+  type: 'test'
+  ...
+# Subtest: job and causal Ledger epoch mismatch is discarded
+ok 52 - job and causal Ledger epoch mismatch is discarded
+  ---
+  duration_ms: 2.989958
+  type: 'test'
+  ...
+# Subtest: a locked universe does not block ready work for another universe
+ok 53 - a locked universe does not block ready work for another universe
+  ---
+  duration_ms: 10.162917
+  type: 'test'
+  ...
+# Subtest: projection failure retry settles under the universe lock and later epoch change discards
+ok 54 - projection failure retry settles under the universe lock and later epoch change discards
+  ---
+  duration_ms: 7.52
+  type: 'test'
+  ...
+1..54
+# tests 54
+# suites 0
+# pass 54
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11075.736416

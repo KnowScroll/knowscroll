@@ -1,0 +1,178 @@
+TAP version 13
+# Subtest: journal durably prepares a private exclusive attempt before resolving it
+ok 1 - journal durably prepares a private exclusive attempt before resolving it
+  ---
+  duration_ms: 186.68525
+  type: 'test'
+  ...
+# Subtest: journal refuses replay, parallel attempts, excess bounds and an existing run
+ok 2 - journal refuses replay, parallel attempts, excess bounds and an existing run
+  ---
+  duration_ms: 181.367417
+  type: 'test'
+  ...
+# Subtest: journal enforces the aggregate reservation and request ceilings without refunds
+ok 3 - journal enforces the aggregate reservation and request ceilings without refunds
+  ---
+  duration_ms: 161.198125
+  type: 'test'
+  ...
+# Subtest: journal rejects non-ignored and symlinked artifact parents
+ok 4 - journal rejects non-ignored and symlinked artifact parents
+  ---
+  duration_ms: 207.312208
+  type: 'test'
+  ...
+# Subtest: inspection preserves a prepared attempt as unresolved and does not mutate it
+ok 5 - inspection preserves a prepared attempt as unresolved and does not mutate it
+  ---
+  duration_ms: 155.703583
+  type: 'test'
+  ...
+# Subtest: inspection treats a torn final append as unknown and never exposes its fragment
+ok 6 - inspection treats a torn final append as unknown and never exposes its fragment
+  ---
+  duration_ms: 133.562833
+  type: 'test'
+  ...
+# Subtest: inspection constructs its whitelist and drops extra fields from parsed disk records
+ok 7 - inspection constructs its whitelist and drops extra fields from parsed disk records
+  ---
+  duration_ms: 135.158625
+  type: 'test'
+  ...
+# Subtest: resolution refuses a null or inconsistent adapter request hash and preserves uncertainty
+ok 8 - resolution refuses a null or inconsistent adapter request hash and preserves uncertainty
+  ---
+  duration_ms: 96.885875
+  type: 'test'
+  ...
+# Subtest: quota preflight uses only the fixed URL, no redirects, and validates exact general percentages
+ok 9 - quota preflight uses only the fixed URL, no redirects, and validates exact general percentages
+  ---
+  duration_ms: 2.190625
+  type: 'test'
+  ...
+# Subtest: runner performs three serial quota-gated cases and preserves opaque native continuation only in memory
+ok 10 - runner performs three serial quota-gated cases and preserves opaque native continuation only in memory
+  ---
+  duration_ms: 156.518333
+  type: 'test'
+  ...
+# Subtest: invalid tool call stops the dependent continuation without fabricating a result
+ok 11 - invalid tool call stops the dependent continuation without fabricating a result
+  ---
+  duration_ms: 124.988834
+  type: 'test'
+  ...
+# Subtest: runner drives the real SDK adapter through a local HTTP fixture with each prepared journal visible before transport
+ok 12 - runner drives the real SDK adapter through a local HTTP fixture with each prepared journal visible before transport
+  ---
+  duration_ms: 166.010417
+  type: 'test'
+  ...
+# Subtest: runner records a real SDK request deadline as timeout with unknown remote outcome
+ok 13 - runner records a real SDK request deadline as timeout with unknown remote outcome
+  ---
+  duration_ms: 4388.5885
+  type: 'test'
+  ...
+# Subtest: completed observations with inconsistent dispatch and HTTP evidence fail validation
+ok 14 - completed observations with inconsistent dispatch and HTTP evidence fail validation
+  ---
+  duration_ms: 168.789375
+  type: 'test'
+  ...
+# Subtest: runner refuses non-subscription keys before creating a journal or adapter
+ok 15 - runner refuses non-subscription keys before creating a journal or adapter
+  ---
+  duration_ms: 44.378417
+  type: 'test'
+  ...
+# Subtest: uses the real SDK route and preserves native ordered continuation blocks and tools
+ok 16 - uses the real SDK route and preserves native ordered continuation blocks and tools
+  ---
+  duration_ms: 24.799959
+  type: 'test'
+  ...
+# Subtest: continues from the exact raw thinking and tool-use response returned by the first invocation
+ok 17 - continues from the exact raw thinking and tool-use response returned by the first invocation
+  ---
+  duration_ms: 9.877584
+  type: 'test'
+  ...
+# Subtest: does not retry HTTP 429
+ok 18 - does not retry HTTP 429
+  ---
+  duration_ms: 3.927417
+  type: 'test'
+  ...
+# Subtest: does not retry HTTP 500
+ok 19 - does not retry HTTP 500
+  ---
+  duration_ms: 6.381791
+  type: 'test'
+  ...
+# Subtest: rejects output and actual UTF-8 input bounds before dispatch
+ok 20 - rejects output and actual UTF-8 input bounds before dispatch
+  ---
+  duration_ms: 2.173792
+  type: 'test'
+  ...
+# Subtest: pre-abort and reservation rejection never fetch
+ok 21 - pre-abort and reservation rejection never fetch
+  ---
+  duration_ms: 0.942958
+  type: 'test'
+  ...
+# Subtest: deadline aborts an in-flight request and reports uncertain dispatched timeout
+ok 22 - deadline aborts an in-flight request and reports uncertain dispatched timeout
+  ---
+  duration_ms: 32.429125
+  type: 'test'
+  ...
+# Subtest: missing usage remains nullable and is an SDK compatibility failure
+ok 23 - missing usage remains nullable and is an SDK compatibility failure
+  ---
+  duration_ms: 8.091667
+  type: 'test'
+  ...
+# Subtest: caller abort after dispatch reports aborted with unknown remote outcome
+ok 24 - caller abort after dispatch reports aborted with unknown remote outcome
+  ---
+  duration_ms: 3.09825
+  type: 'test'
+  ...
+# Subtest: does not follow redirects or send credentials to the redirect target
+ok 25 - does not follow redirects or send credentials to the redirect target
+  ---
+  duration_ms: 2.683041
+  type: 'test'
+  ...
+# Subtest: HTTP 200 SDK validation failure retains independently valid raw usage
+ok 26 - HTTP 200 SDK validation failure retains independently valid raw usage
+  ---
+  duration_ms: 2.434958
+  type: 'test'
+  ...
+# Subtest: snapshots native input before waiting for the durable reservation
+ok 27 - snapshots native input before waiting for the durable reservation
+  ---
+  duration_ms: 6.882333
+  type: 'test'
+  ...
+# Subtest: classifies a fetch rejection as transport error without exposing it
+ok 28 - classifies a fetch rejection as transport error without exposing it
+  ---
+  duration_ms: 0.386792
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5329.239334
