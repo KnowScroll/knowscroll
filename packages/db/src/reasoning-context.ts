@@ -260,6 +260,10 @@ export async function compileDirectContext(
     if(existing && (existing.universe_id!==authenticatedScope.universeId || existing.privacy_epoch!==authenticatedScope.privacyEpoch)) deny('foreign');
     deny('unsupported');
   }
+  const binding=(await client.query<{session_id:string}>(
+    'SELECT session_id FROM reasoning_context_job_session WHERE job_id=$1',[request.jobId],
+  )).rows[0];
+  if(binding && binding.session_id!==session.id) deny('inactive_session');
   const initial=await readLineage(client,authenticatedScope.universeId,authenticatedScope.privacyEpoch,request.keepEventIds);
   if(!initial) deny('stale_lineage');
   await lockAssets(client,initial.map(row=>row.asset_id));
@@ -296,6 +300,10 @@ export async function compileDirectContext(
   const contentHash=digest(canonicalPayload);
   const canonicalDependencies=payload.data.dependencies.map(read=>({identity:dependencyIdentity(read),value:canonical(read)}));
   const readSetHash=digest(canonical(canonicalDependencies));
+  if(!binding) await client.query(
+    `INSERT INTO reasoning_context_job_session(job_id,universe_id,privacy_epoch,session_id) VALUES($1,$2,$3,$4)`,
+    [request.jobId,authenticatedScope.universeId,authenticatedScope.privacyEpoch,current.id],
+  );
   await client.query(
     `INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version)
      VALUES($1,$2,$3,$4,$5,$6,$7)`,
@@ -398,6 +406,11 @@ export async function validateDirectContext(
   )).rows[0];
   if(!job || job.wake_kind!=='direct' || job.intent_id!==payload.intentId) return {valid:false,reason:'stale_lineage'};
   if(job.policy_version!==scope.policyVersion) return {valid:false,reason:'changed_policy'};
+  const binding=(await client.query<{session_id:string}>(
+    'SELECT session_id FROM reasoning_context_job_session WHERE job_id=$1 AND universe_id=$2 AND privacy_epoch=$3',
+    [scope.jobId,scope.universeId,scope.privacyEpoch],
+  )).rows[0];
+  if(!binding || binding.session_id!==payload.sessionId) return {valid:false,reason:'corrupt_seal'};
   const sessionDependency=payload.dependencies.find(read=>read.kind==='session');
   const policyDependency=payload.dependencies.find(read=>read.kind==='runtime_policy');
   if(!sessionDependency || !policyDependency) return {valid:false,reason:'corrupt_seal'};

@@ -53,3 +53,23 @@ BEGIN
 END $$;
 CREATE TRIGGER reasoning_context_legacy_seal_guard BEFORE INSERT ON reasoning_context_read
  FOR EACH ROW EXECUTE FUNCTION reasoning_context_legacy_seal_guard();
+
+-- First successful compilation binds the private direct Job to its original session.
+ALTER TABLE device_session ADD CONSTRAINT device_session_id_universe UNIQUE(id,universe_id);
+CREATE TABLE reasoning_context_job_session (
+ job_id uuid PRIMARY KEY,
+ universe_id uuid NOT NULL,
+ privacy_epoch integer NOT NULL CHECK(privacy_epoch>=0),
+ session_id uuid NOT NULL,
+ FOREIGN KEY(job_id,universe_id,privacy_epoch) REFERENCES reasoning_job(id,universe_id,privacy_epoch) ON DELETE CASCADE,
+ FOREIGN KEY(session_id,universe_id) REFERENCES device_session(id,universe_id)
+);
+CREATE FUNCTION reasoning_context_job_session_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='UPDATE' THEN RAISE EXCEPTION 'Direct Job session binding is immutable'; END IF;
+ IF EXISTS(SELECT 1 FROM reasoning_job WHERE id=OLD.job_id)
+ THEN RAISE EXCEPTION 'Direct Job session binding erases only with its Job'; END IF;
+ RETURN OLD;
+END $$;
+CREATE TRIGGER reasoning_context_job_session_guard BEFORE UPDATE OR DELETE ON reasoning_context_job_session
+ FOR EACH ROW EXECUTE FUNCTION reasoning_context_job_session_guard();
