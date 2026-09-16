@@ -30,8 +30,9 @@ sealed interface UniverseState {
 sealed interface ScrollState {
     data object Idle:ScrollState
     data object Loading:ScrollState
-    data class Reading(val item:ScrollItem,val exposureId:String,val eventId:String,val keep:KeepState,val readingPosition:Int):ScrollState
+    data class Reading(val item:ScrollItem,val exposureId:String,val eventId:String,val keep:KeepState,val readingPosition:Int,val discovery:DiscoveryState=DiscoveryState.Idle):ScrollState
     data class Unavailable(val message:String):ScrollState
+    data object Exhausted:ScrollState
 }
 sealed interface KeepState {
     data object Idle:KeepState
@@ -82,38 +83,57 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         loadNext()
     }
 
-    fun nextScroll(){if(!busy && ready)loadNext()}
+    fun nextScroll(){
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        if(!busy && !reconciling && ready && store.readPendingClear()==null && canRequestDiscovery(reading.keep,reading.discovery))loadNext(preserveReading=true)
+    }
 
-    private fun loadNext(){
+    private fun loadNext(preserveReading:Boolean=false){
+        if(busy || reconciling || !ready || store.readPendingClear()!=null)return
+        val previous=if(preserveReading)session else null
+        val reading=if(preserveReading)_scroll.value as? ScrollState.Reading else null
         busy=true
         val version=++navigationVersion
         val epoch=observedPrivacyEpoch
-        _screen.value=Screen.Scroll("")
-        savedState["screen"]="scroll"
-        store.writeScreen("scroll")
-        _scroll.value=ScrollState.Loading
-        session?.let{visited.add(it.item.assetId);store.writeVisited(visited)}
+        val universeId=observedUniverseId
+        if(reading!=null){
+            _scroll.value=reading.copy(discovery=DiscoveryState.Loading)
+        } else {
+            _screen.value=Screen.Scroll("")
+            savedState["screen"]="scroll"
+            store.writeScreen("scroll")
+            _scroll.value=ScrollState.Loading
+        }
         viewModelScope.launch {
             try {
                 val feed=api.getFeed()
                 if(!operationIsCurrent(version,epoch))return@launch
-                if(feed.privacyEpoch!=epoch){
-                    if(feed.privacyEpoch>epoch)purgeForScope(feed.universeId,feed.privacyEpoch)
-                    failClosed("Privacy state changed. Return to your universe and try again.")
-                    return@launch
+                when(val selected=selectDiscovery(feed,universeId,epoch,visited,session?.item?.assetId)){
+                    DiscoverySelection.InvalidScope -> {
+                        purgeForScope(feed.universeId,feed.privacyEpoch)
+                        failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
+                    }
+                    DiscoverySelection.Exhausted -> {
+                        if(previous!=null){
+                            (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Exhausted)}
+                        } else _scroll.value=ScrollState.Exhausted
+                    }
+                    is DiscoverySelection.Item -> {
+                        val next=ScrollSession(feed.decisionId,selected.item,feed.privacyEpoch,feed.universeId)
+                        if(!operationIsCurrent(version,epoch))return@launch
+                        session?.let{visited.add(it.item.assetId);store.writeVisited(visited)}
+                        store.write(next);session=next;show(next)
+                    }
                 }
-                val item=feed.items.firstOrNull{it.assetId !in visited}
-                if(item==null){_scroll.value=ScrollState.Unavailable("You have reached the end of this starting library.");return@launch}
-                if(feed.universeId!=observedUniverseId){
-                    purgeForScope(feed.universeId,feed.privacyEpoch)
-                    failClosed("This device is connected to a different universe. Return and try again.")
-                    return@launch
-                }
-                val next=ScrollSession(feed.decisionId,item,feed.privacyEpoch,feed.universeId)
-                if(!operationIsCurrent(version,epoch))return@launch
-                store.write(next);session=next;show(next)
             } catch(e:Exception){
-                if(version==navigationVersion && _screen.value is Screen.Scroll)_scroll.value=ScrollState.Unavailable(message(e))
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion || _screen.value !is Screen.Scroll)return@launch
+                if(invalidatesReader(e)){
+                    purgeForScope(universeId,epoch)
+                    failClosed(message(e))
+                } else if(previous!=null){
+                    (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Failed)}
+                } else _scroll.value=ScrollState.Unavailable(message(e))
             } finally{if(version==navigationVersion)busy=false}
         }
     }
@@ -141,7 +161,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             try {
                 val next=recordExposure(current,version,epoch)
                 if(operationIsCurrent(version,epoch)){session=next;show(next)}
-            } catch(e:Exception){if(e !is CancellationException)_toast.value=message(e)}
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version==navigationVersion){
+                    if(invalidatesReader(e)){purgeForScope(current.universeId,epoch);failClosed(message(e))}
+                    else _toast.value=message(e)
+                }
+            }
             finally{if(version==navigationVersion)busy=false}
         }
     }
@@ -188,7 +214,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 }
             } catch(e:Exception){
                 if(e !is CancellationException && operationIsCurrent(version,epoch,currentSession)){
-                    (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(keep=KeepState.Failed(message(e)))}
+                    if(invalidatesReader(e)){purgeForScope(currentSession.universeId,epoch);failClosed(message(e))}
+                    else (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(keep=KeepState.Failed(message(e)))}
                 }
             } finally{if(version==navigationVersion)busy=false}
         }
@@ -200,6 +227,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val updated=current.copy(readingPosition=position)
         store.writeReadingPosition(assetId,position)
         session=updated
+        val reading=_scroll.value as? ScrollState.Reading
+        if(reading?.item?.assetId==assetId){
+            _scroll.value=reading.copy(readingPosition=position)
+        }
     }
 
     fun returnToUniverse(){
