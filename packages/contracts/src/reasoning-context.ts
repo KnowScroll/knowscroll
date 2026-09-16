@@ -53,6 +53,23 @@ export const directContextPayload=z.object({
   if('universeId' in read&&(read.universeId!==value.universeId||read.privacyEpoch!==value.privacyEpoch))
    ctx.addIssue({code:'custom',path:['dependencies',index],message:'Foreign dependency'});
  }
+ const expected=new Set<string>([
+  `session:${value.sessionId}`,`runtime_policy:${value.runtimePolicyVersion}`,
+  ...value.assets.map(asset=>`asset:${asset.assetId}`),
+  ...value.facts.flatMap(f=>[`keep:${f.keepEventId}`,`exposure_event:${f.exposureEventId}`,`exposure:${f.exposureId}`,`decision_candidate:${f.decisionId}:${f.assetId}`]),
+ ]);
+ if(expected.size!==seen.size||[...expected].some(key=>!seen.has(key)))
+  ctx.addIssue({code:'custom',path:['dependencies'],message:'Incomplete or extra dependency set'});
+ for(const [index,read] of value.dependencies.entries()) {
+  const bound=read.kind==='session'?read.id===value.sessionId&&read.expiresAt===value.sessionExpiresAt:
+   read.kind==='runtime_policy'?read.version===value.runtimePolicyVersion&&read.hash===value.runtimePolicyHash:
+   read.kind==='asset'?value.assets.some(a=>a.assetId===read.id&&a.revision===read.revision):
+   read.kind==='keep'?value.facts.some(f=>f.keepEventId===read.id&&f.keepSequence===read.sequence):
+   read.kind==='exposure_event'?value.facts.some(f=>f.exposureEventId===read.id&&f.exposureSequence===read.sequence):
+   read.kind==='exposure'?value.facts.some(f=>f.exposureId===read.id&&f.assetId===read.assetId):
+   value.facts.some(f=>f.decisionId===read.id&&f.assetId===read.assetId);
+  if(!bound)ctx.addIssue({code:'custom',path:['dependencies',index],message:'Dependency does not match frozen selection'});
+ }
  for(const name of ['facts','assets'] as const) {
   const ids=value[name].map(item=>'keepEventId' in item?item.keepEventId:item.assetId);
   if(new Set(ids).size!==ids.length)ctx.addIssue({code:'custom',path:[name],message:'Duplicate selected identity'});
