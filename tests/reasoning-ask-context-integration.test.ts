@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import test from 'node:test';
+import {compileDirectContext} from '../packages/db/src/reasoning-context.ts';
+import {lockBoundContextSession} from '../packages/db/src/reasoning-context-session.ts';
 import {compileDirectAskContext} from '../packages/db/src/reasoning-ask-context.ts';
 import {createSealedContextAuthority} from '../packages/db/src/reasoning-context-authority.ts';
 import {recordExplicitAsk} from '../packages/db/src/explicit-ask.ts';
@@ -102,5 +104,27 @@ test('routed Ask fair admission and dispatch wait on original session before loc
   assert.equal(scheduled.kind,'admitted',JSON.stringify(scheduled));
   const grant=await whileSessionBlocked(()=>createReasoningAdmission(pool,authority).authorizeDispatch({universeId:graph.scope.universeId,privacyEpoch:0,jobId:graph.jobId,stepId,attemptId:scheduled.reserved.attemptId,owner:'ask-lock-worker',leaseFence:scheduled.claim.leaseFence,requestId,requestHash,inputTokensUpperBound:1,maxOutputTokens:1,dispatchId:randomUUID()}));
   assert.equal(grant.attemptId,scheduled.reserved.attemptId);
+ });
+});
+
+
+test('family router preserves Keep V1 and refuses an unknown metadata family',async()=>{
+ await withReasoningContextSchema('ask_family_router',async pool=>{
+  const graph=await seedDirectContextGraph(pool);
+  await inTransaction(pool,client=>compileDirectContext(client,graph.scope,{contextId:graph.contextId,jobId:graph.jobId,keepEventIds:graph.keepEventIds},resolverFor(graph)));
+  const stepId=await attachPendingStep(pool,graph),authority=createSealedContextAuthority(resolverFor(graph));
+  const scope={universeId:graph.scope.universeId,privacyEpoch:0,jobId:graph.jobId,stepId,contextId:graph.contextId,policyVersion:graph.policy.policyVersion};
+  await inTransaction(pool,async client=>{
+   await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE',[scope.universeId]);
+   await lockBoundContextSession(client,scope);
+   await client.query('SELECT id FROM reasoning_job WHERE id=$1 FOR UPDATE',[scope.jobId]);
+   assert.equal(await authority.validateContext(client,scope,'lock'),true);
+   assert.equal(await authority.validateContext(client,scope,'recheck'),true);
+  });
+  const unknown=randomUUID();
+  await pool.query(`INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version)
+   VALUES($1,$2,$3,0,$4,$5,'unknown-family-v1')`,[unknown,graph.jobId,graph.scope.universeId,'d'.repeat(64),graph.policy.policyVersion]);
+  await assert.rejects(inTransaction(pool,client=>authority.validateContext(client,{...scope,contextId:unknown},'recheck')),
+   error=>error instanceof ReasoningDenied&&error.code==='context_unsupported');
  });
 });
