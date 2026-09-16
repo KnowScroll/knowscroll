@@ -1,0 +1,42 @@
+package com.knowscroll.mobile.ui
+
+import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.FeedResponse
+import com.knowscroll.mobile.data.ScrollItem
+
+/** Next discovery is separate from the currently authorized reading session. */
+sealed interface DiscoveryState {
+    data object Idle : DiscoveryState
+    data object Loading : DiscoveryState
+    data object Failed : DiscoveryState
+    data object Exhausted : DiscoveryState
+}
+
+sealed interface DiscoverySelection {
+    data class Item(val item: ScrollItem) : DiscoverySelection
+    data object Exhausted : DiscoverySelection
+    data object InvalidScope : DiscoverySelection
+}
+
+/** Check scope even for an empty feed: exhaustion must not hide invalid authority. */
+internal fun selectDiscovery(
+    feed: FeedResponse,
+    universeId: String,
+    privacyEpoch: Long,
+    visited: Set<String>,
+    currentAssetId: String?
+): DiscoverySelection {
+    if (feed.universeId != universeId || feed.privacyEpoch != privacyEpoch) {
+        return DiscoverySelection.InvalidScope
+    }
+    return feed.items.firstOrNull { it.assetId !in visited && it.assetId != currentAssetId }
+        ?.let { DiscoverySelection.Item(it) } ?: DiscoverySelection.Exhausted
+}
+
+internal fun canRequestDiscovery(keep: KeepState, discovery: DiscoveryState): Boolean =
+    discovery !is DiscoveryState.Loading && keep !is KeepState.Saving &&
+        keep !is KeepState.Failed && keep !is KeepState.Conflict
+
+internal fun invalidatesReader(error: Exception): Boolean =
+    error is ApiException.MissingToken ||
+        error is ApiException.Server && error.statusCode in setOf(401, 409, 422)
