@@ -14,7 +14,7 @@ Use AI SDK `generateText` with `maxRetries:0`, one step and no automatic tool ex
 
 A caller-supplied `beforeDispatch` callback must finish its durable reservation before the single network fetch. Reject a second transport invocation. Recheck abort/deadline before network dispatch. Disable redirects and never switch credentials/endpoint/protocol or retry automatically. Use synthetic fixed certification prompts only; no owner database, private history or hidden system context. Native response content stays protected in-process for continuation and is never copied to public receipts.
 
-Tokens from successful provider usage remain nullable if absent/invalid; cache fields are separate, no invented zero or dollar cost. Non-2xx, parse/SDK failures, deadline, abort and transport failure have distinct observations. A dispatched request with no conclusive response has unknown remote outcome/usage; local abort does not prove remote cancellation. Output validation failure never becomes an accepted proposal.
+Do not synthesize usage fields or successful provider responses to satisfy an SDK parser. A response rejected by the pinned SDK is an explicit compatibility failure, with any independently valid raw usage retained. Tokens from provider usage remain nullable if absent/invalid; cache fields are separate, no invented zero or dollar cost. Non-2xx, parse/SDK failures, deadline, abort and transport failure have distinct observations. A dispatched request with no conclusive response has unknown remote outcome/usage; local abort does not prove remote cancellation. Output validation failure never becomes an accepted proposal.
 
 ### Bounded live experiment and quota
 
