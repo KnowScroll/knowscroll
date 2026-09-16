@@ -17,6 +17,8 @@ BEGIN
   IF EXISTS(SELECT 1 FROM reasoning_job WHERE id=OLD.job_id) THEN RAISE EXCEPTION 'Ask Job binding erases only with its Job'; END IF;
   RETURN OLD;
  END IF;
+ -- Serialize first-family publication even for trusted raw SQL callers.
+ PERFORM 1 FROM reasoning_job WHERE id=NEW.job_id FOR UPDATE;
  IF NOT EXISTS(SELECT 1 FROM reasoning_job WHERE id=NEW.job_id AND universe_id=NEW.universe_id AND privacy_epoch=NEW.privacy_epoch
   AND wake_kind='direct' AND intent_id=NEW.ask_id AND status='queued' AND deadline>clock_timestamp())
  THEN RAISE EXCEPTION 'Ask binding requires its queued direct Job'; END IF;
@@ -36,6 +38,7 @@ END $$;
 CREATE TRIGGER reasoning_ask_job_identity_guard BEFORE UPDATE ON reasoning_job FOR EACH ROW EXECUTE FUNCTION reasoning_ask_job_identity_guard();
 CREATE FUNCTION reasoning_ask_context_family_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+ PERFORM 1 FROM reasoning_job WHERE id=NEW.job_id FOR UPDATE;
  IF NEW.source_policy_version='ask-editorial-asset-pointer-v1' THEN
   IF NOT EXISTS(SELECT 1 FROM reasoning_context_job_ask WHERE job_id=NEW.job_id AND universe_id=NEW.universe_id AND privacy_epoch=NEW.privacy_epoch)
   THEN RAISE EXCEPTION 'Ask context requires its immutable binding'; END IF;
