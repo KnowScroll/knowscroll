@@ -35,12 +35,13 @@ const run=async(name:string,args:string[])=>{
 };
 const start=async()=>{
   running=true;
-  await run('pg_ctl',['-D',data,'-l',log,'-w','-t','20','-o',`-h 127.0.0.1 -p ${port} -k ${dir}`,'start']);
+  await run('pg_ctl',['-D',data,'-l',log,'-w','-t','20','-o',`-h 127.0.0.1 -p ${port} -k ''`,'start']);
   pool=new pg.Pool({connectionString:databaseUrl});
 };
 const stop=async()=>{
   if(pool){await pool.end();pool=undefined;}
-  await run('pg_ctl',['-D',data,'-w','-t','20','-m','fast','stop']);
+  let hasPid=true;try{await readFile(join(data,'postmaster.pid'));}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')hasPid=false;else throw error;}
+  if(hasPid)await run('pg_ctl',['-D',data,'-w','-t','20','-m','fast','stop']);
   running=false;
 };
 const tables=['reasoning_fairness_scheduler','reasoning_fairness_class','reasoning_fairness_universe','reasoning_fairness_ready','reasoning_fairness_attempt','reasoning_fairness_delta','reasoning_accounting','reasoning_permit','reasoning_reservation','reasoning_bucket'];

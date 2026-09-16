@@ -70,6 +70,7 @@ async function dequeue(client:pg.PoolClient,version:string,d:Discovery){
  const u=(await client.query<UniverseLane>(`UPDATE reasoning_fairness_universe SET ready_count=ready_count-1,candidate_cursor=$4,
   credit=CASE WHEN ready_count=1 THEN LEAST(credit,0) ELSE credit END WHERE policy_version=$1 AND class=$2 AND universe_id=$3 AND ready_count>0 RETURNING *`,[version,d.klass,d.universe!.universe_id,d.ready!.seq])).rows[0];
  if(!u)return deny('fairness_ready_count_mismatch');d.universe=u;if(u.ready_count==='0')closeInner(d);
+ if(!(await client.query('SELECT 1 FROM reasoning_fairness_universe WHERE policy_version=$1 AND class=$2 AND ready_count>0 LIMIT 1',[version,d.klass])).rowCount){d.lane.credit=String(BigInt(d.lane.credit)<0n?d.lane.credit:0);d.lane.remaining=null;closeInner(d);d.lane.universe_cursor=null;}
 }
 const observation=(d:Discovery,kind:FairnessObservation['kind'],reason?:string):FairnessObservation=>({kind,reason,class:d.klass,...(d.ready?{jobId:d.ready.jobId,universeId:d.ready.universeId,queueAgeMs:d.ready.queueAgeMs,deadlineMissed:d.ready.deadlineMissed}: {})});
 async function bypass(client:pg.PoolClient,version:string,d:Discovery,remove=false){
@@ -128,7 +129,7 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
   await client.query('UPDATE reasoning_fairness_universe SET credit=$4 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,d.klass,u.universe_id,u.credit]);
   await client.query('INSERT INTO reasoning_fairness_attempt(attempt_id,policy_version,class,universe_id,reserved_charge,recognized_charge) VALUES($1,$2,$3,$4,$5,$5)',[reserved.attemptId,input.policyVersion,d.klass,u.universe_id,charge]);
   await dequeue(client,input.policyVersion,d);
-  const closeClass=BigInt(c.remaining)===0n||BigInt(c.credit)<=0n;
+  const closeClass=c.remaining===null||BigInt(c.remaining)===0n||BigInt(c.credit)<=0n;
   if(closeClass)c.remaining=null;
   if(c.open_universe_id&&(BigInt(c.universe_remaining)===0n||BigInt(d.universe!.credit)<=0n))closeInner(d);
   await save(client,input.policyVersion,d,closeClass);
@@ -152,6 +153,8 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    if(!(await client.query("SELECT 1 FROM reasoning_step WHERE id=$1 AND job_id=$2 AND context_id=$3 AND universe_id=$4 AND privacy_epoch=$5 AND status='pending' FOR UPDATE",[input.stepId,input.jobId,input.contextId,input.universeId,input.privacyEpoch])).rowCount)deny('fairness_not_queueable');
    await client.query('SELECT policy_version FROM reasoning_fairness_scheduler WHERE policy_version=$1 FOR UPDATE',[input.policyVersion]);
    await client.query('INSERT INTO reasoning_fairness_universe(policy_version,class,universe_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[input.policyVersion,input.class,input.universeId]);
+   await client.query('UPDATE reasoning_fairness_universe SET credit=LEAST(credit,0) WHERE policy_version=$1 AND class=$2 AND universe_id=$3 AND ready_count=0',[input.policyVersion,input.class,input.universeId]);
+   if(!(await client.query('SELECT 1 FROM reasoning_fairness_universe WHERE policy_version=$1 AND class=$2 AND ready_count>0 LIMIT 1',[input.policyVersion,input.class])).rowCount)await client.query('UPDATE reasoning_fairness_class SET credit=LEAST(credit,0),remaining=NULL,open_universe_id=NULL,universe_remaining=0 WHERE policy_version=$1 AND class=$2',[input.policyVersion,input.class]);
    await client.query(`INSERT INTO reasoning_fairness_ready(job_id,step_id,context_id,universe_id,privacy_epoch,class,policy_version,request_id,request_hash,input_tokens_upper_bound,max_output_tokens,cost_ceiling_micro_usd,deadline,permit_ttl_ms,charge) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,[input.jobId,input.stepId,input.contextId,input.universeId,input.privacyEpoch,input.class,input.policyVersion,input.requestId,input.requestHash,input.inputTokensUpperBound,input.maxOutputTokens,input.costCeilingMicroUsd,input.deadline,input.permitTtlMs,charge]);
    await client.query('UPDATE reasoning_fairness_universe SET ready_count=ready_count+1 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,input.class,input.universeId]);
    await client.query('UPDATE reasoning_fairness_scheduler SET generation=generation+1 WHERE policy_version=$1',[input.policyVersion]);
@@ -169,7 +172,7 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    // without granting a quantum or resetting any unfinished spend allowance.
    const d=await discover(db,input.policyVersion);
    try{await tx(db,async client=>{await lockCursor(client,input.policyVersion,d);await save(client,input.policyVersion,d,true);});}catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused'].includes(error.code))throw error;}
-   const distinct=new Set(observations.map(x=>x.kind));const kind=distinct.size===1?observations[0]!.kind:'scan_exhausted';
+   const distinct=new Set(observations.map(x=>x.kind));const kind=distinct.size===1&&observations[0]!.kind!=='no_candidate'?observations[0]!.kind:'scan_exhausted';
    return {kind:kind as FairnessNoWork['kind'],observations:[...observations,{kind:'scan_exhausted',reason:'probe_budget'}],probes:policy.maxProbes};
   },
  };

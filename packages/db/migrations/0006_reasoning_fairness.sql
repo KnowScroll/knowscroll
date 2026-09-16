@@ -62,6 +62,8 @@ CREATE TABLE reasoning_fairness_ready (
  FOREIGN KEY(policy_version,class,universe_id)
    REFERENCES reasoning_fairness_universe(policy_version,class,universe_id)
 );
+CREATE TRIGGER reasoning_fairness_ready_guard BEFORE UPDATE ON reasoning_fairness_ready
+ FOR EACH ROW EXECUTE FUNCTION reasoning_fairness_policy_guard();
 CREATE INDEX reasoning_fairness_ready_ring ON reasoning_fairness_ready(policy_version,class,universe_id,seq);
 ALTER TABLE reasoning_accounting ADD CONSTRAINT reasoning_accounting_attempt_universe UNIQUE(attempt_id,universe_id);
 CREATE TABLE reasoning_fairness_attempt (
