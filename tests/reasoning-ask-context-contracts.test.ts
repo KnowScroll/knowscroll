@@ -42,7 +42,7 @@ test('Ask context contract preserves literal Unicode bytes and admits only its e
  assert.equal(parsed.fact.question,'  cafe\u0301\n');
  assert.equal(parsed.kind,'direct_ask_evidence_v1');
 
- const wrongFamily=structuredClone(value);wrongFamily.sourcePolicyVersion='editorial-asset-pointer-v1';
+ const wrongFamily=structuredClone(value) as unknown as {sourcePolicyVersion:string};wrongFamily.sourcePolicyVersion='editorial-asset-pointer-v1';
  assert.equal(askContextPayload.safeParse(wrongFamily).success,false);
  const normalized=structuredClone(value);normalized.fact.question='café';
  assert.equal(askContextPayload.parse(normalized).fact.question,'café');
