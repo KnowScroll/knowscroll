@@ -1,0 +1,14 @@
+Applied 0001_bootstrap.sql
+Applied 0002_identity_epochs.sql
+Applied 0003_history_clear.sql
+Applied 0004_reasoning_storage.sql
+Applied 0005_reasoning_runtime.sql
+Editorial library installed; existing content and user history preserved.
+{"service":"api","port":54593,"identity":"local-development-only"}
+[J003 worker] {"service":"worker","workerId":"local-3986","kind":"deterministic-projection"}
+[J003 worker] {"jobId":"f700bff2-ebfb-4cff-a313-890476171daf","status":"completed"}
+[J003 worker] {"jobId":"0756dad3-fa1b-4649-9dfe-1ab5a7d16e0b","status":"completed"}
+[J003 worker] {"service":"worker","workerId":"local-4207","kind":"deterministic-projection"}
+[J003 worker] {"jobId":"a7641d04-d22e-4625-b840-66eb2a30de3e","status":"completed"}
+{"journey":"J003","result":"passed","receiptPath":"artifacts/j003-isolated-d30886821d992356.json"}
+{"journey":"J003","result":"passed"}

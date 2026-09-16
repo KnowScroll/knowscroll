@@ -1,0 +1,821 @@
+
+> knowscroll@ test /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> ./scripts/test.sh
+
+
+> knowscroll@ db:migrate /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> tsx scripts/migrate.ts
+
+Applied 0001_bootstrap.sql
+Applied 0002_identity_epochs.sql
+Applied 0003_history_clear.sql
+Applied 0004_reasoning_storage.sql
+Applied 0005_reasoning_runtime.sql
+
+> knowscroll@ db:seed /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> tsx scripts/seed.ts
+
+Editorial library installed; existing content and user history preserved.
+TAP version 13
+# Subtest: explicit keeps exclude an item without inferring interest
+ok 1 - explicit keeps exclude an item without inferring interest
+  ---
+  duration_ms: 0.500417
+  type: 'test'
+  ...
+# Subtest: closed admission rejects invented behavioral labels and missing exposure
+ok 2 - closed admission rejects invented behavioral labels and missing exposure
+  ---
+  duration_ms: 1.078416
+  type: 'test'
+  ...
+# Subtest: real PostgreSQL: admission, retry, atomic projection, ownership and causal lineage
+ok 3 - real PostgreSQL: admission, retry, atomic projection, ownership and causal lineage
+  ---
+  duration_ms: 55.074292
+  type: 'test'
+  ...
+# Subtest: migration integrity against disposable PostgreSQL
+    # Subtest: fresh install records checksums and repeat is a no-op
+    ok 1 - fresh install records checksums and repeat is a no-op
+      ---
+      duration_ms: 28.648084
+      type: 'test'
+      ...
+    # Subtest: changed and missing applied migrations fail closed
+    ok 2 - changed and missing applied migrations fail closed
+      ---
+      duration_ms: 18.870917
+      type: 'test'
+      ...
+    # Subtest: failed migration rolls back its SQL and ledger row
+    ok 3 - failed migration rolls back its SQL and ledger row
+      ---
+      duration_ms: 9.660791
+      type: 'test'
+      ...
+    # Subtest: concurrent runners serialize and apply once
+    ok 4 - concurrent runners serialize and apply once
+      ---
+      duration_ms: 217.142292
+      type: 'test'
+      ...
+    # Subtest: adopts only the known original bootstrap checksum
+    ok 5 - adopts only the known original bootstrap checksum
+      ---
+      duration_ms: 21.876084
+      type: 'test'
+      ...
+    # Subtest: rejects arbitrary checksum-less legacy SQL
+    ok 6 - rejects arbitrary checksum-less legacy SQL
+      ---
+      duration_ms: 11.66325
+      type: 'test'
+      ...
+    # Subtest: unknown legacy rows reject before adoption or pending SQL
+    ok 7 - unknown legacy rows reject before adoption or pending SQL
+      ---
+      duration_ms: 23.673792
+      type: 'test'
+      ...
+    # Subtest: rejects an out-of-order migration before pending SQL
+    ok 8 - rejects an out-of-order migration before pending SQL
+      ---
+      duration_ms: 12.327042
+      type: 'test'
+      ...
+    1..8
+ok 4 - migration integrity against disposable PostgreSQL
+  ---
+  duration_ms: 345.298792
+  type: 'test'
+  ...
+1..4
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 442.649834
+TAP version 13
+# Subtest: two independent sessions retain server-owned scope and isolate API resources
+ok 1 - two independent sessions retain server-owned scope and isolate API resources
+  ---
+  duration_ms: 39.052541
+  type: 'test'
+  ...
+# Subtest: session authentication and revoke errors are strict, generic, and token-free
+ok 2 - session authentication and revoke errors are strict, generic, and token-free
+  ---
+  duration_ms: 3.872
+  type: 'test'
+  ...
+# Subtest: privacy epoch invalidates old sessions and rejects stale references before replay
+ok 3 - privacy epoch invalidates old sessions and rejects stale references before replay
+  ---
+  duration_ms: 9.771875
+  type: 'test'
+  ...
+# Subtest: expiry is checked after a request finishes waiting for the universe lock
+ok 4 - expiry is checked after a request finishes waiting for the universe lock
+  ---
+  duration_ms: 510.132416
+  type: 'test'
+  ...
+# Subtest: revocation committed while a request waits on the universe lock denies that request
+ok 5 - revocation committed while a request waits on the universe lock denies that request
+  ---
+  duration_ms: 9.269708
+  type: 'test'
+  ...
+# Subtest: development enrollment on restart does not reactivate a revoked session
+ok 6 - development enrollment on restart does not reactivate a revoked session
+  ---
+  duration_ms: 12.8795
+  type: 'test'
+  ...
+# Subtest: journal durably prepares a private exclusive attempt before resolving it
+ok 7 - journal durably prepares a private exclusive attempt before resolving it
+  ---
+  duration_ms: 271.45325
+  type: 'test'
+  ...
+# Subtest: journal refuses replay, parallel attempts, excess bounds and an existing run
+ok 8 - journal refuses replay, parallel attempts, excess bounds and an existing run
+  ---
+  duration_ms: 224.76375
+  type: 'test'
+  ...
+# Subtest: journal enforces the aggregate reservation and request ceilings without refunds
+ok 9 - journal enforces the aggregate reservation and request ceilings without refunds
+  ---
+  duration_ms: 187.424375
+  type: 'test'
+  ...
+# Subtest: journal rejects non-ignored and symlinked artifact parents
+ok 10 - journal rejects non-ignored and symlinked artifact parents
+  ---
+  duration_ms: 286.298708
+  type: 'test'
+  ...
+# Subtest: inspection preserves a prepared attempt as unresolved and does not mutate it
+ok 11 - inspection preserves a prepared attempt as unresolved and does not mutate it
+  ---
+  duration_ms: 226.97775
+  type: 'test'
+  ...
+# Subtest: inspection treats a torn final append as unknown and never exposes its fragment
+ok 12 - inspection treats a torn final append as unknown and never exposes its fragment
+  ---
+  duration_ms: 230.906208
+  type: 'test'
+  ...
+# Subtest: inspection constructs its whitelist and drops extra fields from parsed disk records
+ok 13 - inspection constructs its whitelist and drops extra fields from parsed disk records
+  ---
+  duration_ms: 232.985917
+  type: 'test'
+  ...
+# Subtest: resolution refuses a null or inconsistent adapter request hash and preserves uncertainty
+ok 14 - resolution refuses a null or inconsistent adapter request hash and preserves uncertainty
+  ---
+  duration_ms: 158.137792
+  type: 'test'
+  ...
+# Subtest: quota preflight uses only the fixed URL, no redirects, and validates exact general percentages
+ok 15 - quota preflight uses only the fixed URL, no redirects, and validates exact general percentages
+  ---
+  duration_ms: 1.7575
+  type: 'test'
+  ...
+# Subtest: runner performs three serial quota-gated cases and preserves opaque native continuation only in memory
+ok 16 - runner performs three serial quota-gated cases and preserves opaque native continuation only in memory
+  ---
+  duration_ms: 273.545166
+  type: 'test'
+  ...
+# Subtest: invalid tool call stops the dependent continuation without fabricating a result
+ok 17 - invalid tool call stops the dependent continuation without fabricating a result
+  ---
+  duration_ms: 190.409959
+  type: 'test'
+  ...
+# Subtest: runner drives the real SDK adapter through a local HTTP fixture with each prepared journal visible before transport
+ok 18 - runner drives the real SDK adapter through a local HTTP fixture with each prepared journal visible before transport
+  ---
+  duration_ms: 218.5995
+  type: 'test'
+  ...
+# Subtest: runner records a real SDK request deadline as timeout with unknown remote outcome
+ok 19 - runner records a real SDK request deadline as timeout with unknown remote outcome
+  ---
+  duration_ms: 4406.961625
+  type: 'test'
+  ...
+# Subtest: completed observations with inconsistent dispatch and HTTP evidence fail validation
+ok 20 - completed observations with inconsistent dispatch and HTTP evidence fail validation
+  ---
+  duration_ms: 211.039208
+  type: 'test'
+  ...
+# Subtest: runner refuses non-subscription keys before creating a journal or adapter
+ok 21 - runner refuses non-subscription keys before creating a journal or adapter
+  ---
+  duration_ms: 77.436917
+  type: 'test'
+  ...
+# Subtest: clears one nonempty history, rolls only caller, and exact replay preserves later activity
+ok 22 - clears one nonempty history, rolls only caller, and exact replay preserves later activity
+  ---
+  duration_ms: 41.173666
+  type: 'test'
+  ...
+# Subtest: auth precedes strict validation and malformed input changes nothing
+ok 23 - auth precedes strict validation and malformed input changes nothing
+  ---
+  duration_ms: 8.861333
+  type: 'test'
+  ...
+# Subtest: concurrent identical keys replay once and distinct keys from one epoch cannot both clear
+ok 24 - concurrent identical keys replay once and distinct keys from one epoch cannot both clear
+  ---
+  duration_ms: 20.930583
+  type: 'test'
+  ...
+# Subtest: clear waits for prior admission and removes what committed before it
+ok 25 - clear waits for prior admission and removes what committed before it
+  ---
+  duration_ms: 105.688083
+  type: 'test'
+  ...
+# Subtest: clear waits for a real worker commit and then erases its projection
+ok 26 - clear waits for a real worker commit and then erases its projection
+  ---
+  duration_ms: 731.288208
+  type: 'test'
+  ...
+# Subtest: mid-clear database failure rolls back epoch, session, revisions and every deletion
+ok 27 - mid-clear database failure rolls back epoch, session, revisions and every deletion
+  ---
+  duration_ms: 27.371417
+  type: 'test'
+  ...
+# Subtest: maximum epoch overflow fails transactionally without clearing or rolling session
+ok 28 - maximum epoch overflow fails transactionally without clearing or rolling session
+  ---
+  duration_ms: 11.637083
+  type: 'test'
+  ...
+# Subtest: receipt schema retains only retry metadata
+ok 29 - receipt schema retains only retry metadata
+  ---
+  duration_ms: 2.879792
+  type: 'test'
+  ...
+# Subtest: provisions isolated identities and authenticates only the matching scope
+ok 30 - provisions isolated identities and authenticates only the matching scope
+  ---
+  duration_ms: 14.856375
+  type: 'test'
+  ...
+# Subtest: explicit universe must exist and session scope follows its current epoch
+ok 31 - explicit universe must exist and session scope follows its current epoch
+  ---
+  duration_ms: 1.248125
+  type: 'test'
+  ...
+# Subtest: development enrollment never extends or reactivates its session
+ok 32 - development enrollment never extends or reactivates its session
+  ---
+  duration_ms: 3.293334
+  type: 'test'
+  ...
+# Subtest: expiry is evaluated after waiting for the universe lock
+ok 33 - expiry is evaluated after waiting for the universe lock
+  ---
+  duration_ms: 1064.120458
+  type: 'test'
+  ...
+# Subtest: privacy epoch advancement invalidates an already minted session
+ok 34 - privacy epoch advancement invalidates an already minted session
+  ---
+  duration_ms: 8.299333
+  type: 'test'
+  ...
+# Subtest: 0001 to 0002 preserves valid owner history and stamps epoch zero
+ok 35 - 0001 to 0002 preserves valid owner history and stamps epoch zero
+  ---
+  duration_ms: 40.818916
+  type: 'test'
+  ...
+# Subtest: 0002 rejects incompatible cross-universe history without rewriting it
+ok 36 - 0002 rejects incompatible cross-universe history without rewriting it
+  ---
+  duration_ms: 23.91275
+  type: 'test'
+  ...
+# Subtest: uses the real SDK route and preserves native ordered continuation blocks and tools
+ok 37 - uses the real SDK route and preserves native ordered continuation blocks and tools
+  ---
+  duration_ms: 21.903167
+  type: 'test'
+  ...
+# Subtest: continues from the exact raw thinking and tool-use response returned by the first invocation
+ok 38 - continues from the exact raw thinking and tool-use response returned by the first invocation
+  ---
+  duration_ms: 8.145084
+  type: 'test'
+  ...
+# Subtest: does not retry HTTP 429
+ok 39 - does not retry HTTP 429
+  ---
+  duration_ms: 2.776666
+  type: 'test'
+  ...
+# Subtest: does not retry HTTP 500
+ok 40 - does not retry HTTP 500
+  ---
+  duration_ms: 2.798166
+  type: 'test'
+  ...
+# Subtest: rejects output and actual UTF-8 input bounds before dispatch
+ok 41 - rejects output and actual UTF-8 input bounds before dispatch
+  ---
+  duration_ms: 0.995458
+  type: 'test'
+  ...
+# Subtest: pre-abort and reservation rejection never fetch
+ok 42 - pre-abort and reservation rejection never fetch
+  ---
+  duration_ms: 0.635166
+  type: 'test'
+  ...
+# Subtest: deadline aborts an in-flight request and reports uncertain dispatched timeout
+ok 43 - deadline aborts an in-flight request and reports uncertain dispatched timeout
+  ---
+  duration_ms: 32.792
+  type: 'test'
+  ...
+# Subtest: missing usage remains nullable and is an SDK compatibility failure
+ok 44 - missing usage remains nullable and is an SDK compatibility failure
+  ---
+  duration_ms: 5.263875
+  type: 'test'
+  ...
+# Subtest: caller abort after dispatch reports aborted with unknown remote outcome
+ok 45 - caller abort after dispatch reports aborted with unknown remote outcome
+  ---
+  duration_ms: 2.418791
+  type: 'test'
+  ...
+# Subtest: does not follow redirects or send credentials to the redirect target
+ok 46 - does not follow redirects or send credentials to the redirect target
+  ---
+  duration_ms: 2.130916
+  type: 'test'
+  ...
+# Subtest: HTTP 200 SDK validation failure retains independently valid raw usage
+ok 47 - HTTP 200 SDK validation failure retains independently valid raw usage
+  ---
+  duration_ms: 1.822666
+  type: 'test'
+  ...
+# Subtest: snapshots native input before waiting for the durable reservation
+ok 48 - snapshots native input before waiting for the durable reservation
+  ---
+  duration_ms: 7.480916
+  type: 'test'
+  ...
+# Subtest: classifies a fetch rejection as transport error without exposing it
+ok 49 - classifies a fetch rejection as transport error without exposing it
+  ---
+  duration_ms: 0.398334
+  type: 'test'
+  ...
+# Subtest: reasoning admission uses atomic PostgreSQL authority and one-time dispatch grants
+    # Subtest: lease and permit TTLs are explicitly bounded
+    ok 1 - lease and permit TTLs are explicitly bounded
+      ---
+      duration_ms: 88.967708
+      type: 'test'
+      ...
+    # Subtest: concurrent shared-capacity contention admits exactly one and rolls the loser back
+    ok 2 - concurrent shared-capacity contention admits exactly one and rolls the loser back
+      ---
+      duration_ms: 93.523959
+      type: 'test'
+      ...
+    # Subtest: a reservation may exactly fill capacity but an impossible request is permanently denied atomically
+    ok 3 - a reservation may exactly fill capacity but an impossible request is permanently denied atomically
+      ---
+      duration_ms: 84.109042
+      type: 'test'
+      ...
+    # Subtest: invalid, missing, stale policy and context bindings leave no partial admission
+    ok 4 - invalid, missing, stale policy and context bindings leave no partial admission
+      ---
+      duration_ms: 79.80925
+      type: 'test'
+      ...
+    # Subtest: stale lease, epoch, context, request hash and output ceiling cannot authorize
+    ok 5 - stale lease, epoch, context, request hash and output ceiling cannot authorize
+      ---
+      duration_ms: 85.25375
+      type: 'test'
+      ...
+    # Subtest: authorization is granted exactly once after commit and existing intent never replays
+    ok 6 - authorization is granted exactly once after commit and existing intent never replays
+      ---
+      duration_ms: 84.174208
+      type: 'test'
+      ...
+    # Subtest: lost COMMIT acknowledgement returns no grant and retry cannot replay committed authorization
+    ok 7 - lost COMMIT acknowledgement returns no grant and retry cannot replay committed authorization
+      ---
+      duration_ms: 82.800541
+      type: 'test'
+      ...
+    # Subtest: withdraw before dispatch refunds all reservations; withdraw after dispatch preserves uncertainty
+    ok 8 - withdraw before dispatch refunds all reservations; withdraw after dispatch preserves uncertainty
+      ---
+      duration_ms: 95.133917
+      type: 'test'
+      ...
+    # Subtest: transport loss marks consumed work unknown without refund or replay
+    ok 9 - transport loss marks consumed work unknown without refund or replay
+      ---
+      duration_ms: 85.105
+      type: 'test'
+      ...
+    # Subtest: local cancellation withdraws output and obsolete private state is harmless
+    ok 10 - local cancellation withdraws output and obsolete private state is harmless
+      ---
+      duration_ms: 80.920042
+      type: 'test'
+      ...
+    # Subtest: an expired lease may withdraw late output without mutating private execution state
+    ok 11 - an expired lease may withdraw late output without mutating private execution state
+      ---
+      duration_ms: 86.441833
+      type: 'test'
+      ...
+    # Subtest: lease and permit expiry while waiting on bucket locks fail after the wait and roll back
+    ok 12 - lease and permit expiry while waiting on bucket locks fail after the wait and roll back
+      ---
+      duration_ms: 4125.886
+      type: 'test'
+      ...
+    # Subtest: context authority is revalidated after blocked bucket locks before reserve and authorize mutations
+    ok 13 - context authority is revalidated after blocked bucket locks before reserve and authorize mutations
+      ---
+      duration_ms: 110.791416
+      type: 'test'
+      ...
+    # Subtest: recovery refuses a healthy lease and fences expired unconsumed or consumed work without replay
+    ok 14 - recovery refuses a healthy lease and fences expired unconsumed or consumed work without replay
+      ---
+      duration_ms: 90.864709
+      type: 'test'
+      ...
+    # Subtest: fenced recovery can close every active Step without stranding later Attempts
+    ok 15 - fenced recovery can close every active Step without stranding later Attempts
+      ---
+      duration_ms: 87.693208
+      type: 'test'
+      ...
+    # Subtest: a locked universe does not block claiming another ready universe
+    ok 16 - a locked universe does not block claiming another ready universe
+      ---
+      duration_ms: 79.792542
+      type: 'test'
+      ...
+    1..16
+ok 50 - reasoning admission uses atomic PostgreSQL authority and one-time dispatch grants
+  ---
+  duration_ms: 5443.759959
+  type: 'test'
+  ...
+# Subtest: bigint counters retain exact wire precision and reject malformed or overflowing values without throwing
+ok 51 - bigint counters retain exact wire precision and reject malformed or overflowing values without throwing
+  ---
+  duration_ms: 2.483667
+  type: 'test'
+  ...
+# Subtest: a context cannot mix foreign private universes or conflicting duplicate read identities
+ok 52 - a context cannot mix foreign private universes or conflicting duplicate read identities
+  ---
+  duration_ms: 0.858
+  type: 'test'
+  ...
+# Subtest: reservation identity, bucket identity and units cannot double count or substitute capacity
+ok 53 - reservation identity, bucket identity and units cannot double count or substitute capacity
+  ---
+  duration_ms: 0.961042
+  type: 'test'
+  ...
+# Subtest: unknown execution needs original dispatch evidence and does not acquire a success payload
+ok 54 - unknown execution needs original dispatch evidence and does not acquire a success payload
+  ---
+  duration_ms: 0.355
+  type: 'test'
+  ...
+# Subtest: late usage is representable after private context erasure without carrying private payload fields
+ok 55 - late usage is representable after private context erasure without carrying private payload fields
+  ---
+  duration_ms: 0.792375
+  type: 'test'
+  ...
+# Subtest: unknown usage stays null while invalid counters never become free usage
+ok 56 - unknown usage stays null while invalid counters never become free usage
+  ---
+  duration_ms: 0.190208
+  type: 'test'
+  ...
+# Subtest: direct intent identity cannot be silently replaced with a coalesced watermark
+ok 57 - direct intent identity cannot be silently replaced with a coalesced watermark
+  ---
+  duration_ms: 0.225709
+  type: 'test'
+  ...
+# Subtest: attempt retry lineage and withdrawn output cannot contradict their lifecycle
+ok 58 - attempt retry lineage and withdrawn output cannot contradict their lifecycle
+  ---
+  duration_ms: 0.464458
+  type: 'test'
+  ...
+# Subtest: settlement revision links and unique bucket adjustments make double-charge ambiguity explicit
+ok 59 - settlement revision links and unique bucket adjustments make double-charge ambiguity explicit
+  ---
+  duration_ms: 1.205375
+  type: 'test'
+  ...
+# Subtest: worker invokes once after committed authorization and binds only minimal observation
+ok 60 - worker invokes once after committed authorization and binds only minimal observation
+  ---
+  duration_ms: 2.47225
+  type: 'test'
+  ...
+# Subtest: lost authorization acknowledgement, wrong bytes and pre-abort make zero transport calls
+ok 61 - lost authorization acknowledgement, wrong bytes and pre-abort make zero transport calls
+  ---
+  duration_ms: 0.410375
+  type: 'test'
+  ...
+# Subtest: transport failure and invalid metadata preserve possible-send uncertainty without retry
+ok 62 - transport failure and invalid metadata preserve possible-send uncertainty without retry
+  ---
+  duration_ms: 0.255625
+  type: 'test'
+  ...
+# Subtest: post-commit abort and expired grant issue no transport, while late metadata still settles
+ok 63 - post-commit abort and expired grant issue no transport, while late metadata still settles
+  ---
+  duration_ms: 0.277125
+  type: 'test'
+  ...
+# Subtest: history clear removes queued and private reasoning while retaining only accounting
+ok 64 - history clear removes queued and private reasoning while retaining only accounting
+  ---
+  duration_ms: 36.256209
+  type: 'test'
+  ...
+# Subtest: a later clear preserves earlier retained accounting and does not refund twice
+ok 65 - a later clear preserves earlier retained accounting and does not refund twice
+  ---
+  duration_ms: 10.71725
+  type: 'test'
+  ...
+# Subtest: exact older-clear replay leaves later private reasoning and reservations untouched
+ok 66 - exact older-clear replay leaves later private reasoning and reservations untouched
+  ---
+  duration_ms: 9.050875
+  type: 'test'
+  ...
+# Subtest: clear withdraws and releases retained unconsumed accounting even without a private graph
+ok 67 - clear withdraws and releases retained unconsumed accounting even without a private graph
+  ---
+  duration_ms: 5.30775
+  type: 'test'
+  ...
+# Subtest: history clear rolls reasoning mutations back with the rest of its transaction
+ok 68 - history clear rolls reasoning mutations back with the rest of its transaction
+  ---
+  duration_ms: 7.074042
+  type: 'test'
+  ...
+# Subtest: restricted receipts accept old-epoch original identity only, and enforce origin and exact replay
+ok 69 - restricted receipts accept old-epoch original identity only, and enforce origin and exact replay
+  ---
+  duration_ms: 14.593083
+  type: 'test'
+  ...
+# Subtest: purge removes only aged fully closed erased accounting and leaves unknown identities unknown
+ok 70 - purge removes only aged fully closed erased accounting and leaves unknown identities unknown
+  ---
+  duration_ms: 25.820708
+  type: 'test'
+  ...
+# Subtest: cumulative receipt revisions post only deltas and duplicates are no-ops
+ok 71 - cumulative receipt revisions post only deltas and duplicates are no-ops
+  ---
+  duration_ms: 32.770583
+  type: 'test'
+  ...
+# Subtest: terminal evidence releases remote capacity while nullable financial usage remains held
+ok 72 - terminal evidence releases remote capacity while nullable financial usage remains held
+  ---
+  duration_ms: 7.464834
+  type: 'test'
+  ...
+# Subtest: overage pauses budget and rate keeps its reserved floor without an early refund
+ok 73 - overage pauses budget and rate keeps its reserved floor without an early refund
+  ---
+  duration_ms: 7.214583
+  type: 'test'
+  ...
+# Subtest: rate cumulative usage within a reserved floor does not double charge
+ok 74 - rate cumulative usage within a reserved floor does not double charge
+  ---
+  duration_ms: 8.7255
+  type: 'test'
+  ...
+# Subtest: PostgreSQL bigint counters compare numerically across receipt revisions and cache fields
+ok 75 - PostgreSQL bigint counters compare numerically across receipt revisions and cache fields
+  ---
+  duration_ms: 12.384458
+  type: 'test'
+  ...
+# Subtest: split nullable cumulative fields merge before total-token settlement
+ok 76 - split nullable cumulative fields merge before total-token settlement
+  ---
+  duration_ms: 6.258542
+  type: 'test'
+  ...
+# Subtest: contradictory terminal and decreasing cumulative evidence freeze reconciliation
+ok 77 - contradictory terminal and decreasing cumulative evidence freeze reconciliation
+  ---
+  duration_ms: 14.772417
+  type: 'test'
+  ...
+# Subtest: missing remote reservation freezes legacy-incomplete reconciliation
+ok 78 - missing remote reservation freezes legacy-incomplete reconciliation
+  ---
+  duration_ms: 3.83075
+  type: 'test'
+  ...
+# Subtest: old-epoch late receipt settles retained accounting without resurrecting private graph
+ok 79 - old-epoch late receipt settles retained accounting without resurrecting private graph
+  ---
+  duration_ms: 8.603167
+  type: 'test'
+  ...
+# Subtest: unconfirmed remote duty blocks retention even when financial usage is settled
+ok 80 - unconfirmed remote duty blocks retention even when financial usage is settled
+  ---
+  duration_ms: 4.323792
+  type: 'test'
+  ...
+# Subtest: reconciliation transaction rolls receipt and accounting changes back on settlement failure
+ok 81 - reconciliation transaction rolls receipt and accounting changes back on settlement failure
+  ---
+  duration_ms: 5.304
+  type: 'test'
+  ...
+# Subtest: an internally appended receipt replays into its own settlement and expired accounting withdraws output
+ok 82 - an internally appended receipt replays into its own settlement and expired accounting withdraws output
+  ---
+  duration_ms: 4.957167
+  type: 'test'
+  ...
+# Subtest: a fully known terminal receipt starts one retention clock and exact replay does not reset it
+ok 83 - a fully known terminal receipt starts one retention clock and exact replay does not reset it
+  ---
+  duration_ms: 6.091417
+  type: 'test'
+  ...
+# Subtest: one committed HTTP fixture invocation settles original usage after concurrent privacy clear
+ok 84 - one committed HTTP fixture invocation settles original usage after concurrent privacy clear
+  ---
+  duration_ms: 125.466833
+  type: 'test'
+  ...
+# Subtest: 0005 preserves populated 0004 accounting and enforces immutable interpretation
+ok 85 - 0005 preserves populated 0004 accounting and enforces immutable interpretation
+  ---
+  duration_ms: 100.08525
+  type: 'test'
+  ...
+# Subtest: runtime policy binding is stable under ordering and changes with accounting interpretation
+ok 86 - runtime policy binding is stable under ordering and changes with accounting interpretation
+  ---
+  duration_ms: 7.783125
+  type: 'test'
+  ...
+# Subtest: runtime policy refuses missing, duplicate, foreign and mismatched accounting bindings
+ok 87 - runtime policy refuses missing, duplicate, foreign and mismatched accounting bindings
+  ---
+  duration_ms: 0.899625
+  type: 'test'
+  ...
+# Subtest: reservation estimates preserve units and fail closed on absent cost or integer overflow
+ok 88 - reservation estimates preserve units and fail closed on absent cost or integer overflow
+  ---
+  duration_ms: 0.086209
+  type: 'test'
+  ...
+# Subtest: reasoning storage migration and invariants against isolated PostgreSQL
+    # Subtest: fresh and populated 0001-0003 upgrades preserve rows, checksums, and repeat cleanly
+    ok 1 - fresh and populated 0001-0003 upgrades preserve rows, checksums, and repeat cleanly
+      ---
+      duration_ms: 136.525792
+      type: 'test'
+      ...
+    # Subtest: composite scope, context scope, and immutable snapshots reject cross-boundary mutation
+    ok 2 - composite scope, context scope, and immutable snapshots reject cross-boundary mutation
+      ---
+      duration_ms: 103.254084
+      type: 'test'
+      ...
+    # Subtest: duplicate ordinals, request/dispatch identities, and active Attempts fail closed
+    ok 3 - duplicate ordinals, request/dispatch identities, and active Attempts fail closed
+      ---
+      duration_ms: 80.883917
+      type: 'test'
+      ...
+    # Subtest: Attempt predecessor must be the immediately prior Attempt on the same Step
+    ok 4 - Attempt predecessor must be the immediately prior Attempt on the same Step
+      ---
+      duration_ms: 72.689292
+      type: 'test'
+      ...
+    # Subtest: Permit, reservation, and bucket lifecycle identities move only once
+    ok 5 - Permit, reservation, and bucket lifecycle identities move only once
+      ---
+      duration_ms: 82.592959
+      type: 'test'
+      ...
+    # Subtest: typed reservations and settlement adjustments reject wrong units and duplicate buckets
+    ok 6 - typed reservations and settlement adjustments reject wrong units and duplicate buckets
+      ---
+      duration_ms: 74.504209
+      type: 'test'
+      ...
+    # Subtest: receipts and settlements are append-only with cumulative revision identity
+    ok 7 - receipts and settlements are append-only with cumulative revision identity
+      ---
+      duration_ms: 83.592709
+      type: 'test'
+      ...
+    # Subtest: eligible accounting purge cascades evidence while direct child deletion is blocked
+    ok 8 - eligible accounting purge cascades evidence while direct child deletion is blocked
+      ---
+      duration_ms: 86.833084
+      type: 'test'
+      ...
+    1..8
+ok 89 - reasoning storage migration and invariants against isolated PostgreSQL
+  ---
+  duration_ms: 722.309625
+  type: 'test'
+  ...
+# Subtest: current-epoch work projects once and reports its actual outcome
+ok 90 - current-epoch work projects once and reports its actual outcome
+  ---
+  duration_ms: 16.176792
+  type: 'test'
+  ...
+# Subtest: epoch advancement discards queued work without projection or retry
+ok 91 - epoch advancement discards queued work without projection or retry
+  ---
+  duration_ms: 3.90775
+  type: 'test'
+  ...
+# Subtest: job and causal Ledger epoch mismatch is discarded
+ok 92 - job and causal Ledger epoch mismatch is discarded
+  ---
+  duration_ms: 2.943167
+  type: 'test'
+  ...
+# Subtest: a locked universe does not block ready work for another universe
+ok 93 - a locked universe does not block ready work for another universe
+  ---
+  duration_ms: 10.276166
+  type: 'test'
+  ...
+# Subtest: projection failure retry settles under the universe lock and later epoch change discards
+ok 94 - projection failure retry settles under the universe lock and later epoch change discards
+  ---
+  duration_ms: 7.120167
+  type: 'test'
+  ...
+1..94
+# tests 118
+# suites 0
+# pass 118
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18966.522458

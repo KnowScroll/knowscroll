@@ -5,9 +5,9 @@ Prepared under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`:
 | Directory / branch | Issue | Local API port | Database |
 |---|---|---|---|
 | `mobile` / `codex/31-history-control` | #31 (parent #3), Android privacy control | 4312 | knowscroll_mobile |
-| `core` / `codex/44-reasoning-privacy` | #44 (parent #7), privacy/accounting helpers | 4313 | knowscroll_core |
-| `reasoning` / `codex/44-reasoning-storage-tests` | #44 (parent #7), storage invariant tests | 4314 | knowscroll_reasoning |
-| `coordination` / `codex/44-reasoning-storage` | #44 migration and integration | 4315 | knowscroll_coordination |
+| `core` / `codex/45-reconciliation` | #45 (parent #7), cumulative settlement | 4313 | knowscroll_core |
+| `reasoning` / `codex/45-admission` | #45 (parent #7), admission/lease/recovery | 4314 | knowscroll_reasoning |
+| `coordination` / `codex/45-reasoning-runtime` | #45 policy, migration and integration | 4315 | knowscroll_coordination |
 
 Each has its own ignored `.env` and local Android configuration. All use the dedicated SSD PostgreSQL cluster at port55432 and the same SSD package/SDK/Gradle caches. Databases and API ports are separate. These lanes are prepared, not autonomous agents already running.
 
@@ -28,3 +28,5 @@ Wave four is coordinated in [#37](https://github.com/KnowScroll/knowscroll/issue
 Issue #42 uses coordinator-owned ADR/shared schema edits and read-only Sol/Terra review in the idle lanes. The [next implementation plan](reasoning-implementation-plan.md) assigns #44–#46 after storage contracts are released; their presence in the issue board does not mean workers are already executing them.
 
 Issue #44 uses coordinator-owned migration 0004, a Sol storage-test lane, and a privacy helper lane begun by Sol and completed by Terra after a model-capacity failure. Terra independently reviews the migration, tests and helpers. No provider calls are part of this slice. #45 consumes the reviewed storage interfaces next; #46 owns process crash proof.
+
+Issue #45 uses Sol for admission/lease/recovery, Terra for cumulative reconciliation and a separate Terra reviewer. Coordinator owns migration 0005, shared policy validation, the unwired invocation boundary and integrated SQL/HTTP proof. All provider responses remain test fixtures; #46 owns J004 next.
