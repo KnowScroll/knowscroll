@@ -1,0 +1,55 @@
+{
+  "issue": 69,
+  "observedAt": "2026-09-16T15:55:40.303107+00:00",
+  "testedRevision": "6a7521076e33db9efda333ecff6a46a77b43111f",
+  "source": [
+    {
+      "path": "scripts/run-isolated-retirement-journey.ts",
+      "sha256": "6d3341916b1eb2ea056bc71780f1f195f63840f3e291d8adc079a4af637b414d"
+    },
+    {
+      "path": "tests/retirement-journey-shutdown.test.ts",
+      "sha256": "8c90f816d5e95616d3767babb2da2d834fea95cd9619e26d80872cfe22251cf5"
+    }
+  ],
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "explicit-marker exit/data/close counterprobe (1 test)",
+      "result": "passed"
+    },
+    {
+      "command": "separate-process scheduled retirement",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test (12 baseline +243 additional =255)",
+      "result": "passed"
+    }
+  ],
+  "instrumentedOldRunnerLocalDiagnosticRuns": {
+    "count": 5,
+    "result": "all passed; did not reproduce Linux failure"
+  },
+  "reviews": [
+    {
+      "implementation": "gpt-5.6-sol"
+    },
+    {
+      "independentReview": "gpt-5.6-terra",
+      "accepted": "01edc98629f05a9fb00e3ab825a745c23670a573 +1b09e33f2792429999c773986620300d7c4bb2d0",
+      "focusedCounterprobe": "1/1 passed under external20s bound"
+    }
+  ],
+  "productionSourceChanged": false,
+  "providerCalls": 0,
+  "limits": [
+    "Three retained original Linux failures remain unattributed.",
+    "Marker probe proves process event ordering can occur, not original CI cause.",
+    "Typed exact assertion codes cover shutdown; earlier assertions can retain generic unexpected_harness_failure.",
+    "Final-head Linux/Android CI required separately."
+  ]
+}
