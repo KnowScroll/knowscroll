@@ -18,6 +18,8 @@ BEGIN
  END IF;
  IF NEW.withdrawn_at IS NOT NULL THEN
   IF OLD.status NOT IN ('running','waiting') OR NEW.status NOT IN ('cancelled','expired')
+    OR OLD.lease_owner IS NULL OR OLD.lease_expires_at IS NULL OR OLD.lease_expires_at<=clock_timestamp()
+    OR OLD.lease_fence<=0
     OR NEW.lease_owner IS NOT NULL OR NEW.lease_expires_at IS NOT NULL
     OR EXISTS(SELECT 1 FROM reasoning_fairness_ready WHERE job_id=NEW.id)
     OR EXISTS(SELECT 1 FROM reasoning_step WHERE job_id=NEW.id AND status NOT IN ('succeeded','failed','cancelled','superseded'))
