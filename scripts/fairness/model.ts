@@ -23,13 +23,13 @@ export type Candidate = {attemptId: string; reservationId: string; universeId: s
 export type Receipt = {receiptId: string; actual: Record<string, number>; terminal?: boolean; outcome?: 'consumed' | 'not_sent' | 'unknown' | 'terminal'};
 export type Reservation = Candidate & {charge: number; settledCharge: number; status: ReservationStatus; demand: Record<string, number>; actual: Record<string, number>; receiptFingerprints: Record<string, string>; frozen: boolean; rateReleased: boolean};
 export type Lane = {credit: number; cursor: number};
-export type OpenVisit = {class: FairnessClass; remaining: number; universeId: string | null; universeRemaining: number};
+export type OpenVisit = {class: FairnessClass; remaining: number; universeId: string | null; universeRemaining: number; innerGeneration: number};
 export type FairnessSnapshot = {
   policyVersion: string; policyHash: string; classCursor: number; classLanes: Record<FairnessClass, Lane>;
   universeLanes: Record<string, Lane>; ready: Candidate[]; reservations: Record<string, Reservation>;
   pausedDimensions: string[]; openVisit: OpenVisit | null; visitGeneration: number; trace: Decision[];
 };
-export type Decision = {kind: 'admitted' | 'blocked' | 'impossible' | 'idle' | 'settled' | 'frozen' | 'deadline_missed'; attemptId?: string; reason?: string; charge?: number; class?: FairnessClass; universeId?: string; visitGeneration?: number};
+export type Decision = {kind: 'admitted' | 'blocked' | 'impossible' | 'idle' | 'settled' | 'frozen' | 'deadline_missed'; attemptId?: string; reason?: string; charge?: number; class?: FairnessClass; universeId?: string; visitGeneration?: number; innerGeneration?: number};
 export type TickResult = {snapshot: FairnessSnapshot; decisions: Decision[]};
 
 const MAX=Number.MAX_SAFE_INTEGER;
@@ -117,7 +117,9 @@ function nextCandidate(policy:FairnessPolicy,state:FairnessSnapshot,c:FairnessCl
   const universes=(onlyUniverse?[onlyUniverse]:[...new Set(candidates.map(x=>x.universeId))].sort()); const lane=state.classLanes[c];
   let blocked:string|null=null;
   for(let i=0;i<universes.length && scan.remaining>0;i++) {
-    const index=onlyUniverse?0:lane.cursor%universes.length, universe=universes[index]!;scan.remaining-=1;lane.cursor=(index+1)%universes.length;
+    const index=onlyUniverse?0:lane.cursor%universes.length, universe=universes[index]!;scan.remaining-=1;
+    // An inner probe must not reset the persistent full-universe ring cursor.
+    if(!onlyUniverse) lane.cursor=(index+1)%universes.length;
     const inUniverse=candidates.filter(x=>x.universeId===universe).sort((a,b)=>a.enqueue-b.enqueue||a.attemptId.localeCompare(b.attemptId));
     if(!inUniverse.length) return {candidate:null,reason:'empty',impossible:null,expired:null};
     const ul=state.universeLanes[universeKey(c,universe)]!;
@@ -139,13 +141,16 @@ function admit(policy:FairnessPolicy,state:FairnessSnapshot,candidate:Candidate,
   cl.credit=sub(cl.credit,charge);ul.credit=sub(ul.credit,charge);visit.remaining=sub(visit.remaining,charge);visit.universeRemaining=sub(visit.universeRemaining,charge);
   removeReady(state,candidate.attemptId);
   state.reservations[candidate.attemptId]={...candidate,charge,settledCharge:charge,status:'reserved',demand:clone(candidate.demand),actual:{},receiptFingerprints:{},frozen:false,rateReleased:false};
-  append(state,{kind:'admitted',attemptId:candidate.attemptId,charge,class:candidate.class,universeId:candidate.universeId,visitGeneration:state.visitGeneration},decisions);return true;
+  append(state,{kind:'admitted',attemptId:candidate.attemptId,charge,class:candidate.class,universeId:candidate.universeId,visitGeneration:state.visitGeneration,innerGeneration:visit.innerGeneration},decisions);return true;
 }
 /** Runs finite scheduling work.  A later tick resumes the exact class visit without re-minting it. */
 export type ScheduleLimits = Partial<Pick<FairnessPolicy,'maxScanPerTick'|'maxAdmissionsPerTick'>> & {now?: number};
 export function scheduleTick(policy:FairnessPolicy,snapshot:FairnessSnapshot,limits:ScheduleLimits={}):TickResult {
   const state=clone(snapshot),decisions:Decision[]=[];validatePolicy(policy);
   if(state.policyVersion!==policy.version||state.policyHash!==policyHash(policy)) throw new Error('policy_version_mismatch');
+  const activeLanes=new Set(state.ready.map(candidate=>universeKey(candidate.class,candidate.universeId)));
+  for(const [key,lane] of Object.entries(state.universeLanes)) if(!activeLanes.has(key)) hasPositiveCredit(lane);
+  for(const c of CLASSES) if(!state.ready.some(candidate=>candidate.class===c)) hasPositiveCredit(state.classLanes[c]);
   let scan={remaining:limits.maxScanPerTick??policy.maxScanPerTick}, admissions=limits.maxAdmissionsPerTick??policy.maxAdmissionsPerTick;
   assertSafe(scan.remaining,'scan_limit',true);assertSafe(admissions,'admission_limit',true);
   const ring=classRing(policy);let spins=0;
@@ -169,13 +174,14 @@ export function scheduleTick(policy:FairnessPolicy,snapshot:FairnessSnapshot,lim
     const classLane=state.classLanes[candidate.class], universeLane=state.universeLanes[universeKey(candidate.class,candidate.universeId)]!;
     if(!state.openVisit) {
       classLane.credit=cap(add(classLane.credit,classQuantum(policy,candidate.class)),classCap(policy,candidate.class));
-      state.visitGeneration=add(state.visitGeneration,1);state.openVisit={class:candidate.class,remaining:classCap(policy,candidate.class),universeId:null,universeRemaining:0};
+      state.visitGeneration=add(state.visitGeneration,1);state.openVisit={class:candidate.class,remaining:classCap(policy,candidate.class),universeId:null,universeRemaining:0,innerGeneration:0};
     }
     // A universe receives one q quantum on each visit, independently capped; refunds cannot enlarge this visit.
     if(state.openVisit.universeId!==candidate.universeId) {
       universeLane.credit=cap(add(universeLane.credit,policy.quantum),universeCap(policy));
       state.openVisit.universeId=candidate.universeId;
       state.openVisit.universeRemaining=universeCap(policy);
+      state.openVisit.innerGeneration=add(state.openVisit.innerGeneration,1);
     }
     if(admit(policy,state,candidate,decisions)) { admissions-=1;spins=0;continue; }
     // DRR keeps the visit open for future accumulated credit, but rotates away from this unaffordable head now.
