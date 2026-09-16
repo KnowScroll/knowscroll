@@ -334,22 +334,37 @@ finally:
     clean(lambda: run(['adb', 'shell', 'wm', 'size', 'reset']))
     clean(lambda: run(['adb', 'shell', 'settings', 'put', 'system', 'font_scale', original_font if original_font != 'null' else '1.0']))
     if proxy:
-        proxy.shutdown()
-        proxy.server_close()
-    for child, log in processes:
-        if child.poll() is None:
-            os.killpg(child.pid, signal.SIGTERM)
+        clean(proxy.shutdown)
+        clean(proxy.server_close)
+    def stop_service(child, log):
+        premature_exit = child.poll() is not None
+        try:
+            try:
+                os.killpg(child.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
             try:
                 child.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 os.killpg(child.pid, signal.SIGKILL)
                 child.wait(timeout=5)
                 cleanup_errors.append('ServiceRequiredForcedShutdown')
+            for _ in range(50):
+                try:
+                    os.killpg(child.pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(.1)
+            else:
+                cleanup_errors.append('ServiceProcessGroupStillPresent')
             if child.returncode not in (0, -signal.SIGTERM):
                 cleanup_errors.append('UnexpectedServiceExit')
-        elif receipt:
-            cleanup_errors.append('ServiceExitedBeforeShutdown')
-        log.close()
+            if premature_exit and receipt:
+                cleanup_errors.append('ServiceExitedBeforeShutdown')
+        finally:
+            log.close()
+    for child, log in processes:
+        clean(lambda child=child, log=log: stop_service(child, log))
     if created:
         clean(lambda: run(['dropdb', *args, '--if-exists', name], env=adminenv))
     if cleanup_errors:
