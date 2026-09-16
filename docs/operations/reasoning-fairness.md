@@ -43,6 +43,6 @@ Snapshots include outer and per-class inner visits, globally increasing inner ge
 
 ## Runtime handoff
 
-After design acceptance, one named follow-up implements durable fair selection and atomic claim/reservation under ADR-0012's universe-first locking. It must preserve class/universe cursor generations, open visits, credit/debt and original accounting identities. No separately committed fairness wrapper around `claimJob`/`reserveAttempt` is sufficient. The follow-up must include restart/concurrent-worker, blocked-candidate, overage, unknown-hold, rate-window and privacy-clear tests before claiming the SQL scheduler is fair.
+[#55](https://github.com/KnowScroll/knowscroll/issues/55) implements durable fair selection and atomic claim/reservation under ADR-0012's universe-first locking. It must preserve class/universe cursor generations, open visits, credit/debt and original accounting identities. No separately committed fairness wrapper around `claimJob`/`reserveAttempt` is sufficient. The follow-up must include restart/concurrent-worker, blocked-candidate, overage, unknown-hold, rate-window and privacy-clear tests before claiming the SQL scheduler is fair.
 
 Context compilation, proposal application, lifecycle disclosure/cleanup and a separately bounded provider experiment remain later gates. Only Reel and Scroll remain consumption objects.

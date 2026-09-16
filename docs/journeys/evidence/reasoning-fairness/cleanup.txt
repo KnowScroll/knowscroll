@@ -1,0 +1,1 @@
+{"journey":"J004","check":"interrupted-cleanup","result":"passed","receiptPath":"/Volumes/Mrigesh SSD/knowscroll-worktrees/coordination/artifacts/j004-cleanup-dd6bb5afbe826b0e.json"}
