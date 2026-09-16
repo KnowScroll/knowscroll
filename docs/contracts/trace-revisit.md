@@ -1,6 +1,6 @@
 # Saved Trace source revisit — #78
 
-Status: coordinator contract proposal; independent review precedes consumer implementation. Extends the existing bootstrap HTTP surface; no schema or retention change.
+Status: accepted for #78 after independent Terra review of `d741217`; coordinator typecheck passed. Consumer implementation and journey proof remain pending. Extends the existing bootstrap HTTP surface; no schema or retention change.
 
 ## Read authority and source
 
