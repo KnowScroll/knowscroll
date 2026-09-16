@@ -1,6 +1,6 @@
 # ADR-0018 — Safely withdraw idle direct Jobs
 
-Date: 2026-09-17. Status: proposed for #75; independent review pending. Extends ADR-0012/0015. Implementation must wait for acceptance of this contract.
+Date: 2026-09-17. Status: accepted for #75 after independent Terra review of `273f42b`. Extends ADR-0012/0015. Implementation and runtime verification remain pending.
 
 ## Boundary
 

@@ -265,7 +265,9 @@ function assertBucketBindings(
   }
 }
 
-async function releaseUnconsumed(
+/** Internal closure primitive; caller owns universe/Job/Attempt/accounting locks.
+ * When bucketsAlreadyLocked, caller also owns the complete fairness/bucket union. */
+export async function releaseUnconsumed(
   client: pg.PoolClient,
   attemptId: string,
   permitId: string,
