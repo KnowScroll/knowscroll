@@ -47,7 +47,10 @@ async function fixture(
   return {
     baseURL: `http://127.0.0.1:${address.port}`,
     requests: () => count,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+    close: () => new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+      server.closeAllConnections();
+    }),
   };
 }
 
@@ -195,20 +198,40 @@ test('deadline aborts an in-flight request and reports uncertain dispatched time
     return {body: success()};
   });
   const controller = new AbortController();
-  const now = Date.now();
-  t.mock.timers.enable({apis: ['Date', 'setTimeout'], now});
+  const nativeSetTimeout = globalThis.setTimeout;
+  let fireDeadline: (() => void) | undefined;
+  let deadlineDelay: number | undefined;
+  // The adapter schedules this before entering the SDK. Restore immediately so
+  // every SDK, fetch and test-runner timer remains native.
+  const deadlineTimer = t.mock.method(globalThis, 'setTimeout', (
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...callbackArgs: unknown[]
+  ) => {
+    assert.equal(fireDeadline, undefined, 'adapter must schedule one deadline timer');
+    deadlineDelay = delay;
+    fireDeadline = () => callback(...callbackArgs);
+    const timer = nativeSetTimeout(callback, delay, ...callbackArgs);
+    timer.unref();
+    deadlineTimer.mock.restore();
+    return timer;
+  });
   t.after(async () => {
+    deadlineTimer.mock.restore();
     controller.abort();
     releaseHandler();
-    try { await server.close(); } finally { t.mock.timers.reset(); }
+    await server.close();
   });
   const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
-    deadline: new Date(Date.now() + 30).toISOString(),
+    deadline: new Date(Date.now() + CERTIFICATION_LIMITS.requestTimeoutMs).toISOString(),
     signal: controller.signal,
   }));
+  assert.equal(deadlineTimer.mock.callCount(), 1);
+  assert.ok(deadlineDelay && deadlineDelay > 59_000 && deadlineDelay <= CERTIFICATION_LIMITS.requestTimeoutMs);
+  assert.ok(fireDeadline);
   await requestObserved;
   assert.equal(server.requests(), 1);
-  t.mock.timers.tick(30);
+  fireDeadline();
   const result = await pending;
   await responseClosed;
   assert.equal(result.outcome, 'timeout');
@@ -224,24 +247,44 @@ test('deadline before transport remains undispatched with no remote request', {t
   let release!: () => void;
   const beforeDispatchReleased = new Promise<void>((resolve) => { release = resolve; });
   const controller = new AbortController();
-  const now = Date.now();
-  t.mock.timers.enable({apis: ['Date', 'setTimeout'], now});
+  const nativeSetTimeout = globalThis.setTimeout;
+  let fireDeadline: (() => void) | undefined;
+  let deadlineDelay: number | undefined;
+  // The adapter schedules this before entering the SDK. Restore immediately so
+  // every SDK, fetch and test-runner timer remains native.
+  const deadlineTimer = t.mock.method(globalThis, 'setTimeout', (
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...callbackArgs: unknown[]
+  ) => {
+    assert.equal(fireDeadline, undefined, 'adapter must schedule one deadline timer');
+    deadlineDelay = delay;
+    fireDeadline = () => callback(...callbackArgs);
+    const timer = nativeSetTimeout(callback, delay, ...callbackArgs);
+    timer.unref();
+    deadlineTimer.mock.restore();
+    return timer;
+  });
   t.after(async () => {
+    deadlineTimer.mock.restore();
     controller.abort();
     release();
-    try { await server.close(); } finally { t.mock.timers.reset(); }
+    await server.close();
   });
 
   const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
-    deadline: new Date(Date.now() + 30).toISOString(),
+    deadline: new Date(Date.now() + CERTIFICATION_LIMITS.requestTimeoutMs).toISOString(),
     signal: controller.signal,
     beforeDispatch: async () => {
       entered();
       await beforeDispatchReleased;
     },
   }));
+  assert.equal(deadlineTimer.mock.callCount(), 1);
+  assert.ok(deadlineDelay && deadlineDelay > 59_000 && deadlineDelay <= CERTIFICATION_LIMITS.requestTimeoutMs);
+  assert.ok(fireDeadline);
   await beforeDispatchEntered;
-  t.mock.timers.tick(30);
+  fireDeadline();
   release();
   const result = await pending;
   assert.equal(result.outcome, 'timeout');
