@@ -92,7 +92,7 @@ class ReaderPrivacyJourneyTest {
         assertEquals(opened.readingPosition, sheetEnvelope.readingPosition)
         captureSourceSheet()
 
-        compose.pressBack()
+        compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         waitDescription("Scroll reading content")
         waitDescription("Sources for this Scroll")
         compose.onAllNodesWithContentDescription("Sources for this Scroll").onFirst().performClick()
