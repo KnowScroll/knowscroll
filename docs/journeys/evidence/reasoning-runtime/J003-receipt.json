@@ -1,0 +1,68 @@
+{
+  "observedAt": "2026-09-16T09:18:28.542Z",
+  "journey": "J003",
+  "result": "passed",
+  "database": {
+    "name": "knowscroll_j003_d30886821d992356"
+  },
+  "causal": {
+    "oldA": {
+      "eventId": "1f9e75f7-9680-4980-9823-89fcfae6c824",
+      "jobId": "94a50ca9-f768-460e-862e-da0275522fc2",
+      "status": "accepted"
+    },
+    "newA": {
+      "eventId": "88e000a0-723d-4859-9b1a-82544c2b6bd7",
+      "jobId": "a7641d04-d22e-4625-b840-66eb2a30de3e",
+      "status": "accepted"
+    },
+    "b": {
+      "eventId": "2ed135e3-18eb-46cc-b59e-b97de583aa08",
+      "jobId": "0756dad3-fa1b-4649-9dfe-1ab5a7d16e0b",
+      "status": "accepted"
+    },
+    "clear": {
+      "receiptId": "922947e2-1c10-4e22-a828-7baa1867942b",
+      "privacyEpoch": 1,
+      "clearedAt": "2026-09-16T09:18:28.007Z"
+    }
+  },
+  "beforeA": {
+    "decisions": 2,
+    "exposures": 2,
+    "ledger": 4,
+    "jobs": 2,
+    "traces": 1,
+    "accountsRevision": 1
+  },
+  "afterClear": {
+    "decisions": 0,
+    "exposures": 0,
+    "ledger": 0,
+    "jobs": 0,
+    "traces": 0,
+    "accountsRevision": 2
+  },
+  "beforeB": {
+    "decisions": 1,
+    "exposures": 1,
+    "ledger": 2,
+    "jobs": 1,
+    "traces": 1,
+    "accountsRevision": 1
+  },
+  "bAfterClear": {
+    "decisions": 1,
+    "exposures": 1,
+    "ledger": 2,
+    "jobs": 1,
+    "traces": 1,
+    "accountsRevision": 1
+  },
+  "sourceHashes": {
+    "apps/api/src/app.ts": "4123a6d954b24c1102275f0698aaa649500501c7454a03f098bc4a799619854f",
+    "apps/worker/src/project.ts": "2077b25e5e19e8871ad9704f5035878dceb2d6cfe406fd48489459f3a5f6945d",
+    "packages/db/src/privacy.ts": "c69a49dd681461474c1839c159912c501e563af58652769784569abbc11df8fc",
+    "packages/db/migrations/0003_history_clear.sql": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+  }
+}

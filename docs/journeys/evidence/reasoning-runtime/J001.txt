@@ -1,0 +1,83 @@
+[isolated pnpm] {"service":"worker","workerId":"local-2683","kind":"deterministic-projection"}
+[isolated pnpm] {"service":"api","port":54512,"identity":"local-development-only"}
+[isolated pnpm] {"jobId":"af31efe3-ed20-4169-8f59-55d07791ad74","status":"completed"}
+{
+  "observedAt": "2026-09-16T09:18:06.596Z",
+  "git": {
+    "head": "b020683bf7ebb0c03731140c94cc26dac6ef30c7",
+    "dirty": true
+  },
+  "sourceHashes": {
+    "scripts/verify-journey.ts": "74573f39e6678baf66315e555d87f18213d1049e007a1ed21ff6bc29e0a8bd8b",
+    "scripts/journey-verifier.ts": "24f991c6b278ba28e79e44608b96f5fca19f92ad04f0931c6dcde82990381312",
+    "apps/api/src/app.ts": "4123a6d954b24c1102275f0698aaa649500501c7454a03f098bc4a799619854f",
+    "apps/worker/src/project.ts": "2077b25e5e19e8871ad9704f5035878dceb2d6cfe406fd48489459f3a5f6945d",
+    "packages/db/migrations/0001_bootstrap.sql": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+  },
+  "journey": "J001",
+  "surface": "real HTTP plus PostgreSQL persisted causal lineage; worker-process launch evidence is supplied only by the isolated runner",
+  "environment": {
+    "apiBase": "http://127.0.0.1:54512",
+    "database": {
+      "kind": "PostgreSQL",
+      "host": "127.0.0.1",
+      "port": "55432",
+      "name": "knowscroll_journey_6f5dea9e166317ba"
+    },
+    "node": "v22.23.0"
+  },
+  "source": {
+    "assetId": "10000000-0000-4000-8000-000000000001",
+    "assetRevision": 1,
+    "sourceTitle": "NASA · Orbits and Kepler’s Laws",
+    "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
+    "truthState": "documented"
+  },
+  "decisionId": "e05005d9-9e75-4b6a-964b-f26cd7127a24",
+  "exposure": {
+    "exposureId": "b2f9953a-b5a0-4ca3-9df0-bc6b909609d7",
+    "eventId": "5db34552-dbd9-4c20-b6e6-9570ee72da0b"
+  },
+  "accepted": {
+    "eventId": "594b3f8d-2e6f-4070-a4b4-97dd09ba21d1",
+    "jobId": "af31efe3-ed20-4169-8f59-55d07791ad74",
+    "status": "accepted"
+  },
+  "event": {
+    "eventId": "594b3f8d-2e6f-4070-a4b4-97dd09ba21d1",
+    "causationId": "5db34552-dbd9-4c20-b6e6-9570ee72da0b",
+    "exposureId": "b2f9953a-b5a0-4ca3-9df0-bc6b909609d7",
+    "kind": "keep",
+    "jobId": "af31efe3-ed20-4169-8f59-55d07791ad74",
+    "jobStatus": "completed",
+    "projected": true
+  },
+  "beforeRevision": 0,
+  "afterRevision": 1,
+  "nextDecisionId": "b38cd947-da9d-4569-8803-752b90486cd0",
+  "nextAssetIds": [
+    "10000000-0000-4000-8000-000000000002",
+    "10000000-0000-4000-8000-000000000003"
+  ],
+  "persisted": {
+    "decision": {
+      "id": "e05005d9-9e75-4b6a-964b-f26cd7127a24",
+      "accountRevision": 0,
+      "policyVersion": "editorial-unkept-v1"
+    },
+    "lineage": {
+      "exposureEventId": "5db34552-dbd9-4c20-b6e6-9570ee72da0b",
+      "keepEventId": "594b3f8d-2e6f-4070-a4b4-97dd09ba21d1",
+      "jobId": "af31efe3-ed20-4169-8f59-55d07791ad74",
+      "traceEventId": "594b3f8d-2e6f-4070-a4b4-97dd09ba21d1"
+    },
+    "projection": {
+      "accountsRevision": 1,
+      "universeRevision": 1,
+      "completedAt": "2026-09-16T09:18:06.214Z"
+    }
+  },
+  "result": "passed"
+}
+[isolated pnpm] {"jobId":"f7dfee1a-d94c-4257-a7e2-e1f5937b39b1","status":"completed"}
+{"journey":"J001","result":"passed","runtime":{"apiPort":54512,"database":"isolated disposable PostgreSQL","worker":"separate process"},"negativeWrongRuntimePath":"rejected as expected"}

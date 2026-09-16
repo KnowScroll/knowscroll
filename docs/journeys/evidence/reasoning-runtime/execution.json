@@ -1,0 +1,31 @@
+{
+  "sourceCommit": "48e99c03e53aeec56483ae885b3aee2fa3f704ed",
+  "tests": {
+    "baseline": 12,
+    "additional": 118,
+    "total": 130,
+    "verifierNegative": 2
+  },
+  "journeys": [
+    "J001",
+    "J002",
+    "J003"
+  ],
+  "journeySourceNote": "Journey receipts pin their earlier source revision. Subsequent changes touched only new, unwired reasoning primitives and their tests; ordinary journey paths were unchanged. Final integration CI reruns journeys at the PR head.",
+  "sha256": {
+    "apps/worker/src/reasoning/invoke.ts": "64491073e17c12a79d4365235af5410be803cab4fb5d147c8775d1ac9b0ef09e",
+    "packages/db/migrations/0005_reasoning_runtime.sql": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6",
+    "packages/db/src/reasoning-admission.ts": "ed8870efc894baea36991859a632f6d3722b792590f9aea612e41b6806b2c551",
+    "packages/db/src/reasoning-reconciliation.ts": "ccd801aaca56ffde2dc0e0df4353d03eb2442ac2ffbfa04e9b4a53dfc2c0a63a",
+    "packages/db/src/reasoning-runtime-policy.ts": "291492d9ece70485fca78684d14ead93f49e0f987ab828d2a837fa66066e859d",
+    "tests/reasoning-admission.test.ts": "be288ff91444d50d15ad7e027d7e88129331e2c92bfbbd7c202041694e08245f",
+    "tests/reasoning-contracts.test.ts": "669b8d944b2d68c9984c1c036a9307157a29f354fa5f7d802fba8f3b0f4604dc",
+    "tests/reasoning-invocation.test.ts": "31eac073ef3558756cae3437633765976ab0eb701bdeecb3f7e4c37df2ac9c2d",
+    "tests/reasoning-privacy.test.ts": "4769c15f6f6e4eafb60e765b125a46e430c4b8614aa5569996be6501729af3d9",
+    "tests/reasoning-reconciliation.test.ts": "a736d4d4d434eb0585ea7cd6f6a10de0be301ac7991765ac950474939942bc88",
+    "tests/reasoning-runtime-integration.test.ts": "4bc72f1cf25afd223d2fc36565ab771f2cb452c0e3e76a424c7635be30305e7c",
+    "tests/reasoning-runtime-migration.test.ts": "738526ccb3be27aa590b83ad902458e5675deebc1ab5f3a56819eb1282b31e2d",
+    "tests/reasoning-runtime-policy.test.ts": "3b8b72b8c799debd9c888405c2c18ab1fc8ca80660cfc6b45d51678b6b293252",
+    "tests/reasoning-storage.test.ts": "b4dae86056bcb1d926364932b8c0eafa16aecd633ea54e867a72270437f3e695"
+  }
+}

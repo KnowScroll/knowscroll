@@ -35,7 +35,7 @@ The [machine-readable component map](component-map.json) and table below describ
 | Substrate | Sources, claims, concepts and bridges | Source fields only; semantic graph planned |
 | Cartographer / Chart | Typed personal geography and lineage | Explicit Trace projection; semantic worlds planned |
 | Steward | Why hypotheses and evidence-linked proposals | Planned |
-| Reasoning Plane | Global bounded execution, budgets, attempts, context isolation | Development certification and admission contracts; product runtime planned |
+| Reasoning Plane | Global bounded execution, budgets, attempts, context isolation | Development certification, storage and atomic execution primitives; product dispatch disabled |
 | Quartermaster | Demand, reuse/adapt/join/fund decisions | Planned |
 | Inventory / Content Plane | Asset revisions, rights, availability, private bindings | Three editorial Scrolls |
 | Cutroom Adapter | External run reconciliation and asset import | Port only; upstream exists |
@@ -55,4 +55,4 @@ The target provider lifecycle is Job → Step → Attempt → Proposal → valid
 
 [ADR-0011](../decisions/0011-minimax-certification.md) adds a separate CLI experiment through the pinned AI SDK/MiniMax adapter. Its journal records a durable reservation before each bounded request and retains unknown remote outcomes after interruption. It uses synthetic fixtures only, never the owner history, and is not connected to the serving path. See the [operations guide](../operations/minimax-certification.md) for execution and evidence boundaries.
 
-[ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md) specifies separate reasoning records, one-time dispatch authorization, late accounting after privacy clear and canonical universe-first locks. The shared metadata schemas exist, while SQL admission and recovery remain planned in [#44–#46](../operations/reasoning-implementation-plan.md).
+[ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md) specifies separate reasoning records, one-time dispatch authorization, late accounting after privacy clear and canonical universe-first locks. Shared metadata, storage, SQL admission/reconciliation and an unwired invocation boundary exist. [J004 process proof](../operations/reasoning-implementation-plan.md) remains next; these primitives do not enable product reasoning.
