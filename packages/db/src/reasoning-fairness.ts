@@ -35,10 +35,11 @@ function decode(row:Ready):Ready{return {...row,inputTokensUpperBound:Number(row
 /** Constant-size indexed probes; expired/ineligible heads are inspected, never
  * filtered through an unbounded scan before LIMIT. The generation is advisory.
  */
-async function discover(db:pg.Pool,version:string):Promise<Discovery>{
+async function discover(db:pg.Pool,version:string,inspectHead=true):Promise<Discovery>{
  const state=(await db.query<State>('SELECT * FROM reasoning_fairness_scheduler WHERE policy_version=$1',[version])).rows[0];if(!state)return deny('fairness_policy_missing');
  const klass=FAIRNESS_CLASSES[state.class_cursor]!;
  const lane=(await db.query<Lane>('SELECT * FROM reasoning_fairness_class WHERE policy_version=$1 AND class=$2',[version,klass])).rows[0];if(!lane)return deny('fairness_lane_missing');
+ if(!inspectHead)return {state,lane,klass,universe:undefined,ready:undefined};
  let universe:UniverseLane|undefined;
  if(lane.open_universe_id)universe=(await db.query<UniverseLane>('SELECT * FROM reasoning_fairness_universe WHERE policy_version=$1 AND class=$2 AND universe_id=$3 AND ready_count>0',[version,klass,lane.open_universe_id])).rows[0];
  if(!universe&&lane.universe_cursor)universe=(await db.query<UniverseLane>('SELECT * FROM reasoning_fairness_universe WHERE policy_version=$1 AND class=$2 AND ready_count>0 AND universe_id>$3 ORDER BY universe_id LIMIT 1',[version,klass,lane.universe_cursor])).rows[0];
@@ -170,7 +171,7 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    }
    // A bounded scan cannot establish absence. Yield its current class opportunity
    // without granting a quantum or resetting any unfinished spend allowance.
-   const d=await discover(db,input.policyVersion);
+   const d=await discover(db,input.policyVersion,false);
    try{await tx(db,async client=>{await lockCursor(client,input.policyVersion,d);await save(client,input.policyVersion,d,true);});}catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused'].includes(error.code))throw error;}
    const distinct=new Set(observations.map(x=>x.kind));const kind=distinct.size===1&&observations[0]!.kind!=='no_candidate'?observations[0]!.kind:'scan_exhausted';
    return {kind:kind as FairnessNoWork['kind'],observations:[...observations,{kind:'scan_exhausted',reason:'probe_budget'}],probes:policy.maxProbes};
