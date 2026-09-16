@@ -21,13 +21,13 @@ export type FairnessPolicy = {
 };
 export type Candidate = {attemptId: string; reservationId: string; universeId: string; class: FairnessClass; enqueue: number; demand: Record<string, number>; basisVersion: string; notBefore?: number; deadline?: number; blocked?: boolean};
 export type Receipt = {receiptId: string; actual: Record<string, number>; terminal?: boolean; outcome?: 'consumed' | 'not_sent' | 'unknown' | 'terminal'};
-export type Reservation = Candidate & {charge: number; settledCharge: number; status: ReservationStatus; demand: Record<string, number>; actual: Record<string, number>; receiptFingerprints: Record<string, string>; frozen: boolean; rateReleased: boolean};
+export type Reservation = Candidate & {charge: number; settledCharge: number; status: ReservationStatus; demand: Record<string, number>; actual: Record<string, number>; receiptFingerprints: Record<string, string>; frozen: boolean; rateWindowId: number};
 export type Lane = {credit: number; cursor: number};
 export type OpenVisit = {class: FairnessClass; remaining: number; universeId: string | null; universeRemaining: number; innerGeneration: number};
 export type FairnessSnapshot = {
   policyVersion: string; policyHash: string; classCursor: number; classLanes: Record<FairnessClass, Lane>;
   universeLanes: Record<string, Lane>; ready: Candidate[]; reservations: Record<string, Reservation>;
-  pausedDimensions: string[]; openVisit: OpenVisit | null; visitGeneration: number; trace: Decision[];
+  pausedDimensions: string[]; openVisit: OpenVisit | null; visitGeneration: number; rateWindowId: number; trace: Decision[];
 };
 export type Decision = {kind: 'admitted' | 'blocked' | 'impossible' | 'idle' | 'settled' | 'frozen' | 'deadline_missed'; attemptId?: string; reason?: string; charge?: number; class?: FairnessClass; universeId?: string; visitGeneration?: number; innerGeneration?: number};
 export type TickResult = {snapshot: FairnessSnapshot; decisions: Decision[]};
@@ -68,7 +68,7 @@ function policyHash(policy:FairnessPolicy):string { return createHash('sha256').
 export function createSnapshot(policy:FairnessPolicy):FairnessSnapshot {
   validatePolicy(policy);
   const classLanes=Object.fromEntries(CLASSES.map(c=>[c,{credit:0,cursor:0}])) as Record<FairnessClass,Lane>;
-  return {policyVersion:policy.version,policyHash:policyHash(policy),classCursor:0,classLanes,universeLanes:{},ready:[],reservations:{},pausedDimensions:[],openVisit:null,visitGeneration:0,trace:[]};
+  return {policyVersion:policy.version,policyHash:policyHash(policy),classCursor:0,classLanes,universeLanes:{},ready:[],reservations:{},pausedDimensions:[],openVisit:null,visitGeneration:0,rateWindowId:0,trace:[]};
 }
 export function normalizedCharge(policy:FairnessPolicy,demand:Record<string,number>, enforceMaximum=true):number {
   validatePolicy(policy); let dominant=0;
@@ -97,16 +97,18 @@ export function enqueue(policy:FairnessPolicy,snapshot:FairnessSnapshot,candidat
   state.ready.sort((a,b)=>a.class.localeCompare(b.class)||a.universeId.localeCompare(b.universeId)||a.enqueue-b.enqueue||a.attemptId.localeCompare(b.attemptId));
   state.universeLanes[universeKey(candidate.class,candidate.universeId)]??={credit:0,cursor:0};return state;
 }
-function heldFor(policy:FairnessPolicy,r:Reservation,d:PhysicalDimension):number {
+function heldFor(policy:FairnessPolicy,state:FairnessSnapshot,r:Reservation,d:PhysicalDimension):number {
   if(r.status==='not_sent') return 0;
   if(d.kind==='remote') return r.status==='terminal'?0:r.demand[d.key]!;
-  if(d.kind==='rate') return r.rateReleased?0:Math.max(r.demand[d.key]!,r.actual[d.key]??0);
+  // The model has one fixture-wide rate clock. A late correction retains its
+  // original window identity and cannot charge a later window.
+  if(d.kind==='rate') return r.rateWindowId===state.rateWindowId?Math.max(r.demand[d.key]!,r.actual[d.key]??0):0;
   return r.actual[d.key]??r.demand[d.key]!;
 }
 function available(policy:FairnessPolicy,state:FairnessSnapshot,demand:Record<string,number>):string|null {
   if(state.pausedDimensions.length) return 'policy_paused';
   for(const d of policy.physical) {
-    const used=Object.values(state.reservations).reduce((total,r)=>add(total,heldFor(policy,r,d)),0);
+    const used=Object.values(state.reservations).reduce((total,r)=>add(total,heldFor(policy,state,r,d)),0);
     if(add(used,demand[d.key]!)>d.capacity) return `capacity:${d.key}`;
   }
   return null;
@@ -140,7 +142,7 @@ function admit(policy:FairnessPolicy,state:FairnessSnapshot,candidate:Candidate,
   if(charge>cl.credit||charge>ul.credit||charge>visit.remaining||charge>visit.universeRemaining) return false;
   cl.credit=sub(cl.credit,charge);ul.credit=sub(ul.credit,charge);visit.remaining=sub(visit.remaining,charge);visit.universeRemaining=sub(visit.universeRemaining,charge);
   removeReady(state,candidate.attemptId);
-  state.reservations[candidate.attemptId]={...candidate,charge,settledCharge:charge,status:'reserved',demand:clone(candidate.demand),actual:{},receiptFingerprints:{},frozen:false,rateReleased:false};
+  state.reservations[candidate.attemptId]={...candidate,charge,settledCharge:charge,status:'reserved',demand:clone(candidate.demand),actual:{},receiptFingerprints:{},frozen:false,rateWindowId:state.rateWindowId};
   append(state,{kind:'admitted',attemptId:candidate.attemptId,charge,class:candidate.class,universeId:candidate.universeId,visitGeneration:state.visitGeneration,innerGeneration:visit.innerGeneration},decisions);return true;
 }
 /** Runs finite scheduling work.  A later tick resumes the exact class visit without re-minting it. */
@@ -215,12 +217,14 @@ export function settle(policy:FairnessPolicy,snapshot:FairnessSnapshot,attemptId
   ul.credit=delta>=0?cap(add(ul.credit,delta),universeCap(policy)):add(ul.credit,delta);r.settledCharge=next;
   if(receipt.outcome) r.status=receipt.outcome;
   if(receipt.terminal) r.status='terminal';
-  for(const d of policy.physical) if((r.actual[d.key]??0)>r.demand[d.key]! || heldFor(policy,r,d)>d.capacity) state.pausedDimensions=[...new Set([...state.pausedDimensions,d.key])].sort();
+  for(const d of policy.physical) if((r.actual[d.key]??0)>r.demand[d.key]! || heldFor(policy,state,r,d)>d.capacity) state.pausedDimensions=[...new Set([...state.pausedDimensions,d.key])].sort();
   append(state,{kind:'settled',attemptId,charge:next},decisions);return {snapshot:state,decisions};
 }
 /** Rate-window renewal only clears rate charges; it never releases budget or remote holds. */
 export function rolloverRateWindow(policy:FairnessPolicy,snapshot:FairnessSnapshot):FairnessSnapshot {
-  const state=clone(snapshot);for(const r of Object.values(state.reservations)) r.rateReleased=policy.physical.some(d=>d.kind==='rate');
+  const state=clone(snapshot);
+  if(!policy.physical.some(d=>d.kind==='rate')) return state;
+  state.rateWindowId=add(state.rateWindowId,1);
   return state;
 }
 export function snapshotHash(snapshot:FairnessSnapshot):string { return createHash('sha256').update(canonical(snapshot)).digest('hex'); }
