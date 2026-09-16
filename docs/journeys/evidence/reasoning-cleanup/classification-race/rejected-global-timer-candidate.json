@@ -1,0 +1,14 @@
+{
+  "issue": 68,
+  "candidateRevision": "17c3aaf",
+  "sourceSha256": "6e3f25a891c0b13ff2b8c1a79c48750b853fc7370f2e798bf2e9f78984526345",
+  "command": "pnpm exec tsx --test tests/minimax-certification.test.ts",
+  "observedPassedBeforeStall": 6,
+  "stalledTest": "deadline aborts an in-flight request and reports uncertain dispatched timeout",
+  "advertisedTestTimeoutMs": 5000,
+  "observedRunDurationMsAtManualTermination": 111123.160625,
+  "termination": "Coordinator sent SIGTERM to its own observed test child PID51133 after stalled focused run; no owner process touched.",
+  "independentReview": "Terra reproduced the same full-file stall and rejected candidate.",
+  "isolatedInstrumentedProbe": "A name-filtered stalled-barrier copy exited in5.66s. This did not establish full-file boundedness and was not accepted as sufficient proof.",
+  "conclusion": "Rejected global Date/setTimeout MockTimers candidate; revise tests so SDK/fetch and test-runner timers remain real."
+}

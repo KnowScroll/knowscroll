@@ -1,0 +1,40 @@
+{
+  "issue": 68,
+  "observedAt": "2026-09-16T15:38:13.275142+00:00",
+  "testedRevision": "39feb25534b5809695e4ae1a8a156ce7bad072fc",
+  "testFileSha256": "2513f34a3a9be01d481787fc04e40d8f5db04bcb3672ce5a0f45129a01547d2d",
+  "commands": [
+    {
+      "command": "externally20s bounded focused minimax file (14 tests)",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test (12 baseline +242 additional =254)",
+      "result": "passed"
+    }
+  ],
+  "controlledDeadline": "Capture first synchronous adapter timer callback, restore native setTimeout immediately, manually fire actual callback at explicit barriers; network and test runner timers remain native.",
+  "stalledFullFileProbe": {
+    "expectedResult": "testTimeoutFailure",
+    "remainingTestsPassed": 13,
+    "elapsedSeconds": 5.774527125002351,
+    "externalBoundSeconds": 15
+  },
+  "review": {
+    "model": "gpt-5.6-terra",
+    "acceptedCommit": "e5afceec90da22dda913bc6931a7830fbdc9510c",
+    "independentFocusedTests": 14
+  },
+  "implementationModel": "gpt-5.6-sol",
+  "productionSourceChanged": false,
+  "providerCalls": 0,
+  "limits": [
+    "Synthetic firing of the real deadline callback, not an elapsed60s experiment.",
+    "Prior global-MockTimers candidate is rejected and retained separately.",
+    "Final-head CI is recorded after publishing."
+  ]
+}
