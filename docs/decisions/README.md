@@ -18,6 +18,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0013 — Bounded reasoning fairness](0013-bounded-reasoning-fairness.md)
 
+- [ADR-0014 — Sealed direct Scroll context](0014-sealed-direct-context.md)
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
