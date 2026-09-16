@@ -4,7 +4,7 @@
 
 ## Input and transaction
 
-Use the [HTTP contract](../contracts/bootstrap-http.md). A question must contain non-whitespace content, valid Unicode scalars, no NUL, and at most4096 UTF-8 bytes. A32KiB route envelope supports escaped JSON. Identifiers canonicalize to lowercase; question text preserves whitespace, normalization and line endings exactly. Equivalent JSON escape spellings decode to the same literal input.
+Use the [HTTP contract](../contracts/bootstrap-http.md). A question must contain non-whitespace content, valid Unicode scalars, no NUL, and at most 4096 UTF-8 bytes. A 32 KiB route envelope supports escaped JSON. Identifiers canonicalize to lowercase; question text preserves whitespace, normalization and line endings exactly. Equivalent JSON escape spellings decode to the same literal input.
 
 `recordExplicitAsk(client,scope,input)` requires the same client/transaction on which `authenticateAndLock` resolved scope, holding universe then session locks. It checks expected epoch before replay. Same original session plus client Ask ID replays only identical question/exposure/epoch; another session using the same client UUID creates its own fact. The Ledger key is a domain-separated deterministic UUID of those identifiers. No caller-provided asset, decision, universe or session authority is accepted.
 
