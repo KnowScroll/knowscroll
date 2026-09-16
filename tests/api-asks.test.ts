@@ -34,6 +34,17 @@ async function ask(token:string,body:Record<string,unknown>) {
   return app.inject({method:'POST',url:'/v1/asks',headers:headers(token),payload:body});
 }
 
+async function waitForAssetBlockedRequest(blockerPid:number):Promise<void> {
+  const deadline=Date.now()+2_000;
+  while(Date.now()<deadline) {
+    const row=(await pool.query(`SELECT pid FROM pg_stat_activity
+      WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))`,[blockerPid])).rows[0];
+    if(row) return;
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.fail('Ask request never waited on the held asset lock');
+}
+
 test('records an exposure-anchored literal Ask and replays the exact request without a Keep',async()=>{
   await app.ready();
   const identity=await provisionIdentity();
@@ -139,5 +150,32 @@ test('clear erases Ask facts and an old expected epoch is rejected before replay
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM explicit_ask WHERE id=$1',[created.json().askId])).rows[0].count,0);
   const stale=await ask(identity.token,input);
   assert.equal(stale.statusCode,409,stale.body);
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM explicit_ask WHERE session_id=$1 AND client_ask_id=$2',[identity.scope.sessionId,input.clientAskId])).rows[0].count,0);
+});
+
+test('a session expiring while the selected asset lock is held is unauthorized and records no Ask',async()=>{
+  const identity=await provisionIdentity();
+  const exposure=await expose(identity.token,await feed(identity.token));
+  const input={clientAskId:randomUUID(),exposureId:exposure.receipt.exposureId,expectedPrivacyEpoch:0,question:'Will the source remain available?'};
+  await pool.query(`UPDATE device_session SET created_at=clock_timestamp()-interval '1 second',
+    expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1`,[identity.scope.sessionId]);
+  const blocker=await pool.connect();
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM asset WHERE id=$1 FOR UPDATE',[exposure.body.assetId]);
+    const blockerPid=Number((await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);
+    const pending=Promise.resolve(ask(identity.token,input));
+    await waitForAssetBlockedRequest(blockerPid);
+    const expiry=(await pool.query('SELECT expires_at FROM device_session WHERE id=$1',[identity.scope.sessionId])).rows[0].expires_at as Date;
+    while(!(await pool.query('SELECT clock_timestamp()>=$1 AS expired',[expiry])).rows[0].expired) {
+      await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    await blocker.query('COMMIT');
+    const response=await pending;
+    assert.equal(response.statusCode,401,response.body);
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+  }
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM explicit_ask WHERE session_id=$1 AND client_ask_id=$2',[identity.scope.sessionId,input.clientAskId])).rows[0].count,0);
 });

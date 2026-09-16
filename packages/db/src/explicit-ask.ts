@@ -8,7 +8,7 @@ import {
   type ExplicitAskReceipt,
   type ScrollAsset,
 } from '../../contracts/src/index.ts';
-import type {AuthScope} from './identity.ts';
+import {UnauthorizedSession, type AuthScope} from './identity.ts';
 
 export class ExplicitAskError extends Error {
   constructor(public readonly kind:'invalid'|'stale_epoch'|'conflict'|'source') {
@@ -150,9 +150,10 @@ export async function recordExplicitAsk(
   rawInput:ExplicitAskInput,
 ):Promise<ExplicitAskReceipt> {
   const input=parse(rawInput);
-  if(input.expectedPrivacyEpoch!==authenticated.privacyEpoch || !await currentScope(client,authenticated)) {
+  if(input.expectedPrivacyEpoch!==authenticated.privacyEpoch) {
     throw new ExplicitAskError('stale_epoch');
   }
+  if(!await currentScope(client,authenticated)) throw new UnauthorizedSession();
 
   const existing=await existingAsk(client,authenticated,input);
   if(existing) {
@@ -163,7 +164,7 @@ export async function recordExplicitAsk(
   const first=await source(client,authenticated,input.exposureId);
   if(!first || !validExposurePayload(first) || !selectedCurrentScroll(first)) throw new ExplicitAskError('source');
   if(!await lockAsset(client,first.asset_id)) throw new ExplicitAskError('source');
-  if(!await currentScope(client,authenticated)) throw new ExplicitAskError('stale_epoch');
+  if(!await currentScope(client,authenticated)) throw new UnauthorizedSession();
   const selected=await source(client,authenticated,input.exposureId);
   if(!selected || selected.asset_id!==first.asset_id || !validExposurePayload(selected) || !selectedCurrentScroll(selected)) {
     throw new ExplicitAskError('source');
