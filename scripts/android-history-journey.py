@@ -45,7 +45,7 @@ processes = []
 created = False
 proxy = None
 control_lock = threading.Lock()
-control = {'mode': 'forward', 'attempts': [], 'dropped': None}
+control = {'mode': 'forward', 'attempts': [], 'dropped': None, 'record': False}
 
 
 class Proxy(BaseHTTPRequestHandler):
@@ -57,7 +57,7 @@ class Proxy(BaseHTTPRequestHandler):
         is_clear = self.command == 'POST' and self.path == '/v1/history/clear'
         with control_lock:
             mode = control['mode']
-            if is_clear and mode in ('drop-next', 'hold'):
+            if is_clear and control['record']:
                 control['attempts'].append(json.loads(body))
         if is_clear and mode == 'hold':
             self.connection.shutdown(socket.SHUT_RDWR)
@@ -157,6 +157,7 @@ try:
     instrument('clearHistoryClearsNonemptyHistory')
     with control_lock:
         control['mode'] = 'drop-next'
+        control['record'] = True
     instrument('pendingClearProcessDeathPrepare')
     before = app_file('j003-pending-before.json')
     with control_lock:
@@ -185,12 +186,20 @@ try:
         raise RuntimeError('Restored clear used a different request ID')
     if scalar("SELECT count(*) FROM history_clear_receipt WHERE request_id='%s'::uuid" % request_id) != '1':
         raise RuntimeError('Retry duplicated a clear receipt')
+    with control_lock:
+        if any(value != expected for value in control['attempts']):
+            raise RuntimeError('Restored app changed the saved clear request body')
+        if after['privacyEpoch'] != control['dropped']['privacyEpoch']:
+            raise RuntimeError('Restored app cleared history a second time')
+        control['record'] = False
     instrument('higherPrivacyEpochPurgesCachedScrollOnForeground')
+    instrument('differentUniverseBindingDropsPendingClearAndCache')
+    app_file('j003-universe-binding.json')
     app_file('j003-clear-android.json')
     if scalar('SELECT count(*) FROM asset') != '3':
         raise RuntimeError('History clear removed shared editorial assets')
-    with (out / 'history-cleared.png').open('wb') as screenshot:
-        run(['adb', 'exec-out', 'screencap', '-p'], stdout=screenshot)
+    app_file('j003-confirmation.png')
+    app_file('j003-cleared.png')
     paths = subprocess.check_output(['git', 'ls-files', 'apps/mobile'], text=True).splitlines()
     paths += ['scripts/android-history-journey.py', 'packages/db/src/privacy.ts', 'apps/api/src/app.ts']
     receipt = {
@@ -202,7 +211,7 @@ try:
                          'sameRequestId': True, 'committedReceipts': 1},
         'sourceHashes': {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in paths},
         'checks': ['confirmation cancel', 'nonempty clear', 'lost response',
-                   'pending clear process restoration', 'higher epoch cache purge', 'shared assets retained'],
+                   'pending clear process restoration', 'higher epoch cache purge', 'universe binding', 'shared assets retained'],
     }
     (out / 'environment.json').write_text(json.dumps(receipt, indent=2) + '\n')
 finally:

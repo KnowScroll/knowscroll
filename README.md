@@ -15,7 +15,7 @@ The full [product definition](docs/product/definition.md) remains the target. Th
 
 The Android app reads sourced Scrolls, records visible exposures and explicit keeps, and restores reading position after process death. A real API and separate worker persist scoped events and saved Traces in PostgreSQL. Operator-issued device sessions expire and can be revoked; privacy epochs prevent obsolete work from changing state. Public login, generated Reels and semantic world evolution remain future work.
 
-Current privacy-control work is defined in [ADR-0010](docs/decisions/0010-clear-scroll-history.md). [Project state](docs/PROJECT-STATE.md) distinguishes implementation from the broader target and links runtime evidence.
+Clear Scroll history removes recorded encounters and saved Traces, preserves the shared library, and signs out other devices. Its retry and local-restoration boundaries are defined in [ADR-0010](docs/decisions/0010-clear-scroll-history.md). [Project state](docs/PROJECT-STATE.md) distinguishes implementation from the broader target and links runtime evidence.
 
 ## Chosen stack
 
@@ -43,7 +43,7 @@ pnpm dev:worker    # terminal 2
 
 `pnpm typecheck` and `pnpm test` check implementation. `pnpm verify:journey` exercises real HTTP, worker and database; Android evidence is a separate check. `pnpm state` reads current migrations, worker heartbeat and API availability.
 
-For repeatable acceptance without consuming the owner's remaining library, use `pnpm exec tsx scripts/run-isolated-journey.ts` (J001) and `pnpm exec tsx scripts/run-isolated-session-journey.ts` (J002). Both launch disposable PostgreSQL/API/worker runtimes. See [development operations](docs/operations/development.md) for session provisioning, Android checks and evidence limits.
+For repeatable acceptance without consuming the owner's remaining library, use `pnpm exec tsx scripts/run-isolated-journey.ts` (J001) and `pnpm exec tsx scripts/run-isolated-session-journey.ts` (J002), plus `pnpm exec tsx scripts/run-isolated-history-journey.ts` (J003). These launch disposable PostgreSQL/API/worker runtimes. See [development operations](docs/operations/development.md) for session provisioning, Android checks and evidence limits.
 
 ## Work together
 

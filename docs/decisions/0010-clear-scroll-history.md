@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for implementation in #29, following verified ADR-0009. This document defines the contract; J003 and Android evidence will establish runtime behavior. This implements bootstrap encounter-history erasure, not account deletion or the full semantic-world reset protocol.
+Implemented and verified in #29, following ADR-0009. [Wave-three evidence](../journeys/evidence/wave3-integration/README.md) records J003 and Android runtime behavior. This implements bootstrap encounter-history erasure, not account deletion or the full semantic-world reset protocol.
 
 ## Context
 
@@ -39,6 +39,8 @@ Failure at any point rolls everything back. The worker and admission already use
 ### Android state and process restoration
 
 Read `privacyEpoch` from the server Universe receipt. Before restoring a stored Scroll after process start or foregrounding, reconcile with server privacy state. A higher epoch invalidates local Scroll content, old decisions/exposures/keep retry envelopes, visited history and reading position. Do not restore private cached state while a clear outcome is uncertain or while its required server reconciliation is unavailable.
+
+Bind the local private namespace (cached Scroll, visited IDs, reading position, observed epoch and pending clear) to the authenticated universe ID. This is local metadata, never HTTP ownership authority. Reconcile server identity before replaying a pending clear; on a different or unknown local owner, purge old private state and require a new explicit confirmation. Epoch monotonicity applies within one universe. Commit an epoch advance and private-cache removal atomically.
 
 Persist pending clear `{requestId, expectedPrivacyEpoch, confirmation}` before dispatch; retain it across process death and network failure. On success, purge old local activity, retain a monotonic observed epoch, discard the pending clear envelope, and refresh the server Universe. Fence all in-flight old responses before they write either UI state or persistent cache. A replayed receipt from an earlier operation must never lower the locally observed epoch. Other-device 401 is displayed honestly as a session problem; no synthetic empty-universe success.
 
