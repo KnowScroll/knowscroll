@@ -1,0 +1,223 @@
+{
+  "issue": 55,
+  "observedAt": "2026-09-16T12:46:14.246Z",
+  "source": {
+    "revision": "e0bbd1bac3990fdce18c08340870dffc05b81037",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/fairness/sql-restart.ts",
+        "sha256": "56540bb4297989c9cc58e5e63a5226134cc8f45095b0dfeaa0483c518cdeeb87"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness.ts",
+        "sha256": "058485596ad57fd26a0bc187da44917f8769aa5ecc5225a8e17a516f4283c822"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness-accounting.ts",
+        "sha256": "1354568d4d1cc208d46e5d5392dfdad59e2836fe961972f2d0fe0d64175b22a8"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "d4994ddeccf18c7ac765c8c936d789d2f816db4e9e75da88600cc07070cbb421"
+      },
+      {
+        "path": "packages/db/src/reasoning-reconciliation.ts",
+        "sha256": "85c244b73f271098c6377064ab41d42c1375b3935731c205b23ca86269a6826c"
+      },
+      {
+        "path": "packages/db/src/reasoning-storage.ts",
+        "sha256": "6fca8d1082b595d63d78f46a65a0398f737b3ec7cc9c476db2fbfe6c49d27612"
+      },
+      {
+        "path": "packages/db/src/reasoning-runtime-policy.ts",
+        "sha256": "291492d9ece70485fca78684d14ead93f49e0f987ab828d2a837fa66066e859d"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness-policy.ts",
+        "sha256": "60da774db0455185249fedc857d7a12ca0b9126d1258ad0fb2c96838e9d529cb"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-support.ts",
+        "sha256": "42751ff8dde02d0bacdef25428ca46dbf7414f4643483b5c404fda6da367c262"
+      },
+      {
+        "path": "packages/db/migrations/0006_reasoning_fairness.sql",
+        "sha256": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "result": "passed",
+      "baselineTests": 12,
+      "additionalTests": 182,
+      "totalTests": 194
+    },
+    {
+      "command": "pnpm exec tsx scripts/fairness/sql-restart.ts",
+      "result": "passed"
+    },
+    {
+      "command": "isolated J001, J002, J003, J004 + verifier rejection and cleanup checks",
+      "result": "passed",
+      "sourceNote": "Earlier integrated revision during this wave; retained original receipts, not relabeled as final-head proof. Final-head repetition is required in PR CI."
+    }
+  ],
+  "logs": [
+    {
+      "path": "artifacts/final-typecheck-605.log",
+      "sha256": "1f781540a75e0bc03004b4b091a8e22d19a51367280c523c72bc83b04d19c355",
+      "bytes": 96
+    },
+    {
+      "path": "artifacts/final-backend-605.log",
+      "sha256": "c2fd499f068fc5d94d13840bc87cf01adc0337db4faf0e9db3eddefcadbb9ac7",
+      "bytes": 45347
+    },
+    {
+      "path": "artifacts/final-restart-605.log",
+      "sha256": "b57669ea203285971cdcb00f8d47a9f99e06fa9aebbc57b8dbeb12ba84e825e1",
+      "bytes": 179
+    },
+    {
+      "path": "artifacts/J001-sql-regression.log",
+      "sha256": "01a2e769858a8b20cfe352c8b7ffa878acb9bb846c6842d3b31947b7bbdcfea4",
+      "bytes": 3356
+    },
+    {
+      "path": "artifacts/J002-sql-regression.log",
+      "sha256": "34ef29259c8bf96c991506e2e67164859722533c3d72caeb6187227634b0e698",
+      "bytes": 643
+    },
+    {
+      "path": "artifacts/J003-sql-regression.log",
+      "sha256": "ecf332bce0ad2d971672b919924799d48018a8aa716024e906ed5d0f532d5dfe",
+      "bytes": 912
+    },
+    {
+      "path": "artifacts/J004-sql-regression.log",
+      "sha256": "90382b894500f9e2634abdc7707f947ab0d6d12641add73c28a3684a405bbceb",
+      "bytes": 93
+    },
+    {
+      "path": "artifacts/verifier-rejections.log",
+      "sha256": "88bf52cfb2111e21ed15cdff1854d4a7a8063716d699b880e4ecbf67fc703b04",
+      "bytes": 570
+    },
+    {
+      "path": "artifacts/cleanup-sql-regression.log",
+      "sha256": "a18fbd077ee3f890fbb4c411e8f1e1d2f085d7d4c63123f114976f91ee23caa5",
+      "bytes": 183
+    }
+  ],
+  "regressionReceipts": {
+    "artifacts/j004-sql-fairness.json": {
+      "sha256": "8b8093f9b1f23deb060d800250d311167f54b6b42940a768784a190760981b5c",
+      "source": {
+        "revision": "8bf5858b527bfee3f6013b7ada1ea9307d4173c0",
+        "dirty": false,
+        "files": [
+          {
+            "path": "scripts/run-isolated-reasoning-journey.ts",
+            "sha256": "8796e13b7e6d9c419f128a47f7e7789f00229df1b9b39973f228df2f2a4bc759"
+          },
+          {
+            "path": "scripts/fixtures/reasoning-actor.ts",
+            "sha256": "095e59834e2aa8346fe4b6c6b4b2294de5869a487e84e8b3a5d665fca1bb4038"
+          },
+          {
+            "path": "scripts/fixtures/reasoning-server.ts",
+            "sha256": "ba0f6e384d73adc107e5bf313126e835fca17020097806beac5fb6b303938f26"
+          },
+          {
+            "path": "scripts/fixtures/reasoning-support.ts",
+            "sha256": "42751ff8dde02d0bacdef25428ca46dbf7414f4643483b5c404fda6da367c262"
+          },
+          {
+            "path": "scripts/fixtures/reasoning-evidence.ts",
+            "sha256": "74b1fdde086a0dd4be32d7256ad00afffcbe74ff7a3c8f0ddbe9930592b3d271"
+          },
+          {
+            "path": "packages/db/src/reasoning-runtime-policy.ts",
+            "sha256": "291492d9ece70485fca78684d14ead93f49e0f987ab828d2a837fa66066e859d"
+          },
+          {
+            "path": "packages/db/src/reasoning-admission.ts",
+            "sha256": "d4994ddeccf18c7ac765c8c936d789d2f816db4e9e75da88600cc07070cbb421"
+          },
+          {
+            "path": "packages/db/src/reasoning-reconciliation.ts",
+            "sha256": "85c244b73f271098c6377064ab41d42c1375b3935731c205b23ca86269a6826c"
+          },
+          {
+            "path": "apps/worker/src/reasoning/invoke.ts",
+            "sha256": "64491073e17c12a79d4365235af5410be803cab4fb5d147c8775d1ac9b0ef09e"
+          },
+          {
+            "path": "packages/db/src/privacy.ts",
+            "sha256": "c69a49dd681461474c1839c159912c501e563af58652769784569abbc11df8fc"
+          },
+          {
+            "path": "apps/api/src/app.ts",
+            "sha256": "4123a6d954b24c1102275f0698aaa649500501c7454a03f098bc4a799619854f"
+          },
+          {
+            "path": "packages/db/migrations/0004_reasoning_storage.sql",
+            "sha256": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+          },
+          {
+            "path": "packages/db/migrations/0005_reasoning_runtime.sql",
+            "sha256": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+          }
+        ]
+      }
+    },
+    "artifacts/j004-cleanup-bc903d1ede7d23f2.json": {
+      "sha256": "de36fb472f9401e336c1c2858f7f8b31753ce63f0c4d464dcf6cef4e3d559001",
+      "source": {
+        "revision": "6d60446af0a618dc0a634793687ebc62c1e1e740",
+        "dirty": false,
+        "files": [
+          {
+            "path": "scripts/run-isolated-reasoning-journey.ts",
+            "sha256": "8796e13b7e6d9c419f128a47f7e7789f00229df1b9b39973f228df2f2a4bc759"
+          },
+          {
+            "path": "scripts/verify-reasoning-cleanup.ts",
+            "sha256": "9908ffb9ebd434eed80de4e64acbeb6538c2776ef033ebebff836f067c1eaa40"
+          }
+        ],
+        "platform": "darwin",
+        "arch": "arm64"
+      }
+    }
+  },
+  "workers": [
+    {
+      "role": "SQL test fixture lane",
+      "model": "gpt-5.6-terra"
+    },
+    {
+      "role": "independent concurrency/privacy review",
+      "model": "gpt-5.6-terra",
+      "verdict": "no blocking finding on runtime reviewed at 9c0f50d; additional capped-refund test e05f274 integrated"
+    },
+    {
+      "role": "independent sustained service tests and separate #57 diagnosis",
+      "model": "gpt-5.6-sol"
+    }
+  ],
+  "providerCalls": 0,
+  "limits": [
+    "synthetic trusted fixture authority",
+    "no provider request or output application",
+    "PostgreSQL fast stop and process restart; not power-loss or storage-corruption proof",
+    "no concurrent scheduler clients, history clear, or rate-window rollover in this receipt"
+  ]
+}

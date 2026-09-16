@@ -1,6 +1,6 @@
 # Reasoning fairness model
 
-[#54](https://github.com/KnowScroll/knowscroll/issues/54) defines [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) and a deterministic model under `scripts/fairness/`. This is design validation. The released `claimJob` implementation still uses queue order and skips locked universes; product reasoning remains disabled.
+[#54](https://github.com/KnowScroll/knowscroll/issues/54) defines [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) and a deterministic model under `scripts/fairness/`. This is design validation. The earlier `claimJob` primitive still uses queue order. [Durable SQL fairness](reasoning-sql-fairness.md) adds a combined fair selection/claim/reservation path; product reasoning remains disabled.
 
 ## What the model represents
 
@@ -43,6 +43,6 @@ Snapshots include outer and per-class inner visits, globally increasing inner ge
 
 ## Runtime handoff
 
-[#55](https://github.com/KnowScroll/knowscroll/issues/55) implements durable fair selection and atomic claim/reservation under ADR-0012's universe-first locking. It must preserve class/universe cursor generations, open visits, credit/debt and original accounting identities. No separately committed fairness wrapper around `claimJob`/`reserveAttempt` is sufficient. The follow-up must include restart/concurrent-worker, blocked-candidate, overage, unknown-hold, rate-window and privacy-clear tests before claiming the SQL scheduler is fair.
+[#55](https://github.com/KnowScroll/knowscroll/issues/55) implements durable fair selection and atomic claim/reservation under ADR-0012's universe-first locking. It must preserve class/universe cursor generations, open visits, credit/debt and original accounting identities. No separately committed fairness wrapper around `claimJob`/`reserveAttempt` is sufficient. Its [SQL evidence](../journeys/evidence/reasoning-sql-fairness/README.md) separately records concurrent clients, rollback, blocked candidates, corrections, privacy clear and actual PostgreSQL restart; the model remains design evidence.
 
 Context compilation, proposal application, lifecycle disclosure/cleanup and a separately bounded provider experiment remain later gates. Only Reel and Scroll remain consumption objects.

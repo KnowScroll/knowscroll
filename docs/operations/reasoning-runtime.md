@@ -4,7 +4,7 @@
 
 These are development primitives. The ordinary worker still processes deterministic keeps only; `reasoningReadiness()` remains false. No provider adapter or public endpoint is connected to these operations. [#46](https://github.com/KnowScroll/knowscroll/issues/46) adds [J004](../journeys/J004.md), which verifies the protocol in a separate-process synthetic runtime harness. This does not enable product calls.
 
-The separate [fairness model](reasoning-fairness.md) and [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) define the scheduling policy before its SQL implementation. They do not wrap or replace these operations at runtime.
+The separate [fairness model](reasoning-fairness.md) and [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) define the scheduling policy before its SQL implementation. [Durable SQL fairness](reasoning-sql-fairness.md) now composes the internal transaction helpers into one atomic fair claim/reservation operation. The split methods below remain the earlier development primitives.
 
 ## Trust and policy boundary
 
@@ -30,7 +30,7 @@ The factory methods own `BEGIN`/`COMMIT`/`ROLLBACK`; call them with a pool, not 
 | `withdrawJob` | Withdraws output authority across the Job, releases only unconsumed reservations, and preserves possibly sent commitments. Multi-attempt withdrawal takes all affected bucket locks in one order |
 | `recoverAttempt` | Closes provably unconsumed work as not_sent or preserves a consumed intent as unknown, fences obsolete execution and never resends it |
 
-Lock order is universe → Job → Step → Attempt/accounting → shared buckets sorted by UUID. Late reconciliation after private erasure needs only universe → retained accounting → sorted buckets. Job/Step completion, automatic retries, lease-renewal scheduling and general background execution are not supplied by these primitives. Explicit retry policy, fairness and dependency compilation remain later gates.
+Lock order is universe → Job → Step → Attempt/accounting → shared buckets sorted by UUID. Late reconciliation after private erasure needs only universe → retained accounting → sorted buckets. Job/Step completion, automatic retries, lease-renewal scheduling and general background execution are not supplied by these primitives. Explicit retry policy and dependency compilation remain later gates. Fair scheduling now uses the separate combined SQL entry point.
 
 ## One invocation boundary
 
@@ -55,4 +55,4 @@ The local HTTP integration test observes the committed intent before accepting i
 
 Source `scripts/env.sh`, then run `pnpm typecheck`, `pnpm test`, the verifier rejection tests and isolated J001/J002/J003 runners. All new reasoning tests require disposable `knowscroll_test_*` databases. They use local fixtures and no provider credentials. Evidence is linked from [Project state](../PROJECT-STATE.md).
 
-J004 now runs separate worker processes, records durable observations before crash/acknowledgement boundaries, checks exact local fixture request counts and independently verifies interruption cleanup. Its lease scenario proves expiry and recovery fencing; automatic requeue and a new execution claim remain absent. Keep product provider execution disabled. The complete Reasoning Plane, full privacy lifecycle, fairness, context/proposal authorization and a separately bounded provider experiment remain open under #7 and related epics.
+J004 now runs separate worker processes, records durable observations before crash/acknowledgement boundaries, checks exact local fixture request counts and independently verifies interruption cleanup. Its lease scenario proves expiry and recovery fencing; automatic requeue and a new execution claim remain absent. Keep product provider execution disabled. The complete Reasoning Plane, full privacy lifecycle, context/proposal authorization and a separately bounded provider experiment remain open under #7 and related epics.

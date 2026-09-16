@@ -1,0 +1,953 @@
+{
+  "check": "durable-sql-fairness-postgres-restart",
+  "result": "passed",
+  "observedAt": "2026-09-16T12:46:14.246Z",
+  "platform": "darwin",
+  "source": {
+    "revision": "e0bbd1bac3990fdce18c08340870dffc05b81037",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/fairness/sql-restart.ts",
+        "sha256": "56540bb4297989c9cc58e5e63a5226134cc8f45095b0dfeaa0483c518cdeeb87"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness.ts",
+        "sha256": "058485596ad57fd26a0bc187da44917f8769aa5ecc5225a8e17a516f4283c822"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness-accounting.ts",
+        "sha256": "1354568d4d1cc208d46e5d5392dfdad59e2836fe961972f2d0fe0d64175b22a8"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "d4994ddeccf18c7ac765c8c936d789d2f816db4e9e75da88600cc07070cbb421"
+      },
+      {
+        "path": "packages/db/src/reasoning-reconciliation.ts",
+        "sha256": "85c244b73f271098c6377064ab41d42c1375b3935731c205b23ca86269a6826c"
+      },
+      {
+        "path": "packages/db/src/reasoning-storage.ts",
+        "sha256": "6fca8d1082b595d63d78f46a65a0398f737b3ec7cc9c476db2fbfe6c49d27612"
+      },
+      {
+        "path": "packages/db/src/reasoning-runtime-policy.ts",
+        "sha256": "291492d9ece70485fca78684d14ead93f49e0f987ab828d2a837fa66066e859d"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness-policy.ts",
+        "sha256": "60da774db0455185249fedc857d7a12ca0b9126d1258ad0fb2c96838e9d529cb"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-support.ts",
+        "sha256": "42751ff8dde02d0bacdef25428ca46dbf7414f4643483b5c404fda6da367c262"
+      },
+      {
+        "path": "packages/db/migrations/0006_reasoning_fairness.sql",
+        "sha256": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+      }
+    ]
+  },
+  "isolation": {
+    "kind": "new-disposable-postgresql-cluster",
+    "port": 57007,
+    "oldPid": 23578,
+    "newPid": 23646
+  },
+  "upgrade": {
+    "applied": [
+      "0006_reasoning_fairness.sql"
+    ],
+    "adopted": []
+  },
+  "preservedMigrations": [
+    {
+      "name": "0001_bootstrap.sql",
+      "checksum": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "name": "0002_identity_epochs.sql",
+      "checksum": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    },
+    {
+      "name": "0003_history_clear.sql",
+      "checksum": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+    },
+    {
+      "name": "0004_reasoning_storage.sql",
+      "checksum": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+    },
+    {
+      "name": "0005_reasoning_runtime.sql",
+      "checksum": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+    }
+  ],
+  "restart": {
+    "sameSnapshot": true,
+    "snapshotSha256": "d430ec0100e224d82460f664298aff559836392f495a9d714b9c3efe55af1547",
+    "unknownAttemptId": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+    "continuedJobId": "9a737a65-2e79-4e52-9966-6b873a978560",
+    "receiptReplayNoOp": true
+  },
+  "snapshots": {
+    "beforeRestart": {
+      "reasoning_fairness_scheduler": [
+        {
+          "paused": false,
+          "generation": 3,
+          "class_cursor": 1,
+          "policy_version": "j004-v1",
+          "inner_generation": 1,
+          "visit_generation": 1
+        }
+      ],
+      "reasoning_fairness_class": [
+        {
+          "class": "accumulated_interpretation",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "active_continuity",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "background_inquiry",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "housekeeping",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "interactive",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 1,
+          "open_universe_id": null,
+          "visit_generation": 1,
+          "universe_remaining": 0
+        }
+      ],
+      "reasoning_fairness_universe": [
+        {
+          "class": "interactive",
+          "credit": 0,
+          "ready_count": 1,
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "policy_version": "j004-v1",
+          "candidate_cursor": 1
+        }
+      ],
+      "reasoning_fairness_ready": [
+        {
+          "seq": 2,
+          "class": "interactive",
+          "charge": 20,
+          "job_id": "9a737a65-2e79-4e52-9966-6b873a978560",
+          "step_id": "0bbedb30-5988-4edf-928f-b00093e9efad",
+          "deadline": "2026-09-16T18:20:13.828+05:30",
+          "context_id": "6df105f9-8743-4533-872b-a1964ee3d151",
+          "request_id": "6e9a4ad4-d77d-4709-b30b-3049e5acdad2",
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "request_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "permit_ttl_ms": 60000,
+          "privacy_epoch": 0,
+          "policy_version": "j004-v1",
+          "max_output_tokens": 100,
+          "cost_ceiling_micro_usd": null,
+          "input_tokens_upper_bound": 100
+        }
+      ],
+      "reasoning_fairness_attempt": [
+        {
+          "class": "interactive",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "policy_version": "j004-v1",
+          "reserved_charge": 20,
+          "recognized_charge": 20
+        }
+      ],
+      "reasoning_fairness_delta": [],
+      "reasoning_accounting": [
+        {
+          "state": "unknown",
+          "deadline": "2026-09-16T18:20:13.828+05:30",
+          "route_id": "local-fixture",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "created_at": "2026-09-16T18:16:13.922429+05:30",
+          "request_id": "36738038-6288-49a4-9d26-ac66417eb94d",
+          "dispatch_id": "fe1a038c-141c-4508-8bee-35a629266ba1",
+          "price_basis": null,
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "binding_hash": "5c3b8477e9052143a9ec7981072be2397c3b10b09925c4f4f945aeea6429d9d7",
+          "remote_state": "held",
+          "closure_basis": null,
+          "privacy_epoch": 0,
+          "liability_state": "held",
+          "review_required": false,
+          "risk_closure_id": null,
+          "idempotency_hold": true,
+          "output_authority": "eligible",
+          "max_output_tokens": 100,
+          "remote_disposition": "unconfirmed",
+          "reconciliation_hold": true,
+          "all_duties_closed_at": null,
+          "dispatch_committed_at": "2026-09-16T18:16:13.939874+05:30",
+          "route_profile_version": "j004-v1",
+          "runtime_policy_version": "j004-v1",
+          "input_reservation_ceiling": 100
+        }
+      ],
+      "reasoning_permit": [
+        {
+          "id": "562c5a91-6637-42d6-8c77-09eaf354cf38",
+          "state": "consumed",
+          "closed_at": null,
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "expires_at": "2026-09-16T18:17:13.921+05:30",
+          "consumed_at": "2026-09-16T18:16:13.941859+05:30",
+          "dispatch_id": "fe1a038c-141c-4508-8bee-35a629266ba1",
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "privacy_epoch": 0,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        }
+      ],
+      "reasoning_reservation": [
+        {
+          "id": "4266c18a-7cbf-4551-9537-9f06b3f73eb4",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "9058988c-efdf-4b0d-b393-276c6e254a42",
+          "dimension": "provider_account",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "819e2682-c030-41ac-a4f2-a95559306c71",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "e41747be-eaf4-4caf-adab-72bf7f1b637e",
+          "dimension": "job_budget",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "8213042f-5786-4042-9979-3942dda6b599",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "3993545f-17cb-4346-8133-3fa427f5eef8",
+          "dimension": "global_budget",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "9e2c7aa2-b7ef-4e99-9dba-de745b8e19e9",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "d846b5a3-79b3-42e8-ba2c-e1789c6b8868",
+          "dimension": "owner_budget",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "c40628d4-52d4-4a65-8e07-7454b916b165",
+          "unit": "slots",
+          "state": "held",
+          "amount": 1,
+          "handling": "remote",
+          "bucket_id": "43bd0098-6c02-457d-8b46-3469ad927a1c",
+          "dimension": "remote_concurrency",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 0,
+          "usage_basis": "remote_slots",
+          "usage_known": false,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "fa0ec47f-e6ac-45a3-8f06-ac57372027d9",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "35de1f14-9223-4d9f-aa18-73414be4a60b",
+          "dimension": "route_quota",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        }
+      ],
+      "reasoning_bucket": [
+        {
+          "id": "141c71b1-01d4-4794-9838-f76038bb5810",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "route_quota",
+          "window_id": null
+        },
+        {
+          "id": "14dad53e-f5e7-479e-80eb-f312237efa34",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "35de1f14-9223-4d9f-aa18-73414be4a60b",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "route_quota",
+          "window_id": null
+        },
+        {
+          "id": "3993545f-17cb-4346-8133-3fa427f5eef8",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "43bd0098-6c02-457d-8b46-3469ad927a1c",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 1,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "68d51a4b-c9f7-4eba-9442-c370af2f8d52",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "job_budget",
+          "window_id": null
+        },
+        {
+          "id": "6cbdf500-2ea3-4285-9eaa-30d363519dc4",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "9058988c-efdf-4b0d-b393-276c6e254a42",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "cc3180bb-2d98-4288-8cdd-5c09a0170d5a",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "d846b5a3-79b3-42e8-ba2c-e1789c6b8868",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "e019745c-952f-4ae8-9a53-ab99b9c2fdc0",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "e41747be-eaf4-4caf-adab-72bf7f1b637e",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "job_budget",
+          "window_id": null
+        }
+      ]
+    },
+    "afterSettlement": {
+      "reasoning_fairness_scheduler": [
+        {
+          "paused": false,
+          "generation": 9,
+          "class_cursor": 1,
+          "policy_version": "j004-v1",
+          "inner_generation": 2,
+          "visit_generation": 2
+        }
+      ],
+      "reasoning_fairness_class": [
+        {
+          "class": "accumulated_interpretation",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "active_continuity",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "background_inquiry",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "housekeeping",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "interactive",
+          "credit": 18,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 2,
+          "open_universe_id": null,
+          "visit_generation": 2,
+          "universe_remaining": 0
+        }
+      ],
+      "reasoning_fairness_universe": [
+        {
+          "class": "interactive",
+          "credit": 18,
+          "ready_count": 0,
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "policy_version": "j004-v1",
+          "candidate_cursor": 2
+        }
+      ],
+      "reasoning_fairness_ready": [],
+      "reasoning_fairness_attempt": [
+        {
+          "class": "interactive",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "policy_version": "j004-v1",
+          "reserved_charge": 20,
+          "recognized_charge": 20
+        },
+        {
+          "class": "interactive",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "policy_version": "j004-v1",
+          "reserved_charge": 20,
+          "recognized_charge": 2
+        }
+      ],
+      "reasoning_fairness_delta": [
+        {
+          "revision": 1,
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "class_delta": 18,
+          "prior_charge": 20,
+          "universe_delta": 18,
+          "recognized_charge": 2,
+          "class_refund_discarded": 0,
+          "universe_refund_discarded": 0
+        }
+      ],
+      "reasoning_accounting": [
+        {
+          "state": "reserved",
+          "deadline": "2026-09-16T18:20:13.828+05:30",
+          "route_id": "local-fixture",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "created_at": "2026-09-16T18:16:14.230105+05:30",
+          "request_id": "6e9a4ad4-d77d-4709-b30b-3049e5acdad2",
+          "dispatch_id": null,
+          "price_basis": null,
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "binding_hash": "783514e2b05b9aa0e2b292b16205848b10c473460cf7ff60efb9d0b49fd49e16",
+          "remote_state": "held",
+          "closure_basis": null,
+          "privacy_epoch": 0,
+          "liability_state": "held",
+          "review_required": false,
+          "risk_closure_id": null,
+          "idempotency_hold": true,
+          "output_authority": "eligible",
+          "max_output_tokens": 100,
+          "remote_disposition": "unconfirmed",
+          "reconciliation_hold": true,
+          "all_duties_closed_at": null,
+          "dispatch_committed_at": null,
+          "route_profile_version": "j004-v1",
+          "runtime_policy_version": "j004-v1",
+          "input_reservation_ceiling": 100
+        },
+        {
+          "state": "responded",
+          "deadline": "2026-09-16T18:20:13.828+05:30",
+          "route_id": "local-fixture",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "created_at": "2026-09-16T18:16:13.922429+05:30",
+          "request_id": "36738038-6288-49a4-9d26-ac66417eb94d",
+          "dispatch_id": "fe1a038c-141c-4508-8bee-35a629266ba1",
+          "price_basis": null,
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "binding_hash": "5c3b8477e9052143a9ec7981072be2397c3b10b09925c4f4f945aeea6429d9d7",
+          "remote_state": "released",
+          "closure_basis": "evidence",
+          "privacy_epoch": 0,
+          "liability_state": "settled",
+          "review_required": false,
+          "risk_closure_id": null,
+          "idempotency_hold": false,
+          "output_authority": "eligible",
+          "max_output_tokens": 100,
+          "remote_disposition": "terminal",
+          "reconciliation_hold": false,
+          "all_duties_closed_at": "2026-09-16T18:16:14.23985+05:30",
+          "dispatch_committed_at": "2026-09-16T18:16:13.939874+05:30",
+          "route_profile_version": "j004-v1",
+          "runtime_policy_version": "j004-v1",
+          "input_reservation_ceiling": 100
+        }
+      ],
+      "reasoning_permit": [
+        {
+          "id": "562c5a91-6637-42d6-8c77-09eaf354cf38",
+          "state": "consumed",
+          "closed_at": null,
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "expires_at": "2026-09-16T18:17:13.921+05:30",
+          "consumed_at": "2026-09-16T18:16:13.941859+05:30",
+          "dispatch_id": "fe1a038c-141c-4508-8bee-35a629266ba1",
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "privacy_epoch": 0,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "a58b005e-76d9-46a4-a21e-52ddb39d3c16",
+          "state": "reserved",
+          "closed_at": null,
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "expires_at": "2026-09-16T18:17:14.229+05:30",
+          "consumed_at": null,
+          "dispatch_id": null,
+          "universe_id": "8338e874-14fe-42f6-b377-0b59b8300103",
+          "privacy_epoch": 0,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        }
+      ],
+      "reasoning_reservation": [
+        {
+          "id": "24d89c2c-0de2-45a1-bc6d-ff98fe1dab94",
+          "unit": "slots",
+          "state": "held",
+          "amount": 1,
+          "handling": "remote",
+          "bucket_id": "14dad53e-f5e7-479e-80eb-f312237efa34",
+          "dimension": "remote_concurrency",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "recognized": 0,
+          "usage_basis": "remote_slots",
+          "usage_known": false,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        },
+        {
+          "id": "277c53fe-bd69-47eb-8188-57f9bf42150e",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "e019745c-952f-4ae8-9a53-ab99b9c2fdc0",
+          "dimension": "global_budget",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        },
+        {
+          "id": "4266c18a-7cbf-4551-9537-9f06b3f73eb4",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "9058988c-efdf-4b0d-b393-276c6e254a42",
+          "dimension": "provider_account",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "819e2682-c030-41ac-a4f2-a95559306c71",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "e41747be-eaf4-4caf-adab-72bf7f1b637e",
+          "dimension": "job_budget",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "8213042f-5786-4042-9979-3942dda6b599",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "3993545f-17cb-4346-8133-3fa427f5eef8",
+          "dimension": "global_budget",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "9e2c7aa2-b7ef-4e99-9dba-de745b8e19e9",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "d846b5a3-79b3-42e8-ba2c-e1789c6b8868",
+          "dimension": "owner_budget",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "b8d391f5-88d5-4e7a-93a4-5f7b563c5898",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "141c71b1-01d4-4794-9838-f76038bb5810",
+          "dimension": "route_quota",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        },
+        {
+          "id": "c40628d4-52d4-4a65-8e07-7454b916b165",
+          "unit": "slots",
+          "state": "released",
+          "amount": 1,
+          "handling": "remote",
+          "bucket_id": "43bd0098-6c02-457d-8b46-3469ad927a1c",
+          "dimension": "remote_concurrency",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 1,
+          "usage_basis": "remote_slots",
+          "usage_known": true,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        },
+        {
+          "id": "c5ab512a-1e33-41b0-b6a1-a95a288a69a8",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "68d51a4b-c9f7-4eba-9442-c370af2f8d52",
+          "dimension": "job_budget",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        },
+        {
+          "id": "d670b0b5-c9d9-4c2a-9445-b71b2916faa7",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "6cbdf500-2ea3-4285-9eaa-30d363519dc4",
+          "dimension": "provider_account",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        },
+        {
+          "id": "e8a6de0e-38a9-49a9-84eb-6a8298c638c0",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "cc3180bb-2d98-4288-8cdd-5c09a0170d5a",
+          "dimension": "owner_budget",
+          "attempt_id": "02512e86-50d8-484a-8005-6ec3adb25ddb",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "43fe359e-96eb-4634-8851-383f89bf5173"
+        },
+        {
+          "id": "fa0ec47f-e6ac-45a3-8f06-ac57372027d9",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "35de1f14-9223-4d9f-aa18-73414be4a60b",
+          "dimension": "route_quota",
+          "attempt_id": "2b37d33e-c8f0-4eaf-ab35-a44ca984a438",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "35193ae6-0268-45df-8e7b-d220bfb076fb"
+        }
+      ],
+      "reasoning_bucket": [
+        {
+          "id": "141c71b1-01d4-4794-9838-f76038bb5810",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "route_quota",
+          "window_id": null
+        },
+        {
+          "id": "14dad53e-f5e7-479e-80eb-f312237efa34",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 1,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "35de1f14-9223-4d9f-aa18-73414be4a60b",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "route_quota",
+          "window_id": null
+        },
+        {
+          "id": "3993545f-17cb-4346-8133-3fa427f5eef8",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "43bd0098-6c02-457d-8b46-3469ad927a1c",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "68d51a4b-c9f7-4eba-9442-c370af2f8d52",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "job_budget",
+          "window_id": null
+        },
+        {
+          "id": "6cbdf500-2ea3-4285-9eaa-30d363519dc4",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "9058988c-efdf-4b0d-b393-276c6e254a42",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "cc3180bb-2d98-4288-8cdd-5c09a0170d5a",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "d846b5a3-79b3-42e8-ba2c-e1789c6b8868",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "e019745c-952f-4ae8-9a53-ab99b9c2fdc0",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "e41747be-eaf4-4caf-adab-72bf7f1b637e",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "job_budget",
+          "window_id": null
+        }
+      ]
+    }
+  },
+  "limits": [
+    "synthetic trusted fixture authority",
+    "no provider request or output application",
+    "PostgreSQL fast stop and process restart; not power-loss or storage-corruption proof",
+    "no concurrent scheduler clients, history clear, or rate-window rollover in this receipt"
+  ],
+  "cleanup": {
+    "clusterStopped": true,
+    "directoryRemoved": true
+  }
+}

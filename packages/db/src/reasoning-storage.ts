@@ -1,3 +1,4 @@
+import {lockFairnessResources,releaseNotSentFairness,clearFairnessMembership} from './reasoning-fairness-accounting.js';
 import {createHash} from 'node:crypto';
 import type pg from 'pg';
 import {reasoningReceipt,type ReasoningReceipt} from '../../contracts/src/reasoning.ts';
@@ -83,6 +84,7 @@ export async function eraseReasoningForHistoryClear(
  const unconsumedAttemptIds=permits.filter(permit=>permit.state!=='consumed').map(permit=>permit.attempt_id);
  const reservedAttemptIds=permits.filter(permit=>permit.state==='reserved').map(permit=>permit.attempt_id);
 
+ await lockFairnessResources(client,accountingIds,universeId);
  if(unconsumedAttemptIds.length>0) {
   const closed=await client.query(
    `UPDATE reasoning_accounting SET state='not_sent',output_authority='withdrawn',
@@ -131,6 +133,7 @@ export async function eraseReasoningForHistoryClear(
   }
  }
 
+ for(const attemptId of unconsumedAttemptIds) await releaseNotSentFairness(client,attemptId);
  if(accountingIds.length>0) {
   await client.query(
    `UPDATE reasoning_accounting SET output_authority='withdrawn'
@@ -143,6 +146,7 @@ export async function eraseReasoningForHistoryClear(
  await client.query('DELETE FROM reasoning_step WHERE universe_id=$1',[universeId]);
  await client.query('DELETE FROM reasoning_context WHERE universe_id=$1',[universeId]);
  const deleted=await client.query('DELETE FROM reasoning_job WHERE universe_id=$1',[universeId]);
+ await clearFairnessMembership(client,universeId);
  return {privateJobsDeleted:deleted.rowCount??0,accountingRetained:accountings.length};
 }
 

@@ -89,7 +89,7 @@ A possible remote invocation without a certified completion bound continues cons
 
 ## Fair scheduling and wake identity
 
-[ADR-0013](0013-bounded-reasoning-fairness.md) refines the scheduling policy, caps, bounded restoration and service assumptions below. Its executable model is design evidence; SQL fairness remains a follow-up.
+[ADR-0013](0013-bounded-reasoning-fairness.md) refines the scheduling policy, caps, bounded restoration and service assumptions below. Its executable model is design evidence; #55 subsequently implements [internal durable SQL fairness](../operations/reasoning-sql-fairness.md).
 
 Accept weighted deficit round robin across the five classes with initial policy quanta `5:6:4:3:2` (interactive, active continuity, accumulated interpretation, background inquiry, housekeeping), and equal per-universe quantum within each class. These are tuning defaults, not measured capacity promises. Charge a fixed-point conservative dominant share of the applicable constrained resource estimates, record the estimation/profile version and settle corrections. No engagement-derived user weight is introduced.
 

@@ -63,7 +63,7 @@
       "component": "Reasoning Plane",
       "responsibility": "Global jobs, steps, attempts, budgets and isolation",
       "path": "apps/worker/src/providers",
-      "status": "atomic-admission-and-reconciliation-primitives-product-dispatch-disabled",
+      "status": "durable-fair-admission-and-reconciliation-product-dispatch-disabled",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/7"
     },
     {

@@ -1,0 +1,70 @@
+{
+  "issue": 57,
+  "failedCi": {
+    "run": 35097895463,
+    "job": 104799710534,
+    "sourceRevision": "a135215b6aa62212316d11a31370748ae1e785ec",
+    "case": "single_sigint",
+    "stage": "exit",
+    "exit": {"code": 1, "signal": null},
+    "diagnostic": {
+      "classification": "missing_runner_diagnostic",
+      "stderr": {"observedBytes": 8192, "truncated": true}
+    },
+    "runnerAck": false,
+    "databaseAbsent": false,
+    "processGroupsAbsent": true,
+    "runnerAbsent": true,
+    "fallbackCleaned": true,
+    "logSha256": "88728643ddd56b419992b60403f7df6ea2594d7d19ee895243de587622f70a0f",
+    "rawStderrAvailable": false
+  },
+  "boundedDisposableProbe": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "operation": "terminate one idle PostgreSQL pool backend in a disposable knowscroll_j004_* database",
+    "withoutPoolErrorListener": {
+      "exit": {"code": 1, "signal": null},
+      "stderrClassifications": ["node_unhandled_error_event"]
+    },
+    "withPoolErrorListener": {
+      "exit": {"code": 0, "signal": null},
+      "typedConditionObserved": true,
+      "stderrClassifications": []
+    }
+  },
+  "implementedSource": {
+    "revisionBeforeCommit": "a135215b6aa62212316d11a31370748ae1e785ec",
+    "dirty": true,
+    "files": [
+      {
+        "path": "scripts/run-isolated-reasoning-journey.ts",
+        "sha256": "45725e50b968e5723d461f6abb11767b6d9c5e25ec6da1501715ed332edc0d7e"
+      },
+      {
+        "path": "scripts/verify-reasoning-cleanup.ts",
+        "sha256": "9680cb8d1029836797e628abd01b8afaddfd83ec0324c08b631a0bd274849f33"
+      }
+    ]
+  },
+  "fixedPathVerification": {
+    "receipt": "after-linux-followup-local-matrix.json",
+    "receiptSha256": "83ddebf73cad03f203107c2ddd8069cd3cc1c3c54180edaa2dfef72324a1df90",
+    "poolRuntimeFailure": {
+      "exit": {"code": 1, "signal": null},
+      "classification": "pool_runtime_error",
+      "cleanupStage": "complete",
+      "cleanupErrors": [],
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true
+    },
+    "originalFiveCasesPassed": true
+  },
+  "conclusion": {
+    "demonstratedCause": "An unhandled PostgreSQL Pool error can terminate the local J004 runner before its cleanup acknowledgement.",
+    "historicalCiCause": "unknown",
+    "reason": "The failed job retained only byte counts and did not retain raw or allowlisted stderr classifications."
+  }
+}

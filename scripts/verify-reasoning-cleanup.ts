@@ -12,6 +12,7 @@ const stderrLimit = 8 * 1024;
 const allowedFailureClassifications = [
   'interrupted',
   'child_process_exit',
+  'pool_runtime_error',
   'journey_failure',
   'cleanup_failure',
 ] as const;
@@ -33,12 +34,24 @@ type Manifest = {
   database: {host: string; port: string | number; name: string};
   processes: Array<{role: string; pid: number; pgid: number; readyAt: string}>;
   diagnostic?: {classification: unknown; cleanupErrors: unknown};
+  cleanupStage?: unknown;
 };
+const allowedCleanupStages = new Set([
+  'children', 'pool', 'database', 'admin', 'temporary_directory', 'complete',
+]);
+const stderrSignatures = [
+  ['node_unhandled_error_event', /Unhandled 'error' event/],
+  ['node_unhandled_rejection', /UnhandledPromiseRejection|unhandledRejection/],
+  ['postgres_connection_terminated', /Connection terminated unexpectedly|terminating connection due to administrator command/],
+  ['ipc_channel_closed', /ERR_IPC_CHANNEL_CLOSED|channel closed/],
+  ['broken_pipe', /\bEPIPE\b|write EPIPE/],
+] as const;
 type CaseSpec = {
   name: string;
   trigger:
     | {kind: 'signals'; signals: NodeJS.Signals[]; intervalMs: number}
-    | {kind: 'child_failure'; role: 'worker-ready'; signal: 'SIGKILL'};
+    | {kind: 'child_failure'; role: 'worker-ready'; signal: 'SIGKILL'}
+    | {kind: 'pool_failure'; applicationName: 'knowscroll-j004-runner'};
   expectedClassification: RunnerFailureClassification;
 };
 const cases: CaseSpec[] = [
@@ -47,6 +60,7 @@ const cases: CaseSpec[] = [
   {name: 'repeated_sigterm', trigger: {kind: 'signals', signals: ['SIGTERM', 'SIGTERM'], intervalMs: 25}, expectedClassification: 'interrupted'},
   {name: 'mixed_repeated_signals', trigger: {kind: 'signals', signals: ['SIGTERM', 'SIGINT'], intervalMs: 25}, expectedClassification: 'interrupted'},
   {name: 'child_failure', trigger: {kind: 'child_failure', role: 'worker-ready', signal: 'SIGKILL'}, expectedClassification: 'child_process_exit'},
+  {name: 'pool_runtime_failure', trigger: {kind: 'pool_failure', applicationName: 'knowscroll-j004-runner'}, expectedClassification: 'pool_runtime_error'},
 ];
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -70,8 +84,11 @@ async function configDatabase() {
 }
 function sanitizedDiagnostic(manifest: Manifest | undefined, exit: {code: number | null; signal: NodeJS.Signals | null} | undefined) {
   const raw = manifest?.diagnostic;
+  const cleanupStageValid = manifest?.cleanupStage === undefined
+    || (typeof manifest.cleanupStage === 'string' && allowedCleanupStages.has(manifest.cleanupStage));
   const classificationValid = typeof raw?.classification === 'string'
-    && (allowedFailureClassifications as readonly string[]).includes(raw.classification);
+    && (allowedFailureClassifications as readonly string[]).includes(raw.classification)
+    && cleanupStageValid;
   const cleanupErrorsValid = Array.isArray(raw?.cleanupErrors)
     && raw.cleanupErrors.length <= allowedCleanupErrors.size
     && raw.cleanupErrors.every(value => typeof value === 'string' && allowedCleanupErrors.has(value));
@@ -85,7 +102,10 @@ function sanitizedDiagnostic(manifest: Manifest | undefined, exit: {code: number
   const cleanupErrors = cleanupErrorsValid
     ? raw.cleanupErrors as string[]
     : [];
-  return {classification, cleanupErrors};
+  const cleanupStage = typeof manifest?.cleanupStage === 'string'
+    && allowedCleanupStages.has(manifest.cleanupStage) ? manifest.cleanupStage
+      : manifest?.cleanupStage === undefined ? 'unavailable' : 'invalid';
+  return {classification, cleanupErrors, cleanupStage};
 }
 function validManifestIdentity(manifest: Manifest | undefined, runnerPid: number | undefined, database: URL) {
   return Boolean(manifest && typeof manifest.database?.name === 'string' && Array.isArray(manifest.processes)
@@ -130,9 +150,17 @@ try {
     let exit: {code: number | null; signal: NodeJS.Signals | null} | undefined;
     let spawnFailed = false;
     let stderrBytes = 0;
+    let stderrOverlap = '';
+    const stderrClassifications = new Set<string>();
     child.once('error', () => { spawnFailed = true; });
     child.once('exit', (code, signal) => { exit = {code, signal}; });
-    child.stderr?.on('data', chunk => { stderrBytes += Buffer.byteLength(chunk); });
+    child.stderr?.on('data', chunk => {
+      stderrBytes += Buffer.byteLength(chunk);
+      const scan = stderrOverlap + String(chunk);
+      for (const [classification, pattern] of stderrSignatures)
+        if (pattern.test(scan)) stderrClassifications.add(classification);
+      stderrOverlap = scan.slice(-256);
+    });
     let manifest: Manifest | undefined;
     let validated: Manifest | undefined;
     let final: Manifest | undefined;
@@ -182,10 +210,18 @@ try {
           if (index > 0) await delay(trigger.intervalMs);
           assert.equal(child.kill(signal), true, `failed to deliver signal ${index + 1}`);
         }
-      } else {
+      } else if (trigger.kind === 'child_failure') {
         const target = manifest.processes.find(process => process.role === trigger.role);
         assert.ok(target, 'child-failure target absent');
         process.kill(-target.pgid, trigger.signal);
+      } else {
+        const terminated = await admin.query<{terminated: boolean}>(
+          `SELECT pg_terminate_backend(pid) AS terminated
+             FROM pg_stat_activity
+            WHERE datname=$1 AND application_name=$2 AND pid<>pg_backend_pid()`,
+          [manifest.database.name, trigger.applicationName]);
+        assert.ok(terminated.rowCount && terminated.rowCount > 0, 'runner pool backend absent');
+        assert.equal(terminated.rows.every(row => row.terminated), true, 'runner pool backend termination failed');
       }
 
       stage = 'exit';
@@ -198,7 +234,7 @@ try {
       const runnerAbsent = child.pid ? !alive(child.pid) : false;
       const databaseAbsent = (await admin.query('SELECT 1 FROM pg_database WHERE datname=$1', [manifest.database.name])).rowCount === 0;
       const diagnostic = sanitizedDiagnostic(final, observedExit);
-      const runnerAck = final?.cleanedUp === true;
+      const runnerAck = final?.cleanedUp === true && final.cleanupStage === 'complete';
       const observation = {
         case: spec.name,
         trigger: spec.trigger,
@@ -208,7 +244,8 @@ try {
         exit: observedExit ?? {code: null, signal: null},
         diagnostic: {
           ...diagnostic,
-          stderr: {observedBytes: Math.min(stderrBytes, stderrLimit), truncated: stderrBytes > stderrLimit},
+          stderr: {observedBytes: Math.min(stderrBytes, stderrLimit), truncated: stderrBytes > stderrLimit,
+            classifications: [...stderrClassifications]},
         },
         runnerAck,
         databaseAbsent,
@@ -234,7 +271,8 @@ try {
     } catch {
       primaryFailure = Error(JSON.stringify({case: spec.name, stage, failures: ['checker_exception'],
         exit: exit ?? {code: null, signal: null}, diagnostic: sanitizedDiagnostic(final ?? manifest, exit),
-        stderr: {observedBytes: Math.min(stderrBytes, stderrLimit), truncated: stderrBytes > stderrLimit}}));
+        stderr: {observedBytes: Math.min(stderrBytes, stderrLimit), truncated: stderrBytes > stderrLimit,
+          classifications: [...stderrClassifications]}}));
     } finally {
       await attemptCleanup('fallback_runner_stop_failed', async () => {
         if (!exit && child.pid) {

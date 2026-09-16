@@ -1,3 +1,4 @@
+import {lockFairnessResources,pauseFairnessForAttempt,settleFairness} from './reasoning-fairness-accounting.js';
 import {randomUUID} from 'node:crypto';
 import type pg from 'pg';
 import {
@@ -67,6 +68,7 @@ async function pauseBuckets(client:pg.PoolClient,bucketIds:string[]):Promise<voi
 async function freeze(
  client:pg.PoolClient,accounting:Accounting,reservations:Reservation[],
 ):Promise<'held'|'released'> {
+ await pauseFairnessForAttempt(client,accounting.attempt_id);
  await pauseBuckets(client,reservations.map(reservation=>reservation.bucket_id));
  const remoteReservations=reservations.filter(reservation=>reservation.handling==='remote');
  const remoteReleased=remoteReservations.length>0&&remoteReservations.every(reservation=>reservation.state==='released');
@@ -112,6 +114,7 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
  if(!accounting) throw new Error('Reasoning accounting disappeared before settlement');
  await client.query(`UPDATE reasoning_accounting SET output_authority='withdrawn'
   WHERE attempt_id=$1 AND deadline<=clock_timestamp() AND output_authority='eligible'`,[receipt.attempt_id]);
+ await lockFairnessResources(client,[receipt.attempt_id]);
  const reservations=(await client.query(`SELECT id,attempt_id,bucket_id,amount,state,usage_basis,handling,recognized,usage_known
   FROM reasoning_reservation WHERE attempt_id=$1 ORDER BY bucket_id FOR UPDATE`,[receipt.attempt_id])).rows as Reservation[];
  await client.query('SELECT id FROM reasoning_bucket WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[reservations.map(row=>row.bucket_id)]);
@@ -188,6 +191,7 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
   all_duties_closed_at=CASE WHEN $6 THEN clock_timestamp() ELSE NULL END
   WHERE attempt_id=$1`,[receipt.attempt_id,liability,remoteState,terminalRemote?'terminal':'unconfirmed',!close,close]);
  const settlement=await appendSettlement(client,receipt,previous,merged.usage,adjustments,liability,remoteState);
+ await settleFairness(client,receipt.attempt_id,settlement.revision,merged.usage);
  return {...settlement,reviewRequired:false};
 }
 
