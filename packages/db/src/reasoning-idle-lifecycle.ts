@@ -107,9 +107,16 @@ async function withdraw(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Rea
  }
  const attemptIds=attempts.rows.map(attempt=>attempt.id);
  // Lock reservations before resources: releaseUnconsumed later reuses these locks.
- const reservations=await client.query<{bucket_id:string}>(
-  'SELECT bucket_id FROM reasoning_reservation WHERE attempt_id=ANY($1::uuid[]) ORDER BY attempt_id,bucket_id FOR UPDATE',[attemptIds],
+ const reservations=await client.query<{attempt_id:string;bucket_id:string;state:string}>(
+  'SELECT attempt_id,bucket_id,state FROM reasoning_reservation WHERE attempt_id=ANY($1::uuid[]) ORDER BY attempt_id,bucket_id FOR UPDATE',[attemptIds],
  );
+ for(const attempt of attempts.rows) {
+  const vector=reservations.rows.filter(row=>row.attempt_id===attempt.id);
+  // Reserved admission creates a held vector. A partially altered graph is not
+  // evidence for releasing already-accounted usage or stamping safe closure.
+  if(attempt.state==='reserved'&&(vector.length===0||vector.some(row=>row.state!=='held'))) deny('idle_unsafe_attempt');
+  if(attempt.state==='not_sent'&&vector.some(row=>row.state==='held')) deny('idle_unsafe_attempt');
+ }
  await lockFairnessResources(client,attemptIds,scope.universeId);
  await client.query('SELECT job_id FROM reasoning_fairness_ready WHERE job_id=$1 AND universe_id=$2 FOR UPDATE',[scope.jobId,scope.universeId]);
  const bucketIds=[...new Set(reservations.rows.map(row=>row.bucket_id))].sort();

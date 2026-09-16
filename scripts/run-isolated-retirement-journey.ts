@@ -131,7 +131,7 @@ try {
   let end:number;while((end=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);
    try{const x=JSON.parse(line);if(x.service!=='reasoning-maintenance')continue;
     if(x.event==='stopped')stoppedEvent=true;
-    if(x.event==='batch'){const counters:Record<string,number>={};for(const k of ['probes','retiredJobs','purgedAccounting','skipped']){assert(Number.isInteger(x[k])&&x[k]>=0);counters[k]=x[k];}batches.push(counters);}
+    if(x.event==='batch'){const counters:Record<string,number>={};for(const k of ['probes','expiredJobs','retiredJobs','purgedAccounting','skipped']){assert(Number.isInteger(x[k])&&x[k]>=0);counters[k]=x[k];}batches.push(counters);}
    }catch{childFailure=true;failureCode??='worker_stdout_invalid';}
   }
  });
