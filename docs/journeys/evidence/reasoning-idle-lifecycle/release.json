@@ -1,0 +1,144 @@
+{
+  "check": "idle-direct-lifecycle-75",
+  "result": "passed",
+  "observedAt": "2026-09-16T22:17:36.359098+00:00",
+  "source": {
+    "revision": "e6a5fd612b45711c37b9f08a8dc8a165ca20ac7a",
+    "dirtyAtTestStart": false,
+    "dirtyAtTestEnd": false,
+    "files": [
+      {
+        "path": "packages/db/AGENTS.md",
+        "sha256": "a311b560626870722e0a498fdff354eea6a4099daf0c67545e2e78f566ccf64e"
+      },
+      {
+        "path": "packages/db/migrations/0011_idle_direct_withdrawal.sql",
+        "sha256": "cdf13cf3f5090901e8e13f90890d916624dd3547916b75d00bcb8945fee8e8bb"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "87a3e214747e679a0ee4ecb3b52fd092e44febb5946c595d1738e6471908cc76"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness.ts",
+        "sha256": "18355f7fa9f22f17016970c19cd0824de6cba830518f76122ac86eaa76aec5af"
+      },
+      {
+        "path": "packages/db/src/reasoning-idle-fairness.ts",
+        "sha256": "f534fc8a4c8350373663cb9b6314a0530e12df067c64a60b7f973a7f2a3311b4"
+      },
+      {
+        "path": "packages/db/src/reasoning-idle-lifecycle-contract.ts",
+        "sha256": "6b0f4661ad56bd713245992a14641ea3971fb832e0f407e5decd30a2ab582630"
+      },
+      {
+        "path": "packages/db/src/reasoning-idle-lifecycle.ts",
+        "sha256": "535979066d90e56515e4890246934ea5cb00e9092dfc4b6544a09eb7a55a3d4e"
+      },
+      {
+        "path": "packages/db/src/reasoning-maintenance.ts",
+        "sha256": "0ba81e00afc8ecfc78504caa23cb40baa828ad2f483f0e0c279ff2cc3c61f88e"
+      },
+      {
+        "path": "scripts/run-isolated-retirement-journey.ts",
+        "sha256": "942680b82a458e74c9dacac48dd16e02e622b1c6abacb6d1a27120db8c00eeb9"
+      },
+      {
+        "path": "tests/helpers/reasoning-idle-fixture.ts",
+        "sha256": "15eac27d7be57e538c941d182c0ed659f0a2ca924926cbd399d73ca4d3dc5771"
+      },
+      {
+        "path": "tests/reasoning-ask-context-privacy.test.ts",
+        "sha256": "0f34e1fa08760b80f53ff5ab3c4cb25f799472704ef730e0e701dcf12ebee47c"
+      },
+      {
+        "path": "tests/reasoning-idle-contracts.test.ts",
+        "sha256": "ebaa70fdf2803fffbe9830c44df0c5267c867771de6fcc78af2080ad31beb4d2"
+      },
+      {
+        "path": "tests/reasoning-idle-fairness.test.ts",
+        "sha256": "b01f5aa2e79632cc6949f7129c014b98f6e51b870e9bc0a487dc92b028ce0c3b"
+      },
+      {
+        "path": "tests/reasoning-idle-lifecycle.test.ts",
+        "sha256": "6ee6b9f872d5679297ca472dd7d435c515cdfd5dbe00a000d16bef730174348e"
+      },
+      {
+        "path": "tests/reasoning-idle-migration.test.ts",
+        "sha256": "2f35e47897e18075e159a877b1cabda25bbc2e8b1b7787297dc89e958c787b85"
+      },
+      {
+        "path": "tests/reasoning-idle-privacy.test.ts",
+        "sha256": "53557e8cdfd3a1a20d7ccb2e05954a0d5bc886b0f4bf1f0d98bb3e3d50267af2"
+      },
+      {
+        "path": "tests/reasoning-idle-scheduler-refund.test.ts",
+        "sha256": "56bced7bfa7e483cc2f001baaa8bb9086f9781b58da830d6fc16b81d0f2e6de2"
+      },
+      {
+        "path": "tests/reasoning-idle-scheduler.test.ts",
+        "sha256": "522e9514c0aa89d423fe48a2c0772310dc0e149e65c8d8573b4f6ce8c09a6078"
+      },
+      {
+        "path": "tests/reasoning-maintenance-adversarial.test.ts",
+        "sha256": "15574434cceed8a2605ca2bebcc5c4ee94bead6c11b6e81d2cf0a6628f08342d"
+      },
+      {
+        "path": "tests/reasoning-maintenance.test.ts",
+        "sha256": "f26b82c0a58c23369bbc803eae03b7369f0600f37368bea499bb0117e6e1ffcc"
+      },
+      {
+        "path": "tests/reasoning-retirement-privacy.test.ts",
+        "sha256": "737b22c1a39ee6ebfecc4b2dd77a3b0a9090af22568747c3ffa8c55fda584704"
+      }
+    ]
+  },
+  "implementation": {
+    "typecheck": {
+      "exitCode": 0
+    },
+    "tests": {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "baseline": 12,
+      "additional": 342,
+      "total": 354,
+      "failures": 0,
+      "logSha256": "da38f323350b02070c321a83959beedf1cc7f0e5141e10a529642c788e40ea89"
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "migrations": {
+      "releasedPrefixUnchanged": "0001-0010",
+      "populatedUpgradeTest": "0010 to 0011, sealed Keep and Ask contexts plus safely withdrawn Job, all preexisting rows and ten checksums preserved"
+    }
+  },
+  "review": {
+    "builderModel": "gpt-5.6-sol",
+    "privacyReviewerModel": "gpt-5.6-terra",
+    "independentReviewerModel": "gpt-5.6-terra",
+    "acceptedRevision": "e6a5fd612b45711c37b9f08a8dc8a165ca20ac7a",
+    "coordinatorVerifiedActualDiffsAndReceipts": true
+  },
+  "priorExpandedRun": {
+    "baselinePassed": 12,
+    "additionalPassed": 341,
+    "additionalFailed": 1,
+    "cause": "New migration test counted pg_trigger across public and isolated schemas; scoped to target relation regclass before rerun",
+    "failureExcerpt": "migration-test-failure.txt",
+    "originalLogSha256": "faf377f3423ac2b6a7a412d79735c83e910d88dbc4e7c036779fbd21945979e0",
+    "portableTempCorrection": "Use scripts/env.sh-directed tmpdir rather than a hardcoded local SSD path for CI"
+  },
+  "providerCalls": 0,
+  "ownerDatabaseMigrated": false,
+  "ownerServicesRestarted": false,
+  "limits": [
+    "internal cancellation and trusted expiry only; no public API/UI or new Job",
+    "no provider execution, generated output, semantic application or usefulness claim",
+    "owner schema remains through0009 at separate dated observation",
+    "completed/failed retention, fresh paid execution policy and live provider gates remain open",
+    "historical57 original cleanup cause remains unknown",
+    "full mobile/desktop, live Cutroom and journeys A-I remain release gates"
+  ]
+}

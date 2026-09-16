@@ -83,6 +83,8 @@ Sealed Ask context #66: [SQL/privacy/concurrency and joined regression evidence]
 
 Reader navigation #74: [real emulator evidence](journeys/evidence/reader-navigation/README.md). Build/lint, five JVM tests and fifteen instrumentation phases passed at clean `6766939`: four new reader phases, five existing Android and six Clear History regressions. Source/rotation/browser-return position, finite rest, two injected socket failures, actual401 refusal and foreground Clear are proved against disposable API/worker/PostgreSQL. External page loading, manual TalkBack and owner acceptance remain unproved.
 
+Idle direct lifecycle #75: [SQL/privacy/fairness and joined evidence](journeys/evidence/reasoning-idle-lifecycle/README.md). Typecheck and 354 backend tests passed, including populated 0010→0011 preservation, original-session/resource waits, safe reserved/unknown closure, arbitrary membership and one-probe scheduler refund behavior, Clear/replay and maintenance rotation. J001–J004, Ask HTTP, PostgreSQL fairness restart, separate maintenance and eight cleanup cases passed. No owner deployment or product execution is implied.
+
 ## Next delivery work
 
 [Coordination #29](https://github.com/KnowScroll/knowscroll/issues/29) records the clear-history wave; [#21](https://github.com/KnowScroll/knowscroll/issues/21) and [#13](https://github.com/KnowScroll/knowscroll/issues/13) retain earlier delivery evidence. Parent epics remain open. ADR-0010 defines implemented bootstrap clear and separates future pause, semantic reset, account deletion, backup retention and typed semantic proposal read sets.
