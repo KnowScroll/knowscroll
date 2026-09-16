@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {createServer, type Server} from 'node:http';
+import {createServer, type Server, type ServerResponse} from 'node:http';
 import test from 'node:test';
 
 import {CERTIFICATION_LIMITS, type CertificationRequest} from '../apps/worker/src/providers/certification-contract.js';
@@ -27,7 +27,7 @@ function success(content: unknown[] = [{type: 'text', text: 'ok'}], usage: unkno
 }
 
 async function fixture(
-  handler: (body: Record<string, unknown>, req: import('node:http').IncomingMessage) => {status?: number; body?: unknown; raw?: string; headers?: Record<string, string>} | Promise<{status?: number; body?: unknown; raw?: string; headers?: Record<string, string>}>,
+  handler: (body: Record<string, unknown>, req: import('node:http').IncomingMessage, res: ServerResponse) => {status?: number; body?: unknown; raw?: string; headers?: Record<string, string>} | Promise<{status?: number; body?: unknown; raw?: string; headers?: Record<string, string>}>,
 ): Promise<{baseURL: string; close: () => Promise<void>; requests: () => number}> {
   let count = 0;
   const server: Server = createServer(async (req, res) => {
@@ -35,7 +35,7 @@ async function fixture(
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const rawBody = Buffer.concat(chunks).toString('utf8');
-    const result = await handler(JSON.parse(rawBody) as Record<string, unknown>, req);
+    const result = await handler(JSON.parse(rawBody) as Record<string, unknown>, req, res);
     res.statusCode = result.status ?? 200;
     res.setHeader('content-type', 'application/json');
     for (const [name, value] of Object.entries(result.headers ?? {})) res.setHeader(name, value);
@@ -182,18 +182,32 @@ test('pre-abort and reservation rejection never fetch', async () => {
 });
 
 test('deadline aborts an in-flight request and reports uncertain dispatched timeout', async (t) => {
-  const server = await fixture(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 200));
+  let observed!: () => void;
+  const requestObserved = new Promise<void>((resolve) => { observed = resolve; });
+  let closed!: () => void;
+  const responseClosed = new Promise<void>((resolve) => { closed = resolve; });
+  const server = await fixture(async (_body, _req, response) => {
+    response.once('close', closed);
+    observed();
+    await responseClosed;
     return {body: success()};
   });
   t.after(server.close);
-  const result = await createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
+
+  const now = Date.now();
+  t.mock.timers.enable({apis: ['Date', 'setTimeout'], now});
+  t.after(() => t.mock.timers.reset());
+  const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
     deadline: new Date(Date.now() + 30).toISOString(),
   }));
+  await requestObserved;
+  assert.equal(server.requests(), 1);
+  t.mock.timers.tick(30);
+  const result = await pending;
+  await responseClosed;
   assert.equal(result.outcome, 'timeout');
   assert.equal(result.dispatched, true);
   assert.equal(result.httpStatus, null);
-  assert.equal(server.requests(), 1);
   assert.deepEqual(result.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
 });
 
