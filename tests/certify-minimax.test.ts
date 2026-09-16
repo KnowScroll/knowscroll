@@ -185,7 +185,7 @@ test('runner drives the real SDK adapter through a local HTTP fixture with each 
 test('runner records a real SDK request deadline as timeout with unknown remote outcome', async (t) => {
   const root = await checkout();
   const server = createServer(async (_request, response) => {
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 120));
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 750));
     response.statusCode = 200;
     response.setHeader('content-type', 'application/json');
     response.end(JSON.stringify({id:'late',type:'message',role:'assistant',model:'MiniMax-M3',content:[{type:'text',text:'late'}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}}));
@@ -198,7 +198,7 @@ test('runner records a real SDK request deadline as timeout with unknown remote 
   const report = await runMiniMaxCertification(root, 'sk-cp-test-only', {
     fetch:async()=>quota(),
     createAdapter:(options)=>createMiniMaxCertificationAdapter({apiKey:options.apiKey,baseURL:loopback}),
-    now:()=>new Date(Date.now() - 59_970),
+    now:()=>new Date(Date.now() - 59_750),
   });
   assert.equal(report.attempts.length, 1);
   assert.equal(report.attempts[0]?.status, 'timeout');
