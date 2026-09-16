@@ -36,7 +36,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = new Map<string, string | true>();
 for (let i = 2; i < process.argv.length; i++) {
   const k = process.argv[i]!;
-  if (k === "--pause-for-interrupt") args.set(k, true);
+  if (
+    k === "--pause-for-interrupt" ||
+    k === "--inject-pool-error-before-interrupt" ||
+    k === "--inject-pool-error-after-interrupt"
+  )
+    args.set(k, true);
   else {
     const v = process.argv[++i];
     if (!v) throw Error(`missing ${k}`);
@@ -74,6 +79,11 @@ type FailureClassification =
   | "pool_runtime_error"
   | "journey_failure"
   | "cleanup_failure";
+type FailurePhase = "runtime" | "cleanup";
+type SecondaryCondition = {
+  classification: FailureClassification;
+  phase: FailurePhase;
+};
 type CleanupStage =
   | "children"
   | "pool"
@@ -86,10 +96,44 @@ class ClassifiedFailure extends Error {
     super(classification);
   }
 }
+let failure: unknown,
+  failureClassification: FailureClassification | undefined,
+  failurePhase: FailurePhase | undefined;
+let diagnosticPhase: FailurePhase = "runtime";
+const secondaryConditions: SecondaryCondition[] = [];
+const observeFailure = (
+  classification: FailureClassification,
+  phase: FailurePhase = diagnosticPhase,
+) => {
+  if (!failureClassification) {
+    failureClassification = classification;
+    failurePhase = phase;
+    return;
+  }
+  if (
+    classification !== failureClassification &&
+    !secondaryConditions.some(
+      (condition) => condition.classification === classification,
+    )
+  ) {
+    secondaryConditions.push({ classification, phase });
+  }
+};
+const failureDiagnostic = (cleanupErrors: string[]) =>
+  failureClassification && failurePhase
+    ? {
+        classification: failureClassification,
+        phase: failurePhase,
+        secondaryConditions: [...secondaryConditions],
+        cleanupErrors: [...cleanupErrors],
+      }
+    : undefined;
 const manifest = async (
   cleanedUp?: boolean,
   diagnostic?: {
     classification: FailureClassification;
+    phase: FailurePhase;
+    secondaryConditions: SecondaryCondition[];
     cleanupErrors: string[];
   },
   cleanupStage?: CleanupStage,
@@ -245,6 +289,14 @@ async function peer(
     evidence.exitCode = code;
     evidence.signal = signal;
     evidence.exitedAt = new Date().toISOString();
+    if (
+      args.has("--pause-for-interrupt") &&
+      !interrupted &&
+      diagnosticPhase === "runtime"
+    ) {
+      failure ??= new ClassifiedFailure("child_process_exit");
+      observeFailure("child_process_exit");
+    }
     childExited(`${role} exited`);
   });
   child.on("message", (message: any) => {
@@ -409,7 +461,14 @@ async function unusedLoopbackPort(): Promise<number> {
   return address.port;
 }
 const onSignal = () => {
+  // Test-only ordering barrier. The checker sends a real signal after readiness;
+  // this routes a synthetic condition through the real Pool listener before the
+  // signal observation is latched. It makes no claim about the retained CI run.
+  if (db && args.has("--inject-pool-error-before-interrupt"))
+    db.emit("error", new Error("injected_pool_error_before_interrupt"));
   interrupted = true;
+  failure ??= new ClassifiedFailure("interrupted");
+  observeFailure("interrupted");
   for (const child of children) {
     if (!child.pid || child.exitCode !== null || child.signalCode !== null)
       continue;
@@ -527,8 +586,6 @@ async function runCase(name: string, fn: (c: CaseEvidence) => Promise<void>) {
 let fixture: Peer | undefined,
   fixtureUrl = "",
   apiBase = "";
-let failure: unknown,
-  failureClassification: FailureClassification | undefined;
 const cleanupErrors: string[] = [];
 let poolRuntimeError = false;
 try {
@@ -561,7 +618,7 @@ try {
   db.on("error", () => {
     poolRuntimeError = true;
     failure ??= new ClassifiedFailure("pool_runtime_error");
-    failureClassification = "pool_runtime_error";
+    observeFailure("pool_runtime_error");
   });
   await runMigrations(db, {
     directory: resolve(root, "packages/db/migrations"),
@@ -622,6 +679,14 @@ try {
     apiEvidence.exitCode = code;
     apiEvidence.signal = signal;
     apiEvidence.exitedAt = new Date().toISOString();
+    if (
+      args.has("--pause-for-interrupt") &&
+      !interrupted &&
+      diagnosticPhase === "runtime"
+    ) {
+      failure ??= new ClassifiedFailure("child_process_exit");
+      observeFailure("child_process_exit");
+    }
   });
   let apiSpawnError: Error | undefined;
   apiChild.on("error", (error) => {
@@ -651,7 +716,8 @@ try {
   if (args.has("--pause-for-interrupt")) {
     while (!interrupted && !poolRuntimeError && children.has(probe.child))
       await new Promise((r) => setTimeout(r, 50));
-    if (poolRuntimeError) throw new ClassifiedFailure("pool_runtime_error");
+    if (failureClassification)
+      throw new ClassifiedFailure(failureClassification);
     if (!interrupted) throw new ClassifiedFailure("child_process_exit");
     throw new ClassifiedFailure("interrupted");
   }
@@ -1268,23 +1334,33 @@ try {
   if (cases.map((c) => c.name).join("|") !== J004_CASE_NAMES.join("|"))
     throw Error("case matrix incomplete");
 } catch (error) {
-  failure = error;
-  failureClassification = poolRuntimeError
-    ? "pool_runtime_error"
-    : error instanceof ClassifiedFailure
+  failure ??= error;
+  const caughtClassification = error instanceof ClassifiedFailure
     ? error.classification
     : interrupted
       ? "interrupted"
+      : poolRuntimeError
+        ? "pool_runtime_error"
       : "journey_failure";
+  observeFailure(caughtClassification);
 } finally {
   ready = false;
+  diagnosticPhase = "cleanup";
+  // Test-only ordering barrier: the real signal handler has already latched the
+  // primary cause. Emit through the real Pool listener during cleanup so the
+  // checker can prove that a later pool condition cannot replace it. This does
+  // not claim the retained CI event had the same origin or ordering.
+  if (
+    interrupted &&
+    db &&
+    args.has("--inject-pool-error-after-interrupt")
+  )
+    db.emit("error", new Error("injected_pool_error_after_interrupt"));
   const cleanupCheckpoint = async (stage: CleanupStage) => {
     try {
       await manifest(
         undefined,
-        failureClassification
-          ? { classification: failureClassification, cleanupErrors: [...cleanupErrors] }
-          : undefined,
+        failureDiagnostic(cleanupErrors),
         stage,
       );
     } catch {
@@ -1350,27 +1426,22 @@ try {
   });
   if (!processesExited) cleanupErrors.push("process_group_still_present");
   const cleanedUp = !created && processesExited && cleanupErrors.length === 0;
-  if (cleanupErrors.length > 0 && !failure) {
-    failure = new ClassifiedFailure("cleanup_failure");
-    failureClassification = "cleanup_failure";
+  if (cleanupErrors.length > 0) {
+    failure ??= new ClassifiedFailure("cleanup_failure");
+    observeFailure("cleanup_failure");
   }
   try {
     await manifest(
       cleanedUp,
-      failureClassification
-        ? {
-            classification: failureClassification,
-            cleanupErrors: [...cleanupErrors],
-          }
-        : undefined,
+      failureDiagnostic(cleanupErrors),
       "complete",
     );
   } catch {
     cleanupErrors.push("manifest_write_failed");
   }
-  if (cleanupErrors.length > 0 && !failure) {
-    failure = new ClassifiedFailure("cleanup_failure");
-    failureClassification = "cleanup_failure";
+  if (cleanupErrors.length > 0) {
+    failure ??= new ClassifiedFailure("cleanup_failure");
+    observeFailure("cleanup_failure");
   }
   process.off("SIGINT", onSignal);
   process.off("SIGTERM", onSignal);
@@ -1428,7 +1499,9 @@ const receipt: ReasoningJourneyReceipt = {
       processes.every((p) => p.exitedAt !== null),
     checkedAt: new Date().toISOString(),
   },
-  ...(failure ? { error: interrupted ? "interrupted" : "j004_failed" } : {}),
+  ...(failure
+    ? { error: failureClassification === "interrupted" ? "interrupted" : "j004_failed" }
+    : {}),
 };
 await atomic(receiptPath, receipt);
 console.log(
@@ -1440,4 +1513,7 @@ console.log(
     cases: cases.length,
   }),
 );
-if (failure) throw Error(interrupted ? "J004 interrupted" : "J004 failed");
+if (failure)
+  throw Error(
+    failureClassification === "interrupted" ? "J004 interrupted" : "J004 failed",
+  );

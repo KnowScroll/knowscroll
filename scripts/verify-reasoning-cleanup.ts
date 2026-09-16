@@ -17,6 +17,12 @@ const allowedFailureClassifications = [
   'cleanup_failure',
 ] as const;
 type RunnerFailureClassification = typeof allowedFailureClassifications[number];
+const allowedFailurePhases = ['runtime', 'cleanup'] as const;
+type RunnerFailurePhase = typeof allowedFailurePhases[number];
+type SecondaryCondition = {
+  classification: RunnerFailureClassification;
+  phase: RunnerFailurePhase;
+};
 const allowedCleanupErrors = new Set([
   'child_stop_failed',
   'process_group_cleanup_failed',
@@ -33,7 +39,12 @@ type Manifest = {
   apiBase: string; fixtureBase: string;
   database: {host: string; port: string | number; name: string};
   processes: Array<{role: string; pid: number; pgid: number; readyAt: string}>;
-  diagnostic?: {classification: unknown; cleanupErrors: unknown};
+  diagnostic?: {
+    classification: unknown;
+    phase: unknown;
+    secondaryConditions: unknown;
+    cleanupErrors: unknown;
+  };
   cleanupStage?: unknown;
 };
 const allowedCleanupStages = new Set([
@@ -53,10 +64,18 @@ type CaseSpec = {
     | {kind: 'child_failure'; role: 'worker-ready'; signal: 'SIGKILL'}
     | {kind: 'pool_failure'; applicationName: 'knowscroll-j004-runner'};
   expectedClassification: RunnerFailureClassification;
+  runnerArgs?: string[];
+  expectedSecondaryConditions?: SecondaryCondition[];
 };
 const cases: CaseSpec[] = [
   {name: 'single_sigterm', trigger: {kind: 'signals', signals: ['SIGTERM'], intervalMs: 0}, expectedClassification: 'interrupted'},
   {name: 'single_sigint', trigger: {kind: 'signals', signals: ['SIGINT'], intervalMs: 0}, expectedClassification: 'interrupted'},
+  {name: 'pool_then_signal', trigger: {kind: 'signals', signals: ['SIGINT'], intervalMs: 0},
+    expectedClassification: 'pool_runtime_error', runnerArgs: ['--inject-pool-error-before-interrupt'],
+    expectedSecondaryConditions: [{classification: 'interrupted', phase: 'runtime'}]},
+  {name: 'signal_then_pool_cleanup', trigger: {kind: 'signals', signals: ['SIGINT'], intervalMs: 0},
+    expectedClassification: 'interrupted', runnerArgs: ['--inject-pool-error-after-interrupt'],
+    expectedSecondaryConditions: [{classification: 'pool_runtime_error', phase: 'cleanup'}]},
   {name: 'repeated_sigterm', trigger: {kind: 'signals', signals: ['SIGTERM', 'SIGTERM'], intervalMs: 25}, expectedClassification: 'interrupted'},
   {name: 'mixed_repeated_signals', trigger: {kind: 'signals', signals: ['SIGTERM', 'SIGINT'], intervalMs: 25}, expectedClassification: 'interrupted'},
   {name: 'child_failure', trigger: {kind: 'child_failure', role: 'worker-ready', signal: 'SIGKILL'}, expectedClassification: 'child_process_exit'},
@@ -86,9 +105,25 @@ function sanitizedDiagnostic(manifest: Manifest | undefined, exit: {code: number
   const raw = manifest?.diagnostic;
   const cleanupStageValid = manifest?.cleanupStage === undefined
     || (typeof manifest.cleanupStage === 'string' && allowedCleanupStages.has(manifest.cleanupStage));
+  const phaseValid = typeof raw?.phase === 'string'
+    && (allowedFailurePhases as readonly string[]).includes(raw.phase);
+  const secondaryConditionsValid = Array.isArray(raw?.secondaryConditions)
+    && raw.secondaryConditions.length < allowedFailureClassifications.length
+    && raw.secondaryConditions.every(condition => {
+      if (!condition || typeof condition !== 'object' || Array.isArray(condition)) return false;
+      const value = condition as Record<string, unknown>;
+      return Object.keys(value).length === 2
+        && typeof value.classification === 'string'
+        && (allowedFailureClassifications as readonly string[]).includes(value.classification)
+        && value.classification !== raw?.classification
+        && typeof value.phase === 'string'
+        && (allowedFailurePhases as readonly string[]).includes(value.phase);
+    })
+    && new Set(raw.secondaryConditions.map(condition =>
+      (condition as Record<string, unknown>).classification)).size === raw.secondaryConditions.length;
   const classificationValid = typeof raw?.classification === 'string'
     && (allowedFailureClassifications as readonly string[]).includes(raw.classification)
-    && cleanupStageValid;
+    && phaseValid && secondaryConditionsValid && cleanupStageValid;
   const cleanupErrorsValid = Array.isArray(raw?.cleanupErrors)
     && raw.cleanupErrors.length <= allowedCleanupErrors.size
     && raw.cleanupErrors.every(value => typeof value === 'string' && allowedCleanupErrors.has(value));
@@ -102,10 +137,14 @@ function sanitizedDiagnostic(manifest: Manifest | undefined, exit: {code: number
   const cleanupErrors = cleanupErrorsValid
     ? raw.cleanupErrors as string[]
     : [];
+  const phase = classificationValid ? raw!.phase as RunnerFailurePhase : 'unavailable';
+  const secondaryConditions = classificationValid
+    ? raw!.secondaryConditions as SecondaryCondition[]
+    : [];
   const cleanupStage = typeof manifest?.cleanupStage === 'string'
     && allowedCleanupStages.has(manifest.cleanupStage) ? manifest.cleanupStage
       : manifest?.cleanupStage === undefined ? 'unavailable' : 'invalid';
-  return {classification, cleanupErrors, cleanupStage};
+  return {classification, phase, secondaryConditions, cleanupErrors, cleanupStage};
 }
 function validManifestIdentity(manifest: Manifest | undefined, runnerPid: number | undefined, database: URL) {
   return Boolean(manifest && typeof manifest.database?.name === 'string' && Array.isArray(manifest.processes)
@@ -145,7 +184,7 @@ try {
     env.DATABASE_URL = database.toString();
     env.NODE_ENV = 'test';
     const child = spawn(process.execPath, ['--import', 'tsx', 'scripts/run-isolated-reasoning-journey.ts',
-      '--manifest', manifestPath, '--receipt', receiptPath, '--pause-for-interrupt'],
+      '--manifest', manifestPath, '--receipt', receiptPath, '--pause-for-interrupt', ...(spec.runnerArgs ?? [])],
     {cwd: root, env, stdio: ['ignore', 'ignore', 'pipe'], detached: true});
     let exit: {code: number | null; signal: NodeJS.Signals | null} | undefined;
     let spawnFailed = false;
@@ -238,6 +277,7 @@ try {
       const observation = {
         case: spec.name,
         trigger: spec.trigger,
+        orderingProbe: spec.runnerArgs?.[0] ?? null,
         runnerPid: child.pid,
         database: manifest.database,
         processes: manifest.processes,
@@ -260,6 +300,10 @@ try {
       if (!validManifestIdentity(final, child.pid, database)) failures.push('final_manifest_identity_invalid');
       if (!runnerAck) failures.push('cleanup_ack_missing');
       if (diagnostic.classification !== spec.expectedClassification) failures.push('failure_classification_mismatch');
+      if (diagnostic.phase !== 'runtime') failures.push('failure_phase_mismatch');
+      if (spec.expectedSecondaryConditions
+        && JSON.stringify(diagnostic.secondaryConditions) !== JSON.stringify(spec.expectedSecondaryConditions))
+        failures.push('secondary_condition_mismatch');
       if (diagnostic.cleanupErrors.length > 0) failures.push('runner_cleanup_error');
       if (!processGroupsAbsent) failures.push('process_group_present');
       if (!databaseAbsent) failures.push('database_present');
