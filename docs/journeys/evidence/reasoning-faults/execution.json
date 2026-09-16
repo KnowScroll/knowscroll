@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "1651740f5470c86b6f4fe600eb7161bd70cca19e",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 137,
+    "total": 149,
+    "j004VerifierChecks": 19
+  },
+  "verifierNegative": 2,
+  "journeys": [
+    "J001",
+    "J002",
+    "J003",
+    "J004"
+  ],
+  "runtimeNote": "J004 receipt records its exact source revision and hashes. J001-J003 and backend logs precede final fixture-only cleanup hardening; final integration CI reruns every check. No production module or migration changes.",
+  "coordinatorSha256": {
+    "scripts/reasoning-journey-verifier.ts": "a38ac7f7c76a30b8b2475fc0bc7c182772c38bf698b094b4526bde2f2d60c6ea",
+    "scripts/verify-reasoning-journey.ts": "64ac3e3d57f77bb71d5eb17974a521a5aa4ef3dd6dd079a040d2f316bd55c92b",
+    "scripts/verify-reasoning-cleanup.ts": "afd04cb7d93ec1510776875fa016570df3bd62b3f95d5c11b45ce6c32952fe28",
+    "tests/reasoning-journey-verifier.test.ts": "5ebf00f14ed55a54592f4c9b9481ce250f196d79f7aac0b039cdee238e4b6d07"
+  }
+}
