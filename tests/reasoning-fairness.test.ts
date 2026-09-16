@@ -126,3 +126,19 @@ test('finite ready and scan bounds reject excess and expose scan exhaustion with
   const result = scheduleTick(policy, state, {maxScanPerTick: 1, maxAdmissionsPerTick: 1});
   assert.ok(result.decisions.length > 0);
 });
+
+test('a policy basis mutation cannot reuse a same-version fairness snapshot', () => {
+  const policy = abundantPolicy();
+  const snapshot = createSnapshot(policy);
+  const changed = fixturePolicy({normalized: [{key: 'tokens', kind: 'tokens', basis: 200}, {key: 'requests', kind: 'requests', basis: 100}]});
+  assert.throws(() => scheduleTick(changed, snapshot), /policy_version_mismatch/);
+});
+
+test('expired work is recorded before a saturated physical gate can hide it', () => {
+  const policy = fixturePolicy({physical: [{key: 'budget', kind: 'budget', capacity: 100}, {key: 'rate', kind: 'rate', capacity: 100}, {key: 'remote', kind: 'remote', capacity: 1}]});
+  let state = enqueue(policy, createSnapshot(policy), {...candidate('expired', 'u'), deadline: 10});
+  state = enqueue(policy, state, candidate('hold', 'v'));
+  state = scheduleTick(policy, state).snapshot;
+  const result = scheduleTick(policy, enqueue(policy, state, {...candidate('late', 'w'), deadline: 10}), {now: 20});
+  assert.ok(result.decisions.some(d => d.kind === 'deadline_missed' && d.attemptId === 'attempt-late'));
+});
