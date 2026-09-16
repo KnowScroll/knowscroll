@@ -4,7 +4,7 @@ import {ReasoningDenied} from './reasoning-runtime-policy.js';
 
 export const FAIRNESS_CLASSES = ['interactive','active_continuity','accumulated_interpretation','background_inquiry','housekeeping'] as const;
 export type FairnessClass = typeof FAIRNESS_CLASSES[number];
-export const FAIRNESS_WEIGHTS: Record<FairnessClass, number> = {interactive:5,active_continuity:6,accumulated_interpretation:4,background_inquiry:3,housekeeping:2};
+export const FAIRNESS_WEIGHTS: Readonly<Record<FairnessClass, number>> = Object.freeze({interactive:5,active_continuity:6,accumulated_interpretation:4,background_inquiry:3,housekeeping:2});
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const policySchema = z.object({
   version:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/),
