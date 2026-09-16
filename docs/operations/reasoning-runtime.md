@@ -4,6 +4,8 @@
 
 These are development primitives. The ordinary worker still processes deterministic keeps only; `reasoningReadiness()` remains false. No provider adapter or public endpoint is connected to these operations. [#46](https://github.com/KnowScroll/knowscroll/issues/46) adds [J004](../journeys/J004.md), which verifies the protocol in a separate-process synthetic runtime harness. This does not enable product calls.
 
+The separate [fairness model](reasoning-fairness.md) and [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) define the scheduling policy before its SQL implementation. They do not wrap or replace these operations at runtime.
+
 ## Trust and policy boundary
 
 `createReasoningAdmission(pool, authority)` receives trusted server configuration with two required callbacks:

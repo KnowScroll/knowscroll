@@ -5,9 +5,9 @@ Prepared under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`:
 | Directory / branch | Issue | Local API port | Database |
 |---|---|---|---|
 | `mobile` / `codex/31-history-control` | #31 (parent #3), Android privacy control | 4312 | knowscroll_mobile |
-| `core` / `codex/46-j004-review` | #46 (parent #7), independent evidence review | 4313 | knowscroll_core |
-| `reasoning` / `codex/46-j004-runner` | #46 (parent #7), isolated process harness | 4314 | knowscroll_reasoning |
-| `coordination` / `codex/46-j004` | #46 verifier, cleanup, CI and integration | 4315 | knowscroll_coordination |
+| `core` / `codex/54-fairness-review` | #54 (parent #7), independent model review | 4313 | knowscroll_core |
+| `reasoning` / `codex/54-fairness-model` | #54 (parent #7), deterministic scheduling model | 4314 | knowscroll_reasoning |
+| `coordination` / `codex/54-fairness` | #54 policy, counterexamples, docs and integration | 4315 | knowscroll_coordination |
 
 Each has its own ignored `.env` and local Android configuration. All use the dedicated SSD PostgreSQL cluster at port55432 and the same SSD package/SDK/Gradle caches. Databases and API ports are separate. These lanes are prepared, not autonomous agents already running.
 
@@ -32,3 +32,5 @@ Issue #44 uses coordinator-owned migration 0004, a Sol storage-test lane, and a 
 Issue #45 uses Sol for admission/lease/recovery, Terra for cumulative reconciliation and a separate Terra reviewer. Coordinator owns migration 0005, shared policy validation, the unwired invocation boundary and integrated SQL/HTTP proof. All provider responses remain test fixtures; #46 owns J004 next.
 
 Issue #46 uses Sol for the disposable J004 process harness and Terra for independent review. Coordinator owns the receipt verifier, corruption counterexamples, independent SIGTERM/SIGINT cleanup checker, CI and documentation. No production module, migration, provider call or normal Android surface changes in this slice.
+
+Issue #54 uses Terra (`gpt-5.6-terra`) for the pure deterministic model and a second Terra worker for independent adversarial review. Sol is unavailable due to a model usage limit. Coordinator owns ADR-0013, policy decisions, integration, source-stamped evidence and docs. There are no provider calls, migrations or ordinary runtime changes in this slice.
