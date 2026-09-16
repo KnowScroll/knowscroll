@@ -57,6 +57,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
     private var busy=false
     private var reconciling=false
+    private var reconcileAfterCurrent:Boolean?=null
     private var ready=false
     private var navigationVersion=0L
     private val visited=store.readVisited().toMutableSet()
@@ -70,7 +71,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     fun consumeToast(){_toast.value=null}
     fun onForeground(){reconcilePrivacy(restoreStoredScroll=true)}
-    fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen()=="scroll")
+    fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen()=="scroll",queueIfBusy=true)
     fun retryScrollLoad()=enterScroll()
 
     fun enterScroll(){
@@ -200,7 +201,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         visited.clear();store.writeVisited(visited)
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
-        reconcilePrivacy(restoreStoredScroll=false)
+        reconcilePrivacy(restoreStoredScroll=false,queueIfBusy=true)
     }
 
     fun requestHistoryClearConfirmation(){
@@ -281,9 +282,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
     }
 
-    private fun reconcilePrivacy(restoreStoredScroll:Boolean){
-        if(reconciling)return
-        reconciling=true;ready=false
+    private fun reconcilePrivacy(restoreStoredScroll:Boolean,queueIfBusy:Boolean=false){
+        if(reconciling){if(queueIfBusy)reconcileAfterCurrent=restoreStoredScroll;return}
+        reconciling=true;ready=false;busy=false
         val version=++navigationVersion
         val wantedScroll=restoreStoredScroll && store.readScreen()=="scroll"
         if(wantedScroll){_screen.value=Screen.Scroll("");_scroll.value=ScrollState.Loading}
@@ -300,7 +301,12 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             } catch(e:Exception){
                 if(store.readPendingClear()!=null)handleHistoryClearFailure(e,version)
                 else failClosed(message(e))
-            } finally{reconciling=false}
+            } finally{
+                reconciling=false
+                val next=reconcileAfterCurrent
+                reconcileAfterCurrent=null
+                if(next!=null)reconcilePrivacy(next)
+            }
         }
     }
 
