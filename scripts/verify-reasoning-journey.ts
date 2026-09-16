@@ -12,6 +12,10 @@ const result = verifyReasoningJourney(receipt);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 assert.equal(receipt.source.revision, execFileSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding: 'utf8'}).trim(),
   'fresh runtime receipt belongs to another source revision');
+// Current runtime proof includes its teardown helper; historical semantic
+// receipts remain valid through verifyReasoningJourney above.
+assert.ok(receipt.source.files.some((file: {path: string}) => file.path === 'scripts/lib/pg-disconnect.ts'),
+  'fresh J004 receipt lacks PostgreSQL disconnect helper hash');
 for (const file of receipt.source.files) {
   const target = resolve(root, file.path);
   assert.ok(target.startsWith(root + sep), 'source path escaped repository');
