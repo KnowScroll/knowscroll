@@ -38,10 +38,10 @@ export function authority(db: pg.Pool): ReasoningAuthority {
           scope.jobId,
         ])
       ).rows[0]?.policy,
-    validateContext: async (client, scope) =>
+    validateContext: async (client, scope, phase) =>
       !!(
         await client.query(
-          "SELECT id FROM reasoning_context WHERE id=$1 AND job_id=$2 AND universe_id=$3 AND privacy_epoch=$4 FOR SHARE",
+          `SELECT id FROM reasoning_context WHERE id=$1 AND job_id=$2 AND universe_id=$3 AND privacy_epoch=$4${phase==='lock'?' FOR SHARE':''}`,
           [scope.contextId, scope.jobId, scope.universeId, scope.privacyEpoch],
         )
       ).rowCount,

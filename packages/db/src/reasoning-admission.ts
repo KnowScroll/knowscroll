@@ -339,7 +339,7 @@ export async function preflightAttemptInTransaction(
   if ((await client.query('SELECT 1 FROM reasoning_attempt WHERE step_id=$1 LIMIT 1',[input.stepId])).rowCount) deny('retry_not_supported');
   const scope={universeId:input.universeId,privacyEpoch:input.privacyEpoch,jobId:input.jobId};
   const context={...scope,stepId:input.stepId,contextId:input.contextId,policyVersion:job.policy_version};
-  if (!await authority.validateContext(client,context)) deny('stale_context');
+  if (!await authority.validateContext(client,context,'lock')) deny('stale_context');
   const {policy,bindingHash}=await resolveAndValidatePolicy(client,authority,scope);
   if (policy.policyVersion !== job.policy_version) deny('policy_version_mismatch');
   if (input.inputTokensUpperBound>policy.maxInputTokens || input.maxOutputTokens>policy.maxOutputTokens) deny('policy_limit_exceeded');
@@ -350,7 +350,7 @@ export async function preflightAttemptInTransaction(
     if (bucket.dimension!==binding.dimension || bucket.unit!==binding.unit || bucket.window_id!==binding.windowId) deny('bucket_binding_changed');
   }
   if ((await resolveAndValidatePolicy(client,authority,scope)).bindingHash!==bindingHash) deny('policy_binding_changed');
-  if (!await authority.validateContext(client,context)) deny('stale_context');
+  if (!await authority.validateContext(client,context,'recheck')) deny('stale_context');
   const valid=(await client.query(`SELECT 1 FROM reasoning_job WHERE id=$1 AND status='queued' AND deadline>clock_timestamp()
     AND $2::timestamptz>clock_timestamp() AND $2::timestamptz<=deadline`,[input.jobId,input.deadline])).rowCount;
   if (!valid) deny('invalid_deadline');
@@ -370,6 +370,7 @@ export async function reserveAttemptInTransaction(
   authority: ReasoningAuthority,
   input: ReserveAttemptInput,
   beforeResourceLocks?: (client: pg.PoolClient, resolved: {policy: ResolvedReasoningPolicy; bindingHash: string}) => Promise<void>,
+  contextPhase: 'lock'|'recheck' = 'lock',
 ): Promise<ReservedAttempt> {
   validateOwnerAndDuration(input.owner, input.permitTtlMs, 'permit');
   validateFence(input.leaseFence);
@@ -400,7 +401,7 @@ export async function reserveAttemptInTransaction(
   );
   if (!deadline.rows[0]?.valid) deny('invalid_deadline');
   const scope = {universeId: input.universeId, privacyEpoch: input.privacyEpoch, jobId: input.jobId};
-  if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version})) {
+  if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version}, contextPhase)) {
     deny('stale_context');
   }
   const {policy, bindingHash} = await resolveAndValidatePolicy(client, authority, scope);
@@ -410,7 +411,7 @@ export async function reserveAttemptInTransaction(
   const buckets = await lockPolicyBuckets(client, policy);
   assertBucketBindings(policy, buckets);
   if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash) deny('policy_binding_changed');
-  if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version})) {
+  if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version}, 'recheck')) {
     deny('stale_context');
   }
   const stillCurrent = await client.query(
@@ -601,7 +602,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         );
         if (!time.rows[0]?.valid) deny('permit_or_request_expired');
         const scope = {universeId: input.universeId, privacyEpoch: input.privacyEpoch, jobId: input.jobId};
-        if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: attemptRow.context_id, policyVersion: job.policy_version})) deny('stale_context');
+        if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: attemptRow.context_id, policyVersion: job.policy_version}, 'lock')) deny('stale_context');
         const {policy, bindingHash} = await resolveAndValidatePolicy(client, authority, scope);
         if (bindingHash !== account.binding_hash || policy.routeId !== account.route_id || policy.routeProfileVersion !== account.route_profile_version) {
           deny('policy_binding_changed');
@@ -621,7 +622,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         const buckets = await lockPolicyBuckets(client, policy);
         assertBucketBindings(policy, buckets);
         if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash) deny('policy_binding_changed');
-        if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: attemptRow.context_id, policyVersion: job.policy_version})) {
+        if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: attemptRow.context_id, policyVersion: job.policy_version}, 'recheck')) {
           deny('stale_context');
         }
         const stillAuthorized = await client.query(

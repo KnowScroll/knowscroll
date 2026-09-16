@@ -23,7 +23,8 @@ export type ReasoningContextCheck=ReasoningScope & {stepId:string;contextId:stri
 /** Trusted server configuration only. Implementations do short local/SQL work, never network I/O. */
 export interface ReasoningAuthority {
  resolvePolicy(client:pg.PoolClient,scope:ReasoningScope):Promise<unknown>;
- validateContext(client:pg.PoolClient,scope:ReasoningContextCheck):Promise<boolean>;
+ /** lock runs before shared resources; recheck acquires no new dependency locks. */
+ validateContext(client:pg.PoolClient,scope:ReasoningContextCheck,phase:'lock'|'recheck'):Promise<boolean>;
 }
 export class ReasoningDenied extends Error {
  constructor(readonly code:string) {super(`Reasoning operation denied: ${code}`);this.name='ReasoningDenied';}

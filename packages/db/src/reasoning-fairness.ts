@@ -125,7 +125,8 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
   const row=(await client.query(`UPDATE reasoning_job SET status='running',lease_owner=$2,lease_fence=lease_fence+1,lease_expires_at=clock_timestamp()+($3::bigint*interval '1 millisecond') WHERE id=$1 AND status='queued' AND deadline>clock_timestamp() AND lease_fence<9223372036854775807 RETURNING lease_fence,lease_expires_at`,[d.ready.jobId,input.owner,input.leaseMs])).rows[0];
   if(!row)deny('expired_lease_or_job');
   const claim={jobId:d.ready.jobId,universeId:d.ready.universeId,privacyEpoch:d.ready.privacyEpoch,leaseFence:row.lease_fence as string,leaseExpiresAt:row.lease_expires_at as Date};
-  const reserved=await reserveAttemptInTransaction(client,authority,{...d.ready,owner:input.owner,leaseFence:claim.leaseFence},async(_hook,resolved)=>{if(resolved.bindingHash!==preflight.bindingHash)deny('policy_binding_changed');});
+  // Preflight locked the exact context dependencies in this transaction, before shared resources.
+  const reserved=await reserveAttemptInTransaction(client,authority,{...d.ready,owner:input.owner,leaseFence:claim.leaseFence},async(_hook,resolved)=>{if(resolved.bindingHash!==preflight.bindingHash)deny('policy_binding_changed');},'recheck');
   c.credit=(BigInt(c.credit)-BigInt(charge)).toString();c.remaining=(BigInt(c.remaining)-BigInt(charge)).toString();c.universe_remaining=(BigInt(c.universe_remaining)-BigInt(charge)).toString();u.credit=(BigInt(u.credit)-BigInt(charge)).toString();
   await client.query('UPDATE reasoning_fairness_universe SET credit=$4 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,d.klass,u.universe_id,u.credit]);
   await client.query('INSERT INTO reasoning_fairness_attempt(attempt_id,policy_version,class,universe_id,reserved_charge,recognized_charge) VALUES($1,$2,$3,$4,$5,$5)',[reserved.attemptId,input.policyVersion,d.klass,u.universe_id,charge]);

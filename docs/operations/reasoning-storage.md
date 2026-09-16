@@ -7,13 +7,14 @@ Issue [#44](https://github.com/KnowScroll/knowscroll/issues/44) implements the s
 | Records | Purpose | History clear |
 |---|---|---|
 | `reasoning_job`, `reasoning_step`, `reasoning_attempt` | Private execution identity, retry lineage, request hash and lease fence | Delete scoped rows |
-| `reasoning_context`, `reasoning_context_read` | Context hash and typed, scoped revision dependencies | Delete scoped rows |
+| `reasoning_context`, `reasoning_context_read` | Context hash and legacy scoped revision dependencies | Delete scoped rows |
+| `reasoning_context_payload`, `reasoning_context_dependency`, `reasoning_context_job_session` | ADR-0014 literal Scroll bytes, typed dependencies and original Job/session binding | Cascade with context/Job erasure |
 | `reasoning_accounting` | Original universe/epoch, request/dispatch binding, route/profile, liability, remote and retention duties | Withdraw output authority; retain minimal identity |
 | `reasoning_permit`, `reasoning_reservation` | One-use authorization and typed bucket commitments | Close unconsumed commitments; preserve possibly sent commitments |
 | `reasoning_receipt`, `reasoning_settlement`, `reasoning_settlement_adjustment` | Append-only usage evidence and accounting revision metadata | Retain under accounting policy |
 | `reasoning_bucket` | Shared capacity, reservation and consumption counters | Release only proven unconsumed reservations |
 
-No prompt, native thinking, tool arguments/results, response content or semantic proposal is persisted by these tables. Retained accounting has no Job, Step or context foreign key. It keeps its restricted universe and original epoch to bind authentic late usage; it is not personalization history.
+The original storage tables persist no prompt, native thinking, tool arguments/results, response content or semantic proposal. Migration 0007 adds [frozen literal Keep/Scroll evidence](reasoning-context.md), including the displayed body and attribution, to the private graph; it does not add model response or semantic proposal storage. Retained accounting has no Job, Step or context foreign key. It keeps its restricted universe and original epoch to bind authentic late usage; it is not personalization history.
 
 Composite foreign keys enforce universe/epoch/context ownership, ordered same-Step retries, route/request/dispatch receipt binding and bucket units. Unique constraints cover ordinals, request/dispatch IDs, one active Attempt per Step and one reservation per Attempt/bucket. Database triggers protect immutable identities and append-only evidence. They are storage safeguards, not a complete admission controller: coherent creation, authorization, counters, authentication and transaction fencing are implemented in the #45 internal factories; their configured authority callbacks remain trusted server responsibilities.
 
