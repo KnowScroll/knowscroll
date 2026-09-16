@@ -199,6 +199,33 @@ test('fairness SQL retained accounting protects scope, idempotency, debt, and pr
     });
   });
 
+  await t.test('a legitimate not-sent refund caps both balances and records discarded credit exactly once', async () => {
+    await withSchema('capped_not_sent_refund', async (pool) => {
+      await seedPolicy(pool);
+      const universeId = await seedUniverse(pool);
+      const attemptId = await seedAccounting(pool, universeId, 'not_sent');
+      await bindFairAttempt(pool, attemptId, universeId, 100);
+      // Interactive's caps are class=5*100+100 and universe=100+100.
+      await pool.query("UPDATE reasoning_fairness_class SET credit=595 WHERE policy_version=$1 AND class='interactive'", [policy.version]);
+      await pool.query("UPDATE reasoning_fairness_universe SET credit=195 WHERE policy_version=$1 AND class='interactive' AND universe_id=$2", [policy.version, universeId]);
+
+      for (let pass = 0; pass < 2; pass += 1) {
+        await inTransaction(pool, async (client) => {
+          await lockFairnessResources(client, [attemptId]);
+          await releaseNotSentFairness(client, attemptId);
+        });
+      }
+      assert.deepEqual((await pool.query("SELECT credit::text FROM reasoning_fairness_class WHERE policy_version=$1 AND class='interactive'", [policy.version])).rows[0], {credit: '600'});
+      assert.deepEqual((await pool.query("SELECT credit::text FROM reasoning_fairness_universe WHERE policy_version=$1 AND class='interactive' AND universe_id=$2", [policy.version, universeId])).rows[0], {credit: '200'});
+      assert.deepEqual((await pool.query(`SELECT prior_charge::text,recognized_charge::text,class_delta::text,universe_delta::text,
+        class_refund_discarded::text,universe_refund_discarded::text FROM reasoning_fairness_delta WHERE attempt_id=$1 AND revision=0`, [attemptId])).rows[0], {
+        prior_charge: '100', recognized_charge: '0', class_delta: '5', universe_delta: '5',
+        class_refund_discarded: '95', universe_refund_discarded: '95',
+      });
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_delta WHERE attempt_id=$1', [attemptId])).rows[0]?.count, 1);
+    });
+  });
+
   await t.test('late cumulative correction retains debt after private membership is cleared without recreating a queue', async () => {
     await withSchema('late_correction', async (pool) => {
       await seedPolicy(pool);
