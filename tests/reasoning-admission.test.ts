@@ -17,7 +17,7 @@ type Graph = {universeId: string; jobId: string; contextId: string; stepId: stri
 type MutableAuthority = ReasoningAuthority & {
   policies: Map<string, unknown>;
   validContexts: Map<string, boolean>;
-  beforeValidateContext?: (scope: ReasoningScope & {stepId: string; contextId: string; policyVersion: string}) => Promise<void>;
+  beforeValidateContext?: (scope: ReasoningScope & {stepId: string; contextId: string; policyVersion: string}, client: pg.PoolClient) => Promise<void>;
 };
 
 async function withSchema(name: string, fn: (pool: pg.Pool) => Promise<void>): Promise<void> {
@@ -47,11 +47,32 @@ function makeAuthority(): MutableAuthority {
       return policies.get(scope.jobId);
     },
     async validateContext(_client: pg.PoolClient, scope: ReasoningScope & {stepId: string; contextId: string; policyVersion: string}) {
-      await authority.beforeValidateContext?.(scope);
-      return validContexts.get(scope.contextId) ?? false;
+      const valid = validContexts.get(scope.contextId) ?? false;
+      await authority.beforeValidateContext?.(scope, _client);
+      return valid;
     },
   } as MutableAuthority;
   return authority;
+}
+
+async function waitForDatabaseLock(pool: pg.Pool, pid: number): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const state = await pool.query<{wait_event_type: string | null}>(
+      'SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1', [pid],
+    );
+    if (state.rows[0]?.wait_event_type === 'Lock') return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`database backend ${pid} did not enter a lock wait`);
+}
+
+async function waitForDatabasePredicate(pool: pg.Pool, sql: string, values: unknown[]): Promise<void> {
+  for (let attempt = 0; attempt < 600; attempt += 1) {
+    const result = await pool.query<{ready: boolean}>(sql, values);
+    if (result.rows[0]?.ready === true) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('database-time predicate did not become true');
 }
 
 function makePolicy(scope: ReasoningScope, shared: Partial<Record<'global' | 'provider' | 'route' | 'remote', string>> = {}): ResolvedReasoningPolicy {
@@ -448,35 +469,58 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
       const reservePolicy = await installPolicy(pool, authority, reserveGraph);
       const authPolicy = await installPolicy(pool, authority, authGraph);
       const admission = createReasoningAdmission(pool, authority);
-      const reserveClaim = await admission.claimJob({owner: 'worker-reserve', leaseMs: 80});
+      const reserveClaim = await admission.claimJob({owner: 'worker-reserve', leaseMs: 2_000});
       assert(reserveClaim);
       const blocker = await pool.connect();
       await blocker.query('BEGIN');
       await blocker.query('SELECT id FROM reasoning_bucket WHERE id=$1 FOR UPDATE', [reservePolicy.buckets[0]?.bucketId]);
+      let reserveBackendPid = 0;
+      let observedReserveValidation!: () => void;
+      const reserveValidation = new Promise<void>((resolve) => { observedReserveValidation = resolve; });
+      authority.beforeValidateContext = async (_scope, client) => {
+        reserveBackendPid = (await client.query<{pid: number}>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0;
+        observedReserveValidation();
+      };
       const waitingReserve = admission.reserveAttempt(reservationInput(reserveGraph, reserveClaim, {owner: 'worker-reserve'}));
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      const reserveRejection = assert.rejects(waitingReserve, (error) => assertDenied(error, 'expired_lease_or_job'));
+      await reserveValidation;
+      await waitForDatabaseLock(pool, reserveBackendPid);
+      await waitForDatabasePredicate(pool,
+        'SELECT lease_expires_at<=clock_timestamp() AS ready FROM reasoning_job WHERE id=$1', [reserveGraph.jobId]);
       await blocker.query('ROLLBACK');
       blocker.release();
-      await assert.rejects(waitingReserve, (error) => assertDenied(error, 'expired_lease_or_job'));
+      await reserveRejection;
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_attempt WHERE job_id=$1', [reserveGraph.jobId])).rows[0]?.count, 0);
 
+      authority.beforeValidateContext = undefined;
       const authClaim = await admission.claimJob({owner: 'worker-auth', leaseMs: 10_000});
       assert(authClaim?.jobId === authGraph.jobId);
-      const authInput = reservationInput(authGraph, authClaim, {owner: 'worker-auth', permitTtlMs: 50});
+      const authInput = reservationInput(authGraph, authClaim, {owner: 'worker-auth', permitTtlMs: 2_000});
       const reserved = await admission.reserveAttempt(authInput);
       const authBlocker = await pool.connect();
       await authBlocker.query('BEGIN');
       await authBlocker.query('SELECT id FROM reasoning_bucket WHERE id=$1 FOR UPDATE', [authPolicy.buckets[0]?.bucketId]);
+      let authorizeBackendPid = 0;
+      let observedAuthorizeValidation!: () => void;
+      const authorizeValidation = new Promise<void>((resolve) => { observedAuthorizeValidation = resolve; });
+      authority.beforeValidateContext = async (_scope, client) => {
+        authorizeBackendPid = (await client.query<{pid: number}>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0;
+        observedAuthorizeValidation();
+      };
       const waitingAuth = admission.authorizeDispatch({
         universeId: authGraph.universeId, privacyEpoch: 0, jobId: authGraph.jobId, stepId: authGraph.stepId,
         attemptId: reserved.attemptId, owner: 'worker-auth', leaseFence: authClaim.leaseFence,
         requestId: authInput.requestId, requestHash: authInput.requestHash, inputTokensUpperBound: authInput.inputTokensUpperBound,
         maxOutputTokens: authInput.maxOutputTokens, dispatchId: randomUUID(),
       });
-      await new Promise((resolve) => setTimeout(resolve, 80));
+      const authorizeRejection = assert.rejects(waitingAuth, (error) => assertDenied(error, 'authorization_expired'));
+      await authorizeValidation;
+      await waitForDatabaseLock(pool, authorizeBackendPid);
+      await waitForDatabasePredicate(pool,
+        'SELECT expires_at<=clock_timestamp() AS ready FROM reasoning_permit WHERE id=$1', [reserved.permitId]);
       await authBlocker.query('ROLLBACK');
       authBlocker.release();
-      await assert.rejects(waitingAuth, (error) => assertDenied(error, 'authorization_expired'));
+      await authorizeRejection;
       assert.equal((await pool.query('SELECT state FROM reasoning_accounting WHERE attempt_id=$1', [reserved.attemptId])).rows[0]?.state, 'reserved');
     });
   });
@@ -497,13 +541,23 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
       let observedInitialValidation!: () => void;
       const initialValidation = new Promise<void>((resolve) => { observedInitialValidation = resolve; });
       let validationCount = 0;
-      authority.beforeValidateContext = async () => { if (++validationCount === 1) observedInitialValidation(); };
+      let reserveBackendPid = 0;
+      authority.beforeValidateContext = async (_scope, client) => {
+        validationCount += 1;
+        if (validationCount === 1) {
+          reserveBackendPid = (await client.query<{pid: number}>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0;
+          observedInitialValidation();
+        }
+      };
       const waitingReserve = admission.reserveAttempt(reservationInput(reserveGraph, reserveClaim, {owner: 'worker-reserve'}));
+      const reserveRejection = assert.rejects(waitingReserve, (error) => assertDenied(error, 'stale_context'));
       await initialValidation;
+      await waitForDatabaseLock(pool, reserveBackendPid);
       authority.validContexts.set(reserveGraph.contextId, false);
       await reserveBlocker.query('ROLLBACK');
       reserveBlocker.release();
-      await assert.rejects(waitingReserve, (error) => assertDenied(error, 'stale_context'));
+      await reserveRejection;
+      assert(validationCount >= 2);
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_attempt WHERE job_id=$1', [reserveGraph.jobId])).rows[0]?.count, 0);
       assert.equal((await pool.query('SELECT coalesce(sum(reserved),0)::text AS value FROM reasoning_bucket WHERE id=ANY($1::uuid[])', [reservePolicy.buckets.map((binding) => binding.bucketId)])).rows[0]?.value, '0');
 
@@ -518,18 +572,28 @@ test('reasoning admission uses atomic PostgreSQL authority and one-time dispatch
       let observedAuthorizeValidation!: () => void;
       const authorizeValidation = new Promise<void>((resolve) => { observedAuthorizeValidation = resolve; });
       validationCount = 0;
-      authority.beforeValidateContext = async () => { if (++validationCount === 1) observedAuthorizeValidation(); };
+      let authorizeBackendPid = 0;
+      authority.beforeValidateContext = async (_scope, client) => {
+        validationCount += 1;
+        if (validationCount === 1) {
+          authorizeBackendPid = (await client.query<{pid: number}>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0;
+          observedAuthorizeValidation();
+        }
+      };
       const waitingAuthorize = admission.authorizeDispatch({
         universeId: authorizeGraph.universeId, privacyEpoch: 0, jobId: authorizeGraph.jobId, stepId: authorizeGraph.stepId,
         attemptId: reserved.attemptId, owner: 'worker-authorize', leaseFence: authorizeClaim.leaseFence,
         requestId: authorizeInput.requestId, requestHash: authorizeInput.requestHash,
         inputTokensUpperBound: authorizeInput.inputTokensUpperBound, maxOutputTokens: authorizeInput.maxOutputTokens, dispatchId: randomUUID(),
       });
+      const authorizeRejection = assert.rejects(waitingAuthorize, (error) => assertDenied(error, 'stale_context'));
       await authorizeValidation;
+      await waitForDatabaseLock(pool, authorizeBackendPid);
       authority.validContexts.set(authorizeGraph.contextId, false);
       await authorizeBlocker.query('ROLLBACK');
       authorizeBlocker.release();
-      await assert.rejects(waitingAuthorize, (error) => assertDenied(error, 'stale_context'));
+      await authorizeRejection;
+      assert(validationCount >= 2);
       assert.equal((await pool.query('SELECT state FROM reasoning_accounting WHERE attempt_id=$1', [reserved.attemptId])).rows[0]?.state, 'reserved');
       assert.equal((await pool.query('SELECT state FROM reasoning_permit WHERE attempt_id=$1', [reserved.attemptId])).rows[0]?.state, 'reserved');
     });
