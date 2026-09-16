@@ -85,6 +85,7 @@ test('explicit Ask SQL constraints preserve only exact source-bound literal fact
   await withAskSchema('forgery',async pool=>{
    const graph=await seed(pool);
    await pool.query('UPDATE exposure SET asset_id=$2 WHERE id=$1',[graph.exposureId,graph.otherAssetId]);
+   await pool.query("UPDATE ledger SET payload=jsonb_set(payload,'{assetId}',to_jsonb($2::text)) WHERE id=$1",[graph.exposureEventId,graph.otherAssetId]);
    await assert.rejects(tx(pool,client=>insertAsk(client,graph,{assetId:graph.otherAssetId})),/Explicit Ask requires matching private source lineage/);
    await pool.query('UPDATE exposure SET asset_id=$2 WHERE id=$1',[graph.exposureId,graph.selectedAssetId]);
    await pool.query("UPDATE ledger SET payload=jsonb_set(payload,'{assetId}',to_jsonb($2::text)) WHERE id=$1",[graph.exposureEventId,graph.otherAssetId]);
