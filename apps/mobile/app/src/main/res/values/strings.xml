@@ -7,11 +7,19 @@
     <string name="universe_empty">Your first path starts with a little curiosity.</string>
     <string name="universe_loading">Opening the universe…</string>
     <string name="universe_unavailable">The universe is unreachable.</string>
-    <string name="universe_unavailable_help">Your saved paths are still yours. Try connecting again.</string>
+    <string name="universe_unavailable_help">Reconnect before restoring saved Scroll state.</string>
     <string name="action_retry">Retry</string>
     <string name="action_enter_scroll">Enter Scroll</string>
     <string name="traces_heading">Traces</string>
     <string name="trace_unknown_title">Untitled Scroll</string>
+    <string name="privacy_heading">Privacy controls</string>
+    <string name="clear_history_action">Clear Scroll history</string>
+    <string name="clear_history_title">Clear Scroll history?</string>
+    <string name="clear_history_effects">This removes recorded Scroll encounters and saved Traces. The shared Scroll library stays available. Other devices will be signed out.</string>
+    <string name="clear_history_confirm">Clear history</string>
+    <string name="clear_history_cancel">Cancel</string>
+    <string name="clear_history_progress">Clearing recorded encounters…</string>
+    <string name="clear_history_retry">Retry clear</string>
 
     <!-- Scroll (consumption) screen -->
     <string name="scroll_unavailable">This Scroll is unavailable.</string>
