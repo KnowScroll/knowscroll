@@ -1,0 +1,493 @@
+{
+  "journey": "J004",
+  "result": "passed",
+  "source": {
+    "revision": "6dfc9f7a095be0afc89e7d6c44898c0ab31d5983",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/run-isolated-reasoning-journey.ts",
+        "sha256": "93074e2afbb7a9f861081c59ed56ee67de649892496f9aa823efd44e38349d2a"
+      },
+      {
+        "path": "scripts/verify-reasoning-cleanup.ts",
+        "sha256": "1ffca2e6d15463d1ebe85e11793a59a6ce08584e6e53c5311bcb259967e38b83"
+      }
+    ],
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "observations": [
+    {
+      "case": "single_sigterm",
+      "trigger": {
+        "kind": "signals",
+        "signals": [
+          "SIGTERM"
+        ],
+        "intervalMs": 0
+      },
+      "orderingProbe": null,
+      "runnerPid": 38315,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_393bd4d57c809105"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38319,
+          "pgid": 38319,
+          "readyAt": "2026-09-16T15:23:09.778Z"
+        },
+        {
+          "role": "api",
+          "pid": 38346,
+          "pgid": 38346,
+          "readyAt": "2026-09-16T15:23:10.282Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38348,
+          "pgid": 38348,
+          "readyAt": "2026-09-16T15:23:10.513Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "interrupted",
+        "phase": "runtime",
+        "secondaryConditions": [],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 295,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:10.869Z"
+    },
+    {
+      "case": "single_sigint",
+      "trigger": {
+        "kind": "signals",
+        "signals": [
+          "SIGINT"
+        ],
+        "intervalMs": 0
+      },
+      "orderingProbe": null,
+      "runnerPid": 38372,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_ff2f335a315a030f"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38375,
+          "pgid": 38375,
+          "readyAt": "2026-09-16T15:23:11.341Z"
+        },
+        {
+          "role": "api",
+          "pid": 38376,
+          "pgid": 38376,
+          "readyAt": "2026-09-16T15:23:11.739Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38380,
+          "pgid": 38380,
+          "readyAt": "2026-09-16T15:23:11.967Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "interrupted",
+        "phase": "runtime",
+        "secondaryConditions": [],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 295,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:12.300Z"
+    },
+    {
+      "case": "pool_then_signal",
+      "trigger": {
+        "kind": "signals",
+        "signals": [
+          "SIGINT"
+        ],
+        "intervalMs": 0
+      },
+      "orderingProbe": "--inject-pool-error-before-interrupt",
+      "runnerPid": 38435,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_e39e19377024461f"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38441,
+          "pgid": 38441,
+          "readyAt": "2026-09-16T15:23:12.821Z"
+        },
+        {
+          "role": "api",
+          "pid": 38442,
+          "pgid": 38442,
+          "readyAt": "2026-09-16T15:23:13.224Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38446,
+          "pgid": 38446,
+          "readyAt": "2026-09-16T15:23:13.448Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "pool_runtime_error",
+        "phase": "runtime",
+        "secondaryConditions": [
+          {
+            "classification": "interrupted",
+            "phase": "runtime"
+          }
+        ],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 290,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:13.834Z"
+    },
+    {
+      "case": "signal_then_pool_cleanup",
+      "trigger": {
+        "kind": "signals",
+        "signals": [
+          "SIGINT"
+        ],
+        "intervalMs": 0
+      },
+      "orderingProbe": "--inject-pool-error-after-interrupt",
+      "runnerPid": 38469,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_959dbf87d44cb368"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38498,
+          "pgid": 38498,
+          "readyAt": "2026-09-16T15:23:14.460Z"
+        },
+        {
+          "role": "api",
+          "pid": 38499,
+          "pgid": 38499,
+          "readyAt": "2026-09-16T15:23:14.860Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38501,
+          "pgid": 38501,
+          "readyAt": "2026-09-16T15:23:15.071Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "interrupted",
+        "phase": "runtime",
+        "secondaryConditions": [
+          {
+            "classification": "pool_runtime_error",
+            "phase": "cleanup"
+          }
+        ],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 295,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:15.463Z"
+    },
+    {
+      "case": "repeated_sigterm",
+      "trigger": {
+        "kind": "signals",
+        "signals": [
+          "SIGTERM",
+          "SIGTERM"
+        ],
+        "intervalMs": 25
+      },
+      "orderingProbe": null,
+      "runnerPid": 38524,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_37db807dd10d1760"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38528,
+          "pgid": 38528,
+          "readyAt": "2026-09-16T15:23:15.956Z"
+        },
+        {
+          "role": "api",
+          "pid": 38529,
+          "pgid": 38529,
+          "readyAt": "2026-09-16T15:23:16.355Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38557,
+          "pgid": 38557,
+          "readyAt": "2026-09-16T15:23:16.565Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "interrupted",
+        "phase": "runtime",
+        "secondaryConditions": [],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 295,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:16.919Z"
+    },
+    {
+      "case": "mixed_repeated_signals",
+      "trigger": {
+        "kind": "signals",
+        "signals": [
+          "SIGTERM",
+          "SIGINT"
+        ],
+        "intervalMs": 25
+      },
+      "orderingProbe": null,
+      "runnerPid": 38581,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_a94345930a3e9761"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38584,
+          "pgid": 38584,
+          "readyAt": "2026-09-16T15:23:17.460Z"
+        },
+        {
+          "role": "api",
+          "pid": 38616,
+          "pgid": 38616,
+          "readyAt": "2026-09-16T15:23:17.912Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38654,
+          "pgid": 38654,
+          "readyAt": "2026-09-16T15:23:18.126Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "interrupted",
+        "phase": "runtime",
+        "secondaryConditions": [],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 295,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:18.475Z"
+    },
+    {
+      "case": "child_failure",
+      "trigger": {
+        "kind": "child_failure",
+        "role": "worker-ready",
+        "signal": "SIGKILL"
+      },
+      "orderingProbe": null,
+      "runnerPid": 38704,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_cc711dd328e44d56"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38708,
+          "pgid": 38708,
+          "readyAt": "2026-09-16T15:23:19.065Z"
+        },
+        {
+          "role": "api",
+          "pid": 38709,
+          "pgid": 38709,
+          "readyAt": "2026-09-16T15:23:19.466Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38711,
+          "pgid": 38711,
+          "readyAt": "2026-09-16T15:23:19.684Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "child_process_exit",
+        "phase": "runtime",
+        "secondaryConditions": [],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 290,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:20.002Z"
+    },
+    {
+      "case": "pool_runtime_failure",
+      "trigger": {
+        "kind": "pool_failure",
+        "applicationName": "knowscroll-j004-runner"
+      },
+      "orderingProbe": null,
+      "runnerPid": 38735,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_f03fac122ac8f22a"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 38738,
+          "pgid": 38738,
+          "readyAt": "2026-09-16T15:23:20.489Z"
+        },
+        {
+          "role": "api",
+          "pid": 38765,
+          "pgid": 38765,
+          "readyAt": "2026-09-16T15:23:20.887Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 38768,
+          "pgid": 38768,
+          "readyAt": "2026-09-16T15:23:21.100Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "diagnostic": {
+        "classification": "pool_runtime_error",
+        "phase": "runtime",
+        "secondaryConditions": [],
+        "cleanupErrors": [],
+        "cleanupStage": "complete",
+        "stderr": {
+          "observedBytes": 290,
+          "truncated": false,
+          "classifications": []
+        }
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "runnerAbsent": true,
+      "observedAt": "2026-09-16T15:23:21.431Z"
+    }
+  ]
+}
