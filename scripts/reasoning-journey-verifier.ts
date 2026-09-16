@@ -54,7 +54,7 @@ function settled(c: CaseEvidence, s: Snapshot, total: bigint) {
   }
 }
 function noPrivateState(s: Snapshot) {
-  for (const rows of [s.job, s.step, s.attempt, s.contexts]) assert.equal(rows.length, 0, 'private graph resurrected');
+  for (const rows of [s.job, s.step, s.attempt, s.contexts, s.contextReads, s.policyRows]) assert.equal(rows.length, 0, 'private graph resurrected');
 }
 function denied(c: CaseEvidence, name?: string) {
   assert.ok(c.operations.some(o => (!name || o.name === name) && typeof denial(o) === 'string'),
@@ -113,6 +113,7 @@ export function verifyReasoningJourney(value: unknown) {
       const a = q.committedIntent;
       assert.equal(a.attempt_id, q.attemptId); assert.equal(a.request_id, q.requestId); assert.equal(a.dispatch_id, q.dispatchId);
       assert.equal(a.state, 'dispatch_committed', 'fixture must observe committed intent before response');
+      assert.equal(a.permit_state, 'consumed'); assert.equal(a.permit_dispatch_id, q.dispatchId);
       assert.ok(finiteTime(a.dispatch_committed_at) && Date.parse(String(a.dispatch_committed_at)) <= Date.parse(q.observedAt));
     }
     // Every retained receipt/settlement must resolve back to the original accounting identity.
@@ -136,8 +137,17 @@ export function verifyReasoningJourney(value: unknown) {
   assert.ok(r.fixture.requests.every(q => r.cases.some(c => c.caseId === q.caseId)), 'unattributed HTTP request');
   for (const name of ['death_before_intent', 'death_after_intent', 'death_after_http']) {
     const c = get(name);
-    assert.ok(c.actorPids.some(pid => r.processes.some(p => p.pid === pid && p.signal === 'SIGKILL')), `${name}: no actual killed worker`);
+    const killed = r.processes.find(p => c.actorPids.includes(p.pid) && p.signal === 'SIGKILL');
+    assert.ok(killed, `${name}: no actual killed worker`);
     assert.ok(c.actorPids.length >= 2, 'recovery must use another worker');
+    assert.ok(Date.parse(snapshot(c, 'reserved').at) <= Date.parse(killed.exitedAt!));
+    if (name !== 'death_before_intent') {
+      const committed = c.barriers.find(b => b.event === 'intent_committed' && b.pid === killed.pid && b.data.caseId === c.caseId);
+      assert.ok(committed && Date.parse(committed.at) <= Date.parse(killed.exitedAt!));
+    }
+    if (name === 'death_after_http') {
+      assert.ok(Date.parse(r.fixture.requests.find(q => q.caseId === c.caseId)!.observedAt) <= Date.parse(killed.exitedAt!));
+    }
   }
   for (const name of ['death_before_intent', 'death_after_intent', 'lost_commit_ack', 'lease_replacement', 'cancel_before_dispatch', 'deadline_before_dispatch', 'receipt_revisions', 'capacity_contention', 'blocked_universe']) {
     assert.equal(r.fixture.requests.filter(q => q.caseId === get(name).caseId).length, 0, name);
@@ -151,6 +161,7 @@ export function verifyReasoningJourney(value: unknown) {
     assert.equal(a.remote_state, 'released'); assert.equal(a.liability_state, 'settled');
     assert.ok(s.buckets.length === 6 && s.buckets.every(b => count(b.reserved) === 0n && count(b.consumed) === 0n));
     assert.equal(s.reservations.length, 6); assert.ok(s.reservations.every(r => r.state === 'released'));
+    assert.equal(s.permit.length, 1); assert.equal(s.permit[0]!.state, 'revoked'); assert.equal(s.permit[0]!.dispatch_id, null);
   }
   unknownHeld(get('death_after_intent'), snapshot(get('death_after_intent'), 'unknown_no_request'));
   unknownHeld(get('death_after_http'), snapshot(get('death_after_http'), 'recovered_unknown'));
@@ -166,18 +177,32 @@ export function verifyReasoningJourney(value: unknown) {
   }
   unknownHeld(get('cancel'), snapshot(get('cancel'), 'cancel_unknown'));
   unknownHeld(get('deadline'), snapshot(get('deadline'), 'deadline_unknown'));
+  settled(get('cancel'), snapshot(get('cancel'), 'cancel_late_usage'), 10n);
+  settled(get('deadline'), snapshot(get('deadline'), 'deadline_late_usage'), 10n);
   {
     const c = get('lease_replacement'), s = snapshot(c, 'recovery_fence_stale_a_denied');
     assert.ok(c.actorPids.length >= 2, 'replacement must run in a distinct worker');
     const job = s.job.find(j => j.id === c.identities.jobId); assert.ok(job);
     assert.ok(count(job.lease_fence) > count(c.identities.leaseFence), 'replacement fence did not advance');
     assert.equal(accounting(c, s).dispatch_id, null, 'stale A dispatched');
+    assert.equal(job.status, 'waiting'); assert.equal(job.lease_owner, null);
+    denied(c, 'stale_a_authorize'); denied(c, 'stale_a_mark');
+    const prior = snapshot(c, 'before_lease_b').job.find(j => j.id === c.identities.jobId)!;
+    assert.ok(Date.parse(s.at) >= Date.parse(String(prior.lease_expires_at)), 'recovery preceded lease expiry');
   }
   {
     const c = get('clear_late_receipt'), cleared = snapshot(c, 'cleared_response_paused');
+    const reserved = snapshot(c, 'reserved');
+    assert.ok(reserved.contexts.length > 0 && reserved.contextReads.length > 0 && reserved.policyRows.length > 0);
     noPrivateState(cleared);
     assert.ok(count(cleared.universe[0]!.privacy_epoch) > count(c.identities.privacyEpoch));
     assert.equal(accounting(c, cleared).output_authority, 'withdrawn');
+    const clear = c.operations.find(o => o.name === 'api_clear')?.result as {status: number; body: Record<string, unknown>};
+    const replay = c.operations.find(o => o.name === 'old_clear_replay')?.result as {status: number; body: Record<string, unknown>};
+    assert.equal(clear.status, 200); assert.equal(replay.status, 200); assert.deepEqual(replay.body, clear.body);
+    assert.equal(clear.body.privacyEpoch, Number(c.identities.privacyEpoch) + 1);
+    assert.equal(cleared.clearReceipts.length, 1);
+    assert.equal(cleared.clearReceipts[0]!.id, clear.body.receiptId);
     const late = snapshot(c, 'late_usage_settled');
     noPrivateState(late); settled(c, late, 10n);
     const before = snapshot(c, 'later_activity_before_clear_replay'), after = snapshot(c, 'old_clear_replay_preserved_later');
@@ -255,6 +280,10 @@ export function verifyReasoningJourney(value: unknown) {
     assert.equal(job.status, 'running'); assert.ok(count(job.lease_fence) > 0n);
     const claim = c.operations.find(o => o.name === 'claim')?.result as Record<string, unknown>;
     assert.equal(claim.jobId, c.identities.jobId); assert.notEqual(claim.universeId, c.identities.blockedUniverseId);
+    const blockedBefore = c.operations.find(o => o.name === 'blocked_before')?.result;
+    const blockedAfter = c.operations.find(o => o.name === 'blocked_after')?.result;
+    assert.ok(Array.isArray(blockedBefore) && blockedBefore.length === 1);
+    assert.deepEqual(blockedAfter, blockedBefore, 'blocked job changed while another universe progressed');
   }
   return {journey: 'J004' as const, result: 'passed' as const, cases: r.cases.length, fixtureRequests: r.fixture.requests.length};
 }
