@@ -1,0 +1,3 @@
+{"service":"api","port":63658,"identity":"local-development-only"}
+{"journey":"J004","result":"passed","receiptPath":"/Volumes/Mrigesh SSD/knowscroll-worktrees/coordination/artifacts/fairness-checks/J004-receipt.json","manifestPath":"/Volumes/Mrigesh SSD/knowscroll-worktrees/coordination/artifacts/j004-manifest-3f3305bc6a35f333.json","cases":13}
+{"journey":"J004","result":"passed","cases":13,"fixtureRequests":4,"sourceHashesMatch":true}

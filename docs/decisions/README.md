@@ -16,6 +16,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0012 — Durable reasoning admission and uncertain outcomes](0012-reasoning-admission-and-reconciliation.md)
 
+- [ADR-0013 — Bounded reasoning fairness](0013-bounded-reasoning-fairness.md)
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

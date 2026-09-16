@@ -1,0 +1,23 @@
+{
+  "regressionSource": "b57fa5ac32487587c2b7c02400c5fc735413b4b4",
+  "scope": "Local disposable database/process regressions; no owner database mutation or provider calls.",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 160,
+    "total": 172
+  },
+  "fairnessTests": 23,
+  "modelTraces": 12,
+  "journeys": [
+    "J001",
+    "J002",
+    "J003",
+    "J004"
+  ],
+  "J004": {
+    "cases": 13,
+    "fixtureRequests": 4,
+    "sourceHashesVerified": true
+  },
+  "cleanup": "Independent SIGTERM and SIGINT checker passed; exact-head CI repeats all checks before merge."
+}

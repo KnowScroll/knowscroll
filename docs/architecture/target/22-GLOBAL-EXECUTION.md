@@ -12,7 +12,7 @@ scope: Design only. Policy numbers are illustrative and dated; they are proposal
 
 This chapter is the boundary that wraps every expensive attempt the system makes. It defines the scheduler's classes and shares, the admission vector that guards every Attempt, the lease and fencing tokens that workers and replacements negotiate, the way dirt and coalescing work, and the observability surface the operator needs to see why work ran, what it cost, and what it changed. It does not define the runtime step journal (see [21-REASONING-RUNTIME.md](21-REASONING-RUNTIME.md)) or the content demand path (see [23-CONTENT-DEMAND-AND-INVENTORY.md](23-CONTENT-DEMAND-AND-INVENTORY.md)).
 
-The companion [runtime review](../2026-09-15-RUNTIME-AND-GLOBAL-EXECUTION-REVIEW.md) §§6–9, §11 and §17 are the authority for the contracts this chapter depends on; this chapter deepens them into the shape the worker's job loop, the admission service and the receipts store actually use.
+The companion [runtime review](../../research/2026-09-15-RUNTIME-AND-GLOBAL-EXECUTION-REVIEW.md) §§6–9, §11 and §17 are the authority for the contracts this chapter depends on; this chapter deepens them into the shape the worker's job loop, the admission service and the receipts store actually use.
 
 ## 1. What the global plane owns
 

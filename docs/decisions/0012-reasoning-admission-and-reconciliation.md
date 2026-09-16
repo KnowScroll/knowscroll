@@ -89,6 +89,8 @@ A possible remote invocation without a certified completion bound continues cons
 
 ## Fair scheduling and wake identity
 
+[ADR-0013](0013-bounded-reasoning-fairness.md) refines the scheduling policy, caps, bounded restoration and service assumptions below. Its executable model is design evidence; SQL fairness remains a follow-up.
+
 Accept weighted deficit round robin across the five classes with initial policy quanta `5:6:4:3:2` (interactive, active continuity, accumulated interpretation, background inquiry, housekeeping), and equal per-universe quantum within each class. These are tuning defaults, not measured capacity promises. Charge a fixed-point conservative dominant share of the applicable constrained resource estimates, record the estimation/profile version and settle corrections. No engagement-derived user weight is introduced.
 
 Cap idle credit; its cap must cover the largest admissible request. Reject permanently impossible requests explicitly. Idle class capacity is borrowable only while that class has no eligible backlog; its next admission restores service opportunity. Already-running remote calls are not preempted. Eligibility rechecks route capacity and per-universe caps; a repeatedly blocked head cannot prevent trying another eligible universe. Guarantee eventual scheduling opportunity only under finite eligible backlog, fitting request sizes and replenishing capacity. Unknown remote work can saturate capacity: report that and deadline misses instead of promising bounded response latency.
