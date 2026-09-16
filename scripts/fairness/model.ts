@@ -25,7 +25,7 @@ export type Reservation = Candidate & {charge: number; settledCharge: number; st
 export type Lane = {credit: number; cursor: number};
 export type OpenVisit = {class: FairnessClass; remaining: number; universeId: string | null; universeRemaining: number};
 export type FairnessSnapshot = {
-  policyVersion: string; classCursor: number; classLanes: Record<FairnessClass, Lane>;
+  policyVersion: string; policyHash: string; classCursor: number; classLanes: Record<FairnessClass, Lane>;
   universeLanes: Record<string, Lane>; ready: Candidate[]; reservations: Record<string, Reservation>;
   pausedDimensions: string[]; openVisit: OpenVisit | null; visitGeneration: number; trace: Decision[];
 };
@@ -37,6 +37,7 @@ function validInt(n: unknown, positive=false): n is number { return typeof n==='
 function assertSafe(n: unknown, name: string, positive=false): number { if(!validInt(n,positive)) throw new Error(`invalid_${name}`); return n; }
 function add(a:number,b:number):number { const n=a+b;if(!Number.isSafeInteger(n)) throw new Error('integer_overflow');return n; }
 function sub(a:number,b:number):number { const n=a-b;if(!Number.isSafeInteger(n)) throw new Error('integer_overflow');return n; }
+function multiply(a:number,b:number):number { const n=a*b;if(!Number.isSafeInteger(n)) throw new Error('integer_overflow');return n; }
 function cap(value:number, ceiling:number):number { return Math.min(value,ceiling); }
 function canonical(value: unknown): string {
   if(value===null || typeof value!=='object') return JSON.stringify(value);
@@ -45,7 +46,8 @@ function canonical(value: unknown): string {
 }
 function clone<T>(value:T):T { return JSON.parse(JSON.stringify(value)) as T; }
 function classRing(_policy:FairnessPolicy):FairnessClass[] { return [...CLASSES]; }
-function classCap(policy:FairnessPolicy, c:FairnessClass):number { return add(policy.weights[c]*policy.quantum,policy.maxNormalizedRequest); }
+function classQuantum(policy:FairnessPolicy,c:FairnessClass):number { return multiply(policy.weights[c],policy.quantum); }
+function classCap(policy:FairnessPolicy, c:FairnessClass):number { return add(classQuantum(policy,c),policy.maxNormalizedRequest); }
 function universeCap(policy:FairnessPolicy):number { return add(policy.quantum,policy.maxNormalizedRequest); }
 function universeKey(c:FairnessClass,id:string):string { return `${c}:${id}`; }
 function physical(policy:FairnessPolicy,key:string):PhysicalDimension { const d=policy.physical.find(x=>x.key===key);if(!d) throw new Error(`unknown_dimension:${key}`);return d; }
@@ -60,11 +62,13 @@ export function validatePolicy(policy:FairnessPolicy):void {
   if(new Set(policy.physical.map(d=>d.key)).size!==policy.physical.length) throw new Error('duplicate_physical_dimension');
   for(const d of policy.physical) assertSafe(d.capacity,`capacity:${d.key}`,true);
   for(const c of CLASSES) assertSafe(policy.weights[c],`weight:${c}`,true);
+  for(const c of CLASSES) classCap(policy,c);
 }
+function policyHash(policy:FairnessPolicy):string { return createHash('sha256').update(canonical(policy)).digest('hex'); }
 export function createSnapshot(policy:FairnessPolicy):FairnessSnapshot {
   validatePolicy(policy);
   const classLanes=Object.fromEntries(CLASSES.map(c=>[c,{credit:0,cursor:0}])) as Record<FairnessClass,Lane>;
-  return {policyVersion:policy.version,classCursor:0,classLanes,universeLanes:{},ready:[],reservations:{},pausedDimensions:[],openVisit:null,visitGeneration:0,trace:[]};
+  return {policyVersion:policy.version,policyHash:policyHash(policy),classCursor:0,classLanes,universeLanes:{},ready:[],reservations:{},pausedDimensions:[],openVisit:null,visitGeneration:0,trace:[]};
 }
 export function normalizedCharge(policy:FairnessPolicy,demand:Record<string,number>, enforceMaximum=true):number {
   validatePolicy(policy); let dominant=0;
@@ -108,22 +112,23 @@ function available(policy:FairnessPolicy,state:FairnessSnapshot,demand:Record<st
   return null;
 }
 function readyForClass(state:FairnessSnapshot,c:FairnessClass):Candidate[] { return state.ready.filter(x=>x.class===c); }
-function nextCandidate(policy:FairnessPolicy,state:FairnessSnapshot,c:FairnessClass,scan:{remaining:number}, onlyUniverse:string|null=null):{candidate:Candidate|null; reason:string|null; impossible:Candidate|null} {
-  const candidates=readyForClass(state,c);if(!candidates.length) return {candidate:null,reason:'empty',impossible:null};
+function nextCandidate(policy:FairnessPolicy,state:FairnessSnapshot,c:FairnessClass,scan:{remaining:number}, now:number|undefined, onlyUniverse:string|null=null):{candidate:Candidate|null; reason:string|null; impossible:Candidate|null; expired:Candidate|null} {
+  const candidates=readyForClass(state,c);if(!candidates.length) return {candidate:null,reason:'empty',impossible:null,expired:null};
   const universes=(onlyUniverse?[onlyUniverse]:[...new Set(candidates.map(x=>x.universeId))].sort()); const lane=state.classLanes[c];
   let blocked:string|null=null;
   for(let i=0;i<universes.length && scan.remaining>0;i++) {
     const index=onlyUniverse?0:lane.cursor%universes.length, universe=universes[index]!;scan.remaining-=1;lane.cursor=(index+1)%universes.length;
     const inUniverse=candidates.filter(x=>x.universeId===universe).sort((a,b)=>a.enqueue-b.enqueue||a.attemptId.localeCompare(b.attemptId));
-    if(!inUniverse.length) return {candidate:null,reason:'empty',impossible:null};
+    if(!inUniverse.length) return {candidate:null,reason:'empty',impossible:null,expired:null};
     const ul=state.universeLanes[universeKey(c,universe)]!;
     const candidate=inUniverse[ul.cursor%inUniverse.length]!;ul.cursor=(ul.cursor+1)%inUniverse.length;
+    if(candidate.deadline!==undefined && now!==undefined && candidate.deadline<=now) return {candidate:null,reason:null,impossible:null,expired:candidate};
     if(candidate.blocked) { blocked??='scope_blocked';continue; }
-    try { normalizedCharge(policy,candidate.demand); } catch(error) { return {candidate:null,reason:null,impossible:candidate}; }
-    for(const d of policy.physical) if(candidate.demand[d.key]!>d.capacity) return {candidate:null,reason:null,impossible:candidate};
-    const capacity=available(policy,state,candidate.demand);if(capacity===null) return {candidate,reason:null,impossible:null};blocked??=capacity;
+    try { normalizedCharge(policy,candidate.demand); } catch(error) { return {candidate:null,reason:null,impossible:candidate,expired:null}; }
+    for(const d of policy.physical) if(candidate.demand[d.key]!>d.capacity) return {candidate:null,reason:null,impossible:candidate,expired:null};
+    const capacity=available(policy,state,candidate.demand);if(capacity===null) return {candidate,reason:null,impossible:null,expired:null};blocked??=capacity;
   }
-  return {candidate:null,reason:scan.remaining===0?'scan_bound':blocked??'blocked',impossible:null};
+  return {candidate:null,reason:scan.remaining===0?'scan_bound':blocked??'blocked',impossible:null,expired:null};
 }
 function append(state:FairnessSnapshot,d:Decision,decisions:Decision[]):void { state.trace.push(d);decisions.push(d); }
 function removeReady(state:FairnessSnapshot,attemptId:string):Candidate { const index=state.ready.findIndex(x=>x.attemptId===attemptId);if(index<0) throw new Error('missing_ready_attempt');return state.ready.splice(index,1)[0]!; }
@@ -140,7 +145,7 @@ function admit(policy:FairnessPolicy,state:FairnessSnapshot,candidate:Candidate,
 export type ScheduleLimits = Partial<Pick<FairnessPolicy,'maxScanPerTick'|'maxAdmissionsPerTick'>> & {now?: number};
 export function scheduleTick(policy:FairnessPolicy,snapshot:FairnessSnapshot,limits:ScheduleLimits={}):TickResult {
   const state=clone(snapshot),decisions:Decision[]=[];validatePolicy(policy);
-  if(state.policyVersion!==policy.version) throw new Error('policy_version_mismatch');
+  if(state.policyVersion!==policy.version||state.policyHash!==policyHash(policy)) throw new Error('policy_version_mismatch');
   let scan={remaining:limits.maxScanPerTick??policy.maxScanPerTick}, admissions=limits.maxAdmissionsPerTick??policy.maxAdmissionsPerTick;
   assertSafe(scan.remaining,'scan_limit',true);assertSafe(admissions,'admission_limit',true);
   const ring=classRing(policy);let spins=0;
@@ -148,7 +153,8 @@ export function scheduleTick(policy:FairnessPolicy,snapshot:FairnessSnapshot,lim
     let c:FairnessClass;
     if(state.openVisit) c=state.openVisit.class;
     else { c=ring[state.classCursor]!;state.classCursor=(state.classCursor+1)%ring.length; }
-    const found=nextCandidate(policy,state,c,scan,state.openVisit?.universeId??null);
+    const found=nextCandidate(policy,state,c,scan,limits.now,state.openVisit?.universeId??null);
+    if(found.expired) { removeReady(state,found.expired.attemptId);append(state,{kind:'deadline_missed',attemptId:found.expired.attemptId,class:found.expired.class,universeId:found.expired.universeId,reason:'deadline'},decisions);state.openVisit=null;spins=0;continue; }
     if(found.impossible) { removeReady(state,found.impossible.attemptId);append(state,{kind:'impossible',attemptId:found.impossible.attemptId,reason:'normalized_charge'},decisions);spins=0;continue; }
     if(!found.candidate) {
       if(!state.openVisit) hasPositiveCredit(state.classLanes[c]);
@@ -157,15 +163,12 @@ export function scheduleTick(policy:FairnessPolicy,snapshot:FairnessSnapshot,lim
       append(state,{kind:'idle',reason:found.reason??'empty'},decisions);spins+=1;continue;
     }
     const candidate=found.candidate;
-    if(candidate.deadline!==undefined && limits.now!==undefined && candidate.deadline<=limits.now) {
-      removeReady(state,candidate.attemptId);append(state,{kind:'deadline_missed',attemptId:candidate.attemptId,class:candidate.class,universeId:candidate.universeId,reason:'deadline'},decisions);state.openVisit=null;spins=0;continue;
-    }
     if(candidate.notBefore!==undefined && limits.now!==undefined && candidate.notBefore>limits.now) {
       append(state,{kind:'blocked',attemptId:candidate.attemptId,class:candidate.class,universeId:candidate.universeId,reason:'not_before'},decisions);state.openVisit=null;spins+=1;continue;
     }
     const classLane=state.classLanes[candidate.class], universeLane=state.universeLanes[universeKey(candidate.class,candidate.universeId)]!;
     if(!state.openVisit) {
-      classLane.credit=cap(add(classLane.credit,policy.weights[candidate.class]*policy.quantum),classCap(policy,candidate.class));
+      classLane.credit=cap(add(classLane.credit,classQuantum(policy,candidate.class)),classCap(policy,candidate.class));
       state.visitGeneration=add(state.visitGeneration,1);state.openVisit={class:candidate.class,remaining:classCap(policy,candidate.class),universeId:null,universeRemaining:0};
     }
     // A universe receives one q quantum on each visit, independently capped; refunds cannot enlarge this visit.
