@@ -4,6 +4,8 @@ import {after,test} from 'node:test';
 
 import {buildApp} from '../apps/api/src/app.ts';
 import {authenticateAndLock,pool,provisionIdentity,transaction} from '../packages/db/src/index.ts';
+import {recordExplicitAsk} from '../packages/db/src/explicit-ask.ts';
+import {clearScrollHistory} from '../packages/db/src/privacy.ts';
 import {compileDirectContext} from '../packages/db/src/reasoning-context.ts';
 import {ReasoningDenied} from '../packages/db/src/reasoning-runtime-policy.ts';
 
@@ -58,17 +60,6 @@ async function waitForBlockedRequest(blockerPid:number):Promise<void> {
   await new Promise(resolve=>setTimeout(resolve,10));
  }
  assert.fail('Ask request never waited on the held universe lock');
-}
-
-async function waitForSleep(fragment:string):Promise<void> {
- const deadline=Date.now()+2_000;
- while(Date.now()<deadline) {
-  const sleeping=(await pool.query(`SELECT 1 FROM pg_stat_activity
-   WHERE datname=current_database() AND query LIKE $1 AND wait_event='PgSleep'`,[`%${fragment}%`])).rowCount;
-  if(sleeping) return;
-  await new Promise(resolve=>setTimeout(resolve,10));
- }
- assert.fail(`Expected database operation did not enter its test sleep: ${fragment}`);
 }
 
 test('explicit Ask records one literal fact with session-scoped replay and no execution authority',async()=>{
@@ -173,36 +164,40 @@ test('Clear History rollback, success, stale Ask retry and old-clear replay pres
 test('Ask admission and Clear History serialize in both commit orders without resurrection',async t=>{
  await t.test('an Ask that wins first is committed and then erased by the waiting clear',async()=>{
   const owner=await provisionIdentity(),source=await expose(owner),body={clientAskId:randomUUID(),exposureId:source.exposureId,expectedPrivacyEpoch:0,question:'Race before clear?'};
-  await pool.query(`CREATE FUNCTION delay_explicit_ask() RETURNS trigger LANGUAGE plpgsql AS $$
-   BEGIN IF NEW.universe_id='${owner.scope.universeId}'::uuid THEN PERFORM pg_sleep(0.35); END IF; RETURN NEW; END $$`);
-  await pool.query('CREATE TRIGGER delay_explicit_ask BEFORE INSERT ON explicit_ask FOR EACH ROW EXECUTE FUNCTION delay_explicit_ask()');
-  const pendingAsk=ask(owner,body);void pendingAsk.catch(()=>{});
+  const askClient=await pool.connect();let transactionOpen=true;
   try {
-   await waitForSleep('INSERT INTO explicit_ask');
+   await askClient.query('BEGIN');
+   const authenticated=await authenticateAndLock(askClient,owner.token);
+   const recorded=await recordExplicitAsk(askClient,authenticated,body);
+   assert.equal(recorded.status,'recorded_only');
+   const blockerPid=Number((await askClient.query('SELECT pg_backend_pid() pid')).rows[0]!.pid);
    const pendingClear=clear(owner,randomUUID());void pendingClear.catch(()=>{});
-   const recorded=await pendingAsk;assert.equal(recorded.statusCode,201,recorded.body);
+   await waitForBlockedRequest(blockerPid);
+   await askClient.query('COMMIT');transactionOpen=false;
    const erased=await pendingClear;assert.equal(erased.statusCode,200,erased.body);
   } finally {
-   await pool.query('DROP TRIGGER IF EXISTS delay_explicit_ask ON explicit_ask');
-   await pool.query('DROP FUNCTION IF EXISTS delay_explicit_ask()');
+   if(transactionOpen) await askClient.query('ROLLBACK');
+   askClient.release();
   }
   assert.equal((await askRows(owner.scope.universeId)).length,0);
  });
 
  await t.test('a clear that wins first makes the waiting old-epoch Ask a conflict',async()=>{
   const owner=await provisionIdentity(),source=await expose(owner),body={clientAskId:randomUUID(),exposureId:source.exposureId,expectedPrivacyEpoch:0,question:'Race after clear?'};
-  await pool.query(`CREATE FUNCTION delay_ask_clear_account() RETURNS trigger LANGUAGE plpgsql AS $$
-   BEGIN IF NEW.universe_id='${owner.scope.universeId}'::uuid THEN PERFORM pg_sleep(0.35); END IF; RETURN NEW; END $$`);
-  await pool.query('CREATE TRIGGER delay_ask_clear_account BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION delay_ask_clear_account()');
-  const pendingClear=clear(owner,randomUUID());void pendingClear.catch(()=>{});
+  const clearClient=await pool.connect();let transactionOpen=true;
   try {
-   await waitForSleep('UPDATE accounts SET kept_asset_ids');
+   await clearClient.query('BEGIN');
+   const authenticated=await authenticateAndLock(clearClient,owner.token),requestId=randomUUID();
+   const receipt=await clearScrollHistory(clearClient,authenticated,{requestId,expectedPrivacyEpoch:0,confirmation:'clear-scroll-history'});
+   assert.equal(receipt.privacyEpoch,1);
+   const blockerPid=Number((await clearClient.query('SELECT pg_backend_pid() pid')).rows[0]!.pid);
    const pendingAsk=ask(owner,body);void pendingAsk.catch(()=>{});
-   const erased=await pendingClear;assert.equal(erased.statusCode,200,erased.body);
+   await waitForBlockedRequest(blockerPid);
+   await clearClient.query('COMMIT');transactionOpen=false;
    const refused=await pendingAsk;assert.equal(refused.statusCode,409,refused.body);
   } finally {
-   await pool.query('DROP TRIGGER IF EXISTS delay_ask_clear_account ON accounts');
-   await pool.query('DROP FUNCTION IF EXISTS delay_ask_clear_account()');
+   if(transactionOpen) await clearClient.query('ROLLBACK');
+   clearClient.release();
   }
   assert.equal((await askRows(owner.scope.universeId)).length,0);
  });
