@@ -408,6 +408,7 @@ export async function validateDirectContext(
   if(!session || asIso(session.expires_at)!==sessionDependency.expiresAt || session.id!==payload.sessionId || payload.sessionExpiresAt!==sessionDependency.expiresAt) {
     return {valid:false,reason:'inactive_session'};
   }
+  if(phase==='lock') await lockAssets(client,payload.assets.map(asset=>asset.assetId));
   let policy:{version:string;hash:string};
   try { policy=policyDigest(await resolvePolicy(client,{universeId:scope.universeId,privacyEpoch:scope.privacyEpoch,jobId:scope.jobId}),{
     universeId:scope.universeId,privacyEpoch:scope.privacyEpoch,jobId:scope.jobId,
@@ -417,7 +418,6 @@ export async function validateDirectContext(
   }
   if(policy.version!==scope.policyVersion || policy.version!==payload.runtimePolicyVersion || policy.hash!==payload.runtimePolicyHash
     || policyDependency.version!==policy.version || policyDependency.hash!==policy.hash) return {valid:false,reason:'changed_policy'};
-  if(phase==='lock') await lockAssets(client,payload.assets.map(asset=>asset.assetId));
   const rows=await readLineage(client,scope.universeId,scope.privacyEpoch,payload.facts.map(fact=>fact.keepEventId));
   if(!rows) return {valid:false,reason:'stale_lineage'};
   const lineage=lineagePayload(rows,scope.universeId,scope.privacyEpoch);
@@ -426,6 +426,10 @@ export async function validateDirectContext(
     const currentAssets=new Map(lineage.assets.map(asset=>[asset.assetId,asset]));
     return {valid:false,reason:payload.assets.some(asset=>canonical(asset)!==canonical(currentAssets.get(asset.assetId)))?'stale_asset':'stale_lineage'};
   }
+  // Time can advance while waiting for assets or resolving policy; retained locks
+  // prevent mutation, but do not prevent a session from expiring.
+  if(!await currentSession(client,{sessionId:payload.sessionId,universeId:scope.universeId,privacyEpoch:scope.privacyEpoch},false))
+    return {valid:false,reason:'inactive_session'};
   return {valid:true,contentHash:sealed.sealed.content_hash,readSetHash:sealed.sealed.read_set_hash};
 }
 
