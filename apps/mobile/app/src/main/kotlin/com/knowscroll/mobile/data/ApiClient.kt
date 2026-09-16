@@ -87,6 +87,24 @@ class ApiClient(
         }
     }
 
+    suspend fun getTraceRevisit(eventId: String): TraceRevisit = io {
+        get("/v1/traces/$eventId") { obj ->
+            val names = setOf("mode", "traceEventId", "universeId", "privacyEpoch", "exposureId", "keptAt", "scroll")
+            check(jsonNames(obj) == names && obj.getString("mode") == "kept_revisit") {
+                "Trace revisit returned an unexpected receipt shape"
+            }
+            val scroll = obj.getJSONObject("scroll")
+            TraceRevisit(
+                traceEventId = obj.getString("traceEventId"),
+                universeId = obj.getString("universeId"),
+                privacyEpoch = obj.getLong("privacyEpoch"),
+                exposureId = obj.getString("exposureId"),
+                keptAt = obj.getString("keptAt"),
+                scroll = parseTraceRevisitScroll(scroll)
+            )
+        }
+    }
+
     suspend fun clearScrollHistory(req: HistoryClearRequest): HistoryClearReceipt = io {
         val body = jsonObj(
             "requestId" to req.requestId,
@@ -209,6 +227,22 @@ class ApiClient(
             truthState = o.getString("truthState"), reason = o.optString("reason", "")
         )
     }
+
+    /** The revisit response is strict and intentionally has no recommendation metadata. */
+    private fun parseTraceRevisitScroll(o: JSONObject): ScrollItem {
+        val names = setOf(
+            "assetId", "revision", "kind", "title", "summary", "body",
+            "sourceTitle", "sourceUrl", "truthState"
+        )
+        check(jsonNames(o) == names) { "Trace revisit returned an unexpected Scroll shape" }
+        return ScrollItem(
+            assetId = o.getString("assetId"), revision = o.getInt("revision"),
+            kind = o.getString("kind"), title = o.getString("title"),
+            summary = o.getString("summary"), body = o.getString("body"),
+            sourceTitle = o.getString("sourceTitle"), sourceUrl = o.getString("sourceUrl"),
+            truthState = o.getString("truthState"), reason = ""
+        )
+    }
 }
 
 private fun jsonObj(vararg pairs: Pair<String, Any?>): JSONObject {
@@ -219,3 +253,10 @@ private fun jsonObj(vararg pairs: Pair<String, Any?>): JSONObject {
 
 private fun JSONObject.optStringOrNull(name: String): String? =
     if (isNull(name)) null else optString(name, "").ifEmpty { null }
+
+private fun jsonNames(value:JSONObject):Set<String> {
+    val names=mutableSetOf<String>()
+    val iterator=value.keys()
+    while(iterator.hasNext()) names.add(iterator.next())
+    return names
+}

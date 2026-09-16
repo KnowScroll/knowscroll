@@ -46,7 +46,7 @@ fun ScrollScreen(
             is ScrollState.Reading -> key(state.item.assetId) {
                 ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition)
             }
-            is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry)
+            is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable)
             is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry)
             else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp)
@@ -56,7 +56,7 @@ fun ScrollScreen(
 }
 
 @Composable
-private fun RestScreen(exhausted: Boolean, message: String?, onReturn: () -> Unit, onRetry: () -> Unit) {
+private fun RestScreen(exhausted: Boolean, message: String?, onReturn: () -> Unit, onRetry: () -> Unit, retryable:Boolean=true) {
     val homeDescription = stringResource(R.string.reader_home_description)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -69,7 +69,7 @@ private fun RestScreen(exhausted: Boolean, message: String?, onReturn: () -> Uni
             style = MaterialTheme.typography.headlineMedium, color = if (exhausted) Cosmos.Cream else Cosmos.Coral
         )
         Text(message ?: stringResource(R.string.reader_library_end_detail), color = Cosmos.MutedOnDark)
-        OutlinedButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) {
+        OutlinedButton(onClick = onRetry, enabled=retryable, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(if (exhausted) R.string.reader_check_library else R.string.action_retry))
         }
         OutlinedButton(
@@ -89,6 +89,10 @@ private fun ReadingSheet(
 ) {
     val contentLabel = stringResource(R.string.reader_content_description)
     val item = state.item
+    val originLabel = stringResource(
+        if (state.origin is com.knowscroll.mobile.ui.ReaderOrigin.SavedTrace) R.string.reader_saved_trace_origin
+        else R.string.reader_origin
+    )
     val readingScroll = rememberScrollState(state.readingPosition)
     val positionDescription = stringResource(R.string.reader_position_description, readingScroll.value)
     var sourcesOpen by rememberSaveable { mutableStateOf(false) }
@@ -105,7 +109,7 @@ private fun ReadingSheet(
 
     Column(Modifier.fillMaxSize()) {
         Text(
-            stringResource(R.string.reader_origin),
+            originLabel,
             style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp)
         )
