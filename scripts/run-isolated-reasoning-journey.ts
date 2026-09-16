@@ -71,8 +71,16 @@ const atomic = async (path: string, value: unknown) => {
 type FailureClassification =
   | "interrupted"
   | "child_process_exit"
+  | "pool_runtime_error"
   | "journey_failure"
   | "cleanup_failure";
+type CleanupStage =
+  | "children"
+  | "pool"
+  | "database"
+  | "admin"
+  | "temporary_directory"
+  | "complete";
 class ClassifiedFailure extends Error {
   constructor(readonly classification: FailureClassification) {
     super(classification);
@@ -84,6 +92,7 @@ const manifest = async (
     classification: FailureClassification;
     cleanupErrors: string[];
   },
+  cleanupStage?: CleanupStage,
 ) =>
   atomic(manifestPath, {
     journey: "J004",
@@ -106,6 +115,7 @@ const manifest = async (
     ready,
     ...(cleanedUp === undefined ? {} : { cleanedUp }),
     ...(diagnostic === undefined ? {} : { diagnostic }),
+    ...(cleanupStage === undefined ? {} : { cleanupStage }),
   });
 let source = "";
 try {
@@ -520,6 +530,7 @@ let fixture: Peer | undefined,
 let failure: unknown,
   failureClassification: FailureClassification | undefined;
 const cleanupErrors: string[] = [];
+let poolRuntimeError = false;
 try {
   temp = await mkdtemp(resolve(tmpdir(), "knowscroll-j004-"));
   await atomic(manifestPath, {
@@ -538,7 +549,20 @@ try {
   await admin.query(`CREATE DATABASE ${quote(dbName)}`);
   created = true;
   await manifest();
-  db = new pg.Pool({ connectionString: dbUrl(dbName), max: 20 });
+  db = new pg.Pool({
+    connectionString: dbUrl(dbName),
+    max: 20,
+    application_name: "knowscroll-j004-runner",
+  });
+  // node-postgres emits idle-client failures through the Pool's EventEmitter.
+  // Without a listener, Node treats the event as an uncaught exception and can
+  // exit before the cleanup manifest or database drop. Keep the evidence
+  // bounded: record only the typed condition, never the error or connection.
+  db.on("error", () => {
+    poolRuntimeError = true;
+    failure ??= new ClassifiedFailure("pool_runtime_error");
+    failureClassification = "pool_runtime_error";
+  });
   await runMigrations(db, {
     directory: resolve(root, "packages/db/migrations"),
   });
@@ -625,8 +649,9 @@ try {
   ready = true;
   await manifest();
   if (args.has("--pause-for-interrupt")) {
-    while (!interrupted && children.has(probe.child))
+    while (!interrupted && !poolRuntimeError && children.has(probe.child))
       await new Promise((r) => setTimeout(r, 50));
+    if (poolRuntimeError) throw new ClassifiedFailure("pool_runtime_error");
     if (!interrupted) throw new ClassifiedFailure("child_process_exit");
     throw new ClassifiedFailure("interrupted");
   }
@@ -1244,18 +1269,36 @@ try {
     throw Error("case matrix incomplete");
 } catch (error) {
   failure = error;
-  failureClassification = interrupted
-    ? "interrupted"
+  failureClassification = poolRuntimeError
+    ? "pool_runtime_error"
     : error instanceof ClassifiedFailure
-      ? error.classification
+    ? error.classification
+    : interrupted
+      ? "interrupted"
       : "journey_failure";
 } finally {
+  ready = false;
+  const cleanupCheckpoint = async (stage: CleanupStage) => {
+    try {
+      await manifest(
+        undefined,
+        failureClassification
+          ? { classification: failureClassification, cleanupErrors: [...cleanupErrors] }
+          : undefined,
+        stage,
+      );
+    } catch {
+      // The final manifest write below remains the authoritative acknowledgement.
+    }
+  };
+  await cleanupCheckpoint("children");
   const stopped = await Promise.allSettled(
     [...children].map((child) => stop(child)),
   );
   if (stopped.some((result) => result.status === "rejected"))
     cleanupErrors.push("child_stop_failed");
   try { await removeRemainingGroups(); } catch { cleanupErrors.push("process_group_cleanup_failed"); }
+  await cleanupCheckpoint("pool");
   if (db) {
     try {
       await withTimeout(db.end(), 3000, "pool_close_timeout");
@@ -1263,6 +1306,7 @@ try {
       cleanupErrors.push("pool_close_failed");
     }
   }
+  await cleanupCheckpoint("database");
   if (admin && created) {
     try {
       await withTimeout(admin.query(
@@ -1279,6 +1323,7 @@ try {
       cleanupErrors.push("database_drop_failed");
     }
   }
+  await cleanupCheckpoint("admin");
   if (admin) {
     try {
       await withTimeout(admin.end(), 3000, "admin_close_timeout");
@@ -1286,6 +1331,7 @@ try {
       cleanupErrors.push("admin_close_failed");
     }
   }
+  await cleanupCheckpoint("temporary_directory");
   if (temp) {
     try {
       await rm(temp, { recursive: true, force: true });
@@ -1293,7 +1339,6 @@ try {
       cleanupErrors.push("temporary_directory_cleanup_failed");
     }
   }
-  ready = false;
   const processesExited = processes.every((evidence) => {
     if (!evidence.exitedAt) return false;
     try {
@@ -1318,6 +1363,7 @@ try {
             cleanupErrors: [...cleanupErrors],
           }
         : undefined,
+      "complete",
     );
   } catch {
     cleanupErrors.push("manifest_write_failed");

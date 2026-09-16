@@ -43,3 +43,13 @@ The final implementation receipt records `cleanedUp: true`, absent process group
 ## Limits
 
 These observations are macOS arm64 local evidence against PostgreSQL on loopback. Linux evidence remains for CI at the reviewed PR head. Killing the runner itself with `SIGKILL`, host loss, production process supervision, provider execution and remote cancellation remain outside this claim. No live provider call or owner database mutation occurred.
+
+## PR #59 Linux follow-up
+
+The PR #59 Linux backend job `104799710534` later failed the single-`SIGINT` case after the ready barrier. The runner exited with code 1 and no signal, its process groups were absent, and its disposable database remained until checker fallback removed it. The last manifest had no final diagnostic or cleanup acknowledgement. The checker had consumed at least 8 KiB of stderr, but the workflow correctly did not retain arbitrary stderr. Consequently, the exact cause of that CI failure remains unknown; it must not be relabeled as the previously demonstrated repeated-signal failure.
+
+A separate disposable-database probe demonstrated another abrupt-exit path with the same process-level signature: `node-postgres` emits idle-client failures as a pool `error` event, and Node exited with code 1 and no signal when the local J004 harness had no listener. The same probe with a listener retained control and recorded a typed condition. This establishes the defect in the harness, but the missing Linux stderr means it does not establish that this defect caused job `104799710534`. [The bounded analysis](linux-followup-analysis.json) preserves that distinction.
+
+The local J004 runner now gives its own pool a harness-only application name, handles pool errors without recording the error payload, wakes the interruption barrier, and classifies the failure as `pool_runtime_error`. Cleanup checkpoints use an allowlisted stage and never set `cleanedUp`; only the final manifest can acknowledge cleanup. The checker has a sixth end-to-end case that terminates only the runner's disposable pool backend and still requires the typed nonzero failure, `cleanedUp: true`, no cleanup errors, and independent absence of the database, child process groups, and runner. It also maps stderr to a fixed allowlist while retaining only the previous bounded byte count and truncation flag.
+
+One post-change local matrix run passed all original five cases plus the injected pool failure. Its [source-stamped receipt](after-linux-followup-local-matrix.json) records exact dirty-source hashes. Linux confirmation remains pending at a reviewed commit; no failed check was rerun unchanged.
