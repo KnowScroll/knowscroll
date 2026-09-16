@@ -29,8 +29,8 @@ test('0005 preserves populated 0004 accounting and enforces immutable interpreta
   await writeFile(join(directory,names[4]!),await readFile(join('packages/db/migrations',names[4]!)));
   assert.deepEqual((await runMigrations(db,{directory})).applied,[names[4]]);
   assert.deepEqual(await runMigrations(db,{directory}),{applied:[],adopted:[]});
-  const after=(await db.query('SELECT * FROM reasoning_accounting')).rows.map(({binding_hash,runtime_policy_version,price_basis,review_required,...old})=>{
-   assert.equal(binding_hash,null);assert.equal(runtime_policy_version,null);assert.equal(price_basis,null);assert.equal(review_required,false);return old;
+  const after=(await db.query('SELECT * FROM reasoning_accounting')).rows.map(({binding_hash,runtime_policy_version,price_basis,input_reservation_ceiling,review_required,...old})=>{
+   assert.equal(input_reservation_ceiling,null);assert.equal(binding_hash,null);assert.equal(runtime_policy_version,null);assert.equal(price_basis,null);assert.equal(review_required,false);return old;
   });
   assert.deepEqual(after,before);
   const migrations=(await db.query('SELECT * FROM schema_migrations ORDER BY name')).rows;
