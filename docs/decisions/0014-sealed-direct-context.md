@@ -1,6 +1,6 @@
 # ADR-0014 — Sealed direct Scroll context
 
-Date: 2026-09-16. Status: proposed for issue #60; independent review required. Extends ADR-0012 without enabling provider dispatch or proposal application.
+Date: 2026-09-16. Status: accepted for issue #60 after independent Terra SQL/concurrency and Sol privacy review. Extends ADR-0012 without enabling provider dispatch or proposal application.
 
 ## Decision and purpose
 
