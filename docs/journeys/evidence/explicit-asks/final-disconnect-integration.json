@@ -1,0 +1,24 @@
+{
+  "issue": 64,
+  "observedAt": "2026-09-16T16:27:43.769465+00:00",
+  "testedRevision": "97782023d798d321fa1acc575b83e1c623e2ddb8",
+  "typecheck": "passed",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 266,
+    "total": 278,
+    "result": "passed"
+  },
+  "cleanupCases": 8,
+  "J004Cases": 13,
+  "retirement": "passed; physical disconnect verified and ordinary drop",
+  "askHTTP": "passed; exact literal, replay, conflict, API restart, clear and old epoch fences",
+  "askRuntimeUnchangedFrom": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+  "dependency": "PR71 reviewed PostgreSQL disconnect barrier; PR67 already merged",
+  "providerCalls": 0,
+  "limits": [
+    "Original failed CI and all earlier source-stamped receipts retained.",
+    "J001-J003, fairness and PostgreSQL restart passed earlier and remain final CI gates.",
+    "No mobile Ask, answer, provider execution or owner API reload."
+  ]
+}
