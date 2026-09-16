@@ -20,4 +20,6 @@ Current rows support a narrow exposure/keep slice; full typed envelopes, policy/
 
 ## Sources and verification
 
+Implementation update (2026-09-16): ADR-0009 added scoped sessions, ownership constraints and privacy epochs. ADR-0010 defines explicit bootstrap encounter erasure with a payload-free retry receipt; normal corrections still append events. Semantic reset, full typed envelopes, offline ordering and reconstruction remain separate work. See PROJECT-STATE for linked runtime proof.
+
 [Current migration](../../packages/db/migrations/0001_bootstrap.sql), [product laws](../product/definition.md), [target event architecture](../architecture/target/04-EVENT-ARCHITECTURE.md).
