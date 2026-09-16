@@ -88,7 +88,8 @@ test('0011 upgrades populated 0010 history exactly once without rewriting sealed
   assert.deepEqual((await pool.query('SELECT name,checksum FROM schema_migrations WHERE name<>$1 ORDER BY name',[idleMigration])).rows,beforeChecksums);
   assert.equal((await pool.query<{checksum:string}>('SELECT checksum FROM schema_migrations WHERE name=$1',[idleMigration])).rows[0]!.checksum,
    createHash('sha256').update(await readFile(join('packages/db/migrations',idleMigration))).digest('hex'));
-  assert.equal((await pool.query(`SELECT count(*)::int AS count FROM pg_trigger WHERE tgname='reasoning_withdrawal_clock_guard' AND NOT tgisinternal`)).rows[0]!.count,1);
+  assert.equal((await pool.query(`SELECT count(*)::int AS count FROM pg_trigger
+   WHERE tgname='reasoning_withdrawal_clock_guard' AND tgrelid='reasoning_job'::regclass AND NOT tgisinternal`)).rows[0]!.count,1);
   assert.equal((await pool.query<{guard:string | null}>(`SELECT to_regprocedure('reasoning_withdrawal_clock_guard()')::text AS guard`)).rows[0]!.guard,'reasoning_withdrawal_clock_guard()');
   assert.deepEqual(await runMigrations(pool,{directory}),{applied:[],adopted:[]});
  } finally {

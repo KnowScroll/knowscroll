@@ -1,0 +1,23 @@
+# Subtest: 0011 upgrades populated 0010 history exactly once without rewriting sealed or withdrawn rows
+not ok 149 - 0011 upgrades populated 0010 history exactly once without rewriting sealed or withdrawn rows
+  ---
+  duration_ms: 313.424167
+  type: 'test'
+  location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/lifecycle/tests/reasoning-idle-migration.test.ts:63:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    2 !== 1
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/Volumes/Mrigesh SSD/knowscroll-worktrees/lifecycle/tests/reasoning-idle-migration.test.ts:91:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...

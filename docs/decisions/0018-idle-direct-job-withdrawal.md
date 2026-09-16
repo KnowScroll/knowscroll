@@ -1,6 +1,6 @@
 # ADR-0018 — Safely withdraw idle direct Jobs
 
-Date: 2026-09-17. Status: accepted for #75 after independent Terra review of `273f42b`. Extends ADR-0012/0015. Implementation and runtime verification remain pending.
+Date: 2026-09-17. Status: accepted for #75 after independent Terra review of `273f42b`. Extends ADR-0012/0015. Implemented in the #75 slice; [verification evidence](../journeys/evidence/reasoning-idle-lifecycle/README.md) records its bounded runtime proof and deployment limits.
 
 ## Boundary
 
@@ -38,7 +38,7 @@ The helper returns `{status: 'cancelled'|'expired', changed: boolean, closedNotS
 
 ## Database guard
 
-Main includes migrations0001–0010. Migration0011 will replace the withdrawal-clock guard, preserving all released files and its original live-lease branch. Use explicit non-overlapping branches: (1) the unchanged legacy old-live-lease guard, without new session or idle-fence requirements; (2) bound idle cancellation with a live current original session; (3) bound idle expiry with actual elapsed Job deadline and no liveness requirement. The idle branches permit only the scoped/bound direct queued-or-waiting transition with no healthy lease, exact fence advancement, no ready membership, terminal Steps, inactive Attempts and withdrawn accounting in `not_sent|unknown|responded`. Cancellation additionally requires the original session live/current; expiry requires the actual database deadline. The guard independently verifies current universe/Job/binding scope. These SQL checks protect storage shape; trusted database access is not a public authentication API.
+The released prefix includes migrations0001–0010. Migration0011 replaces the withdrawal-clock guard, preserving all released files and its original live-lease branch. Use explicit non-overlapping branches: (1) the unchanged legacy old-live-lease guard, without new session or idle-fence requirements; (2) bound idle cancellation with a live current original session; (3) bound idle expiry with actual elapsed Job deadline and no liveness requirement. The idle branches permit only the scoped/bound direct queued-or-waiting transition with no healthy lease, exact fence advancement, no ready membership, terminal Steps, inactive Attempts and withdrawn accounting in `not_sent|unknown|responded`. Cancellation additionally requires the original session live/current; expiry requires the actual database deadline. The guard independently verifies current universe/Job/binding scope. These SQL checks protect storage shape; trusted database access is not a public authentication API.
 
 Caller time is ignored in favor of `clock_timestamp()`. Existing stamped rows cannot change the clock/reason or reactivate. INSERT cannot supply a clock, and existing unstamped terminal rows cannot be backfilled. The accepted168-hour retirement delay and retained-accounting policy are unchanged.
 
