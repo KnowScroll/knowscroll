@@ -14,6 +14,7 @@ import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ScrollSession
 import com.knowscroll.mobile.data.StateStore
 import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Rule
@@ -48,8 +49,10 @@ class ReaderJourneyTest {
     }
     private fun openReader() {
         guardJourneyApp()
-        waitText("Your universe")
-        compose.onNodeWithContentDescription("Enter Scroll").performClick()
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithContentDescription("Enter Scroll").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
         waitReading()
     }
     private fun reachThreshold() {
@@ -130,14 +133,36 @@ class ReaderJourneyTest {
         val sourceOpenRecreationPosition = renderedReadingPosition()
         compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
         waitText("Sources and truth")
-        val sourceIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(first.item.sourceUrl))
-        val browserHandlerAvailable = sourceIntent.resolveActivity(instrumentation.targetContext.packageManager) != null
+        val journeyPackage = instrumentation.targetContext.packageName
+        compose.waitUntil(15_000) {
+            instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString() == journeyPackage
+        }
         compose.onNodeWithContentDescription("Open ${first.item.sourceTitle} in browser").performClick()
+        var externalWindowObserved = false
+        var externalWindowPackage: String? = null
+        var browserUnavailableObserved = false
+        compose.waitUntil(15_000) {
+            val activePackage = instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString()
+            if (activePackage != null && activePackage != journeyPackage) {
+                externalWindowObserved = true
+                externalWindowPackage = activePackage
+            } else if (activePackage == journeyPackage) {
+                browserUnavailableObserved = compose.onAllNodesWithText(
+                    "A browser could not open this source. You can still read its address above."
+                ).fetchSemanticsNodes().isNotEmpty()
+            }
+            externalWindowObserved || browserUnavailableObserved
+        }
+        var lifecycleBeforeReturn = "unknown"
+        compose.activityRule.scenario.onActivity { lifecycleBeforeReturn = it.lifecycle.currentState.name }
         // Return only this journey package to foreground, including when no browser is installed.
         val returnIntent = instrumentation.targetContext.packageManager
             .getLaunchIntentForPackage(instrumentation.targetContext.packageName)!!
         returnIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         instrumentation.targetContext.startActivity(returnIntent)
+        compose.waitUntil(15_000) {
+            instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString() == journeyPackage
+        }
         waitReaderOrSources()
         val close = compose.onAllNodesWithContentDescription("Close sources")
         if (close.fetchSemanticsNodes().isNotEmpty()) close[0].performClick()
@@ -173,10 +198,13 @@ class ReaderJourneyTest {
             put("sourceOpenRecreationRetryEnvelopePreserved", true)
             put("sourceSheetRestoredAfterRecreation", sourceSheetRestored)
             put("sourceLaunchReturnSessionPreserved", true)
-            put("browserHandlerAvailable", browserHandlerAvailable)
+            put("externalWindowObserved", externalWindowObserved)
+            put("externalWindowPackage", externalWindowPackage ?: JSONObject.NULL)
+            put("browserUnavailableObserved", browserUnavailableObserved)
+            put("readerLifecycleBeforeReturn", lifecycleBeforeReturn)
             put("browserContentLoaded", JSONObject.NULL)
             put("sourceBackStayedInReader", true)
-            put("visitedAssetIds", discovered)
+            put("visitedAssetIds", JSONArray(discovered))
             put("lastAssetId", last.item.assetId)
             put("finiteLibraryRest", true)
             put("nextInitiallyHidden", true)
