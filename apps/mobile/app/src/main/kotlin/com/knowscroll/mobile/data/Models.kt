@@ -44,7 +44,9 @@ data class InteractionResponse(val eventId: String, val jobId: String, val statu
 data class HistoryClearRequest(
     val requestId: String,
     val expectedPrivacyEpoch: Long,
-    val confirmation: String = "clear-scroll-history"
+    val confirmation: String = "clear-scroll-history",
+    /** Local ownership binding; deliberately omitted from the HTTP body. */
+    val universeId: String = ""
 )
 
 data class HistoryClearReceipt(val receiptId: String, val privacyEpoch: Long, val clearedAt: String)
