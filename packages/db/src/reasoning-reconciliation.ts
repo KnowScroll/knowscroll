@@ -114,9 +114,9 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
  if(!accounting) throw new Error('Reasoning accounting disappeared before settlement');
  await client.query(`UPDATE reasoning_accounting SET output_authority='withdrawn'
   WHERE attempt_id=$1 AND deadline<=clock_timestamp() AND output_authority='eligible'`,[receipt.attempt_id]);
+ await lockFairnessResources(client,[receipt.attempt_id]);
  const reservations=(await client.query(`SELECT id,attempt_id,bucket_id,amount,state,usage_basis,handling,recognized,usage_known
   FROM reasoning_reservation WHERE attempt_id=$1 ORDER BY bucket_id FOR UPDATE`,[receipt.attempt_id])).rows as Reservation[];
- await lockFairnessResources(client,[receipt.attempt_id]);
  await client.query('SELECT id FROM reasoning_bucket WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[reservations.map(row=>row.bucket_id)]);
 
  const previous=await previousSettlement(client,receipt.attempt_id);
