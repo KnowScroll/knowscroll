@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-09-16T14:47:41.876003+00:00",
+  "sourceRevision": "48ab5b2d4eaf7b3f2a04ab250a34bf9b39a156f5",
+  "localSeparateProcessObservedAlive": true,
+  "intervalMs": 60000,
+  "maxProbes": 32,
+  "observedBatches": 3,
+  "retiredJobs": 0,
+  "purgedAccounting": 0,
+  "apiHealthy": true,
+  "existingProjectionWorkerFresh": true,
+  "completedBootstrapJobs": 3,
+  "migrationCount": 8,
+  "productCapabilities": {
+    "reasoning": false,
+    "cutroom": false,
+    "worldEvolution": false
+  },
+  "limits": [
+    "local process launch; no launchd/OS restart or continuous availability guarantee",
+    "no eligible owner job removed; actual retirement proven only with disposable aged fixtures",
+    "no owner Android instrumentation rerun",
+    "PID/log operational details retained only in ignored artifacts"
+  ]
+}

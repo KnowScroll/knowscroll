@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-09-16T14:45:03.609Z",
+  "migration": {
+    "applied": [
+      "0008_reasoning_retirement.sql"
+    ],
+    "adopted": []
+  },
+  "existingTablesPreserved": 32,
+  "allExistingRowsAndColumnsUnchanged": true,
+  "oldChecksumsUnchanged": true,
+  "providerCalls": 0
+}
