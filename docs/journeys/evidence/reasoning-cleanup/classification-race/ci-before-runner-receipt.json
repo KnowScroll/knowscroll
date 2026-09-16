@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "journey": "J004",
+  "result": "failed",
+  "source": {
+    "revision": "af451120de5d7e931855df83bb4eae80795fdd2c",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/run-isolated-reasoning-journey.ts",
+        "sha256": "45725e50b968e5723d461f6abb11767b6d9c5e25ec6da1501715ed332edc0d7e"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-actor.ts",
+        "sha256": "095e59834e2aa8346fe4b6c6b4b2294de5869a487e84e8b3a5d665fca1bb4038"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-server.ts",
+        "sha256": "ba0f6e384d73adc107e5bf313126e835fca17020097806beac5fb6b303938f26"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-support.ts",
+        "sha256": "ccbf033ebe0189adb128a033741c79e6874b3f1d2b8cde15d95bc9281c24e986"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-evidence.ts",
+        "sha256": "74b1fdde086a0dd4be32d7256ad00afffcbe74ff7a3c8f0ddbe9930592b3d271"
+      },
+      {
+        "path": "packages/db/src/reasoning-runtime-policy.ts",
+        "sha256": "48da723173c698708ba5d1af140ff962e75a3da652dff18376760ea6e360691c"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "d7d12a0fb54bc91cc9a3bb6c61f67a8aaa7247d38f1d0711e60847c3450c63e4"
+      },
+      {
+        "path": "packages/db/src/reasoning-reconciliation.ts",
+        "sha256": "85c244b73f271098c6377064ab41d42c1375b3935731c205b23ca86269a6826c"
+      },
+      {
+        "path": "apps/worker/src/reasoning/invoke.ts",
+        "sha256": "64491073e17c12a79d4365235af5410be803cab4fb5d147c8775d1ac9b0ef09e"
+      },
+      {
+        "path": "packages/db/src/privacy.ts",
+        "sha256": "c69a49dd681461474c1839c159912c501e563af58652769784569abbc11df8fc"
+      },
+      {
+        "path": "apps/api/src/app.ts",
+        "sha256": "95c3d2f11640f636db53fe11adf76ab42ef791aff45a341c4a3ff0599dab686a"
+      },
+      {
+        "path": "packages/db/migrations/0004_reasoning_storage.sql",
+        "sha256": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+      },
+      {
+        "path": "packages/db/migrations/0005_reasoning_runtime.sql",
+        "sha256": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+      }
+    ]
+  },
+  "database": {
+    "name": "knowscroll_j004_f9610f0de0dbd431",
+    "host": "127.0.0.1",
+    "port": 5432
+  },
+  "processes": [
+    {
+      "role": "fixture",
+      "pid": 6264,
+      "pgid": 6264,
+      "startedAt": "2026-09-16T15:04:29.285Z",
+      "exitCode": 0,
+      "signal": null,
+      "exitedAt": "2026-09-16T15:04:30.121Z",
+      "readyAt": "2026-09-16T15:04:29.392Z"
+    },
+    {
+      "role": "api",
+      "pid": 6272,
+      "pgid": 6272,
+      "startedAt": "2026-09-16T15:04:29.399Z",
+      "exitCode": 0,
+      "signal": null,
+      "exitedAt": "2026-09-16T15:04:30.129Z",
+      "readyAt": "2026-09-16T15:04:29.872Z"
+    },
+    {
+      "role": "worker-ready",
+      "pid": 6286,
+      "pgid": 6286,
+      "startedAt": "2026-09-16T15:04:29.873Z",
+      "exitCode": 0,
+      "signal": null,
+      "exitedAt": "2026-09-16T15:04:30.121Z",
+      "readyAt": "2026-09-16T15:04:30.057Z"
+    }
+  ],
+  "fixture": {
+    "baseUrl": "http://127.0.0.1:43973",
+    "requests": []
+  },
+  "cases": [],
+  "cleanup": {
+    "databaseAbsent": true,
+    "processesExited": true,
+    "checkedAt": "2026-09-16T15:04:30.262Z"
+  },
+  "error": "interrupted"
+}

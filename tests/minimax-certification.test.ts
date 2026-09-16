@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {createServer, type Server} from 'node:http';
+import {createServer, type Server, type ServerResponse} from 'node:http';
 import test from 'node:test';
 
 import {CERTIFICATION_LIMITS, type CertificationRequest} from '../apps/worker/src/providers/certification-contract.js';
@@ -27,7 +27,7 @@ function success(content: unknown[] = [{type: 'text', text: 'ok'}], usage: unkno
 }
 
 async function fixture(
-  handler: (body: Record<string, unknown>, req: import('node:http').IncomingMessage) => {status?: number; body?: unknown; raw?: string; headers?: Record<string, string>} | Promise<{status?: number; body?: unknown; raw?: string; headers?: Record<string, string>}>,
+  handler: (body: Record<string, unknown>, req: import('node:http').IncomingMessage, res: ServerResponse) => {status?: number; body?: unknown; raw?: string; headers?: Record<string, string>} | Promise<{status?: number; body?: unknown; raw?: string; headers?: Record<string, string>}>,
 ): Promise<{baseURL: string; close: () => Promise<void>; requests: () => number}> {
   let count = 0;
   const server: Server = createServer(async (req, res) => {
@@ -35,7 +35,7 @@ async function fixture(
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const rawBody = Buffer.concat(chunks).toString('utf8');
-    const result = await handler(JSON.parse(rawBody) as Record<string, unknown>, req);
+    const result = await handler(JSON.parse(rawBody) as Record<string, unknown>, req, res);
     res.statusCode = result.status ?? 200;
     res.setHeader('content-type', 'application/json');
     for (const [name, value] of Object.entries(result.headers ?? {})) res.setHeader(name, value);
@@ -47,7 +47,10 @@ async function fixture(
   return {
     baseURL: `http://127.0.0.1:${address.port}`,
     requests: () => count,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+    close: () => new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+      server.closeAllConnections();
+    }),
   };
 }
 
@@ -181,19 +184,114 @@ test('pre-abort and reservation rejection never fetch', async () => {
   assert.equal(calls, 0);
 });
 
-test('deadline aborts an in-flight request and reports uncertain dispatched timeout', async (t) => {
-  const server = await fixture(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 200));
+test('deadline aborts an in-flight request and reports uncertain dispatched timeout', {timeout: 5_000}, async (t) => {
+  let observed!: () => void;
+  const requestObserved = new Promise<void>((resolve) => { observed = resolve; });
+  let closed!: () => void;
+  const responseClosed = new Promise<void>((resolve) => { closed = resolve; });
+  let releaseHandler!: () => void;
+  const handlerReleased = new Promise<void>((resolve) => { releaseHandler = resolve; });
+  const server = await fixture(async (_body, _req, response) => {
+    response.once('close', closed);
+    observed();
+    await Promise.race([responseClosed, handlerReleased]);
     return {body: success()};
   });
-  t.after(server.close);
-  const result = await createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
-    deadline: new Date(Date.now() + 30).toISOString(),
+  const controller = new AbortController();
+  const nativeSetTimeout = globalThis.setTimeout;
+  let fireDeadline: (() => void) | undefined;
+  let deadlineDelay: number | undefined;
+  // The adapter schedules this before entering the SDK. Restore immediately so
+  // every SDK, fetch and test-runner timer remains native.
+  const deadlineTimer = t.mock.method(globalThis, 'setTimeout', (
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...callbackArgs: unknown[]
+  ) => {
+    assert.equal(fireDeadline, undefined, 'adapter must schedule one deadline timer');
+    deadlineDelay = delay;
+    fireDeadline = () => callback(...callbackArgs);
+    const timer = nativeSetTimeout(callback, delay, ...callbackArgs);
+    timer.unref();
+    deadlineTimer.mock.restore();
+    return timer;
+  });
+  t.after(async () => {
+    deadlineTimer.mock.restore();
+    controller.abort();
+    releaseHandler();
+    await server.close();
+  });
+  const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
+    deadline: new Date(Date.now() + CERTIFICATION_LIMITS.requestTimeoutMs).toISOString(),
+    signal: controller.signal,
   }));
+  assert.equal(deadlineTimer.mock.callCount(), 1);
+  assert.ok(deadlineDelay && deadlineDelay > 59_000 && deadlineDelay <= CERTIFICATION_LIMITS.requestTimeoutMs);
+  assert.ok(fireDeadline);
+  await requestObserved;
+  assert.equal(server.requests(), 1);
+  fireDeadline();
+  const result = await pending;
+  await responseClosed;
   assert.equal(result.outcome, 'timeout');
   assert.equal(result.dispatched, true);
   assert.equal(result.httpStatus, null);
-  assert.equal(server.requests(), 1);
+  assert.deepEqual(result.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
+});
+
+test('deadline before transport remains undispatched with no remote request', {timeout: 5_000}, async (t) => {
+  const server = await fixture(() => ({body: success()}));
+  let entered!: () => void;
+  const beforeDispatchEntered = new Promise<void>((resolve) => { entered = resolve; });
+  let release!: () => void;
+  const beforeDispatchReleased = new Promise<void>((resolve) => { release = resolve; });
+  const controller = new AbortController();
+  const nativeSetTimeout = globalThis.setTimeout;
+  let fireDeadline: (() => void) | undefined;
+  let deadlineDelay: number | undefined;
+  // The adapter schedules this before entering the SDK. Restore immediately so
+  // every SDK, fetch and test-runner timer remains native.
+  const deadlineTimer = t.mock.method(globalThis, 'setTimeout', (
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...callbackArgs: unknown[]
+  ) => {
+    assert.equal(fireDeadline, undefined, 'adapter must schedule one deadline timer');
+    deadlineDelay = delay;
+    fireDeadline = () => callback(...callbackArgs);
+    const timer = nativeSetTimeout(callback, delay, ...callbackArgs);
+    timer.unref();
+    deadlineTimer.mock.restore();
+    return timer;
+  });
+  t.after(async () => {
+    deadlineTimer.mock.restore();
+    controller.abort();
+    release();
+    await server.close();
+  });
+
+  const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
+    deadline: new Date(Date.now() + CERTIFICATION_LIMITS.requestTimeoutMs).toISOString(),
+    signal: controller.signal,
+    beforeDispatch: async () => {
+      entered();
+      await beforeDispatchReleased;
+    },
+  }));
+  assert.equal(deadlineTimer.mock.callCount(), 1);
+  assert.ok(deadlineDelay && deadlineDelay > 59_000 && deadlineDelay <= CERTIFICATION_LIMITS.requestTimeoutMs);
+  assert.ok(fireDeadline);
+  await beforeDispatchEntered;
+  fireDeadline();
+  release();
+  const result = await pending;
+  assert.equal(result.outcome, 'timeout');
+  assert.equal(result.dispatched, false);
+  assert.equal(result.httpStatus, null);
+  assert.match(result.requestHash ?? '', /^[a-f0-9]{64}$/);
+  assert.equal(server.requests(), 0);
   assert.deepEqual(result.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
 });
 

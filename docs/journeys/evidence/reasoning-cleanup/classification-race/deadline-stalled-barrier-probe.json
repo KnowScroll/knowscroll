@@ -1,0 +1,11 @@
+{
+  "kind": "instrumented-test-harness-timeout-probe",
+  "sourceRevision": "39feb25",
+  "sourceSha256": "2513f34a3a9be01d481787fc04e40d8f5db04bcb3672ce5a0f45129a01547d2d",
+  "instrumentation": "Replace first requestObserved await with a never-settling Promise; all adapter/test cleanup remains unchanged.",
+  "exitCode": 1,
+  "elapsedSeconds": 5.774527125002351,
+  "expectedFailure": "testTimeoutFailure",
+  "exitedWithinExternal15sBound": true,
+  "limitation": "Only checks that the test runner timeout and after-hooks terminate the instrumented stalled test; not product or remote provider behavior."
+}

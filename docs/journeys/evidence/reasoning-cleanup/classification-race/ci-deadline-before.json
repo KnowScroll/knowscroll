@@ -1,0 +1,20 @@
+{
+  "issue": 68,
+  "run": "https://github.com/KnowScroll/knowscroll/actions/runs/35114786600",
+  "head": "c0168e2cf87be6bf5393820d9b662ace502ab4af",
+  "step": "pnpm test",
+  "test": "deadline aborts an in-flight request and reports uncertain dispatched timeout",
+  "file": "tests/minimax-certification.test.ts",
+  "assertionLine": 196,
+  "durationMs": 62.981751,
+  "deadlineMs": 30,
+  "expectedServerRequests": 1,
+  "observedServerRequests": 0,
+  "priorAssertionsPassed": [
+    "outcome timeout",
+    "dispatched true",
+    "httpStatus null"
+  ],
+  "extractedFrom": "gh run view 35114786600 --log-failed",
+  "limitation": "Does not establish whether or when the remote fixture eventually received an aborted request; local dispatch and server receipt are distinct."
+}
