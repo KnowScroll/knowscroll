@@ -44,7 +44,7 @@ processes = []
 created = False
 proxy = None
 control_lock = threading.Lock()
-control = {'remainingDrops': 0, 'feedSocketsDropped': 0, 'feedsForwarded': 0, 'exposuresForwarded': 0}
+control = {'remainingDrops': 0, 'feedSocketsDropped': 0, 'feedsForwarded': 0, 'exposuresForwarded': 0, 'sessionsRevoked': 0, 'unauthorizedFeeds': 0}
 
 
 class Proxy(BaseHTTPRequestHandler):
@@ -60,6 +60,16 @@ class Proxy(BaseHTTPRequestHandler):
             with control_lock:
                 control['remainingDrops'] = 2
             self.send_response(204)
+            self.end_headers()
+            return
+        if self.path == '/__journey/revoke-sessions' and self.command == 'POST':
+            if json.loads(body) != {} or not name.startswith('knowscroll_test_reader_'):
+                self.send_error(400)
+                return
+            revoked = int(scalar("WITH locked AS MATERIALIZED (SELECT id FROM universe ORDER BY id FOR UPDATE), revoked AS (UPDATE device_session SET revoked_at=clock_timestamp() WHERE universe_id IN (SELECT id FROM locked) AND revoked_at IS NULL RETURNING id) SELECT count(*) FROM revoked"))
+            with control_lock:
+                control['sessionsRevoked'] += revoked
+            self.send_response(204 if revoked > 0 else 409)
             self.end_headers()
             return
         is_feed = self.command == 'GET' and self.path == '/v1/feed'
@@ -86,6 +96,9 @@ class Proxy(BaseHTTPRequestHandler):
             connection.request(self.command, self.path, body, headers)
             response = connection.getresponse()
             result = response.read()
+            if is_feed and response.status == 401:
+                with control_lock:
+                    control['unauthorizedFeeds'] += 1
             self.send_response(response.status)
             self.send_header('Content-Type', response.getheader('Content-Type', 'application/json'))
             self.send_header('Content-Length', str(len(result)))
@@ -192,6 +205,14 @@ try:
     app_file('reader-privacy.png')
     if counts() != {'exposure': 0, 'ledger': 0, 'job': 0, 'trace': 0}:
         raise RuntimeError('Disposable Clear did not erase reader history')
+    run(['adb', 'shell', 'pm', 'clear', package])
+    instrument('ReaderAuthorityJourneyTest', 'readerNextRevokedSessionFailsClosed')
+    authority = app_file('reader-authority.json')
+    app_file('reader-authority.png')
+    if control['sessionsRevoked'] < 1 or control['unauthorizedFeeds'] != 1:
+        raise RuntimeError('Expected actual revoked-session feed rejection')
+    if counts() != {'exposure': 1, 'ledger': 1, 'job': 0, 'trace': 0}:
+        raise RuntimeError('Revoked next request created history or projection')
     paths = [p for p in Path('apps/mobile').rglob('*') if p.is_file() and not {'build', '.gradle', '.kotlin'}.intersection(p.parts) and p.name != 'local.properties']
     paths.append(Path('scripts/android-reader-journey.py'))
     receipt = {'check': 'android-reader-74', 'result': 'passed',
@@ -204,7 +225,7 @@ try:
                            'compact': '840x1680 at font_scale1.3', 'regular': 'AVD native size at font_scale1.0'},
                'navigation': navigation, 'navigationDatabaseCounts': navigation_counts,
                'retry': retry, 'retryExposureDelta': after_retry['exposure'] - before_retry['exposure'],
-               'privacy': privacy, 'transportFixture': dict(control), 'providerCalls': 0,
+               'privacy': privacy, 'authority': authority, 'authorityDatabaseCounts': counts(), 'transportFixture': dict(control), 'providerCalls': 0,
                'limits': ['Transport loss is deliberately injected; all successful content/state comes from real services',
                           'No owner visual acceptance or manual TalkBack traversal', 'No desktop, Reel, branch or live provider proof']}
 finally:
