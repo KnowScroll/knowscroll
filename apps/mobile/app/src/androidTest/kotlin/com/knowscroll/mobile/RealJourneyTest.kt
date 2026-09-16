@@ -61,8 +61,11 @@ class RealJourneyTest {
         val api=ApiClient()
         waitText("Your universe")
         waitDescription("Enter Scroll")
+        val previousExposureKey=store().read()?.clientExposureId
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
-        compose.waitUntil(15000){store().read()?.exposureId?.isNotEmpty()==true}
+        compose.waitUntil(15000){
+            store().read()?.let{it.clientExposureId!=previousExposureKey && it.exposureId.isNotEmpty()}==true
+        }
         val opened=store().read() ?: error("Scroll retry envelope was not persisted")
         waitText(opened.item.title)
         compose.onNodeWithContentDescription("Keep this Scroll").performClick()
@@ -285,8 +288,11 @@ class RealJourneyTest {
     @Test fun higherPrivacyEpochPurgesCachedScrollOnForeground() = runBlocking {
         waitText("Your universe")
         waitDescription("Enter Scroll")
+        val previousExposureKey=store().read()?.clientExposureId
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
-        compose.waitUntil(15000){store().read()?.exposureId?.isNotEmpty()==true}
+        compose.waitUntil(15000){
+            store().read()?.let{it.clientExposureId!=previousExposureKey && it.exposureId.isNotEmpty()}==true
+        }
         val cached=store().read() ?: error("Expected a cached Scroll")
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         val request=HistoryClearRequest(UUID.randomUUID().toString(),cached.privacyEpoch)
