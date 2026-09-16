@@ -12,9 +12,9 @@ export async function withFairnessSchema(name:string,fn:(pool:pg.Pool)=>Promise<
  try {await runMigrations(pool,{directory:'packages/db/migrations'});await fn(pool);} finally {await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
 }
 export function fairnessAuthority(policies:Map<string,ResolvedReasoningPolicy>):ReasoningAuthority {return {async resolvePolicy(_c,scope){return policies.get(scope.jobId);},async validateContext(){return true;}};}
-export async function seedFairnessGraph(pool:pg.Pool,klass:'interactive'|'active_continuity'|'accumulated_interpretation'|'background_inquiry'|'housekeeping'='interactive',capacity=1000) {
- const universeId=randomUUID(),jobId=randomUUID(),contextId=randomUUID(),stepId=randomUUID(),requestId=randomUUID();
- await pool.query('INSERT INTO universe(id,privacy_epoch) VALUES($1,0)',[universeId]);await pool.query('INSERT INTO accounts(universe_id) VALUES($1)',[universeId]);
+export async function seedFairnessGraph(pool:pg.Pool,klass:'interactive'|'active_continuity'|'accumulated_interpretation'|'background_inquiry'|'housekeeping'='interactive',capacity=1000,existingUniverseId?:string) {
+ const universeId=existingUniverseId??randomUUID(),jobId=randomUUID(),contextId=randomUUID(),stepId=randomUUID(),requestId=randomUUID();
+ if(!existingUniverseId) {await pool.query('INSERT INTO universe(id,privacy_epoch) VALUES($1,0)',[universeId]);await pool.query('INSERT INTO accounts(universe_id) VALUES($1)',[universeId]);}
  await pool.query(`INSERT INTO reasoning_job(id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,wake_kind,intent_id) VALUES($1,$2,0,'queued',$3,$2,'fairness-v1',clock_timestamp()+interval '1 hour','direct',$4)`,[jobId,universeId,klass,randomUUID()]);
  await pool.query(`INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version) VALUES($1,$2,$3,0,$4,'fairness-v1','source-v1')`,[contextId,jobId,universeId,'a'.repeat(64)]);
  await pool.query(`INSERT INTO reasoning_step(id,job_id,universe_id,privacy_epoch,context_id,ordinal,status) VALUES($1,$2,$3,0,$4,1,'pending')`,[stepId,jobId,universeId,contextId]);

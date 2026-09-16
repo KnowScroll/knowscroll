@@ -26,7 +26,7 @@ test('SQL fairness bypasses permanently impossible work and serializes competing
   await withFairnessSchema('one_probe_sparse',async pool=>{
    const graph=await seedFairnessGraph(pool,'active_continuity');const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[graph.jobId,graph.policy]])));await fairness.installPolicy({...sqlFairnessPolicy,maxProbes:1});
    await fairness.enqueue({policyVersion:'fairness-v1',class:'active_continuity',universeId:graph.universeId,privacyEpoch:0,jobId:graph.jobId,stepId:graph.stepId,contextId:graph.contextId,requestId:graph.requestId,requestHash:'c'.repeat(64),inputTokensUpperBound:20,maxOutputTokens:20,costCeilingMicroUsd:null,deadline:new Date(Date.now()+30_000).toISOString(),permitTtlMs:20_000});
-   const first=await fairness.schedule({policyVersion:'fairness-v1',owner:'probe-worker',leaseMs:20_000});assert.equal(first.probes,1);assert.equal(first.kind,'no_candidate');
+   const first=await fairness.schedule({policyVersion:'fairness-v1',owner:'probe-worker',leaseMs:20_000});assert.equal(first.probes,1);assert.equal(first.kind,'scan_exhausted');assert.ok(first.observations.some(observation=>observation.kind==='no_candidate'));
    const second=await fairness.schedule({policyVersion:'fairness-v1',owner:'probe-worker',leaseMs:20_000});assert.equal(second.kind,'admitted');assert.equal(second.class,'active_continuity');
   });
  });
@@ -67,6 +67,25 @@ test('SQL fairness bypasses permanently impossible work and serializes competing
    const blocker=await pool.connect();await blocker.query('BEGIN');await blocker.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE',[locked.universeId]);
    try {const result=await fairness.schedule({policyVersion:'fairness-v1',owner:'worker-free',leaseMs:20_000});assert.equal(result.kind,'admitted');assert.notEqual(result.claim.universeId,locked.universeId);assert.ok(result.observations.some(observation=>observation.kind==='temporarily_blocked'));}
    finally {await blocker.query('ROLLBACK');blocker.release();}
+  });
+ });
+ await t.test('a capacity-blocked head in one universe yields to its later ready job',async()=>{
+  await withFairnessSchema('same_universe_head_bypass',async pool=>{
+   const blocked=await seedFairnessGraph(pool),ready=await seedFairnessGraph(pool,'interactive',1000,blocked.universeId);
+   const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[blocked.jobId,blocked.policy],[ready.jobId,ready.policy]])));await fairness.installPolicy(sqlFairnessPolicy);await enqueue(fairness,blocked);await enqueue(fairness,ready);
+   await pool.query('UPDATE reasoning_bucket SET reserved=capacity WHERE id=ANY($1::uuid[])',[blocked.policy.buckets.map(bucket=>bucket.bucketId)]);
+   const result=await fairness.schedule({policyVersion:'fairness-v1',owner:'head-worker',leaseMs:20_000});assert.equal(result.kind,'admitted');assert.equal(result.claim.jobId,ready.jobId);assert.ok(result.observations.some(observation=>observation.kind==='capacity_exhausted'&&observation.jobId===blocked.jobId));
+   assert.equal((await pool.query('SELECT status FROM reasoning_job WHERE id=$1',[blocked.jobId])).rows[0]?.status,'queued');
+  });
+ });
+ await t.test('a SQL failure after fairness debit rolls back claim, credit, readiness and reservation together',async()=>{
+  await withFairnessSchema('atomic_rollback',async pool=>{
+   const graph=await seedFairnessGraph(pool);const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[graph.jobId,graph.policy]])));await fairness.installPolicy(sqlFairnessPolicy);await enqueue(fairness,graph);
+   await pool.query("CREATE FUNCTION reject_fair_attempt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced fairness rollback'; END $$");
+   await pool.query('CREATE TRIGGER reject_fair_attempt BEFORE INSERT ON reasoning_fairness_attempt FOR EACH ROW EXECUTE FUNCTION reject_fair_attempt()');
+   try {await assert.rejects(fairness.schedule({policyVersion:'fairness-v1',owner:'rollback-worker',leaseMs:20_000}),/forced fairness rollback/);} finally {await pool.query('DROP TRIGGER reject_fair_attempt ON reasoning_fairness_attempt');await pool.query('DROP FUNCTION reject_fair_attempt()');}
+   assert.equal((await pool.query('SELECT status FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]?.status,'queued');assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_attempt')).rows[0]?.n,0);assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_fairness_ready')).rows[0]?.n,1);
+   assert.deepEqual((await pool.query("SELECT credit::text,remaining FROM reasoning_fairness_class WHERE class='interactive'")).rows[0],{credit:'0',remaining:null});
   });
  });
 });
