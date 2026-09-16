@@ -24,7 +24,7 @@ pnpm maintenance:reasoning
 
 The default schedule is one batch every 60 seconds, with 32 probes per batch. `REASONING_MAINTENANCE_INTERVAL_MS` accepts 100–3,600,000 milliseconds; `REASONING_MAINTENANCE_MAX_PROBES` accepts 1–128. These change scan scheduling only, never retention duration. Keep this process separate from `pnpm dev:worker`; the normal projection loop is unchanged. Logs contain aggregate counts and fixed errors, not Job/context identifiers or private bytes.
 
-Every candidate consumes a probe. Private-job and accounting scans alternate, use keyset cursors in process memory and advance past locked/ineligible rows. Each transaction takes the universe lock first with SKIP LOCKED. A blocked universe does not stop another candidate. Cursor state resets at process restart; this is not a progress guarantee under repeated restarts, a query-planner scan bound or a production capacity claim. SIGINT/SIGTERM stops scheduling and allows the current bounded batch to finish before closing PostgreSQL connections.
+Every candidate consumes a probe. Private-job and accounting scans alternate, use keyset cursors in process memory and advance past locked/ineligible rows. Each transaction takes the universe lock first with SKIP LOCKED. A blocked universe does not stop another candidate. Cursor state resets at process restart; this is not a progress guarantee under repeated restarts, a query-planner scan bound or a production capacity claim. SIGINT/SIGTERM stops scheduling and allows the current bounded transaction to finish before closing PostgreSQL connections.
 
 ## Verification and deployment limits
 
