@@ -1,6 +1,6 @@
 # ADR-0017 — Sealed literal Ask context
 
-Date: 2026-09-16. Status: coordinator contract for #66; independent acceptance pending. Extends ADR-0014/0016, with ADR-0015 retirement unchanged.
+Date: 2026-09-16. Status: accepted for #66 after independent Terra privacy/concurrency review and Sol implementation verification. Extends ADR-0014/0016, with ADR-0015 retirement unchanged.
 
 ## Decision
 
