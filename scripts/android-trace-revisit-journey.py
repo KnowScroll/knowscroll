@@ -46,6 +46,7 @@ proxy = None
 control_lock = threading.Lock()
 control = {'dropEventId': None, 'remainingDrops': 0, 'traceSocketsDropped': 0,
            'traceReadsForwarded': 0, 'sessionsRevoked': 0, 'unauthorizedTraceReads': 0,
+           'unauthorizedScopeResponses': 0, 'unauthorizedRoutes': [],
            'changedSourceResponses': 0, 'sourceMutations': 0, 'historyClears': 0}
 original_sources = {}
 
@@ -140,6 +141,9 @@ class Proxy(BaseHTTPRequestHandler):
             with control_lock:
                 if is_trace and response.status == 401:
                     control['unauthorizedTraceReads'] += 1
+                if response.status == 401 and (is_trace or self.path in ('/v1/session', '/v1/universe')):
+                    control['unauthorizedScopeResponses'] += 1
+                    control['unauthorizedRoutes'].append('/v1/traces/:eventId' if is_trace else self.path)
                 if is_trace and response.status == 409:
                     control['changedSourceResponses'] += 1
             self.send_response(response.status)
@@ -167,6 +171,7 @@ def service(role):
 
 
 def instrument(class_name, method):
+    assert_services_live()
     result = subprocess.check_output([
         'adb', 'shell', 'am', 'instrument', '-w', '-e', 'class',
         'com.knowscroll.mobile.' + class_name + '#' + method,
@@ -175,6 +180,12 @@ def instrument(class_name, method):
     print(result, flush=True)
     if 'OK (1 test)' not in result:
         raise RuntimeError('Trace instrumentation failed: ' + method)
+    assert_services_live()
+
+
+def assert_services_live():
+    if len(processes) != 2 or any(child.poll() is not None for child, _ in processes):
+        raise RuntimeError('Disposable API or worker exited before journey completion')
 
 
 def app_file(filename):
@@ -189,6 +200,23 @@ def scalar(sql):
 
 def counts():
     return {table: int(scalar('SELECT count(*) FROM ' + table)) for table in ('decision', 'exposure', 'ledger', 'job', 'trace', 'explicit_ask', 'reasoning_job', 'reasoning_attempt', 'reasoning_accounting')}
+
+
+def private_snapshot():
+    # Source faults intentionally mutate asset; worker heartbeat is operational.
+    # Every private table is compared in full, including values/timestamps so an
+    # UPDATE cannot masquerade as a read merely by preserving row counts.
+    excluded = {'asset', 'schema_migrations', 'worker_heartbeat'}
+    tables = scalar("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename").splitlines()
+    result = {}
+    for table in tables:
+        if table in excluded:
+            continue
+        if not table.replace('_', '').isalnum():
+            raise RuntimeError('Unexpected disposable table identifier')
+        rows = scalar("SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) FROM " + table + ' t')
+        result[table] = hashlib.sha256(rows.encode()).hexdigest()
+    return result
 
 
 receipt = None
@@ -226,6 +254,7 @@ try:
     phases['prepare'] = app_file('trace-revisit-prepare.json')
     app_file('trace-revisit-prepare.png')
     baseline = counts()
+    baseline_snapshot = private_snapshot()
     if baseline['exposure'] != 1 or baseline['ledger'] != 2 or baseline['job'] != 1 or baseline['trace'] != 1:
         raise RuntimeError('Preparation must explicitly Keep and project exactly one exposed Scroll')
     if any(baseline[key] for key in ('explicit_ask', 'reasoning_job', 'reasoning_attempt', 'reasoning_accounting')):
@@ -246,15 +275,20 @@ try:
     app_file('trace-revisit-cold.png')
     if control['traceReadsForwarded'] <= before_cold_reads:
         raise RuntimeError('Cold restoration did not refetch trace authority')
+    if private_snapshot() != baseline_snapshot:
+        raise RuntimeError('Cold restoration mutated private domain rows')
     for method, label in [('reopensVerifiedTraceShowsSourcesAndReturns', 'sources'),
                           ('traceReadDropRetriesSameIdentity', 'retry'),
                           ('changedSourceDiscardsTraceReader', 'drift')]:
         before = counts()
+        before_snapshot = private_snapshot()
         instrument('TraceRevisitJourneyTest', method)
         phases[label] = app_file('trace-revisit-' + label + '.json')
         app_file('trace-revisit-' + label + '.png')
         if counts() != before or counts() != baseline:
             raise RuntimeError('Read-only trace phase mutated domain counts: ' + label)
+        if private_snapshot() != before_snapshot or private_snapshot() != baseline_snapshot:
+            raise RuntimeError('Read-only trace phase mutated existing private rows: ' + label)
     if control['traceSocketsDropped'] != 2 or control['changedSourceResponses'] < 1 or control['sourceMutations'] < 2:
         raise RuntimeError('Expected real transport and source-drift failures were not observed')
     instrument('TraceRevisitJourneyTest', 'clearHistoryDiscardsOpenTrace')
@@ -268,8 +302,9 @@ try:
     instrument('TraceRevisitJourneyTest', 'revokedSessionDiscardsOpenTrace')
     phases['authority'] = app_file('trace-revisit-authority.json')
     app_file('trace-revisit-authority.png')
-    if control['sessionsRevoked'] < 1:
-        raise RuntimeError('Expected actual revoked-session control')
+    if control['sessionsRevoked'] < 1 or control['unauthorizedScopeResponses'] < 1:
+        raise RuntimeError('Expected actual revoked-session rejection from the scope or trace API')
+    assert_services_live()
     paths = [p for p in Path('apps/mobile').rglob('*') if p.is_file() and not {'build', '.gradle', '.kotlin'}.intersection(p.parts) and p.name != 'local.properties']
     paths.extend(Path(p) for p in ['scripts/android-trace-revisit-journey.py', 'apps/api/src/app.ts',
         'packages/db/src/trace-revisit.ts', 'packages/contracts/src/trace-revisit.ts', 'packages/db/src/identity.ts'])
@@ -283,6 +318,7 @@ try:
                            'compact': '840x1680 at font_scale1.3', 'regular': 'AVD native size at font_scale1.0',
                            'coldRestart': {'beforePid': before_pid, 'afterPid': after_pid, 'refetchedTrace': True}},
                'phases': phases, 'initialKeepCounts': baseline, 'readOnlyRevisitCountsUnchanged': True,
+               'readOnlyRevisitRowsUnchanged': True, 'privateRowHashes': baseline_snapshot,
                'afterClearCounts': after_clear, 'afterAuthorityCounts': counts(),
                'transportFixture': {key: value for key, value in control.items() if key != 'dropEventId'}, 'providerCalls': 0,
                'limits': ['Transport loss/source drift/revocation are explicitly injected in disposable state; successful content comes from real services',
@@ -308,6 +344,11 @@ finally:
             except subprocess.TimeoutExpired:
                 os.killpg(child.pid, signal.SIGKILL)
                 child.wait(timeout=5)
+                cleanup_errors.append('ServiceRequiredForcedShutdown')
+            if child.returncode not in (0, -signal.SIGTERM):
+                cleanup_errors.append('UnexpectedServiceExit')
+        elif receipt:
+            cleanup_errors.append('ServiceExitedBeforeShutdown')
         log.close()
     if created:
         clean(lambda: run(['dropdb', *args, '--if-exists', name], env=adminenv))
