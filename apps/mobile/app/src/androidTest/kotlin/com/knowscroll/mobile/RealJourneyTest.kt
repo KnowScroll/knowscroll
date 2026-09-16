@@ -228,9 +228,13 @@ class RealJourneyTest {
         val (before,kept)=keepOneScrollAndReturn()
         assertTrue(before.traces.isNotEmpty())
         openClearConfirmation()
+        capture("j003-confirmation")
         compose.onNodeWithContentDescription("Confirm clear Scroll history").performClick()
         compose.waitUntil(20000){store().readPendingClear()==null && store().read()==null}
         waitText("Your universe")
+        waitText("Your first path starts with a little curiosity.")
+        waitDescription("Enter Scroll")
+        capture("j003-cleared")
         val after=ApiClient().getUniverse()
         assertEquals(before.privacyEpoch+1,after.privacyEpoch)
         assertTrue(after.traces.isEmpty())
