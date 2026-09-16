@@ -1,0 +1,11 @@
+{
+  "requestId": "9d487e2d-746b-40c6-aa96-21f2abaf5ec1",
+  "expectedPrivacyEpoch": 1,
+  "confirmation": "clear-scroll-history",
+  "universeId": "00000000-0000-4000-8000-000000000001",
+  "privacyEpoch": 2,
+  "pendingObservedAtMethodStart": true,
+  "pending": false,
+  "localSessionCleared": true,
+  "visitedCleared": true
+}

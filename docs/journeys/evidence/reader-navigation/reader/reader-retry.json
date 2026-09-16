@@ -1,0 +1,14 @@
+{
+  "scenario": "readerNextFailurePreservesPage",
+  "oldAssetId": "10000000-0000-4000-8000-000000000001",
+  "oldExposureId": "5ca6fbb4-eaa1-433e-b013-b69d3a0b0440",
+  "oldClientExposureId": "71b3e90d-bbfc-4df2-9565-b3dcef9194e6",
+  "oldClientEventId": "0c3d09ef-8e44-4cc8-94a9-106ccbde1bf4",
+  "oldReadingPosition": 312,
+  "loadingPreservedSession": true,
+  "failurePreservedSession": true,
+  "duplicateTapGuarded": true,
+  "newAssetId": "10000000-0000-4000-8000-000000000002",
+  "newExposureId": "1bc4f9e0-9af1-4b9a-97ad-30dc2de8c8b9",
+  "transport": "Two injected socket closures; real forwarded retry"
+}

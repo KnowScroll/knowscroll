@@ -1,0 +1,10 @@
+{
+  "foreignUniverseId": "7b99ef2d-d16b-4568-9d0c-ceb18ab6c573",
+  "actualUniverseId": "00000000-0000-4000-8000-000000000001",
+  "privacyEpoch": 3,
+  "traceCount": 1,
+  "serverHistoryUnchanged": true,
+  "pendingCleared": true,
+  "cacheCleared": true,
+  "visitedCleared": true
+}

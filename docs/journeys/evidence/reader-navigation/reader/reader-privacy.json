@@ -1,0 +1,15 @@
+{
+  "journey": "reader-privacy",
+  "application": "journey",
+  "assetFingerprint": "576f18824476444f",
+  "universeFingerprint": "11e594f481958c10",
+  "sourceShown": true,
+  "truthState": "documented",
+  "retryEnvelopePreservedBeforeClear": true,
+  "privacyEpochBefore": 0,
+  "privacyEpochAfter": 1,
+  "foregroundPurgedReader": true,
+  "sourceSheetRemoved": true,
+  "visitedRemoved": true,
+  "result": "passed"
+}
