@@ -24,7 +24,9 @@ android {
     buildTypes {
         debug {
             if (journeyBase != null) applicationIdSuffix = ".journey"
-            buildConfigField("String", "KS_DEV_TOKEN", quoted(local.getProperty("KS_DEV_TOKEN", System.getenv("KS_DEV_TOKEN") ?: "")))
+            val debugToken = if (journeyBase != null) System.getenv("KS_DEV_TOKEN") ?: ""
+                else local.getProperty("KS_DEV_TOKEN", System.getenv("KS_DEV_TOKEN") ?: "")
+            buildConfigField("String", "KS_DEV_TOKEN", quoted(debugToken))
             buildConfigField("String", "KS_DEBUG_API_BASE", quoted(journeyBase ?: local.getProperty("KS_DEBUG_API_BASE", "http://10.0.2.2:4310")))
         }
         release {
