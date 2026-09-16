@@ -22,6 +22,14 @@ test('SQL fairness atomically claims, debits, reserves and writes no settlement 
 });
 
 test('SQL fairness bypasses permanently impossible work and serializes competing workers',async t=>{
+ await t.test('maxProbes one advances an empty class once, then admits the next sparse class',async()=>{
+  await withFairnessSchema('one_probe_sparse',async pool=>{
+   const graph=await seedFairnessGraph(pool,'active_continuity');const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[graph.jobId,graph.policy]])));await fairness.installPolicy({...sqlFairnessPolicy,maxProbes:1});
+   await fairness.enqueue({policyVersion:'fairness-v1',class:'active_continuity',universeId:graph.universeId,privacyEpoch:0,jobId:graph.jobId,stepId:graph.stepId,contextId:graph.contextId,requestId:graph.requestId,requestHash:'c'.repeat(64),inputTokensUpperBound:20,maxOutputTokens:20,costCeilingMicroUsd:null,deadline:new Date(Date.now()+30_000).toISOString(),permitTtlMs:20_000});
+   const first=await fairness.schedule({policyVersion:'fairness-v1',owner:'probe-worker',leaseMs:20_000});assert.equal(first.probes,1);assert.equal(first.kind,'no_candidate');
+   const second=await fairness.schedule({policyVersion:'fairness-v1',owner:'probe-worker',leaseMs:20_000});assert.equal(second.kind,'admitted');assert.equal(second.class,'active_continuity');
+  });
+ });
  await t.test('a maximum admissible charge earns its first quantum from zero credit',async()=>{
   await withFairnessSchema('zero_credit_maximum',async pool=>{
    const graph=await seedFairnessGraph(pool);const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[graph.jobId,graph.policy]])));await fairness.installPolicy(sqlFairnessPolicy);await enqueue(fairness,graph,50);
