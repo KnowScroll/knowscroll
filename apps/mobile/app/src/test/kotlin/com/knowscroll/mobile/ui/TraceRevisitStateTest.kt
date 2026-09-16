@@ -4,6 +4,7 @@ import com.knowscroll.mobile.data.ScrollItem
 import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.TraceRevisit
 import com.knowscroll.mobile.data.TraceRevisitSession
+import com.knowscroll.mobile.data.FeedResponse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
@@ -38,5 +39,12 @@ class TraceRevisitStateTest {
         assertTrue(reconciliationFailurePurgesPrivateState(ApiException.MissingToken))
         assertFalse(reconciliationFailurePurgesPrivateState(ApiException.Network("offline")))
         assertFalse(reconciliationFailurePurgesPrivateState(ApiException.Server(503,"temporary")))
+    }
+
+    @Test fun nextDiscoveryExcludesTheCurrentlyReopenedTrace() {
+        val trace=receipt().scroll
+        val next=trace.copy(assetId="fresh")
+        val feed=FeedResponse("decision","universe-a",0,4,listOf(trace,next))
+        assertEquals(DiscoverySelection.Item(next),selectDiscovery(feed,"universe-a",4,emptySet(),trace.assetId))
     }
 }

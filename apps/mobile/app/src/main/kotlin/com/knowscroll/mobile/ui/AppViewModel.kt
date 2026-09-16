@@ -151,7 +151,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         discardRevisit()
                         _scroll.value=ScrollState.Unavailable("This saved Scroll's source has changed and cannot be reopened.",retryable=false)
                     }
-                    e is ApiException.Server && e.statusCode in setOf(400,404) -> {
+                    e is ApiException.Protocol || e is ApiException.Server && e.statusCode in setOf(400,404,422) -> {
                         discardRevisit()
                         _scroll.value=ScrollState.Unavailable("This saved Scroll is unavailable.",retryable=false)
                     }
@@ -188,7 +188,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             try {
                 val feed=api.getFeed()
                 if(!operationIsCurrent(version,epoch))return@launch
-                when(val selected=selectDiscovery(feed,universeId,epoch,visited,session?.item?.assetId)){
+                when(val selected=selectDiscovery(feed,universeId,epoch,visited,reading?.item?.assetId ?: session?.item?.assetId)){
                     DiscoverySelection.InvalidScope -> {
                         purgeForScope(feed.universeId,feed.privacyEpoch)
                         failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
@@ -551,7 +551,7 @@ internal fun acceptTraceRevisit(
 ):TraceRevisitSession? {
     if(receipt.traceEventId!=requested.eventId || receipt.universeId!=universeId ||
         receipt.privacyEpoch!=privacyEpoch || receipt.scroll.assetId!=requested.assetId ||
-        receipt.exposureId.isBlank() || receipt.scroll.kind!="Scroll" || receipt.scroll.revision<=0 ||
+        receipt.exposureId.isBlank() || receipt.scroll.kind!="Scroll" || receipt.scroll.truthState!="documented" || receipt.scroll.revision<=0 ||
         requested.revision?.let { it!=receipt.scroll.revision }==true
     ) return null
     return requested.copy(revision=receipt.scroll.revision)
