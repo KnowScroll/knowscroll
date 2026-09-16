@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-09-16T04:53:11.142Z",
+  "tables": {
+    "universe": {
+      "count": 1,
+      "sha256": "abe6c381171c044604efade12b23ee59181ca5a9c7a1826740b0e46b382a75d0"
+    },
+    "accounts": {
+      "count": 1,
+      "sha256": "93a5d26ae774a272e5f1c4823b428795440034d6321381d7d7c1d4be1b67035a"
+    },
+    "asset": {
+      "count": 3,
+      "sha256": "c2ee93887b8461a91ff811561d4b8c83e4c672a4c3153429a00d954b5c848655"
+    },
+    "decision": {
+      "count": 6,
+      "sha256": "d278b649b3b953d4868587db5138204e3dd0fe621c445f47c8b577452ef4f42b"
+    },
+    "ledger": {
+      "count": 5,
+      "sha256": "a765cfbdec980176eded5c0f193b3a352977caa6d2a779f6373ef1354995daf5"
+    },
+    "exposure": {
+      "count": 3,
+      "sha256": "2caa321bd49aef1ccc5db593c22cbc8019c9eee66c0557cca36f96d9b915be6a"
+    },
+    "job": {
+      "count": 2,
+      "sha256": "d921d24629d1ca5a986c129c5cf274f072104495055892bbe9a134e215f864ff"
+    },
+    "trace": {
+      "count": 2,
+      "sha256": "4d6c3fa2953834d8dfee3d3d82a96385aef1303beb864ab4e64c4debe4694656"
+    },
+    "device_session": {
+      "count": 1,
+      "sha256": "ae6d54268bc42c82ce366d3d51b849c40ee39419620aefb82b24009542bdbd50"
+    }
+  }
+}

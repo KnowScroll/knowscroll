@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for implementation in #21. This decision is a contract, not runtime evidence. Production login and destructive privacy lifecycle remain unimplemented.
+Implemented in #21 through PRs #26/#25, with [wave-two runtime evidence](../journeys/evidence/wave2-integration/README.md). Production login remains unimplemented. [ADR-0010](0010-clear-scroll-history.md) extends this contract for the next scoped history-clear increment; it does not turn epoch fencing into a full privacy lifecycle.
 
 ## Context
 

@@ -47,7 +47,7 @@ Use `--universe-id UUID` only to enroll another device in an existing universe. 
 
 `GET /v1/session` returns non-secret metadata. `POST /v1/session/revoke` with `{}` revokes the caller's session; later requests return 401, including after API restart. Requests already holding the universe lock may finish before revocation commits. Expired or old-epoch sessions also return 401. Re-enrollment requires an explicitly minted replacement token; never silently extend an old token.
 
-Privacy epochs fence queued projection and old decision/exposure references. There is no clear/delete/pause or epoch-advance HTTP endpoint yet. Do not manually advance an owner's epoch as an improvised privacy operation; J002 exercises this internal boundary only on disposable data.
+Privacy epochs fence queued projection and old decision/exposure references. The confirmed `POST /v1/history/clear` operation advances the epoch and clears scoped bootstrap history under [ADR-0010](../decisions/0010-clear-scroll-history.md). Its persisted request UUID makes ambiguous retries safe. The caller stays enrolled; other device sessions become stale. Shared editorial assets and minimal clear receipts remain. This is not account deletion, backup erasure, personalization pause or semantic reset. Never manually advance an owner epoch as an improvised privacy operation.
 
 `./scripts/db-start.sh` / `./scripts/db-stop.sh` control only the project cluster. API/worker stop with Ctrl-C. `pnpm state` queries actual migrations/jobs/heartbeats and health; a historical receipt never means a service is still running.
 
@@ -101,6 +101,8 @@ Install SDK packages sequentially: concurrent Android CLI downloads produced a t
 
 `pnpm exec tsx scripts/run-isolated-session-journey.ts` verifies the [J002 session and epoch journey](../journeys/J002.md) with separately launched API/worker processes and disposable PostgreSQL data. It provisions two universes without modifying normal owner data.
 
+`pnpm exec tsx scripts/run-isolated-history-journey.ts` verifies J003 across two disposable universes. `python3 scripts/android-history-journey.py` uses ports4311/4316 and the separate `.journey` app to verify confirmation, clear, a genuinely lost HTTP response, force-stop restoration and epoch-driven cache removal. Run Android journey scripts sequentially with one booted emulator.
+
 `pnpm test` creates a uniquely named `knowscroll_test_*` database and removes only that disposable database. `pnpm verify:journey` mutates the selected real development universe by keeping one asset; library exhaustion is an honest result. [J001](../journeys/J001.md) separates API and Android proof.
 
-No model key is needed now. The reasoning task needs `MINIMAX_API_KEY`, provider endpoint/plan confirmation and an agreed paid-test budget. The Cutroom task needs `CUTROOM_BASE_URL`, a reachable host and a safe artifact import route. Configure secrets locally or in a deployment secret store; never put them in mobile, GitHub issues, evidence or commits.
+No provider key is needed for these journeys. The owner reported a 300-million-token allowance per five hours; #7 must verify the configured MiniMax endpoint/plan and encode a bounded experiment cap before live certification. A token allowance does not establish arbitrary cash spending permission. The Cutroom task needs `CUTROOM_BASE_URL`, a reachable host and a safe artifact import route. Configure secrets locally or in a deployment secret store; never put them in mobile, GitHub issues, evidence or commits. Withhold provider credentials from processes that do not need them.

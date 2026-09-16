@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-16 (Asia/Kolkata). **Reliability and session/epoch waves verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-16 (Asia/Kolkata). **Reliability, session/epoch and clear-history waves verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## What exists
 
@@ -14,6 +14,8 @@ Updated: 2026-09-16 (Asia/Kolkata). **Reliability and session/epoch waves verifi
 - J001 checks persisted decision/exposure/event/job/Accounts/Trace/source lineage. A repeatable isolated runner launches API and worker separately and rejects a deliberately mismatched verifier database.
 - Migration `0002_identity_epochs.sql`: operator-provisioned device sessions with hashed tokens, expiry/revocation, private universe ownership and composite lineage constraints. The existing development token enrolls once without restart reactivation.
 - Decision/Ledger/job privacy epochs and universe-first locking. Stale queued work is discarded without projection; a busy universe does not block another ready universe. J002 proves two-session isolation over real HTTP and separate worker processes.
+
+- Migration `0003_history_clear.sql` and retryable Clear Scroll history: one locked transaction removes scoped bootstrap encounters and saved Traces, advances the privacy epoch, preserves the caller session and shared library, and invalidates other sessions. Android confirms the effects, persists uncertain requests and binds cached state to its universe.
 
 ## What is not built
 
@@ -31,11 +33,15 @@ Wave-one review and combined runtime proof: [J001 evidence](journeys/evidence/wa
 
 Wave-two review and runtime proof: [session integration evidence](journeys/evidence/wave2-integration/README.md). Thirty backend tests, two verifier rejection tests, J001, J002 and all five Android phases passed. Interrupted J002 left no new databases or API/worker processes. Migration preserved hashes and counts for every original domain table; existing history was not reset.
 
-Last development observation: 2026-09-15 19:41 UTC (01:11 India, September 16). API healthy, new worker heartbeat fresh, both migration checksums present and the same two projection jobs completed. The regular emulator app was cold-launched with data preserved and displayed both existing Traces through the new session-scoped API. Use `pnpm state` to refresh; this is a timestamped observation, not a promise that these processes remain running.
+Wave-three review and runtime proof: [clear-history evidence](journeys/evidence/wave3-integration/README.md). Thirty-eight backend tests, two verifier rejection cases, isolated J001/J002/J003 and six Android privacy phases passed. Exact retries survive a dropped committed response and process death; foreign local universe bindings cannot dispatch a clear. Existing reading/keep/restore regression results and dated development observations are recorded alongside those receipts.
 
-## Next work after wave two
+Last development observation: `2026-09-16T05:01:20.753Z`. API healthy, worker heartbeat fresh, all three migration checksums present; the updated regular emulator app shows both existing Traces and the privacy control at epoch zero. Run `pnpm state` for current status.
 
-[Coordination #21](https://github.com/KnowScroll/knowscroll/issues/21) records current ownership, review, integration and resume steps; [#13](https://github.com/KnowScroll/knowscroll/issues/13) retains the earlier reliability wave. Parent epics remain open. Next settle #4 clear/delete/pause retention semantics and semantic proposal read sets, with #2 public identity/recovery still separate. Then release dependent reasoning or offline-admission implementation against those contracts. Device sessions and epoch fences do not implement the full privacy lifecycle. The semantic, recommendation and cosmic/social target remains unchanged.
+## Next work after wave three
+
+[Coordination #29](https://github.com/KnowScroll/knowscroll/issues/29) records the clear-history wave; [#21](https://github.com/KnowScroll/knowscroll/issues/21) and [#13](https://github.com/KnowScroll/knowscroll/issues/13) retain earlier delivery evidence. Parent epics remain open. ADR-0010 defines implemented bootstrap clear and separates future pause, semantic reset, account deletion, backup retention and typed semantic proposal read sets.
+
+Next: #7 provider certification preparation. Verify the configured MiniMax endpoint and token-plan coverage, define a bounded token experiment and response/timeout/cancellation evidence before live calls. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
 
 ## Component lanes
 

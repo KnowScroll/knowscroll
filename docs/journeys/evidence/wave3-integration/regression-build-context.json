@@ -1,0 +1,6 @@
+{
+  "note": "Regression APK was assembled before the artifact-only 49ccc43 merge. The runner source hashes were captured at completion after that merge. Product source is identical; four screenshot capture/wait lines in the unexecuted J003 test and README changed during the regression run.",
+  "compiledInstrumentationSourceCommit": "223bfc9",
+  "compiledInstrumentationSha256": "5dc681f394e72847ed2efcaf1b9b679ffcb575cc249c50ad062db3609478f4b9",
+  "completionInstrumentationSha256": "ab22849c44ecfe31046b62c9d502e9f65dda23a1a7d199d19c3d67dc45aa2841"
+}

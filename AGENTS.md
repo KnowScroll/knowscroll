@@ -11,6 +11,8 @@ This is the new private product repository. Previous research lives separately; 
 - Events retain exposure/causation lineage. Never fabricate model responses, world evolution, sources, success, or runtime evidence. Fakes belong only in tests.
 - No provider credentials in mobile, Git, logs, or evidence. External providers run in workers. Cutroom stays a separate HTTP service.
 - Before editing, read the component map and relevant ADR/contract. Change contracts before consumers when an issue spans boundaries.
+- Authentication, privacy controls, admission and deterministic projection acquire the universe lock before session/domain/job rows. Recheck authority and epoch after waiting; a previously read session is not durable authorization.
+- Privacy erasure follows ADR-0010's explicit scope and retry contract. Run destructive verification only on disposable universes and the separate Android test app; never clear owner history to obtain a passing receipt. Preserve source documents and historical evidence when updating current guidance.
 - Run implementation checks, then the assigned journey verification. Say exactly what remains unproved.
 - End substantial work in the issue/PR: outcome, decisions, paths changed, commands/results, runtime evidence, divergence, next action. Update PROJECT-STATE only when durable project truth changes.
 

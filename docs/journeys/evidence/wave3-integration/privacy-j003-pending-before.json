@@ -1,0 +1,11 @@
+{
+  "requestId": "3223e62c-da9a-49fd-9dbb-b3b37e09d385",
+  "expectedPrivacyEpoch": 1,
+  "confirmation": "clear-scroll-history",
+  "universeId": "00000000-0000-4000-8000-000000000001",
+  "assetId": "10000000-0000-4000-8000-000000000001",
+  "decisionId": "d3ecf258-cdc0-4b9a-8033-69b423421b60",
+  "exposureId": "8972c676-7bee-44f5-b33c-28f01b7fd4cc",
+  "beforePrivacyEpoch": 1,
+  "phase": "before-force-stop"
+}
