@@ -35,6 +35,8 @@ Wave-two review and runtime proof: [session integration evidence](journeys/evide
 
 Wave-three review and runtime proof: [clear-history evidence](journeys/evidence/wave3-integration/README.md). Thirty-eight backend tests, two verifier rejection cases, isolated J001/J002/J003 and six Android privacy phases passed. Exact retries survive a dropped committed response and process death; foreign local universe bindings cannot dispatch a clear. Existing reading/keep/restore regression results and dated development observations are recorded alongside those receipts.
 
+Last development observation: `2026-09-16T05:01:20.753Z`. API healthy, worker heartbeat fresh, all three migration checksums present; the updated regular emulator app shows both existing Traces and the privacy control at epoch zero. Run `pnpm state` for current status.
+
 ## Next work after wave three
 
 [Coordination #29](https://github.com/KnowScroll/knowscroll/issues/29) records the clear-history wave; [#21](https://github.com/KnowScroll/knowscroll/issues/21) and [#13](https://github.com/KnowScroll/knowscroll/issues/13) retain earlier delivery evidence. Parent epics remain open. ADR-0010 defines implemented bootstrap clear and separates future pause, semantic reset, account deletion, backup retention and typed semantic proposal read sets.
