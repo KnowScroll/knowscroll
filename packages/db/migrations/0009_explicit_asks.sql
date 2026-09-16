@@ -47,6 +47,8 @@ BEGIN
    AND lower(origin.payload->>'assetId')=e.asset_id::text
    AND lower(origin.payload->>'clientExposureId')=e.client_key::text
    AND lower(origin.payload->>'exposureId')=e.id::text
+   AND (SELECT count(*) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(d.candidates)='array' THEN d.candidates ELSE '[]'::jsonb END) candidate
+    WHERE lower(candidate->>'assetId')=e.asset_id::text)=1
    AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(d.candidates)='array' THEN d.candidates ELSE '[]'::jsonb END) candidate
     WHERE lower(candidate->>'assetId')=e.asset_id::text AND candidate->>'kind'='Scroll')
    AND jsonb_typeof(l.payload->'question')='string'

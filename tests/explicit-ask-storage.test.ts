@@ -94,6 +94,11 @@ test('explicit Ask SQL constraints preserve only exact source-bound literal fact
    await pool.query("UPDATE decision SET candidates=$2 WHERE id=$1",[graph.decisionId,JSON.stringify([{assetId:graph.selectedAssetId,kind:'Reel'}])]);
    await assert.rejects(tx(pool,client=>insertAsk(client,graph)),/Explicit Ask requires matching private source lineage/);
    await pool.query("UPDATE decision SET candidates=$2 WHERE id=$1",[graph.decisionId,JSON.stringify([{assetId:graph.selectedAssetId,kind:'Scroll'}])]);
+   await pool.query('UPDATE decision SET candidates=$2 WHERE id=$1',[graph.decisionId,JSON.stringify([
+    {assetId:graph.selectedAssetId,kind:'Scroll'},{assetId:graph.selectedAssetId,kind:'Reel'},
+   ])]);
+   await assert.rejects(tx(pool,client=>insertAsk(client,graph)),/Explicit Ask requires matching private source lineage/);
+   await pool.query('UPDATE decision SET candidates=$2 WHERE id=$1',[graph.decisionId,JSON.stringify([{assetId:graph.selectedAssetId,kind:'Scroll'}])]);
    await pool.query('UPDATE device_session SET privacy_epoch=1 WHERE id=$1',[graph.sessionId]);
    await assert.rejects(tx(pool,client=>insertAsk(client,graph)),/Explicit Ask requires matching private source lineage/);
    await pool.query('UPDATE device_session SET privacy_epoch=0 WHERE id=$1',[graph.sessionId]);
