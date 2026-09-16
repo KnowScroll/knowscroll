@@ -2,6 +2,10 @@
 
 Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning primitives and J004 synthetic fault proof verified; durable SQL fairness, frozen context authority and seven-day withdrawn-context retirement and literal Ask recording verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
+## v1 release scope
+
+Owner decision, 2026-09-16: **v1 requires the entire documented user experience, full polished UI, real Cutroom video-harness integration and end-to-end verification.** [The release contract](product/v1-release.md) and [tracker #72](https://github.com/KnowScroll/knowscroll/issues/72) cover all product journeys A–I. Owner Alpha and the later delivery phases are intermediate checkpoints, not a narrower v1 definition. This decision changes the release bar; it does not claim any additional capability is implemented.
+
 ## What exists
 
 - Private monorepo: [KnowScroll/knowscroll](https://github.com/KnowScroll/knowscroll).

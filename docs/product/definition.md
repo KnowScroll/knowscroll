@@ -1034,6 +1034,8 @@ The product has failed if:
 
 ## 17. Three delivery phases
 
+**Release interpretation (owner decision, 2026-09-16):** these phases sequence delivery; v1 is gated on the complete documented experience and UI, real video-harness integration and joined end-to-end acceptance, including journeys A–I. Owner Alpha alone is not v1. See the [v1 release contract](v1-release.md) and [release tracker #72](https://github.com/KnowScroll/knowscroll/issues/72). Existing phase detail remains intact.
+
 There is one short validation gate before implementation phases. It is not a fourth product phase.
 
 ### Validation gate: prove the grammar before the cosmos
