@@ -94,7 +94,7 @@ CREATE TABLE reasoning_reservation (
  dimension reasoning_dimension NOT NULL, unit reasoning_unit NOT NULL, amount reasoning_count NOT NULL CHECK(amount>0),
  state text NOT NULL DEFAULT 'held' CHECK(state IN ('held','accounted','released')),
  FOREIGN KEY(attempt_id,reservation_set_id) REFERENCES reasoning_permit(attempt_id,reservation_set_id) ON DELETE CASCADE,
- FOREIGN KEY(bucket_id,dimension,unit) REFERENCES reasoning_bucket(id,dimension,unit), UNIQUE(attempt_id,bucket_id)
+ FOREIGN KEY(bucket_id,dimension,unit) REFERENCES reasoning_bucket(id,dimension,unit), UNIQUE(attempt_id,bucket_id), UNIQUE(attempt_id,bucket_id,unit)
 );
 CREATE TABLE reasoning_attempt (
  id uuid PRIMARY KEY, job_id uuid NOT NULL, step_id uuid NOT NULL, context_id uuid NOT NULL,
@@ -142,7 +142,7 @@ CREATE TABLE reasoning_settlement_adjustment (
  settlement_id uuid NOT NULL, attempt_id uuid NOT NULL, bucket_id uuid NOT NULL, unit reasoning_unit NOT NULL,
  delta bigint NOT NULL CHECK(delta BETWEEN -9007199254740991 AND 9007199254740991),
  FOREIGN KEY(settlement_id,attempt_id) REFERENCES reasoning_settlement(id,attempt_id) ON DELETE CASCADE,
- FOREIGN KEY(attempt_id,bucket_id) REFERENCES reasoning_reservation(attempt_id,bucket_id),
+ FOREIGN KEY(attempt_id,bucket_id,unit) REFERENCES reasoning_reservation(attempt_id,bucket_id,unit),
  PRIMARY KEY(settlement_id,bucket_id)
 );
 
@@ -190,3 +190,42 @@ END $$;
 CREATE TRIGGER reasoning_receipt_guard BEFORE UPDATE OR DELETE ON reasoning_receipt FOR EACH ROW EXECUTE FUNCTION reasoning_evidence_guard();
 CREATE TRIGGER reasoning_settlement_guard BEFORE UPDATE OR DELETE ON reasoning_settlement FOR EACH ROW EXECUTE FUNCTION reasoning_evidence_guard();
 CREATE TRIGGER reasoning_adjustment_guard BEFORE UPDATE OR DELETE ON reasoning_settlement_adjustment FOR EACH ROW EXECUTE FUNCTION reasoning_evidence_guard();
+
+-- Retained reservation metadata cannot be erased independently of its accounting identity.
+CREATE TRIGGER reasoning_permit_delete_guard BEFORE DELETE ON reasoning_permit FOR EACH ROW EXECUTE FUNCTION reasoning_evidence_guard();
+CREATE TRIGGER reasoning_reservation_delete_guard BEFORE DELETE ON reasoning_reservation FOR EACH ROW EXECUTE FUNCTION reasoning_evidence_guard();
+CREATE FUNCTION reasoning_reservation_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF (NEW.id,NEW.attempt_id,NEW.reservation_set_id,NEW.bucket_id,NEW.dimension,NEW.unit,NEW.amount)
+ IS DISTINCT FROM (OLD.id,OLD.attempt_id,OLD.reservation_set_id,OLD.bucket_id,OLD.dimension,OLD.unit,OLD.amount) THEN
+  RAISE EXCEPTION 'Reasoning reservation identity is immutable';
+ END IF;
+ IF OLD.state<>'held' AND NEW.state<>OLD.state THEN RAISE EXCEPTION 'Reasoning reservation is already accounted or released'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER reasoning_reservation_guard BEFORE UPDATE ON reasoning_reservation FOR EACH ROW EXECUTE FUNCTION reasoning_reservation_guard();
+CREATE FUNCTION reasoning_attempt_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF (to_jsonb(NEW)-'active') IS DISTINCT FROM (to_jsonb(OLD)-'active') THEN RAISE EXCEPTION 'Reasoning attempt detail is immutable'; END IF;
+ IF NOT OLD.active AND NEW.active THEN RAISE EXCEPTION 'Reasoning attempt cannot reactivate'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER reasoning_attempt_guard BEFORE UPDATE ON reasoning_attempt FOR EACH ROW EXECUTE FUNCTION reasoning_attempt_guard();
+CREATE FUNCTION reasoning_context_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='UPDATE' THEN RAISE EXCEPTION 'Reasoning context is immutable'; END IF;
+ IF TG_OP='INSERT' THEN
+  IF EXISTS(SELECT 1 FROM reasoning_attempt WHERE context_id=NEW.context_id) THEN RAISE EXCEPTION 'Reasoning context is already in use'; END IF;
+  RETURN NEW;
+ END IF;
+ IF EXISTS(SELECT 1 FROM reasoning_context WHERE id=OLD.context_id) THEN RAISE EXCEPTION 'Reasoning context reads erase only with their context'; END IF;
+ RETURN OLD;
+END $$;
+CREATE TRIGGER reasoning_context_guard BEFORE UPDATE ON reasoning_context FOR EACH ROW EXECUTE FUNCTION reasoning_context_guard();
+CREATE TRIGGER reasoning_context_read_guard BEFORE INSERT OR UPDATE OR DELETE ON reasoning_context_read FOR EACH ROW EXECUTE FUNCTION reasoning_context_guard();
+CREATE FUNCTION reasoning_bucket_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF (NEW.id,NEW.dimension,NEW.unit,NEW.window_id) IS DISTINCT FROM (OLD.id,OLD.dimension,OLD.unit,OLD.window_id) THEN RAISE EXCEPTION 'Reasoning bucket identity is immutable'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER reasoning_bucket_guard BEFORE UPDATE ON reasoning_bucket FOR EACH ROW EXECUTE FUNCTION reasoning_bucket_guard();
