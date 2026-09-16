@@ -13,6 +13,7 @@ import {
 } from '../../../packages/db/src/index.ts';
 import { compose } from '../../../packages/core/src/composer.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
+import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
 
 class HttpError extends Error {
   constructor(public statusCode: number, message: string) { super(message); }
@@ -72,8 +73,7 @@ export function buildApp(developmentToken: string) {
 
   app.get('/v1/universe', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const universe = (await client.query('SELECT revision, privacy_epoch FROM universe WHERE id=$1', [scope.universeId])).rows[0];
-    const traces = (await client.query(`SELECT t.event_id AS "eventId", t.asset_id AS "assetId", a.title, t.created_at AS "createdAt"
-      FROM trace t JOIN asset a ON a.id=t.asset_id WHERE t.universe_id=$1 ORDER BY t.created_at`, [scope.universeId])).rows;
+    const traces = await listSavedTraces(client,scope);
     return {
       universeId: scope.universeId,
       revision: universe.revision,
@@ -82,6 +82,25 @@ export function buildApp(developmentToken: string) {
       capabilities: { reasoning: false, reels: false, worldEvolution: false },
     };
   }));
+
+  app.get<{Params:{eventId:string}}>('/v1/traces/:eventId',async (req,reply)=>{
+    const result=await authenticated(req.headers.authorization,async(scope,client)=>{
+      if(req.body!==undefined||Object.keys(req.query as object).length>0
+        ||Number(req.headers['content-length']??0)>0||req.headers['transfer-encoding']!==undefined) {
+        throw new HttpError(400,'Invalid Trace request');
+      }
+      try {return await readTraceRevisit(client,scope,req.params.eventId);}
+      catch(error) {
+        if(!(error instanceof TraceRevisitError)) throw error;
+        if(error.kind==='invalid') throw new HttpError(400,'Invalid Trace event ID');
+        if(error.kind==='not_found') throw new HttpError(404,'Trace not found');
+        if(error.kind==='stale_epoch') throw new HttpError(409,'Trace privacy epoch is stale');
+        if(error.kind==='source_changed') throw new HttpError(409,'Saved Scroll source is unavailable');
+        throw new HttpError(422,'Saved Scroll lineage is unavailable');
+      }
+    });
+    return reply.header('Cache-Control','no-store').send(result);
+  });
 
   app.get('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const account = (await client.query('SELECT * FROM accounts WHERE universe_id=$1', [scope.universeId])).rows[0];
