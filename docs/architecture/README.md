@@ -41,7 +41,7 @@ The [machine-readable component map](component-map.json) and table below describ
 | Cutroom Adapter | External run reconciliation and asset import | Port only; upstream exists |
 | Projector / Social | Authorized projections, visits and Blend | Planned |
 | Rooms / Inhabitants | Bounded situated collaboration | Planned |
-| Evaluation / Operations | Journey receipts, quality and current runtime inspection | J001, J002 sessions/epochs, J003 history clear and live state command |
+| Evaluation / Operations | Journey receipts, quality and current runtime inspection | J001, J002 sessions/epochs, J003 history clear, J004 reasoning faults and live state command |
 
 ## Full target and current implementation
 
@@ -55,4 +55,4 @@ The target provider lifecycle is Job → Step → Attempt → Proposal → valid
 
 [ADR-0011](../decisions/0011-minimax-certification.md) adds a separate CLI experiment through the pinned AI SDK/MiniMax adapter. Its journal records a durable reservation before each bounded request and retains unknown remote outcomes after interruption. It uses synthetic fixtures only, never the owner history, and is not connected to the serving path. See the [operations guide](../operations/minimax-certification.md) for execution and evidence boundaries.
 
-[ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md) specifies separate reasoning records, one-time dispatch authorization, late accounting after privacy clear and canonical universe-first locks. Shared metadata, storage, SQL admission/reconciliation and an unwired invocation boundary exist. [J004 process proof](../operations/reasoning-implementation-plan.md) remains next; these primitives do not enable product reasoning.
+[ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md) specifies separate reasoning records, one-time dispatch authorization, late accounting after privacy clear and canonical universe-first locks. Shared metadata, storage, SQL admission/reconciliation and an unwired invocation boundary exist. [J004](../journeys/J004.md) verifies separate-process crashes, late accounting and cleanup with local fixtures; these primitives do not enable product reasoning.

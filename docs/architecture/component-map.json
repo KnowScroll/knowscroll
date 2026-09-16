@@ -105,7 +105,7 @@
       "component": "Evaluation / Operations",
       "responsibility": "Journey evidence and live inspection",
       "path": "scripts",
-      "status": "J001-J002-J003-with-Android-privacy-recovery",
+      "status": "J001-J002-J003-J004-with-reasoning-fault-and-cleanup-proof",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/12"
     }
   ]

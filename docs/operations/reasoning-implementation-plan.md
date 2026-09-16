@@ -1,6 +1,6 @@
 # Reasoning admission: implementation and verification plan
 
-Status: storage/privacy implemented in #44 and atomic execution primitives in #45; J004 fault proof remains planned, following [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md). Shared metadata schemas, SQL storage, history-clear integration, a restricted receipt append helper and bounded retention cleanup exist. Atomic admission, cumulative settlement and an unwired single-invocation worker boundary also exist. Fair scheduling, product dispatch and J004 proof do not. Parent [#7](https://github.com/KnowScroll/knowscroll/issues/7) remains open.
+Status: storage/privacy implemented in #44 and atomic execution primitives in #45; J004 synthetic process proof implemented in #46, following [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md). Shared metadata schemas, SQL storage, history-clear integration, a restricted receipt append helper and bounded retention cleanup exist. Atomic admission, cumulative settlement and an unwired single-invocation worker boundary also exist. J004 covers process faults and interruption cleanup with local fixtures. Fair scheduling and product dispatch remain unimplemented. Parent [#7](https://github.com/KnowScroll/knowscroll/issues/7) remains open.
 
 ## Release order and ownership
 
@@ -54,7 +54,7 @@ J004 must report commit, database/process isolation, exact fixture request count
 
 ## Later gates before product enablement
 
-1. Implement and replay-test class/per-universe fairness under finite and saturated capacity, no idle-credit runaway, no blocked-head starvation and no unknown-call capacity reset.
+1. [#54](https://github.com/KnowScroll/knowscroll/issues/54) first defines the bounded fairness contract and deterministic scheduling model. Then implement and replay-test class/per-universe fairness under finite and saturated capacity, no idle-credit runaway, no blocked-head starvation and no unknown-call capacity reset.
 2. Implement authorized context compilation and typed read-set/proposal validation. No user-state mutation follows from transport success alone.
 3. Implement direct-intent durability and H/H2 coalescing when those consumers are introduced; optional children must inherit budget and release waiting-parent execution slots.
 4. Integrate the retained-accounting cleanup primitive with private-graph retirement and a scheduled worker, and update privacy controls/copy before sending private context. Account deletion and backup retention remain separate unresolved requirements.

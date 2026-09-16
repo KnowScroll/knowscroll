@@ -19,7 +19,7 @@ Clear Scroll history removes recorded encounters and saved Traces, preserves the
 
 A separate [MiniMax development certification](docs/journeys/evidence/wave4-certification/README.md) passed three live synthetic cases: JSON, a tool call with native thinking, and exact native continuation. Product reasoning remains unimplemented; the [runner guide](docs/operations/minimax-certification.md) defines the bounded experiment.
 
-The accepted [reasoning admission protocol](docs/decisions/0012-reasoning-admission-and-reconciliation.md) defines the next implementation boundary: durable attempts, reservations, privacy fences and late usage. Its metadata schemas and [storage/privacy helpers](docs/operations/reasoning-storage.md) are implemented. [Atomic admission and cumulative reconciliation primitives](docs/operations/reasoning-runtime.md) now exist, with an unwired one-invocation worker boundary. Separate-process crash proof in J004 is next; product dispatch remains disabled.
+The accepted [reasoning admission protocol](docs/decisions/0012-reasoning-admission-and-reconciliation.md) defines the next implementation boundary: durable attempts, reservations, privacy fences and late usage. Its metadata schemas and [storage/privacy helpers](docs/operations/reasoning-storage.md) are implemented. [Atomic admission and cumulative reconciliation primitives](docs/operations/reasoning-runtime.md) now exist, with an unwired one-invocation worker boundary. [J004](docs/journeys/J004.md) verifies separate-process crash and late-usage boundaries with local fixtures; product dispatch remains disabled.
 
 ## Chosen stack
 
@@ -47,7 +47,7 @@ pnpm dev:worker    # terminal 2
 
 `pnpm typecheck` and `pnpm test` check implementation. `pnpm verify:journey` exercises real HTTP, worker and database; Android evidence is a separate check. `pnpm state` reads current migrations, worker heartbeat and API availability.
 
-For repeatable acceptance without consuming the owner's remaining library, use `pnpm exec tsx scripts/run-isolated-journey.ts` (J001) and `pnpm exec tsx scripts/run-isolated-session-journey.ts` (J002), plus `pnpm exec tsx scripts/run-isolated-history-journey.ts` (J003). These launch disposable PostgreSQL/API/worker runtimes. See [development operations](docs/operations/development.md) for session provisioning, Android checks and evidence limits.
+For repeatable acceptance without consuming the owner's remaining library, use `pnpm exec tsx scripts/run-isolated-journey.ts` (J001) and `pnpm exec tsx scripts/run-isolated-session-journey.ts` (J002), plus `pnpm exec tsx scripts/run-isolated-history-journey.ts` (J003). [J004](docs/journeys/J004.md) adds reasoning fault cases and independent interruption cleanup checks. These launch disposable PostgreSQL/API/worker runtimes. See [development operations](docs/operations/development.md) for session provisioning, Android checks and evidence limits.
 
 ## Work together
 

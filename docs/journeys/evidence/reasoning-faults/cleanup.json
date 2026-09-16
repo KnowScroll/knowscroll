@@ -1,0 +1,80 @@
+{
+  "journey": "J004",
+  "result": "passed",
+  "observations": [
+    {
+      "signal": "SIGTERM",
+      "runnerPid": 87439,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_ba9dd47f65b3143d"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 87479,
+          "pgid": 87479,
+          "readyAt": "2026-09-16T10:14:47.099Z"
+        },
+        {
+          "role": "api",
+          "pid": 87481,
+          "pgid": 87481,
+          "readyAt": "2026-09-16T10:14:47.844Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 87483,
+          "pgid": 87483,
+          "readyAt": "2026-09-16T10:14:48.158Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "observedAt": "2026-09-16T10:14:48.586Z"
+    },
+    {
+      "signal": "SIGINT",
+      "runnerPid": 87510,
+      "database": {
+        "host": "127.0.0.1",
+        "port": 55432,
+        "name": "knowscroll_j004_3521fcdd0e91d720"
+      },
+      "processes": [
+        {
+          "role": "fixture",
+          "pid": 87547,
+          "pgid": 87547,
+          "readyAt": "2026-09-16T10:14:49.059Z"
+        },
+        {
+          "role": "api",
+          "pid": 87552,
+          "pgid": 87552,
+          "readyAt": "2026-09-16T10:14:49.627Z"
+        },
+        {
+          "role": "worker-ready",
+          "pid": 87556,
+          "pgid": 87556,
+          "readyAt": "2026-09-16T10:14:49.935Z"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "runnerAck": true,
+      "databaseAbsent": true,
+      "processGroupsAbsent": true,
+      "observedAt": "2026-09-16T10:14:50.425Z"
+    }
+  ]
+}

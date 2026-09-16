@@ -2,7 +2,7 @@
 
 [#45](https://github.com/KnowScroll/knowscroll/issues/45) implements the internal database operations defined by [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md), on top of [#44 storage](reasoning-storage.md). Migration 0005 adds immutable policy/input bindings and cumulative accounting metadata. Migrations 0001–0004 remain unchanged.
 
-These are development primitives. The ordinary worker still processes deterministic keeps only; `reasoningReadiness()` remains false. No provider adapter or public endpoint is connected to these operations. [#46](https://github.com/KnowScroll/knowscroll/issues/46) must prove separate-process crash boundaries in J004 before the new protocol is considered usable for a synthetic runtime harness.
+These are development primitives. The ordinary worker still processes deterministic keeps only; `reasoningReadiness()` remains false. No provider adapter or public endpoint is connected to these operations. [#46](https://github.com/KnowScroll/knowscroll/issues/46) adds [J004](../journeys/J004.md), which verifies the protocol in a separate-process synthetic runtime harness. This does not enable product calls.
 
 ## Trust and policy boundary
 
@@ -36,7 +36,7 @@ Lock order is universe → Job → Step → Attempt/accounting → shared bucket
 
 A lost commit acknowledgement yields no invocation. An abort/deadline after authorization remains potentially sent, even if this caller did not reach transport. Transport failure never causes an automatic retry. Only strictly parsed minimal usage/outcome metadata enters reconciliation; raw provider content/errors are not persisted. Late usage still reaches accounting after cancellation or privacy clear. There is no output application path.
 
-The local HTTP integration test observes the committed intent before accepting its synthetic request, clears private history while the response is pending and settles original old-epoch usage once. This proves the integrated SQL/HTTP path in one test process; it does not prove killed-worker recovery, remote cancellation or exactly-once provider execution. J004 owns separate-process faults.
+The local HTTP integration test observes the committed intent before accepting its synthetic request, clears private history while the response is pending and settles original old-epoch usage once. This proves the integrated SQL/HTTP path in one test process; it does not prove killed-worker recovery, remote cancellation or exactly-once provider execution. J004 supplies separate-process fault evidence.
 
 ## Cumulative settlement
 
@@ -53,4 +53,4 @@ The local HTTP integration test observes the committed intent before accepting i
 
 Source `scripts/env.sh`, then run `pnpm typecheck`, `pnpm test`, the verifier rejection tests and isolated J001/J002/J003 runners. All new reasoning tests require disposable `knowscroll_test_*` databases. They use local fixtures and no provider credentials. Evidence is linked from [Project state](../PROJECT-STATE.md).
 
-Next: #46 adds J004 with separate worker processes, durable observations before crash/acknowledgement boundaries, exact local fixture request counts and cleanup proof. Keep product provider execution disabled. The complete Reasoning Plane, full privacy lifecycle, fairness, context/proposal authorization and a separately bounded provider experiment remain open under #7 and related epics.
+J004 now runs separate worker processes, records durable observations before crash/acknowledgement boundaries, checks exact local fixture request counts and independently verifies interruption cleanup. Its lease scenario proves expiry and recovery fencing; automatic requeue and a new execution claim remain absent. Keep product provider execution disabled. The complete Reasoning Plane, full privacy lifecycle, fairness, context/proposal authorization and a separately bounded provider experiment remain open under #7 and related epics.

@@ -1,6 +1,6 @@
 # ADR-0012 — Durable reasoning admission and uncertain outcomes
 
-Date: 2026-09-16. Status: accepted as a design contract in [#42](https://github.com/KnowScroll/knowscroll/issues/42). The design decision remains the protocol authority. Follow-up #44 implements [SQL storage and privacy helpers](../operations/reasoning-storage.md); follow-up #45 adds [atomic execution primitives](../operations/reasoning-runtime.md). J004, product dispatch and proposal application remain unimplemented.
+Date: 2026-09-16. Status: accepted as a design contract in [#42](https://github.com/KnowScroll/knowscroll/issues/42). The design decision remains the protocol authority. Follow-up #44 implements [SQL storage and privacy helpers](../operations/reasoning-storage.md); follow-up #45 adds [atomic execution primitives](../operations/reasoning-runtime.md). Follow-up #46 adds [J004 synthetic process proof](../journeys/J004.md). Product dispatch and proposal application remain unimplemented.
 
 ## Context and decision
 
