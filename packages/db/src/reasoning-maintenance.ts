@@ -39,7 +39,7 @@ async function transaction<T>(pool:pg.Pool,body:(client:pg.PoolClient)=>Promise<
  } finally {client.release();}
 }
 
-async function discover(pool:pg.Pool,lane:Lane,cursor:string|null):Promise<Candidate|undefined> {
+async function discover(pool:pg.PoolClient,lane:Lane,cursor:string|null):Promise<Candidate|undefined> {
  const table=lane==='job'?'reasoning_job':'reasoning_accounting';
  const idColumn=lane==='job'?'id':'attempt_id';
  const base=lane==='job'
@@ -162,18 +162,20 @@ export function createReasoningMaintenance(pool:pg.Pool):ReasoningMaintenance {
    for(let probe=0;probe<limit;probe+=1) {
     const lane=cursors.next;
     cursors.next=lane==='job'?'accounting':'job';
-    const candidate=await discover(pool,lane,cursors[lane]);
     result.probes+=1;
-    if(!candidate) {result.skipped+=1;continue;}
-    cursors[lane]=candidate.id;
     try {
-     if(lane==='job') {
-      const retired=await transaction(pool,client=>retireJob(client,candidate));
-      if(retired) result.retiredJobs+=1; else result.skipped+=1;
-     } else {
-      const purged=await transaction(pool,client=>purgeAccounting(client,candidate));
-      if(purged===1) result.purgedAccounting+=1; else result.skipped+=1;
-     }
+     const outcome=await transaction(pool,async client=>{
+      const candidate=await discover(client,lane,cursors[lane]);
+      if(!candidate) return {retired:false,purged:0};
+      // This is deliberately process-local progress: a later rollback must not
+      // make one blocked candidate the next probe again.
+      cursors[lane]=candidate.id;
+      if(lane==='job') return {retired:await retireJob(client,candidate),purged:0};
+      return {retired:false,purged:await purgeAccounting(client,candidate)};
+     });
+     if(outcome.retired) result.retiredJobs+=1;
+     else if(outcome.purged===1) result.purgedAccounting+=1;
+     else result.skipped+=1;
     } catch(error) {
      if(isExpectedContention(error)) {result.skipped+=1;continue;}
      throw error;
