@@ -41,7 +41,7 @@ async function main():Promise<void> {
  try {
   while(!stopping) {
    try {
-    const result=await maintenance.runBatch({maxProbes});
+    const result=await maintenance.runBatch({maxProbes,signal:stop.signal});
     batches+=1;
     console.log(JSON.stringify({service,event:'batch',batch:batches,...result}));
    } catch {

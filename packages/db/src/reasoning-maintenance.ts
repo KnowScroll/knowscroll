@@ -11,9 +11,10 @@ type Candidate={id:string;universeId:string};
 type Cursors={job:string|null;accounting:string|null;next:Lane};
 
 export type ReasoningMaintenanceBatch={probes:number;retiredJobs:number;purgedAccounting:number;skipped:number};
-export type ReasoningMaintenance={runBatch(input?:{maxProbes?:number}):Promise<ReasoningMaintenanceBatch>};
+export type ReasoningMaintenanceRunInput={maxProbes?:number;signal?:AbortSignal};
+export type ReasoningMaintenance={runBatch(input?:ReasoningMaintenanceRunInput):Promise<ReasoningMaintenanceBatch>};
 
-function maxProbes(input:{maxProbes?:number}|undefined):number {
+function maxProbes(input:ReasoningMaintenanceRunInput|undefined):number {
  const value=input?.maxProbes??DEFAULT_MAX_PROBES;
  if(!Number.isInteger(value)||value<1||value>MAX_PROBES) throw new Error('Reasoning maintenance maxProbes must be 1 through 128');
  return value;
@@ -160,6 +161,9 @@ export function createReasoningMaintenance(pool:pg.Pool):ReasoningMaintenance {
    const limit=maxProbes(input);
    const result:ReasoningMaintenanceBatch={probes:0,retiredJobs:0,purgedAccounting:0,skipped:0};
    for(let probe=0;probe<limit;probe+=1) {
+    // Shutdown is observed only between probes. The current transaction is
+    // always allowed to reach its normal commit/rollback boundary.
+    if(input?.signal?.aborted) break;
     const lane=cursors.next;
     cursors.next=lane==='job'?'accounting':'job';
     result.probes+=1;

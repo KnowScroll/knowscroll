@@ -60,4 +60,14 @@ test('reasoning maintenance retires only bounded safely withdrawn private graphs
    await assert.rejects(maintenance.runBatch({maxProbes:129}),/1 through 128/);
   });
  });
+
+ await t.test('an already requested shutdown starts no new probe or mutation',async()=>{
+  await withReasoningMaintenanceSchema('shutdown',async pool=>{
+   const graph=await seedWithdrawnReasoningGraph(pool);
+   await ageWithdrawalForTest(pool,graph.jobId,169);
+   const stop=new AbortController();stop.abort();
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1,signal:stop.signal}),{probes:0,retiredJobs:0,purgedAccounting:0,skipped:0});
+   assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,1);
+  });
+ });
 });
