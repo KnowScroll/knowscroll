@@ -22,6 +22,13 @@ test('SQL fairness atomically claims, debits, reserves and writes no settlement 
 });
 
 test('SQL fairness bypasses permanently impossible work and serializes competing workers',async t=>{
+ await t.test('a maximum admissible charge earns its first quantum from zero credit',async()=>{
+  await withFairnessSchema('zero_credit_maximum',async pool=>{
+   const graph=await seedFairnessGraph(pool);const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[graph.jobId,graph.policy]])));await fairness.installPolicy(sqlFairnessPolicy);await enqueue(fairness,graph,50);
+   const result=await fairness.schedule({policyVersion:'fairness-v1',owner:'max-worker',leaseMs:20_000});assert.equal(result.kind,'admitted');assert.equal(result.charge,100);
+   assert.deepEqual((await pool.query("SELECT credit::text FROM reasoning_fairness_universe WHERE universe_id=$1",[graph.universeId])).rows[0],{credit:'0'});
+  });
+ });
  await t.test('an impossible head is recorded and a fitting universe is admitted in the bounded probe loop',async()=>{
   await withFairnessSchema('impossible_bypass',async pool=>{
    const impossible=await seedFairnessGraph(pool,'interactive',50),fitting=await seedFairnessGraph(pool);
