@@ -35,4 +35,31 @@
 
     <!-- Decorative cosmos copy is intentionally absent; the cosmos is
          drawn, not narrated. Decorative-only labels are not shipped. -->
+    <string name="action_home">Home</string>
+    <string name="action_sources">Sources</string>
+    <string name="reader_origin">YOUR UNIVERSE / SCROLL</string>
+    <string name="reader_truth_label">SCROLL · %1$s</string>
+    <string name="reader_source_marker">SOURCE</string>
+    <string name="reader_source_sheet_title">Sources and truth</string>
+    <string name="reader_attribution_note">Editorial source attribution. This pointer is not independent verification of every claim.</string>
+    <string name="reader_close_sources">Back to reading</string>
+    <string name="reader_browser_unavailable">A browser could not open this source. You can still read its address above.</string>
+    <string name="reader_threshold_title">Another discovery?</string>
+    <string name="reader_threshold_detail">Stay with this idea, or deliberately open the next Scroll.</string>
+    <string name="reader_next_loading">Finding the next Scroll…</string>
+    <string name="reader_next_failed">The next Scroll could not be reached. Your current page is still here.</string>
+    <string name="reader_next_retry">Retry next Scroll</string>
+    <string name="reader_library_end">A quiet place to stop</string>
+    <string name="reader_library_end_detail">You have reached the end of this starting library. Return home, or check whether another Scroll is available.</string>
+    <string name="reader_check_library">Check library again</string>
+    <string name="reader_keep_pending">Saving…</string>
+    <string name="reader_scope_changed">Privacy or universe authority changed. Return home and reconnect before reading.</string>
+    <string name="reader_content_description">Scroll reading content</string>
+    <string name="reader_position_description">Reading position %1$d</string>
+    <string name="reader_home_description">Return to the universe</string>
+    <string name="reader_keep_description">Keep this Scroll</string>
+    <string name="reader_next_description">Get the next Scroll</string>
+    <string name="reader_sources_description">Sources for this Scroll</string>
+    <string name="reader_close_sources_description">Close sources</string>
+    <string name="reader_open_source_description">Open %1$s in browser</string>
 </resources>
