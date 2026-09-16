@@ -1,0 +1,38 @@
+{
+  "journey": "J004",
+  "database": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "knowscroll_j004_f9610f0de0dbd431"
+  },
+  "runnerPid": 6251,
+  "processes": [
+    {
+      "role": "fixture",
+      "pid": 6264,
+      "pgid": 6264,
+      "readyAt": "2026-09-16T15:04:29.392Z"
+    },
+    {
+      "role": "api",
+      "pid": 6272,
+      "pgid": 6272,
+      "readyAt": "2026-09-16T15:04:29.872Z"
+    },
+    {
+      "role": "worker-ready",
+      "pid": 6286,
+      "pgid": 6286,
+      "readyAt": "2026-09-16T15:04:30.057Z"
+    }
+  ],
+  "apiBase": "http://127.0.0.1:38997",
+  "fixtureBase": "http://127.0.0.1:43973",
+  "ready": false,
+  "cleanedUp": true,
+  "diagnostic": {
+    "classification": "pool_runtime_error",
+    "cleanupErrors": []
+  },
+  "cleanupStage": "complete"
+}
