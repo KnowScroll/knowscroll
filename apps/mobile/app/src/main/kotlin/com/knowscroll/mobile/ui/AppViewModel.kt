@@ -107,7 +107,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 store.write(next);session=next;show(next)
             } catch(e:Exception){
                 if(version==navigationVersion && _screen.value is Screen.Scroll)_scroll.value=ScrollState.Unavailable(message(e))
-            } finally{busy=false}
+            } finally{if(version==navigationVersion)busy=false}
         }
     }
 
@@ -135,7 +135,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 val next=recordExposure(current,version,epoch)
                 if(operationIsCurrent(version,epoch)){session=next;show(next)}
             } catch(e:Exception){if(e !is CancellationException)_toast.value=message(e)}
-            finally{busy=false}
+            finally{if(version==navigationVersion)busy=false}
         }
     }
 
@@ -183,7 +183,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 if(e !is CancellationException && operationIsCurrent(version,epoch,currentSession)){
                     (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(keep=KeepState.Failed(message(e)))}
                 }
-            } finally{busy=false}
+            } finally{if(version==navigationVersion)busy=false}
         }
     }
 
@@ -324,8 +324,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     private fun purgeForEpoch(epoch:Long){
-        observedPrivacyEpoch=store.observePrivacyEpoch(epoch)
-        store.purgePrivateState(observedPrivacyEpoch)
+        store.purgePrivateState(epoch)
+        observedPrivacyEpoch=store.readObservedPrivacyEpoch()
         session=null;visited.clear()
         _scroll.value=ScrollState.Idle
         _screen.value=Screen.Universe
