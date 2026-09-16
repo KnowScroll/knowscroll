@@ -43,6 +43,8 @@ jobs:
         run: |
           pnpm exec tsx scripts/run-isolated-reasoning-journey.ts --receipt artifacts/j004-ci.json
           pnpm exec tsx scripts/verify-reasoning-journey.ts artifacts/j004-ci.json
+      - name: Verify scheduled seven-day private retirement
+        run: pnpm exec tsx scripts/run-isolated-retirement-journey.ts artifacts/reasoning-retirement-ci.json
       - name: Verify interrupted reasoning runtime cleanup
         run: pnpm exec tsx scripts/verify-reasoning-cleanup.ts
       - name: Preserve sanitized interruption evidence

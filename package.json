@@ -9,6 +9,7 @@
   "scripts": {
     "dev:api": "tsx apps/api/src/main.ts",
     "dev:worker": "tsx apps/worker/src/main.ts",
+    "maintenance:reasoning": "tsx apps/worker/src/reasoning/maintenance-main.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
