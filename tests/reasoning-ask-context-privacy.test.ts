@@ -105,6 +105,16 @@ async function waitForBlocked(pool:pg.Pool,blockerPid:number,message:string):Pro
  assert.fail(message);
 }
 
+async function waitForExpiry(pool:pg.Pool,expiresAt:Date):Promise<void> {
+ const deadline=Date.now()+5_000;
+ while(Date.now()<deadline) {
+  const expired=(await pool.query<{expired:boolean}>('SELECT clock_timestamp()>=$1 AS expired',[expiresAt])).rows[0]!.expired;
+  if(expired) return;
+  await new Promise(resolve=>setTimeout(resolve,10));
+ }
+ assert.fail('Ask compiler session did not expire while its source lock was held');
+}
+
 async function ageWithdrawalForTest(pool:pg.Pool,jobId:string):Promise<void> {
  await pool.query('ALTER TABLE reasoning_job DISABLE TRIGGER reasoning_withdrawal_clock_guard');
  try { await pool.query("UPDATE reasoning_job SET withdrawn_at=clock_timestamp()-interval '169 hours' WHERE id=$1",[jobId]); }
@@ -165,32 +175,35 @@ test('Ask context rejects foreign universes and stale epochs before publishing a
 test('a compiler blocked on its final source lock rechecks expiry and cannot outrun Clear History',async()=>{
  await withReasoningContextSchema('ask_context_expiry_clear_race',async pool=>{
   const graph=await seedAskGraph(pool),clearer=await addSession(pool,graph.scope.universeId);
-  await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1",[graph.scope.sessionId]);
+  const expiresAt=(await pool.query<{expires_at:Date}>("UPDATE device_session SET expires_at=clock_timestamp()+interval '2 seconds' WHERE id=$1 RETURNING expires_at",[graph.scope.sessionId])).rows[0]!.expires_at;
   const blocker=await pool.connect();
   let blockerOpen=true;
+  let pendingCompile:Promise<unknown>|undefined;
+  let pendingClear:Promise<unknown>|undefined;
   try {
    await blocker.query('BEGIN');
    await blocker.query('SELECT id FROM asset WHERE id=$1 FOR UPDATE',[graph.assetId]);
    const pid=Number((await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0]!.pid);
-   const pendingCompile=inTransaction(pool,client=>compileDirectAskContext(client,graph.scope,{
+   pendingCompile=inTransaction(pool,client=>compileDirectAskContext(client,graph.scope,{
     contextId:graph.contextId,jobId:graph.jobId,askId:graph.askId,
    },resolverFor(graph)));
    void pendingCompile.catch(()=>{});
    await waitForBlocked(pool,pid,'Ask compiler never waited on the locked source asset');
 
-   const pendingClear=inTransaction(pool,async client=>{
+   pendingClear=inTransaction(pool,async client=>{
     const scope=await authenticateAndLock(client,clearer.token);
     return clearScrollHistory(client,scope,{requestId:randomUUID(),expectedPrivacyEpoch:0,confirmation:'clear-scroll-history'});
    });
    void pendingClear.catch(()=>{});
-   await new Promise(resolve=>setTimeout(resolve,600));
+   await waitForExpiry(pool,expiresAt);
    await blocker.query('COMMIT');blockerOpen=false;
    await assert.rejects(pendingCompile,error=>error instanceof ReasoningDenied&&error.code==='context_inactive_session');
-   const receipt=await pendingClear;
+   const receipt=await pendingClear as {privacyEpoch:number};
    assert.equal(receipt.privacyEpoch,1);
   } finally {
    if(blockerOpen) await blocker.query('ROLLBACK');
    blocker.release();
+   await Promise.allSettled([pendingCompile,pendingClear].filter((promise):promise is Promise<unknown>=>promise!==undefined));
   }
   await assertNoAskContext(pool,graph);
   assert.equal(await count(pool,'explicit_ask','id',graph.askId),0);
