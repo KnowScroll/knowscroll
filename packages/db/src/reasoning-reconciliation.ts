@@ -10,6 +10,7 @@ type Reservation={id:string;attempt_id:string;bucket_id:string;amount:string;sta
 type Accounting={attempt_id:string;universe_id:string;state:string;binding_hash:string|null;runtime_policy_version:string|null;output_authority:string;review_required:boolean};
 type Receipt={id:string;attempt_id:string;remote_disposition:'terminal'|'unconfirmed';outcome:string;input_tokens:number|null;output_tokens:number|null;cache_read_tokens:number|null;cache_write_tokens:number|null;cost_micro_usd:number|null};
 type ReconciliationResult={receiptId:string;attemptId:string;fingerprint:string;replayed:boolean;settlementId?:string;revision?:number;reviewRequired:boolean};
+type PreviousSettlement={id:string;revision:number;usage:Usage};
 
 const max=9007199254740991n;
 const asBigInt=(value:string|number):bigint=>{
@@ -38,6 +39,17 @@ const usageValue=(basis:string,usage:Usage):bigint|null=>{
 const receiptUsage=(receipt:Receipt):Usage=>({inputTokens:receipt.input_tokens,outputTokens:receipt.output_tokens,
  cacheReadTokens:receipt.cache_read_tokens,cacheWriteTokens:receipt.cache_write_tokens,costMicroUsd:receipt.cost_micro_usd});
 const text=(value:bigint)=>value.toString();
+const mergeUsage=(previous:Usage,incoming:Usage):{usage:Usage;decreases:boolean}=>{
+ let decreases=false;
+ const merge=(prior:number|null,next:number|null):number|null=>{
+  if(next===null) return prior;
+  if(prior!==null&&next<prior) {decreases=true;return prior;}
+  return next;
+ };
+ return {usage:{inputTokens:merge(previous.inputTokens,incoming.inputTokens),outputTokens:merge(previous.outputTokens,incoming.outputTokens),
+  cacheReadTokens:merge(previous.cacheReadTokens,incoming.cacheReadTokens),cacheWriteTokens:merge(previous.cacheWriteTokens,incoming.cacheWriteTokens),
+  costMicroUsd:merge(previous.costMicroUsd,incoming.costMicroUsd)},decreases};
+};
 
 async function withTransaction<T>(db:pg.Pool,fn:(client:pg.PoolClient)=>Promise<T>):Promise<T> {
  const client=await db.connect();
@@ -54,28 +66,25 @@ async function freeze(
  client:pg.PoolClient,accounting:Accounting,reservations:Reservation[],
 ):Promise<'held'|'released'> {
  await pauseBuckets(client,reservations.map(reservation=>reservation.bucket_id));
- const remoteReleased=reservations.filter(reservation=>reservation.handling==='remote').every(reservation=>reservation.state==='released');
+ const remoteReservations=reservations.filter(reservation=>reservation.handling==='remote');
+ const remoteReleased=remoteReservations.length>0&&remoteReservations.every(reservation=>reservation.state==='released');
  await client.query(`UPDATE reasoning_accounting SET review_required=true,reconciliation_hold=true,idempotency_hold=true,
   liability_state='held',remote_state=$2,remote_disposition=CASE WHEN $2='released' THEN 'terminal' ELSE remote_disposition END,
   all_duties_closed_at=NULL WHERE attempt_id=$1`,[accounting.attempt_id,remoteReleased?'released':'held']);
  return remoteReleased?'released':'held';
 }
 
-function snapshot(reservations:Reservation[]):Usage {
- const value=(basis:string):number|null=>{
-  const row=reservations.find(reservation=>reservation.usage_basis===basis&&reservation.usage_known);
-  return row?Number(asBigInt(row.recognized)):null;
- };
- return {inputTokens:value('input_tokens'),outputTokens:value('output_tokens'),cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:value('cost_micro_usd')};
+async function previousSettlement(client:pg.PoolClient,attemptId:string):Promise<PreviousSettlement|undefined> {
+ const row=(await client.query(`SELECT id,revision,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micro_usd
+  FROM reasoning_settlement WHERE attempt_id=$1 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[attemptId])).rows[0];
+ return row?{id:row.id,revision:row.revision,usage:{inputTokens:row.input_tokens,outputTokens:row.output_tokens,
+  cacheReadTokens:row.cache_read_tokens,cacheWriteTokens:row.cache_write_tokens,costMicroUsd:row.cost_micro_usd}}:undefined;
 }
 
 async function appendSettlement(
- client:pg.PoolClient,receipt:Receipt,reservations:Reservation[],adjustments:Array<{bucketId:string;delta:bigint}>,liability:'held'|'partially_settled'|'settled',remote:'held'|'released',
+ client:pg.PoolClient,receipt:Receipt,previous:PreviousSettlement|undefined,usage:Usage,adjustments:Array<{bucketId:string;delta:bigint}>,liability:'held'|'partially_settled'|'settled',remote:'held'|'released',
 ):Promise<{settlementId:string;revision:number}> {
- const previous=(await client.query(
-  `SELECT id,revision FROM reasoning_settlement WHERE attempt_id=$1 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[receipt.attempt_id],
- )).rows[0] as {id:string;revision:number}|undefined;
- const settlementId=randomUUID(),revision=(previous?.revision??0)+1,usage=snapshot(reservations);
+ const settlementId=randomUUID(),revision=(previous?.revision??0)+1;
  const fingerprint=(await client.query('SELECT fingerprint FROM reasoning_receipt WHERE id=$1',[receipt.id])).rows[0].fingerprint;
  await client.query(`INSERT INTO reasoning_settlement
   (id,attempt_id,receipt_id,receipt_fingerprint,revision,supersedes_settlement_id,basis,liability,remote_concurrency,
@@ -103,23 +112,27 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
   FROM reasoning_reservation WHERE attempt_id=$1 ORDER BY bucket_id FOR UPDATE`,[receipt.attempt_id])).rows as Reservation[];
  await client.query('SELECT id FROM reasoning_bucket WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[reservations.map(row=>row.bucket_id)]);
 
+ const previous=await previousSettlement(client,receipt.attempt_id);
+ const merged=mergeUsage(previous?.usage??{inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:null},receiptUsage(receipt));
  const terminal=(await client.query(`SELECT outcome FROM reasoning_receipt
   WHERE attempt_id=$1 AND remote_disposition='terminal' ORDER BY recorded_at,id`,[receipt.attempt_id])).rows as Array<{outcome:string}>;
  const contradictory=terminal.length>1&&new Set(terminal.map(row=>row.outcome)).size>1;
- const unknown=accounting.binding_hash===null||accounting.runtime_policy_version===null||reservations.some(reservation=>reservation.usage_basis==='unknown'||reservation.handling==='unknown');
+ const remoteReservations=reservations.filter(reservation=>reservation.handling==='remote');
+ const financialReservations=reservations.filter(reservation=>reservation.handling==='budget'||reservation.handling==='rate');
+ const unknown=accounting.binding_hash===null||accounting.runtime_policy_version===null||remoteReservations.length===0||financialReservations.length===0||reservations.some(reservation=>reservation.usage_basis==='unknown'||reservation.handling==='unknown');
  const decreases=reservations.some(reservation=>{
-  const next=usageValue(reservation.usage_basis,receiptUsage(receipt));
+  const next=usageValue(reservation.usage_basis,merged.usage);
   return next!==null&&reservation.usage_known&&next<asBigInt(reservation.recognized);
  });
- if(accounting.review_required||contradictory||unknown||decreases) {
+ if(accounting.review_required||contradictory||unknown||merged.decreases||decreases) {
   const remoteState=await freeze(client,accounting,reservations);
-  const settlement=await appendSettlement(client,receipt,reservations,[],'held',remoteState);
+  const settlement=await appendSettlement(client,receipt,previous,previous?.usage??{inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:null},[],'held',remoteState);
   return {...settlement,reviewRequired:true};
  }
 
  const adjustments:Array<{bucketId:string;delta:bigint}>=[];
  for(const reservation of reservations) {
-  const next=usageValue(reservation.usage_basis,receiptUsage(receipt)),prior=asBigInt(reservation.recognized),amount=asBigInt(reservation.amount);
+  const next=usageValue(reservation.usage_basis,merged.usage),prior=asBigInt(reservation.recognized),amount=asBigInt(reservation.amount);
   if(reservation.handling==='remote') {
    if(!reservation.usage_known) await client.query(`UPDATE reasoning_reservation SET usage_known=true,recognized=1 WHERE id=$1`,[reservation.id]);
    if(receipt.remote_disposition==='terminal'&&reservation.state==='held') {
@@ -134,7 +147,8 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
   if(next===null) continue;
   const first=!reservation.usage_known;
   const consumed=reservation.handling==='rate'?(next>amount?next:amount):next;
-  const delta=first?consumed:next-prior;
+  const priorConsumed=reservation.handling==='rate'?(prior>amount?prior:amount):prior;
+  const delta=first?consumed:consumed-priorConsumed;
   if(delta<0n) throw new Error('Decreasing usage reached settlement mutation');
   if(first) {
    const bucket=await client.query(`UPDATE reasoning_bucket SET reserved=reserved-$2::bigint,consumed=consumed+$3::bigint,
@@ -143,11 +157,13 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
    if(bucket.rowCount!==1) throw new Error('Reasoning reservation underflow');
    await client.query("UPDATE reasoning_reservation SET state='accounted',usage_known=true,recognized=$2::bigint WHERE id=$1 AND state='held'",[reservation.id,text(next)]);
    adjustments.push({bucketId:reservation.bucket_id,delta});
-  } else if(delta>0n) {
-   await client.query(`UPDATE reasoning_bucket SET consumed=consumed+$2::bigint,paused=paused OR $3 WHERE id=$1`,
-    [reservation.bucket_id,text(delta),next>amount]);
+  } else if(next>prior) {
+   if(delta>0n) {
+    await client.query(`UPDATE reasoning_bucket SET consumed=consumed+$2::bigint,paused=paused OR $3 WHERE id=$1`,
+     [reservation.bucket_id,text(delta),next>amount]);
+    adjustments.push({bucketId:reservation.bucket_id,delta});
+   }
    await client.query('UPDATE reasoning_reservation SET recognized=$2::bigint WHERE id=$1',[reservation.id,text(next)]);
-   adjustments.push({bucketId:reservation.bucket_id,delta});
   }
  }
 
@@ -157,7 +173,7 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
  const allKnown=financial.every(row=>row.usage_known);
  const anyKnown=financial.some(row=>row.usage_known);
  const remote=current.filter(row=>row.handling==='remote');
- const terminalRemote=remote.every(row=>row.state==='released');
+ const terminalRemote=remote.length>0&&remote.every(row=>row.state==='released');
  const liability=allKnown?'settled':anyKnown?'partially_settled':'held';
  const remoteState=terminalRemote?'released':'held';
  const close=allKnown&&terminalRemote;
@@ -166,7 +182,7 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
   closure_basis=CASE WHEN $6 THEN 'evidence' ELSE NULL END,risk_closure_id=NULL,
   all_duties_closed_at=CASE WHEN $6 THEN clock_timestamp() ELSE NULL END
   WHERE attempt_id=$1`,[receipt.attempt_id,liability,remoteState,terminalRemote?'terminal':'unconfirmed',!close,close]);
- const settlement=await appendSettlement(client,receipt,current,adjustments,liability,remoteState);
+ const settlement=await appendSettlement(client,receipt,previous,merged.usage,adjustments,liability,remoteState);
  return {...settlement,reviewRequired:false};
 }
 
@@ -175,12 +191,14 @@ export function createReasoningReconciliation(db:pg.Pool) {
   async recordAndSettleReceipt(input:unknown,origin:TrustedReasoningReceiptOrigin):Promise<ReconciliationResult> {
    return withTransaction(db,async client=>{
     const appended=await appendRestrictedReasoningReceipt(client,input,origin);
-    if(appended.replayed) return {...appended,reviewRequired:false};
+    if(appended.replayed) {
+     const accounting=(await client.query('SELECT review_required FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE',[appended.attemptId])).rows[0];
+     const previous=await previousSettlement(client,appended.attemptId);
+     return {...appended,settlementId:previous?.id,revision:previous?.revision,reviewRequired:Boolean(accounting?.review_required)};
+    }
     const settled=await settleReceipt(client,appended.receiptId);
     return {...appended,...settled};
    });
   },
  };
 }
-
-export {settleReceipt};

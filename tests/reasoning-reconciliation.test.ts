@@ -17,8 +17,8 @@ const reconciliation=createReasoningReconciliation(pool);
 async function seed(identity:Identity,bindings:Binding[]):Promise<Seed> {
  const attemptId=randomUUID(),requestId=randomUUID(),dispatchId=randomUUID(),setId=randomUUID(),permitId=randomUUID();
  await pool.query(`INSERT INTO reasoning_accounting
-  (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,state,dispatch_id,dispatch_committed_at,binding_hash,runtime_policy_version)
-  VALUES($1,$2,$3,$4,'route','profile',100,clock_timestamp()+interval '1 hour','dispatch_committed',$5,clock_timestamp(),$6,'policy')`,
+  (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,state,dispatch_id,dispatch_committed_at,binding_hash,input_reservation_ceiling,runtime_policy_version)
+  VALUES($1,$2,$3,$4,'route','profile',100,clock_timestamp()+interval '1 hour','dispatch_committed',$5,clock_timestamp(),$6,100,'policy')`,
   [attemptId,identity.scope.universeId,identity.scope.privacyEpoch,requestId,dispatchId,'c'.repeat(64)]);
  await pool.query(`INSERT INTO reasoning_permit(id,attempt_id,universe_id,privacy_epoch,reservation_set_id,expires_at,state,dispatch_id,consumed_at)
   VALUES($1,$2,$3,$4,$5,clock_timestamp()+interval '1 hour','consumed',$6,clock_timestamp())`,
@@ -80,19 +80,45 @@ test('overage pauses budget and rate keeps its reserved floor without an early r
  assert.deepEqual(await bucket(record.reservations[1]!.bucketId),{reserved:'0',consumed:'20',paused:false});
 });
 
+test('rate cumulative usage within a reserved floor does not double charge',async()=>{
+ const owner=await provisionIdentity(),record=await seed(owner,[{...totalRate,amount:100},remote]);
+ await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:10,outputTokens:0,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:null}}),'worker');
+ await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:20,outputTokens:0,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:null}}),'worker');
+ assert.deepEqual(await bucket(record.reservations[0]!.bucketId),{reserved:'0',consumed:'100',paused:false});
+ assert.deepEqual(await reservation(record.reservations[0]!.id),{state:'accounted',recognized:'20',usage_known:true});
+});
+
+test('split nullable cumulative fields merge before total-token settlement',async()=>{
+ const owner=await provisionIdentity(),record=await seed(owner,[totalRate,remote]);
+ await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:5,outputTokens:null,cacheReadTokens:2,cacheWriteTokens:null,costMicroUsd:null}}),'worker');
+ await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:null,outputTokens:3,cacheReadTokens:null,cacheWriteTokens:4,costMicroUsd:null}}),'worker');
+ assert.deepEqual(await reservation(record.reservations[0]!.id),{state:'accounted',recognized:'8',usage_known:true});
+ assert.deepEqual((await pool.query(`SELECT input_tokens,output_tokens,cache_read_tokens,cache_write_tokens
+  FROM reasoning_settlement WHERE attempt_id=$1 ORDER BY revision DESC LIMIT 1`,[record.attemptId])).rows[0],
+  {input_tokens:'5',output_tokens:'3',cache_read_tokens:'2',cache_write_tokens:'4'});
+});
+
 test('contradictory terminal and decreasing cumulative evidence freeze reconciliation',async()=>{
  const owner=await provisionIdentity(),record=await seed(owner,[input,remote]),first=receipt(record);
  await reconciliation.recordAndSettleReceipt(first,'worker');
  await reconciliation.recordAndSettleReceipt(receipt(record,{remoteDisposition:'unconfirmed'}),'worker');
  assert.equal((await pool.query('SELECT remote_state FROM reasoning_accounting WHERE attempt_id=$1',[record.attemptId])).rows[0].remote_state,'released');
  const before=await reservation(record.reservations[0]!.id);
- const frozen=await reconciliation.recordAndSettleReceipt(receipt(record,{outcome:'error'}),'worker');
+ const contradiction=receipt(record,{outcome:'error'}),frozen=await reconciliation.recordAndSettleReceipt(contradiction,'worker');
  assert.equal(frozen.reviewRequired,true);assert.deepEqual(await reservation(record.reservations[0]!.id),before);
  assert.equal((await bucket(record.reservations[0]!.bucketId)).paused,true);
  assert.equal((await pool.query('SELECT remote_state FROM reasoning_accounting WHERE attempt_id=$1',[record.attemptId])).rows[0].remote_state,'released');
+ assert.equal((await reconciliation.recordAndSettleReceipt(contradiction,'worker')).reviewRequired,true);
+ assert.equal((await pool.query(`SELECT input_tokens FROM reasoning_settlement WHERE attempt_id=$1 ORDER BY revision DESC LIMIT 1`,[record.attemptId])).rows[0].input_tokens,'5');
  const other=await seed(await provisionIdentity(),[input,remote]);
  await reconciliation.recordAndSettleReceipt(receipt(other),'worker');
  assert.equal((await reconciliation.recordAndSettleReceipt(receipt(other,{usage:{inputTokens:4,outputTokens:4,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:null}}),'worker')).reviewRequired,true);
+});
+
+test('missing remote reservation freezes legacy-incomplete reconciliation',async()=>{
+ const owner=await provisionIdentity(),record=await seed(owner,[input]);
+ assert.equal((await reconciliation.recordAndSettleReceipt(receipt(record),'worker')).reviewRequired,true);
+ assert.equal((await bucket(record.reservations[0]!.bucketId)).paused,true);
 });
 
 test('old-epoch late receipt settles retained accounting without resurrecting private graph',async()=>{
