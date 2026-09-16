@@ -35,6 +35,12 @@ jobs:
         run: pnpm exec tsx scripts/run-isolated-session-journey.ts
       - name: Verify retryable history clear and universe isolation
         run: pnpm exec tsx scripts/run-isolated-history-journey.ts
+      - name: Verify reasoning crash and late-usage boundaries
+        run: |
+          pnpm exec tsx scripts/run-isolated-reasoning-journey.ts --receipt artifacts/j004-ci.json
+          pnpm exec tsx scripts/verify-reasoning-journey.ts artifacts/j004-ci.json
+      - name: Verify interrupted reasoning runtime cleanup
+        run: pnpm exec tsx scripts/verify-reasoning-cleanup.ts
   android:
     runs-on: ubuntu-latest
     steps:
