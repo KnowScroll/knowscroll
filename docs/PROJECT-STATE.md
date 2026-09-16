@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning admission and reconciliation primitives implemented; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning primitives and J004 synthetic fault proof verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## What exists
 
@@ -19,7 +19,7 @@ Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax c
 
 - Pinned AI SDK/MiniMax certification adapter, fsynced attempt journal and explicit quota-gated CLI. Three live synthetic cases passed on September 16: exact JSON, native thinking/tool call and native continuation. This separate tool does not dispatch ordinary product jobs.
 
-- [ADR-0012](decisions/0012-reasoning-admission-and-reconciliation.md) and strict shared reasoning metadata schemas define durable admission/dispatch uncertainty and late usage after privacy clear. Migration `0004_reasoning_storage.sql` and [storage/privacy helpers](operations/reasoning-storage.md) implement a separate private graph, retained accounting, history-clear erasure, strict receipt append and bounded cleanup. Migration `0005_reasoning_runtime.sql` and [atomic execution primitives](operations/reasoning-runtime.md) add fenced admission, single-use dispatch authorization, unknown-outcome recovery, cumulative settlement and an unwired worker invocation boundary. Fair scheduling, J004 process proof and product dispatch remain unimplemented.
+- [ADR-0012](decisions/0012-reasoning-admission-and-reconciliation.md) and strict shared reasoning metadata schemas define durable admission/dispatch uncertainty and late usage after privacy clear. Migration `0004_reasoning_storage.sql` and [storage/privacy helpers](operations/reasoning-storage.md) implement a separate private graph, retained accounting, history-clear erasure, strict receipt append and bounded cleanup. Migration `0005_reasoning_runtime.sql` and [atomic execution primitives](operations/reasoning-runtime.md) add fenced admission, single-use dispatch authorization, unknown-outcome recovery, cumulative settlement and an unwired worker invocation boundary. [J004](journeys/J004.md) verifies separate-process faults, late accounting and interruption cleanup with local fixtures. Fair scheduling and product dispatch remain unimplemented.
 
 ## What is not built
 
@@ -47,13 +47,13 @@ Storage/privacy #44: [database and regression evidence](journeys/evidence/reason
 
 Atomic primitives #45: [SQL/HTTP and regression evidence](journeys/evidence/reasoning-runtime/README.md). Typecheck, 130 total backend tests (12 baseline + 118 additional), two verifier rejection cases and isolated J001/J002/J003 passed. Admission/reconciliation tests cover lock waits, stale fences, all-or-nothing reservations, unknown outcomes, cumulative nullable usage and overages. The integrated HTTP fixture verifies committed intent before dispatch, clear during a pending response and late settlement without private resurrection. This is one-process fixture proof, not J004 or product provider execution.
 
-Last development observation: `2026-09-16T08:57:28.885Z`. API healthy, worker heartbeat fresh, all four released migration checksums present (before the #45 release); two completed jobs remain present. The earlier wave-three emulator observation showed both existing Traces and the privacy control at epoch zero; it was not rerun in this backend-only wave. Run `pnpm state` for current status.
+Last development observation: `2026-09-16T09:44:50.540Z`. API healthy, worker heartbeat fresh, all five released migration checksums present; two completed jobs remain present. The earlier wave-three emulator observation showed both existing Traces and the privacy control at epoch zero; it was not rerun in this backend-only wave. Run `pnpm state` for current status.
 
-## Next work after atomic reasoning primitives
+## Next work after J004 synthetic process proof
 
 [Coordination #29](https://github.com/KnowScroll/knowscroll/issues/29) records the clear-history wave; [#21](https://github.com/KnowScroll/knowscroll/issues/21) and [#13](https://github.com/KnowScroll/knowscroll/issues/13) retain earlier delivery evidence. Parent epics remain open. ADR-0010 defines implemented bootstrap clear and separates future pause, semantic reset, account deletion, backup retention and typed semantic proposal read sets.
 
-Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37) records completed provider certification. [#42](https://github.com/KnowScroll/knowscroll/issues/42) accepts the production reasoning admission and unknown-outcome protocol under #7. [#44 storage/privacy](https://github.com/KnowScroll/knowscroll/issues/44) implements the first database slice. [#45 atomic admission/reconciliation](https://github.com/KnowScroll/knowscroll/issues/45) implements the development primitives. Next: [#46 J004 fault proof](https://github.com/KnowScroll/knowscroll/issues/46), following the [implementation plan](operations/reasoning-implementation-plan.md). J004 remains planned; ordinary product provider jobs remain disabled. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
+Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37) records completed provider certification. [#42](https://github.com/KnowScroll/knowscroll/issues/42) accepts the production reasoning admission and unknown-outcome protocol under #7. [#44 storage/privacy](https://github.com/KnowScroll/knowscroll/issues/44) implements the first database slice. [#45 atomic admission/reconciliation](https://github.com/KnowScroll/knowscroll/issues/45) implements the development primitives. [#46 J004 fault proof](https://github.com/KnowScroll/knowscroll/issues/46) verifies the synthetic protocol harness. Next are the fairness, authorized-context/proposal and lifecycle gates in the [implementation plan](operations/reasoning-implementation-plan.md); ordinary product provider jobs remain disabled. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
 
 ## Component lanes
 
@@ -61,7 +61,7 @@ Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37)
 |---|---|---|
 | Mobile | [#3](https://github.com/KnowScroll/knowscroll/issues/3) | apps/mobile; renderer/navigation contracts coordinated first |
 | Core | [#4](https://github.com/KnowScroll/knowscroll/issues/4), then #5/#6 | events, privacy lifecycle, full Composer and semantic substrate |
-| Reasoning | [#7](https://github.com/KnowScroll/knowscroll/issues/7) | worker runtime; atomic admission/reconciliation primitives complete; J004 proof next |
+| Reasoning | [#7](https://github.com/KnowScroll/knowscroll/issues/7) | worker runtime; atomic primitives and J004 synthetic proof complete; fairness/context/lifecycle gates remain |
 | Coordinator | [#2](https://github.com/KnowScroll/knowscroll/issues/2), [#12](https://github.com/KnowScroll/knowscroll/issues/12) | identity boundary, shared contracts, integration and journey evidence |
 
 The owner reports a token plan of 300 million tokens per five hours. ADR-0011 verifies the subscription route and enforces a much smaller cap plus a quota preflight before every certification request. Three live calls ran in wave four; post-run quota was 99% interval / 95% weekly. This is a dated shared-plan observation, not a current balance or cash-spend authorization. Cutroom needs a reachable configured host and file-import transport. No provider key is needed for the sourced-Scroll journey. Do not paste credentials into issues or commits.

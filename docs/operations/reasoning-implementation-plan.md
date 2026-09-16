@@ -1,6 +1,6 @@
 # Reasoning admission: implementation and verification plan
 
-Status: storage/privacy implemented in #44 and atomic execution primitives in #45; J004 fault proof remains planned, following [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md). Shared metadata schemas, SQL storage, history-clear integration, a restricted receipt append helper and bounded retention cleanup exist. Atomic admission, cumulative settlement and an unwired single-invocation worker boundary also exist. Fair scheduling, product dispatch and J004 proof do not. Parent [#7](https://github.com/KnowScroll/knowscroll/issues/7) remains open.
+Status: storage/privacy implemented in #44 and atomic execution primitives in #45; J004 synthetic process proof implemented in #46, following [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md). Shared metadata schemas, SQL storage, history-clear integration, a restricted receipt append helper and bounded retention cleanup exist. Atomic admission, cumulative settlement and an unwired single-invocation worker boundary also exist. J004 covers process faults and interruption cleanup with local fixtures. Fair scheduling and product dispatch remain unimplemented. Parent [#7](https://github.com/KnowScroll/knowscroll/issues/7) remains open.
 
 ## Release order and ownership
 
