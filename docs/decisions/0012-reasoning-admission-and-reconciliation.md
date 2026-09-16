@@ -1,10 +1,10 @@
 # ADR-0012 — Durable reasoning admission and uncertain outcomes
 
-Date: 2026-09-16. Status: accepted as a design contract in [#42](https://github.com/KnowScroll/knowscroll/issues/42). Protocol and metadata contracts only; no database runtime, paid dispatcher or proposal application is implemented by this ADR.
+Date: 2026-09-16. Status: accepted as a design contract in [#42](https://github.com/KnowScroll/knowscroll/issues/42). The design decision remains the protocol authority. Follow-up #44 implements [SQL storage and privacy helpers](../operations/reasoning-storage.md); atomic admission, paid dispatch and proposal application remain unimplemented.
 
 ## Context and decision
 
-[ADR-0011](0011-minimax-certification.md) proved three bounded development cases. Its file journal is not a production scheduler. The existing `job` table is exclusively a deterministic `project_keep` projection, tied to a Ledger event, with an aggregate retry counter. Widening it would mix transactional replay with externally billed uncertainty. Add a separate reasoning record family in a future ordered migration, retaining the existing worker unchanged.
+[ADR-0011](0011-minimax-certification.md) proved three bounded development cases. Its file journal is not a production scheduler. The existing `job` table is exclusively a deterministic `project_keep` projection, tied to a Ledger event, with an aggregate retry counter. Widening it would mix transactional replay with externally billed uncertainty. Use a separate reasoning record family (migration 0004), retaining the existing worker unchanged.
 
 KnowScroll owns admission, immutable request identity, reservations, fencing, reconciliation and deterministic application. The SDK executes exactly one already-admitted request with retries disabled. A returned answer is evidence of a transport result; it does not establish an applicable semantic proposal. Chapter [21](../architecture/target/21-REASONING-RUNTIME.md) and [22](../architecture/target/22-GLOBAL-EXECUTION.md) remain the full target. This ADR replaces their illustrative job-first/SQLite-style transaction recipe with PostgreSQL universe-first locking.
 

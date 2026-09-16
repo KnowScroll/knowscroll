@@ -63,7 +63,7 @@
       "component": "Reasoning Plane",
       "responsibility": "Global jobs, steps, attempts, budgets and isolation",
       "path": "apps/worker/src/providers",
-      "status": "certification-and-admission-contracts-only-product-runtime-planned",
+      "status": "certified-adapter-storage-and-privacy-helpers-product-dispatch-planned",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/7"
     },
     {

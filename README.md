@@ -19,7 +19,7 @@ Clear Scroll history removes recorded encounters and saved Traces, preserves the
 
 A separate [MiniMax development certification](docs/journeys/evidence/wave4-certification/README.md) passed three live synthetic cases: JSON, a tool call with native thinking, and exact native continuation. Product reasoning remains unimplemented; the [runner guide](docs/operations/minimax-certification.md) defines the bounded experiment.
 
-The accepted [reasoning admission protocol](docs/decisions/0012-reasoning-admission-and-reconciliation.md) defines the next implementation boundary: durable attempts, reservations, privacy fences and late usage. Its schemas are implemented; its database runtime is planned.
+The accepted [reasoning admission protocol](docs/decisions/0012-reasoning-admission-and-reconciliation.md) defines the next implementation boundary: durable attempts, reservations, privacy fences and late usage. Its metadata schemas and [storage/privacy helpers](docs/operations/reasoning-storage.md) are implemented. Atomic admission, dispatch and crash reconciliation remain the next step.
 
 ## Chosen stack
 
