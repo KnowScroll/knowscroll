@@ -1,0 +1,23 @@
+{
+  "kind": "instrumented-real-postgresql-before-counterprobe",
+  "observedAt": "2026-09-16T16:11:21.179Z",
+  "dependencies": {
+    "pg": "8.23.0",
+    "pgPool": "3.14.0"
+  },
+  "instrumentation": "Gate the first end call of one released disposable Pool client; all PostgreSQL transport and forced DROP are real. This extends the library disconnect window deterministically.",
+  "poolEndResolvedBeforeBackendDisconnect": true,
+  "observedErrors": [
+    {
+      "origin": "pool",
+      "phase": "forced_database_drop",
+      "sqlState": "57P01"
+    }
+  ],
+  "databaseAbsent": true,
+  "providerCalls": 0,
+  "limits": [
+    "Not an uninstrumented reproduction or proof of the exact CI error origin/SQLSTATE.",
+    "Only a newly created disposable database was removed."
+  ]
+}
