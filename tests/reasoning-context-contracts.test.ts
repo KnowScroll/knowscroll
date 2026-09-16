@@ -36,6 +36,10 @@ test('sealed context shape rejects incomplete, duplicate and substituted depende
  assert.equal(directContextPayload.safeParse(foreign).success,false);
  const substituted=structuredClone(good);Object.assign(substituted.dependencies[5]!,{expiresAt:'2027-01-01T00:00:00.000Z'});
  assert.equal(directContextPayload.safeParse(substituted).success,false);
+ const extra=structuredClone(good),extraId=randomUUID();
+ extra.assets.push({...extra.assets[0]!,assetId:extraId});
+ extra.dependencies.push({kind:'asset',id:extraId,revision:1,hash:'a'.repeat(64)});
+ assert.equal(directContextPayload.safeParse(extra).success,false);
  const policy=structuredClone(good);policy.dependencies[6]!.hash='b'.repeat(64);
  assert.equal(directContextPayload.safeParse(policy).success,false);
 });
