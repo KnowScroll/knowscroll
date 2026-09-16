@@ -147,11 +147,29 @@ test('fairness SQL retained accounting protects scope, idempotency, debt, and pr
 
       await inTransaction(pool, async (client) => {
         await lockFairnessResources(client, [attemptId]);
-        await settleFairness(client, attemptId, 3, {inputTokens: 50, outputTokens: 50});
+        await settleFairness(client, attemptId, 3, {inputTokens: 200, outputTokens: 100});
       });
-      assert.deepEqual((await pool.query("SELECT credit::text FROM reasoning_fairness_universe WHERE policy_version=$1 AND class='interactive' AND universe_id=$2", [policy.version, universeId])).rows[0], {credit: '-80'});
+      assert.deepEqual((await pool.query("SELECT credit::text FROM reasoning_fairness_universe WHERE policy_version=$1 AND class='interactive' AND universe_id=$2", [policy.version, universeId])).rows[0], {credit: '-280'});
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_delta WHERE attempt_id=$1', [attemptId])).rows[0]?.count, 3);
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job')).rows[0]?.count, 0);
+    });
+  });
+
+  await t.test('a later measurement may refund only a previously unknown conservative field', async () => {
+    await withSchema('partial_known_refund', async (pool) => {
+      await seedPolicy(pool);
+      const universeId = await seedUniverse(pool);
+      const attemptId = await seedAccounting(pool, universeId, 'dispatch_committed');
+      await bindFairAttempt(pool, attemptId, universeId, 20);
+
+      await inTransaction(pool, async (client) => {
+        await lockFairnessResources(client, [attemptId]);
+        await settleFairness(client, attemptId, 1, {inputTokens: null, outputTokens: 5});
+        await settleFairness(client, attemptId, 2, {inputTokens: 5, outputTokens: 5});
+      });
+      assert.deepEqual((await pool.query("SELECT credit::text FROM reasoning_fairness_universe WHERE policy_version=$1 AND class='interactive' AND universe_id=$2", [policy.version, universeId])).rows[0], {credit: '10'});
+      assert.deepEqual((await pool.query('SELECT recognized_charge::text FROM reasoning_fairness_attempt WHERE attempt_id=$1', [attemptId])).rows[0], {recognized_charge: '10'});
+      assert.deepEqual((await pool.query('SELECT prior_charge::text,recognized_charge::text,class_delta FROM reasoning_fairness_delta WHERE attempt_id=$1 AND revision=2', [attemptId])).rows[0], {prior_charge: '105', recognized_charge: '10', class_delta: '95'});
     });
   });
 });
