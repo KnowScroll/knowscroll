@@ -33,6 +33,14 @@ The weights `5:6:4:3:2` are initial policy parameters, not production service pe
 
 Fixture fairness checks assume fitting requests, available physical capacity and no unresolved settlement debt. Rate saturation, pauses and unknown calls can invalidate those assumptions. The model must report that condition and missed deadlines, rather than report service success. Its JSON snapshot/replay checks are in-memory deterministic evidence; concurrent SQL clients, durable commit acknowledgement loss, privacy erasure and host failure need runtime tests.
 
+## Fixture bounds and limits
+
+The default policy permits 64 ready candidates, 32 candidate/empty probes and 16 admissions per tick. Sustained traces use a larger explicit finite cohort (up to 1,024 ready candidates, 128 probes); each event records any override. Head bypass examines one candidate per universe probe and persists the cursor. This bounds modeled selection work, not SQL query latency or the simulation's retained-accounting scans.
+
+Snapshots include outer and per-class inner visits, globally increasing inner generations, credits/debt, the monotonic virtual clock and immutable policy hash. They are trusted model-generated JSON. The rate abstraction has one fixture-wide window ID advanced by a trusted rollover event; each reservation retains its original ID. This proves separation of renewed rate capacity from uncertain remote/budget holds, not a provider's actual window rules.
+
+[Recorded evidence](../journeys/evidence/reasoning-fairness/README.md) includes genuine dynamic arrival, settlement, rollover and restart events, with assertions and per-class/per-universe normalized service totals.
+
 ## Runtime handoff
 
 After design acceptance, one named follow-up implements durable fair selection and atomic claim/reservation under ADR-0012's universe-first locking. It must preserve class/universe cursor generations, open visits, credit/debt and original accounting identities. No separately committed fairness wrapper around `claimJob`/`reserveAttempt` is sufficient. The follow-up must include restart/concurrent-worker, blocked-candidate, overage, unknown-hold, rate-window and privacy-clear tests before claiming the SQL scheduler is fair.

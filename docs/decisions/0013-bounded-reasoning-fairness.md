@@ -1,6 +1,6 @@
 # ADR-0013 — Bounded reasoning fairness
 
-Date: 2026-09-16. Status: proposed for independent review in [#54](https://github.com/KnowScroll/knowscroll/issues/54). This is a scheduling contract and executable model, not a released SQL scheduler or provider authorization. It refines the fairness paragraph of [ADR-0012](0012-reasoning-admission-and-reconciliation.md); all dispatch, accounting and privacy guards there remain required.
+Date: 2026-09-16. Status: accepted after independent adversarial review in [#54](https://github.com/KnowScroll/knowscroll/issues/54). This is a scheduling contract and executable model, not a released SQL scheduler or provider authorization. It refines the fairness paragraph of [ADR-0012](0012-reasoning-admission-and-reconciliation.md); all dispatch, accounting and privacy guards there remain required.
 
 ## Context
 
@@ -22,6 +22,10 @@ The reproducible fixture uses base quantum 100 and maximum normalized request ch
 | background_inquiry | 3 | 300 | 400 |
 | housekeeping | 2 | 200 | 300 |
 | Each universe within a class | 1 | 100 | 200 |
+
+The default fixture bounds are 64 ready candidates, 32 probes and 16 admissions per tick. Sustained traces explicitly use up to 1,024 ready candidates, 128 probes and 16 admissions; individual events record overrides such as one admission or two probes. One candidate per universe is examined per probe; an ineligible head advances that universe's candidate cursor. Empty class/universe probes also consume the budget. Queue grouping scans only the configured finite ready set. The model's retained-accounting scans and credit housekeeping are not a runtime complexity claim. A runtime ready index and measured transaction limits remain required.
+
+An outer traversal visits the five class positions once in canonical order. An inner traversal visits the current finite universe set within that class in stable sorted order; a turn can drain several requests. `visitGeneration` and globally increasing `innerGeneration` identify earned visits. An unfinished inner turn is stored per class when the class yields, so resumption does not grant another universe quantum. Snapshots also carry the monotonic virtual clock, original rate-window IDs and a hash of the complete immutable policy. Changing a basis under the same version is rejected by enqueue, selection, settlement and rollover.
 
 These weights retain ADR-0012's initial tuning choice. They are not calibrated production percentages, requests per second, token throughput or latency promises. A runtime deployment needs its own versioned, reviewed route policy and measured capacity. Support for arbitrary user weights is deferred.
 
@@ -79,4 +83,4 @@ Concurrent-worker tests must prove cursor CAS retries, no duplicate quantum, no 
 
 The source concepts are [Shreedhar and Varghese, Deficit Round Robin](https://openscholarship.wustl.edu/cse_research/339/) (variable-size work and carried deficit) and [Ghodsi et al., Dominant Resource Fairness](https://www.usenix.org/conference/nsdi11/dominant-resource-fairness-fair-allocation-multiple-resource-types) (normalizing heterogeneous resource shares). The hierarchy, caps, settlement and uncertainty rules here are KnowScroll policy decisions, not results proved by those papers.
 
-Model source, policy parameters, reproducible commands, traces, counterexamples and independent review will be recorded in the linked operations/evidence guide before acceptance. #54 closes on those artifacts, not SQL runtime or a new product journey. Create one named runtime implementation follow-up only after this contract is accepted; keep #7 and the context/proposal/privacy gates open.
+The [model guide](../operations/reasoning-fairness.md) records commands and interpretation; the [evidence](../journeys/evidence/reasoning-fairness/README.md) records source hashes, complete per-scenario policies, dynamic event sequences, observations and independent review. The model uses one fixture-wide rate window and trusted explicit rollover events; it does not emulate multiple provider clocks or certify window timing. Candidates and Receipts are trusted synthetic inputs. Snapshot replay uses trusted model-produced JSON, not an untrusted-input or durable-storage recovery API. All modeled rate dimensions share one fixture clock; independent route/provider windows remain a runtime follow-up. #54 closes on those artifacts, not SQL runtime or a new product journey. Create one named runtime implementation follow-up only after this contract is accepted; keep #7 and the context/proposal/privacy gates open.
