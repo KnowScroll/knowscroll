@@ -163,7 +163,7 @@ async function currentSession(client:pg.PoolClient,scope:{sessionId:string;devic
 
 async function lockAssets(client:pg.PoolClient,assetIds:string[]):Promise<void> {
   const sorted=[...new Set(assetIds)].sort(codepointCompare);
-  const rows=await client.query<{id:string}>('SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[sorted]);
+  const rows=await client.query<{id:string}>('SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',[sorted]);
   if(rows.rowCount!==sorted.length) deny('stale_asset');
 }
 
