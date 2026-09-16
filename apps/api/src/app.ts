@@ -1,11 +1,12 @@
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { exposureInput, interactionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
+import { exposureInput, historyClearInput, interactionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
 import {
   pool,
   transaction,
   authenticateAndLock,
   ensureDevelopmentSession,
+  clearScrollHistory,
   revokeSession,
   UnauthorizedSession,
   type AuthScope,
@@ -57,6 +58,15 @@ export function buildApp(developmentToken: string) {
       await revokeSession(client, scope);
     });
     return reply.code(204).send();
+  });
+
+  app.post('/v1/history/clear', async (req, reply) => {
+    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = historyClearInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid history clear request');
+      return clearScrollHistory(client, scope, parsed.data);
+    });
+    return reply.code(200).send(receipt);
   });
 
   app.get('/v1/universe', async req => authenticated(req.headers.authorization, async (scope, client) => {
