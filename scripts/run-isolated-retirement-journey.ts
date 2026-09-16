@@ -9,7 +9,9 @@ import pg from 'pg';
 
 const config=Object.fromEntries((await readFile('.env','utf8').catch(()=>''))
  .split('\n').filter(line=>/^[A-Z_][A-Z0-9_]*=/.test(line)).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
-const base=new URL(process.env.DATABASE_URL??config.DATABASE_URL??'');
+let base:URL;
+try {base=new URL(process.env.DATABASE_URL??config.DATABASE_URL??'');}
+catch {console.error(JSON.stringify({error:'retirement_fixture_invalid_database_config'}));process.exit(1);}
 const name=`knowscroll_test_retirement_${randomUUID().replaceAll('-','')}`;
 assert.match(name,/^knowscroll_test_retirement_[a-f0-9]{32}$/);
 const adminUrl=new URL(base);adminUrl.pathname='/postgres';
@@ -103,7 +105,9 @@ try {
  const receipt={version:1,receiptId:randomUUID(),attemptId:due.attemptId,requestId:due.requestId,dispatchId:due.dispatchId,
   routeId:due.policy.routeId,routeProfileVersion:due.policy.routeProfileVersion,evidenceKind:'original_transport',observedAt:new Date().toISOString(),
   remoteDisposition:'terminal',outcome:'success',httpStatus:200,usage:{inputTokens:1,outputTokens:1,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:null}};
- await reconciliation.recordAndSettleReceipt(receipt,'worker');assert.equal((await reconciliation.recordAndSettleReceipt(receipt,'worker')).replayed,true);
+ await reconciliation.recordAndSettleReceipt(receipt,'worker');
+ assert.deepEqual((await db.query('SELECT state,output_authority,liability_state,remote_state FROM reasoning_accounting WHERE attempt_id=$1',[due.attemptId])).rows[0],{state:'responded',output_authority:'withdrawn',liability_state:'settled',remote_state:'released'});
+ assert.equal((await reconciliation.recordAndSettleReceipt(receipt,'worker')).replayed,true);
  assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[due.jobId])).rowCount,0);
  await stopChild();assert.deepEqual(childExit,{code:0,signal:null});assert(stoppedEvent);assert(!stderrObserved);
  assert(batches.some(b=>b.retiredJobs!>0));assert(batches.some(b=>b.purgedAccounting!>0));
