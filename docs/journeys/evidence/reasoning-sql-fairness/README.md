@@ -17,6 +17,8 @@ The PostgreSQL tests demonstrate:
 
 The [restart receipt](postgres-restart.json) records a populated migration-0001–0005 upgrade, unchanged old checksums and data, an actual disposable PostgreSQL process stop/restart, identical durable snapshots, resumed admission and receipt replay with no second effect. Its original revision and source hashes are retained. [Execution metadata](execution.json) links the local regression results and exact logs by hash.
 
+Type checking and the final backend suite passed at the receipt source: 12 baseline plus 182 additional tests (194 total). Local J001–J004, verifier rejection tests and the five-case interruption checker passed earlier in this integrated wave; their original receipts are not relabeled. Reviewed-head Linux and Android results belong to the linked PR.
+
 ## Limits
 
 These are synthetic PostgreSQL service-opportunity and safety tests, not elapsed-time fairness, throughput, production multi-node capacity or useful recommendation evidence. The restart uses PostgreSQL fast shutdown; it does not prove power-loss or storage-corruption recovery. Rate-window identities are tested with trusted A/B policies; automatic provider window timing remains absent. Unknown remote outcomes and permanent overload can block service indefinitely.
