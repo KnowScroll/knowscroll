@@ -30,7 +30,7 @@ The factory methods own `BEGIN`/`COMMIT`/`ROLLBACK`; call them with a pool, not 
 | `withdrawJob` | Withdraws output authority across the Job, releases only unconsumed reservations, and preserves possibly sent commitments. Multi-attempt withdrawal takes all affected bucket locks in one order |
 | `recoverAttempt` | Closes provably unconsumed work as not_sent or preserves a consumed intent as unknown, fences obsolete execution and never resends it |
 
-Lock order is universe → Job → Step → Attempt/accounting → shared buckets sorted by UUID. Late reconciliation after private erasure needs only universe → retained accounting → sorted buckets. Job/Step completion, automatic retries, lease-renewal scheduling and general background execution are not supplied by these primitives. Explicit retry policy and dependency compilation remain later gates. Fair scheduling now uses the separate combined SQL entry point.
+For sealed direct contexts, admission first locks the immutable original session under the universe lock (ADR-0017). Lock order is universe → original session when bound → Job → Step → Attempt/accounting → shared buckets sorted by UUID. Late reconciliation after private erasure needs only universe → retained accounting → sorted buckets. Job/Step completion, automatic retries, lease-renewal scheduling and general background execution are not supplied by these primitives. Explicit retry policy and dependency compilation remain later gates. Fair scheduling now uses the separate combined SQL entry point.
 
 ## One invocation boundary
 

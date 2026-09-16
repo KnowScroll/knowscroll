@@ -24,6 +24,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0016 — Literal exposure-anchored Ask facts](0016-explicit-ask-facts.md): source-only direct intent, strict replay/privacy boundaries; no reasoning queue or mobile answer.
 
+- [ADR-0017 — Sealed literal Ask context](0017-sealed-ask-context.md): separate family, original-session authority and immutable scoped Job binding.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

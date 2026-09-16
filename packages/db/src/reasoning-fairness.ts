@@ -1,3 +1,4 @@
+import {lockBoundContextSession} from './reasoning-context-session.ts';
 import type pg from 'pg';
 import {preflightAttemptInTransaction,reserveAttemptInTransaction,REASONING_ADMISSION_LIMITS,type ClaimJobInput,type ReserveAttemptInput,type ReservedAttempt} from './reasoning-admission.js';
 import {ReasoningDenied,type ReasoningAuthority} from './reasoning-runtime-policy.js';
@@ -89,7 +90,8 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
   const domain=(await client.query<{privacy_epoch:number}>('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED',[d.universe.universe_id])).rows[0];
   if(!domain){await lockCursor(client,input.policyVersion,d);closeInner(d);await save(client,input.policyVersion,d);return {event:observation(d,'temporarily_blocked','universe_locked')};}
   if(!d.ready){await lockCursor(client,input.policyVersion,d);await client.query('UPDATE reasoning_fairness_universe SET ready_count=0,credit=LEAST(credit,0),candidate_cursor=0 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,d.klass,d.universe.universe_id]);closeInner(d);await save(client,input.policyVersion,d);return {event:observation(d,'ineligible','empty_membership')};}
-  // Private row locks precede the shared cursor and bucket namespace.
+  // Original session precedes Job; dependency locks precede shared resources.
+  await lockBoundContextSession(client,d.ready);
   const job=(await client.query('SELECT class,status,privacy_epoch,deadline FROM reasoning_job WHERE id=$1 FOR UPDATE',[d.ready.jobId])).rows[0];
   if(!job){deny('fairness_cas_retry');}
   if(job.class!==d.klass||job.status!=='queued'||domain.privacy_epoch!==d.ready.privacyEpoch||job.privacy_epoch!==domain.privacy_epoch||d.ready.deadlineMissed){

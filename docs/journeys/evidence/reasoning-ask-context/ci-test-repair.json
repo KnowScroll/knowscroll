@@ -1,0 +1,17 @@
+{
+  "check": "ask-family-race-test-observation",
+  "observedAt": "2026-09-16T19:01:57.769596+00:00",
+  "failedCi": "https://github.com/KnowScroll/knowscroll/actions/runs/35136838137",
+  "failedRevision": "f73257889c2cedbf4d9e478a7aa30ce08bd1dfc6",
+  "failure": "Expected SQL rejection was observed too late; node test runner reported unhandledRejection before assert.rejects was attached.",
+  "correctedRevision": "ea4a5be698de92df795176bca18313dd26b15bf7",
+  "productionSourceChanged": false,
+  "typecheckExitCode": 0,
+  "testExitCode": 0,
+  "tests": 323,
+  "failures": 0,
+  "testLogSha256": "14712574e2e08fc114a5936faf064a19ab170cbc774c0ce144d3eee3dec46d00",
+  "testFileSha256": "92f754ea0a9f01aa364e4e93120f6c1920381e980a3d83dc7125b4bedea67370",
+  "providerCalls": 0,
+  "historicalIssue57Cause": "still unknown and unrelated to this observed assertion race"
+}
