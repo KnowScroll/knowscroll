@@ -1,0 +1,12 @@
+{
+  "journey": "J003",
+  "observedAt": "2026-09-16",
+  "trigger": "SIGTERM delivered to the isolated runner after the first worker startup log",
+  "workerStarted": true,
+  "runnerExitCode": 1,
+  "orphanedJ003Databases": 0,
+  "reasoningApiWorkerVerifierPidsBefore": [],
+  "reasoningApiWorkerVerifierPidsAfter": [],
+  "result": "passed",
+  "limits": "This covers the observed SIGTERM path only; it does not prove cleanup after SIGKILL or host loss."
+}
