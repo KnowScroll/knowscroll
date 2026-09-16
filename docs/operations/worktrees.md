@@ -5,9 +5,9 @@ Prepared under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`:
 | Directory / branch | Issue | Local API port | Database |
 |---|---|---|---|
 | `mobile` / `codex/31-history-control` | #31 (parent #3), Android privacy control | 4312 | knowscroll_mobile |
-| `core` / `codex/30-history-clear` | #30 (parent #4), scoped DB/API clear | 4313 | knowscroll_core |
-| `reasoning` / `codex/32-history-journey` | #32 (parent #12), isolated J003 | 4314 | knowscroll_reasoning |
-| `coordination` / `codex/29-privacy-wave` | #29 integration | 4315 | knowscroll_coordination |
+| `core` / `codex/39-certification-runner` | #39 (parent #7), bounded certification runner | 4313 | knowscroll_core |
+| `reasoning` / `codex/38-minimax-adapter` | #38 (parent #7), candidate SDK adapter | 4314 | knowscroll_reasoning |
+| `coordination` / `codex/37-provider-certification` | #37 integration | 4315 | knowscroll_coordination |
 
 Each has its own ignored `.env` and local Android configuration. All use the dedicated SSD PostgreSQL cluster at port55432 and the same SSD package/SDK/Gradle caches. Databases and API ports are separate. These lanes are prepared, not autonomous agents already running.
 
@@ -22,3 +22,5 @@ Open Claude Code or Codex in the relevant directory and give the opening brief i
 Before starting a lane, fetch and fast-forward or rebase onto current main as appropriate. Do not reset an active worktree or share a checked-out branch. The coordinator integrates PRs into the main checkout and verifies the combined journey.
 
 To add another lane, use standard `git worktree add -b codex/<issue>-<name> <SSD-path> main`; provision a distinct local database and PORT in ignored .env, then source scripts/env.sh, install dependencies, run dev-init.sh and mobile-config.sh. Never reuse another running lane’s port or silently point at its database.
+
+Wave four is coordinated in [#37](https://github.com/KnowScroll/knowscroll/issues/37). The mobile lane is idle after #31. Adapter/runner workers receive no provider credentials; only the coordinator executes the bounded live certification after offline verification. ADR-0011 owns the boundary.

@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "runId": "ba8ce143-ee5f-418e-ac19-81479e9286d0",
+  "live": true,
+  "limits": {
+    "maxRequests": 4,
+    "maxReservedTokens": 100000,
+    "maxInputBytes": 16384,
+    "maxOutputTokens": 4096,
+    "requestTimeoutMs": 60000,
+    "runTimeoutMs": 300000
+  },
+  "reservedUnits": 6360,
+  "attempts": [
+    {
+      "version": 1,
+      "record": "prepared",
+      "attempt": 1,
+      "caseId": "json",
+      "requestHash": "c0c06f8ec7317300612e40084cbd74aeced96b222b17e2f1af10121ddcc8fa76",
+      "inputBytes": 227,
+      "maxOutputTokens": 512,
+      "reservedUnits": 739,
+      "status": "completed",
+      "remoteOutcome": "known",
+      "dispatched": true,
+      "httpStatus": 200,
+      "providerRequestIdHash": "23a3d67c55e5e4f697eb72c4ba39eb59b57f8c72eb3623837d4df83164bb21b6",
+      "responseContentHash": "e67be95c2359e6cfdd740da4c4cc36004f52b66da36340be748e7191546fdd98",
+      "usage": {
+        "inputTokens": 60,
+        "outputTokens": 13,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costUsd": null
+      },
+      "checks": {
+        "quotaAccepted": true,
+        "completed": true,
+        "dispatched": true,
+        "httpSuccess": true,
+        "requestHashPresent": true,
+        "stopReasonAccepted": true,
+        "jsonParsedAndExact": true
+      }
+    },
+    {
+      "version": 1,
+      "record": "prepared",
+      "attempt": 2,
+      "caseId": "tool-call",
+      "requestHash": "21b5581a5b4aac138cd6f5f6dea2a49e96e14ae757dbf887788e8520f907a69b",
+      "inputBytes": 508,
+      "maxOutputTokens": 2048,
+      "reservedUnits": 2556,
+      "status": "completed",
+      "remoteOutcome": "known",
+      "dispatched": true,
+      "httpStatus": 200,
+      "providerRequestIdHash": "4bbf18248a7e801cb8fe1d17a85234b451d068ab7a2d3859532ecbf41911cc01",
+      "responseContentHash": "6081d4d697f448ddb664c9c75102806ead99f1f4aac76cbc92f9f1ddd09edcf6",
+      "usage": {
+        "inputTokens": 281,
+        "outputTokens": 55,
+        "cacheReadTokens": 165,
+        "cacheWriteTokens": 0,
+        "costUsd": null
+      },
+      "checks": {
+        "quotaAccepted": true,
+        "completed": true,
+        "dispatched": true,
+        "httpSuccess": true,
+        "requestHashPresent": true,
+        "stopReasonIsToolCall": true,
+        "nativeThinkingReturned": true,
+        "exactToolCall": true
+      }
+    },
+    {
+      "version": 1,
+      "record": "prepared",
+      "attempt": 3,
+      "caseId": "tool-continuation",
+      "requestHash": "78781fa517f912344253625b45260ea03ef7b8c8b3453b76fb8eb6e211e89e46",
+      "inputBytes": 1017,
+      "maxOutputTokens": 2048,
+      "reservedUnits": 3065,
+      "status": "completed",
+      "remoteOutcome": "known",
+      "dispatched": true,
+      "httpStatus": 200,
+      "providerRequestIdHash": "34367eb0dd98833b3787c4b930f7c36e887f23d19c9b5510e0b5281d45932f99",
+      "responseContentHash": "8cdb118e0f1a90e9b9563336677d7f8b9a992c10c3a2429d7b0efe36d46b88bf",
+      "usage": {
+        "inputTokens": 81,
+        "outputTokens": 13,
+        "cacheReadTokens": 445,
+        "cacheWriteTokens": 0,
+        "costUsd": null
+      },
+      "checks": {
+        "quotaAccepted": true,
+        "completed": true,
+        "dispatched": true,
+        "httpSuccess": true,
+        "requestHashPresent": true,
+        "stopReasonAccepted": true,
+        "jsonParsedAndExact": true,
+        "toolResultMatchedCall": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+
+> knowscroll@ typecheck /Volumes/Mrigesh SSD/knowscroll-worktrees/coordination
+> tsc --noEmit

@@ -21,7 +21,7 @@
       "component": "Ledger",
       "responsibility": "Canonical events, idempotency and causal history",
       "path": "packages/db",
-      "status": "owned-events-with-privacy-epochs",
+      "status": "owned-events-epochs-and-retryable-history-clear",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/4"
     },
     {
@@ -63,7 +63,7 @@
       "component": "Reasoning Plane",
       "responsibility": "Global jobs, steps, attempts, budgets and isolation",
       "path": "apps/worker/src/providers",
-      "status": "port-only",
+      "status": "development-certification-only-product-runtime-planned",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/7"
     },
     {
@@ -105,7 +105,7 @@
       "component": "Evaluation / Operations",
       "responsibility": "Journey evidence and live inspection",
       "path": "scripts",
-      "status": "J001-and-J002",
+      "status": "J001-J002-J003-with-Android-privacy-recovery",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/12"
     }
   ]

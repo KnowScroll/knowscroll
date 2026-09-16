@@ -1,0 +1,13 @@
+{
+  "startedAt": "2026-09-16T06:27:48.752332+00:00",
+  "finishedAt": "2026-09-16T06:27:53.848680+00:00",
+  "sourceCommit": "53657bf88128d32038600cd6145a17fcc96bae21",
+  "exitCode": 0,
+  "stderrPresent": false,
+  "sourceSha256": {
+    "scripts/certify-minimax.ts": "f7831dfd56583eff34c9d4376da6d017ad595b82732305cd62649aa20cab9f57",
+    "apps/worker/src/providers/minimax-certification.ts": "e5f37db1e50f0668d6893d7d40fc0f5edc8e71f017972fae20367d23af03a9ca",
+    "apps/worker/src/providers/certification-journal.ts": "adcf68b8ea4f6f636e8d084096aebc6c6079b890417373a940fbd588c1bde048",
+    "apps/worker/src/providers/certification-contract.ts": "b1a015cb74273bc813646afe8a79e7b58bf5fee04fa09db5395e35da416791f0"
+  }
+}

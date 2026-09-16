@@ -17,6 +17,8 @@ The Android app reads sourced Scrolls, records visible exposures and explicit ke
 
 Clear Scroll history removes recorded encounters and saved Traces, preserves the shared library, and signs out other devices. Its retry and local-restoration boundaries are defined in [ADR-0010](docs/decisions/0010-clear-scroll-history.md). [Project state](docs/PROJECT-STATE.md) distinguishes implementation from the broader target and links runtime evidence.
 
+A separate [MiniMax development certification](docs/journeys/evidence/wave4-certification/README.md) passed three live synthetic cases: JSON, a tool call with native thinking, and exact native continuation. Product reasoning remains unimplemented; the [runner guide](docs/operations/minimax-certification.md) defines the bounded experiment.
+
 ## Chosen stack
 
 | Part | Choice |
@@ -24,7 +26,7 @@ Clear Scroll history removes recorded encounters and saved Traces, preserves the
 | Android | Kotlin + Jetpack Compose; native Android first |
 | API / deterministic core | TypeScript, Node 22, Fastify |
 | History, state and jobs | PostgreSQL 16; separate API and worker processes |
-| Reasoning | AI SDK behind a provider port; MiniMax certification pending |
+| Reasoning | AI SDK behind a provider port; bounded MiniMax development certification passed |
 | Video generation | [Cutroom](https://github.com/KnowScroll/Cutroom), separately deployed |
 
 See the [ADRs](docs/decisions/README.md) for alternatives and consequences. One repository lets contracts evolve together; deployments remain independent.
