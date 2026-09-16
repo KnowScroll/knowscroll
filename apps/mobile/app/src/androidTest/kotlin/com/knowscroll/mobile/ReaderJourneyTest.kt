@@ -147,9 +147,9 @@ class ReaderJourneyTest {
                 externalWindowObserved = true
                 externalWindowPackage = activePackage
             } else if (activePackage == journeyPackage) {
-                browserUnavailableObserved = compose.onAllNodesWithText(
+                browserUnavailableObserved = runCatching { compose.onAllNodesWithText(
                     "A browser could not open this source. You can still read its address above."
-                ).fetchSemanticsNodes().isNotEmpty()
+                ).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
             }
             externalWindowObserved || browserUnavailableObserved
         }
