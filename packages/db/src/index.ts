@@ -22,3 +22,4 @@ export async function lockUniverse(c: pg.PoolClient, universeId = OWNER_ID) {
  if (!row.rowCount) throw new Error('Universe not found');
 }
 export * from './identity.ts';
+export * from './privacy.ts';
