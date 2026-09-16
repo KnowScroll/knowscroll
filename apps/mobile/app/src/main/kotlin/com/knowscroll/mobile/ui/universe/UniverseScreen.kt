@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,12 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -33,15 +33,26 @@ import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.ui.UniverseState
+import com.knowscroll.mobile.ui.HistoryClearState
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
 
 @Composable
-fun UniverseScreen(state: UniverseState, onEnterScroll: () -> Unit, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun UniverseScreen(
+    state: UniverseState,
+    historyClear: HistoryClearState,
+    onEnterScroll: () -> Unit,
+    onRetry: () -> Unit,
+    onRequestHistoryClear: () -> Unit,
+    onCancelHistoryClear: () -> Unit,
+    onConfirmHistoryClear: () -> Unit,
+    onRetryHistoryClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text("KNOWSCROLL", style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
@@ -64,25 +75,33 @@ fun UniverseScreen(state: UniverseState, onEnterScroll: () -> Unit, onRetry: () 
                         modifier = Modifier.semantics { contentDescription = "Retry loading the universe" }
                     ) { Text(stringResource(R.string.action_retry)) }
                 }
-                is UniverseState.Loaded -> LoadedBlock(state.universe, onEnterScroll)
+                is UniverseState.Loaded -> LoadedBlock(state.universe,onEnterScroll)
+            }
+            if(state is UniverseState.Loaded || historyClear !is HistoryClearState.Idle){
+                PrivacyControls(historyClear,onRequestHistoryClear,onRetryHistoryClear)
             }
         }
+        if(historyClear is HistoryClearState.Confirming) ClearHistoryConfirmation(
+            onCancel=onCancelHistoryClear,onConfirm=onConfirmHistoryClear
+        )
     }
 }
 
 @Composable
-private fun LoadedBlock(universe: Universe, onEnterScroll: () -> Unit) {
+private fun LoadedBlock(
+    universe: Universe,
+    onEnterScroll: () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         if (universe.traces.isEmpty()) {
             Text(stringResource(R.string.universe_empty), style = MaterialTheme.typography.bodyLarge, color = Cosmos.MutedOnDark)
         } else {
             Text(stringResource(R.string.traces_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().height(280.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(items = universe.traces, key = { it.eventId }) { trace ->
+                universe.traces.forEach { trace ->
                     Surface(
                         color = Color(0xFF0A1B26),
                         contentColor = Cosmos.InkOnDark,
@@ -114,4 +133,65 @@ private fun LoadedBlock(universe: Universe, onEnterScroll: () -> Unit) {
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Enter Scroll" }
         ) { Text(stringResource(R.string.action_enter_scroll), style = MaterialTheme.typography.titleMedium) }
     }
+}
+
+@Composable
+private fun PrivacyControls(
+    state:HistoryClearState,
+    onRequestHistoryClear:()->Unit,
+    onRetryHistoryClear:()->Unit
+){
+    Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Text(stringResource(R.string.privacy_heading),style=MaterialTheme.typography.labelMedium,color=Cosmos.MutedOnDark)
+        OutlinedButton(
+            onClick=onRequestHistoryClear,
+            enabled=state !is HistoryClearState.Clearing && state !is HistoryClearState.Retryable && state !is HistoryClearState.ReconcileUnavailable && state !is HistoryClearState.SessionUnavailable,
+            colors=ButtonDefaults.outlinedButtonColors(contentColor=Cosmos.Cream),
+            modifier=Modifier.fillMaxWidth().semantics{contentDescription="Clear Scroll history"}
+        ){Text(stringResource(R.string.clear_history_action))}
+        when(state){
+            is HistoryClearState.Clearing -> Text(stringResource(R.string.clear_history_progress),style=MaterialTheme.typography.bodyMedium,color=Cosmos.MutedOnDark)
+            is HistoryClearState.Retryable -> {
+                Text(state.message,style=MaterialTheme.typography.bodyMedium,color=Cosmos.Coral)
+                OutlinedButton(
+                    onClick=onRetryHistoryClear,
+                    colors=ButtonDefaults.outlinedButtonColors(contentColor=Cosmos.Cream),
+                    modifier=Modifier.fillMaxWidth().semantics{contentDescription="Retry the same history clear request"}
+                ){Text(stringResource(R.string.clear_history_retry))}
+            }
+            is HistoryClearState.ReconcileUnavailable -> {
+                Text(state.message,style=MaterialTheme.typography.bodyMedium,color=Cosmos.Coral)
+                OutlinedButton(
+                    onClick=onRetryHistoryClear,
+                    colors=ButtonDefaults.outlinedButtonColors(contentColor=Cosmos.Cream),
+                    modifier=Modifier.fillMaxWidth().semantics{contentDescription="Retry privacy reconciliation"}
+                ){Text(stringResource(R.string.action_retry))}
+            }
+            is HistoryClearState.NeedsConfirmation -> Text(state.message,style=MaterialTheme.typography.bodyMedium,color=Cosmos.Coral)
+            is HistoryClearState.SessionUnavailable -> Text(state.message,style=MaterialTheme.typography.bodyMedium,color=Cosmos.Coral)
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun ClearHistoryConfirmation(onCancel:()->Unit,onConfirm:()->Unit){
+    AlertDialog(
+        onDismissRequest=onCancel,
+        title={Text(stringResource(R.string.clear_history_title))},
+        text={Text(stringResource(R.string.clear_history_effects))},
+        confirmButton={
+            Button(
+                onClick=onConfirm,
+                colors=ButtonDefaults.buttonColors(containerColor=Cosmos.Coral,contentColor=Cosmos.Dark),
+                modifier=Modifier.semantics{contentDescription="Confirm clear Scroll history"}
+            ){Text(stringResource(R.string.clear_history_confirm))}
+        },
+        dismissButton={
+            OutlinedButton(
+                onClick=onCancel,
+                modifier=Modifier.semantics{contentDescription="Cancel clear Scroll history"}
+            ){Text(stringResource(R.string.clear_history_cancel))}
+        }
+    )
 }

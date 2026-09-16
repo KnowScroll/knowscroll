@@ -8,7 +8,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ExposureRequest
 import com.knowscroll.mobile.data.InteractionRequest
+import com.knowscroll.mobile.data.HistoryClearRequest
 import com.knowscroll.mobile.data.StateStore
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -16,6 +18,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.UUID
+import kotlinx.coroutines.delay
 
 /** Real app, real HTTP service, real separate worker and PostgreSQL. No network substitute. */
 @RunWith(AndroidJUnit4::class)
@@ -49,6 +53,31 @@ class RealJourneyTest {
     private fun store() = StateStore(InstrumentationRegistry.getInstrumentation().targetContext)
     private fun writeJson(name:String, json:JSONObject) =
         File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,name).writeText(json.toString(2))
+
+    private suspend fun keepOneScrollAndReturn(): Pair<com.knowscroll.mobile.data.Universe,com.knowscroll.mobile.data.ScrollSession> {
+        val api=ApiClient()
+        waitText("Your universe")
+        compose.onNodeWithContentDescription("Enter Scroll").performClick()
+        compose.waitUntil(15000){store().read()?.exposureId?.isNotEmpty()==true}
+        val opened=store().read() ?: error("Scroll retry envelope was not persisted")
+        waitText(opened.item.title)
+        compose.onNodeWithContentDescription("Keep this Scroll").performClick()
+        waitText("Kept")
+        val kept=store().read() ?: error("Accepted keep was not persisted")
+        compose.onNodeWithContentDescription("Return to the universe").performClick()
+        waitText("Your universe")
+        var current=api.getUniverse()
+        repeat(40){
+            if(current.traces.any{it.assetId==kept.item.assetId})return current to kept
+            delay(250);current=api.getUniverse()
+        }
+        error("Worker did not project the kept Scroll")
+    }
+
+    private fun openClearConfirmation(){
+        compose.onNodeWithContentDescription("Clear Scroll history").performScrollTo().performClick()
+        waitText("Clear Scroll history?")
+    }
 
     /** Phase one exits normally; the host then force-stops the package, which kills app and test processes. */
     @Test fun processDeathPrepare() = runBlocking {
@@ -170,5 +199,98 @@ class RealJourneyTest {
             put("activityRecreation","passed");put("result","passed")
         }
         File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"j001-android.json").writeText(receipt.toString(2))
+    }
+
+    @Test fun clearHistoryConfirmationCancelIsHarmless() = runBlocking {
+        val (before,kept)=keepOneScrollAndReturn()
+        val cachedBefore=store().read() ?: error("Expected cached Scroll before cancellation")
+        openClearConfirmation()
+        compose.onNodeWithContentDescription("Cancel clear Scroll history").performClick()
+        compose.onNodeWithText("Clear Scroll history?").assertDoesNotExist()
+        val after=ApiClient().getUniverse()
+        assertEquals(before.privacyEpoch,after.privacyEpoch)
+        assertEquals(before.traces.map{it.eventId},after.traces.map{it.eventId})
+        assertEquals(kept.clientEventId,store().read()?.clientEventId)
+        assertEquals(cachedBefore.decisionId,store().read()?.decisionId)
+        assertNull(store().readPendingClear())
+    }
+
+    @Test fun clearHistoryClearsNonemptyHistory() = runBlocking {
+        val (before,kept)=keepOneScrollAndReturn()
+        assertTrue(before.traces.isNotEmpty())
+        openClearConfirmation()
+        compose.onNodeWithContentDescription("Confirm clear Scroll history").performClick()
+        compose.waitUntil(20000){store().readPendingClear()==null && store().read()==null}
+        waitText("Your universe")
+        val after=ApiClient().getUniverse()
+        assertEquals(before.privacyEpoch+1,after.privacyEpoch)
+        assertTrue(after.traces.isEmpty())
+        assertNull(store().read())
+        assertTrue(store().readVisited().isEmpty())
+        assertEquals("universe",store().readScreen())
+        assertEquals(after.privacyEpoch,store().readObservedPrivacyEpoch())
+        assertTrue(ApiClient().getFeed().items.any{it.assetId==kept.item.assetId})
+        writeJson("j003-clear-android.json",JSONObject().apply{
+            put("beforePrivacyEpoch",before.privacyEpoch);put("privacyEpoch",after.privacyEpoch)
+            put("clearedAssetId",kept.item.assetId);put("tracesAfter",after.traces.size)
+            put("localSessionCleared",store().read()==null);put("sharedLibraryRetained",true)
+        })
+    }
+
+    @Test fun pendingClearProcessDeathPrepare() = runBlocking {
+        val (before,kept)=keepOneScrollAndReturn()
+        openClearConfirmation()
+        compose.onNodeWithContentDescription("Confirm clear Scroll history").performClick()
+        compose.waitUntil(5000){store().readPendingClear()!=null}
+        val pending=store().readPendingClear() ?: error("Clear request was not persisted before dispatch")
+        delay(750)
+        writeJson("j003-pending-before.json",JSONObject().apply{
+            put("requestId",pending.requestId);put("expectedPrivacyEpoch",pending.expectedPrivacyEpoch)
+            put("confirmation",pending.confirmation);put("assetId",kept.item.assetId)
+            put("decisionId",kept.decisionId);put("exposureId",kept.exposureId)
+            put("beforePrivacyEpoch",before.privacyEpoch);put("phase","before-force-stop")
+        })
+    }
+
+    @Test fun pendingClearProcessDeathRestore() = runBlocking {
+        val before=JSONObject(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"j003-pending-before.json").readText())
+        val pendingAtMethodStart=store().readPendingClear()
+        pendingAtMethodStart?.let{
+            assertEquals(before.getString("requestId"),it.requestId)
+            assertEquals(before.getLong("expectedPrivacyEpoch"),it.expectedPrivacyEpoch)
+            assertEquals(before.getString("confirmation"),it.confirmation)
+        }
+        compose.waitUntil(20000){store().readPendingClear()==null}
+        waitText("Your universe")
+        val after=ApiClient().getUniverse()
+        assertTrue(after.privacyEpoch>before.getLong("expectedPrivacyEpoch"))
+        assertTrue(after.traces.isEmpty())
+        assertNull(store().read())
+        assertTrue(store().readVisited().isEmpty())
+        assertEquals("universe",store().readScreen())
+        writeJson("j003-pending-after.json",JSONObject().apply{
+            put("requestId",before.getString("requestId"));put("expectedPrivacyEpoch",before.getLong("expectedPrivacyEpoch"))
+            put("confirmation",before.getString("confirmation"));put("privacyEpoch",after.privacyEpoch)
+            put("pendingObservedAtMethodStart",pendingAtMethodStart!=null)
+            put("pending",false);put("localSessionCleared",true);put("visitedCleared",true)
+        })
+    }
+
+    @Test fun higherPrivacyEpochPurgesCachedScrollOnForeground() = runBlocking {
+        waitText("Your universe")
+        compose.onNodeWithContentDescription("Enter Scroll").performClick()
+        compose.waitUntil(15000){store().read()?.exposureId?.isNotEmpty()==true}
+        val cached=store().read() ?: error("Expected a cached Scroll")
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        val request=HistoryClearRequest(UUID.randomUUID().toString(),cached.privacyEpoch)
+        val receipt=ApiClient().clearScrollHistory(request)
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        waitText("Your universe")
+        compose.waitUntil(15000){store().read()==null && store().readObservedPrivacyEpoch()>=receipt.privacyEpoch}
+        assertNull(store().read())
+        assertTrue(store().readVisited().isEmpty())
+        assertEquals("universe",store().readScreen())
+        compose.onAllNodesWithText(cached.item.title).assertCountEquals(0)
+        assertTrue(ApiClient().getUniverse().traces.isEmpty())
     }
 }
