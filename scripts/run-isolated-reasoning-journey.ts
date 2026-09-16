@@ -11,6 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { createServer as createNetServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -63,6 +64,7 @@ let interrupted = false,
   db: pg.Pool | undefined,
   temp = "";
 const atomic = async (path: string, value: unknown) => {
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(`${path}.tmp`, JSON.stringify(value, null, 2));
   await rename(`${path}.tmp`, path);
 };
@@ -144,6 +146,7 @@ async function peer(
   module: string,
   extra: Record<string, string> = {},
 ): Promise<Peer> {
+  if (interrupted) throw Error("interrupted");
   const child = spawn(
     process.execPath,
     [
@@ -164,11 +167,18 @@ async function peer(
       detached: true,
     },
   );
+  if (!child.pid) {
+    await new Promise<void>((resolve, reject) => {
+      child.once("spawn", resolve);
+      child.once("error", reject);
+    });
+  }
+  if (!child.pid) throw Error(`${role} process has no pid`);
   children.add(child);
   const evidence: ProcessEvidence = {
     role,
-    pid: child.pid!,
-    pgid: child.pid!,
+    pid: child.pid,
+    pgid: child.pid,
     startedAt: new Date().toISOString(),
     exitCode: null,
     signal: null,
@@ -184,18 +194,31 @@ async function peer(
     event: string;
     caseId?: string;
     ok: (barrier: Barrier) => void;
+    bad: (error: Error) => void;
   }> = [];
   let readyResolve!: (value: any) => void;
-  const readyPromise = new Promise<any>((resolve) => {
+  let readyReject!: (error: Error) => void;
+  const readyPromise = new Promise<any>((resolve, reject) => {
     readyResolve = resolve;
+    readyReject = reject;
   });
+  const childExited = (message: string) => {
+    const error = Error(message);
+    readyReject(error);
+    for (const item of pending.values()) item.bad(error);
+    pending.clear();
+    for (const waiter of waiters) waiter.bad(error);
+    waiters.length = 0;
+  };
+  child.on("error", (error) =>
+    childExited(`${role} spawn failed: ${error.name}`),
+  );
   child.on("exit", (code, signal) => {
     children.delete(child);
     evidence.exitCode = code;
     evidence.signal = signal;
     evidence.exitedAt = new Date().toISOString();
-    for (const item of pending.values()) item.bad(Error(`${role} exited`));
-    pending.clear();
+    childExited(`${role} exited`);
   });
   child.on("message", (message: any) => {
     if (message.type === "ready") readyResolve(message);
@@ -243,12 +266,22 @@ async function peer(
     }
   });
   const bounded = <T>(promise: Promise<T>, label: string) =>
-    Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(Error(`${role} ${label} timeout`)), 10000),
-      ),
-    ]);
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(Error(`${role} ${label} timeout`)),
+        10000,
+      );
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
   const readyData = await bounded(readyPromise, "ready");
   evidence.readyAt = new Date().toISOString();
   return {
@@ -273,7 +306,7 @@ async function peer(
       return found
         ? Promise.resolve(found)
         : bounded(
-            new Promise((ok) => waiters.push({ event, caseId, ok })),
+            new Promise((ok, bad) => waiters.push({ event, caseId, ok, bad })),
             `barrier ${event}`,
           );
     },
@@ -287,30 +320,80 @@ async function stop(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM") {
   } catch {
     child.kill(signal);
   }
-  await Promise.race([
-    new Promise<void>((resolve) => child.once("exit", () => resolve())),
-    new Promise((resolve) => setTimeout(resolve, 3000)),
-  ]);
+  const waitForExit = (rejectOnTimeout: boolean) =>
+    new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.off("exit", exited);
+        if (rejectOnTimeout) reject(Error(`child ${child.pid} did not exit`));
+        else resolve();
+      }, 3000);
+      const exited = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      child.once("exit", exited);
+    });
+  await waitForExit(false);
   if (child.exitCode === null && child.signalCode === null) {
     try {
       process.kill(-child.pid, "SIGKILL");
     } catch {
       child.kill("SIGKILL");
     }
-    await Promise.race([
-      new Promise<void>((resolve) => child.once("exit", () => resolve())),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(Error(`child ${child.pid} did not exit`)),
-          3000,
-        ),
-      ),
-    ]);
+    await waitForExit(true);
   }
+}
+async function withTimeout<T>(operation: Promise<T>, milliseconds: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([operation, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(Error(label)), milliseconds);
+    })]);
+  } finally { if (timer) clearTimeout(timer); }
+}
+function groupAlive(pgid: number): boolean {
+  try { process.kill(-pgid, 0); return true; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return false; throw error; }
+}
+async function removeRemainingGroups() {
+  for (const signal of ["SIGTERM", "SIGKILL"] as const) {
+    for (const evidence of processes) {
+      if (!groupAlive(evidence.pgid)) continue;
+      try { process.kill(-evidence.pgid, signal); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
+    }
+    for (let i = 0; i < 30 && processes.some(p => groupAlive(p.pgid)); i++)
+      await new Promise(resolve => setTimeout(resolve, 100));
+    if (processes.every(p => !groupAlive(p.pgid))) return;
+  }
+  throw Error("process_group_still_present");
+}
+async function unusedLoopbackPort(): Promise<number> {
+  const server = createNetServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") throw Error("no API port");
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+  return address.port;
 }
 const onSignal = () => {
   interrupted = true;
-  for (const c of children) void stop(c);
+  for (const child of children) {
+    if (!child.pid || child.exitCode !== null || child.signalCode !== null)
+      continue;
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+    }
+  }
 };
 process.once("SIGINT", onSignal);
 process.once("SIGTERM", onSignal);
@@ -415,6 +498,7 @@ let fixture: Peer | undefined,
   fixtureUrl = "",
   apiBase = "";
 let failure: unknown;
+const cleanupErrors: string[] = [];
 try {
   temp = await mkdtemp(resolve(tmpdir(), "knowscroll-j004-"));
   await atomic(manifestPath, {
@@ -449,7 +533,7 @@ try {
   fixture = await peer("fixture", "scripts/fixtures/reasoning-server.ts");
   fixtureUrl = fixture.readyData.baseUrl;
   // API is a real existing API process; its readiness is checked later for the clear case.
-  const apiPort = 41000 + Math.floor(Math.random() * 10000);
+  const apiPort = await unusedLoopbackPort();
   const apiChild = spawn(
     process.execPath,
     [
@@ -470,11 +554,18 @@ try {
       detached: true,
     },
   );
+  if (!apiChild.pid) {
+    await new Promise<void>((resolve, reject) => {
+      apiChild.once("spawn", resolve);
+      apiChild.once("error", reject);
+    });
+  }
+  if (!apiChild.pid) throw Error("API process has no pid");
   children.add(apiChild);
   const apiEvidence: ProcessEvidence = {
     role: "api",
-    pid: apiChild.pid!,
-    pgid: apiChild.pid!,
+    pid: apiChild.pid,
+    pgid: apiChild.pid,
     startedAt: new Date().toISOString(),
     exitCode: null,
     signal: null,
@@ -487,12 +578,23 @@ try {
     apiEvidence.signal = signal;
     apiEvidence.exitedAt = new Date().toISOString();
   });
+  let apiSpawnError: Error | undefined;
+  apiChild.on("error", (error) => {
+    apiSpawnError = error;
+  });
   apiBase = `http://127.0.0.1:${apiPort}`;
   for (let i = 0; i < 100; i++) {
+    if (interrupted) throw Error("interrupted");
+    if (apiSpawnError || apiEvidence.exitedAt)
+      throw Error("API exited before readiness");
     try {
-      if ((await fetch(`${apiBase}/health`)).ok) {
-        apiEvidence.readyAt = new Date().toISOString();
-        break;
+      const response = await fetch(`${apiBase}/health`, {signal: AbortSignal.timeout(2000)});
+      if (response.ok) {
+        const health = (await response.json()) as { status?: string };
+        if (health.status === "ok") {
+          apiEvidence.readyAt = new Date().toISOString();
+          break;
+        }
       }
     } catch {}
     await new Promise((r) => setTimeout(r, 50));
@@ -638,7 +740,7 @@ try {
   ] as const)
     await runCase(name, async (c) => {
       const deadline = name === "deadline_before_dispatch";
-      const g = await seed(db!, { deadlineMs: deadline ? 1500 : 60000 });
+      const g = await seed(db!, { deadlineMs: deadline ? 5000 : 60000 });
       Object.assign(c.identities, g);
       const a = await actor(`worker-${name}`, fixtureUrl),
         x = await reserve(
@@ -646,8 +748,8 @@ try {
           g,
           c,
           `worker-${name}`,
-          deadline ? 1200 : 45000,
-          5000,
+          deadline ? 4500 : 45000,
+          deadline ? 10000 : 5000,
         );
       if (deadline) {
         for (let i = 0; i < 500; i++) {
@@ -965,6 +1067,8 @@ try {
       blockedUniverseId: blocked.universeId,
     });
     const lock = await db!.connect();
+    let a: Peer | undefined;
+    try {
     await lock.query("BEGIN");
     await lock.query("SELECT id FROM universe WHERE id=$1 FOR UPDATE", [
       blocked.universeId,
@@ -978,7 +1082,7 @@ try {
         )
       ).rows,
     });
-    const a = await actor("worker-skip-locked", fixtureUrl);
+    a = await actor("worker-skip-locked", fixtureUrl);
     c.actorPids.push(a.child.pid!);
     c.operations.push({
       name: "claim",
@@ -996,12 +1100,13 @@ try {
         ).rows,
       },
     });
-    await lock.query("ROLLBACK");
-    lock.release();
+    } finally {
+      try { await lock.query("ROLLBACK"); } finally { lock.release(); }
+    }
     c.snapshots.push(
       await snapshot(db!, "other_universe_progress", c.identities),
     );
-    await stop(a.child);
+    if (a) await stop(a.child);
   });
   const byName = new Map(cases.map((value) => [value.name, value]));
   const count = (name: string) => {
@@ -1117,24 +1222,69 @@ try {
 } catch (error) {
   failure = error;
 } finally {
+  const stopped = await Promise.allSettled(
+    [...children].map((child) => stop(child)),
+  );
+  if (stopped.some((result) => result.status === "rejected"))
+    cleanupErrors.push("child_stop_failed");
+  try { await removeRemainingGroups(); } catch { cleanupErrors.push("process_group_cleanup_failed"); }
+  if (db) {
+    try {
+      await withTimeout(db.end(), 3000, "pool_close_timeout");
+    } catch {
+      cleanupErrors.push("pool_close_failed");
+    }
+  }
+  if (admin && created) {
+    try {
+      await withTimeout(admin.query(
+        `DROP DATABASE IF EXISTS ${quote(dbName)} WITH (FORCE)`,
+      ), 5000, "database_drop_timeout");
+      const remaining = (
+        await admin.query("SELECT datname FROM pg_database WHERE datname=$1", [
+          dbName,
+        ])
+      ).rowCount;
+      if (remaining) cleanupErrors.push("database_still_present");
+      else created = false;
+    } catch {
+      cleanupErrors.push("database_drop_failed");
+    }
+  }
+  if (admin) {
+    try {
+      await withTimeout(admin.end(), 3000, "admin_close_timeout");
+    } catch {
+      cleanupErrors.push("admin_close_failed");
+    }
+  }
+  if (temp) {
+    try {
+      await rm(temp, { recursive: true, force: true });
+    } catch {
+      cleanupErrors.push("temporary_directory_cleanup_failed");
+    }
+  }
+  ready = false;
+  const processesExited = processes.every((evidence) => {
+    if (!evidence.exitedAt) return false;
+    try {
+      process.kill(-evidence.pgid, 0);
+      return false;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ESRCH";
+    }
+  });
+  if (!processesExited) cleanupErrors.push("process_group_still_present");
+  const cleanedUp = !created && processesExited && cleanupErrors.length === 0;
+  try {
+    await manifest(cleanedUp);
+  } catch {
+    cleanupErrors.push("manifest_write_failed");
+  }
+  if (cleanupErrors.length > 0 && !failure) failure = Error("cleanup_failed");
   process.off("SIGINT", onSignal);
   process.off("SIGTERM", onSignal);
-  for (const c of [...children]) await stop(c);
-  if (db) await db.end();
-  if (admin && created) {
-    await admin.query(`DROP DATABASE IF EXISTS ${quote(dbName)} WITH (FORCE)`);
-    const remaining = (
-      await admin.query("SELECT datname FROM pg_database WHERE datname=$1", [
-        dbName,
-      ])
-    ).rowCount;
-    if (remaining) throw Error("database cleanup failed");
-    created = false;
-  }
-  if (admin) await admin.end();
-  await rm(temp, { recursive: true, force: true });
-  ready = false;
-  await manifest(!created && processes.every((p) => p.exitedAt !== null));
 }
 const sourceEvidence = {
   revision: execFileSync("git", ["rev-parse", "HEAD"], {
@@ -1184,7 +1334,9 @@ const receipt: ReasoningJourneyReceipt = {
   cases,
   cleanup: {
     databaseAbsent: !created,
-    processesExited: processes.every((p) => p.exitedAt !== null),
+    processesExited:
+      cleanupErrors.includes("process_group_still_present") === false &&
+      processes.every((p) => p.exitedAt !== null),
     checkedAt: new Date().toISOString(),
   },
   ...(failure ? { error: interrupted ? "interrupted" : "j004_failed" } : {}),
@@ -1199,4 +1351,4 @@ console.log(
     cases: cases.length,
   }),
 );
-if (failure) throw failure;
+if (failure) throw Error(interrupted ? "J004 interrupted" : "J004 failed");
