@@ -4,10 +4,10 @@ Prepared under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`:
 
 | Directory / branch | Issue | Local API port | Database |
 |---|---|---|---|
-| `mobile` / `codex/62-retirement-privacy` | #62 independent Sol privacy tests | 4312 | knowscroll_mobile |
-| `core` / `codex/62-retirement-review` | #62 independent Terra SQL/concurrency review | 4313 | knowscroll_core |
-| `reasoning` / `codex/62-retirement-runtime` | #62 Terra maintenance runtime and tests | 4314 | knowscroll_reasoning |
-| `coordination` / `codex/62-retirement-integration` | #62 shared retention contract/migration and integration | 4315 | knowscroll_coordination |
+| `mobile` / `codex/64-ask-privacy` | #64 independent Sol privacy tests | 4312 | knowscroll_mobile |
+| `core` / `codex/64-ask-review` | #64 independent Terra SQL/contract review | 4313 | knowscroll_core |
+| `reasoning` / `codex/64-ask-admission` | #64 Terra Ask admission/API and tests | 4314 | knowscroll_reasoning |
+| `coordination` / `codex/64-explicit-ask-integration` | #64 shared source-fact contract/migration and integration | 4315 | knowscroll_coordination |
 
 Each has its own ignored `.env` and local Android configuration. All use the dedicated SSD PostgreSQL cluster at port55432 and the same SSD package/SDK/Gradle caches. Databases and API ports are separate. These lanes are prepared, not autonomous agents already running.
 
@@ -40,3 +40,5 @@ Issue #55 uses coordinator-owned migration 0006, shared transaction/preflight he
 Issue #60 uses Terra for the compiler and focused SQL tests, a separate Terra for independent seal/lock/policy adversaries, and Sol for authentication/privacy counterexamples. Coordinator owns migration 0007, strict contracts, phase composition, original-session Job binding and integration. Completed lane branches retain their original commits; a clean branch does not mean its tree already includes the final squash merge. Inspect live state before reassignment. Issue #62 subsequently records the owner’s seven-day retention decision; see its separate maintenance implementation and deployment evidence.
 
 Issue #62 records the owner’s seven-day decision. Coordinator owns ADR-0015, migration 0008, withdrawal stamping, process verification, CI and integration. Terra implements the maintenance helper/separate worker, Sol independently tests privacy and late usage, and another Terra reviews SQL/concurrency. Prior branches are preserved. No provider calls or normal projection-worker changes.
+
+Issue #64 uses coordinator-owned ADR-0016/migration0009/contracts, Terra DB/API admission, independent Terra SQL/contract review and Sol privacy/HTTP adversaries. Coordinator owns separate-process HTTP restart/retry proof and integration. Prior branches remain retained; no worker shares owner data or launches provider work.

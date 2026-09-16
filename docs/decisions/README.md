@@ -25,3 +25,5 @@ Read the relevant decision before changing its boundary. These choices were made
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
+
+- [ADR-0016 — Literal exposure-anchored Ask facts](0016-explicit-ask-facts.md): source-only direct intent, strict replay/privacy boundaries; no reasoning queue or mobile answer.
