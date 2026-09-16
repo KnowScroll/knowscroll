@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 import test from 'node:test';
 import pg from 'pg';
 
@@ -12,7 +13,6 @@ import {compileDirectContext} from '../packages/db/src/reasoning-context.ts';
 import {seedWithdrawnReasoningGraph} from './helpers/reasoning-maintenance-fixture.ts';
 import {inTransaction,reasoningContextDatabaseUrl,seedDirectContextGraph} from './helpers/reasoning-context-fixture.ts';
 
-const SSD_TEMP_DIRECTORY='/Volumes/Mrigesh SSD/knowscroll-dev/tmp';
 const migrationNames=[
  '0001_bootstrap.sql','0002_identity_epochs.sql','0003_history_clear.sql','0004_reasoning_storage.sql','0005_reasoning_runtime.sql',
  '0006_reasoning_fairness.sql','0007_sealed_reasoning_context.sql','0008_reasoning_retirement.sql','0009_explicit_asks.sql',
@@ -62,7 +62,8 @@ async function seedBoundAskContext(pool:pg.Pool):Promise<AskGraph> {
 
 test('0011 upgrades populated 0010 history exactly once without rewriting sealed or withdrawn rows',async()=>{
  const schema=`idle_direct_upgrade_${randomUUID().replaceAll('-','')}`;
- const directory=await mkdtemp(join(SSD_TEMP_DIRECTORY,'knowscroll-idle-migration-'));
+ // scripts/env.sh routes local TMPDIR to the SSD; CI supplies its own dev root.
+ const directory=await mkdtemp(join(tmpdir(),'knowscroll-idle-migration-'));
  const admin=new pg.Pool({connectionString:reasoningContextDatabaseUrl});
  await admin.query(`CREATE SCHEMA ${schema}`);
  const url=new URL(reasoningContextDatabaseUrl);url.searchParams.set('options',`-c search_path=${schema}`);
