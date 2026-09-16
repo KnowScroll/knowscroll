@@ -100,37 +100,7 @@ function parseRawResponse(text: string): RawResponse | null {
   }
 }
 
-function responseForSdk(rawText: string, response: Response, raw: RawResponse | null): Response {
-  const usage = raw?.usage;
-  const usageRecord = usage !== null && typeof usage === 'object' && !Array.isArray(usage)
-    ? usage as Record<string, unknown>
-    : null;
-  const sdkUsage = {
-    input_tokens: nullableToken(usageRecord?.input_tokens) ?? 0,
-    output_tokens: nullableToken(usageRecord?.output_tokens) ?? 0,
-    ...(nullableToken(usageRecord?.cache_read_input_tokens) !== null
-      ? {cache_read_input_tokens: usageRecord?.cache_read_input_tokens}
-      : {}),
-    ...(nullableToken(usageRecord?.cache_creation_input_tokens) !== null
-      ? {cache_creation_input_tokens: usageRecord?.cache_creation_input_tokens}
-      : {}),
-  };
-  const usageNeedsSdkNormalization = usageRecord === null
-    || sdkUsage.input_tokens !== usageRecord.input_tokens
-    || sdkUsage.output_tokens !== usageRecord.output_tokens
-    || ('cache_read_input_tokens' in usageRecord && !('cache_read_input_tokens' in sdkUsage))
-    || ('cache_creation_input_tokens' in usageRecord && !('cache_creation_input_tokens' in sdkUsage));
-  if (response.ok && raw && usageNeedsSdkNormalization) {
-    // The pinned Anthropic adapter requires usage even though the certification
-    // contract treats absent/invalid provider accounting as unknown. Supplying
-    // zero only to the SDK parser lets it validate the rest of the response;
-    // observations are always computed from the untouched raw response above.
-    return new Response(JSON.stringify({...raw, usage: sdkUsage}), {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-  }
+function responseForSdk(rawText: string, response: Response): Response {
   return new Response(rawText, {
     status: response.status,
     statusText: response.statusText,
@@ -254,7 +224,7 @@ export function createMiniMaxCertificationAdapter(
         transport.httpStatus = response.status;
         const rawText = await response.text();
         transport.rawResponse = parseRawResponse(rawText);
-        return responseForSdk(rawText, response, transport.rawResponse);
+        return responseForSdk(rawText, response);
       };
 
       try {

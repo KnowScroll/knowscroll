@@ -27,7 +27,7 @@ function success(content: unknown[] = [{type: 'text', text: 'ok'}], usage: unkno
 }
 
 async function fixture(
-  handler: (body: Record<string, unknown>, req: import('node:http').IncomingMessage) => {status?: number; body?: unknown; raw?: string} | Promise<{status?: number; body?: unknown; raw?: string}>,
+  handler: (body: Record<string, unknown>, req: import('node:http').IncomingMessage) => {status?: number; body?: unknown; raw?: string; headers?: Record<string, string>} | Promise<{status?: number; body?: unknown; raw?: string; headers?: Record<string, string>}>,
 ): Promise<{baseURL: string; close: () => Promise<void>; requests: () => number}> {
   let count = 0;
   const server: Server = createServer(async (req, res) => {
@@ -38,6 +38,7 @@ async function fixture(
     const result = await handler(JSON.parse(rawBody) as Record<string, unknown>, req);
     res.statusCode = result.status ?? 200;
     res.setHeader('content-type', 'application/json');
+    for (const [name, value] of Object.entries(result.headers ?? {})) res.setHeader(name, value);
     res.end(result.raw ?? JSON.stringify(result.body ?? success()));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -102,6 +103,41 @@ test('uses the real SDK route and preserves native ordered continuation blocks a
   assert.deepEqual(result.nativeContent[0], {type: 'thinking', thinking: 'next', signature: 'response-signature', unknown_field: {n: 1}});
 });
 
+test('continues from the exact raw thinking and tool-use response returned by the first invocation', async (t) => {
+  const firstContent = [
+    {type: 'thinking', thinking: 'opaque reasoning', signature: 'sig-1', vendor_field: {sequence: [3, 1, 2]}},
+    {type: 'tool_use', id: 'call-77', name: 'lookup', input: {key: 'alpha'}, vendor_tag: 'preserve-me'},
+  ];
+  const seenBodies: Record<string, unknown>[] = [];
+  const server = await fixture((body) => {
+    seenBodies.push(body);
+    return seenBodies.length === 1
+      ? {body: {...success(firstContent, {input_tokens: 8, output_tokens: 4}), stop_reason: 'tool_use'}}
+      : {body: success([{type: 'text', text: 'continued'}], {input_tokens: 13, output_tokens: 2})};
+  });
+  t.after(server.close);
+  const adapter = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL});
+  const first = await adapter.invoke(request({
+    messages: [{role: 'user', content: 'Use lookup'}],
+    thinking: 'adaptive',
+    tools: [{name: 'lookup', description: 'Lookup one key', input_schema: {type: 'object', properties: {key: {type: 'string'}}, required: ['key']}}],
+  }));
+  assert.equal(first.outcome, 'completed');
+  assert.deepEqual(first.nativeContent, firstContent);
+
+  const continuation: CertificationRequest['messages'] = [
+    {role: 'user', content: 'Use lookup'},
+    {role: 'assistant', content: first.nativeContent},
+    {role: 'user', content: [{type: 'tool_result', tool_use_id: 'call-77', content: [{type: 'text', text: 'value-alpha'}]}]},
+  ];
+  const second = await adapter.invoke(request({messages: continuation, thinking: 'adaptive'}));
+  assert.equal(second.outcome, 'completed');
+  assert.equal(second.text, 'continued');
+  assert.equal(server.requests(), 2);
+  assert.deepEqual(seenBodies[1]?.messages, continuation);
+  assert.deepEqual((seenBodies[1]?.messages as CertificationRequest['messages'])[1]?.content, firstContent);
+});
+
 for (const status of [429, 500]) {
   test(`does not retry HTTP ${status}`, async (t) => {
     const server = await fixture(() => ({status, body: {error: {message: API_KEY, type: 'fixture_error'}}}));
@@ -161,7 +197,7 @@ test('deadline aborts an in-flight request and reports uncertain dispatched time
   assert.deepEqual(result.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
 });
 
-test('missing usage remains nullable while malformed HTTP 200 is invalid', async (t) => {
+test('missing usage remains nullable and is an SDK compatibility failure', async (t) => {
   let caseNumber = 0;
   const server = await fixture(() => {
     caseNumber += 1;
@@ -175,12 +211,44 @@ test('missing usage remains nullable while malformed HTTP 200 is invalid', async
   t.after(server.close);
   const adapter = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL});
   const missing = await adapter.invoke(request());
-  assert.equal(missing.outcome, 'completed');
+  assert.equal(missing.outcome, 'invalid_response');
   assert.deepEqual(missing.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
   const malformed = await adapter.invoke(request());
   assert.equal(malformed.outcome, 'invalid_response');
   assert.equal(malformed.httpStatus, 200);
   assert.equal(JSON.stringify(malformed).includes(API_KEY), false);
+});
+
+test('caller abort after dispatch reports aborted with unknown remote outcome', async (t) => {
+  let observed!: () => void;
+  const requestObserved = new Promise<void>((resolve) => { observed = resolve; });
+  const server = await fixture(async () => {
+    observed();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return {body: success()};
+  });
+  t.after(server.close);
+  const controller = new AbortController();
+  const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({signal: controller.signal}));
+  await requestObserved;
+  controller.abort();
+  const result = await pending;
+  assert.equal(result.outcome, 'aborted');
+  assert.equal(result.dispatched, true);
+  assert.equal(result.httpStatus, null);
+  assert.equal(server.requests(), 1);
+});
+
+test('does not follow redirects or send credentials to the redirect target', async (t) => {
+  const target = await fixture(() => ({body: success()}));
+  t.after(target.close);
+  const source = await fixture(() => ({status: 302, headers: {location: `${target.baseURL}/messages`}, body: {}}));
+  t.after(source.close);
+  const result = await createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: source.baseURL}).invoke(request());
+  assert.equal(result.outcome, 'http_error');
+  assert.equal(result.httpStatus, 302);
+  assert.equal(source.requests(), 1);
+  assert.equal(target.requests(), 0);
 });
 
 test('HTTP 200 SDK validation failure retains independently valid raw usage', async (t) => {
