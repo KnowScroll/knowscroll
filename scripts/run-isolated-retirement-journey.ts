@@ -42,7 +42,7 @@ async function stopChild() {
   throw Error('retirement_worker_failed_graceful_shutdown');
  }
 }
-let evidence:Record<string,unknown>|undefined,failure=false,cleanupOk=false;
+let evidence:Record<string,unknown>|undefined,failure=false,cleanupOk=false,stage='connect';
 try {
  await admin.connect();await admin.query(`CREATE DATABASE "${name}"`);created=true;
  process.env.DATABASE_URL=testUrl.toString();
@@ -69,6 +69,7 @@ try {
   const timestamp=(await db!.query('SELECT withdrawn_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0].withdrawn_at;assert(timestamp);
   return {...graph,attemptId:reserved.attemptId,requestId,dispatchId};
  }
+ stage='seed';
  const due=await seedWithdrawn(true),young=await seedWithdrawn(false),closed=await seedWithdrawn(false);
  // Fixture-only time travel in this newly created test DB; production has no clock override.
  await inTransaction(db,async c=>{
@@ -80,10 +81,11 @@ try {
  const retainedTables=['reasoning_accounting','reasoning_permit','reasoning_reservation'];
  const snapshot=async()=>Promise.all(retainedTables.map(async table=>(await db!.query(`SELECT to_jsonb(t) AS row FROM ${table} t WHERE attempt_id=$1 ORDER BY to_jsonb(t)::text`,[due.attemptId])).rows));
  const before=await snapshot();
+ stage='worker_start';
  let buffer='';
  const env:NodeJS.ProcessEnv={DATABASE_URL:testUrl.toString(),REASONING_MAINTENANCE_INTERVAL_MS:'100',REASONING_MAINTENANCE_MAX_PROBES:'8'};
  for(const key of ['PATH','HOME','TMPDIR','KS_DEV_ROOT','COREPACK_HOME'])if(process.env[key])env[key]=process.env[key];
- child=spawn('pnpm',['exec','tsx','apps/worker/src/reasoning/maintenance-main.ts'],{env,detached:true,stdio:['ignore','pipe','pipe']});
+ child=spawn(process.execPath,['--import','tsx','apps/worker/src/reasoning/maintenance-main.ts'],{env,detached:true,stdio:['ignore','pipe','pipe']});
  child.once('error',()=>{childFailure=true;});child.once('exit',(code,signal)=>{childExit={code,signal};});
  child.stderr!.on('data',()=>{stderrObserved=true;});
  child.stdout!.on('data',chunk=>{
@@ -95,12 +97,15 @@ try {
    }catch{childFailure=true;}
   }
  });
+ stage='scheduled_deletion';
  await until(async()=>batches.length>=2&&(await db!.query('SELECT 1 FROM reasoning_job WHERE id=$1',[due.jobId])).rowCount===0&&
   (await db!.query('SELECT 1 FROM reasoning_accounting WHERE attempt_id=$1',[closed.attemptId])).rowCount===0,'scheduled_deletion');
+ stage='retention_assertions';
  assert.deepEqual(await snapshot(),before);
  assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[due.contextId])).rowCount,0);
  assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[young.jobId])).rowCount,1);
  assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[young.contextId])).rowCount,1);
+ stage='late_receipt';
  const reconciliation=createReasoningReconciliation(db);
  const receipt={version:1,receiptId:randomUUID(),attemptId:due.attemptId,requestId:due.requestId,dispatchId:due.dispatchId,
   routeId:due.policy.routeId,routeProfileVersion:due.policy.routeProfileVersion,evidenceKind:'original_transport',observedAt:new Date().toISOString(),
@@ -109,6 +114,7 @@ try {
  assert.deepEqual((await db.query('SELECT state,output_authority,liability_state,remote_state FROM reasoning_accounting WHERE attempt_id=$1',[due.attemptId])).rows[0],{state:'responded',output_authority:'withdrawn',liability_state:'settled',remote_state:'released'});
  assert.equal((await reconciliation.recordAndSettleReceipt(receipt,'worker')).replayed,true);
  assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[due.jobId])).rowCount,0);
+ stage='shutdown';
  await stopChild();assert.deepEqual(childExit,{code:0,signal:null});assert(stoppedEvent);assert(!stderrObserved);
  assert(batches.some(b=>b.retiredJobs!>0));assert(batches.some(b=>b.purgedAccounting!>0));
  evidence={check:'scheduled-withdrawn-reasoning-retirement',result:'passed',observedAt:new Date().toISOString(),
@@ -124,7 +130,7 @@ finally {
  }catch{failure=true;}finally{await admin.end().catch(()=>{failure=true;});}
  process.off('SIGTERM',onSignal);process.off('SIGINT',onSignal);
 }
-if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError){console.error(JSON.stringify({error:'retirement_journey_failed',cleanup:cleanupOk}));process.exitCode=1;}
+if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError){console.error(JSON.stringify({error:'retirement_journey_failed',stage,cleanup:cleanupOk,childExit,stoppedEvent,stderrObserved,batches:batches.length}));process.exitCode=1;}
 else {
  const output=resolve(process.argv[2]??'artifacts/reasoning-retirement.json');await mkdir(resolve(output,'..'),{recursive:true});
  await writeFile(output,JSON.stringify({...evidence,cleanup:{databaseAbsent:true,workerExited:true}},null,2)+'\n',{flag:'wx'});
