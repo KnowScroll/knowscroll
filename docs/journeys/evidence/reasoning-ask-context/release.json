@@ -1,0 +1,124 @@
+{
+  "check": "sealed-literal-ask-context-66",
+  "result": "passed",
+  "observedAt": "2026-09-16T18:44:34.658195+00:00",
+  "source": {
+    "revision": "8898839a736d802c5ef49646e9742852a847fe78",
+    "dirtyAtTestStart": false,
+    "files": [
+      {
+        "path": "packages/contracts/src/reasoning-ask-context.ts",
+        "sha256": "340955531d804181de2894bbc9b37202fbbceff837236ca3671edf88f57b714f"
+      },
+      {
+        "path": "packages/db/migrations/0010_ask_context_binding.sql",
+        "sha256": "78602b026ad3145251131ec1a849672ce8dacb3ec9410875752d1ce74421e4f4"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "1a79885c32960adb2fa709447326e7b0230b9e3bd6950c59e7a387db3b875285"
+      },
+      {
+        "path": "packages/db/src/reasoning-ask-context.ts",
+        "sha256": "49ca68e76f903abc18034678e3da0d6bb0511ae17412d6892c78c93b714c6b5d"
+      },
+      {
+        "path": "packages/db/src/reasoning-context-authority.ts",
+        "sha256": "37cd06ebbbb9743991335bdc658dad8ddf79323dc95e2cbabd7f30258d468810"
+      },
+      {
+        "path": "packages/db/src/reasoning-context-session.ts",
+        "sha256": "8edab6ad20326b6ddfe98fcea3a606bbeaf83180848ff01d39e25f0f632867b0"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness.ts",
+        "sha256": "f557b4d3cb02350b8e0f79aca5904cde244a727c65de306fffa25119517c5835"
+      },
+      {
+        "path": "tests/helpers/reasoning-ask-context-fixture.ts",
+        "sha256": "db313e2b5d12479ea9f78c9109dce6fea533c1a82c34d152274ab91475d97498"
+      },
+      {
+        "path": "tests/reasoning-ask-context-adversarial.test.ts",
+        "sha256": "571f15c36310dfeac1e77cb321948d6634179e5a364de13a78f12cbdc41c3925"
+      },
+      {
+        "path": "tests/reasoning-ask-context-contracts.test.ts",
+        "sha256": "01c6ed9916ecbef22cb66fd8151bfd4d61bf83cb1421ec5176f080f38baabb36"
+      },
+      {
+        "path": "tests/reasoning-ask-context-integration.test.ts",
+        "sha256": "42a748c4e21d49c869900ca272c7dc90c37ff948b09963ee5a17c48167f7e76d"
+      },
+      {
+        "path": "tests/reasoning-ask-context-migration.test.ts",
+        "sha256": "e4b6ed401e43cff2fbb489a42ee17eaacaa260f7066424bfb15e4f589a6ba42c"
+      },
+      {
+        "path": "tests/reasoning-ask-context-privacy.test.ts",
+        "sha256": "6462350ae7a904f88dad931c79b6ced5079747319db6a7f1a8e55eb951e11a7b"
+      },
+      {
+        "path": "tests/reasoning-ask-context.test.ts",
+        "sha256": "45c3a1c9c52bdede9bd338631180703059619b0b0fe6da598d584af417e236fc"
+      }
+    ]
+  },
+  "implementation": {
+    "typecheck": {
+      "exitCode": 0
+    },
+    "tests": {
+      "command": "pnpm test",
+      "exitCode": 0,
+      "baseline": 12,
+      "additional": 311,
+      "total": 323,
+      "failures": 0,
+      "logSha256": "7c10cf3b98cca996e21081959f4dffe85392fdf14492df7314e7c0d19d4ca5e6"
+    },
+    "diffCheck": {
+      "exitCode": 0
+    }
+  },
+  "regressions": {
+    "revision": "bcd621b31f54d08561cadd673610950f260df19d",
+    "runtimeSourceUnchangedThroughTestedRevision": true,
+    "J001": "passed with wrong-database refusal",
+    "J002": "passed",
+    "J003": "passed",
+    "J004": {
+      "cases": 13,
+      "fixtureRequests": 4,
+      "verifier": "passed"
+    },
+    "askHttpRestartClear": "passed",
+    "scheduledRetirement": "passed",
+    "interruptionCleanup": {
+      "cases": 8,
+      "result": "passed"
+    },
+    "verifierRejectionTests": 2
+  },
+  "migration": {
+    "new": "0010_ask_context_binding.sql",
+    "released0001Through0009Unchanged": true,
+    "populatedUpgradeRowsAndPriorChecksums": "passed in disposable PostgreSQL",
+    "ownerAppliedThrough": "0009",
+    "ownerNotMigratedOrCleared": true
+  },
+  "workers": {
+    "compiler": "gpt-5.6-sol",
+    "independentReview": "gpt-5.6-terra",
+    "independentPrivacy": "gpt-5.6-terra"
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Synthetic SQL/internal authority proof, not product reasoning or paid-task authorization",
+    "No answer, mobile Ask, semantic application or new product endpoint",
+    "Retirement clock aged only in a disposable test schema",
+    "Owner API/projection/maintenance processes left unchanged",
+    "No Android source change or local instrumentation in issue66",
+    "Full v1 and original issue57 root-cause diagnosis remain open"
+  ]
+}
