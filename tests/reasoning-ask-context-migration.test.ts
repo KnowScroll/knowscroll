@@ -110,15 +110,20 @@ test('0010 binds only the original Ask/session/queued Job and freezes its family
    const graph=await seedAskJob(pool);
    const binder=await pool.connect(),keeper=await pool.connect();
    let binderOpen=true,keeperOpen=true;
+   let losing:Promise<void>|undefined;
    try {
     await binder.query('BEGIN');
     await binder.query(`INSERT INTO reasoning_context_job_ask(job_id,universe_id,privacy_epoch,session_id,ask_id)
       VALUES($1,$2,0,$3,$4)`,[graph.jobId,graph.universeId,graph.sessionId,graph.askId]);
     await keeper.query('BEGIN');
     const pid=Number((await keeper.query<{pid:number}>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid);
-    const losing=keeper.query(`INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version)
+    // Observe the expected rejection before releasing the Job lock. Once the
+    // binder commits, PostgreSQL can reject the waiting statement in the same
+    // turn, before a later assertion would attach a rejection handler.
+    losing=assert.rejects(keeper.query(`INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version)
       VALUES($1,$2,$3,0,$4,$5,'editorial-asset-pointer-v1')`,
-    [randomUUID(),graph.jobId,graph.universeId,'d'.repeat(64),graph.policyVersion]);
+    [randomUUID(),graph.jobId,graph.universeId,'d'.repeat(64),graph.policyVersion]),/Ask Job cannot change context family/);
+    void losing.catch(()=>{});
     let waited=false;
     for(let attempt=0;attempt<20;attempt++) {
      const state=(await pool.query<{wait_event_type:string|null}>('SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1',[pid])).rows[0];
@@ -127,12 +132,13 @@ test('0010 binds only the original Ask/session/queued Job and freezes its family
     }
     assert.equal(waited,true,'Keep insert must wait on the first-family Job lock');
     await binder.query('COMMIT');binderOpen=false;
-    await assert.rejects(losing,/Ask Job cannot change context family/);
+    await losing;
     await keeper.query('ROLLBACK');keeperOpen=false;
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context_job_ask WHERE job_id=$1',[graph.jobId])).rows[0]!.count,1);
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context WHERE job_id=$1',[graph.jobId])).rows[0]!.count,0);
    } finally {
     if(binderOpen) await binder.query('ROLLBACK');
+    await Promise.allSettled(losing===undefined?[]:[losing]);
     if(keeperOpen) await keeper.query('ROLLBACK');
     binder.release();keeper.release();
    }
