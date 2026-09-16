@@ -20,6 +20,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0014 — Sealed direct Scroll context](0014-sealed-direct-context.md)
 
+- [ADR-0015 — Seven-day retirement of withdrawn reasoning jobs](0015-withdrawn-reasoning-retirement.md)
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

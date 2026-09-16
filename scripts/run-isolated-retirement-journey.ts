@@ -110,9 +110,9 @@ try {
  evidence={check:'scheduled-withdrawn-reasoning-retirement',result:'passed',observedAt:new Date().toISOString(),
   source:{revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim()!=='',
    files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
-  runtime:{separateWorker:true,scheduledBatches:batches.length,intervalMs:100,gracefulShutdown:true},
-  assertions:{oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchanged:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
-  limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','no completed/failed-job retirement or owner maintenance deployment']};
+  runtime:{separateWorker:true,scheduledBatches:batches.length,intervalMs:100,idleGracefulShutdown:true},
+  assertions:{oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
+  limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','idle SIGTERM shutdown; no in-flight signal barrier in this receipt','no completed/failed-job retirement or owner maintenance deployment']};
 } catch {failure=true;}
 finally {
  try {await stopChild();await db?.end();if(created)await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
@@ -123,6 +123,6 @@ finally {
 if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError){console.error(JSON.stringify({error:'retirement_journey_failed',cleanup:cleanupOk}));process.exitCode=1;}
 else {
  const output=resolve(process.argv[2]??'artifacts/reasoning-retirement.json');await mkdir(resolve(output,'..'),{recursive:true});
- await writeFile(output,JSON.stringify({...evidence,cleanup:{databaseAbsent:true,workerExited:true}},null,2)+'\n');
+ await writeFile(output,JSON.stringify({...evidence,cleanup:{databaseAbsent:true,workerExited:true}},null,2)+'\n',{flag:'wx'});
  console.log(JSON.stringify({check:evidence.check,result:'passed',receiptPath:output}));
 }
