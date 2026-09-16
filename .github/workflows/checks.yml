@@ -33,6 +33,8 @@ jobs:
         run: pnpm exec tsx scripts/run-isolated-journey.ts
       - name: Verify two-session isolation and privacy epoch fences
         run: pnpm exec tsx scripts/run-isolated-session-journey.ts
+      - name: Verify retryable history clear and universe isolation
+        run: pnpm exec tsx scripts/run-isolated-history-journey.ts
   android:
     runs-on: ubuntu-latest
     steps:
