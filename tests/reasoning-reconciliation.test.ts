@@ -4,7 +4,7 @@ import {after,test} from 'node:test';
 import {pool,provisionIdentity,transaction} from '../packages/db/src/index.ts';
 import {clearScrollHistory} from '../packages/db/src/privacy.ts';
 import {createReasoningReconciliation} from '../packages/db/src/reasoning-reconciliation.ts';
-import {ReasoningReceiptConflict} from '../packages/db/src/reasoning-storage.ts';
+import {appendRestrictedReasoningReceipt,ReasoningReceiptConflict} from '../packages/db/src/reasoning-storage.ts';
 
 if(!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Reasoning reconciliation tests require an isolated knowscroll_test_* database');
 after(async()=>{await pool.end();});
@@ -14,11 +14,11 @@ type Binding={basis:'input_tokens'|'output_tokens'|'total_tokens'|'cost_micro_us
 type Seed={attemptId:string;requestId:string;dispatchId:string;reservations:Array<{id:string;bucketId:string;basis:string;handling:string;amount:number}>};
 const reconciliation=createReasoningReconciliation(pool);
 
-async function seed(identity:Identity,bindings:Binding[]):Promise<Seed> {
+async function seed(identity:Identity,bindings:Binding[],expired=false):Promise<Seed> {
  const attemptId=randomUUID(),requestId=randomUUID(),dispatchId=randomUUID(),setId=randomUUID(),permitId=randomUUID();
  await pool.query(`INSERT INTO reasoning_accounting
   (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,state,dispatch_id,dispatch_committed_at,binding_hash,input_reservation_ceiling,runtime_policy_version)
-  VALUES($1,$2,$3,$4,'route','profile',100,clock_timestamp()+interval '1 hour','dispatch_committed',$5,clock_timestamp(),$6,100,'policy')`,
+  VALUES($1,$2,$3,$4,'route','profile',100,${expired?"clock_timestamp()-interval '1 second'":"clock_timestamp()+interval '1 hour'"},'dispatch_committed',$5,clock_timestamp(),$6,100,'policy')`,
   [attemptId,identity.scope.universeId,identity.scope.privacyEpoch,requestId,dispatchId,'c'.repeat(64)]);
  await pool.query(`INSERT INTO reasoning_permit(id,attempt_id,universe_id,privacy_epoch,reservation_set_id,expires_at,state,dispatch_id,consumed_at)
   VALUES($1,$2,$3,$4,$5,clock_timestamp()+interval '1 hour','consumed',$6,clock_timestamp())`,
@@ -88,6 +88,15 @@ test('rate cumulative usage within a reserved floor does not double charge',asyn
  assert.deepEqual(await reservation(record.reservations[0]!.id),{state:'accounted',recognized:'20',usage_known:true});
 });
 
+test('PostgreSQL bigint counters compare numerically across receipt revisions and cache fields',async()=>{
+ const owner=await provisionIdentity(),record=await seed(owner,[input,remote]);
+ for(const value of [9,10,100]) {
+  await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:value,outputTokens:4,cacheReadTokens:value,cacheWriteTokens:null,costMicroUsd:null}}),'worker');
+ }
+ assert.deepEqual(await bucket(record.reservations[0]!.bucketId),{reserved:'0',consumed:'100',paused:true});
+ assert.equal((await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:99,outputTokens:4,cacheReadTokens:99,cacheWriteTokens:null,costMicroUsd:null}}),'worker')).reviewRequired,true);
+});
+
 test('split nullable cumulative fields merge before total-token settlement',async()=>{
  const owner=await provisionIdentity(),record=await seed(owner,[totalRate,remote]);
  await reconciliation.recordAndSettleReceipt(receipt(record,{usage:{inputTokens:5,outputTokens:null,cacheReadTokens:2,cacheWriteTokens:null,costMicroUsd:null}}),'worker');
@@ -147,6 +156,15 @@ test('reconciliation transaction rolls receipt and accounting changes back on se
  }
  assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_receipt WHERE id=$1',[incoming.receiptId])).rows[0].n,0);
  assert.deepEqual((await pool.query('SELECT state,reconciliation_hold FROM reasoning_accounting WHERE attempt_id=$1',[record.attemptId])).rows[0],{state:'dispatch_committed',reconciliation_hold:true});
+});
+
+test('an internally appended receipt replays into its own settlement and expired accounting withdraws output',async()=>{
+ const owner=await provisionIdentity(),record=await seed(owner,[input,remote],true),incoming=receipt(record);
+ await transaction(client=>appendRestrictedReasoningReceipt(client,incoming,'worker'));
+ const settled=await reconciliation.recordAndSettleReceipt(incoming,'worker');
+ assert.equal(settled.replayed,true);assert.equal(settled.revision,1);
+ assert.equal((await pool.query('SELECT output_authority FROM reasoning_accounting WHERE attempt_id=$1',[record.attemptId])).rows[0].output_authority,'withdrawn');
+ assert.equal((await pool.query('SELECT receipt_id FROM reasoning_settlement WHERE id=$1',[settled.settlementId])).rows[0].receipt_id,incoming.receiptId);
 });
 
 test('a fully known terminal receipt starts one retention clock and exact replay does not reset it',async()=>{

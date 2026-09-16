@@ -7,8 +7,9 @@ import {
 
 type Usage={inputTokens:number|null;outputTokens:number|null;cacheReadTokens:number|null;cacheWriteTokens:number|null;costMicroUsd:number|null};
 type Reservation={id:string;attempt_id:string;bucket_id:string;amount:string;state:'held'|'accounted'|'released';usage_basis:string;handling:string;recognized:string;usage_known:boolean};
-type Accounting={attempt_id:string;universe_id:string;state:string;binding_hash:string|null;runtime_policy_version:string|null;output_authority:string;review_required:boolean};
-type Receipt={id:string;attempt_id:string;remote_disposition:'terminal'|'unconfirmed';outcome:string;input_tokens:number|null;output_tokens:number|null;cache_read_tokens:number|null;cache_write_tokens:number|null;cost_micro_usd:number|null};
+type Accounting={attempt_id:string;universe_id:string;state:string;binding_hash:string|null;runtime_policy_version:string|null;output_authority:string;review_required:boolean;deadline:Date|string};
+type Counter=string|number|null;
+type Receipt={id:string;attempt_id:string;remote_disposition:'terminal'|'unconfirmed';outcome:string;input_tokens:Counter;output_tokens:Counter;cache_read_tokens:Counter;cache_write_tokens:Counter;cost_micro_usd:Counter};
 type ReconciliationResult={receiptId:string;attemptId:string;fingerprint:string;replayed:boolean;settlementId?:string;revision?:number;reviewRequired:boolean};
 type PreviousSettlement={id:string;revision:number;usage:Usage};
 
@@ -36,8 +37,9 @@ const usageValue=(basis:string,usage:Usage):bigint|null=>{
   default: return null;
  }
 };
-const receiptUsage=(receipt:Receipt):Usage=>({inputTokens:receipt.input_tokens,outputTokens:receipt.output_tokens,
- cacheReadTokens:receipt.cache_read_tokens,cacheWriteTokens:receipt.cache_write_tokens,costMicroUsd:receipt.cost_micro_usd});
+const asNullableNumber=(value:Counter):number|null=>value===null?null:Number(asBigInt(value));
+const receiptUsage=(receipt:Receipt):Usage=>({inputTokens:asNullableNumber(receipt.input_tokens),outputTokens:asNullableNumber(receipt.output_tokens),
+ cacheReadTokens:asNullableNumber(receipt.cache_read_tokens),cacheWriteTokens:asNullableNumber(receipt.cache_write_tokens),costMicroUsd:asNullableNumber(receipt.cost_micro_usd)});
 const text=(value:bigint)=>value.toString();
 const mergeUsage=(previous:Usage,incoming:Usage):{usage:Usage;decreases:boolean}=>{
  let decreases=false;
@@ -77,8 +79,8 @@ async function freeze(
 async function previousSettlement(client:pg.PoolClient,attemptId:string):Promise<PreviousSettlement|undefined> {
  const row=(await client.query(`SELECT id,revision,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micro_usd
   FROM reasoning_settlement WHERE attempt_id=$1 ORDER BY revision DESC LIMIT 1 FOR UPDATE`,[attemptId])).rows[0];
- return row?{id:row.id,revision:row.revision,usage:{inputTokens:row.input_tokens,outputTokens:row.output_tokens,
-  cacheReadTokens:row.cache_read_tokens,cacheWriteTokens:row.cache_write_tokens,costMicroUsd:row.cost_micro_usd}}:undefined;
+ return row?{id:row.id,revision:row.revision,usage:{inputTokens:asNullableNumber(row.input_tokens),outputTokens:asNullableNumber(row.output_tokens),
+  cacheReadTokens:asNullableNumber(row.cache_read_tokens),cacheWriteTokens:asNullableNumber(row.cache_write_tokens),costMicroUsd:asNullableNumber(row.cost_micro_usd)}}:undefined;
 }
 
 async function appendSettlement(
@@ -105,9 +107,11 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
  const receipt=(await client.query(`SELECT id,attempt_id,remote_disposition,outcome,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micro_usd
   FROM reasoning_receipt WHERE id=$1 FOR UPDATE`,[receiptId])).rows[0] as Receipt|undefined;
  if(!receipt) throw new Error('Reasoning receipt disappeared before settlement');
- const accounting=(await client.query(`SELECT attempt_id,universe_id,state,binding_hash,runtime_policy_version,output_authority,review_required
+ const accounting=(await client.query(`SELECT attempt_id,universe_id,state,binding_hash,runtime_policy_version,output_authority,review_required,deadline
   FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE`,[receipt.attempt_id])).rows[0] as Accounting|undefined;
  if(!accounting) throw new Error('Reasoning accounting disappeared before settlement');
+ await client.query(`UPDATE reasoning_accounting SET output_authority='withdrawn'
+  WHERE attempt_id=$1 AND deadline<=clock_timestamp() AND output_authority='eligible'`,[receipt.attempt_id]);
  const reservations=(await client.query(`SELECT id,attempt_id,bucket_id,amount,state,usage_basis,handling,recognized,usage_known
   FROM reasoning_reservation WHERE attempt_id=$1 ORDER BY bucket_id FOR UPDATE`,[receipt.attempt_id])).rows as Reservation[];
  await client.query('SELECT id FROM reasoning_bucket WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[reservations.map(row=>row.bucket_id)]);
@@ -193,8 +197,9 @@ export function createReasoningReconciliation(db:pg.Pool) {
     const appended=await appendRestrictedReasoningReceipt(client,input,origin);
     if(appended.replayed) {
      const accounting=(await client.query('SELECT review_required FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE',[appended.attemptId])).rows[0];
-     const previous=await previousSettlement(client,appended.attemptId);
-     return {...appended,settlementId:previous?.id,revision:previous?.revision,reviewRequired:Boolean(accounting?.review_required)};
+     const forReceipt=(await client.query('SELECT id,revision FROM reasoning_settlement WHERE attempt_id=$1 AND receipt_id=$2 FOR UPDATE',[appended.attemptId,appended.receiptId])).rows[0];
+     if(!forReceipt) return {...appended,...await settleReceipt(client,appended.receiptId),replayed:true};
+     return {...appended,settlementId:forReceipt.id,revision:forReceipt.revision,reviewRequired:Boolean(accounting?.review_required)};
     }
     const settled=await settleReceipt(client,appended.receiptId);
     return {...appended,...settled};
