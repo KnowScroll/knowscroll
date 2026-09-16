@@ -13,8 +13,8 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0009 — Device sessions and privacy epoch fences](0009-device-sessions-and-privacy-epochs.md)
 - [ADR-0010 — Clear Scroll history with a retryable privacy boundary](0010-clear-scroll-history.md)
 
+- [ADR-0011 — Bounded MiniMax certification](0011-minimax-certification.md)
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
-
-- [0011 — MiniMax certification](0011-minimax-certification.md)

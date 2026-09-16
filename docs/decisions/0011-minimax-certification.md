@@ -30,6 +30,10 @@ Runner: `scripts/certify-minimax.ts`; helper `apps/worker/src/providers/certific
 
 Case sequence: short locally validated JSON; tool-call request with thinking adaptive; exact native assistant content + deterministic tool result continuation. A missing/invalid tool call is a failed capability case, not a fabricated result; stop dependent cases. At most one optional fourth invocation is reserved for a narrowly documented additional check, never an automatic repair. Production structured-schema guarantees, streaming, vision, remote cancellation, idempotency lookup, pricing and long-horizon runtime remain uncertified.
 
+## Alternatives and consequences
+
+Using the official provider keeps the candidate aligned with MiniMax's documented AI SDK route. A direct native transport remains a fallback if certification exposes incompatible normalization; this wave does not silently switch to it. Using only SDK-normalized continuation cannot establish preservation of unknown native fields, so the tested transport boundary retains the original blocks. Enabling production jobs now would outrun durable admission, privacy-bound context compilation and deterministic proposal validation. Those dependencies stay explicit.
+
 ## Acceptance
 
 Local HTTP fixture tests exercise the real SDK/wire path: no hidden retries on 429/500; exact opaque continuation preservation; actual output/input bounds; timeout/abort; missing usage; malformed response; no credential/error leakage. Journal tests cover exclusive creation, budget/attempt cap, fsynced pre-dispatch state, no replay, uncertain outcome, safe path and sanitized reports. The runner can refuse live mode safely without credentials. Coordinator owns actual live calls and redacted evidence. Child issues close for their bounded implementation proof; #7 remains open while its full acceptance is unmet.
