@@ -183,6 +183,7 @@ async function settleReceipt(client:pg.PoolClient,receiptId:string):Promise<Omit
  const close=allKnown&&terminalRemote;
  await client.query(`UPDATE reasoning_accounting SET state='responded',liability_state=$2,remote_state=$3,
   remote_disposition=$4,reconciliation_hold=$5,idempotency_hold=$5,review_required=false,
+  output_authority=CASE WHEN deadline<=clock_timestamp() THEN 'withdrawn' ELSE output_authority END,
   closure_basis=CASE WHEN $6 THEN 'evidence' ELSE NULL END,risk_closure_id=NULL,
   all_duties_closed_at=CASE WHEN $6 THEN clock_timestamp() ELSE NULL END
   WHERE attempt_id=$1`,[receipt.attempt_id,liability,remoteState,terminalRemote?'terminal':'unconfirmed',!close,close]);
