@@ -57,8 +57,11 @@ function noPrivateState(s: Snapshot) {
   for (const rows of [s.job, s.step, s.attempt, s.contexts]) assert.equal(rows.length, 0, 'private graph resurrected');
 }
 function denied(c: CaseEvidence, name?: string) {
-  assert.ok(c.operations.some(o => (!name || o.name === name) && typeof o.denial === 'string' && o.denial.length > 0),
+  assert.ok(c.operations.some(o => (!name || o.name === name) && typeof denial(o) === 'string'),
     `${c.name}: refusal observation missing`);
+}
+function denial(o: CaseEvidence['operations'][number]): unknown {
+  return o.denial ?? (o.result && typeof o.result === 'object' && 'denial' in o.result ? o.result.denial : undefined);
 }
 
 /** Verify observed state relationships, never trust a case's claimed success. */
@@ -157,13 +160,14 @@ export function verifyReasoningJourney(value: unknown) {
     const c = get('lost_commit_ack'), s = snapshot(c, 'intent_without_transport_grant'), a = accounting(c, s);
     assert.ok(['unknown', 'dispatch_committed'].includes(String(a.state)));
     assert.equal(a.dispatch_id, c.identities.dispatchId); assert.equal(a.remote_state, 'held'); assert.equal(a.liability_state, 'held');
-    assert.ok(c.operations.some(o => o.denial === 'fixture_lost_commit_ack'));
+    assert.ok(c.operations.some(o => denial(o) === 'fixture_lost_commit_ack'));
+    assert.ok(c.actorPids.length >= 2, 'lost-ack replacement must be another worker');
     assert.ok(s.permit.some(p => p.state === 'consumed' && p.dispatch_id === a.dispatch_id));
   }
   unknownHeld(get('cancel'), snapshot(get('cancel'), 'cancel_unknown'));
   unknownHeld(get('deadline'), snapshot(get('deadline'), 'deadline_unknown'));
   {
-    const c = get('lease_replacement'), s = snapshot(c, 'lease_b_stale_a_denied');
+    const c = get('lease_replacement'), s = snapshot(c, 'recovery_fence_stale_a_denied');
     assert.ok(c.actorPids.length >= 2, 'replacement must run in a distinct worker');
     const job = s.job.find(j => j.id === c.identities.jobId); assert.ok(job);
     assert.ok(count(job.lease_fence) > count(c.identities.leaseFence), 'replacement fence did not advance');
@@ -201,17 +205,33 @@ export function verifyReasoningJourney(value: unknown) {
     assert.equal(cumulative.settlements.length, 3);
     assert.ok(cumulative.buckets.every(b => count(b.reserved) === 0n
       && count(b.consumed) === (b.dimension === 'remote_concurrency' ? 0n : 12n)));
+    const revised = snapshot(c, 'revised_usage'), overage = snapshot(c, 'overage_usage');
+    for (const [s, total] of [[revised, 15n], [overage, 205n]] as const) {
+      assert.ok(s.buckets.every(b => count(b.reserved) === 0n
+        && count(b.consumed) === (b.dimension === 'remote_concurrency' ? 0n : total)));
+    }
+    assert.equal(revised.settlements.length, 4); assert.equal(overage.settlements.length, 5);
+    const revisedId = revised.settlements.at(-1)!.id, overageId = overage.settlements.at(-1)!.id;
+    for (const [s, id, delta] of [[revised, revisedId, 3n], [overage, overageId, 190n]] as const) {
+      const changes = s.adjustments.filter(a => a.settlement_id === id);
+      assert.equal(changes.length, 5); assert.ok(changes.every(a => count(a.delta) === delta));
+    }
+    assert.ok(overage.buckets.filter(b => b.dimension !== 'remote_concurrency').every(b => b.paused === true));
     const conflict = snapshot(c, 'conflicting_usage');
     for (const key of ['accounting', 'reservations', 'buckets', 'receipts', 'settlements', 'adjustments'] as const) {
-      assert.deepEqual(conflict[key], cumulative[key], `same-ID conflict rewrote ${key}`);
+      assert.deepEqual(conflict[key], overage[key], `same-ID conflict rewrote ${key}`);
     }
     denied(c, 'conflict');
     const frozen = snapshot(c, 'decreasing_usage_frozen');
     assert.equal(accounting(c, frozen).review_required, true);
     assert.equal(accounting(c, frozen).all_duties_closed_at, null);
-    assert.equal(frozen.receipts.length, cumulative.receipts.length + 1, 'conflicting new evidence should remain inspectable');
-    assert.deepEqual(frozen.settlements, cumulative.settlements, 'decreasing evidence rewrote accepted usage');
-    assert.deepEqual(frozen.adjustments, cumulative.adjustments, 'decreasing evidence refunded accepted usage');
+    assert.equal(frozen.receipts.length, overage.receipts.length + 1, 'conflicting new evidence should remain inspectable');
+    assert.equal(frozen.settlements.length, overage.settlements.length + 1, 'review evidence needs its own revision');
+    assert.deepEqual(frozen.settlements.slice(0, -1), overage.settlements, 'decreasing evidence rewrote prior revisions');
+    for (const key of ['input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'cost_micro_usd']) {
+      assert.equal(frozen.settlements.at(-1)![key], overage.settlements.at(-1)![key], 'decreasing evidence changed accepted usage');
+    }
+    assert.deepEqual(frozen.adjustments, overage.adjustments, 'decreasing evidence refunded accepted usage');
     assert.ok(frozen.buckets.every(b => b.paused === true));
   }
   {
