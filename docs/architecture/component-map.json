@@ -14,14 +14,14 @@
       "component": "API",
       "responsibility": "Authentication boundary, admission, HTTP contracts",
       "path": "apps/api",
-      "status": "scoped-device-sessions-development-only",
+      "status": "scoped-device-sessions-and-recorded-only-asks-development-only",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/2"
     },
     {
       "component": "Ledger",
       "responsibility": "Canonical events, idempotency and causal history",
       "path": "packages/db",
-      "status": "owned-events-epochs-and-retryable-history-clear",
+      "status": "owned-events-literal-asks-epochs-and-retryable-history-clear",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/4"
     },
     {

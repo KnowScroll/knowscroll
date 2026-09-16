@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { exposureInput, historyClearInput, interactionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
+import { explicitAskInput, exposureInput, historyClearInput, interactionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
 import {
   pool,
   transaction,
@@ -12,6 +12,7 @@ import {
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
 import { compose } from '../../../packages/core/src/composer.ts';
+import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 
 class HttpError extends Error {
   constructor(public statusCode: number, message: string) { super(message); }
@@ -136,6 +137,23 @@ export function buildApp(developmentToken: string) {
       return { eventId, jobId, status: 'accepted' };
     });
     return reply.code(202).send(result);
+  });
+
+  app.post('/v1/asks', { bodyLimit: 32768 }, async (req, reply) => {
+    const result = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = explicitAskInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid Ask');
+      try {
+        return await recordExplicitAsk(client, scope, parsed.data);
+      } catch (error) {
+        if (!(error instanceof ExplicitAskError)) throw error;
+        if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Ask');
+        if (error.kind === 'stale_epoch') throw new HttpError(409, 'Ask privacy epoch is stale');
+        if (error.kind === 'conflict') throw new HttpError(409, 'Ask conflicts with existing request');
+        throw new HttpError(422, 'A current matching exposure is required');
+      }
+    });
+    return reply.code(201).send(result);
   });
 
   app.get<{ Params: { eventId: string } }>('/v1/events/:eventId', async req => {

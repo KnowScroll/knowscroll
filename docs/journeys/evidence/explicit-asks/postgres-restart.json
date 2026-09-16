@@ -1,0 +1,993 @@
+{
+  "check": "durable-sql-fairness-postgres-restart",
+  "result": "passed",
+  "observedAt": "2026-09-16T14:52:11.902Z",
+  "platform": "darwin",
+  "source": {
+    "revision": "3c41a92e9c806dd74d59a30d2a978913908d8bfd",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/fairness/sql-restart.ts",
+        "sha256": "bd46e380d4fb751dab29573e1a87f9d4109c763126ec0fb84450e7c39e63be94"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness.ts",
+        "sha256": "92613d7674457c52ec1c7cba5c9892e5c83cd8f2d2c2898af8a73a33a6dc2950"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness-accounting.ts",
+        "sha256": "1354568d4d1cc208d46e5d5392dfdad59e2836fe961972f2d0fe0d64175b22a8"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "d7d12a0fb54bc91cc9a3bb6c61f67a8aaa7247d38f1d0711e60847c3450c63e4"
+      },
+      {
+        "path": "packages/db/src/reasoning-reconciliation.ts",
+        "sha256": "85c244b73f271098c6377064ab41d42c1375b3935731c205b23ca86269a6826c"
+      },
+      {
+        "path": "packages/db/src/reasoning-storage.ts",
+        "sha256": "6fca8d1082b595d63d78f46a65a0398f737b3ec7cc9c476db2fbfe6c49d27612"
+      },
+      {
+        "path": "packages/db/src/reasoning-runtime-policy.ts",
+        "sha256": "48da723173c698708ba5d1af140ff962e75a3da652dff18376760ea6e360691c"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness-policy.ts",
+        "sha256": "60da774db0455185249fedc857d7a12ca0b9126d1258ad0fb2c96838e9d529cb"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-support.ts",
+        "sha256": "ccbf033ebe0189adb128a033741c79e6874b3f1d2b8cde15d95bc9281c24e986"
+      },
+      {
+        "path": "packages/db/migrations/0001_bootstrap.sql",
+        "sha256": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+      },
+      {
+        "path": "packages/db/migrations/0002_identity_epochs.sql",
+        "sha256": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+      },
+      {
+        "path": "packages/db/migrations/0003_history_clear.sql",
+        "sha256": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+      },
+      {
+        "path": "packages/db/migrations/0004_reasoning_storage.sql",
+        "sha256": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+      },
+      {
+        "path": "packages/db/migrations/0005_reasoning_runtime.sql",
+        "sha256": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+      },
+      {
+        "path": "packages/db/migrations/0006_reasoning_fairness.sql",
+        "sha256": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+      },
+      {
+        "path": "packages/db/migrations/0007_sealed_reasoning_context.sql",
+        "sha256": "e1baf0ea78610e46e3449b5da0ac503190bf30745f4a3c424e16e6c1ab4f9948"
+      },
+      {
+        "path": "packages/db/migrations/0008_reasoning_retirement.sql",
+        "sha256": "4f7667d57c488dbf789f4ba5575b7c435ad8004a940a4bab7ff89ec41bdadf66"
+      },
+      {
+        "path": "packages/db/migrations/0009_explicit_asks.sql",
+        "sha256": "d9895c7da589cf764ae69f2003fc40960f244e495aaac71058e78b2b6ed21e43"
+      }
+    ]
+  },
+  "isolation": {
+    "kind": "new-disposable-postgresql-cluster",
+    "port": 50470,
+    "oldPid": 92357,
+    "newPid": 92386
+  },
+  "upgrade": {
+    "applied": [
+      "0006_reasoning_fairness.sql"
+    ],
+    "adopted": []
+  },
+  "subsequentUpgrade": {
+    "applied": [
+      "0007_sealed_reasoning_context.sql",
+      "0008_reasoning_retirement.sql",
+      "0009_explicit_asks.sql"
+    ],
+    "adopted": []
+  },
+  "preservedMigrations": [
+    {
+      "name": "0001_bootstrap.sql",
+      "checksum": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "name": "0002_identity_epochs.sql",
+      "checksum": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    },
+    {
+      "name": "0003_history_clear.sql",
+      "checksum": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+    },
+    {
+      "name": "0004_reasoning_storage.sql",
+      "checksum": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+    },
+    {
+      "name": "0005_reasoning_runtime.sql",
+      "checksum": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+    }
+  ],
+  "restart": {
+    "sameSnapshot": true,
+    "snapshotSha256": "ccaf6ab77162f8ed7543ddd2c654cd713396a3e4048f7a6a40fbed6dffe08dd0",
+    "unknownAttemptId": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+    "continuedJobId": "52b47261-ea49-42a6-8f1a-7a1fff145818",
+    "receiptReplayNoOp": true
+  },
+  "snapshots": {
+    "beforeRestart": {
+      "reasoning_fairness_scheduler": [
+        {
+          "paused": false,
+          "generation": 3,
+          "class_cursor": 1,
+          "policy_version": "j004-v1",
+          "inner_generation": 1,
+          "visit_generation": 1
+        }
+      ],
+      "reasoning_fairness_class": [
+        {
+          "class": "accumulated_interpretation",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "active_continuity",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "background_inquiry",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "housekeeping",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "interactive",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 1,
+          "open_universe_id": null,
+          "visit_generation": 1,
+          "universe_remaining": 0
+        }
+      ],
+      "reasoning_fairness_universe": [
+        {
+          "class": "interactive",
+          "credit": 0,
+          "ready_count": 1,
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "policy_version": "j004-v1",
+          "candidate_cursor": 1
+        }
+      ],
+      "reasoning_fairness_ready": [
+        {
+          "seq": 2,
+          "class": "interactive",
+          "charge": 20,
+          "job_id": "52b47261-ea49-42a6-8f1a-7a1fff145818",
+          "step_id": "63070379-1e8a-4852-a3dd-858ea911a990",
+          "deadline": "2026-09-16T20:26:11.601+05:30",
+          "context_id": "b4ad0bd7-1ede-409a-9b93-8e9f2af1d3cf",
+          "request_id": "cce7685c-cd55-451c-af90-18b3b48a6c2d",
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "request_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "permit_ttl_ms": 60000,
+          "privacy_epoch": 0,
+          "policy_version": "j004-v1",
+          "max_output_tokens": 100,
+          "cost_ceiling_micro_usd": null,
+          "input_tokens_upper_bound": 100
+        }
+      ],
+      "reasoning_fairness_attempt": [
+        {
+          "class": "interactive",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "policy_version": "j004-v1",
+          "reserved_charge": 20,
+          "recognized_charge": 20
+        }
+      ],
+      "reasoning_fairness_delta": [],
+      "reasoning_accounting": [
+        {
+          "state": "unknown",
+          "deadline": "2026-09-16T20:26:11.601+05:30",
+          "route_id": "local-fixture",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "created_at": "2026-09-16T20:22:11.617375+05:30",
+          "request_id": "eac15cb0-130b-4db2-9438-0c76c2cdad7e",
+          "dispatch_id": "a531c32f-d29b-4c88-ba1a-7528c61a3de0",
+          "price_basis": null,
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "binding_hash": "029be0ed2ba83e6cb82694a7866415937f0484b52de93d2ef7b54dfb8d4c074c",
+          "remote_state": "held",
+          "closure_basis": null,
+          "privacy_epoch": 0,
+          "liability_state": "held",
+          "review_required": false,
+          "risk_closure_id": null,
+          "idempotency_hold": true,
+          "output_authority": "eligible",
+          "max_output_tokens": 100,
+          "remote_disposition": "unconfirmed",
+          "reconciliation_hold": true,
+          "all_duties_closed_at": null,
+          "dispatch_committed_at": "2026-09-16T20:22:11.623476+05:30",
+          "route_profile_version": "j004-v1",
+          "runtime_policy_version": "j004-v1",
+          "input_reservation_ceiling": 100
+        }
+      ],
+      "reasoning_permit": [
+        {
+          "id": "5522ea68-42fe-47ed-b257-62728df9b2a7",
+          "state": "consumed",
+          "closed_at": null,
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "expires_at": "2026-09-16T20:23:11.617+05:30",
+          "consumed_at": "2026-09-16T20:22:11.623849+05:30",
+          "dispatch_id": "a531c32f-d29b-4c88-ba1a-7528c61a3de0",
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "privacy_epoch": 0,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        }
+      ],
+      "reasoning_reservation": [
+        {
+          "id": "0cd11d2b-1054-4b91-bfc7-f71ae049492e",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "a0b9e1f8-290e-478a-a9f0-386c983258ee",
+          "dimension": "provider_account",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "65fdd0a5-1363-4e3f-8744-8b0400a6abc7",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "a9b0621a-41bb-4c9a-a7f8-9ee540a4bf63",
+          "dimension": "global_budget",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "94942857-869b-4649-be42-4ad672cbcfc0",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "cf0c96c6-dd72-4daf-877a-e72a6e1a9ae4",
+          "dimension": "job_budget",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "cc96ee75-3f18-4202-b0c3-3250099925a3",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "f23eefec-d355-4394-9b3f-2ba78c07d8c8",
+          "dimension": "route_quota",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "eedc0516-a937-4392-9420-fa505871ac4a",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "d5ba645f-294c-47b0-874d-0524e566767b",
+          "dimension": "owner_budget",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "fdd26411-9851-4091-91ca-23a7b8f3e8e3",
+          "unit": "slots",
+          "state": "held",
+          "amount": 1,
+          "handling": "remote",
+          "bucket_id": "791ca0e6-1f43-4810-ab8b-495b968c9296",
+          "dimension": "remote_concurrency",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 0,
+          "usage_basis": "remote_slots",
+          "usage_known": false,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        }
+      ],
+      "reasoning_bucket": [
+        {
+          "id": "17d85931-e05f-4189-b4a6-0cc27e3bb820",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "60243e75-8301-4c95-9430-24271cb99a48",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "route_quota",
+          "window_id": null
+        },
+        {
+          "id": "791ca0e6-1f43-4810-ab8b-495b968c9296",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 1,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "7f1080e8-31b0-4df7-af69-4bf9dfeb0679",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "a0b9e1f8-290e-478a-a9f0-386c983258ee",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "a9b0621a-41bb-4c9a-a7f8-9ee540a4bf63",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "c8788c36-9029-4a48-84e5-ba707e908c8a",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "cefede22-aeaa-49c3-a52f-2dc85b49b877",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "job_budget",
+          "window_id": null
+        },
+        {
+          "id": "cf0c96c6-dd72-4daf-877a-e72a6e1a9ae4",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "job_budget",
+          "window_id": null
+        },
+        {
+          "id": "d5ba645f-294c-47b0-874d-0524e566767b",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "dab433ba-a115-4346-b7bc-79c10181ae8c",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "f23eefec-d355-4394-9b3f-2ba78c07d8c8",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "route_quota",
+          "window_id": null
+        }
+      ]
+    },
+    "afterSettlement": {
+      "reasoning_fairness_scheduler": [
+        {
+          "paused": false,
+          "generation": 9,
+          "class_cursor": 1,
+          "policy_version": "j004-v1",
+          "inner_generation": 2,
+          "visit_generation": 2
+        }
+      ],
+      "reasoning_fairness_class": [
+        {
+          "class": "accumulated_interpretation",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "active_continuity",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "background_inquiry",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "housekeeping",
+          "credit": 0,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 0,
+          "open_universe_id": null,
+          "visit_generation": 0,
+          "universe_remaining": 0
+        },
+        {
+          "class": "interactive",
+          "credit": 18,
+          "remaining": null,
+          "policy_version": "j004-v1",
+          "universe_cursor": null,
+          "inner_generation": 2,
+          "open_universe_id": null,
+          "visit_generation": 2,
+          "universe_remaining": 0
+        }
+      ],
+      "reasoning_fairness_universe": [
+        {
+          "class": "interactive",
+          "credit": 18,
+          "ready_count": 0,
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "policy_version": "j004-v1",
+          "candidate_cursor": 2
+        }
+      ],
+      "reasoning_fairness_ready": [],
+      "reasoning_fairness_attempt": [
+        {
+          "class": "interactive",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "policy_version": "j004-v1",
+          "reserved_charge": 20,
+          "recognized_charge": 20
+        },
+        {
+          "class": "interactive",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "policy_version": "j004-v1",
+          "reserved_charge": 20,
+          "recognized_charge": 2
+        }
+      ],
+      "reasoning_fairness_delta": [
+        {
+          "revision": 1,
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "class_delta": 18,
+          "prior_charge": 20,
+          "universe_delta": 18,
+          "recognized_charge": 2,
+          "class_refund_discarded": 0,
+          "universe_refund_discarded": 0
+        }
+      ],
+      "reasoning_accounting": [
+        {
+          "state": "reserved",
+          "deadline": "2026-09-16T20:26:11.601+05:30",
+          "route_id": "local-fixture",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "created_at": "2026-09-16T20:22:11.885671+05:30",
+          "request_id": "cce7685c-cd55-451c-af90-18b3b48a6c2d",
+          "dispatch_id": null,
+          "price_basis": null,
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "binding_hash": "357399f0e04ca04ffdf6678d02eb634b6f830fe770056a92792acd94d4099d9d",
+          "remote_state": "held",
+          "closure_basis": null,
+          "privacy_epoch": 0,
+          "liability_state": "held",
+          "review_required": false,
+          "risk_closure_id": null,
+          "idempotency_hold": true,
+          "output_authority": "eligible",
+          "max_output_tokens": 100,
+          "remote_disposition": "unconfirmed",
+          "reconciliation_hold": true,
+          "all_duties_closed_at": null,
+          "dispatch_committed_at": null,
+          "route_profile_version": "j004-v1",
+          "runtime_policy_version": "j004-v1",
+          "input_reservation_ceiling": 100
+        },
+        {
+          "state": "responded",
+          "deadline": "2026-09-16T20:26:11.601+05:30",
+          "route_id": "local-fixture",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "created_at": "2026-09-16T20:22:11.617375+05:30",
+          "request_id": "eac15cb0-130b-4db2-9438-0c76c2cdad7e",
+          "dispatch_id": "a531c32f-d29b-4c88-ba1a-7528c61a3de0",
+          "price_basis": null,
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "binding_hash": "029be0ed2ba83e6cb82694a7866415937f0484b52de93d2ef7b54dfb8d4c074c",
+          "remote_state": "released",
+          "closure_basis": "evidence",
+          "privacy_epoch": 0,
+          "liability_state": "settled",
+          "review_required": false,
+          "risk_closure_id": null,
+          "idempotency_hold": false,
+          "output_authority": "eligible",
+          "max_output_tokens": 100,
+          "remote_disposition": "terminal",
+          "reconciliation_hold": false,
+          "all_duties_closed_at": "2026-09-16T20:22:11.89567+05:30",
+          "dispatch_committed_at": "2026-09-16T20:22:11.623476+05:30",
+          "route_profile_version": "j004-v1",
+          "runtime_policy_version": "j004-v1",
+          "input_reservation_ceiling": 100
+        }
+      ],
+      "reasoning_permit": [
+        {
+          "id": "5522ea68-42fe-47ed-b257-62728df9b2a7",
+          "state": "consumed",
+          "closed_at": null,
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "expires_at": "2026-09-16T20:23:11.617+05:30",
+          "consumed_at": "2026-09-16T20:22:11.623849+05:30",
+          "dispatch_id": "a531c32f-d29b-4c88-ba1a-7528c61a3de0",
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "privacy_epoch": 0,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "ead481e6-b301-466d-9556-ec5dc0654c48",
+          "state": "reserved",
+          "closed_at": null,
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "expires_at": "2026-09-16T20:23:11.885+05:30",
+          "consumed_at": null,
+          "dispatch_id": null,
+          "universe_id": "da162681-9de8-40b8-a837-6c1fc274d576",
+          "privacy_epoch": 0,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        }
+      ],
+      "reasoning_reservation": [
+        {
+          "id": "0cd11d2b-1054-4b91-bfc7-f71ae049492e",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "a0b9e1f8-290e-478a-a9f0-386c983258ee",
+          "dimension": "provider_account",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "4321db0b-e902-4b07-9fcc-6a0e6d572a0f",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "60243e75-8301-4c95-9430-24271cb99a48",
+          "dimension": "route_quota",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        },
+        {
+          "id": "65fdd0a5-1363-4e3f-8744-8b0400a6abc7",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "a9b0621a-41bb-4c9a-a7f8-9ee540a4bf63",
+          "dimension": "global_budget",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "8e658973-ba26-42b9-8b29-80973a4b240e",
+          "unit": "slots",
+          "state": "held",
+          "amount": 1,
+          "handling": "remote",
+          "bucket_id": "7f1080e8-31b0-4df7-af69-4bf9dfeb0679",
+          "dimension": "remote_concurrency",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "recognized": 0,
+          "usage_basis": "remote_slots",
+          "usage_known": false,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        },
+        {
+          "id": "94942857-869b-4649-be42-4ad672cbcfc0",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "cf0c96c6-dd72-4daf-877a-e72a6e1a9ae4",
+          "dimension": "job_budget",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "b10e09c6-abc5-4ced-b28e-bcb652c8dbf1",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "dab433ba-a115-4346-b7bc-79c10181ae8c",
+          "dimension": "global_budget",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        },
+        {
+          "id": "bb691c6c-47e3-4986-af7b-aa3d5233eaad",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "cefede22-aeaa-49c3-a52f-2dc85b49b877",
+          "dimension": "job_budget",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        },
+        {
+          "id": "cc96ee75-3f18-4202-b0c3-3250099925a3",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "f23eefec-d355-4394-9b3f-2ba78c07d8c8",
+          "dimension": "route_quota",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "eedc0516-a937-4392-9420-fa505871ac4a",
+          "unit": "tokens",
+          "state": "accounted",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "d5ba645f-294c-47b0-874d-0524e566767b",
+          "dimension": "owner_budget",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 20,
+          "usage_basis": "total_tokens",
+          "usage_known": true,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        },
+        {
+          "id": "f2656193-5a25-4c89-b7a2-45649cb09ef4",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "17d85931-e05f-4189-b4a6-0cc27e3bb820",
+          "dimension": "owner_budget",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        },
+        {
+          "id": "fd95b999-c54b-4d0e-b593-8c3b83f7bec2",
+          "unit": "tokens",
+          "state": "held",
+          "amount": 200,
+          "handling": "budget",
+          "bucket_id": "c8788c36-9029-4a48-84e5-ba707e908c8a",
+          "dimension": "provider_account",
+          "attempt_id": "9cba4999-93c6-45b9-ae61-fb8ad2b4c00c",
+          "recognized": 0,
+          "usage_basis": "total_tokens",
+          "usage_known": false,
+          "reservation_set_id": "4f84505e-167e-4a30-968e-43c9112d10fc"
+        },
+        {
+          "id": "fdd26411-9851-4091-91ca-23a7b8f3e8e3",
+          "unit": "slots",
+          "state": "released",
+          "amount": 1,
+          "handling": "remote",
+          "bucket_id": "791ca0e6-1f43-4810-ab8b-495b968c9296",
+          "dimension": "remote_concurrency",
+          "attempt_id": "c7e43e67-23ae-4c32-9e5c-0039ed0bd21f",
+          "recognized": 1,
+          "usage_basis": "remote_slots",
+          "usage_known": true,
+          "reservation_set_id": "e802097d-5271-4ed6-94d2-ffaa2fb4df55"
+        }
+      ],
+      "reasoning_bucket": [
+        {
+          "id": "17d85931-e05f-4189-b4a6-0cc27e3bb820",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "60243e75-8301-4c95-9430-24271cb99a48",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "route_quota",
+          "window_id": null
+        },
+        {
+          "id": "791ca0e6-1f43-4810-ab8b-495b968c9296",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 0,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "7f1080e8-31b0-4df7-af69-4bf9dfeb0679",
+          "unit": "slots",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 1,
+          "dimension": "remote_concurrency",
+          "window_id": null
+        },
+        {
+          "id": "a0b9e1f8-290e-478a-a9f0-386c983258ee",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "a9b0621a-41bb-4c9a-a7f8-9ee540a4bf63",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "c8788c36-9029-4a48-84e5-ba707e908c8a",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "provider_account",
+          "window_id": null
+        },
+        {
+          "id": "cefede22-aeaa-49c3-a52f-2dc85b49b877",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "job_budget",
+          "window_id": null
+        },
+        {
+          "id": "cf0c96c6-dd72-4daf-877a-e72a6e1a9ae4",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "job_budget",
+          "window_id": null
+        },
+        {
+          "id": "d5ba645f-294c-47b0-874d-0524e566767b",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "owner_budget",
+          "window_id": null
+        },
+        {
+          "id": "dab433ba-a115-4346-b7bc-79c10181ae8c",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 0,
+          "reserved": 200,
+          "dimension": "global_budget",
+          "window_id": null
+        },
+        {
+          "id": "f23eefec-d355-4394-9b3f-2ba78c07d8c8",
+          "unit": "tokens",
+          "paused": false,
+          "capacity": 10000,
+          "consumed": 20,
+          "reserved": 0,
+          "dimension": "route_quota",
+          "window_id": null
+        }
+      ]
+    }
+  },
+  "limits": [
+    "synthetic trusted fixture authority",
+    "no provider request or output application",
+    "PostgreSQL fast stop and process restart; not power-loss or storage-corruption proof",
+    "no concurrent scheduler clients, history clear, or rate-window rollover in this receipt"
+  ],
+  "cleanup": {
+    "clusterStopped": true,
+    "directoryRemoved": true
+  }
+}

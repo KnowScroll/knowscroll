@@ -19,3 +19,16 @@ export type Lineage = {
 export type TruthState = 'documented' | 'synthesis' | 'interpretation' | 'disputed' | 'modelled' | 'counterfactual' | 'fictional';
 export type ConsumptionKind = 'Reel' | 'Scroll';
 export type ScrollAsset = { assetId:string; revision:number; kind:'Scroll'; title:string; summary:string; body:string; sourceTitle:string; sourceUrl:string; truthState:'documented' };
+
+// Literal source facts only; no job or paid-task authorization.
+const askUuid = uuid.transform(value => value.toLowerCase());
+export const explicitAskInput = z.object({
+ clientAskId: askUuid,
+ exposureId: askUuid,
+ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+ question: z.string().refine(value => value.trim().length > 0 && !value.includes('\0') &&
+  !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value) &&
+  new TextEncoder().encode(value).byteLength <= 4096),
+}).strict();
+export type ExplicitAskInput = z.infer<typeof explicitAskInput>;
+export type ExplicitAskReceipt = {askId:string;eventId:string;status:'recorded_only'};

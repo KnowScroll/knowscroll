@@ -1,3 +1,5 @@
 # API ownership
 
 Own admission, authorization, idempotent events and response contracts. No model or Cutroom calls in request handlers. Selection is not exposure. Event + job admission is one SQL transaction. Device-session bearer identity is local development only; each authenticated session supplies its server-owned universe and privacy epoch under the universe lock. Production deployment remains blocked pending real identity, enrollment and recovery. Validate strict input and reject idempotency-key payload conflicts. Read docs/contracts/bootstrap-http.md and docs/decisions/0009-device-sessions-and-privacy-epochs.md before changing mobile-facing JSON or session scope.
+
+ADR-0016/migration0009 add source-only explicit Ask facts. Read `docs/operations/explicit-asks.md` before consuming them. Authenticate on the same transaction, hold the universe lock, require the expected epoch before replay, preserve literal question bytes and original-session provenance, and let only Clear History erase the pair after epoch advance. The recorded_only receipt grants no queue/provider or V1 Keep-context authority.

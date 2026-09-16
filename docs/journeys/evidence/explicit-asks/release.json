@@ -1,0 +1,243 @@
+{
+  "issue": 64,
+  "observedAt": "2026-09-16T15:01:21.059485+00:00",
+  "source": {
+    "revision": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+    "dirty": false,
+    "files": [
+      {
+        "path": ".github/workflows/checks.yml",
+        "sha256": "ec028f3395c85190670a7e1f4dd8e6865698e870c0c9c9d1ca618ec031106637"
+      },
+      {
+        "path": "apps/api/src/app.ts",
+        "sha256": "95c3d2f11640f636db53fe11adf76ab42ef791aff45a341c4a3ff0599dab686a"
+      },
+      {
+        "path": "packages/contracts/src/index.ts",
+        "sha256": "9dccc25dbb9eb81e062955123c21fda1afca98986a1a04f2f49404708ccd1059"
+      },
+      {
+        "path": "packages/db/migrations/0009_explicit_asks.sql",
+        "sha256": "5b4482e0ae71674cca05f01df3119727936919227c53684552caff572affbfc4"
+      },
+      {
+        "path": "packages/db/src/explicit-ask.ts",
+        "sha256": "495f87ace1b7814af699115a1c1b213757af5f8898bd10f9f779c678aa060234"
+      },
+      {
+        "path": "scripts/run-isolated-ask-journey.ts",
+        "sha256": "bfc194fd1dfc18c1b379610da1966bea2b87ec7d1514a519a32e8f31fd884202"
+      },
+      {
+        "path": "tests/api-asks.test.ts",
+        "sha256": "fd6d06353041372b558c930a6961e08d25310c2d7156dcd88ea9e40c0bcf2fb1"
+      },
+      {
+        "path": "tests/explicit-ask-contracts.test.ts",
+        "sha256": "db9d827a83aad79a9c5b14e7826c799810bb7126770eeae7403c425fdef2405f"
+      },
+      {
+        "path": "tests/explicit-ask-privacy.test.ts",
+        "sha256": "db246ee9d283f3efc65beea4d91bb4962d39570096062f107762e1af0ac51485"
+      },
+      {
+        "path": "tests/explicit-ask-storage.test.ts",
+        "sha256": "089218b4668238f50d6fe45e3b7c343984098dd66e8ef009db5888f65d9e5983"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "result": "passed",
+      "baselineTests": 12,
+      "additionalTests": 262,
+      "totalTests": 274
+    },
+    {
+      "command": "isolated J001/J002/J003 and two verifier rejection tests",
+      "result": "passed"
+    },
+    {
+      "command": "isolated J004 + receipt verifier",
+      "result": "passed",
+      "cases": 13,
+      "fixtureRequests": 4
+    },
+    {
+      "command": "interruption cleanup checker",
+      "result": "passed",
+      "cases": 6
+    },
+    {
+      "command": "separate HTTP Ask admission/restart/clear",
+      "result": "passed"
+    },
+    {
+      "command": "scheduled retirement regression",
+      "result": "passed"
+    },
+    {
+      "command": "disposable PostgreSQL restart regression",
+      "result": "passed"
+    },
+    {
+      "command": "deterministic fairness trace capture",
+      "result": "passed",
+      "traces": 12
+    }
+  ],
+  "unchangedReleasedMigrations": [
+    {
+      "path": "packages/db/migrations/0001_bootstrap.sql",
+      "sha256": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "path": "packages/db/migrations/0002_identity_epochs.sql",
+      "sha256": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    },
+    {
+      "path": "packages/db/migrations/0003_history_clear.sql",
+      "sha256": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+    },
+    {
+      "path": "packages/db/migrations/0004_reasoning_storage.sql",
+      "sha256": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+    },
+    {
+      "path": "packages/db/migrations/0005_reasoning_runtime.sql",
+      "sha256": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+    },
+    {
+      "path": "packages/db/migrations/0006_reasoning_fairness.sql",
+      "sha256": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+    },
+    {
+      "path": "packages/db/migrations/0007_sealed_reasoning_context.sql",
+      "sha256": "e1baf0ea78610e46e3449b5da0ac503190bf30745f4a3c424e16e6c1ab4f9948"
+    },
+    {
+      "path": "packages/db/migrations/0008_reasoning_retirement.sql",
+      "sha256": "4f7667d57c488dbf789f4ba5575b7c435ad8004a940a4bab7ff89ec41bdadf66"
+    }
+  ],
+  "receipts": {
+    "http-restart-clear-release.json": {
+      "sha256": "3bfce5883d80fb5618fa574ef5222c959bf9eb941c60ae82eed6dce57fe3b3e7",
+      "sourceRevision": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    },
+    "retirement-release.json": {
+      "sha256": "be1c6d9669435eb7f5e81eb16616579f8b2c78160a91465b207ed3ccf67cdb34",
+      "sourceRevision": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    },
+    "postgres-restart-release.json": {
+      "sha256": "79fe8d2ff75eee9d39e587a0b2f542d6803a1c0a77b24356b7050d57fa41abd2",
+      "sourceRevision": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    },
+    "interruption-cleanup-release.json": {
+      "sha256": "cf95460fb2af33dae1596f05f2cd442b6951352fd53d0bf7ed54e86f787369ce",
+      "sourceRevision": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    }
+  },
+  "logs": [
+    {
+      "path": "artifacts/64-candidate-typecheck.log",
+      "sha256": "1f781540a75e0bc03004b4b091a8e22d19a51367280c523c72bc83b04d19c355"
+    },
+    {
+      "path": "artifacts/64-candidate-tests.log",
+      "sha256": "52e1c90022470602d4f665bbe6147bdc06379c7b9d5c4a0f94d91669ae5a84e7"
+    },
+    {
+      "path": "artifacts/64-ask-release.log",
+      "sha256": "9364b5f8c752ff814a6acb4195be73fe535075ba8030ea3e1383de48ce463f85"
+    },
+    {
+      "path": "artifacts/64-retirement-release.log",
+      "sha256": "16b8bd3bbfb0ac0803171f8bee7f9aa302e0177462fb4a14f51e18a2b8ffefa5"
+    },
+    {
+      "path": "artifacts/64-restart-release.log",
+      "sha256": "8669589eed098133c916572dbb81aa70d2196fd488fbd505070acfcd757ff08f"
+    },
+    {
+      "path": "artifacts/64-j001-release.log",
+      "sha256": "8f07f0aa9ba6d24cdafdaa6657e33899b1094e6fc891888696a06234daa4b0de"
+    },
+    {
+      "path": "artifacts/64-j002-release.log",
+      "sha256": "91a9999fb83a97a2d55a67b827a4f4f00c0ddbfde13c9bc0f9517ffd0dc971a0"
+    },
+    {
+      "path": "artifacts/64-j003-release.log",
+      "sha256": "28029c0e7967100851e4d6da40434c3ae89a0b7fa31a07316d1b9960c7bc0316"
+    },
+    {
+      "path": "artifacts/64-verifier-release.log",
+      "sha256": "7d3dc61b78b2b094bf08eec1327d96b874e7c4a3a3364a3b50b7c8db7793dcba"
+    },
+    {
+      "path": "artifacts/64-j004-release.log",
+      "sha256": "1e81ccb8f112fa91407926d7597d749d8cd950432ed1a215294f98d26e9b1d8e"
+    },
+    {
+      "path": "artifacts/64-cleanup-release.log",
+      "sha256": "efd509174ddcb21a45294dcf4cdf165744bb77fd5edc783c8fe304a3a74d1b79"
+    },
+    {
+      "path": "artifacts/64-fairness-release.log",
+      "sha256": "ccc3312f2be631c5e99b40ebe0b2f3b1c4b9b97d3c85aa96ff1d22f9c35b6b9b"
+    }
+  ],
+  "workers": [
+    {
+      "model": "gpt-5.6-terra",
+      "role": "DB admission/API and focused HTTP tests",
+      "commits": [
+        "e0e31fa",
+        "8f1d115",
+        "463dfe6"
+      ]
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "role": "independent SQL/contract adversaries and final source review",
+      "commits": [
+        "c1c855b",
+        "978b202"
+      ],
+      "finalVerdict": "accept at aec78d1; source identity counted before kind/shape validation"
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "role": "independent privacy/authentication/clear races",
+      "commits": [
+        "4d1bc753",
+        "9251f913"
+      ]
+    }
+  ],
+  "providerCalls": 0,
+  "limits": [
+    "Literal source facts only; no queue, answer, provider authority or mobile Ask control",
+    "No model inference, semantic proposal/application, production identity or usefulness claim",
+    "HTTP harness restarts API only; independent PostgreSQL restart is a synthetic reasoning regression",
+    "No owner API restart or Android instrumentation; Android compile/lint/unit CI is release gate",
+    "Ask source facts retained until Clear History, not subject to seven-day execution-context retirement",
+    "Accounting/provider/privacy lifecycle gaps from earlier slices remain explicit"
+  ],
+  "correction": "Reject every ambiguous same-asset selected candidate before validating its single Scroll shape, at both SQL and API boundaries."
+}

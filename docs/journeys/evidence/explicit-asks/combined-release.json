@@ -1,0 +1,40 @@
+{
+  "issue": 64,
+  "observedAt": "2026-09-16T15:25:05.937406+00:00",
+  "testedRevision": "6dfc9f7a095be0afc89e7d6c44898c0ab31d5983",
+  "askRuntimeUnchangedFrom": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+  "cleanupRuntimeIdenticalTo": "e481ea22fe4e984387d230b4c703ed5604e50cc2",
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test (12 baseline + 262 additional = 274)",
+      "result": "passed"
+    },
+    {
+      "command": "interruption checker (8 cases, including 2 synthetic ordering probes)",
+      "result": "passed"
+    },
+    {
+      "command": "separate HTTP Ask admission/API restart/clear",
+      "result": "passed"
+    },
+    {
+      "command": "isolated J004 and strict receipt verifier (13 cases, 4 fixture HTTP requests)",
+      "result": "passed"
+    },
+    {
+      "command": "scheduled retirement regression",
+      "result": "passed"
+    }
+  ],
+  "providerCalls": 0,
+  "ownerHistoryChanged": false,
+  "limits": [
+    "The earlier failed Linux classification mismatch remains retained; repaired exact-head CI is a release gate.",
+    "Previous J001-J003, verifier, fairness and PostgreSQL restart evidence is source-stamped separately; those commands were not rerun in this combined local pass.",
+    "No mobile Ask UI, answer, provider execution or usefulness proof."
+  ]
+}

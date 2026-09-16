@@ -1,0 +1,21 @@
+{
+  "issue": 64,
+  "observedAt": "2026-09-16T16:03:00.486065+00:00",
+  "testedRevision": "482af33d2f7f1c9d075a0c8acd961c5b19b7adf4",
+  "typecheck": "passed",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 264,
+    "total": 276,
+    "result": "passed"
+  },
+  "retirementJourney": "passed; explicit exit/close/stopped proof in retirement-final-drained.json",
+  "askRuntimeUnchangedFrom": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+  "dependency": "PR67 including issues57/68/69 reviewed verification changes",
+  "providerCalls": 0,
+  "limits": [
+    "Original failed CI and earlier source-stamped receipts remain retained.",
+    "Final-head backend/Android CI required before merge.",
+    "No product-provider execution or mobile Ask enablement."
+  ]
+}

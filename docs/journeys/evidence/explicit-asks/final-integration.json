@@ -1,0 +1,25 @@
+{
+  "issue": 64,
+  "observedAt": "2026-09-16T15:39:57.029689+00:00",
+  "testedRevision": "339913dc5932fed46e60cf3f78113ae2906df878",
+  "tests": {
+    "baseline": 12,
+    "additional": 263,
+    "total": 275,
+    "result": "passed"
+  },
+  "typecheck": "passed",
+  "newTestOnlyDependency": {
+    "issue": 68,
+    "source": "tests/minimax-certification.test.ts",
+    "sha256": "2513f34a3a9be01d481787fc04e40d8f5db04bcb3672ce5a0f45129a01547d2d"
+  },
+  "askRuntimeUnchangedFrom": "aec78d1471bc44df29291dfe8f7a412c49e0fd3b",
+  "cleanupRuntimeUnchangedFrom": "e481ea22fe4e984387d230b4c703ed5604e50cc2",
+  "previousCombinedJourneys": "combined-release.json",
+  "providerCalls": 0,
+  "limits": [
+    "Only typecheck/full backend suite rerun after final test-only deadline repair. Combined journey evidence remains source-identical and retained separately.",
+    "Exact final-head backend/Android CI required before merge."
+  ]
+}

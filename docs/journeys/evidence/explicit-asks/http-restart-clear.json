@@ -1,0 +1,64 @@
+{
+  "check": "explicit-ask-http-durability",
+  "result": "passed",
+  "observedAt": "2026-09-16T14:52:07.664Z",
+  "source": {
+    "revision": "3c41a92e9c806dd74d59a30d2a978913908d8bfd",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/run-isolated-ask-journey.ts",
+        "sha256": "bfc194fd1dfc18c1b379610da1966bea2b87ec7d1514a519a32e8f31fd884202"
+      },
+      {
+        "path": "packages/contracts/src/index.ts",
+        "sha256": "9dccc25dbb9eb81e062955123c21fda1afca98986a1a04f2f49404708ccd1059"
+      },
+      {
+        "path": "packages/db/migrations/0009_explicit_asks.sql",
+        "sha256": "d9895c7da589cf764ae69f2003fc40960f244e495aaac71058e78b2b6ed21e43"
+      },
+      {
+        "path": "packages/db/src/explicit-ask.ts",
+        "sha256": "3c22172f20a8dc94702f33d43982869c071fe39deb723c75eee5a9b43ebb8ec7"
+      },
+      {
+        "path": "packages/db/src/privacy.ts",
+        "sha256": "c69a49dd681461474c1839c159912c501e563af58652769784569abbc11df8fc"
+      },
+      {
+        "path": "packages/db/src/identity.ts",
+        "sha256": "7e0d14a00775b3ca368056901ed1214359aa36a1e12c120b01a67c4ee48f8124"
+      },
+      {
+        "path": "apps/api/src/app.ts",
+        "sha256": "95c3d2f11640f636db53fe11adf76ab42ef791aff45a341c4a3ff0599dab686a"
+      },
+      {
+        "path": "apps/api/src/main.ts",
+        "sha256": "ce23d3cca6f54a3a67e73c959f3a586ddde5fe717c20183c6616c29f85abb159"
+      }
+    ]
+  },
+  "assertions": {
+    "separateApi": true,
+    "literalQuestionStored": true,
+    "identicalReplay": true,
+    "conflictRejected": true,
+    "apiRestartReplay": true,
+    "noJobsAccountingOrProjection": true,
+    "immediateClear": true,
+    "oldEpochRetryRejected": true,
+    "oldClearReplayPreservesLaterAsk": true
+  },
+  "providerCalls": 0,
+  "limits": [
+    "synthetic questions and editorial Scroll fixtures",
+    "no mobile Ask control, answer, provider invocation, semantic application or usefulness proof",
+    "API restart is not PostgreSQL restart; no production deployment claim"
+  ],
+  "cleanup": {
+    "databaseAbsent": true,
+    "childrenExited": true
+  }
+}
