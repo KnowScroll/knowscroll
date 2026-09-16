@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning admission protocol accepted; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## What exists
 
@@ -18,6 +18,8 @@ Updated: 2026-09-16 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax c
 - Migration `0003_history_clear.sql` and retryable Clear Scroll history: one locked transaction removes scoped bootstrap encounters and saved Traces, advances the privacy epoch, preserves the caller session and shared library, and invalidates other sessions. Android confirms the effects, persists uncertain requests and binds cached state to its universe.
 
 - Pinned AI SDK/MiniMax certification adapter, fsynced attempt journal and explicit quota-gated CLI. Three live synthetic cases passed on September 16: exact JSON, native thinking/tool call and native continuation. This separate tool does not dispatch ordinary product jobs.
+
+- [ADR-0012](decisions/0012-reasoning-admission-and-reconciliation.md) and strict shared reasoning metadata schemas define durable admission/dispatch uncertainty and late usage after privacy clear. This is a reviewed design contract; no SQL reasoning runtime or product dispatch is enabled.
 
 ## What is not built
 
@@ -39,13 +41,15 @@ Wave-three review and runtime proof: [clear-history evidence](journeys/evidence/
 
 Wave-four proof: [certification evidence](journeys/evidence/wave4-certification/README.md). Sixty-six backend tests, two verifier rejection cases, J001/J002/J003 and all three live MiniMax cases passed. The run made three requests with 6,360 reserved units; usage and capability limits are recorded separately. No migration, owner history mutation or Android source change occurred.
 
+Protocol-design checks for #42: typecheck and 75 total backend tests passed, including nine new contract tests. Sol and Terra reviews accepted the corrected state/receipt/privacy design. These checks do not prove SQL admission, J004 or a new product journey.
+
 Last development observation: `2026-09-16T06:26:19.515Z`. API healthy, worker heartbeat fresh, all three migration checksums present; two completed jobs remain present. The earlier wave-three emulator observation showed both existing Traces and the privacy control at epoch zero; it was not rerun in this backend-only wave. Run `pnpm state` for current status.
 
-## Next work after wave four
+## Next work after certification and protocol design
 
 [Coordination #29](https://github.com/KnowScroll/knowscroll/issues/29) records the clear-history wave; [#21](https://github.com/KnowScroll/knowscroll/issues/21) and [#13](https://github.com/KnowScroll/knowscroll/issues/13) retain earlier delivery evidence. Parent epics remain open. ADR-0010 defines implemented bootstrap clear and separates future pause, semantic reset, account deletion, backup retention and typed semantic proposal read sets.
 
-Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37) records completed provider certification. Next: [#42](https://github.com/KnowScroll/knowscroll/issues/42), the production reasoning admission and unknown-outcome protocol under #7. Specify durable Job/Step/Attempt, reservations, leases/fences, cancellation/late usage and privacy retention before enabling product dispatch. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
+Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37) records completed provider certification. [#42](https://github.com/KnowScroll/knowscroll/issues/42) accepts the production reasoning admission and unknown-outcome protocol under #7. Next: [#44 storage/privacy](https://github.com/KnowScroll/knowscroll/issues/44), then [#45 atomic admission/reconciliation](https://github.com/KnowScroll/knowscroll/issues/45) and [#46 J004 fault proof](https://github.com/KnowScroll/knowscroll/issues/46), following the [implementation plan](operations/reasoning-implementation-plan.md). These are planned work, not active provider jobs. Keep #2 public identity/recovery and #4 full privacy lifecycle explicit; clear history does not complete either. The semantic, recommendation and cosmic/social target remains unchanged.
 
 ## Component lanes
 
@@ -53,7 +57,7 @@ Wave-four [coordination #37](https://github.com/KnowScroll/knowscroll/issues/37)
 |---|---|---|
 | Mobile | [#3](https://github.com/KnowScroll/knowscroll/issues/3) | apps/mobile; renderer/navigation contracts coordinated first |
 | Core | [#4](https://github.com/KnowScroll/knowscroll/issues/4), then #5/#6 | events, privacy lifecycle, full Composer and semantic substrate |
-| Reasoning | [#7](https://github.com/KnowScroll/knowscroll/issues/7) | worker runtime; development certification complete, production protocol next |
+| Reasoning | [#7](https://github.com/KnowScroll/knowscroll/issues/7) | worker runtime; certification and protocol complete; SQL runtime next |
 | Coordinator | [#2](https://github.com/KnowScroll/knowscroll/issues/2), [#12](https://github.com/KnowScroll/knowscroll/issues/12) | identity boundary, shared contracts, integration and journey evidence |
 
 The owner reports a token plan of 300 million tokens per five hours. ADR-0011 verifies the subscription route and enforces a much smaller cap plus a quota preflight before every certification request. Three live calls ran in wave four; post-run quota was 99% interval / 95% weekly. This is a dated shared-plan observation, not a current balance or cash-spend authorization. Cutroom needs a reachable configured host and file-import transport. No provider key is needed for the sourced-Scroll journey. Do not paste credentials into issues or commits.
