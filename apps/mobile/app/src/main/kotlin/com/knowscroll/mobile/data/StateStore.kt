@@ -6,6 +6,7 @@ import java.util.UUID
 
 data class ScrollSession(
     val decisionId: String, val item: ScrollItem,
+    val privacyEpoch: Long,
     val clientExposureId: String = UUID.randomUUID().toString(),
     val clientEventId: String = UUID.randomUUID().toString(),
     val exposureId: String = "", val exposureEventId: String = "",
@@ -33,6 +34,7 @@ class StateStore(context: Context) {
         }
         val json = JSONObject().apply {
             put("decisionId", s.decisionId); put("item", item)
+            put("privacyEpoch", s.privacyEpoch)
             put("clientExposureId", s.clientExposureId); put("clientEventId", s.clientEventId)
             put("exposureId", s.exposureId); put("exposureEventId", s.exposureEventId)
             put("keepJobId", s.keepJobId); put("keepEventId", s.keepEventId)
@@ -49,6 +51,48 @@ class StateStore(context: Context) {
         val o = JSONObject(raw); val i = o.getJSONObject("item")
         val item = ScrollItem(i.getString("assetId"),i.getInt("revision"),i.getString("kind"),i.getString("title"),i.getString("summary"),i.getString("body"),i.getString("sourceTitle"),i.getString("sourceUrl"),i.getString("truthState"),i.getString("reason"))
         val position=if(prefs.getString("readingAssetId",null)==item.assetId) prefs.getInt("readingPosition",0) else o.optInt("readingPosition",0)
-        return ScrollSession(o.getString("decisionId"),item,o.getString("clientExposureId"),o.getString("clientEventId"),o.getString("exposureId"),o.getString("exposureEventId"),o.getString("keepJobId"),o.getString("keepEventId"),position)
+        return ScrollSession(o.getString("decisionId"),item,o.optLong("privacyEpoch",0),o.getString("clientExposureId"),o.getString("clientEventId"),o.getString("exposureId"),o.getString("exposureEventId"),o.getString("keepJobId"),o.getString("keepEventId"),position)
+    }
+
+    fun readObservedPrivacyEpoch(): Long = prefs.getLong("privacyEpoch", 0L)
+
+    @Synchronized fun observePrivacyEpoch(epoch: Long): Long {
+        val observed = maxOf(readObservedPrivacyEpoch(), epoch)
+        check(prefs.edit().putLong("privacyEpoch", observed).commit()) { "Could not save privacy epoch" }
+        return observed
+    }
+
+    fun writePendingClear(request: HistoryClearRequest) {
+        val json = JSONObject().apply {
+            put("requestId", request.requestId)
+            put("expectedPrivacyEpoch", request.expectedPrivacyEpoch)
+            put("confirmation", request.confirmation)
+        }
+        check(prefs.edit().putString("pendingHistoryClear", json.toString()).commit()) { "Could not save pending history clear" }
+    }
+
+    fun readPendingClear(): HistoryClearRequest? {
+        val raw = prefs.getString("pendingHistoryClear", null) ?: return null
+        val json = JSONObject(raw)
+        return HistoryClearRequest(
+            requestId = json.getString("requestId"),
+            expectedPrivacyEpoch = json.getLong("expectedPrivacyEpoch"),
+            confirmation = json.getString("confirmation")
+        )
+    }
+
+    fun clearPendingClear() {
+        check(prefs.edit().remove("pendingHistoryClear").commit()) { "Could not clear pending history clear" }
+    }
+
+    /** Removes only private encounter/navigation state and retains the monotonic privacy epoch. */
+    @Synchronized fun purgePrivateState(epoch: Long) {
+        val observed = maxOf(readObservedPrivacyEpoch(), epoch)
+        check(prefs.edit()
+            .remove("session").remove("readingAssetId").remove("readingPosition")
+            .remove("visited").remove("pendingHistoryClear")
+            .putString("screen", "universe").putLong("privacyEpoch", observed).commit()) {
+            "Could not purge local Scroll history"
+        }
     }
 }

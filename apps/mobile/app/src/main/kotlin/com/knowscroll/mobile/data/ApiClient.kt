@@ -32,6 +32,7 @@ class ApiClient(
             Universe(
                 universeId = obj.getString("universeId"),
                 revision = obj.getLong("revision"),
+                privacyEpoch = obj.getLong("privacyEpoch"),
                 traces = parseTraces(obj.optJSONArray("traces")),
                 capabilities = parseCaps(obj.optJSONObject("capabilities"))
             )
@@ -44,6 +45,7 @@ class ApiClient(
                 decisionId = obj.getString("decisionId"),
                 universeId = obj.getString("universeId"),
                 accountRevision = obj.getLong("accountRevision"),
+                privacyEpoch = obj.getLong("privacyEpoch"),
                 items = parseItems(obj.getJSONArray("items"))
             )
         }
@@ -81,6 +83,21 @@ class ApiClient(
                 jobId = obj.optStringOrNull("jobId"),
                 jobStatus = obj.optStringOrNull("jobStatus"),
                 projected = obj.optBoolean("projected", false)
+            )
+        }
+    }
+
+    suspend fun clearScrollHistory(req: HistoryClearRequest): HistoryClearReceipt = io {
+        val body = jsonObj(
+            "requestId" to req.requestId,
+            "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
+            "confirmation" to req.confirmation
+        ).toString()
+        post("/v1/history/clear", body, setOf(200), false) { obj ->
+            HistoryClearReceipt(
+                receiptId = obj.getString("receiptId"),
+                privacyEpoch = obj.getLong("privacyEpoch"),
+                clearedAt = obj.getString("clearedAt")
             )
         }
     }

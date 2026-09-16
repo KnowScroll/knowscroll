@@ -3,6 +3,7 @@ package com.knowscroll.mobile.data
 data class Universe(
     val universeId: String,
     val revision: Long,
+    val privacyEpoch: Long,
     val traces: List<Trace>,
     val capabilities: Capabilities
 )
@@ -17,6 +18,7 @@ data class FeedResponse(
     val decisionId: String,
     val universeId: String,
     val accountRevision: Long,
+    val privacyEpoch: Long,
     val items: List<ScrollItem>
 )
 
@@ -38,6 +40,14 @@ data class ExposureResponse(val exposureId: String, val eventId: String)
 
 data class InteractionRequest(val clientEventId: String, val exposureId: String, val assetId: String, val kind: String)
 data class InteractionResponse(val eventId: String, val jobId: String, val status: String)
+
+data class HistoryClearRequest(
+    val requestId: String,
+    val expectedPrivacyEpoch: Long,
+    val confirmation: String = "clear-scroll-history"
+)
+
+data class HistoryClearReceipt(val receiptId: String, val privacyEpoch: Long, val clearedAt: String)
 
 data class EventStatus(
     val eventId: String,
