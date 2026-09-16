@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+
 /**
  * Pure, deterministic fairness model for issue #54.  It is deliberately not a
  * scheduler or an admission authority: callers supply already-authorized work
@@ -212,4 +214,4 @@ export function rolloverRateWindow(policy:FairnessPolicy,snapshot:FairnessSnapsh
   const state=clone(snapshot);for(const r of Object.values(state.reservations)) r.rateReleased=policy.physical.some(d=>d.kind==='rate');
   return state;
 }
-export function snapshotHash(snapshot:FairnessSnapshot):string { return canonical(snapshot); }
+export function snapshotHash(snapshot:FairnessSnapshot):string { return createHash('sha256').update(canonical(snapshot)).digest('hex'); }
