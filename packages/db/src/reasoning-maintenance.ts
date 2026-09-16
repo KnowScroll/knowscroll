@@ -1,16 +1,17 @@
 import type pg from 'pg';
 
 import {purgeClosedReasoningAccounting} from './reasoning-storage.js';
+import {expireIdleDirectJob,isIdleWithdrawalIneligible} from './reasoning-idle-lifecycle.js';
 
 const DEFAULT_MAX_PROBES=32;
 const MAX_PROBES=128;
 const GRAPH_LIMITS=Object.freeze({steps:128,attempts:128,contexts:128,reads:16_384});
 
-type Lane='job'|'accounting';
-type Candidate={id:string;universeId:string};
-type Cursors={job:string|null;accounting:string|null;next:Lane};
+type Lane='expiry'|'job'|'accounting';
+type Candidate={id:string;universeId:string;privacyEpoch:number};
+type Cursors={expiry:string|null;job:string|null;accounting:string|null;next:Lane};
 
-export type ReasoningMaintenanceBatch={probes:number;retiredJobs:number;purgedAccounting:number;skipped:number};
+export type ReasoningMaintenanceBatch={probes:number;expiredJobs:number;retiredJobs:number;purgedAccounting:number;skipped:number};
 export type ReasoningMaintenanceRunInput={maxProbes?:number;signal?:AbortSignal};
 export type ReasoningMaintenance={runBatch(input?:ReasoningMaintenanceRunInput):Promise<ReasoningMaintenanceBatch>};
 
@@ -41,18 +42,28 @@ async function transaction<T>(pool:pg.Pool,body:(client:pg.PoolClient)=>Promise<
 }
 
 async function discover(pool:pg.PoolClient,lane:Lane,cursor:string|null):Promise<Candidate|undefined> {
- const table=lane==='job'?'reasoning_job':'reasoning_accounting';
- const idColumn=lane==='job'?'id':'attempt_id';
- const base=lane==='job'
-  ? "withdrawn_at IS NOT NULL"
+ const table=lane==='accounting'?'reasoning_accounting':'reasoning_job';
+ const idColumn=lane==='accounting'?'attempt_id':'id';
+ const base=lane==='expiry'
+  ? `wake_kind='direct' AND status IN ('queued','waiting') AND withdrawn_at IS NULL
+     AND deadline<=clock_timestamp()
+     AND EXISTS(SELECT 1 FROM universe u WHERE u.id=reasoning_job.universe_id AND u.privacy_epoch=reasoning_job.privacy_epoch)
+     AND EXISTS(SELECT 1 FROM reasoning_context_job_session b
+       WHERE (b.job_id,b.universe_id,b.privacy_epoch)=(reasoning_job.id,reasoning_job.universe_id,reasoning_job.privacy_epoch))`
+  :lane==='job'? "withdrawn_at IS NOT NULL"
   : "all_duties_closed_at IS NOT NULL";
- const after=cursor===null?undefined:(await pool.query<{id:string;universe_id:string}>(
-  `SELECT ${idColumn} AS id,universe_id FROM ${table} WHERE ${base} AND ${idColumn}>$1 ORDER BY ${idColumn} LIMIT 1`,[cursor],
+ const after=cursor===null?undefined:(await pool.query<{id:string;universe_id:string;privacy_epoch:number}>(
+  `SELECT ${idColumn} AS id,universe_id,privacy_epoch FROM ${table} WHERE ${base} AND ${idColumn}>$1 ORDER BY ${idColumn} LIMIT 1`,[cursor],
  )).rows[0];
- const row=after??(await pool.query<{id:string;universe_id:string}>(
-  `SELECT ${idColumn} AS id,universe_id FROM ${table} WHERE ${base} ORDER BY ${idColumn} LIMIT 1`,
+ const row=after??(await pool.query<{id:string;universe_id:string;privacy_epoch:number}>(
+  `SELECT ${idColumn} AS id,universe_id,privacy_epoch FROM ${table} WHERE ${base} ORDER BY ${idColumn} LIMIT 1`,
  )).rows[0];
- return row?{id:String(row.id),universeId:String(row.universe_id)}:undefined;
+ return row?{id:String(row.id),universeId:String(row.universe_id),privacyEpoch:Number(row.privacy_epoch)}:undefined;
+}
+
+async function expireJob(client:pg.PoolClient,candidate:Candidate):Promise<boolean> {
+ if(!await lockUniverse(client,candidate.universeId)) return false;
+ return (await expireIdleDirectJob(client,{jobId:candidate.id,universeId:candidate.universeId,privacyEpoch:candidate.privacyEpoch})).changed;
 }
 
 async function lockUniverse(client:pg.PoolClient,universeId:string):Promise<boolean> {
@@ -155,33 +166,35 @@ async function purgeAccounting(client:pg.PoolClient,candidate:Candidate):Promise
 }
 
 export function createReasoningMaintenance(pool:pg.Pool):ReasoningMaintenance {
- const cursors:Cursors={job:null,accounting:null,next:'job'};
+ const cursors:Cursors={expiry:null,job:null,accounting:null,next:'expiry'};
  return {
   async runBatch(input) {
    const limit=maxProbes(input);
-   const result:ReasoningMaintenanceBatch={probes:0,retiredJobs:0,purgedAccounting:0,skipped:0};
+   const result:ReasoningMaintenanceBatch={probes:0,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:0};
    for(let probe=0;probe<limit;probe+=1) {
     // Shutdown is observed only between probes. The current transaction is
     // always allowed to reach its normal commit/rollback boundary.
     if(input?.signal?.aborted) break;
     const lane=cursors.next;
-    cursors.next=lane==='job'?'accounting':'job';
+    cursors.next=lane==='expiry'?'job':lane==='job'?'accounting':'expiry';
     result.probes+=1;
     try {
      const outcome=await transaction(pool,async client=>{
       const candidate=await discover(client,lane,cursors[lane]);
-      if(!candidate) return {retired:false,purged:0};
+      if(!candidate) return {expired:false,retired:false,purged:0};
       // This is deliberately process-local progress: a later rollback must not
       // make one blocked candidate the next probe again.
       cursors[lane]=candidate.id;
-      if(lane==='job') return {retired:await retireJob(client,candidate),purged:0};
-      return {retired:false,purged:await purgeAccounting(client,candidate)};
+      if(lane==='expiry') return {expired:await expireJob(client,candidate),retired:false,purged:0};
+      if(lane==='job') return {expired:false,retired:await retireJob(client,candidate),purged:0};
+      return {expired:false,retired:false,purged:await purgeAccounting(client,candidate)};
      });
-     if(outcome.retired) result.retiredJobs+=1;
+     if(outcome.expired) result.expiredJobs+=1;
+     else if(outcome.retired) result.retiredJobs+=1;
      else if(outcome.purged===1) result.purgedAccounting+=1;
      else result.skipped+=1;
     } catch(error) {
-     if(isExpectedContention(error)) {result.skipped+=1;continue;}
+     if(isExpectedContention(error)||(lane==='expiry'&&isIdleWithdrawalIneligible(error))) {result.skipped+=1;continue;}
      throw error;
     }
    }
