@@ -355,11 +355,9 @@ export class CertificationJournal {
   async resolve(observation: CertificationObservation, checks: CaseChecks): Promise<void> {
     const active = this.#activeAttempt;
     if (!active) throw new Error('No prepared certification attempt to resolve');
-    if (observation.requestHash !== null) {
-      const report = await readCertificationRun(this.runDirectory);
-      const prepared = report.attempts.find((attempt) => attempt.attempt === active.number);
-      if (!prepared || prepared.requestHash !== observation.requestHash) throw new Error('Adapter observation request hash does not match reservation');
-    }
+    const report = await readCertificationRun(this.runDirectory);
+    const prepared = report.attempts.find((attempt) => attempt.attempt === active.number);
+    if (!prepared || prepared.requestHash !== observation.requestHash) throw new Error('Adapter observation request hash does not match reservation');
     const providerRequestIdHash = observation.providerRequestId === null || observation.providerRequestId.length > 256
       ? null
       : (await import('node:crypto')).createHash('sha256').update(observation.providerRequestId).digest('hex');

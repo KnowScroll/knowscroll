@@ -91,6 +91,9 @@ function findToolCall(observation: CertificationObservation): {id:string;block:R
 function completedJsonChecks(observation: CertificationObservation, expected: Record<string, string | number | boolean>): CaseChecks {
   return {
     completed: observation.outcome === 'completed',
+    dispatched: observation.dispatched,
+    httpSuccess: observation.httpStatus !== null && observation.httpStatus >= 200 && observation.httpStatus < 300,
+    requestHashPresent: observation.requestHash !== null,
     stopReasonAccepted: observation.stopReason === 'end_turn',
     jsonParsedAndExact: parseExactJson(observation.text, expected),
   };
@@ -110,20 +113,15 @@ async function invokeCase(args: {
   now: ()=>Date;
 }): Promise<CertificationObservation> {
   if (args.runSignal.aborted) throw new Error('Certification run deadline or cancellation reached before quota preflight');
-  const requestController = new AbortController();
-  const timer = setTimeout(() => requestController.abort(new Error('Certification request deadline reached')), CERTIFICATION_LIMITS.requestTimeoutMs);
-  const signal = AbortSignal.any([args.runSignal, requestController.signal]);
-  try {
-    return await args.adapter.invoke({
+  return args.adapter.invoke({
       messages:args.messages,
       tools:args.tools,
       thinking:args.thinking,
       maxOutputTokens:args.maxOutputTokens,
       deadline:new Date(args.now().getTime() + CERTIFICATION_LIMITS.requestTimeoutMs).toISOString(),
-      signal,
+      signal:args.runSignal,
       beforeDispatch:args.journal.beforeDispatch(args.caseId),
     });
-  } finally { clearTimeout(timer); }
 }
 
 export async function runMiniMaxCertification(
@@ -158,6 +156,9 @@ export async function runMiniMaxCertification(
   const toolChecks: CaseChecks = {
     quotaAccepted:true,
     completed:toolObservation.outcome === 'completed',
+    dispatched:toolObservation.dispatched,
+    httpSuccess:toolObservation.httpStatus !== null && toolObservation.httpStatus >= 200 && toolObservation.httpStatus < 300,
+    requestHashPresent:toolObservation.requestHash !== null,
     stopReasonIsToolCall:toolObservation.stopReason === 'tool_use' || toolObservation.stopReason === 'tool-calls',
     nativeThinkingReturned:toolObservation.nativeContent.some((block) => block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.length > 0),
     exactToolCall:toolCall !== null,

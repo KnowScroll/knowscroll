@@ -163,6 +163,12 @@ test('runner drives the real SDK adapter through a local HTTP fixture with each 
   });
   assert.equal(preparedBeforeTransport, true);
   assert.equal(bodies.length, 3);
+  assert.deepEqual(bodies.map((body) => body.model), ['MiniMax-M3','MiniMax-M3','MiniMax-M3']);
+  assert.deepEqual(bodies.map((body) => body.max_tokens), [512,2048,2048]);
+  assert.deepEqual(bodies.map((body) => body.thinking), [{type:'disabled'},{type:'adaptive'},{type:'adaptive'}]);
+  assert.equal('tools' in bodies[0]!, false);
+  assert.deepEqual((bodies[1]?.tools as Array<Record<string, unknown>>).map((tool) => tool.name), ['lookup_fact']);
+  assert.deepEqual((bodies[2]?.tools as Array<Record<string, unknown>>).map((tool) => tool.name), ['lookup_fact']);
   assert.ok(report.attempts.every((attempt) => attempt.status === 'completed' && Object.values(attempt.checks).every(Boolean)));
   assert.deepEqual((bodies[2]?.messages as unknown[])[1], {
     role:'assistant',
@@ -174,6 +180,27 @@ test('runner drives the real SDK adapter through a local HTTP fixture with each 
   assert.deepEqual((bodies[2]?.messages as unknown[])[2], {
     role:'user',content:[{type:'tool_result',tool_use_id:'fixture-tool-1',content:'{"planet":"Saturn","ringSystem":true}'}],
   });
+});
+
+test('runner supplies the fixed request deadline and records adapter timeout as unknown remote outcome', async () => {
+  const root = await checkout();
+  const fixedNow = new Date('2026-09-16T00:00:00.000Z');
+  const createAdapter = (): MiniMaxCertificationAdapter => ({invoke:async (request) => {
+    assert.equal(request.deadline, '2026-09-16T00:01:00.000Z');
+    const body = JSON.stringify(request.messages);
+    const requestHash = createHash('sha256').update(body).digest('hex');
+    await request.beforeDispatch({requestHash,inputBytes:Buffer.byteLength(body),maxOutputTokens:request.maxOutputTokens});
+    return {
+      outcome:'timeout',dispatched:true,httpStatus:null,requestHash,providerRequestId:null,
+      usage:{inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costUsd:null},
+      nativeContent:[],text:'',stopReason:null,
+    };
+  }});
+  const report = await runMiniMaxCertification(root, 'sk-cp-test-only', {fetch:async()=>quota(),createAdapter,now:()=>fixedNow});
+  assert.equal(report.attempts.length, 1);
+  assert.equal(report.attempts[0]?.status, 'timeout');
+  assert.equal(report.attempts[0]?.remoteOutcome, 'unknown');
+  assert.equal(report.attempts[0]?.usage.inputTokens, null);
 });
 
 test('runner refuses non-subscription keys before creating a journal or adapter', async () => {

@@ -130,3 +130,11 @@ test('inspection constructs its whitelist and drops extra fields from parsed dis
   const report = await inspectCertificationRun(root, journal.runDirectory);
   assert.doesNotMatch(JSON.stringify(report), /SENTINEL|must-not-roundtrip/);
 });
+
+test('resolution refuses a null or inconsistent adapter request hash and preserves uncertainty', async () => {
+  const root = await checkout();
+  const journal = await CertificationJournal.create(root, false);
+  await journal.beforeDispatch('json')({requestHash:HASH,inputBytes:100,maxOutputTokens:512});
+  await assert.rejects(journal.resolve(observation({requestHash:null}), {completed:true}), /does not match reservation/);
+  assert.equal((await journal.inspect()).attempts[0]?.status, 'unresolved');
+});
