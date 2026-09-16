@@ -50,7 +50,8 @@ export const askContextPayload=z.object({
    r.kind==='exposure_event'?r.sequence===f.exposureSequence:
    r.kind==='session'?r.expiresAt===v.sessionExpiresAt:
    r.kind==='runtime_policy'?r.hash===v.runtimePolicyHash:
-   r.kind==='asset'?r.revision===v.asset.revision:true;
+   r.kind==='asset'?r.revision===v.asset.revision:
+   r.kind==='exposure'||r.kind==='decision_candidate'?r.assetId===f.assetId:true;
   if(!bound)ctx.addIssue({code:'custom',path:['dependencies',i],message:'Dependency does not match selection'});
  }
  if(seen.size!==expected.size||[...expected].some(k=>!seen.has(k)))ctx.addIssue({code:'custom',path:['dependencies'],message:'Incomplete dependency set'});
