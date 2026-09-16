@@ -7,10 +7,12 @@ export function trackPoolDisconnect(pool:pg.Pool) {
   pool.on('remove',client=>{connected.delete(client);});
   return {
     pendingCount:()=>connected.size,
-    async wait(admin:pg.Client,databaseName:string,{timeoutMs=2500,queryTimeoutMs=500,intervalMs=20}={}) {
+    async wait(admin:pg.Client,databaseName:string,{timeoutMs=2500,intervalMs=20}={}) {
       const deadline=Date.now()+timeoutMs;
-      while(Date.now()<deadline) {
+      const queryTimeoutMs=500,minimumQueryBudget=50;
+      while(true) {
         const remaining=deadline-Date.now();
+        if(remaining<minimumQueryBudget)return false;
         // node-postgres supports per-query query_timeout at runtime; its
         // current QueryConfig declaration omits the field.
         const query={
@@ -18,11 +20,17 @@ export function trackPoolDisconnect(pool:pg.Pool) {
           values:[databaseName],
           query_timeout:Math.max(1,Math.min(queryTimeoutMs,remaining)),
         } as pg.QueryConfig&{query_timeout:number};
-        const backends=Number((await admin.query<{count:number}>(query)).rows[0]?.count);
+        let backends:number;
+        try {backends=Number((await admin.query<{count:number}>(query)).rows[0]?.count);}
+        catch(error) {
+          if(error instanceof Error&&error.message==='Query read timeout'&&Date.now()>=deadline)return false;
+          throw error;
+        }
         if(connected.size===0&&backends===0)return true;
-        await delay(Math.min(intervalMs,Math.max(1,deadline-Date.now())));
+        const sleepBudget=deadline-Date.now();
+        if(sleepBudget<minimumQueryBudget)return false;
+        await delay(Math.min(intervalMs,sleepBudget-minimumQueryBudget));
       }
-      return false;
     },
   };
 }
