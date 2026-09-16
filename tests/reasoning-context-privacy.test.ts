@@ -3,6 +3,7 @@ import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import test from 'node:test';
 
 import {authenticateAndLock,type AuthScope} from '../packages/db/src/identity.ts';
+import {clearScrollHistory} from '../packages/db/src/privacy.ts';
 import {compileDirectContext,validateDirectContext} from '../packages/db/src/reasoning-context.ts';
 import {ReasoningDenied} from '../packages/db/src/reasoning-runtime-policy.ts';
 import {
@@ -108,6 +109,7 @@ test('sealed context retains its original session and exact literal evidence',as
       await assert.rejects(authenticatedCompile(pool,graph,token),
         error=>error instanceof ReasoningDenied&&error.code==='context_stale_lineage');
       await assertNoContextRows(pool,graph.contextId);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context_job_session WHERE job_id=$1',[graph.jobId])).rows[0]!.count,0);
     });
   });
 });
@@ -156,5 +158,72 @@ test('a direct Job intent cannot be rebound to a second authenticated session',a
     const second=await addSession(pool,graph.scope.universeId);
     await assert.rejects(authenticatedCompile(pool,graph,second.token,{contextId:randomUUID()}),
       error=>error instanceof ReasoningDenied);
+  });
+});
+
+test('direct Job session binding is immutable, scoped to the Job lifetime, and reusable only by its session',async t=>{
+  await t.test('a failure after binding insertion rolls the new binding back',async()=>{
+    await withReasoningContextSchema('binding_rollback',async pool=>{
+      const graph=await seedDirectContextGraph(pool),token=await retoken(pool,graph.scope.sessionId);
+      await pool.query(`INSERT INTO reasoning_context(id,job_id,universe_id,privacy_epoch,content_hash,policy_version,source_policy_version)
+        VALUES($1,$2,$3,0,$4,$5,'preexisting-test')`,
+      [graph.contextId,graph.jobId,graph.scope.universeId,'a'.repeat(64),graph.policy.policyVersion]);
+      await assert.rejects(authenticatedCompile(pool,graph,token),error=>(error as {code?:string}).code==='23505');
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context_job_session WHERE job_id=$1',[graph.jobId])).rows[0]!.count,0);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context WHERE id=$1',[graph.contextId])).rows[0]!.count,1);
+    });
+  });
+
+  await t.test('the same authenticated session may compile a later context for the bound Job',async()=>{
+    await withReasoningContextSchema('same_session_context',async pool=>{
+      const graph=await seedDirectContextGraph(pool),token=await retoken(pool,graph.scope.sessionId);
+      await authenticatedCompile(pool,graph,token);
+      const laterContextId=randomUUID();
+      await authenticatedCompile(pool,graph,token,{contextId:laterContextId});
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context WHERE job_id=$1',[graph.jobId])).rows[0]!.count,2);
+      assert.deepEqual((await pool.query('SELECT session_id FROM reasoning_context_job_session WHERE job_id=$1',[graph.jobId])).rows,
+        [{session_id:graph.scope.sessionId}]);
+    });
+  });
+
+  await t.test('the binding cannot be updated or independently deleted',async()=>{
+    await withReasoningContextSchema('immutable_binding',async pool=>{
+      const graph=await seedDirectContextGraph(pool),token=await retoken(pool,graph.scope.sessionId);
+      await authenticatedCompile(pool,graph,token);
+      await assert.rejects(pool.query('UPDATE reasoning_context_job_session SET session_id=session_id WHERE job_id=$1',[graph.jobId]),
+        /Direct Job session binding is immutable/);
+      await assert.rejects(pool.query('DELETE FROM reasoning_context_job_session WHERE job_id=$1',[graph.jobId]),
+        /Direct Job session binding erases only with its Job/);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context_job_session WHERE job_id=$1',[graph.jobId])).rows[0]!.count,1);
+    });
+  });
+
+  await t.test('history clear removes the private Job binding through Job deletion',async()=>{
+    await withReasoningContextSchema('clear_binding',async pool=>{
+      const graph=await seedDirectContextGraph(pool),token=await retoken(pool,graph.scope.sessionId);
+      await authenticatedCompile(pool,graph,token);
+      await inTransaction(pool,async client=>{
+        const authenticated=await authenticateAndLock(client,token);
+        await clearScrollHistory(client,authenticated,{requestId:randomUUID(),expectedPrivacyEpoch:0,confirmation:'clear-scroll-history'});
+      });
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context_job_session WHERE job_id=$1',[graph.jobId])).rows[0]!.count,0);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,0);
+    });
+  });
+
+  await t.test('another same-universe session may compile only for a fresh Job and direct intent',async()=>{
+    await withReasoningContextSchema('fresh_job_session',async pool=>{
+      const graph=await seedDirectContextGraph(pool),firstToken=await retoken(pool,graph.scope.sessionId);
+      await authenticatedCompile(pool,graph,firstToken);
+      const second=await addSession(pool,graph.scope.universeId),jobId=randomUUID(),contextId=randomUUID();
+      await pool.query(`INSERT INTO reasoning_job(id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,wake_kind,intent_id)
+        VALUES($1,$2,0,'queued','interactive',$2,$3,clock_timestamp()+interval '1 hour','direct',$4)`,
+      [jobId,graph.scope.universeId,graph.policy.policyVersion,randomUUID()]);
+      const policy={...graph.policy,buckets:graph.policy.buckets.map(bucket=>
+        bucket.scope==='job'?{...bucket,scopeId:jobId}:bucket)};
+      await authenticatedCompile(pool,{...graph,jobId,contextId,policy},second.token);
+      assert.deepEqual((await pool.query('SELECT session_id FROM reasoning_context_job_session WHERE job_id=$1',[jobId])).rows,
+        [{session_id:second.sessionId}]);
+    });
   });
 });
