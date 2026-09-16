@@ -57,6 +57,8 @@ Durable fairness #55: [SQL evidence](journeys/evidence/reasoning-sql-fairness/RE
 
 Cleanup reliability #57: [interruption evidence](journeys/evidence/reasoning-cleanup/README.md). PR #58 repaired a reproduced repeated-signal window and added safe diagnostics plus single, repeated, mixed-signal and child-failure checks. Reviewed-head Linux backend and Android CI passed. A later reproduced idle PostgreSQL pool error is also handled, with a sixth disposable-backend interruption case and safe CI artifacts. Both reviewed-head Linux suites passed for PR #59. The historical Linux failure did not retain enough information to establish its exact cause; #57 remains open.
 
+Frozen context #60: [SQL/authentication evidence](journeys/evidence/reasoning-context/README.md). Typecheck and 230 backend tests passed, including independent Sol privacy and Terra SQL adversarial cases. J001–J004, six cleanup cases, twelve fairness traces and a disposable PostgreSQL restart regression passed. Original-session binding rejects session substitution; exact typed reads reject relevant drift while unrelated Keep remains valid. No provider call, proposal application or semantic usefulness is claimed.
+
 Last development observation: `2026-09-16T13:10:36Z`. API healthy, worker heartbeat fresh, six released migration checksums present; three completed jobs remain present. Migration 0006 preserved all existing rows across 22 tables and the five previous checksums. This observation predates migration 0007. The earlier wave-three emulator observation showed both existing Traces and the privacy control at epoch zero; it was not rerun in this backend-only wave. Run `pnpm state` for current status.
 
 ## Next work after durable SQL fairness

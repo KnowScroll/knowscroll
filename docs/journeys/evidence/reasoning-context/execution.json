@@ -1,0 +1,209 @@
+{
+  "issue": 60,
+  "observedAt": "2026-09-16T13:28:02.709706+00:00",
+  "source": {
+    "revision": "19010971e95592e7f2973fce033bffaf568c9f73",
+    "dirty": false,
+    "files": [
+      {
+        "path": "packages/contracts/src/reasoning-context.ts",
+        "sha256": "fa44b7c3d34712d863fe0c8e2645f7cc9fb94dea046608ac6fbc0e7b6c922d24"
+      },
+      {
+        "path": "packages/db/migrations/0007_sealed_reasoning_context.sql",
+        "sha256": "e1baf0ea78610e46e3449b5da0ac503190bf30745f4a3c424e16e6c1ab4f9948"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "7e1d7ec71ec32f44591deedef14337266f2292f1543b26b13038bd79460cf618"
+      },
+      {
+        "path": "packages/db/src/reasoning-context.ts",
+        "sha256": "273c67735e66333a96c32d543da57294174edb53d696a96537b8dc4bc4e981b6"
+      },
+      {
+        "path": "packages/db/src/reasoning-fairness.ts",
+        "sha256": "92613d7674457c52ec1c7cba5c9892e5c83cd8f2d2c2898af8a73a33a6dc2950"
+      },
+      {
+        "path": "packages/db/src/reasoning-runtime-policy.ts",
+        "sha256": "48da723173c698708ba5d1af140ff962e75a3da652dff18376760ea6e360691c"
+      },
+      {
+        "path": "scripts/fairness/sql-restart.ts",
+        "sha256": "bd46e380d4fb751dab29573e1a87f9d4109c763126ec0fb84450e7c39e63be94"
+      },
+      {
+        "path": "scripts/fixtures/reasoning-support.ts",
+        "sha256": "ccbf033ebe0189adb128a033741c79e6874b3f1d2b8cde15d95bc9281c24e986"
+      },
+      {
+        "path": "tests/helpers/reasoning-context-fixture.ts",
+        "sha256": "2f1c0e513d43c96dd76e5b7ef81c867319b08feed99f64c6a639789c15b1254a"
+      },
+      {
+        "path": "tests/reasoning-context-adversarial.test.ts",
+        "sha256": "98cbcb097ac8fcf55d1437211b0231da1ba1b3d9714957470d01ccb64f269a6f"
+      },
+      {
+        "path": "tests/reasoning-context-contracts.test.ts",
+        "sha256": "80e7d7a16daca0494d7f5c1049f88617fdaed4f698af68039cb160d74d8df709"
+      },
+      {
+        "path": "tests/reasoning-context-privacy.test.ts",
+        "sha256": "b174389c724acc6ccbd95a903cdbd3013329a145f9282a2ddfa640456eac6629"
+      },
+      {
+        "path": "tests/reasoning-context.test.ts",
+        "sha256": "932031c9902be7afc35e299906959433c82452e9422c589c4d2e98d8839dfd74"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "result": "passed",
+      "baselineTests": 12,
+      "additionalTests": 218,
+      "totalTests": 230
+    },
+    {
+      "command": "isolated J001/J002/J003 and verifier rejection tests",
+      "result": "passed",
+      "sourceRevision": "8fc8219337a4348d1dee9361938cac05e60402d8"
+    },
+    {
+      "command": "isolated J004 + receipt verifier",
+      "result": "passed",
+      "cases": 13,
+      "fixtureRequests": 4
+    },
+    {
+      "command": "interruption cleanup checker",
+      "result": "passed",
+      "cases": 6
+    },
+    {
+      "command": "disposable PostgreSQL restart regression",
+      "result": "passed"
+    },
+    {
+      "command": "deterministic fairness trace capture",
+      "result": "passed",
+      "traces": 12
+    }
+  ],
+  "unchangedReleasedMigrations": [
+    {
+      "path": "packages/db/migrations/0001_bootstrap.sql",
+      "sha256": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "path": "packages/db/migrations/0002_identity_epochs.sql",
+      "sha256": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    },
+    {
+      "path": "packages/db/migrations/0003_history_clear.sql",
+      "sha256": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+    },
+    {
+      "path": "packages/db/migrations/0004_reasoning_storage.sql",
+      "sha256": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+    },
+    {
+      "path": "packages/db/migrations/0005_reasoning_runtime.sql",
+      "sha256": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+    },
+    {
+      "path": "packages/db/migrations/0006_reasoning_fairness.sql",
+      "sha256": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+    }
+  ],
+  "receipts": {
+    "j004.json": {
+      "sha256": "90469d10cfbd0365ddfdda1b5b7b2c276a0cfb29c9f2e120c8e6b172953f3480",
+      "sourceRevision": "8fc8219337a4348d1dee9361938cac05e60402d8",
+      "sourceDirty": false
+    },
+    "postgres-restart.json": {
+      "sha256": "6783c380433cd5848df949830317169c362e3017b25146066ebf718095768dca",
+      "sourceRevision": "8fc8219337a4348d1dee9361938cac05e60402d8",
+      "sourceDirty": false
+    },
+    "interruption-cleanup.json": {
+      "sha256": "4f9b3e8df2620bce3c2ebf7a6cb34b76bb49e2a831ffa7a6105efc6975f67087",
+      "sourceRevision": "8fc8219337a4348d1dee9361938cac05e60402d8",
+      "sourceDirty": false
+    }
+  },
+  "logs": [
+    {
+      "path": "artifacts/context-final-typecheck.log",
+      "sha256": "1f781540a75e0bc03004b4b091a8e22d19a51367280c523c72bc83b04d19c355"
+    },
+    {
+      "path": "artifacts/context-final-tests.log",
+      "sha256": "1032ffe1a9689ef8d2f0b2b7cb154c1730de4c1292184edb1135bc050c32d743"
+    },
+    {
+      "path": "artifacts/context-j001.log",
+      "sha256": "ecbfc6ac16545efc7baf72d7a97c699ac713fe938ba1cb9ad2d1221208a03828"
+    },
+    {
+      "path": "artifacts/context-j002.log",
+      "sha256": "d5b79867e7b8cfcb3e13ab41b3db6da3de7c3a61e6be26d1242178740f8a8064"
+    },
+    {
+      "path": "artifacts/context-j003.log",
+      "sha256": "c0dac49b133435c969dc0ada9dbb93433f5aa36bb892eca32fc84d6cf19c68e0"
+    },
+    {
+      "path": "artifacts/context-verifier.log",
+      "sha256": "c3c144024be5baf77e9fcc9fc3c45cf0b2328075c092b2fdb19b177cc71923bc"
+    },
+    {
+      "path": "artifacts/context-j004.log",
+      "sha256": "fab0aade7a7fc6bf5d8ea4d801611e4fa42f5e847d5128c5b95e6eda63cd2846"
+    },
+    {
+      "path": "artifacts/context-cleanup.log",
+      "sha256": "286b50d7b17f3efbd880a9764a9405e589f37b2cecc430f613b3b54af47d7e35"
+    },
+    {
+      "path": "artifacts/context-restart.log",
+      "sha256": "55ada0400dc08b28665c9ff853570c42cee8c59eab633da97cb76f7347100c82"
+    }
+  ],
+  "workers": [
+    {
+      "role": "compiler and focused SQL implementation",
+      "model": "gpt-5.6-terra",
+      "commit": "5482607"
+    },
+    {
+      "role": "independent SQL and concurrency review",
+      "model": "gpt-5.6-terra",
+      "commit": "7272c62",
+      "verdict": "no blocking finding after coordinator fixes"
+    },
+    {
+      "role": "independent authentication and privacy review",
+      "model": "gpt-5.6-sol",
+      "commit": "ac2150e",
+      "verdict": "cross-session job reuse counterexample repaired and regression proved"
+    }
+  ],
+  "providerCalls": 0,
+  "limits": [
+    "Internal development context authority, no public endpoint or paid task authorization",
+    "Sources are editorial asset pointers, not independently verified or versioned external source evidence",
+    "No semantic proposal or application, production identity, background intent lifecycle or scheduled retirement",
+    "J004 and restart use synthetic authorities; they are regressions, not process-restart proof of the new concrete context compiler",
+    "No owner emulator instrumentation rerun; Android CI required on PR",
+    "Earlier regression receipts retain their original source revision; code hashes are unchanged at final source revision"
+  ]
+}
