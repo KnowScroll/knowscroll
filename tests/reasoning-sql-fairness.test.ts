@@ -44,4 +44,14 @@ test('SQL fairness bypasses permanently impossible work and serializes competing
    assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_fairness_attempt')).rows[0]?.n,2);
   });
  });
+ await t.test('a locked universe consumes a bounded blocked probe while another universe progresses',async()=>{
+  await withFairnessSchema('locked_universe',async pool=>{
+   const first=await seedFairnessGraph(pool),second=await seedFairnessGraph(pool);
+   const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[first.jobId,first.policy],[second.jobId,second.policy]])));await fairness.installPolicy(sqlFairnessPolicy);await enqueue(fairness,first);await enqueue(fairness,second);
+   const locked=[first,second].sort((a,b)=>a.universeId.localeCompare(b.universeId))[0]!;
+   const blocker=await pool.connect();await blocker.query('BEGIN');await blocker.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE',[locked.universeId]);
+   try {const result=await fairness.schedule({policyVersion:'fairness-v1',owner:'worker-free',leaseMs:20_000});assert.equal(result.kind,'admitted');assert.notEqual(result.claim.universeId,locked.universeId);assert.ok(result.observations.some(observation=>observation.kind==='temporarily_blocked'));}
+   finally {await blocker.query('ROLLBACK');blocker.release();}
+  });
+ });
 });
