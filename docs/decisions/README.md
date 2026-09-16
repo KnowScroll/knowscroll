@@ -16,3 +16,5 @@ Read the relevant decision before changing its boundary. These choices were made
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
+
+- [0011 — MiniMax certification](0011-minimax-certification.md)
