@@ -12,7 +12,7 @@ Existing internal execution primitives can leave a queued or recovered waiting d
 
 Both helpers use the caller's existing transaction. They lock universe → original session → Job → sorted Steps → sorted Attempts/accounting → scheduler/fairness resources → sorted physical buckets. Initial immutable binding lookup is read-only. The cancel helper rejects a different original session before acquiring a second session lock. The last authority/deadline/lease recheck occurs after resource waits and acquires no new lock. Errors roll back the caller's entire transaction.
 
-Only `wake_kind='direct'` (fairness class remains independently `interactive|foreground|background`), status `queued` or `waiting`, with no healthy lease is eligible. A healthy worker winning claim first causes refusal; this operation never interrupts it. Running Jobs, even with an expired lease, first use the existing fenced recovery path. Recovery-waiting work may retain unknown accounting. Old terminal Jobs with no authoritative clock remain untouched. Unbound legacy/background Jobs remain outside this new authority. Existing live-worker `withdrawJob` is unchanged.
+Only `wake_kind='direct'` (fairness class remains independently one of the five existing `FAIRNESS_CLASSES`), status `queued` or `waiting`, with no healthy lease is eligible. A healthy worker winning claim first causes refusal; this operation never interrupts it. Running Jobs, even with an expired lease, first use the existing fenced recovery path. Recovery-waiting work may retain unknown accounting. Old terminal Jobs with no authoritative clock remain untouched. Unbound legacy/background Jobs remain outside this new authority. Existing live-worker `withdrawJob` is unchanged.
 
 ## Atomic closure and replay
 
