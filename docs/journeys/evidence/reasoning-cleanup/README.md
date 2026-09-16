@@ -27,7 +27,18 @@ The checker records the runner exit code/signal and only allowlisted classificat
 
 ## Verification
 
-Final source-stamped receipts and exact command results are added after the implementation commit is created. The first local implementation run already passed all five interruption cases, and the full 13-case J004 journey passed with four local fixture requests and matching source hashes.
+Source revision `5d677f26740c5da8e6f51bc9ef0d91dec7efe234` was clean for the final runtime checks. The [passing interruption receipt](after-interruption-matrix.json) records exact source hashes and all five cases. Three predeclared checker executions passed on their first attempt, for 15 total case observations; no failed execution was rerun until green. [Execution metadata](execution.json) pins all three receipt hashes.
+
+| Check | Result |
+|---|---|
+| `pnpm typecheck` | Passed |
+| `pnpm test` | Passed: 12 baseline plus 160 additional backend tests |
+| J004 runner and source/state verifier | Passed: 13 cases, four fixture requests, source hashes matched |
+| Interruption checker execution 1 | Passed: five cases |
+| Interruption checker execution 2 | Passed: five cases |
+| Interruption checker execution 3 | Passed: five cases |
+
+The final implementation receipt records `cleanedUp: true`, absent process groups, absent runner and absent disposable database for every case. Each interrupted runner exited with code 1 and no signal after completing cleanup. The repeated same-signal and mixed-signal cases classified as `interrupted`; the child-SIGKILL case classified as `child_process_exit`. No cleanup-error classification was present.
 
 ## Limits
 
