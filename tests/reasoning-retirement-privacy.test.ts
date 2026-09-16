@@ -3,6 +3,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
 
+import {authenticateAndLock} from '../packages/db/src/identity.ts';
 import {clearScrollHistory} from '../packages/db/src/privacy.ts';
 import {createReasoningAdmission} from '../packages/db/src/reasoning-admission.ts';
 import {createReasoningMaintenance} from '../packages/db/src/reasoning-maintenance.ts';
@@ -12,7 +13,7 @@ import {
 } from './helpers/reasoning-maintenance-fixture.ts';
 
 type PrivateGraph={
- universeId:string;jobId:string;contextId:string;stepId:string;sessionId:string;deviceId:string;expiresAt:string;
+ universeId:string;jobId:string;contextId:string;stepId:string;sessionId:string;sessionToken:string;deviceId:string;expiresAt:string;
  attemptId?:string;requestId?:string;dispatchId?:string;permitId?:string;reservationId?:string;bucketId?:string;
 };
 
@@ -23,12 +24,12 @@ const authority={
 
 async function seedRunningPrivateGraph(pool:pg.Pool,{consumed=false}:{consumed?:boolean}={}):Promise<PrivateGraph> {
  const universeId=randomUUID(),jobId=randomUUID(),contextId=randomUUID(),stepId=randomUUID();
- const sessionId=randomUUID(),deviceId=randomUUID(),owner='retirement-privacy';
+ const sessionId=randomUUID(),sessionToken=randomUUID(),deviceId=randomUUID(),owner='retirement-privacy';
  const expiresAt=(await pool.query<{expires_at:Date}>("SELECT clock_timestamp()+interval '2 hours' AS expires_at")).rows[0]!.expires_at;
  await pool.query('INSERT INTO universe(id,privacy_epoch) VALUES($1,0)',[universeId]);
  await pool.query('INSERT INTO accounts(universe_id) VALUES($1)',[universeId]);
  await pool.query(`INSERT INTO device_session(id,universe_id,device_id,token_hash,privacy_epoch,expires_at)
-  VALUES($1,$2,$3,$4,0,$5)`,[sessionId,universeId,deviceId,createHash('sha256').update(randomUUID()).digest('hex'),expiresAt]);
+  VALUES($1,$2,$3,$4,0,$5)`,[sessionId,universeId,deviceId,createHash('sha256').update(sessionToken).digest('hex'),expiresAt]);
  await pool.query(`INSERT INTO reasoning_job
   (id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,wake_kind,intent_id,lease_owner,lease_fence,lease_expires_at)
   VALUES($1,$2,0,'running','interactive',$2,'retirement-privacy',clock_timestamp()+interval '1 hour','direct',$3,$4,1,clock_timestamp()+interval '1 hour')`,
@@ -48,7 +49,7 @@ async function seedRunningPrivateGraph(pool:pg.Pool,{consumed=false}:{consumed?:
   VALUES($1,$2,0,$3)`,[jobId,universeId,sessionId]);
  await pool.query(`INSERT INTO reasoning_step(id,job_id,universe_id,privacy_epoch,context_id,ordinal,status)
   VALUES($1,$2,$3,0,$4,1,'pending')`,[stepId,jobId,universeId,contextId]);
- const graph:PrivateGraph={universeId,jobId,contextId,stepId,sessionId,deviceId,expiresAt:expiresAt.toISOString()};
+ const graph:PrivateGraph={universeId,jobId,contextId,stepId,sessionId,sessionToken,deviceId,expiresAt:expiresAt.toISOString()};
  if(!consumed) return graph;
 
  const attemptId=randomUUID(),requestId=randomUUID(),dispatchId=randomUUID(),permitId=randomUUID();
@@ -168,6 +169,44 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
   });
  });
 
+ await t.test('a concurrent authenticated clear wins the universe lock and an old replay cannot erase later work',async()=>{
+  await withReasoningMaintenanceSchema('privacy_clear_race',async pool=>{
+   const graph=await seedRunningPrivateGraph(pool,{consumed:true});
+   await withdraw(pool,graph);
+   await ageWithdrawalForTest(pool,graph.jobId,169);
+   const requestId=randomUUID();
+   const input={requestId,expectedPrivacyEpoch:0,confirmation:'clear-scroll-history' as const};
+   const clearClient=await pool.connect();
+   let transactionOpen=true;
+   try {
+    await clearClient.query('BEGIN');
+    const authenticated=await authenticateAndLock(clearClient,graph.sessionToken);
+    const receipt=await clearScrollHistory(clearClient,authenticated,input);
+    assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),
+     {probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+    await clearClient.query('COMMIT');transactionOpen=false;
+    assert.equal(await count(pool,'reasoning_job','id',graph.jobId),0);
+    assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:1})).retiredJobs,0);
+
+    const laterJobId=randomUUID();
+    await pool.query(`INSERT INTO reasoning_job
+     (id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,wake_kind,intent_id)
+     VALUES($1,$2,1,'queued','interactive',$2,'after-clear',clock_timestamp()+interval '1 hour','direct',$3)`,
+     [laterJobId,graph.universeId,randomUUID()]);
+    const replay=await inMaintenanceTransaction(pool,async client=>{
+     const authenticated=await authenticateAndLock(client,graph.sessionToken);
+     return clearScrollHistory(client,authenticated,input);
+    });
+    assert.deepEqual(replay,receipt);
+    assert.equal(await count(pool,'reasoning_job','id',laterJobId),1);
+    assert.equal((await pool.query('SELECT privacy_epoch FROM universe WHERE id=$1',[graph.universeId])).rows[0]!.privacy_epoch,1);
+   } finally {
+    if(transactionOpen) await clearClient.query('ROLLBACK');
+    clearClient.release();
+   }
+  });
+ });
+
  await t.test('retirement preserves unknown liability and late original evidence cannot recreate private authority',async()=>{
   await withReasoningMaintenanceSchema('privacy_unknown',async pool=>{
    const graph=await seedRunningPrivateGraph(pool,{consumed:true});
@@ -205,6 +244,49 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
    ] as const) assert.equal(await count(pool,table,column,value),0,table);
    assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:2})).purgedAccounting,0);
    assert.equal(await count(pool,'reasoning_accounting','attempt_id',graph.attemptId),1);
+  });
+ });
+
+ await t.test('a late original receipt reopens closed duties before maintenance can purge them',async()=>{
+  await withReasoningMaintenanceSchema('privacy_late_receipt_race',async pool=>{
+   const graph=await seedRunningPrivateGraph(pool,{consumed:true});
+   await withdraw(pool,graph);
+   assert(graph.attemptId&&graph.requestId&&graph.dispatchId);
+   await ageWithdrawalForTest(pool,graph.jobId,169);
+   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:1})).retiredJobs,1);
+   await pool.query(`UPDATE reasoning_accounting SET
+    liability_state='settled',remote_state='released',remote_disposition='terminal',
+    reconciliation_hold=false,idempotency_hold=false,closure_basis='evidence',
+    all_duties_closed_at=clock_timestamp()-interval '31 days'
+    WHERE attempt_id=$1`,[graph.attemptId]);
+   const receipt={version:1,receiptId:randomUUID(),attemptId:graph.attemptId,dispatchId:graph.dispatchId,requestId:graph.requestId,
+    routeId:'privacy-route',routeProfileVersion:'privacy-profile',evidenceKind:'original_transport',observedAt:new Date().toISOString(),
+    remoteDisposition:'terminal',outcome:'success',httpStatus:200,
+    usage:{inputTokens:2,outputTokens:3,cacheReadTokens:null,cacheWriteTokens:null,costMicroUsd:4}};
+   const receiptClient=await pool.connect();
+   let transactionOpen=true;
+   try {
+    await receiptClient.query('BEGIN');
+    const appended=await appendRestrictedReasoningReceipt(receiptClient,receipt,'worker');
+    assert.equal(appended.replayed,false);
+    assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+     {probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
+    await receiptClient.query('COMMIT');transactionOpen=false;
+   } finally {
+    if(transactionOpen) await receiptClient.query('ROLLBACK');
+    receiptClient.release();
+   }
+   assert.deepEqual((await pool.query(`SELECT state,output_authority,liability_state,remote_state,
+    reconciliation_hold,idempotency_hold,all_duties_closed_at FROM reasoning_accounting WHERE attempt_id=$1`,[graph.attemptId])).rows[0],
+    {state:'responded',output_authority:'withdrawn',liability_state:'held',remote_state:'held',reconciliation_hold:true,idempotency_hold:true,all_duties_closed_at:null});
+   assert.equal(await count(pool,'reasoning_receipt','attempt_id',graph.attemptId),1);
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+    {probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
+   assert.equal(await count(pool,'reasoning_accounting','attempt_id',graph.attemptId),1);
+   for(const [table,column,value] of [
+    ['reasoning_job','id',graph.jobId],['reasoning_context','job_id',graph.jobId],
+    ['reasoning_step','job_id',graph.jobId],['reasoning_attempt','id',graph.attemptId],
+   ] as const) assert.equal(await count(pool,table,column,value),0,table);
   });
  });
 
