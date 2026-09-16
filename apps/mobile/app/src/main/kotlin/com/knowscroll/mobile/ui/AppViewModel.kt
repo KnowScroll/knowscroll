@@ -452,7 +452,16 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 }
             } catch(e:Exception){
                 if(store.readPendingClear()!=null)handleHistoryClearFailure(e,version)
-                else failClosed(message(e))
+                else {
+                    if(reconciliationFailurePurgesPrivateState(e)){
+                        val scope=revisit
+                        purgeForScope(
+                            scope?.universeId?.takeIf { it.isNotBlank() } ?: observedUniverseId,
+                            maxOf(observedPrivacyEpoch,scope?.privacyEpoch ?: 0L)
+                        )
+                    }
+                    failClosed(message(e))
+                }
             } finally{
                 reconciling=false
                 val next=reconcileAfterCurrent
@@ -546,4 +555,11 @@ internal fun acceptTraceRevisit(
         requested.revision?.let { it!=receipt.scroll.revision }==true
     ) return null
     return requested.copy(revision=receipt.scroll.revision)
+}
+
+/** Only an unavailable transport/service leaves a private revisit identity for explicit retry. */
+internal fun reconciliationFailurePurgesPrivateState(error:Exception):Boolean = when(error) {
+    is ApiException.Network -> false
+    is ApiException.Server -> error.statusCode !in 500..599 && error.statusCode!=429
+    else -> true
 }

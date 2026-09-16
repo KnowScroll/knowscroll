@@ -1,10 +1,13 @@
 package com.knowscroll.mobile.ui
 
 import com.knowscroll.mobile.data.ScrollItem
+import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.TraceRevisit
 import com.knowscroll.mobile.data.TraceRevisitSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TraceRevisitStateTest {
@@ -27,5 +30,13 @@ class TraceRevisitStateTest {
         assertNull(acceptTraceRevisit(receipt(universeId="other"),requested,"universe-a",4))
         assertNull(acceptTraceRevisit(receipt(epoch=3),requested,"universe-a",4))
         assertNull(acceptTraceRevisit(receipt(revision=3),requested.copy(revision=2),"universe-a",4))
+    }
+
+    @Test fun reconciliationPurgesAuthorityAndMalformedResponsesButKeepsTransportRetryIdentity() {
+        assertTrue(reconciliationFailurePurgesPrivateState(ApiException.Server(401,"rejected")))
+        assertTrue(reconciliationFailurePurgesPrivateState(ApiException.Server(422,"malformed")))
+        assertTrue(reconciliationFailurePurgesPrivateState(ApiException.MissingToken))
+        assertFalse(reconciliationFailurePurgesPrivateState(ApiException.Network("offline")))
+        assertFalse(reconciliationFailurePurgesPrivateState(ApiException.Server(503,"temporary")))
     }
 }
