@@ -87,7 +87,7 @@ test('sealed direct context compiles literal Keep lineage canonically and valida
   await t.test('session expiry while a selected asset lock waits rolls back compilation', async () => {
     await withReasoningContextSchema('expiry_wait',async pool=>{
       const graph=await seedDirectContextGraph(pool);
-      await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '75 milliseconds' WHERE id=$1",[graph.scope.sessionId]);
+      await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '1 second' WHERE id=$1",[graph.scope.sessionId]);
       const blocker=await pool.connect();
       try {
         await blocker.query('BEGIN');
@@ -98,12 +98,14 @@ test('sealed direct context compiles literal Keep lineage canonically and valida
         for(let probe=0;probe<100;probe+=1) {
           const waiting=await pool.query<{count:number}>("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%FROM asset%'");
           if(waiting.rows[0]!.count>0) { observed=true; break; }
+          await new Promise(resolve=>setTimeout(resolve,10));
         }
         assert.equal(observed,true,'compiler must wait on the selected asset lock');
         let expired=false;
-        for(let probe=0;probe<5_000;probe+=1) {
+        for(let probe=0;probe<300;probe+=1) {
           const current=await pool.query<{expired:boolean}>('SELECT clock_timestamp()>=expires_at AS expired FROM device_session WHERE id=$1',[graph.scope.sessionId]);
           if(current.rows[0]!.expired) { expired=true; break; }
+          await new Promise(resolve=>setTimeout(resolve,10));
         }
         assert.equal(expired,true,'test clock must pass the session expiry while the asset remains locked');
         await blocker.query('COMMIT');
