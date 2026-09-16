@@ -14,6 +14,8 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0010 — Clear Scroll history with a retryable privacy boundary](0010-clear-scroll-history.md)
 - [ADR-0011 — Bounded MiniMax certification](0011-minimax-certification.md)
 
+- [ADR-0012 — Durable reasoning admission and uncertain outcomes](0012-reasoning-admission-and-reconciliation.md)
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

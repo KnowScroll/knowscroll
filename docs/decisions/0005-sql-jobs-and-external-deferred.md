@@ -23,3 +23,5 @@ The target paid path must persist Job → Step → Attempt, dispatch intent, res
 Implementation update (2026-09-16): select while locking only the owning universe with `FOR UPDATE OF u SKIP LOCKED`, then re-read/lock its job. Failure settlement uses the same universe-before-job order. Epoch mismatch discards work; a missing candidate after privacy clear does no work. ADR-0009/0010 govern these gates. This remains a deterministic database transaction, not a provider lease protocol.
 
 [PostgreSQL SKIP LOCKED](https://www.postgresql.org/docs/16/sql-select.html), [target global execution](../architecture/target/22-GLOBAL-EXECUTION.md), [current projector](../../apps/worker/src/project.ts).
+
+Design update (2026-09-16): [ADR-0012](0012-reasoning-admission-and-reconciliation.md) accepts the separate reasoning record family, atomic reservations, consumed-once dispatch intent and restricted late-usage reconciliation. Strict metadata contracts exist; the SQL reasoning runtime and product dispatcher remain unimplemented.
