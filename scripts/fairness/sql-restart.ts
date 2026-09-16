@@ -57,10 +57,12 @@ try {
   const preservedUniverse=randomUUID();
   await pool!.query('INSERT INTO universe(id,privacy_epoch) VALUES($1,0)',[preservedUniverse]);
   const beforeMigrations=(await pool!.query('SELECT name,checksum FROM schema_migrations ORDER BY name')).rows;
-  const upgrade=await runMigrations(pool!,{directory:'packages/db/migrations'});
+  await copyFile('packages/db/migrations/0006_reasoning_fairness.sql',join(oldMigrations,'0006_reasoning_fairness.sql'));
+  const upgrade=await runMigrations(pool!,{directory:oldMigrations});
   assert.deepEqual(upgrade.applied,['0006_reasoning_fairness.sql']);
   assert.deepEqual((await pool!.query("SELECT name,checksum FROM schema_migrations WHERE name<'0006' ORDER BY name")).rows,beforeMigrations);
   assert.equal((await pool!.query('SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=0',[preservedUniverse])).rowCount,1);
+  const subsequentUpgrade=await runMigrations(pool!,{directory:'packages/db/migrations'});
   await pool!.query('CREATE TABLE j004_policy(job_id uuid PRIMARY KEY REFERENCES reasoning_job(id) ON DELETE CASCADE,policy jsonb NOT NULL)');
   const graph=await seed(pool!,{deadlineMs:300_000});
   const policy={version:'j004-v1',quantum:100,maxCharge:100,scale:100,basis:{input_tokens:1000,output_tokens:1000,total_tokens:1000,requests:100},maxProbes:32,maxAdmissions:16};
@@ -94,8 +96,8 @@ try {
   assert.equal(replay.replayed,true);assert.deepEqual(await snapshot(),after);
   receipt={check:'durable-sql-fairness-postgres-restart',result:'passed',observedAt:new Date().toISOString(),platform:process.platform,
     source:{revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim()!=='',
-      files:await Promise.all(['scripts/fairness/sql-restart.ts','packages/db/src/reasoning-fairness.ts','packages/db/src/reasoning-fairness-accounting.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-reconciliation.ts','packages/db/src/reasoning-storage.ts','packages/db/src/reasoning-runtime-policy.ts','packages/db/src/reasoning-fairness-policy.ts','scripts/fixtures/reasoning-support.ts','packages/db/migrations/0006_reasoning_fairness.sql'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
-    isolation:{kind:'new-disposable-postgresql-cluster',port,oldPid,newPid},upgrade,preservedMigrations:beforeMigrations,
+      files:await Promise.all(['scripts/fairness/sql-restart.ts','packages/db/src/reasoning-fairness.ts','packages/db/src/reasoning-fairness-accounting.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-reconciliation.ts','packages/db/src/reasoning-storage.ts','packages/db/src/reasoning-runtime-policy.ts','packages/db/src/reasoning-fairness-policy.ts','scripts/fixtures/reasoning-support.ts',...(await readdir('packages/db/migrations')).filter(name=>name.endsWith('.sql')).sort().map(name=>join('packages/db/migrations',name))].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
+    isolation:{kind:'new-disposable-postgresql-cluster',port,oldPid,newPid},upgrade,subsequentUpgrade,preservedMigrations:beforeMigrations,
     restart:{sameSnapshot:true,snapshotSha256:digest(before),unknownAttemptId:admitted.reserved.attemptId,continuedJobId:next.claim.jobId,receiptReplayNoOp:true},
     snapshots:{beforeRestart:before,afterSettlement:after},limits:['synthetic trusted fixture authority','no provider request or output application','PostgreSQL fast stop and process restart; not power-loss or storage-corruption proof','no concurrent scheduler clients, history clear, or rate-window rollover in this receipt']};
 } finally {
