@@ -192,6 +192,8 @@ Client sessions matter for the Composer and for episodes:
 
 ## 9. The privacy epoch in the log
 
+Implementation boundary: [ADR-0010](../../decisions/0010-clear-scroll-history.md) defines physical erasure of the current bootstrap Scroll encounter history with a minimal retry receipt. The semantic **reset** below is a separate target contract, not the implementation of that history-clear endpoint. Account deletion and backup retention need their own policy; neither operation is implied by an epoch increment.
+
 A reset does not delete the log. It:
 
 1. appends `epoch.incremented` for the user;
@@ -209,6 +211,8 @@ Serving reads projections because replaying the full history per request would b
 A replay check starts from the same known checkpoint and compares at the same event watermark, with matching reducer/policy versions. A seven-day tail without its initial state cannot reproduce lifetime aggregates. An unexplained difference is a correctness failure; a deliberate version migration needs an explicit comparison policy. Erased private payloads stay erased rather than being recreated from an audit copy. A pending dirty scope with `latest > processed` is expected; clearing it prematurely is the bug.
 
 ## 11. The proposal envelope and stale-reads policy
+
+This envelope is a target protocol. Current explicit keeps use server-owned scope, exposure lineage and epoch checks under the universe lock; they are commutative deterministic references, not semantic proposals. Before adding proposals, specialize each read-set entry with entity kind, authorized scope, immutable identity and revision/evidence validity. Check those dependencies and operation preconditions atomically with application. A global Accounts or universe revision alone is not a substitute for this semantic read set.
 
 The runtime review §11 defines the envelope the reducer validates:
 
