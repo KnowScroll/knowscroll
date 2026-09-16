@@ -29,8 +29,8 @@ async function waitFor(check:()=>Promise<boolean>,label:string):Promise<void> {
 async function attachActiveAttempt(pool:import('pg').Pool,graph:{universeId:string;jobId:string;contextIds:string[];stepIds:string[]}):Promise<void> {
  const attemptId=randomUUID(),permitId=randomUUID(),reservationSetId=randomUUID();
  await pool.query(`INSERT INTO reasoning_accounting
-  (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,state,output_authority)
-  VALUES($1,$2,0,$3,'maintenance-adversarial','maintenance-adversarial',1,clock_timestamp()+interval '1 hour','reserved','withdrawn')`,
+  (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,state,output_authority,remote_disposition)
+  VALUES($1,$2,0,$3,'maintenance-adversarial','maintenance-adversarial',1,clock_timestamp()+interval '1 hour','not_sent','withdrawn','not_sent')`,
  [attemptId,graph.universeId,randomUUID()]);
  await pool.query(`INSERT INTO reasoning_permit(id,attempt_id,universe_id,privacy_epoch,reservation_set_id,expires_at)
   VALUES($1,$2,$3,0,$4,clock_timestamp()+interval '1 hour')`,[permitId,attemptId,graph.universeId,reservationSetId]);
@@ -115,12 +115,12 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
 
    const ready=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,ready.jobId);await attachFairReady(pool,ready);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),{probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),{probes:3,retiredJobs:0,purgedAccounting:0,skipped:3});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[ready.jobId])).rows[0]!.count,1);
 
    const active=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,active.jobId);await attachActiveAttempt(pool,active);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),{probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:5}),{probes:5,retiredJobs:0,purgedAccounting:0,skipped:5});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[active.jobId])).rows[0]!.count,1);
   });
  });
@@ -160,13 +160,13 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
     await holder.query('SELECT id FROM maintenance_barrier WHERE id=1 FOR UPDATE');
     const pending=createReasoningMaintenance(pool).runBatch({maxProbes:3,signal:stop.signal});
     await waitFor(async()=>Number((await pool.query(`SELECT count(*)::int AS count FROM pg_stat_activity
-      WHERE state='active' AND wait_event_type='Lock' AND query LIKE '%DELETE FROM reasoning_context%'`)).rows[0]!.count)===1,'context delete lock');
+      WHERE datname=current_database() AND state='active' AND wait_event_type='Lock' AND query LIKE '%DELETE FROM reasoning_context%'`)).rows[0]!.count)===1,'context delete lock');
     stop.abort();
     await holder.query('ROLLBACK');
     assert.deepEqual(await pending,{probes:1,retiredJobs:1,purgedAccounting:0,skipped:0});
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[blocked.jobId])).rows[0]!.count,0);
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[untouched.jobId])).rows[0]!.count,1);
-   } finally {holder.release();}
+   } finally {await holder.query('ROLLBACK');holder.release();}
   });
  });
 });
