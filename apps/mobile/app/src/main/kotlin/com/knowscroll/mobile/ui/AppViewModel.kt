@@ -55,6 +55,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val store=StateStore(application)
     private var session:ScrollSession?=null
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
+    private var observedUniverseId=store.readObservedUniverseId()
     private var busy=false
     private var reconciling=false
     private var reconcileAfterCurrent:Boolean?=null
@@ -97,13 +98,18 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 val feed=api.getFeed()
                 if(!operationIsCurrent(version,epoch))return@launch
                 if(feed.privacyEpoch!=epoch){
-                    if(feed.privacyEpoch>epoch)purgeForEpoch(feed.privacyEpoch)
+                    if(feed.privacyEpoch>epoch)purgeForScope(feed.universeId,feed.privacyEpoch)
                     failClosed("Privacy state changed. Return to your universe and try again.")
                     return@launch
                 }
                 val item=feed.items.firstOrNull{it.assetId !in visited}
                 if(item==null){_scroll.value=ScrollState.Unavailable("You have reached the end of this starting library.");return@launch}
-                val next=ScrollSession(feed.decisionId,item,feed.privacyEpoch)
+                if(feed.universeId!=observedUniverseId){
+                    purgeForScope(feed.universeId,feed.privacyEpoch)
+                    failClosed("This device is connected to a different universe. Return and try again.")
+                    return@launch
+                }
+                val next=ScrollSession(feed.decisionId,item,feed.privacyEpoch,feed.universeId)
                 if(!operationIsCurrent(version,epoch))return@launch
                 store.write(next);session=next;show(next)
             } catch(e:Exception){
@@ -113,7 +119,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     private fun show(value:ScrollSession){
-        if(value.privacyEpoch!=observedPrivacyEpoch || store.readPendingClear()!=null)return
+        if(value.privacyEpoch!=observedPrivacyEpoch || value.universeId!=observedUniverseId || store.readPendingClear()!=null)return
         _screen.value=Screen.Scroll(value.item.assetId)
         savedState["screen"]="scroll"
         store.writeScreen("scroll")
@@ -217,7 +223,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     fun confirmHistoryClear(){
         if(_historyClear.value !is HistoryClearState.Confirming)return
         val current=(_universe.value as? UniverseState.Loaded)?.universe ?: return
-        val request=HistoryClearRequest(UUID.randomUUID().toString(),current.privacyEpoch)
+        val request=HistoryClearRequest(UUID.randomUUID().toString(),current.privacyEpoch,universeId=current.universeId)
         store.writePendingClear(request)
         beginHistoryClear(request)
     }
@@ -235,7 +241,16 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _screen.value=Screen.Universe;_scroll.value=ScrollState.Idle;_universe.value=UniverseState.Loading
         savedState["screen"]="universe";store.writeScreen("universe")
         viewModelScope.launch {
-            try{completeHistoryClear(api.clearScrollHistory(request),request,version)}
+            try{
+                val actual=api.getUniverse()
+                if(request.universeId.isBlank() || request.universeId!=actual.universeId){
+                    purgeForScope(actual.universeId,actual.privacyEpoch)
+                    applyUniverse(actual,false,version)
+                    _historyClear.value=HistoryClearState.NeedsConfirmation(
+                        "This device is connected to a different universe. Review and confirm again."
+                    )
+                } else completeHistoryClear(api.clearScrollHistory(request),request,version)
+            }
             catch(e:Exception){handleHistoryClearFailure(e,version)}
             finally{reconciling=false}
         }
@@ -244,7 +259,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private suspend fun completeHistoryClear(receipt:HistoryClearReceipt,request:HistoryClearRequest,version:Long){
         if(version!=navigationVersion)return
         check(receipt.privacyEpoch>request.expectedPrivacyEpoch){"Clear receipt did not advance privacy state"}
-        purgeForEpoch(receipt.privacyEpoch)
+        purgeForScope(request.universeId,receipt.privacyEpoch)
         _historyClear.value=HistoryClearState.Idle
         try{applyUniverse(api.getUniverse(),restoreStoredScroll=false,version=version)}
         catch(error:Exception){
@@ -291,12 +306,23 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         else{_screen.value=Screen.Universe;_universe.value=UniverseState.Loading}
         viewModelScope.launch {
             try {
+                val actual=api.getUniverse()
                 val pending=store.readPendingClear()
-                if(pending!=null){
+                val localUniverse=store.readObservedUniverseId()
+                val bindingUnknown=localUniverse.isBlank()
+                val bindingChanged=localUniverse.isNotBlank() && localUniverse!=actual.universeId
+                val pendingMismatch=pending!=null && (pending.universeId.isBlank() || pending.universeId!=actual.universeId)
+                if(bindingUnknown || bindingChanged || pendingMismatch){
+                    purgeForScope(actual.universeId,actual.privacyEpoch)
+                    applyUniverse(actual,false,version)
+                    if(pending!=null)_historyClear.value=HistoryClearState.NeedsConfirmation(
+                        "This device is connected to a different universe. Review and confirm again."
+                    )
+                } else if(pending!=null){
                     _historyClear.value=HistoryClearState.Clearing
                     completeHistoryClear(api.clearScrollHistory(pending),pending,version)
                 } else {
-                    applyUniverse(api.getUniverse(),wantedScroll,version)
+                    applyUniverse(actual,wantedScroll,version)
                 }
             } catch(e:Exception){
                 if(store.readPendingClear()!=null)handleHistoryClearFailure(e,version)
@@ -312,26 +338,30 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     private fun applyUniverse(actual:Universe,restoreStoredScroll:Boolean,version:Long){
         if(version!=navigationVersion)return
-        if(actual.privacyEpoch<observedPrivacyEpoch){
+        if(observedUniverseId.isNotBlank() && actual.universeId!=observedUniverseId){
+            purgeForScope(actual.universeId,actual.privacyEpoch)
+        } else if(actual.privacyEpoch<observedPrivacyEpoch){
             failClosed("The server returned an older privacy state. Reconnect before restoring Scroll history.")
             return
         }
-        if(actual.privacyEpoch>observedPrivacyEpoch)purgeForEpoch(actual.privacyEpoch)
-        observedPrivacyEpoch=store.observePrivacyEpoch(actual.privacyEpoch)
+        if(actual.privacyEpoch>observedPrivacyEpoch)purgeForScope(actual.universeId,actual.privacyEpoch)
+        observedUniverseId=actual.universeId
+        observedPrivacyEpoch=store.observePrivacyState(actual.universeId,actual.privacyEpoch)
         _universe.value=UniverseState.Loaded(actual)
         _historyClear.value=HistoryClearState.Idle
         ready=true
         val cached=if(restoreStoredScroll)runCatching{store.read()}.getOrNull() else null
-        if(cached!=null && cached.privacyEpoch==observedPrivacyEpoch && store.readPendingClear()==null){
+        if(cached!=null && cached.privacyEpoch==observedPrivacyEpoch && cached.universeId==observedUniverseId && store.readPendingClear()==null){
             session=cached;show(cached)
         } else {
-            if(cached!=null)purgeForEpoch(observedPrivacyEpoch)
+            if(cached!=null)purgeForScope(observedUniverseId,observedPrivacyEpoch)
             _screen.value=Screen.Universe;savedState["screen"]="universe";store.writeScreen("universe")
         }
     }
 
-    private fun purgeForEpoch(epoch:Long){
-        store.purgePrivateState(epoch)
+    private fun purgeForScope(universeId:String,epoch:Long){
+        store.purgePrivateState(universeId,epoch)
+        observedUniverseId=store.readObservedUniverseId()
         observedPrivacyEpoch=store.readObservedPrivacyEpoch()
         session=null;visited.clear()
         _scroll.value=ScrollState.Idle
@@ -350,7 +380,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(version!=navigationVersion || epoch!=observedPrivacyEpoch || store.readPendingClear()!=null)return false
         if(value!=null){
             val current=session ?: return false
-            if(current.clientEventId!=value.clientEventId || current.item.assetId!=value.item.assetId)return false
+            if(current.clientEventId!=value.clientEventId || current.item.assetId!=value.item.assetId || current.universeId!=observedUniverseId)return false
         }
         return true
     }

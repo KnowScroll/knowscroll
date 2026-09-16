@@ -255,7 +255,7 @@ class RealJourneyTest {
         delay(750)
         writeJson("j003-pending-before.json",JSONObject().apply{
             put("requestId",pending.requestId);put("expectedPrivacyEpoch",pending.expectedPrivacyEpoch)
-            put("confirmation",pending.confirmation);put("assetId",kept.item.assetId)
+            put("confirmation",pending.confirmation);put("universeId",pending.universeId);put("assetId",kept.item.assetId)
             put("decisionId",kept.decisionId);put("exposureId",kept.exposureId)
             put("beforePrivacyEpoch",before.privacyEpoch);put("phase","before-force-stop")
         })
@@ -279,7 +279,7 @@ class RealJourneyTest {
         assertEquals("universe",store().readScreen())
         writeJson("j003-pending-after.json",JSONObject().apply{
             put("requestId",before.getString("requestId"));put("expectedPrivacyEpoch",before.getLong("expectedPrivacyEpoch"))
-            put("confirmation",before.getString("confirmation"));put("privacyEpoch",after.privacyEpoch)
+            put("confirmation",before.getString("confirmation"));put("universeId",before.getString("universeId"));put("privacyEpoch",after.privacyEpoch)
             put("pendingObservedAtMethodStart",pendingAtMethodStart!=null)
             put("pending",false);put("localSessionCleared",true);put("visitedCleared",true)
         })
@@ -295,7 +295,7 @@ class RealJourneyTest {
         }
         val cached=store().read() ?: error("Expected a cached Scroll")
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
-        val request=HistoryClearRequest(UUID.randomUUID().toString(),cached.privacyEpoch)
+        val request=HistoryClearRequest(UUID.randomUUID().toString(),cached.privacyEpoch,universeId=cached.universeId)
         val receipt=ApiClient().clearScrollHistory(request)
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         waitText("Your universe")
@@ -305,5 +305,36 @@ class RealJourneyTest {
         assertEquals("universe",store().readScreen())
         compose.onAllNodesWithText(cached.item.title).assertCountEquals(0)
         assertTrue(ApiClient().getUniverse().traces.isEmpty())
+    }
+
+    @Test fun differentUniverseBindingDropsPendingClearAndCache() = runBlocking {
+        val (before,cached)=keepOneScrollAndReturn()
+        val foreignUniverseId=UUID.randomUUID().toString()
+        val foreignPending=HistoryClearRequest(
+            UUID.randomUUID().toString(),before.privacyEpoch,universeId=foreignUniverseId
+        )
+        store().observePrivacyState(foreignUniverseId,before.privacyEpoch)
+        store().write(cached.copy(universeId=foreignUniverseId))
+        store().writeVisited(setOf(cached.item.assetId))
+        store().writePendingClear(foreignPending)
+        store().writeScreen("scroll")
+        compose.activityRule.scenario.recreate()
+        waitText("Your universe")
+        compose.waitUntil(15000){
+            store().readObservedUniverseId()==before.universeId && store().readPendingClear()==null && store().read()==null
+        }
+        val after=ApiClient().getUniverse()
+        assertEquals(before.universeId,after.universeId)
+        assertEquals(before.privacyEpoch,after.privacyEpoch)
+        assertEquals(before.traces.map{it.eventId},after.traces.map{it.eventId})
+        assertNull(store().readPendingClear())
+        assertNull(store().read())
+        assertTrue(store().readVisited().isEmpty())
+        writeJson("j003-universe-binding.json",JSONObject().apply{
+            put("foreignUniverseId",foreignUniverseId);put("actualUniverseId",after.universeId)
+            put("privacyEpoch",after.privacyEpoch);put("traceCount",after.traces.size)
+            put("serverHistoryUnchanged",before.traces.map{it.eventId}==after.traces.map{it.eventId})
+            put("pendingCleared",true);put("cacheCleared",true);put("visitedCleared",true)
+        })
     }
 }
