@@ -281,9 +281,12 @@ export function verifyReasoningJourney(value: unknown) {
     const claim = c.operations.find(o => o.name === 'claim')?.result as Record<string, unknown>;
     assert.equal(claim.jobId, c.identities.jobId); assert.notEqual(claim.universeId, c.identities.blockedUniverseId);
     const blockedBefore = c.operations.find(o => o.name === 'blocked_before')?.result;
-    const blockedAfter = c.operations.find(o => o.name === 'blocked_after')?.result;
+    const blockedAfter = c.operations.find(o => o.name === 'blocked_after')?.result as {observedAt: string; rows: unknown};
     assert.ok(Array.isArray(blockedBefore) && blockedBefore.length === 1);
-    assert.deepEqual(blockedAfter, blockedBefore, 'blocked job changed while another universe progressed');
+    assert.ok(finiteTime(blockedAfter.observedAt));
+    const claimed = c.barriers.find(b => b.event === 'operation_finished' && b.data.operation === 'claim');
+    assert.ok(claimed && Date.parse(blockedAfter.observedAt) >= Date.parse(claimed.at));
+    assert.deepEqual(blockedAfter.rows, blockedBefore, 'blocked job changed while another universe progressed');
   }
   return {journey: 'J004' as const, result: 'passed' as const, cases: r.cases.length, fixtureRequests: r.fixture.requests.length};
 }

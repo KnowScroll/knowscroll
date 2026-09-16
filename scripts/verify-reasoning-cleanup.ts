@@ -61,6 +61,11 @@ try {
     child.stderr?.resume();
     let manifest: Manifest | undefined;
     let validated: Manifest | undefined;
+    let primaryFailure: unknown;
+    const fallbackErrors: unknown[] = [];
+    const attemptCleanup = async (fn: () => Promise<void>) => {
+      try { await fn(); } catch (error) { fallbackErrors.push(error); }
+    };
     try {
       for (let i = 0; i < 600; i++) {
         if (spawnError) throw spawnError;
@@ -117,12 +122,16 @@ try {
         'interrupted runner left its disposable database');
       observations.push({signal, runnerPid: child.pid, database: manifest.database, processes: manifest.processes,
         exit, runnerAck: true, databaseAbsent: true, processGroupsAbsent: true, observedAt: new Date().toISOString()});
+    } catch (error) {
+      primaryFailure = error;
     } finally {
-      if (!exit && child.pid) {
-        child.kill('SIGTERM');
-        for (let i = 0; i < 100 && !exit; i++) await delay(100);
-        if (!exit) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
-      }
+      await attemptCleanup(async () => {
+        if (!exit && child.pid) {
+          child.kill('SIGTERM');
+          for (let i = 0; i < 100 && !exit; i++) await delay(100);
+          if (!exit) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+        }
+      });
       if (!validated && manifest && manifest.runnerPid === child.pid
         && manifest.database.host === database.hostname
         && String(manifest.database.port) === (database.port || '5432')
@@ -134,17 +143,29 @@ try {
       // never changes the failed assertion into passing cleanup evidence.
       if (validated) {
         for (const process of validated.processes) {
-          try { globalThis.process.kill(-process.pgid, 'SIGTERM'); }
-          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+          await attemptCleanup(async () => {
+            try { globalThis.process.kill(-process.pgid, 'SIGTERM'); }
+            catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+          });
         }
-        for (let i = 0; i < 50 && validated.processes.some(p => alive(-p.pgid)); i++) await delay(100);
+        await attemptCleanup(async () => {
+          for (let i = 0; i < 50 && validated!.processes.some(p => alive(-p.pgid)); i++) await delay(100);
+        });
         for (const process of validated.processes) {
-          try { globalThis.process.kill(-process.pgid, 'SIGKILL'); }
-          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+          await attemptCleanup(async () => {
+            try { globalThis.process.kill(-process.pgid, 'SIGKILL'); }
+            catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+          });
         }
-        await admin.query(`DROP DATABASE IF EXISTS "${validated.database.name}" WITH (FORCE)`);
-        assert.equal((await admin.query('SELECT 1 FROM pg_database WHERE datname=$1', [validated.database.name])).rowCount, 0);
+        await attemptCleanup(async () => {
+          await admin.query(`DROP DATABASE IF EXISTS "${validated!.database.name}" WITH (FORCE)`);
+          assert.equal((await admin.query('SELECT 1 FROM pg_database WHERE datname=$1', [validated!.database.name])).rowCount, 0);
+        });
       }
+    }
+    if (primaryFailure !== undefined || fallbackErrors.length) {
+      throw new AggregateError([...(primaryFailure === undefined ? [] : [primaryFailure]), ...fallbackErrors],
+        'J004 interruption verification failed; fallback cleanup does not constitute passing evidence');
     }
   }
   const path = resolve(root, `artifacts/j004-cleanup-${suffix}.json`);
