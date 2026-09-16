@@ -1,3 +1,4 @@
+import {lockBoundContextSession} from './reasoning-context-session.ts';
 import {lockFairnessResources,releaseNotSentFairness} from './reasoning-fairness-accounting.js';
 import {randomUUID} from 'node:crypto';
 import type pg from 'pg';
@@ -331,6 +332,7 @@ export async function preflightAttemptInTransaction(
   if (input.costCeilingMicroUsd !== null && !validBoundedInteger(input.costCeilingMicroUsd, 1)) deny('invalid_cost_ceiling');
   if (!Number.isFinite(Date.parse(input.deadline))) deny('invalid_deadline');
   await lockUniverse(client, input.universeId, input.privacyEpoch);
+  await lockBoundContextSession(client,input);
   const job=(await client.query<JobRow>(`SELECT * FROM reasoning_job WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3 FOR UPDATE`,[input.jobId,input.universeId,input.privacyEpoch])).rows[0];
   if (!job || job.status !== 'queued') deny('job_not_queued');
   const step=(await client.query(`SELECT status,context_id FROM reasoning_step WHERE id=$1 AND job_id=$2 AND universe_id=$3 AND privacy_epoch=$4 FOR UPDATE`,[input.stepId,input.jobId,input.universeId,input.privacyEpoch])).rows[0];
@@ -384,6 +386,7 @@ export async function reserveAttemptInTransaction(
   if (!Number.isFinite(deadlineMs)) deny('invalid_deadline');
 
   await lockUniverse(client, input.universeId, input.privacyEpoch);
+  if(contextPhase==='lock') await lockBoundContextSession(client,input);
   const job = await lockCurrentJob(client, input);
   if (job.status !== 'running') deny('job_not_running');
   const stepResult = await client.query<{context_id: string; status: string}>(
@@ -560,6 +563,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         || !validBoundedInteger(input.maxOutputTokens, 1)) deny('invalid_dispatch_binding');
       return transaction(db, async (client) => {
         await lockUniverse(client, input.universeId, input.privacyEpoch);
+        await lockBoundContextSession(client,input);
         const job = await lockCurrentJob(client, input);
         if (job.status !== 'running') deny('job_not_running');
         const step = await client.query<{context_id: string; status: string}>(
