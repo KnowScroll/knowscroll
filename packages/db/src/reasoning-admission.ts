@@ -1,3 +1,4 @@
+import {lockFairnessResources,releaseNotSentFairness} from './reasoning-fairness-accounting.js';
 import {randomUUID} from 'node:crypto';
 import type pg from 'pg';
 
@@ -269,6 +270,7 @@ async function releaseUnconsumed(
   permitId: string,
   bucketsAlreadyLocked = false,
 ): Promise<void> {
+  if (!bucketsAlreadyLocked) await lockFairnessResources(client, [attemptId]);
   const reservations = await client.query<{bucket_id: string; amount: string}>(
     `SELECT bucket_id,amount FROM reasoning_reservation
      WHERE attempt_id=$1 AND state='held' ORDER BY bucket_id FOR UPDATE`,
@@ -301,6 +303,7 @@ async function releaseUnconsumed(
      WHERE attempt_id=$1 AND state='reserved' AND dispatch_id IS NULL`,
     [attemptId],
   );
+  await releaseNotSentFairness(client, attemptId);
   await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1 AND active', [attemptId]);
 }
 
@@ -622,6 +625,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
            WHERE a.job_id=$1 ORDER BY a.id FOR UPDATE OF a,ac`,
           [input.jobId],
         );
+        await lockFairnessResources(client, attempts.rows.map(row => row.id));
         const heldBuckets = await client.query<{bucket_id: string}>(
           `SELECT DISTINCT r.bucket_id FROM reasoning_reservation r
            JOIN reasoning_attempt a ON a.id=r.attempt_id

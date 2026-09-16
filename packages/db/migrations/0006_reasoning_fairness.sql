@@ -61,13 +61,15 @@ CREATE TABLE reasoning_fairness_ready (
    REFERENCES reasoning_fairness_universe(policy_version,class,universe_id)
 );
 CREATE INDEX reasoning_fairness_ready_ring ON reasoning_fairness_ready(policy_version,class,universe_id,seq);
+ALTER TABLE reasoning_accounting ADD CONSTRAINT reasoning_accounting_attempt_universe UNIQUE(attempt_id,universe_id);
 CREATE TABLE reasoning_fairness_attempt (
- attempt_id uuid PRIMARY KEY REFERENCES reasoning_accounting(attempt_id) ON DELETE CASCADE,
+ attempt_id uuid PRIMARY KEY,
  policy_version reasoning_label NOT NULL,
  class text NOT NULL CHECK(class IN ('interactive','active_continuity','accumulated_interpretation','background_inquiry','housekeeping')),
  universe_id uuid NOT NULL,
  reserved_charge reasoning_count NOT NULL CHECK(reserved_charge>0),
  recognized_charge reasoning_count NOT NULL,
+ FOREIGN KEY(attempt_id,universe_id) REFERENCES reasoning_accounting(attempt_id,universe_id) ON DELETE CASCADE,
  FOREIGN KEY(policy_version,class,universe_id)
    REFERENCES reasoning_fairness_universe(policy_version,class,universe_id)
 );
