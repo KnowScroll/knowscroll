@@ -18,9 +18,20 @@ const adminUrl=new URL(base);adminUrl.pathname='/postgres';
 const testUrl=new URL(base);testUrl.pathname=`/${name}`;
 const admin=new pg.Client({connectionString:adminUrl.toString()});
 let db:pg.Pool|undefined,child:ChildProcess|undefined,created=false,interrupted=false,unexpectedPoolError=false;
-let childExit:{code:number|null;signal:string|null}|undefined,childFailure=false;
+let childExit:{code:number|null;signal:string|null}|undefined,childClose:{code:number|null;signal:string|null}|undefined,childClosed=false,childFailure=false;
 const batches:Array<Record<string,number>>=[];
-let stoppedEvent=false,stderrObserved=false;
+let stoppedEvent=false,stderrObserved=false,buffer='';
+type FailureCode='worker_graceful_shutdown_timeout'|'worker_stdio_close_timeout'|'worker_exit_not_zero'|'worker_close_not_zero'|'worker_stop_ack_missing'|
+ 'worker_stderr_observed'|'worker_stdout_incomplete'|'retirement_counter_missing'|'purge_counter_missing'|
+ 'worker_spawn_error'|'worker_stdout_limit_exceeded'|'worker_stdout_invalid'|'runner_interrupted'|'pool_error'|
+ 'cleanup_incomplete'|'cleanup_failed'|'evidence_missing'|'unexpected_harness_failure';
+class RetirementJourneyFailure extends Error {constructor(readonly code:FailureCode){super(code);}}
+function requireJourney(condition:unknown,code:FailureCode):asserts condition {
+ if(!condition)throw new RetirementJourneyFailure(code);
+}
+let failureCode:FailureCode|undefined;
+type CleanupFailure='worker_stop_failed'|'pool_close_failed'|'database_drop_failed'|'database_verify_failed'|'admin_close_failed';
+const cleanupFailures:CleanupFailure[]=[];
 admin.on('error',()=>{unexpectedPoolError=true;});
 const onSignal=()=>{interrupted=true;};
 process.on('SIGTERM',onSignal);process.on('SIGINT',onSignal);
@@ -33,16 +44,24 @@ async function until(check:()=>Promise<boolean>,label:string,limit=200) {
  throw Error(`retirement_fixture_timeout_${label}`);
 }
 async function stopChild() {
- if(!child?.pid||childExit)return;
- try {process.kill(-child.pid,'SIGTERM');} catch {child.kill('SIGTERM');}
+ if(!child?.pid||childClosed)return;
+ if(!childExit)try {process.kill(-child.pid,'SIGTERM');} catch {child.kill('SIGTERM');}
  for(let i=0;i<100&&!childExit;i++)await setTimeout(50);
  if(!childExit) {
   try {process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}
   for(let i=0;i<40&&!childExit;i++)await setTimeout(50);
-  throw Error('retirement_worker_failed_graceful_shutdown');
+  for(let i=0;i<40&&!childClosed;i++)await setTimeout(50);
+  throw new RetirementJourneyFailure('worker_graceful_shutdown_timeout');
+ }
+ for(let i=0;i<100&&!childClosed;i++)await setTimeout(50);
+ if(!childClosed) {
+  try {process.kill(-child.pid,'SIGKILL');}catch(error){if((error as NodeJS.ErrnoException).code!=='ESRCH')child.kill('SIGKILL');}
+  for(let i=0;i<40&&!childClosed;i++)await setTimeout(50);
+  throw new RetirementJourneyFailure('worker_stdio_close_timeout');
  }
 }
 let evidence:Record<string,unknown>|undefined,failure=false,cleanupOk=false,stage='connect';
+let failureSnapshot:Record<string,unknown>|undefined;
 try {
  await admin.connect();await admin.query(`CREATE DATABASE "${name}"`);created=true;
  process.env.DATABASE_URL=testUrl.toString();
@@ -82,19 +101,20 @@ try {
  const snapshot=async()=>Promise.all(retainedTables.map(async table=>(await db!.query(`SELECT to_jsonb(t) AS row FROM ${table} t WHERE attempt_id=$1 ORDER BY to_jsonb(t)::text`,[due.attemptId])).rows));
  const before=await snapshot();
  stage='worker_start';
- let buffer='';
  const env:NodeJS.ProcessEnv={DATABASE_URL:testUrl.toString(),REASONING_MAINTENANCE_INTERVAL_MS:'100',REASONING_MAINTENANCE_MAX_PROBES:'8'};
  for(const key of ['PATH','HOME','TMPDIR','KS_DEV_ROOT','COREPACK_HOME'])if(process.env[key])env[key]=process.env[key];
  child=spawn(process.execPath,['--import','tsx','apps/worker/src/reasoning/maintenance-main.ts'],{env,detached:true,stdio:['ignore','pipe','pipe']});
- child.once('error',()=>{childFailure=true;});child.once('exit',(code,signal)=>{childExit={code,signal};});
+ child.once('error',()=>{childFailure=true;failureCode??='worker_spawn_error';});
+ child.once('exit',(code,signal)=>{childExit={code,signal};});
+ child.once('close',(code,signal)=>{childClose={code,signal};childClosed=true;});
  child.stderr!.on('data',()=>{stderrObserved=true;});
  child.stdout!.on('data',chunk=>{
-  buffer+=String(chunk);if(buffer.length>8192){buffer='';childFailure=true;return;}
+  buffer+=String(chunk);if(buffer.length>8192){buffer='';childFailure=true;failureCode??='worker_stdout_limit_exceeded';return;}
   let end:number;while((end=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);
    try{const x=JSON.parse(line);if(x.service!=='reasoning-maintenance')continue;
     if(x.event==='stopped')stoppedEvent=true;
     if(x.event==='batch'){const counters:Record<string,number>={};for(const k of ['probes','retiredJobs','purgedAccounting','skipped']){assert(Number.isInteger(x[k])&&x[k]>=0);counters[k]=x[k];}batches.push(counters);}
-   }catch{childFailure=true;}
+   }catch{childFailure=true;failureCode??='worker_stdout_invalid';}
   }
  });
  stage='scheduled_deletion';
@@ -115,22 +135,41 @@ try {
  assert.equal((await reconciliation.recordAndSettleReceipt(receipt,'worker')).replayed,true);
  assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[due.jobId])).rowCount,0);
  stage='shutdown';
- await stopChild();assert.deepEqual(childExit,{code:0,signal:null});assert(stoppedEvent);assert(!stderrObserved);
- assert(batches.some(b=>b.retiredJobs!>0));assert(batches.some(b=>b.purgedAccounting!>0));
+ await stopChild();
+ requireJourney(childExit?.code===0&&childExit.signal===null,'worker_exit_not_zero');
+ requireJourney(childClose?.code===0&&childClose.signal===null,'worker_close_not_zero');
+ requireJourney(stoppedEvent,'worker_stop_ack_missing');
+ requireJourney(!stderrObserved,'worker_stderr_observed');
+ requireJourney(buffer.length===0,'worker_stdout_incomplete');
+ requireJourney(batches.some(b=>b.retiredJobs!>0),'retirement_counter_missing');
+ requireJourney(batches.some(b=>b.purgedAccounting!>0),'purge_counter_missing');
+ stage='source_evidence';
  evidence={check:'scheduled-withdrawn-reasoning-retirement',result:'passed',observedAt:new Date().toISOString(),
   source:{revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim()!=='',
    files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
   runtime:{separateWorker:true,scheduledBatches:batches.length,intervalMs:100,idleGracefulShutdown:true},
   assertions:{oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
   limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','idle SIGTERM shutdown; no in-flight signal barrier in this receipt','no completed/failed-job retirement or owner maintenance deployment']};
-} catch {failure=true;}
+} catch(error) {
+ failure=true;failureCode??=error instanceof RetirementJourneyFailure?error.code:'unexpected_harness_failure';
+ failureSnapshot={childExit,childClose,childClosed,stoppedEvent,stderrObserved,batches:batches.length,
+  retirementCounterObserved:batches.some(b=>b.retiredJobs!>0),purgeCounterObserved:batches.some(b=>b.purgedAccounting!>0),
+  stdoutPending:buffer.length>0};
+}
 finally {
- try {await stopChild();await db?.end();if(created)await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
-  cleanupOk=(await admin.query('SELECT 1 FROM pg_database WHERE datname=$1',[name])).rowCount===0;
- }catch{failure=true;}finally{await admin.end().catch(()=>{failure=true;});}
+ const cleanupAttempt=async(code:CleanupFailure,fn:()=>Promise<void>)=>{try{await fn();}catch{cleanupFailures.push(code);failure=true;failureCode??='cleanup_failed';}};
+ await cleanupAttempt('worker_stop_failed',stopChild);
+ await cleanupAttempt('pool_close_failed',async()=>{await db?.end();});
+ await cleanupAttempt('database_drop_failed',async()=>{if(created)await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);});
+ await cleanupAttempt('database_verify_failed',async()=>{cleanupOk=(await admin.query('SELECT 1 FROM pg_database WHERE datname=$1',[name])).rowCount===0;if(!cleanupOk)throw Error('database_present');});
+ await cleanupAttempt('admin_close_failed',async()=>{await admin.end();});
  process.off('SIGTERM',onSignal);process.off('SIGINT',onSignal);
 }
-if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError){console.error(JSON.stringify({error:'retirement_journey_failed',stage,cleanup:cleanupOk,childExit,stoppedEvent,stderrObserved,batches:batches.length}));process.exitCode=1;}
+if(interrupted)failureCode??='runner_interrupted';
+if(unexpectedPoolError)failureCode??='pool_error';
+if(!cleanupOk)failureCode??='cleanup_incomplete';
+if(!evidence)failureCode??='evidence_missing';
+if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError||childFailure){console.error(JSON.stringify({error:'retirement_journey_failed',failureCode,stage,cleanup:cleanupOk,cleanupFailures,failureSnapshot,childExit,childClose,childClosed,stoppedEvent,stderrObserved,batches:batches.length}));process.exitCode=1;}
 else {
  const output=resolve(process.argv[2]??'artifacts/reasoning-retirement.json');await mkdir(resolve(output,'..'),{recursive:true});
  await writeFile(output,JSON.stringify({...evidence,cleanup:{databaseAbsent:true,workerExited:true}},null,2)+'\n',{flag:'wx'});
