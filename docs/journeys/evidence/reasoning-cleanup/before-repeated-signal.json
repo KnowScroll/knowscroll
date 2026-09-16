@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "journey": "J004",
+  "result": "failed",
+  "observedAt": "2026-09-16T12:11:55.396Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "trigger": {
+    "signals": [
+      "SIGTERM",
+      "SIGTERM"
+    ],
+    "intervalMs": 25
+  },
+  "source": {
+    "revision": "bc5055350430e6a334ee238182bb54aef4b958be",
+    "files": [
+      {
+        "path": "scripts/run-isolated-reasoning-journey.ts",
+        "sha256": "134aa78509c9e94a0f8c1a4808fc3dc3221a41e4656644c00320665758ee1615"
+      },
+      {
+        "path": "scripts/verify-reasoning-cleanup.ts",
+        "sha256": "afd04cb7d93ec1510776875fa016570df3bd62b3f95d5c11b45ce6c32952fe28"
+      }
+    ]
+  },
+  "runnerExit": {
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "runnerAcknowledgedCleanup": false,
+  "independentBeforeFallback": {
+    "databaseAbsent": true,
+    "processGroupsAbsent": true
+  }
+}
