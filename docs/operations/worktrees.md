@@ -4,10 +4,10 @@ Prepared under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`:
 
 | Directory / branch | Issue | Local API port | Database |
 |---|---|---|---|
-| `mobile` / `codex/31-history-control` | #31 (parent #3), Android privacy control | 4312 | knowscroll_mobile |
-| `core` / `codex/54-fairness-review` | #54 (parent #7), independent model review | 4313 | knowscroll_core |
-| `reasoning` / `codex/54-fairness-model` | #54 (parent #7), deterministic scheduling model | 4314 | knowscroll_reasoning |
-| `coordination` / `codex/54-fairness` | #54 policy, counterexamples, docs and integration | 4315 | knowscroll_coordination |
+| `mobile` / `codex/55-service-review` | #55 independent Sol service-oracle tests | 4312 | knowscroll_mobile |
+| `core` / `codex/55-independent-review` | #55 independent Terra concurrency/privacy review | 4313 | knowscroll_core |
+| `reasoning` / `codex/55-sql-fairness` | #55 Terra SQL tests and fixture lane | 4314 | knowscroll_reasoning |
+| `coordination` / `codex/55-durable-fairness` | #55 schema, accounting, scheduler and integration | 4315 | knowscroll_coordination |
 
 Each has its own ignored `.env` and local Android configuration. All use the dedicated SSD PostgreSQL cluster at port55432 and the same SSD package/SDK/Gradle caches. Databases and API ports are separate. These lanes are prepared, not autonomous agents already running.
 
@@ -34,3 +34,5 @@ Issue #45 uses Sol for admission/lease/recovery, Terra for cumulative reconcilia
 Issue #46 uses Sol for the disposable J004 process harness and Terra for independent review. Coordinator owns the receipt verifier, corruption counterexamples, independent SIGTERM/SIGINT cleanup checker, CI and documentation. No production module, migration, provider call or normal Android surface changes in this slice.
 
 Issue #54 uses Terra (`gpt-5.6-terra`) for the pure deterministic model and a second Terra worker for independent adversarial review. Sol is unavailable due to a model usage limit. Coordinator owns ADR-0013, policy decisions, integration, source-stamped evidence and docs. There are no provider calls, migrations or ordinary runtime changes in this slice.
+
+Issue #55 uses coordinator-owned migration 0006, shared transaction/preflight helpers, retained corrections/privacy and final scheduler integration. Terra supplies bounded SQL tests and an independent concurrency/privacy reviewer; Sol supplies independent sustained service tests. The original scheduler draft was superseded after review, and acceptance uses the integrated implementation. Sol also diagnosed and repaired #57 separately in merged PR #58. All provider calls remain disabled.

@@ -1,6 +1,6 @@
 # ADR-0013 — Bounded reasoning fairness
 
-Date: 2026-09-16. Status: accepted after independent adversarial review in [#54](https://github.com/KnowScroll/knowscroll/issues/54). This is a scheduling contract and executable model, not a released SQL scheduler or provider authorization. It refines the fairness paragraph of [ADR-0012](0012-reasoning-admission-and-reconciliation.md); all dispatch, accounting and privacy guards there remain required.
+Date: 2026-09-16. Status: accepted after independent adversarial review in [#54](https://github.com/KnowScroll/knowscroll/issues/54). This ADR is the scheduling contract, accepted with an executable model. [#55](../operations/reasoning-sql-fairness.md) subsequently implements the internal SQL scheduler; neither release authorizes product provider execution. It refines the fairness paragraph of [ADR-0012](0012-reasoning-admission-and-reconciliation.md); all dispatch, accounting and privacy guards there remain required.
 
 ## Context
 
@@ -59,9 +59,9 @@ The model's conditional claim is service **opportunity**, not elapsed response t
 
 An unknown call can occupy the last slot forever. Replenishing a rate window does not ensure a large request will find sufficient simultaneous free capacity among small calls. Permanent overload cannot meet all deadlines. Record and escalate such cases rather than claiming universal no-starvation, wall-clock bounds or useful personalization. A stronger physical-capacity reservation/aging policy requires a separate reviewed design and tests.
 
-## Durable runtime seam (follow-up, not implemented here)
+## Durable runtime seam (implemented separately in #55)
 
-The scheduler owns policy versions, stable ring membership/cursors, open-visit generation and spend, class/universe credit, recognized Attempt charges and idempotent settlement deltas. Discovery is advisory. Future SQL must revalidate candidate readiness, privacy epoch, deadlines, context, policy and cursor generation within the existing admission transaction.
+The scheduler owns policy versions, stable ring membership/cursors, open-visit generation and spend, class/universe credit, recognized Attempt charges and idempotent settlement deltas. Discovery is advisory. SQL must revalidate candidate readiness, privacy epoch, deadlines, context, policy and cursor generation within the existing admission transaction.
 
 Preserve ADR-0012's order: universe → Job → Step → Attempt/accounting → all shared scheduler/quota/budget rows in a single canonical order. Scheduler rows join that final ordered resource namespace; no shared class lock may be held while waiting to acquire a universe. A short transaction locks the selected universe first, then CAS-checks the observed shared cursor generation. On conflict, roll back and rediscover; it cannot keep a stale selection or debit credit twice. All candidates and mutable policy dependencies must be rechecked after waits.
 
