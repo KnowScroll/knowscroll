@@ -18,3 +18,6 @@ PR #65 head `0b88460` failed one Linux interruption check despite completed clea
 
 
 The [final integration receipt](final-integration.json) at clean `339913d` records275 passing backend tests and typecheck after the separately reviewed #68 deadline-fixture repair. Ask runtime and cleanup runtime are unchanged; original and combined journey evidence remains applicable by exact source hashes. The earlier global-timer test candidate was rejected and is not the released approach. Fresh final-head backend/Android CI is required; no passing sibling run substitutes for a failed check.
+
+
+[Final output-drain integration](final-drain-integration.json) at clean `482af33` passes276 backend tests, typecheck and the [retirement journey with explicit stdio-close acknowledgement](retirement-final-drained.json). This includes reviewed #69 harness diagnostics and independent teardown; product Ask source remains unchanged from `aec78d1`. Three earlier Linux retirement failures remain unattributed and retained under the dependency evidence. Fresh exact-head CI is required for both PRs.
