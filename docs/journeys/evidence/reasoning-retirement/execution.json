@@ -1,0 +1,233 @@
+{
+  "issue": 62,
+  "observedAt": "2026-09-16T14:36:39.135356+00:00",
+  "source": {
+    "revision": "a319ed704ad586dc3697e13a98289fd388148c9b",
+    "dirty": false,
+    "files": [
+      {
+        "path": ".github/workflows/checks.yml",
+        "sha256": "301485f8c825db9a1d59e5fe5fba221577b2b584c080dab1e25d10d197072840"
+      },
+      {
+        "path": "apps/worker/src/reasoning/maintenance-main.ts",
+        "sha256": "c29ee93d732b31c6dac5ce5cc1561acba578acc56c3cccfcfdd96177062fbd30"
+      },
+      {
+        "path": "packages/db/migrations/0008_reasoning_retirement.sql",
+        "sha256": "4f7667d57c488dbf789f4ba5575b7c435ad8004a940a4bab7ff89ec41bdadf66"
+      },
+      {
+        "path": "packages/db/src/reasoning-admission.ts",
+        "sha256": "d7d12a0fb54bc91cc9a3bb6c61f67a8aaa7247d38f1d0711e60847c3450c63e4"
+      },
+      {
+        "path": "packages/db/src/reasoning-maintenance.ts",
+        "sha256": "b31932923d9cceeff82ea464a070d48dafe9843997e9c8d753e5021366821663"
+      },
+      {
+        "path": "scripts/run-isolated-retirement-journey.ts",
+        "sha256": "8fa6a3515a1170188fcd92bd32dda31a25ebae33cde1be4c1864047722ffc987"
+      },
+      {
+        "path": "tests/helpers/reasoning-maintenance-fixture.ts",
+        "sha256": "0d479ceccd36651da23c8538fe5e897b70ab28805b716af8d5a9f8f015a0aff1"
+      },
+      {
+        "path": "tests/reasoning-maintenance-adversarial.test.ts",
+        "sha256": "45259c7b6d7c118719d02fead9e1e9a882ecd61301012f97426abc523fd5c008"
+      },
+      {
+        "path": "tests/reasoning-maintenance.test.ts",
+        "sha256": "4b0e4793fda01e3e8a018b0c9273fdd3edbe6235fb4406d3d96254464becd1b8"
+      },
+      {
+        "path": "tests/reasoning-retirement-privacy.test.ts",
+        "sha256": "5106c867927ded90f716af406c2a892956a5d181a473553ec1ed6a2777282561"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "result": "passed",
+      "baselineTests": 12,
+      "additionalTests": 241,
+      "totalTests": 253
+    },
+    {
+      "command": "isolated J001/J002/J003 and two verifier rejection tests",
+      "result": "passed",
+      "sourceRevision": "497ff66e57941b1e8c29f4757573e0b9acf7d4ad"
+    },
+    {
+      "command": "isolated J004 and receipt verifier",
+      "result": "passed",
+      "cases": 13,
+      "fixtureRequests": 4
+    },
+    {
+      "command": "interruption cleanup checker",
+      "result": "passed",
+      "cases": 6
+    },
+    {
+      "command": "scheduled retirement separate process",
+      "result": "passed",
+      "scheduledBatches": 2
+    },
+    {
+      "command": "disposable PostgreSQL restart regression",
+      "result": "passed"
+    },
+    {
+      "command": "deterministic fairness trace capture",
+      "result": "passed",
+      "traces": 12
+    }
+  ],
+  "unchangedReleasedMigrations": [
+    {
+      "path": "packages/db/migrations/0001_bootstrap.sql",
+      "sha256": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "path": "packages/db/migrations/0002_identity_epochs.sql",
+      "sha256": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    },
+    {
+      "path": "packages/db/migrations/0003_history_clear.sql",
+      "sha256": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+    },
+    {
+      "path": "packages/db/migrations/0004_reasoning_storage.sql",
+      "sha256": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+    },
+    {
+      "path": "packages/db/migrations/0005_reasoning_runtime.sql",
+      "sha256": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+    },
+    {
+      "path": "packages/db/migrations/0006_reasoning_fairness.sql",
+      "sha256": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+    },
+    {
+      "path": "packages/db/migrations/0007_sealed_reasoning_context.sql",
+      "sha256": "e1baf0ea78610e46e3449b5da0ac503190bf30745f4a3c424e16e6c1ab4f9948"
+    }
+  ],
+  "receipts": {
+    "scheduled-retirement.json": {
+      "sha256": "4b7034db3b254bd9d8ff03702a9b81d0793716cc3096eed41930b59e28a70ff0",
+      "sourceRevision": "497ff66e57941b1e8c29f4757573e0b9acf7d4ad",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    },
+    "interruption-cleanup.json": {
+      "sha256": "f3de7cb104b42ef0c7648173e0c1676aa0ecd4ec10761d33f82fc541fc900aef",
+      "sourceRevision": "497ff66e57941b1e8c29f4757573e0b9acf7d4ad",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    },
+    "postgres-restart.json": {
+      "sha256": "2873d97a0623e80894f427644adbb05bbbc41e692dc8944aff5999cbd7e542a1",
+      "sourceRevision": "497ff66e57941b1e8c29f4757573e0b9acf7d4ad",
+      "sourceDirty": false,
+      "recordedSourceHashesMatch": true
+    }
+  },
+  "logs": [
+    {
+      "path": "artifacts/62-final-typecheck.log",
+      "sha256": "1f781540a75e0bc03004b4b091a8e22d19a51367280c523c72bc83b04d19c355"
+    },
+    {
+      "path": "artifacts/62-final-tests.log",
+      "sha256": "66a1ab1bb859625b86b30e23f1246b1d3c2340592b7347580b98a9b9065aac8e"
+    },
+    {
+      "path": "artifacts/62-j001.log",
+      "sha256": "5ec43cf2c70f5c70ad05e987e4db41053cdbefc224ecfcfbfd09f5e04845d097"
+    },
+    {
+      "path": "artifacts/62-j002.log",
+      "sha256": "47fb58e4f3903f04c2e7538827757b23f6ac46b2475a2ef6bdb2498eb1d06e0f"
+    },
+    {
+      "path": "artifacts/62-j003.log",
+      "sha256": "5f6b42021bbfcd8a6020cef959130347b562963461835b32becfc47168917b17"
+    },
+    {
+      "path": "artifacts/62-verifier.log",
+      "sha256": "6a7ef9cb5d3b13a4adf3742f242d5f94006d1708b523788daf7078416f990ed4"
+    },
+    {
+      "path": "artifacts/62-j004.log",
+      "sha256": "08a132e577192742622a98a1563572dbf69d195a46ef0b10f3d879d848940c9a"
+    },
+    {
+      "path": "artifacts/62-cleanup.log",
+      "sha256": "034e02c55db408f3831f0d461a455e98f0e205073c833b4215ba62b45127be38"
+    },
+    {
+      "path": "artifacts/62-retirement.log",
+      "sha256": "88b06754d19a7a6ca4dfd94912a274f6ec082fa502835bcd24d1164cf3dc2997"
+    },
+    {
+      "path": "artifacts/62-restart.log",
+      "sha256": "bb43fa1ddad3e70a6a8d1cce4350248aa3ec3f7751ad2f0c5bd3337e3b15bdcc"
+    },
+    {
+      "path": "artifacts/62-fairness.log",
+      "sha256": "4bef05923ac5e6062163014a682e694eb578edf2dc20d3195e77c21103d0a704"
+    }
+  ],
+  "workers": [
+    {
+      "model": "gpt-5.6-terra",
+      "role": "maintenance runtime and focused SQL tests",
+      "commits": [
+        "9f9a605",
+        "8ee793c",
+        "1ac419c"
+      ]
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "role": "independent concurrency and SQL tests",
+      "commits": [
+        "9489f9b",
+        "6217b05",
+        "7111ff8"
+      ]
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "role": "independent privacy and late-evidence races",
+      "commits": [
+        "edeef0b",
+        "c33f3e2"
+      ]
+    }
+  ],
+  "providerCalls": 0,
+  "limits": [
+    "Fixture-only clock aging; not seven days of wall-clock observation",
+    "Separate process receipt proves idle SIGTERM shutdown; active-transaction abort is independently proved at SQL helper level",
+    "No completed/failed-job retirement, unleased recovered waiting cancellation, or fabricated legacy timestamp backfill",
+    "No owner service deployment in these disposable receipts; no production capacity or useful reasoning claim",
+    "J004 and PostgreSQL restart are existing synthetic-authority regressions, not live provider or new maintenance process-restart proof",
+    "No owner emulator instrumentation rerun; Android build/lint/unit CI remains a release gate",
+    "Historical Linux cleanup failure exact cause remains unresolved under issue 57"
+  ],
+  "independentFinalReview": {
+    "model": "gpt-5.6-terra",
+    "revision": "a319ed7",
+    "verdict": "accept; no schema/runtime blocker",
+    "fullSuiteIndependentlyRerun": false
+  }
+}
