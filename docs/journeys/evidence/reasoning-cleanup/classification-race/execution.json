@@ -1,0 +1,72 @@
+{
+  "issue": 57,
+  "observedAt": "2026-09-16T15:21:27.458979+00:00",
+  "runtimeRevision": "e481ea22fe4e984387d230b4c703ed5604e50cc2",
+  "runtimeFiles": [
+    {
+      "path": "scripts/run-isolated-reasoning-journey.ts",
+      "sha256": "93074e2afbb7a9f861081c59ed56ee67de649892496f9aa823efd44e38349d2a"
+    },
+    {
+      "path": "scripts/verify-reasoning-cleanup.ts",
+      "sha256": "1ffca2e6d15463d1ebe85e11793a59a6ce08584e6e53c5311bcb259967e38b83"
+    }
+  ],
+  "commands": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test (12 baseline + 241 additional = 253)",
+      "result": "passed"
+    },
+    {
+      "command": "journey verifier (2 rejection cases)",
+      "result": "passed"
+    },
+    {
+      "command": "isolated J001/J002/J003",
+      "result": "passed"
+    },
+    {
+      "command": "isolated J004 and receipt verifier (13 cases)",
+      "result": "passed"
+    },
+    {
+      "command": "interruption checker (8 cases, including 2 synthetic ordering probes)",
+      "result": "passed"
+    },
+    {
+      "command": "12 deterministic fairness traces",
+      "result": "passed"
+    },
+    {
+      "command": "disposable PostgreSQL restart",
+      "result": "passed"
+    },
+    {
+      "command": "scheduled retirement regression",
+      "result": "passed"
+    }
+  ],
+  "reviews": [
+    {
+      "role": "implementation",
+      "model": "gpt-5.6-sol",
+      "commit": "2865601d54a741ec730d841fe5752f26e453529c"
+    },
+    {
+      "role": "independent source review",
+      "model": "gpt-5.6-terra",
+      "verdict": "accepted; first observed handler, not original CI causal order"
+    }
+  ],
+  "providerCalls": 0,
+  "ownerHistoryChanged": false,
+  "limits": [
+    "Synthetic ordering probes do not establish the original Linux PostgreSQL error cause or event order.",
+    "Original historical missing-acknowledgement cause remains unresolved; issue 57 stays open.",
+    "Linux and Android CI recorded separately after publishing."
+  ]
+}

@@ -9,3 +9,13 @@ Cleanup itself succeeded: final acknowledgement, no cleanup errors, database abs
 The inspected runner can overwrite failure classification in three places: the pool event callback, pause loop and catch priority. Its signal callback initially records only a boolean. A later pool event can therefore replace an earlier observed interruption. This source defect is separate from the older missing-acknowledgement failure; #57 remains open for that historical uncertainty.
 
 No raw stderr, token or provider data is retained. Verification must keep expected primary classification, final cleanup acknowledgement, zero cleanup errors and independently absent database/runner/process groups. Fallback cleanup never turns a failed observation into passing evidence.
+
+## Repair and independent verification
+
+The first observed failure is now latched; later distinct classes retain their runtime/cleanup phase without replacing it. Final receipt and manifest use that same primary. The checker still rejects unexpected primary classification, missing acknowledgement, cleanup errors or surviving resources.
+
+The [instrumented old-runner probe](instrumented-before-probe.json) preserves the original classification logic and adds one synthetic Pool.emit in cleanup after real SIGINT. It reproduces the overwritten primary while verifying completed cleanup independently. Its hashes and exact injection distinguish this from unmodified source or a natural PostgreSQL fault.
+
+[Coordinator verification](execution.json) records 253 passing backend tests, typecheck and regression runs at clean `e481ea2`. The [eight-case interruption matrix](interruption-after.json) contains the six existing real signal/child/PostgreSQL-backend cases plus two explicitly synthetic handler-order probes. The latter prove Pool-before-interruption and interruption-before-cleanup-Pool behavior; they do not reconstruct CI timing. The [ordinary J004 receipt](j004-after.json) also passed its strict verifier. Sol (`gpt-5.6-sol`) implemented the two-file repair; Terra (`gpt-5.6-terra`) independently accepted the source.
+
+No provider calls, production modules, migrations or owner data changed. Exact-head Linux backend and Android CI remain a separate release gate.

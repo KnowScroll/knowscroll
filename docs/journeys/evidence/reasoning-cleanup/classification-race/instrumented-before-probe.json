@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "instrumented-before-fix-synthetic-handler-order-probe",
+  "baseRevision": "48ab5b2d4eaf7b3f2a04ab250a34bf9b39a156f5",
+  "originalSha256": "45725e50b968e5723d461f6abb11767b6d9c5e25ec6da1501715ed332edc0d7e",
+  "instrumentedSha256": "841f38c89fe3d43dc6f6bb528f57639c983384a3a04f02def710f7f6a4395d00",
+  "injection": "if (interrupted && db) db.emit(\"error\", new Error(\"synthetic cleanup ordering probe\"));",
+  "limitation": "Synthetic Pool.emit after real SIGINT; original classification logic unchanged. Not an unmodified runner execution or evidence of CI PostgreSQL cause or event order.",
+  "exit": {
+    "code": 1,
+    "signal": null
+  },
+  "manifestClassification": "pool_runtime_error",
+  "receiptError": "interrupted",
+  "runnerAck": true,
+  "cleanupErrors": [],
+  "databaseAbsent": true,
+  "processGroupsAbsent": true,
+  "runnerAbsent": true,
+  "checkedAt": "2026-09-16T15:18:44.412Z"
+}
