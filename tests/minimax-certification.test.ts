@@ -181,24 +181,30 @@ test('pre-abort and reservation rejection never fetch', async () => {
   assert.equal(calls, 0);
 });
 
-test('deadline aborts an in-flight request and reports uncertain dispatched timeout', async (t) => {
+test('deadline aborts an in-flight request and reports uncertain dispatched timeout', {timeout: 5_000}, async (t) => {
   let observed!: () => void;
   const requestObserved = new Promise<void>((resolve) => { observed = resolve; });
   let closed!: () => void;
   const responseClosed = new Promise<void>((resolve) => { closed = resolve; });
+  let releaseHandler!: () => void;
+  const handlerReleased = new Promise<void>((resolve) => { releaseHandler = resolve; });
   const server = await fixture(async (_body, _req, response) => {
     response.once('close', closed);
     observed();
-    await responseClosed;
+    await Promise.race([responseClosed, handlerReleased]);
     return {body: success()};
   });
-  t.after(server.close);
-
+  const controller = new AbortController();
   const now = Date.now();
   t.mock.timers.enable({apis: ['Date', 'setTimeout'], now});
-  t.after(() => t.mock.timers.reset());
+  t.after(async () => {
+    controller.abort();
+    releaseHandler();
+    try { await server.close(); } finally { t.mock.timers.reset(); }
+  });
   const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
     deadline: new Date(Date.now() + 30).toISOString(),
+    signal: controller.signal,
   }));
   await requestObserved;
   assert.equal(server.requests(), 1);
@@ -208,6 +214,41 @@ test('deadline aborts an in-flight request and reports uncertain dispatched time
   assert.equal(result.outcome, 'timeout');
   assert.equal(result.dispatched, true);
   assert.equal(result.httpStatus, null);
+  assert.deepEqual(result.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
+});
+
+test('deadline before transport remains undispatched with no remote request', {timeout: 5_000}, async (t) => {
+  const server = await fixture(() => ({body: success()}));
+  let entered!: () => void;
+  const beforeDispatchEntered = new Promise<void>((resolve) => { entered = resolve; });
+  let release!: () => void;
+  const beforeDispatchReleased = new Promise<void>((resolve) => { release = resolve; });
+  const controller = new AbortController();
+  const now = Date.now();
+  t.mock.timers.enable({apis: ['Date', 'setTimeout'], now});
+  t.after(async () => {
+    controller.abort();
+    release();
+    try { await server.close(); } finally { t.mock.timers.reset(); }
+  });
+
+  const pending = createMiniMaxCertificationAdapter({apiKey: API_KEY, baseURL: server.baseURL}).invoke(request({
+    deadline: new Date(Date.now() + 30).toISOString(),
+    signal: controller.signal,
+    beforeDispatch: async () => {
+      entered();
+      await beforeDispatchReleased;
+    },
+  }));
+  await beforeDispatchEntered;
+  t.mock.timers.tick(30);
+  release();
+  const result = await pending;
+  assert.equal(result.outcome, 'timeout');
+  assert.equal(result.dispatched, false);
+  assert.equal(result.httpStatus, null);
+  assert.match(result.requestHash ?? '', /^[a-f0-9]{64}$/);
+  assert.equal(server.requests(), 0);
   assert.deepEqual(result.usage, {inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null});
 });
 
