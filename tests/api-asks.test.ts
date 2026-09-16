@@ -110,6 +110,13 @@ test('rejects foreign, stale, altered, and conflicting Ask sources without expos
   assert.equal((await ask(owner.token,{...body,question:'A different literal question'})).statusCode,409);
   assert.equal((await ask(owner.token,{...body,exposureId:randomUUID()})).statusCode,409);
 
+  const ambiguous=await expose(owner.token,await feed(owner.token));
+  const candidates=(await pool.query<{candidates:Record<string,unknown>[]}>('SELECT candidates FROM decision WHERE id=$1',[ambiguous.body.decisionId])).rows[0]!.candidates;
+  await pool.query('UPDATE decision SET candidates=$2 WHERE id=$1',[ambiguous.body.decisionId,JSON.stringify([...candidates,{...candidates[0],kind:'Reel'}])]);
+  const ambiguousInput={clientAskId:randomUUID(),exposureId:ambiguous.receipt.exposureId,expectedPrivacyEpoch:0,question:'Which selected Scroll is this?'};
+  assert.equal((await ask(owner.token,ambiguousInput)).statusCode,422);
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM explicit_ask WHERE session_id=$1 AND client_ask_id=$2',[owner.scope.sessionId,ambiguousInput.clientAskId])).rows[0].count,0);
+
   const altered=await expose(owner.token,await feed(owner.token));
   await pool.query('UPDATE asset SET title=$2 WHERE id=$1',[altered.body.assetId,'Changed after selection']);
   assert.equal((await ask(owner.token,{clientAskId:randomUUID(),exposureId:altered.receipt.exposureId,expectedPrivacyEpoch:0,question:'Is this still current?'})).statusCode,422);

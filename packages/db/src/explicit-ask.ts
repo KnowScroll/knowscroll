@@ -82,17 +82,19 @@ function validExposurePayload(row:SourceRow):boolean {
 
 function selectedCurrentScroll(row:SourceRow):boolean {
   if(row.asset_kind!=='Scroll' || row.asset_truth_state!=='documented' || !Array.isArray(row.decision_candidates)) return false;
-  const candidates=row.decision_candidates.flatMap(candidate=>{
+  const matching=row.decision_candidates.filter(candidate=>{
     const record=asRecord(candidate);
-    if(!record || record.kind!=='Scroll' || !uuidEquals(record.assetId,row.asset_id)
-      || !Number.isInteger(record.revision) || (record.revision as number)<=0
-      || typeof record.title!=='string' || typeof record.summary!=='string' || typeof record.body!=='string'
-      || typeof record.sourceTitle!=='string' || typeof record.sourceUrl!=='string' || record.truthState!=='documented') return [];
-    return [{assetId:String(record.assetId).toLowerCase(),revision:record.revision as number,kind:'Scroll' as const,
-      title:record.title,summary:record.summary,body:record.body,sourceTitle:record.sourceTitle,
-      sourceUrl:record.sourceUrl,truthState:'documented' as const}];
+    return record!==null && uuidEquals(record.assetId,row.asset_id);
   });
-  return candidates.length===1 && canonical(candidates[0])===canonical(scrollFromRow(row));
+  if(matching.length!==1) return false;
+  const record=asRecord(matching[0]);
+  if(!record || record.kind!=='Scroll' || !Number.isInteger(record.revision) || (record.revision as number)<=0
+    || typeof record.title!=='string' || typeof record.summary!=='string' || typeof record.body!=='string'
+    || typeof record.sourceTitle!=='string' || typeof record.sourceUrl!=='string' || record.truthState!=='documented') return false;
+  const candidate={assetId:String(record.assetId).toLowerCase(),revision:record.revision as number,kind:'Scroll' as const,
+    title:record.title,summary:record.summary,body:record.body,sourceTitle:record.sourceTitle,
+    sourceUrl:record.sourceUrl,truthState:'documented' as const};
+  return canonical(candidate)===canonical(scrollFromRow(row));
 }
 
 async function currentScope(client:pg.PoolClient,scope:AuthScope):Promise<boolean> {
