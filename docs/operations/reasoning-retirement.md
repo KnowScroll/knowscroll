@@ -4,7 +4,7 @@ Issue [#62](https://github.com/KnowScroll/knowscroll/issues/62) implements the o
 
 ## Clock and eligibility
 
-The existing fenced `withdrawJob` operation closes unconsumed work, withdraws output authority, deactivates Attempts and terminalizes Steps before setting a retention timestamp. Migration 0008 requires a live old lease and a safe transition, substitutes PostgreSQL time for any supplied value, and prevents timestamp changes or reactivation. No creation/deadline proxy or backfill is used. Old terminal Jobs with no reliable timestamp stay retained. Recovered waiting Jobs without a lease cannot use the existing withdrawal API; this change grants no new cancellation authority.
+The existing fenced `withdrawJob` operation closes unconsumed work, withdraws output authority, deactivates Attempts and terminalizes Steps before setting a retention timestamp. Its migration 0008 branch requires a live old lease. [ADR-0018/#75](reasoning-idle-lifecycle.md) and migration 0011 add separate original-session cancellation and trusted actual-deadline expiry for bound idle direct Jobs; recovered waiting Jobs without a healthy lease use those internal helpers. All branches substitute PostgreSQL time, prevent timestamp changes/reactivation and require safe closure. No creation/deadline proxy or backfill is used. Old terminal Jobs with no reliable timestamp stay retained. The original #62 evidence and its narrower withdrawal authority remain historical records.
 
 Retirement becomes eligible after 168 elapsed hours. The maintenance transaction rechecks cancelled/expired status, no lease, no ready membership, terminal Steps, inactive Attempts, and withdrawn linked accounting in not_sent/unknown/responded state. Oversized or inconsistent graphs are skipped, never partially erased. The limit is 128 Steps, 128 Attempts, 128 contexts and 16,384 combined typed/legacy reads per Job.
 
@@ -14,7 +14,7 @@ A separate sweep uses the existing accounting rule: all duties closed for 30 dat
 
 ## Running maintenance
 
-Apply migrations through 0008 before starting the separate process:
+Apply migrations through 0011 before starting the current separate process:
 
 ```sh
 . ./scripts/env.sh
@@ -24,7 +24,7 @@ pnpm maintenance:reasoning
 
 The default schedule is one batch every 60 seconds, with 32 probes per batch. `REASONING_MAINTENANCE_INTERVAL_MS` accepts 100–3,600,000 milliseconds; `REASONING_MAINTENANCE_MAX_PROBES` accepts 1–128. These change scan scheduling only, never retention duration. Keep this process separate from `pnpm dev:worker`; the normal projection loop is unchanged. Logs contain aggregate counts and fixed errors, not Job/context identifiers or private bytes.
 
-Every candidate consumes a probe. Private-job and accounting scans alternate, use keyset cursors in process memory and advance past locked/ineligible rows. Each transaction takes the universe lock first with SKIP LOCKED. A blocked universe does not stop another candidate. Cursor state resets at process restart; this is not a progress guarantee under repeated restarts, a query-planner scan bound or a production capacity claim. SIGINT/SIGTERM stops scheduling and allows the current bounded transaction to finish before closing PostgreSQL connections.
+Every candidate consumes a probe. Actual-deadline idle expiry, private-job retirement and accounting scans rotate in that order, use separate keyset cursors in process memory and advance past selected locked/ineligible rows. Batch results include required `expiredJobs`, counting changed expiry commits only. Each transaction takes the universe lock first with SKIP LOCKED. A blocked universe does not stop another candidate. Cursor state resets at process restart; this is not a progress guarantee under repeated restarts, a query-planner scan bound or a production capacity claim. SIGINT/SIGTERM stops scheduling and allows the current bounded transaction to finish before closing PostgreSQL connections.
 
 ## Verification and deployment limits
 
