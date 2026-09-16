@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import {cancelIdleDirectJob,expireIdleDirectJob} from '../packages/db/src/reasoning-idle-lifecycle.ts';
 import {seedDirectContextGraph,withReasoningContextSchema} from './helpers/reasoning-context-fixture.ts';
 
 async function bindOriginalSession(
@@ -12,6 +13,13 @@ async function bindOriginalSession(
      VALUES($1,$2,$3,$4)`,
     [graph.jobId,graph.scope.universeId,graph.scope.privacyEpoch,graph.scope.sessionId],
   );
+}
+
+async function inTransaction<T>(pool:import('pg').Pool,body:(client:import('pg').PoolClient)=>Promise<T>):Promise<T> {
+  const client=await pool.connect();
+  try { await client.query('BEGIN'); const result=await body(client); await client.query('COMMIT'); return result; }
+  catch(error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
 }
 
 test('idle direct withdrawal clock guard rejects raw bypasses while preserving its live-lease predecessor', async t => {
@@ -78,6 +86,27 @@ test('idle direct withdrawal clock guard rejects raw bypasses while preserving i
         SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,
             lease_fence=lease_fence+1,withdrawn_at=clock_timestamp()
         WHERE id=$1`,[graph.jobId]),/requires a safely withdrawn Job/);
+    });
+  });
+
+  await t.test('the internal helpers make the same durable transition and replay without a new clock', async () => {
+    await withReasoningContextSchema('idle_helper_transitions', async pool => {
+      const cancelled=await seedDirectContextGraph(pool);
+      await bindOriginalSession(pool,cancelled);
+      assert.deepEqual(await inTransaction(pool,client=>cancelIdleDirectJob(client,cancelled.scope,{jobId:cancelled.jobId})),
+        {status:'cancelled',changed:true,closedNotSent:0,preservedUnknown:0});
+      const firstStamp=(await pool.query<{withdrawn_at:Date}>('SELECT withdrawn_at FROM reasoning_job WHERE id=$1',[cancelled.jobId])).rows[0]!.withdrawn_at;
+      assert.deepEqual(await inTransaction(pool,client=>cancelIdleDirectJob(client,cancelled.scope,{jobId:cancelled.jobId})),
+        {status:'cancelled',changed:false,closedNotSent:0,preservedUnknown:0});
+      assert.equal((await pool.query<{withdrawn_at:Date}>('SELECT withdrawn_at FROM reasoning_job WHERE id=$1',[cancelled.jobId])).rows[0]!.withdrawn_at.getTime(),firstStamp.getTime());
+
+      const expired=await seedDirectContextGraph(pool);
+      await bindOriginalSession(pool,expired);
+      await pool.query("UPDATE reasoning_job SET deadline=clock_timestamp()-interval '1 millisecond' WHERE id=$1",[expired.jobId]);
+      await pool.query('UPDATE device_session SET revoked_at=clock_timestamp() WHERE id=$1',[expired.scope.sessionId]);
+      assert.deepEqual(await inTransaction(pool,client=>expireIdleDirectJob(client,{
+        jobId:expired.jobId,universeId:expired.scope.universeId,privacyEpoch:expired.scope.privacyEpoch,
+      })),{status:'expired',changed:true,closedNotSent:0,preservedUnknown:0});
     });
   });
 });
