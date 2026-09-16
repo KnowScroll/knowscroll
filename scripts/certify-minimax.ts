@@ -139,19 +139,23 @@ export async function runMiniMaxCertification(
   const fetchImpl = dependencies.fetch ?? fetch;
   const journal = await CertificationJournal.create(checkoutRoot, true);
   const adapter = dependencies.createAdapter({apiKey, baseURL:MINIMAX_CERTIFICATION_BASE_URL, fetch:fetchImpl});
+  const normalizeRunDeadline = (observation: CertificationObservation): CertificationObservation =>
+    observation.outcome === 'aborted' && runController.signal.aborted && !runSignal.aborted
+      ? {...observation, outcome:'timeout'}
+      : observation;
 
   await checkMiniMaxQuota(apiKey, fetchImpl, boundedSignal);
-  const jsonObservation = await invokeCase({
+  const jsonObservation = normalizeRunDeadline(await invokeCase({
     caseId:'json', journal, adapter, messages:[{role:'user',content:JSON_PROMPT}], thinking:'disabled', maxOutputTokens:512, runSignal:boundedSignal, now,
-  });
+  }));
   const jsonChecks = {quotaAccepted:true,...completedJsonChecks(jsonObservation, {classification:'certification-ok',count:3})};
   await journal.resolve(jsonObservation, jsonChecks);
   if (!allChecksPass(jsonChecks)) return journal.inspect();
 
   await checkMiniMaxQuota(apiKey, fetchImpl, boundedSignal);
-  const toolObservation = await invokeCase({
+  const toolObservation = normalizeRunDeadline(await invokeCase({
     caseId:'tool-call', journal, adapter, messages:[{role:'user',content:TOOL_PROMPT}], tools:[TOOL], thinking:'adaptive', maxOutputTokens:2048, runSignal:boundedSignal, now,
-  });
+  }));
   const toolCall = findToolCall(toolObservation);
   const toolChecks: CaseChecks = {
     quotaAccepted:true,
@@ -175,9 +179,9 @@ export async function runMiniMaxCertification(
   const continuationHasMatchingId = toolResult.tool_use_id === toolCall.id;
   if (!continuationHasMatchingId) return journal.inspect();
   await checkMiniMaxQuota(apiKey, fetchImpl, boundedSignal);
-  const continuationObservation = await invokeCase({
+  const continuationObservation = normalizeRunDeadline(await invokeCase({
     caseId:'tool-continuation', journal, adapter, messages:continuation, tools:[TOOL], thinking:'adaptive', maxOutputTokens:2048, runSignal:boundedSignal, now,
-  });
+  }));
   const continuationChecks = {
     quotaAccepted:true,
     ...completedJsonChecks(continuationObservation, {planet:'Saturn',ringSystem:true}),
@@ -214,7 +218,6 @@ async function cli(): Promise<void> {
   const apiKey = process.env.MINIMAX_API_KEY;
   if (!apiKey) throw new Error('MINIMAX_API_KEY is required in the current process environment');
   const controller = new AbortController();
-  const runTimer = setTimeout(() => controller.abort(new Error('Certification run deadline reached')), CERTIFICATION_LIMITS.runTimeoutMs);
   const cancel = () => controller.abort(new Error('Certification interrupted'));
   process.once('SIGINT', cancel);
   process.once('SIGTERM', cancel);
@@ -223,7 +226,6 @@ async function cli(): Promise<void> {
     console.log(JSON.stringify(report, null, 2));
     if (report.attempts.some((attempt) => attempt.status !== 'completed' || !Object.values(attempt.checks).every(Boolean))) process.exitCode = 1;
   } finally {
-    clearTimeout(runTimer);
     process.removeListener('SIGINT', cancel);
     process.removeListener('SIGTERM', cancel);
   }

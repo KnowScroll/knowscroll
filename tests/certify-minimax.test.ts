@@ -182,25 +182,46 @@ test('runner drives the real SDK adapter through a local HTTP fixture with each 
   });
 });
 
-test('runner supplies the fixed request deadline and records adapter timeout as unknown remote outcome', async () => {
+test('runner records a real SDK request deadline as timeout with unknown remote outcome', async (t) => {
   const root = await checkout();
-  const fixedNow = new Date('2026-09-16T00:00:00.000Z');
-  const createAdapter = (): MiniMaxCertificationAdapter => ({invoke:async (request) => {
-    assert.equal(request.deadline, '2026-09-16T00:01:00.000Z');
-    const body = JSON.stringify(request.messages);
-    const requestHash = createHash('sha256').update(body).digest('hex');
-    await request.beforeDispatch({requestHash,inputBytes:Buffer.byteLength(body),maxOutputTokens:request.maxOutputTokens});
-    return {
-      outcome:'timeout',dispatched:true,httpStatus:null,requestHash,providerRequestId:null,
-      usage:{inputTokens:null,outputTokens:null,cacheReadTokens:null,cacheWriteTokens:null,costUsd:null},
-      nativeContent:[],text:'',stopReason:null,
-    };
-  }});
-  const report = await runMiniMaxCertification(root, 'sk-cp-test-only', {fetch:async()=>quota(),createAdapter,now:()=>fixedNow});
+  const server = createServer(async (_request, response) => {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 120));
+    response.statusCode = 200;
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({id:'late',type:'message',role:'assistant',model:'MiniMax-M3',content:[{type:'text',text:'late'}],stop_reason:'end_turn',usage:{input_tokens:1,output_tokens:1}}));
+  });
+  await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  t.after(() => new Promise<void>((resolveClose, reject) => server.close((error) => error ? reject(error) : resolveClose())));
+  const address = server.address();
+  assert(address && typeof address === 'object');
+  const loopback = `http://127.0.0.1:${address.port}`;
+  const report = await runMiniMaxCertification(root, 'sk-cp-test-only', {
+    fetch:async()=>quota(),
+    createAdapter:(options)=>createMiniMaxCertificationAdapter({apiKey:options.apiKey,baseURL:loopback}),
+    now:()=>new Date(Date.now() - 59_970),
+  });
   assert.equal(report.attempts.length, 1);
   assert.equal(report.attempts[0]?.status, 'timeout');
   assert.equal(report.attempts[0]?.remoteOutcome, 'unknown');
   assert.equal(report.attempts[0]?.usage.inputTokens, null);
+});
+
+test('completed observations with inconsistent dispatch and HTTP evidence fail validation', async () => {
+  const root = await checkout();
+  const createAdapter = (): MiniMaxCertificationAdapter => ({invoke:async (request) => {
+    const body = JSON.stringify(request.messages);
+    const requestHash = createHash('sha256').update(body).digest('hex');
+    await request.beforeDispatch({requestHash,inputBytes:Buffer.byteLength(body),maxOutputTokens:request.maxOutputTokens});
+    return completed(requestHash, [], '{"classification":"certification-ok","count":3}', 'end_turn') satisfies CertificationObservation;
+  }});
+  const inconsistentFactory = (): MiniMaxCertificationAdapter => {
+    const adapter = createAdapter();
+    return {invoke:async(request)=>({...await adapter.invoke(request),dispatched:false,httpStatus:500})};
+  };
+  const report = await runMiniMaxCertification(root, 'sk-cp-test-only', {fetch:async()=>quota(),createAdapter:inconsistentFactory});
+  assert.equal(report.attempts.length, 1);
+  assert.equal(report.attempts[0]?.checks.dispatched, false);
+  assert.equal(report.attempts[0]?.checks.httpSuccess, false);
 });
 
 test('runner refuses non-subscription keys before creating a journal or adapter', async () => {
