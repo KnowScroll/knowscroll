@@ -313,6 +313,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(actual.privacyEpoch>observedPrivacyEpoch)purgeForEpoch(actual.privacyEpoch)
         observedPrivacyEpoch=store.observePrivacyEpoch(actual.privacyEpoch)
         _universe.value=UniverseState.Loaded(actual)
+        _historyClear.value=HistoryClearState.Idle
         ready=true
         val cached=if(restoreStoredScroll)runCatching{store.read()}.getOrNull() else null
         if(cached!=null && cached.privacyEpoch==observedPrivacyEpoch && store.readPendingClear()==null){
