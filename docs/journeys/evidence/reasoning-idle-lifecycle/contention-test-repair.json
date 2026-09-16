@@ -1,0 +1,30 @@
+{
+  "check": "bounded-concurrent-scheduler-assertion",
+  "result": "passed",
+  "observedAt": "2026-09-16T22:28:22.675208+00:00",
+  "source": {
+    "revision": "9f3673d5f05062898e3ffeba6f97e38caf43fece",
+    "file": "tests/reasoning-sql-fairness.test.ts",
+    "sha256": "937e831936d717590f4bc236ef920f13e872ef7bfaccc2f7d0a81c2929c3b8da"
+  },
+  "originalFailure": {
+    "run": "https://github.com/KnowScroll/knowscroll/actions/runs/35154363197",
+    "revision": "1e78c733105ab8f8360ff5dd4443ed56ad822488",
+    "expectedImmediateAdmissions": 2,
+    "observedImmediateAdmissions": 0,
+    "exactConcurrentInterleaving": "not captured in failed output",
+    "rawLogSha256": "2a62ec3b71555d986ee9370d905a88a44f96ae3a121b2160c5d904274f96d6e0"
+  },
+  "diagnosis": "The test demanded immediate admission from both contending bounded calls; scheduler contract explicitly allows probe exhaustion. No duplicate claim or production atomicity defect was demonstrated.",
+  "change": "Assert bounded observations and duplicate-free immediate durable state, then exactly 2 minus immediate admissions serial follow-ups, each required to admit; no retry-until-pass loop.",
+  "verification": {
+    "typecheckExit": 0,
+    "targetedExit": 0,
+    "targetedTests": 9,
+    "failures": 0,
+    "logSha256": "bcff70de2c73af334775335bc4c50d6b7164615f531e78f145fa2b27f314b1bd"
+  },
+  "productionChanged": false,
+  "providerCalls": 0,
+  "historical57Cause": "still unknown"
+}
