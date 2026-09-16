@@ -719,7 +719,7 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
           [input.jobId],
         );
         await client.query(
-          `UPDATE reasoning_job SET status=$2,lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`,
+          `UPDATE reasoning_job SET status=$2,lease_owner=NULL,lease_expires_at=NULL,withdrawn_at=clock_timestamp() WHERE id=$1`,
           [input.jobId, input.reason],
         );
         return {closedNotSent, preservedUnknown};
