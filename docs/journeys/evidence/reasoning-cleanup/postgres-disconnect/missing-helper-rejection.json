@@ -1,0 +1,7 @@
+{
+  "sourceRevision": "c7a31d37b9d7f38111efc3a379c3c3db1371eef3",
+  "probe": "Remove only the disconnect helper hash from a copy of the fresh passing receipt",
+  "exitCode": 1,
+  "expectedAssertionObserved": true,
+  "originalReceiptPreserved": true
+}

@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import pg from "pg";
 import { runMigrations } from "../packages/db/src/migrations.ts";
+import { trackPoolDisconnect } from "./lib/pg-disconnect.ts";
 import {
   body,
   bodyHash,
@@ -67,6 +68,7 @@ let interrupted = false,
   ready = false,
   admin: pg.Client | undefined,
   db: pg.Pool | undefined,
+  poolDisconnect: ReturnType<typeof trackPoolDisconnect> | undefined,
   temp = "";
 const atomic = async (path: string, value: unknown) => {
   await mkdir(dirname(path), { recursive: true });
@@ -87,6 +89,7 @@ type SecondaryCondition = {
 type CleanupStage =
   | "children"
   | "pool"
+  | "pool_disconnect"
   | "database"
   | "admin"
   | "temporary_directory"
@@ -100,6 +103,26 @@ let failure: unknown,
   failureClassification: FailureClassification | undefined,
   failurePhase: FailurePhase | undefined;
 let diagnosticPhase: FailurePhase = "runtime";
+type PoolErrorEvidence = {
+  origin: "admin_client" | "db_pool";
+  phase: FailurePhase;
+  cleanupStage: CleanupStage | "not_started";
+  sqlState: "57P01" | "unknown";
+};
+let cleanupStage: CleanupStage | "not_started" = "not_started";
+let firstPoolError: PoolErrorEvidence | undefined;
+const observePoolError = (origin: PoolErrorEvidence["origin"], error: unknown) => {
+  firstPoolError ??= {
+    origin,
+    phase: diagnosticPhase,
+    cleanupStage,
+    sqlState:
+      error && typeof error === "object" && "code" in error &&
+      (error as { code?: unknown }).code === "57P01"
+        ? "57P01"
+        : "unknown",
+  };
+};
 const secondaryConditions: SecondaryCondition[] = [];
 const observeFailure = (
   classification: FailureClassification,
@@ -126,6 +149,7 @@ const failureDiagnostic = (cleanupErrors: string[]) =>
         phase: failurePhase,
         secondaryConditions: [...secondaryConditions],
         cleanupErrors: [...cleanupErrors],
+        ...(firstPoolError === undefined ? {} : { poolError: firstPoolError }),
       }
     : undefined;
 const manifest = async (
@@ -135,6 +159,7 @@ const manifest = async (
     phase: FailurePhase;
     secondaryConditions: SecondaryCondition[];
     cleanupErrors: string[];
+    poolError?: PoolErrorEvidence;
   },
   cleanupStage?: CleanupStage,
 ) =>
@@ -602,6 +627,12 @@ try {
     ready: false,
   });
   admin = new pg.Client({ connectionString: dbUrl("postgres") });
+  admin.on("error", (error) => {
+    observePoolError("admin_client", error);
+    poolRuntimeError = true;
+    failure ??= new ClassifiedFailure("pool_runtime_error");
+    observeFailure("pool_runtime_error");
+  });
   await admin.connect();
   await admin.query(`CREATE DATABASE ${quote(dbName)}`);
   created = true;
@@ -611,11 +642,13 @@ try {
     max: 20,
     application_name: "knowscroll-j004-runner",
   });
+  poolDisconnect = trackPoolDisconnect(db);
   // node-postgres emits idle-client failures through the Pool's EventEmitter.
   // Without a listener, Node treats the event as an uncaught exception and can
   // exit before the cleanup manifest or database drop. Keep the evidence
   // bounded: record only the typed condition, never the error or connection.
-  db.on("error", () => {
+  db.on("error", (error) => {
+    observePoolError("db_pool", error);
     poolRuntimeError = true;
     failure ??= new ClassifiedFailure("pool_runtime_error");
     observeFailure("pool_runtime_error");
@@ -1346,6 +1379,7 @@ try {
 } finally {
   ready = false;
   diagnosticPhase = "cleanup";
+  cleanupStage = "children";
   // Test-only ordering barrier: the real signal handler has already latched the
   // primary cause. Emit through the real Pool listener during cleanup so the
   // checker can prove that a later pool condition cannot replace it. This does
@@ -1357,6 +1391,7 @@ try {
   )
     db.emit("error", new Error("injected_pool_error_after_interrupt"));
   const cleanupCheckpoint = async (stage: CleanupStage) => {
+    cleanupStage = stage;
     try {
       await manifest(
         undefined,
@@ -1382,12 +1417,36 @@ try {
       cleanupErrors.push("pool_close_failed");
     }
   }
+  await cleanupCheckpoint("pool_disconnect");
+  if (poolDisconnect && admin) {
+    try {
+      const disconnected = await withTimeout(
+        poolDisconnect.wait(admin, dbName),
+        3000,
+        "pool_disconnect_timeout",
+      );
+      if (!disconnected) cleanupErrors.push("pool_disconnect_failed");
+    } catch {
+      cleanupErrors.push("pool_disconnect_failed");
+    }
+  }
   await cleanupCheckpoint("database");
   if (admin && created) {
     try {
       await withTimeout(admin.query(
-        `DROP DATABASE IF EXISTS ${quote(dbName)} WITH (FORCE)`,
+        `DROP DATABASE IF EXISTS ${quote(dbName)}`,
       ), 5000, "database_drop_timeout");
+    } catch {
+      cleanupErrors.push("database_drop_graceful_failed");
+      try {
+        await withTimeout(admin.query(
+          `DROP DATABASE IF EXISTS ${quote(dbName)} WITH (FORCE)`,
+        ), 5000, "database_force_drop_timeout");
+      } catch {
+        cleanupErrors.push("database_drop_force_failed");
+      }
+    }
+    try {
       const remaining = (
         await admin.query("SELECT datname FROM pg_database WHERE datname=$1", [
           dbName,
@@ -1396,7 +1455,7 @@ try {
       if (remaining) cleanupErrors.push("database_still_present");
       else created = false;
     } catch {
-      cleanupErrors.push("database_drop_failed");
+      cleanupErrors.push("database_verify_failed");
     }
   }
   await cleanupCheckpoint("admin");
@@ -1459,6 +1518,7 @@ const sourceEvidence = {
   files: await Promise.all(
     [
       "scripts/run-isolated-reasoning-journey.ts",
+      "scripts/lib/pg-disconnect.ts",
       "scripts/fixtures/reasoning-actor.ts",
       "scripts/fixtures/reasoning-server.ts",
       "scripts/fixtures/reasoning-support.ts",

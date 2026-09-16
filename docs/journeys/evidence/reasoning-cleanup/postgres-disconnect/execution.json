@@ -1,0 +1,24 @@
+{
+  "issue": 70,
+  "observedAt": "2026-09-16T16:25:07.497598+00:00",
+  "testedRevision": "c7a31d37b9d7f38111efc3a379c3c3db1371eef3",
+  "typecheck": "passed",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 245,
+    "total": 257,
+    "result": "passed"
+  },
+  "cleanupCases": 8,
+  "J004Cases": 13,
+  "retirement": "passed; physical disconnect verified, ordinary drop, database absent",
+  "freshReceiptMissingHelper": "rejected",
+  "implementationModel": "gpt-5.6-sol",
+  "independentReviewModel": "gpt-5.6-terra",
+  "providerCalls": 0,
+  "limits": [
+    "Controlled real PostgreSQL counterprobes extend the disconnect window with a test-only gate.",
+    "Historical CI error origin, timing and SQLSTATE remain unknown.",
+    "J001-J003 and Android will be checked by exact-head CI, not rerun locally for this harness-only change."
+  ]
+}

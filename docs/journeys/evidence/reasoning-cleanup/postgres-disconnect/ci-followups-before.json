@@ -1,0 +1,18 @@
+{
+  "issue": 70,
+  "additionalRuns": [
+    {
+      "runId": 35119381164,
+      "head": "429d3127291450469a1e1899ed14e290aafe1f16",
+      "event": "push"
+    },
+    {
+      "runId": 35119482760,
+      "head": "8f5e76a69edc5228594edfa709fed6bab1ce035f",
+      "event": "push main after PR67 merge"
+    }
+  ],
+  "diagnosticMatches": "ci-before.json diagnostic: pool_error, source_evidence, successful worker exit/close/ack, no cleanup errors, database absent",
+  "extractedFrom": "gh run view each run --log-failed",
+  "limit": "Origin and SQLSTATE were not retained in these logs."
+}

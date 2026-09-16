@@ -1,0 +1,21 @@
+{
+  "kind": "instrumented-real-postgresql-after-counterprobe",
+  "sourceRevision": "c7a31d37b9d7f38111efc3a379c3c3db1371eef3",
+  "heldBarrierResult": false,
+  "releasedBarrierResult": true,
+  "forcedDrop": false,
+  "observedAt": "2026-09-16T16:23:48.938Z",
+  "dependencies": {
+    "pg": "8.23.0",
+    "pgPool": "3.14.0"
+  },
+  "instrumentation": "Gate the first end call of one released disposable Pool client; all PostgreSQL transport is real. The helper blocks while the end gate is held, then observes client/backend removal before an ordinary DROP.",
+  "poolEndResolvedBeforeBackendDisconnect": true,
+  "observedErrors": [],
+  "databaseAbsent": true,
+  "providerCalls": 0,
+  "limits": [
+    "Not an uninstrumented reproduction or proof of the exact CI error origin/SQLSTATE.",
+    "Only a newly created disposable database was removed."
+  ]
+}
