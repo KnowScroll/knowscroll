@@ -370,6 +370,7 @@ export async function reserveAttemptInTransaction(
   authority: ReasoningAuthority,
   input: ReserveAttemptInput,
   beforeResourceLocks?: (client: pg.PoolClient, resolved: {policy: ResolvedReasoningPolicy; bindingHash: string}) => Promise<void>,
+  contextPhase: 'lock'|'recheck' = 'lock',
 ): Promise<ReservedAttempt> {
   validateOwnerAndDuration(input.owner, input.permitTtlMs, 'permit');
   validateFence(input.leaseFence);
@@ -400,7 +401,7 @@ export async function reserveAttemptInTransaction(
   );
   if (!deadline.rows[0]?.valid) deny('invalid_deadline');
   const scope = {universeId: input.universeId, privacyEpoch: input.privacyEpoch, jobId: input.jobId};
-  if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version}, 'lock')) {
+  if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version}, contextPhase)) {
     deny('stale_context');
   }
   const {policy, bindingHash} = await resolveAndValidatePolicy(client, authority, scope);
