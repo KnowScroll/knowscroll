@@ -21,3 +21,7 @@ Pin AI SDK and adapter versions when the first real adapter is implemented, then
 ## Sources and verification
 
 [AI SDK documentation](https://ai-sdk.dev/docs/introduction), [reasoning runtime target](../architecture/target/21-REASONING-RUNTIME.md), [provider port](../../apps/worker/src/providers/port.ts).
+
+## 2026-09-16 implementation update
+
+[ADR-0011](0011-minimax-certification.md) pins AI SDK 7.0.102 and the official MiniMax provider 0.0.2 and adds a separate bounded development adapter and certification journal. The earlier port-only statement describes the bootstrap state. Ordinary ReasoningProvider dispatch is still unavailable: the candidate adapter does not implement production admission, privacy-bound context, leases or proposal application. The [certification operations guide](../operations/minimax-certification.md) defines explicit live execution and evidence limits.
