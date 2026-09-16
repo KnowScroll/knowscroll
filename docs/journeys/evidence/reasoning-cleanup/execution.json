@@ -1,0 +1,70 @@
+{
+  "issue": 57,
+  "observedAt": "2026-09-16T12:21:12.970Z",
+  "source": {
+    "revision": "5d677f26740c5da8e6f51bc9ef0d91dec7efe234",
+    "dirty": false,
+    "files": [
+      {
+        "path": "scripts/run-isolated-reasoning-journey.ts",
+        "sha256": "8796e13b7e6d9c419f128a47f7e7789f00229df1b9b39973f228df2f2a4bc759"
+      },
+      {
+        "path": "scripts/verify-reasoning-cleanup.ts",
+        "sha256": "9908ffb9ebd434eed80de4e64acbeb6538c2776ef033ebebff836f067c1eaa40"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "result": "passed",
+      "baselineTests": 12,
+      "additionalTests": 160,
+      "totalTests": 172
+    },
+    {
+      "command": "pnpm exec tsx scripts/run-isolated-reasoning-journey.ts --receipt artifacts/j004-issue57-5d677f2.json && pnpm exec tsx scripts/verify-reasoning-journey.ts artifacts/j004-issue57-5d677f2.json",
+      "result": "passed",
+      "cases": 13,
+      "fixtureRequests": 4,
+      "sourceHashesMatch": true,
+      "receiptSha256": "59a96753786703be4e8a3fe6c081ae2f16dbd8a482d9410f74716490df5f03e0"
+    },
+    {
+      "command": "pnpm exec tsx scripts/verify-reasoning-cleanup.ts",
+      "plannedExecutions": 3,
+      "results": [
+        {
+          "result": "passed",
+          "cases": 5,
+          "receiptSha256": "141e8f301eaba3b7dd19b6b1020e66889190cef61ae4e7f1940d5033645437ee"
+        },
+        {
+          "result": "passed",
+          "cases": 5,
+          "receiptSha256": "1db13832f69acce62e59a9454ecedda151d7842dd4d9d57aca42a9466897778a"
+        },
+        {
+          "result": "passed",
+          "cases": 5,
+          "receiptSha256": "e63f3473f05bddbb39265876d4c40d04821f5ee3c742244f42c2b195a733f269"
+        }
+      ]
+    }
+  ],
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "databaseHost": "127.0.0.1",
+    "databasePort": 55432,
+    "databaseScope": "disposable per case",
+    "httpPorts": "dynamic loopback per case",
+    "providerCalls": 0,
+    "ownerDatabaseMutated": false
+  }
+}
