@@ -21,9 +21,11 @@ From the repository:
 pnpm typecheck
 pnpm exec tsx --test tests/reasoning-fairness.test.ts
 pnpm exec tsx scripts/fairness/run.ts
+pnpm exec tsx --test tests/reasoning-fairness-adversarial.test.ts
+pnpm exec tsx scripts/capture-fairness-evidence.ts artifacts/fairness.json
 ```
 
-The focused test file also runs in `pnpm test` through the existing test discovery. The runner produces deterministic scenario traces; the checked-in evidence records the source revision, source hashes and exact fixture policy separately from later documentation changes. Do not label an older trace as evidence for a changed model.
+Both focused test files also run in `pnpm test` through the existing test discovery. The runner produces deterministic scenario traces. The evidence command executes it twice and requires byte-identical output; the checked-in evidence records the source revision, source hashes and exact fixture policy separately from later documentation changes. Do not label an older trace as evidence for a changed model.
 
 ## Interpretation
 
