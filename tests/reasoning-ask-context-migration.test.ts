@@ -37,9 +37,10 @@ async function bind(pool:pg.Pool,graph:AskGraph):Promise<void> {
   VALUES($1,$2,0,$3,$4)`,[graph.jobId,graph.universeId,graph.sessionId,graph.askId]);
 }
 
-async function existingRows(pool:pg.Pool):Promise<Array<{table:string;rows:unknown}>> {
- const tables=(await pool.query<{table_name:string}>(`SELECT table_name FROM information_schema.tables
-   WHERE table_schema=current_schema() AND table_type='BASE TABLE' AND table_name<>'schema_migrations' ORDER BY table_name`)).rows;
+async function existingRows(pool:pg.Pool,only?:string[]):Promise<Array<{table:string;rows:unknown}>> {
+ const tables=only===undefined?(await pool.query<{table_name:string}>(`SELECT table_name FROM information_schema.tables
+   WHERE table_schema=current_schema() AND table_type='BASE TABLE' AND table_name<>'schema_migrations' ORDER BY table_name`)).rows:
+  only.map(table_name=>({table_name}));
  return Promise.all(tables.map(async ({table_name})=>({table:table_name,rows:(await pool.query(
   `SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) AS rows FROM "${table_name}" t`,
  )).rows[0]!.rows})));
@@ -61,7 +62,7 @@ test('0010 upgrades populated 0009 history without rewriting prior rows or check
   const checksums=(await pool.query('SELECT name,checksum FROM schema_migrations ORDER BY name')).rows;
   await writeFile(join(directory,names[9]!),await readFile(join('packages/db/migrations',names[9]!)));
   assert.deepEqual((await runMigrations(pool,{directory})).applied,[names[9]]);
-  assert.deepEqual(await existingRows(pool),before);
+  assert.deepEqual(await existingRows(pool,before.map(entry=>entry.table)),before);
   assert.deepEqual((await pool.query('SELECT name,checksum FROM schema_migrations WHERE name<>$1 ORDER BY name',[names[9]])).rows,checksums);
   assert.equal((await pool.query<{checksum:string}>('SELECT checksum FROM schema_migrations WHERE name=$1',[names[9]])).rows[0]!.checksum,
    createHash('sha256').update(await readFile(join('packages/db/migrations',names[9]!))).digest('hex'));
