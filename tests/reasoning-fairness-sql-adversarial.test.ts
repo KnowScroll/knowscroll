@@ -151,6 +151,22 @@ function receipt(
   };
 }
 
+function deferred(): {promise: Promise<void>; resolve: () => void} {
+  let resolve!: () => void;
+  return {promise: new Promise<void>(done => { resolve = done; }), resolve};
+}
+
+async function waitForBackendLock(pool: pg.Pool, pid: number): Promise<boolean> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const row = (await pool.query<{wait_event_type: string | null}>(
+      'SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1', [pid],
+    )).rows[0];
+    if (row?.wait_event_type === 'Lock') return true;
+    await new Promise<void>(resolve => setTimeout(resolve, 5));
+  }
+  return false;
+}
+
 test('fairness SQL retained accounting protects scope, idempotency, debt, and privacy membership', async (t) => {
   await t.test('database rejects binding an attempt to another universe fairness balance', async () => {
     await withSchema('cross_scope', async (pool) => {
@@ -287,6 +303,87 @@ test('fairness SQL retained accounting protects scope, idempotency, debt, and pr
       assert.deepEqual((await pool.query(`SELECT output_authority,reconciliation_hold FROM reasoning_accounting WHERE attempt_id=$1`, [scheduledA.reserved.attemptId])).rows[0], {output_authority: 'withdrawn', reconciliation_hold: false});
       assert.deepEqual((await pool.query(`SELECT state FROM reasoning_reservation WHERE attempt_id=$1 AND bucket_id=$2`, [scheduledB.reserved.attemptId, rateB])).rows[0], {state: 'held'});
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE universe_id=$1', [first.universeId])).rows[0]?.count, 0);
+    });
+  });
+
+  await t.test('two concurrent scheduler calls cannot split one ready job into two claims or fairness debits', async () => {
+    await withSchema('one_claim_race', async (pool) => {
+      const graph = await seedFairnessGraph(pool);
+      const policies = new Map([[graph.jobId, graph.policy]]);
+      const fairness = createReasoningFairness(pool, fairnessAuthority(policies));
+      await fairness.installPolicy(sqlFairnessPolicy);
+      await fairness.enqueue(readyFor(graph));
+
+      const results = await Promise.all([
+        fairness.schedule({policyVersion: 'fairness-v1', owner: 'fairness-race-a', leaseMs: 20_000}),
+        fairness.schedule({policyVersion: 'fairness-v1', owner: 'fairness-race-b', leaseMs: 20_000}),
+      ]);
+      assert.equal(results.filter(result => result.kind === 'admitted').length, 1);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_attempt')).rows[0]?.count, 1);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_attempt')).rows[0]?.count, 1);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_ready')).rows[0]?.count, 0);
+      assert.deepEqual((await pool.query("SELECT reserved_charge::text,recognized_charge::text FROM reasoning_fairness_attempt")).rows[0], {reserved_charge: '40', recognized_charge: '40'});
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_delta')).rows[0]?.count, 0);
+    });
+  });
+
+  await t.test('a clear racing a stale preflight fences erased work and admits only the post-CAS candidate', async () => {
+    await withSchema('clear_preflight_cas', async (pool) => {
+      const first = await seedFairnessGraph(pool);
+      const second = await seedFairnessGraph(pool);
+      const policies = new Map<string, typeof first.policy>([[first.jobId, first.policy], [second.jobId, second.policy]]);
+      const reached = deferred();
+      const release = deferred();
+      let blockFirst = true;
+      const authority = {
+        async resolvePolicy(_client: pg.PoolClient, scope: {jobId: string}) { return policies.get(scope.jobId); },
+        async validateContext(_client: pg.PoolClient, scope: {jobId: string}) {
+          if (scope.jobId === first.jobId && blockFirst) {
+            blockFirst = false;
+            reached.resolve();
+            await release.promise;
+          }
+          return true;
+        },
+      };
+      const fairness = createReasoningFairness(pool, authority);
+      await fairness.installPolicy(sqlFairnessPolicy);
+      const readyA = readyFor(first);
+      const readyB = readyFor(second);
+      await fairness.enqueue(readyA);
+      const sessionId = randomUUID();
+      const deviceId = randomUUID();
+      await pool.query(`INSERT INTO device_session(id,universe_id,device_id,token_hash,privacy_epoch,expires_at)
+        VALUES($1,$2,$3,$4,0,clock_timestamp()+interval '1 hour')`, [sessionId, first.universeId, deviceId, 'e'.repeat(64)]);
+
+      const pendingSchedule = fairness.schedule({policyVersion: 'fairness-v1', owner: 'fairness-clear-race', leaseMs: 20_000});
+      await reached.promise;
+      await fairness.enqueue(readyB);
+
+      const clearStarted = deferred();
+      let clearPid = 0;
+      const clear = inTransaction(pool, async (client) => {
+        clearPid = Number((await client.query('SELECT pg_backend_pid() AS pid')).rows[0]?.pid);
+        clearStarted.resolve();
+        await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [first.universeId]);
+        return clearScrollHistory(client, {
+          universeId: first.universeId, privacyEpoch: 0, sessionId, deviceId,
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        }, {requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'clear-scroll-history'});
+      });
+      await clearStarted.promise;
+      const clearBlocked = await waitForBackendLock(pool, clearPid);
+
+      release.resolve();
+      assert.equal(clearBlocked, true);
+      const [scheduled] = await Promise.all([pendingSchedule, clear]);
+      assert.equal(scheduled.kind, 'admitted');
+      assert.equal(scheduled.claim.jobId, second.jobId);
+      assert.equal((await pool.query('SELECT privacy_epoch FROM universe WHERE id=$1', [first.universeId])).rows[0]?.privacy_epoch, 1);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE universe_id=$1', [first.universeId])).rows[0]?.count, 0);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_ready WHERE universe_id=$1', [first.universeId])).rows[0]?.count, 0);
+      assert.deepEqual((await pool.query('SELECT job_id FROM reasoning_attempt')).rows.map(row => row.job_id), [second.jobId]);
+      assert.deepEqual((await pool.query('SELECT reserved_charge::text,recognized_charge::text FROM reasoning_fairness_attempt')).rows[0], {reserved_charge: '40', recognized_charge: '40'});
     });
   });
 });
