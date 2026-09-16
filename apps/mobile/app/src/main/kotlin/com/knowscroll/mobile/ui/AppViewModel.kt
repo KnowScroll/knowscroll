@@ -227,6 +227,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val updated=current.copy(readingPosition=position)
         store.writeReadingPosition(assetId,position)
         session=updated
+        val reading=_scroll.value as? ScrollState.Reading
+        if(reading?.item?.assetId==assetId){
+            _scroll.value=reading.copy(readingPosition=position)
+        }
     }
 
     fun returnToUniverse(){

@@ -187,6 +187,7 @@ private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: (
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReaderControls(keep: KeepState, discovery: DiscoveryState, onKeep: () -> Unit, onReturn: () -> Unit, onSources: () -> Unit) {
     val homeDescription = stringResource(R.string.reader_home_description)
@@ -203,21 +204,25 @@ private fun ReaderControls(keep: KeepState, discovery: DiscoveryState, onKeep: (
             color = Cosmos.InkOnCream, style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             TextButton(
                 onClick = onReturn,
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = homeDescription },
+                modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = homeDescription },
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
             ) { Text(stringResource(R.string.action_home)) }
             Button(
                 onClick = onKeep,
                 enabled = keep !is KeepState.Saving && keep !is KeepState.Kept && discovery !is DiscoveryState.Loading,
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = keepDescription },
+                modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = keepDescription },
                 colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Teal, contentColor = Cosmos.Dark)
             ) { Text(keepLabel) }
             TextButton(
                 onClick = onSources,
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = sourcesDescription },
+                modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = sourcesDescription },
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
             ) { Text(stringResource(R.string.action_sources)) }
         }
