@@ -307,6 +307,60 @@ async function releaseUnconsumed(
   await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1 AND active', [attemptId]);
 }
 
+export type ReasoningPreflightInput = Omit<ReserveAttemptInput, 'owner' | 'leaseFence'>;
+export type ReasoningPreflight = {
+  policy: ResolvedReasoningPolicy;
+  bindingHash: string;
+  physicallyFits: 'fit' | 'impossible' | 'capacity_exhausted' | 'paused';
+};
+
+/** Prepare a service opportunity, never a lease or permit. Caller owns the
+ * transaction. Shared scheduler locks belong in the hook, before bucket locks.
+ * This repeats live authority checks and may be used only for queued work.
+ */
+export async function preflightAttemptInTransaction(
+  client: pg.PoolClient,
+  authority: ReasoningAuthority,
+  input: ReasoningPreflightInput,
+  beforeResourceLocks?: (client: pg.PoolClient, resolved: {policy: ResolvedReasoningPolicy; bindingHash: string}) => Promise<void>,
+): Promise<ReasoningPreflight> {
+  validateOwnerAndDuration('fairness', input.permitTtlMs, 'permit');
+  for (const [value, code] of [[input.universeId, 'invalid_universe_id'], [input.jobId, 'invalid_job_id'], [input.stepId, 'invalid_step_id'], [input.contextId, 'invalid_context_id'], [input.requestId, 'invalid_request_id']] as const) validateUuid(value, code);
+  if (!hashPattern.test(input.requestHash)) deny('invalid_request_hash');
+  if (!validBoundedInteger(input.inputTokensUpperBound, 1) || !validBoundedInteger(input.maxOutputTokens, 1)) deny('invalid_token_bound');
+  if (input.costCeilingMicroUsd !== null && !validBoundedInteger(input.costCeilingMicroUsd, 1)) deny('invalid_cost_ceiling');
+  if (!Number.isFinite(Date.parse(input.deadline))) deny('invalid_deadline');
+  await lockUniverse(client, input.universeId, input.privacyEpoch);
+  const job=(await client.query<JobRow>(`SELECT * FROM reasoning_job WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3 FOR UPDATE`,[input.jobId,input.universeId,input.privacyEpoch])).rows[0];
+  if (!job || job.status !== 'queued') deny('job_not_queued');
+  const step=(await client.query(`SELECT status,context_id FROM reasoning_step WHERE id=$1 AND job_id=$2 AND universe_id=$3 AND privacy_epoch=$4 FOR UPDATE`,[input.stepId,input.jobId,input.universeId,input.privacyEpoch])).rows[0];
+  if (!step || step.context_id !== input.contextId) deny('unknown_step');
+  if (step.status !== 'pending') deny('step_not_pending');
+  if ((await client.query('SELECT 1 FROM reasoning_attempt WHERE step_id=$1 LIMIT 1',[input.stepId])).rowCount) deny('retry_not_supported');
+  const scope={universeId:input.universeId,privacyEpoch:input.privacyEpoch,jobId:input.jobId};
+  const context={...scope,stepId:input.stepId,contextId:input.contextId,policyVersion:job.policy_version};
+  if (!await authority.validateContext(client,context)) deny('stale_context');
+  const {policy,bindingHash}=await resolveAndValidatePolicy(client,authority,scope);
+  if (policy.policyVersion !== job.policy_version) deny('policy_version_mismatch');
+  if (input.inputTokensUpperBound>policy.maxInputTokens || input.maxOutputTokens>policy.maxOutputTokens) deny('policy_limit_exceeded');
+  await beforeResourceLocks?.(client,{policy,bindingHash});
+  const buckets=await lockPolicyBuckets(client,policy);
+  for (const binding of policy.buckets) {
+    const bucket=buckets.get(binding.bucketId)!;
+    if (bucket.dimension!==binding.dimension || bucket.unit!==binding.unit || bucket.window_id!==binding.windowId) deny('bucket_binding_changed');
+  }
+  if ((await resolveAndValidatePolicy(client,authority,scope)).bindingHash!==bindingHash) deny('policy_binding_changed');
+  if (!await authority.validateContext(client,context)) deny('stale_context');
+  const valid=(await client.query(`SELECT 1 FROM reasoning_job WHERE id=$1 AND status='queued' AND deadline>clock_timestamp()
+    AND $2::timestamptz>clock_timestamp() AND $2::timestamptz<=deadline`,[input.jobId,input.deadline])).rowCount;
+  if (!valid) deny('invalid_deadline');
+  const demands=policy.buckets.map(binding=>({bucket:buckets.get(binding.bucketId)!,amount:BigInt(reservationAmount(binding,input.inputTokensUpperBound,input.maxOutputTokens,input.costCeilingMicroUsd))}));
+  const physicallyFits=demands.some(({bucket,amount})=>amount>BigInt(bucket.capacity))?'impossible':
+    demands.some(({bucket})=>bucket.paused)?'paused':
+    demands.some(({bucket,amount})=>BigInt(bucket.reserved)+BigInt(bucket.consumed)+amount>BigInt(bucket.capacity))?'capacity_exhausted':'fit';
+  return {policy,bindingHash,physicallyFits};
+}
+
 /** Internal composition seam. Caller owns BEGIN/COMMIT and rolls back on every denial.
  * The optional scheduler hook runs after private locks and before shared physical
  * resources. It must perform only short SQL work, never commit or call a provider.
