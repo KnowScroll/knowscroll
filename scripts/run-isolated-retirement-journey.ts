@@ -6,6 +6,7 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {setTimeout} from 'node:timers/promises';
 import pg from 'pg';
+import {trackPoolDisconnect} from './lib/pg-disconnect.ts';
 
 const config=Object.fromEntries((await readFile('.env','utf8').catch(()=>''))
  .split('\n').filter(line=>/^[A-Z_][A-Z0-9_]*=/.test(line)).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
@@ -19,20 +20,30 @@ const testUrl=new URL(base);testUrl.pathname=`/${name}`;
 const admin=new pg.Client({connectionString:adminUrl.toString()});
 let db:pg.Pool|undefined,child:ChildProcess|undefined,created=false,interrupted=false,unexpectedPoolError=false;
 let childExit:{code:number|null;signal:string|null}|undefined,childClose:{code:number|null;signal:string|null}|undefined,childClosed=false,childFailure=false;
+let poolDisconnect:ReturnType<typeof trackPoolDisconnect>|undefined;
 const batches:Array<Record<string,number>>=[];
 let stoppedEvent=false,stderrObserved=false,buffer='';
 type FailureCode='worker_graceful_shutdown_timeout'|'worker_stdio_close_timeout'|'worker_exit_not_zero'|'worker_close_not_zero'|'worker_stop_ack_missing'|
  'worker_stderr_observed'|'worker_stdout_incomplete'|'retirement_counter_missing'|'purge_counter_missing'|
  'worker_spawn_error'|'worker_stdout_limit_exceeded'|'worker_stdout_invalid'|'runner_interrupted'|'pool_error'|
- 'cleanup_incomplete'|'cleanup_failed'|'evidence_missing'|'unexpected_harness_failure';
+ 'pool_disconnect_timeout'|'database_drop_failed'|'cleanup_incomplete'|'cleanup_failed'|'evidence_missing'|'unexpected_harness_failure';
 class RetirementJourneyFailure extends Error {constructor(readonly code:FailureCode){super(code);}}
 function requireJourney(condition:unknown,code:FailureCode):asserts condition {
  if(!condition)throw new RetirementJourneyFailure(code);
 }
 let failureCode:FailureCode|undefined;
-type CleanupFailure='worker_stop_failed'|'pool_close_failed'|'database_drop_failed'|'database_verify_failed'|'admin_close_failed';
+type CleanupFailure='worker_stop_failed'|'pool_close_failed'|'pool_disconnect_failed'|'database_drop_graceful_failed'|'database_drop_force_failed'|'database_verify_failed'|'admin_close_failed';
 const cleanupFailures:CleanupFailure[]=[];
-admin.on('error',()=>{unexpectedPoolError=true;});
+type CleanupPhase='not_started'|'worker_stop'|'pool_close'|'pool_disconnect'|'database_drop'|'database_verify'|'admin_close'|'complete';
+type PoolErrorEvidence={origin:'admin_client'|'db_pool';phase:string;sqlState:'57P01'|'unknown'};
+let stage='connect',cleanupPhase:CleanupPhase='not_started',firstPoolError:PoolErrorEvidence|undefined;
+let poolDisconnectVerified=false,databaseDropForced=false;
+const safeSqlState=(error:unknown):'57P01'|'unknown'=>(error&&typeof error==='object'&&'code' in error&&(error as {code?:unknown}).code==='57P01')?'57P01':'unknown';
+const recordPoolError=(origin:PoolErrorEvidence['origin'],error:unknown)=>{
+ unexpectedPoolError=true;
+ firstPoolError??={origin,phase:cleanupPhase==='not_started'?stage:cleanupPhase,sqlState:safeSqlState(error)};
+};
+admin.on('error',error=>{recordPoolError('admin_client',error);});
 const onSignal=()=>{interrupted=true;};
 process.on('SIGTERM',onSignal);process.on('SIGINT',onSignal);
 async function until(check:()=>Promise<boolean>,label:string,limit=200) {
@@ -60,12 +71,19 @@ async function stopChild() {
   throw new RetirementJourneyFailure('worker_stdio_close_timeout');
  }
 }
-let evidence:Record<string,unknown>|undefined,failure=false,cleanupOk=false,stage='connect';
+async function waitForPoolDisconnect() {
+ if(!poolDisconnect){poolDisconnectVerified=true;return;}
+ if(await poolDisconnect.wait(admin,name)){poolDisconnectVerified=true;return;}
+ throw new RetirementJourneyFailure('pool_disconnect_timeout');
+}
+let evidence:Record<string,unknown>|undefined,failure=false,cleanupOk=false;
 let failureSnapshot:Record<string,unknown>|undefined;
 try {
  await admin.connect();await admin.query(`CREATE DATABASE "${name}"`);created=true;
  process.env.DATABASE_URL=testUrl.toString();
- db=new pg.Pool({connectionString:testUrl.toString()});db.on('error',()=>{unexpectedPoolError=true;});
+ db=new pg.Pool({connectionString:testUrl.toString()});
+ poolDisconnect=trackPoolDisconnect(db);
+ db.on('error',error=>{recordPoolError('db_pool',error);});
  const {runMigrations}=await import('../packages/db/src/migrations.ts');
  await runMigrations(db,{directory:'packages/db/migrations'});
  const {seedDirectContextGraph,attachPendingStep,inTransaction}=await import('../tests/helpers/reasoning-context-fixture.ts');
@@ -146,7 +164,7 @@ try {
  stage='source_evidence';
  evidence={check:'scheduled-withdrawn-reasoning-retirement',result:'passed',observedAt:new Date().toISOString(),
   source:{revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim()!=='',
-   files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
+   files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','scripts/lib/pg-disconnect.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
   runtime:{separateWorker:true,scheduledBatches:batches.length,intervalMs:100,idleGracefulShutdown:true,workerStdioClosed:true,finalStoppedAcknowledgement:true},
   assertions:{oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
   limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','idle SIGTERM shutdown; no in-flight signal barrier in this receipt','no completed/failed-job retirement or owner maintenance deployment']};
@@ -157,21 +175,35 @@ try {
   stdoutPending:buffer.length>0};
 }
 finally {
- const cleanupAttempt=async(code:CleanupFailure,fn:()=>Promise<void>)=>{try{await fn();}catch{cleanupFailures.push(code);failure=true;failureCode??='cleanup_failed';}};
+ const cleanupAttempt=async(code:CleanupFailure,fn:()=>Promise<void>)=>{try{await fn();}catch(error){cleanupFailures.push(code);failure=true;failureCode??=error instanceof RetirementJourneyFailure?error.code:'cleanup_failed';}};
+ cleanupPhase='worker_stop';
  await cleanupAttempt('worker_stop_failed',stopChild);
+ cleanupPhase='pool_close';
  await cleanupAttempt('pool_close_failed',async()=>{await db?.end();});
- await cleanupAttempt('database_drop_failed',async()=>{if(created)await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);});
+ cleanupPhase='pool_disconnect';
+ await cleanupAttempt('pool_disconnect_failed',waitForPoolDisconnect);
+ cleanupPhase='database_drop';
+ if(created) {
+  try {await admin.query(`DROP DATABASE IF EXISTS "${name}"`);}
+  catch {
+   cleanupFailures.push('database_drop_graceful_failed');failure=true;failureCode??='database_drop_failed';databaseDropForced=true;
+   await cleanupAttempt('database_drop_force_failed',async()=>{await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);});
+  }
+ }
+ cleanupPhase='database_verify';
  await cleanupAttempt('database_verify_failed',async()=>{cleanupOk=(await admin.query('SELECT 1 FROM pg_database WHERE datname=$1',[name])).rowCount===0;if(!cleanupOk)throw Error('database_present');});
+ cleanupPhase='admin_close';
  await cleanupAttempt('admin_close_failed',async()=>{await admin.end();});
+ cleanupPhase='complete';
  process.off('SIGTERM',onSignal);process.off('SIGINT',onSignal);
 }
 if(interrupted)failureCode??='runner_interrupted';
 if(unexpectedPoolError)failureCode??='pool_error';
 if(!cleanupOk)failureCode??='cleanup_incomplete';
 if(!evidence)failureCode??='evidence_missing';
-if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError||childFailure){console.error(JSON.stringify({error:'retirement_journey_failed',failureCode,stage,cleanup:cleanupOk,cleanupFailures,failureSnapshot,childExit,childClose,childClosed,stoppedEvent,stderrObserved,interrupted,unexpectedPoolError,childFailure,batches:batches.length}));process.exitCode=1;}
+if(!evidence||failure||!cleanupOk||interrupted||unexpectedPoolError||childFailure){console.error(JSON.stringify({error:'retirement_journey_failed',failureCode,stage,cleanupPhase,cleanup:cleanupOk,cleanupFailures,firstPoolError,failureSnapshot,childExit,childClose,childClosed,stoppedEvent,stderrObserved,interrupted,unexpectedPoolError,childFailure,poolDisconnectVerified,databaseDropForced,poolClientsPending:poolDisconnect?.pendingCount()??0,batches:batches.length}));process.exitCode=1;}
 else {
  const output=resolve(process.argv[2]??'artifacts/reasoning-retirement.json');await mkdir(resolve(output,'..'),{recursive:true});
- await writeFile(output,JSON.stringify({...evidence,cleanup:{databaseAbsent:true,workerExited:true}},null,2)+'\n',{flag:'wx'});
+ await writeFile(output,JSON.stringify({...evidence,cleanup:{databaseAbsent:true,workerExited:true,poolDisconnectVerified,databaseDropForced}},null,2)+'\n',{flag:'wx'});
  console.log(JSON.stringify({check:evidence.check,result:'passed',receiptPath:output}));
 }
