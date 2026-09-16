@@ -19,7 +19,7 @@ async function insertLeasedJob(pool:import('pg').Pool, status:'running'|'waiting
 
 test('reasoning retirement adversarial SQL boundaries',async t=>{
  await t.test('the database clock, not a caller timestamp, begins a safe retirement period',async()=>{
-  await withReasoningMaintenanceSchema('clock-guard',async pool=>{
+  await withReasoningMaintenanceSchema('clock_guard',async pool=>{
    const live=await insertLeasedJob(pool);
    const supplied='2000-01-01T00:00:00.000Z';
    const stamped=(await pool.query<{withdrawn_at:Date}>(`UPDATE reasoning_job
@@ -32,7 +32,7 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
  });
 
  await t.test('an unleased recovered waiting Job cannot acquire a retirement timestamp through raw SQL',async()=>{
-  await withReasoningMaintenanceSchema('unleased-waiting',async pool=>{
+  await withReasoningMaintenanceSchema('unleased_waiting',async pool=>{
    const waiting=await insertLeasedJob(pool,'waiting');
    await pool.query('UPDATE reasoning_job SET lease_owner=NULL,lease_expires_at=NULL WHERE id=$1',[waiting.jobId]);
    await assert.rejects(pool.query(`UPDATE reasoning_job
@@ -42,7 +42,7 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
  });
 
  await t.test('a graph is retained just before 168 hours and becomes eligible after the boundary',async()=>{
-  await withReasoningMaintenanceSchema('seven-day-boundary',async pool=>{
+  await withReasoningMaintenanceSchema('seven_day_boundary',async pool=>{
    const graph=await seedWithdrawnReasoningGraph(pool);
    await pool.query('ALTER TABLE reasoning_job DISABLE TRIGGER reasoning_withdrawal_clock_guard');
    try {await pool.query("UPDATE reasoning_job SET withdrawn_at=clock_timestamp()-interval '168 hours'+interval '1 second' WHERE id=$1",[graph.jobId]);}
@@ -55,7 +55,7 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
  });
 
  await t.test('two workers racing one due Job erase its private graph once and retain its accounting identity',async()=>{
-  await withReasoningMaintenanceSchema('same-job-race',async pool=>{
+  await withReasoningMaintenanceSchema('same_job_race',async pool=>{
    const graph=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,graph.jobId);
    const [first,second]=await Promise.all([
@@ -69,10 +69,11 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
  });
 
  await t.test('a locked universe is skipped and the next keyset candidate is processed in the same bounded batch',async()=>{
-  await withReasoningMaintenanceSchema('locked-universe',async pool=>{
+  await withReasoningMaintenanceSchema('locked_universe',async pool=>{
    const first=await seedWithdrawnReasoningGraph(pool),second=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,first.jobId);await ageWithdrawalForTest(pool,second.jobId);
-   const [locked,open]=[first,second].sort((a,b)=>a.jobId.localeCompare(b.jobId));
+   const ordered=[first,second].sort((a,b)=>a.jobId.localeCompare(b.jobId));
+   const locked=ordered[0]!,open=ordered[1]!;
    const holder=await pool.connect();
    try {
     await holder.query('BEGIN');
