@@ -68,7 +68,23 @@ const atomic = async (path: string, value: unknown) => {
   await writeFile(`${path}.tmp`, JSON.stringify(value, null, 2));
   await rename(`${path}.tmp`, path);
 };
-const manifest = async (cleanedUp?: boolean) =>
+type FailureClassification =
+  | "interrupted"
+  | "child_process_exit"
+  | "journey_failure"
+  | "cleanup_failure";
+class ClassifiedFailure extends Error {
+  constructor(readonly classification: FailureClassification) {
+    super(classification);
+  }
+}
+const manifest = async (
+  cleanedUp?: boolean,
+  diagnostic?: {
+    classification: FailureClassification;
+    cleanupErrors: string[];
+  },
+) =>
   atomic(manifestPath, {
     journey: "J004",
     database: source
@@ -89,6 +105,7 @@ const manifest = async (cleanedUp?: boolean) =>
     fixtureBase: fixtureUrl,
     ready,
     ...(cleanedUp === undefined ? {} : { cleanedUp }),
+    ...(diagnostic === undefined ? {} : { diagnostic }),
   });
 let source = "";
 try {
@@ -395,8 +412,11 @@ const onSignal = () => {
     }
   }
 };
-process.once("SIGINT", onSignal);
-process.once("SIGTERM", onSignal);
+// Keep both handlers installed through the final cleanup manifest. Repeated
+// termination requests are idempotent and must not restore the default signal
+// action before cleanup acknowledgement is durable.
+process.on("SIGINT", onSignal);
+process.on("SIGTERM", onSignal);
 function newCase(name: string, ids: any): CaseEvidence {
   const c = {
     name,
@@ -497,7 +517,8 @@ async function runCase(name: string, fn: (c: CaseEvidence) => Promise<void>) {
 let fixture: Peer | undefined,
   fixtureUrl = "",
   apiBase = "";
-let failure: unknown;
+let failure: unknown,
+  failureClassification: FailureClassification | undefined;
 const cleanupErrors: string[] = [];
 try {
   temp = await mkdtemp(resolve(tmpdir(), "knowscroll-j004-"));
@@ -604,8 +625,10 @@ try {
   ready = true;
   await manifest();
   if (args.has("--pause-for-interrupt")) {
-    while (!interrupted) await new Promise((r) => setTimeout(r, 50));
-    throw Error("interrupted");
+    while (!interrupted && children.has(probe.child))
+      await new Promise((r) => setTimeout(r, 50));
+    if (!interrupted) throw new ClassifiedFailure("child_process_exit");
+    throw new ClassifiedFailure("interrupted");
   }
   await runCase("death_before_intent", async (c) => {
     const g = await seed(db!);
@@ -1221,6 +1244,11 @@ try {
     throw Error("case matrix incomplete");
 } catch (error) {
   failure = error;
+  failureClassification = interrupted
+    ? "interrupted"
+    : error instanceof ClassifiedFailure
+      ? error.classification
+      : "journey_failure";
 } finally {
   const stopped = await Promise.allSettled(
     [...children].map((child) => stop(child)),
@@ -1277,12 +1305,27 @@ try {
   });
   if (!processesExited) cleanupErrors.push("process_group_still_present");
   const cleanedUp = !created && processesExited && cleanupErrors.length === 0;
+  if (cleanupErrors.length > 0 && !failure) {
+    failure = new ClassifiedFailure("cleanup_failure");
+    failureClassification = "cleanup_failure";
+  }
   try {
-    await manifest(cleanedUp);
+    await manifest(
+      cleanedUp,
+      failureClassification
+        ? {
+            classification: failureClassification,
+            cleanupErrors: [...cleanupErrors],
+          }
+        : undefined,
+    );
   } catch {
     cleanupErrors.push("manifest_write_failed");
   }
-  if (cleanupErrors.length > 0 && !failure) failure = Error("cleanup_failed");
+  if (cleanupErrors.length > 0 && !failure) {
+    failure = new ClassifiedFailure("cleanup_failure");
+    failureClassification = "cleanup_failure";
+  }
   process.off("SIGINT", onSignal);
   process.off("SIGTERM", onSignal);
 }
