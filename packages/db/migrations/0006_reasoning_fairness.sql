@@ -35,9 +35,11 @@ CREATE TABLE reasoning_fairness_universe (
  universe_id uuid NOT NULL REFERENCES universe(id),
  credit bigint NOT NULL DEFAULT 0 CHECK(credit BETWEEN -9007199254740991 AND 9007199254740991),
  candidate_cursor bigint NOT NULL DEFAULT 0 CHECK(candidate_cursor>=0),
+ ready_count reasoning_count NOT NULL DEFAULT 0,
  PRIMARY KEY(policy_version,class,universe_id),
  FOREIGN KEY(policy_version,class) REFERENCES reasoning_fairness_class(policy_version,class)
 );
+CREATE INDEX reasoning_fairness_universe_ready_ring ON reasoning_fairness_universe(policy_version,class,universe_id) WHERE ready_count>0;
 CREATE TABLE reasoning_fairness_ready (
  job_id uuid PRIMARY KEY REFERENCES reasoning_job(id) ON DELETE CASCADE,
  step_id uuid NOT NULL UNIQUE,

@@ -80,7 +80,7 @@ export async function settleFairness(client:pg.PoolClient,attemptId:string,revis
 export async function clearFairnessMembership(client:pg.PoolClient,universeId:string):Promise<void> {
   const versions=(await client.query<{policy_version:string}>('SELECT DISTINCT policy_version FROM reasoning_fairness_universe WHERE universe_id=$1',[universeId])).rows.map(row=>row.policy_version);
   if(versions.length===0) return;
-  await client.query('UPDATE reasoning_fairness_universe SET credit=LEAST(credit,0),candidate_cursor=0 WHERE universe_id=$1',[universeId]);
+  await client.query('UPDATE reasoning_fairness_universe SET credit=LEAST(credit,0),candidate_cursor=0,ready_count=0 WHERE universe_id=$1',[universeId]);
   await client.query(`UPDATE reasoning_fairness_class SET
     universe_cursor=CASE WHEN universe_cursor=$1 THEN NULL ELSE universe_cursor END,
     open_universe_id=CASE WHEN open_universe_id=$1 THEN NULL ELSE open_universe_id END,
