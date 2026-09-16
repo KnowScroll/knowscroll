@@ -97,13 +97,21 @@ test('a zero-credit maximum request earns its first DRR quantum instead of lendi
 test('refunds stay capped while small ticks preserve the outer visit', () => {
   const policyValue = policy({maxAdmissionsPerTick: 1, maxScanPerTick: 16});
   let state = addAll(policyValue, Array.from({length: 6}, (_, index) => work(`refund-${index}`, 'u', 'interactive', 40)));
-  const admitted = [] as Array<{attemptId: string; visitGeneration: number | undefined}>;
+  const admitted = [] as Array<{
+    attemptId: string;
+    visitGeneration: number | undefined;
+    innerGeneration: number | undefined;
+  }>;
   for (let index = 0; index < 6; index += 1) {
     const tick = scheduleTick(policyValue, state, {maxAdmissionsPerTick: 1, maxScanPerTick: 16});
     state = tick.snapshot;
     const decision = tick.decisions.find((item) => item.kind === 'admitted');
     assert.ok(decision, `small tick ${index} did not admit work`);
-    admitted.push({attemptId: decision.attemptId!, visitGeneration: decision.visitGeneration});
+    admitted.push({
+      attemptId: decision.attemptId!,
+      visitGeneration: decision.visitGeneration,
+      innerGeneration: decision.innerGeneration,
+    });
     state = settle(policyValue, state, decision.attemptId!, {
       receiptId: `refund-receipt-${index}`,
       actual: {tokens: 1, requests: 1, budget: 1, rate: 1, remote: 1},
@@ -112,6 +120,8 @@ test('refunds stay capped while small ticks preserve the outer visit', () => {
   }
   assert.equal(new Set(admitted.slice(0, 5).map((item) => item.visitGeneration)).size, 1);
   assert.equal(admitted[5]!.visitGeneration, admitted[4]!.visitGeneration);
+  assert.equal(new Set(admitted.slice(0, 5).map((item) => item.innerGeneration)).size, 1);
+  assert.ok(admitted[5]!.innerGeneration! > admitted[4]!.innerGeneration!);
 });
 
 test('exact not-sent receipt replay is a no-op after the reservation closes', () => {
