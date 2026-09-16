@@ -24,7 +24,7 @@ let poolDisconnect:ReturnType<typeof trackPoolDisconnect>|undefined;
 const batches:Array<Record<string,number>>=[];
 let stoppedEvent=false,stderrObserved=false,buffer='';
 type FailureCode='worker_graceful_shutdown_timeout'|'worker_stdio_close_timeout'|'worker_exit_not_zero'|'worker_close_not_zero'|'worker_stop_ack_missing'|
- 'worker_stderr_observed'|'worker_stdout_incomplete'|'retirement_counter_missing'|'purge_counter_missing'|
+ 'worker_stderr_observed'|'worker_stdout_incomplete'|'retirement_counter_missing'|'purge_counter_missing'|'expiry_counter_missing'|
  'worker_spawn_error'|'worker_stdout_limit_exceeded'|'worker_stdout_invalid'|'runner_interrupted'|'pool_error'|
  'pool_disconnect_timeout'|'database_drop_failed'|'cleanup_incomplete'|'cleanup_failed'|'evidence_missing'|'unexpected_harness_failure';
 class RetirementJourneyFailure extends Error {constructor(readonly code:FailureCode){super(code);}}
@@ -118,6 +118,13 @@ try {
  const retainedTables=['reasoning_accounting','reasoning_permit','reasoning_reservation'];
  const snapshot=async()=>Promise.all(retainedTables.map(async table=>(await db!.query(`SELECT to_jsonb(t) AS row FROM ${table} t WHERE attempt_id=$1 ORDER BY to_jsonb(t)::text`,[due.attemptId])).rows));
  const before=await snapshot();
+ // #75: a separate worker must close an actual expired idle Job, including
+ // when its original session is revoked. No request or provider is created.
+ const idle=await seedDirectContextGraph(db);
+ await inTransaction(db,c=>compileDirectContext(c,idle.scope,{jobId:idle.jobId,contextId:idle.contextId,keepEventIds:idle.keepEventIds},async()=>idle.policy));
+ const idleStep=await attachPendingStep(db,idle);
+ await db.query("UPDATE reasoning_job SET deadline=clock_timestamp()-interval '1 second' WHERE id=$1",[idle.jobId]);
+ await db.query('UPDATE device_session SET revoked_at=clock_timestamp() WHERE id=$1',[idle.scope.sessionId]);
  stage='worker_start';
  const env:NodeJS.ProcessEnv={DATABASE_URL:testUrl.toString(),REASONING_MAINTENANCE_INTERVAL_MS:'100',REASONING_MAINTENANCE_MAX_PROBES:'8'};
  for(const key of ['PATH','HOME','TMPDIR','KS_DEV_ROOT','COREPACK_HOME'])if(process.env[key])env[key]=process.env[key];
@@ -137,12 +144,18 @@ try {
  });
  stage='scheduled_deletion';
  await until(async()=>batches.length>=2&&(await db!.query('SELECT 1 FROM reasoning_job WHERE id=$1',[due.jobId])).rowCount===0&&
-  (await db!.query('SELECT 1 FROM reasoning_accounting WHERE attempt_id=$1',[closed.attemptId])).rowCount===0,'scheduled_deletion');
+  (await db!.query('SELECT 1 FROM reasoning_accounting WHERE attempt_id=$1',[closed.attemptId])).rowCount===0&&
+  (await db!.query("SELECT 1 FROM reasoning_job WHERE id=$1 AND status='expired' AND withdrawn_at IS NOT NULL",[idle.jobId])).rowCount===1,'scheduled_deletion');
  stage='retention_assertions';
  assert.deepEqual(await snapshot(),before);
  assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[due.contextId])).rowCount,0);
  assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[young.jobId])).rowCount,1);
  assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[young.contextId])).rowCount,1);
+ assert.deepEqual((await db.query('SELECT status,lease_fence::text,lease_owner,lease_expires_at FROM reasoning_job WHERE id=$1',[idle.jobId])).rows[0],
+  {status:'expired',lease_fence:'1',lease_owner:null,lease_expires_at:null});
+ assert.equal((await db.query('SELECT status FROM reasoning_step WHERE id=$1',[idleStep])).rows[0].status,'cancelled');
+ assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[idle.contextId])).rowCount,1);
+ assert.equal((await db.query('SELECT 1 FROM reasoning_attempt WHERE job_id=$1',[idle.jobId])).rowCount,0);
  stage='late_receipt';
  const reconciliation=createReasoningReconciliation(db);
  const receipt={version:1,receiptId:randomUUID(),attemptId:due.attemptId,requestId:due.requestId,dispatchId:due.dispatchId,
@@ -161,12 +174,13 @@ try {
  requireJourney(buffer.length===0,'worker_stdout_incomplete');
  requireJourney(batches.some(b=>b.retiredJobs!>0),'retirement_counter_missing');
  requireJourney(batches.some(b=>b.purgedAccounting!>0),'purge_counter_missing');
+ requireJourney(batches.some(b=>b.expiredJobs!>0),'expiry_counter_missing');
  stage='source_evidence';
  evidence={check:'scheduled-withdrawn-reasoning-retirement',result:'passed',observedAt:new Date().toISOString(),
   source:{revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim()!=='',
-   files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','scripts/lib/pg-disconnect.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
+   files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','scripts/lib/pg-disconnect.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/migrations/0011_idle_direct_withdrawal.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-idle-lifecycle.ts','packages/db/src/reasoning-idle-lifecycle-contract.ts','packages/db/src/reasoning-idle-fairness.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
   runtime:{separateWorker:true,scheduledBatches:batches.length,intervalMs:100,idleGracefulShutdown:true,workerStdioClosed:true,finalStoppedAcknowledgement:true},
-  assertions:{oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
+  assertions:{idleDirectJobExpiredWithRevokedOriginalSession:true,idleExpiryFencedAndClocked:true,idleContextRetainedUntilRetirement:true,expiryAggregateObserved:true,oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
   limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','idle SIGTERM shutdown; no in-flight signal barrier in this receipt','no completed/failed-job retirement or owner maintenance deployment']};
 } catch(error) {
  failure=true;failureCode??=error instanceof RetirementJourneyFailure?error.code:'unexpected_harness_failure';
