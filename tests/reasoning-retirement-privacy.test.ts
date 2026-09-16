@@ -107,13 +107,13 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
    const after=(await pool.query<{now:Date}>('SELECT clock_timestamp() AS now')).rows[0]!.now;
    assert.equal(stamped.status,'cancelled');
    assert(stamped.withdrawn_at>=before&&stamped.withdrawn_at<=after);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),
-    {probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+    {probes:2,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:2});
    assert.equal(await count(pool,'reasoning_job','id',graph.jobId),1);
    await assert.rejects(pool.query("UPDATE reasoning_job SET status='completed' WHERE id=$1",[graph.jobId]),/cannot reactivate|retention clock/i);
    await ageWithdrawalForTest(pool,graph.jobId,168);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),
-    {probes:1,retiredJobs:1,purgedAccounting:0,skipped:0});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+    {probes:2,expiredJobs:0,retiredJobs:1,purgedAccounting:0,skipped:1});
    assert.equal(await count(pool,'reasoning_job','id',graph.jobId),0);
    assert.equal(await count(pool,'reasoning_context_payload','context_id',graph.contextId),0);
    assert.equal(await count(pool,'reasoning_context_dependency','context_id',graph.contextId),0);
@@ -125,8 +125,8 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
     (id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,created_at,wake_kind,intent_id)
     VALUES($1,$2,0,'cancelled','interactive',$2,'legacy',clock_timestamp()-interval '90 days',clock_timestamp()-interval '100 days','direct',$3)`,
     [legacyJob,legacyUniverse,randomUUID()]);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),
-    {probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+    {probes:2,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:2});
    assert.deepEqual((await pool.query('SELECT withdrawn_at FROM reasoning_job WHERE id=$1',[legacyJob])).rows[0],{withdrawn_at:null});
   });
  });
@@ -144,8 +144,8 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
    assert.deepEqual((await pool.query('SELECT status,lease_owner,lease_fence::text,withdrawn_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0],
     {status:'running',lease_owner:'retirement-privacy',lease_fence:'1',withdrawn_at:null});
    assert.equal((await pool.query('SELECT status FROM reasoning_step WHERE id=$1',[graph.stepId])).rows[0]!.status,'pending');
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),
-    {probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+    {probes:2,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:2});
   });
  });
 
@@ -182,11 +182,11 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
     await clearClient.query('BEGIN');
     const authenticated=await authenticateAndLock(clearClient,graph.sessionToken);
     const receipt=await clearScrollHistory(clearClient,authenticated,input);
-    assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),
-     {probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+    assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+     {probes:2,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:2});
     await clearClient.query('COMMIT');transactionOpen=false;
     assert.equal(await count(pool,'reasoning_job','id',graph.jobId),0);
-    assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:1})).retiredJobs,0);
+    assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:2})).retiredJobs,0);
 
     const laterJobId=randomUUID();
     await pool.query(`INSERT INTO reasoning_job
@@ -220,7 +220,7 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
     [graph.attemptId,graph.permitId,graph.reservationId,graph.bucketId])).rows[0];
    assert.deepEqual(before.accounting,{state:'unknown',output_authority:'withdrawn',liability_state:'held',remote_state:'held',remote_disposition:'unconfirmed',reconciliation_hold:true,idempotency_hold:true});
    await ageWithdrawalForTest(pool,graph.jobId,169);
-   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:1})).retiredJobs,1);
+   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:2})).retiredJobs,1);
    const retained=(await pool.query(`SELECT
     (SELECT row_to_json(a) FROM (SELECT state,output_authority,liability_state,remote_state,remote_disposition,reconciliation_hold,idempotency_hold FROM reasoning_accounting WHERE attempt_id=$1) a) accounting,
     (SELECT row_to_json(p) FROM (SELECT state,dispatch_id FROM reasoning_permit WHERE id=$2) p) permit,
@@ -242,7 +242,7 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
     ['reasoning_job','id',graph.jobId],['reasoning_context','job_id',graph.jobId],['reasoning_step','job_id',graph.jobId],
     ['reasoning_attempt','id',graph.attemptId],['reasoning_context_job_session','job_id',graph.jobId],
    ] as const) assert.equal(await count(pool,table,column,value),0,table);
-   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:2})).purgedAccounting,0);
+   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:3})).purgedAccounting,0);
    assert.equal(await count(pool,'reasoning_accounting','attempt_id',graph.attemptId),1);
   });
  });
@@ -253,7 +253,7 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
    await withdraw(pool,graph);
    assert(graph.attemptId&&graph.requestId&&graph.dispatchId);
    await ageWithdrawalForTest(pool,graph.jobId,169);
-   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:1})).retiredJobs,1);
+   assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:2})).retiredJobs,1);
    await pool.query(`UPDATE reasoning_accounting SET
     liability_state='settled',remote_state='released',remote_disposition='terminal',
     reconciliation_hold=false,idempotency_hold=false,closure_basis='evidence',
@@ -269,8 +269,8 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
     await receiptClient.query('BEGIN');
     const appended=await appendRestrictedReasoningReceipt(receiptClient,receipt,'worker');
     assert.equal(appended.replayed,false);
-    assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
-     {probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
+    assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),
+     {probes:3,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:3});
     await receiptClient.query('COMMIT');transactionOpen=false;
    } finally {
     if(transactionOpen) await receiptClient.query('ROLLBACK');
@@ -280,8 +280,8 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
     reconciliation_hold,idempotency_hold,all_duties_closed_at FROM reasoning_accounting WHERE attempt_id=$1`,[graph.attemptId])).rows[0],
     {state:'responded',output_authority:'withdrawn',liability_state:'held',remote_state:'held',reconciliation_hold:true,idempotency_hold:true,all_duties_closed_at:null});
    assert.equal(await count(pool,'reasoning_receipt','attempt_id',graph.attemptId),1);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
-    {probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),
+    {probes:3,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:3});
    assert.equal(await count(pool,'reasoning_accounting','attempt_id',graph.attemptId),1);
    for(const [table,column,value] of [
     ['reasoning_job','id',graph.jobId],['reasoning_context','job_id',graph.jobId],
@@ -294,15 +294,15 @@ test('reasoning retirement preserves privacy and evidence boundaries',async t=>{
   await withReasoningMaintenanceSchema('privacy_recent_accounting',async pool=>{
    const universeId=randomUUID();await pool.query('INSERT INTO universe(id,privacy_epoch) VALUES($1,0)',[universeId]);
    const attemptId=await seedClosedAccounting(pool,universeId,29);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
-    {probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),
+    {probes:3,expiredJobs:0,retiredJobs:0,purgedAccounting:0,skipped:3});
    assert.equal(await count(pool,'reasoning_accounting','attempt_id',attemptId),1);
   });
   await withReasoningMaintenanceSchema('privacy_aged_accounting',async pool=>{
    const universeId=randomUUID();await pool.query('INSERT INTO universe(id,privacy_epoch) VALUES($1,0)',[universeId]);
    const attemptId=await seedClosedAccounting(pool,universeId,31);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),
-    {probes:2,retiredJobs:0,purgedAccounting:1,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),
+    {probes:3,expiredJobs:0,retiredJobs:0,purgedAccounting:1,skipped:2});
    assert.equal(await count(pool,'reasoning_accounting','attempt_id',attemptId),0);
   });
  });

@@ -26,6 +26,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0017 — Sealed literal Ask context](0017-sealed-ask-context.md): separate family, original-session authority and immutable scoped Job binding.
 
+- [ADR-0018 — Safely withdraw idle direct Jobs](0018-idle-direct-job-withdrawal.md): original-session cancellation, trusted database deadline expiry, atomic fairness closure and bounded maintenance.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

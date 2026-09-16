@@ -261,7 +261,7 @@ test('seven-day retirement removes only private Ask execution context and leaves
    owner:'ask-context-retirement',leaseFence:'1',reason:'cancelled',
   });
   await ageWithdrawalForTest(pool,graph.jobId);
-  assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:1})).retiredJobs,1);
+  assert.equal((await createReasoningMaintenance(pool).runBatch({maxProbes:2})).retiredJobs,1);
   await assertNoAskContext(pool,graph);
   assert.equal(await count(pool,'reasoning_job','id',graph.jobId),0);
   assert.equal(await count(pool,'explicit_ask','id',graph.askId),1);

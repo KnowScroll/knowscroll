@@ -17,6 +17,10 @@ Apple Silicon macOS. At inspection: about 43 GiB free internally and 596 GiB on 
 
 Small existing system tools, OS preferences and credentials remain in their normal protected locations. We did not move system-critical directories or existing caches. Always mount the SSD before starting the project; stop the database/emulator before ejecting it.
 
+## SSD storage requirement
+
+The owner reaffirmed on2026-09-17 that the Mac's internal storage is constrained. Keep all new project worktrees, dependency/build caches, database files, emulator images, test artifacts and command logs on `/Volumes/Mrigesh SSD`. Source `scripts/env.sh` before every build/test/install shell so `TMPDIR`, Gradle, Android and package caches resolve to `knowscroll-dev`. Write worker/coordinator logs under `knowscroll-dev/tmp`, including commands that previously used `/tmp`; do not let an unsourced Gradle run create another SDK/distribution cache under the home directory. Codex's application/session storage is app-managed and is not relocated by project tooling. Do not delete unrelated files to create space.
+
 ## First setup / normal start
 
 From the repository root:

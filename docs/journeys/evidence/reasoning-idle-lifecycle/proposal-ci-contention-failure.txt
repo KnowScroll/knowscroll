@@ -1,0 +1,27 @@
+backend	Run pnpm test	2026-09-16T21:50:25.1779563Z     # Subtest: two concurrent schedulers never duplicate a claim or fairness debit
+backend	Run pnpm test	2026-09-16T21:50:25.1780641Z     not ok 4 - two concurrent schedulers never duplicate a claim or fairness debit
+backend	Run pnpm test	2026-09-16T21:50:25.1781206Z       ---
+backend	Run pnpm test	2026-09-16T21:50:25.1781491Z       duration_ms: 331.364354
+backend	Run pnpm test	2026-09-16T21:50:25.1782192Z       type: 'test'
+backend	Run pnpm test	2026-09-16T21:50:25.1782865Z       location: '/home/runner/work/knowscroll/knowscroll/tests/reasoning-sql-fairness.test.ts:53:10'
+backend	Run pnpm test	2026-09-16T21:50:25.1783592Z       failureType: 'testCodeFailure'
+backend	Run pnpm test	2026-09-16T21:50:25.1784228Z       error: |-
+backend	Run pnpm test	2026-09-16T21:50:25.1790485Z         Expected values to be strictly equal:
+backend	Run pnpm test	2026-09-16T21:50:25.1790921Z
+backend	Run pnpm test	2026-09-16T21:50:25.1791383Z         0 !== 2
+backend	Run pnpm test	2026-09-16T21:50:25.1791750Z
+backend	Run pnpm test	2026-09-16T21:50:25.1792012Z       code: 'ERR_ASSERTION'
+backend	Run pnpm test	2026-09-16T21:50:25.1792464Z       name: 'AssertionError'
+backend	Run pnpm test	2026-09-16T21:50:25.1792785Z       expected: 2
+backend	Run pnpm test	2026-09-16T21:50:25.1793075Z       actual: 0
+backend	Run pnpm test	2026-09-16T21:50:25.1793458Z       operator: 'strictEqual'
+backend	Run pnpm test	2026-09-16T21:50:25.1794096Z       stack: |-
+backend	Run pnpm test	2026-09-16T21:50:25.1794732Z         <anonymous> (/home/runner/work/knowscroll/knowscroll/tests/reasoning-sql-fairness.test.ts:58:11)
+backend	Run pnpm test	2026-09-16T21:50:25.1795560Z         process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+backend	Run pnpm test	2026-09-16T21:50:25.1796868Z         async withFairnessSchema (/home/runner/work/knowscroll/knowscroll/tests/helpers/reasoning-fairness-fixture.ts:12:70)
+backend	Run pnpm test	2026-09-16T21:50:25.1805031Z         async TestContext.<anonymous> (/home/runner/work/knowscroll/knowscroll/tests/reasoning-sql-fairness.test.ts:54:3)
+backend	Run pnpm test	2026-09-16T21:50:25.1806279Z         async Test.run (node:internal/test_runner/test:1054:7)
+backend	Run pnpm test	2026-09-16T21:50:25.1807146Z         async TestContext.<anonymous> (/home/runner/work/knowscroll/knowscroll/tests/reasoning-sql-fairness.test.ts:53:2)
+backend	Run pnpm test	2026-09-16T21:50:25.1808019Z         async Test.run (node:internal/test_runner/test:1054:7)
+backend	Run pnpm test	2026-09-16T21:50:25.1808693Z         async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+backend	Run pnpm test	2026-09-16T21:50:25.1809226Z       ...

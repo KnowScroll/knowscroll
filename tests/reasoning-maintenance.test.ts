@@ -12,7 +12,7 @@ test('reasoning maintenance retires only bounded safely withdrawn private graphs
    const graph=await seedWithdrawnReasoningGraph(pool,{steps:2,contexts:2});
    await ageWithdrawalForTest(pool,graph.jobId,169);
    const maintenance=createReasoningMaintenance(pool);
-   assert.deepEqual(await maintenance.runBatch({maxProbes:1}),{probes:1,retiredJobs:1,purgedAccounting:0,skipped:0});
+   assert.deepEqual(await maintenance.runBatch({maxProbes:2}),{expiredJobs:0,probes:2,retiredJobs:1,purgedAccounting:0,skipped:1});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,0);
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context WHERE job_id=$1',[graph.jobId])).rows[0]!.count,0);
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_step WHERE job_id=$1',[graph.jobId])).rows[0]!.count,0);
@@ -25,7 +25,7 @@ test('reasoning maintenance retires only bounded safely withdrawn private graphs
    await ageWithdrawalForTest(pool,graph.jobId,169);
    await pool.query("CREATE FUNCTION reject_maintenance_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced maintenance rollback'; END $$");
    await pool.query('CREATE TRIGGER reject_maintenance_delete BEFORE DELETE ON reasoning_job FOR EACH ROW EXECUTE FUNCTION reject_maintenance_delete()');
-   try {await assert.rejects(createReasoningMaintenance(pool).runBatch({maxProbes:1}),/forced maintenance rollback/);}
+   try {await assert.rejects(createReasoningMaintenance(pool).runBatch({maxProbes:2}),/forced maintenance rollback/);}
    finally {await pool.query('DROP TRIGGER reject_maintenance_delete ON reasoning_job');await pool.query('DROP FUNCTION reject_maintenance_delete()');}
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,1);
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_context WHERE job_id=$1',[graph.jobId])).rows[0]!.count,1);
@@ -37,7 +37,7 @@ test('reasoning maintenance retires only bounded safely withdrawn private graphs
   await withReasoningMaintenanceSchema('bounds',async pool=>{
    const graph=await seedWithdrawnReasoningGraph(pool,{steps:129});
    await ageWithdrawalForTest(pool,graph.jobId,169);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),{probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),{expiredJobs:0,probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,1);
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_step WHERE job_id=$1',[graph.jobId])).rows[0]!.count,129);
   });
@@ -47,7 +47,7 @@ test('reasoning maintenance retires only bounded safely withdrawn private graphs
   await withReasoningMaintenanceSchema('accounting',async pool=>{
    const graph=await seedWithdrawnReasoningGraph(pool);
    const attemptId=await seedPurgeableAccounting(pool,graph.universeId);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),{probes:2,retiredJobs:0,purgedAccounting:1,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),{expiredJobs:0,probes:3,retiredJobs:0,purgedAccounting:1,skipped:2});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_accounting WHERE attempt_id=$1',[attemptId])).rows[0]!.count,0);
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,1);
   });
@@ -66,7 +66,7 @@ test('reasoning maintenance retires only bounded safely withdrawn private graphs
    const graph=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,graph.jobId,169);
    const stop=new AbortController();stop.abort();
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1,signal:stop.signal}),{probes:0,retiredJobs:0,purgedAccounting:0,skipped:0});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1,signal:stop.signal}),{expiredJobs:0,probes:0,retiredJobs:0,purgedAccounting:0,skipped:0});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,1);
   });
  });
