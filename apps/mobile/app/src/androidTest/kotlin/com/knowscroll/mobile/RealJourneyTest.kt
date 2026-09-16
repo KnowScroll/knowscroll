@@ -28,6 +28,9 @@ class RealJourneyTest {
     private fun waitText(text:String) = compose.waitUntil(15000) {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
+    private fun waitDescription(description:String) = compose.waitUntil(15000) {
+        compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
+    }
     private fun capture(name:String, requireLightSurface:Boolean=false) {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         var bitmap:Bitmap?=null
@@ -57,6 +60,7 @@ class RealJourneyTest {
     private suspend fun keepOneScrollAndReturn(): Pair<com.knowscroll.mobile.data.Universe,com.knowscroll.mobile.data.ScrollSession> {
         val api=ApiClient()
         waitText("Your universe")
+        waitDescription("Enter Scroll")
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
         compose.waitUntil(15000){store().read()?.exposureId?.isNotEmpty()==true}
         val opened=store().read() ?: error("Scroll retry envelope was not persisted")
@@ -75,6 +79,7 @@ class RealJourneyTest {
     }
 
     private fun openClearConfirmation(){
+        waitDescription("Clear Scroll history")
         compose.onNodeWithContentDescription("Clear Scroll history").performScrollTo().performClick()
         waitText("Clear Scroll history?")
     }
@@ -83,6 +88,7 @@ class RealJourneyTest {
     @Test fun processDeathPrepare() = runBlocking {
         val expected=ApiClient().getFeed().items.firstOrNull() ?: error("Need one unkept Scroll")
         waitText("Your universe")
+        waitDescription("Enter Scroll")
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
         waitText(expected.title)
         compose.waitUntil(10000){store().read()?.exposureId?.isNotEmpty()==true}
@@ -278,6 +284,7 @@ class RealJourneyTest {
 
     @Test fun higherPrivacyEpochPurgesCachedScrollOnForeground() = runBlocking {
         waitText("Your universe")
+        waitDescription("Enter Scroll")
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
         compose.waitUntil(15000){store().read()?.exposureId?.isNotEmpty()==true}
         val cached=store().read() ?: error("Expected a cached Scroll")
