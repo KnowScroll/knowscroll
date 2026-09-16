@@ -1,6 +1,6 @@
 # Reasoning admission: implementation and verification plan
 
-Status: implementation planned, following [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md). Shared metadata schemas exist; SQL tables, admission, scheduler and product dispatch do not. Parent [#7](https://github.com/KnowScroll/knowscroll/issues/7) remains open.
+Status: storage/privacy implemented in #44; atomic execution and fault proof remain planned, following [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md). Shared metadata schemas, SQL storage, history-clear integration, a restricted receipt append helper and bounded retention cleanup exist. Atomic admission, settlement calculation, scheduler and product dispatch do not. Parent [#7](https://github.com/KnowScroll/knowscroll/issues/7) remains open.
 
 ## Release order and ownership
 
@@ -57,7 +57,7 @@ J004 must report commit, database/process isolation, exact fixture request count
 1. Implement and replay-test class/per-universe fairness under finite and saturated capacity, no idle-credit runaway, no blocked-head starvation and no unknown-call capacity reset.
 2. Implement authorized context compilation and typed read-set/proposal validation. No user-state mutation follows from transport success alone.
 3. Implement direct-intent durability and H/H2 coalescing when those consumers are introduced; optional children must inherit budget and release waiting-parent execution slots.
-4. Implement retained-accounting cleanup and update privacy controls/copy before sending private context. Account deletion and backup retention remain separate unresolved requirements.
+4. Integrate the retained-accounting cleanup primitive with private-graph retirement and a scheduled worker, and update privacy controls/copy before sending private context. Account deletion and backup retention remain separate unresolved requirements.
 5. Select a current route capability/price policy and an explicitly bounded product-provider experiment. Certification's historical three-call run is not a standing authorization for unlimited inference.
 
 All later work remains visible under #7 and related #4/#6. This plan does not reduce the semantic, recommendation, cosmic or social product target.

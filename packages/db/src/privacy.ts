@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { HistoryClearInput, HistoryClearReceipt } from '../../contracts/src/index.ts';
 import type { AuthScope } from './identity.ts';
+import {eraseReasoningForHistoryClear} from './reasoning-storage.ts';
 
 export class HistoryClearConflict extends Error {
  readonly statusCode = 409;
@@ -44,6 +45,7 @@ export async function clearScrollHistory(
   [scope.sessionId,scope.universeId,nextEpoch,scope.privacyEpoch]);
  if(session.rowCount!==1) throw new Error('Authenticated session could not advance with history clear');
 
+ await eraseReasoningForHistoryClear(client,{universeId:scope.universeId,epochBefore:scope.privacyEpoch,epochAfter:nextEpoch});
  await client.query('DELETE FROM job WHERE universe_id=$1',[scope.universeId]);
  await client.query('DELETE FROM trace WHERE universe_id=$1',[scope.universeId]);
  await client.query('DELETE FROM exposure WHERE universe_id=$1',[scope.universeId]);

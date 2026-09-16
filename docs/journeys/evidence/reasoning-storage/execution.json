@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "01e06678ecbfdbfe9d0db294f3675ed5e1fef5ae",
+  "tests": {
+    "baseline": 12,
+    "additional": 79,
+    "total": 91,
+    "verifierNegative": 2
+  },
+  "journeys": [
+    "J001",
+    "J002",
+    "J003"
+  ],
+  "sha256": {
+    "packages/db/migrations/0004_reasoning_storage.sql": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e",
+    "packages/db/src/reasoning-storage.ts": "52e879590840c28c0dda8f6bbbf42faee69b0ebc710b0ff76606faae2610168e",
+    "packages/db/src/privacy.ts": "c69a49dd681461474c1839c159912c501e563af58652769784569abbc11df8fc",
+    "tests/reasoning-storage.test.ts": "b4dae86056bcb1d926364932b8c0eafa16aecd633ea54e867a72270437f3e695",
+    "tests/reasoning-privacy.test.ts": "4769c15f6f6e4eafb60e765b125a46e430c4b8614aa5569996be6501729af3d9"
+  }
+}
