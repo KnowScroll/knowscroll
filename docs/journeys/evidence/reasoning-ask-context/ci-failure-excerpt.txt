@@ -1,0 +1,32 @@
+backend	Run pnpm test	2026-09-16T18:51:59.1912576Z     # Subtest: competing first Ask binding serializes a Keep-family insert and rejects the losing family
+backend	Run pnpm test	2026-09-16T18:51:59.1914790Z     not ok 3 - competing first Ask binding serializes a Keep-family insert and rejects the losing family
+backend	Run pnpm test	2026-09-16T18:51:59.1919937Z       ---
+backend	Run pnpm test	2026-09-16T18:51:59.1920177Z       duration_ms: 1534.453713
+backend	Run pnpm test	2026-09-16T18:51:59.1920411Z       type: 'test'
+backend	Run pnpm test	2026-09-16T18:51:59.1920883Z       location: '/home/runner/work/knowscroll/knowscroll/tests/reasoning-ask-context-migration.test.ts:108:10'
+backend	Run pnpm test	2026-09-16T18:51:59.1921338Z       failureType: 'unhandledRejection'
+backend	Run pnpm test	2026-09-16T18:51:59.1921612Z       error: 'Ask Job cannot change context family'
+backend	Run pnpm test	2026-09-16T18:51:59.1921878Z       code: 'P0001'
+backend	Run pnpm test	2026-09-16T18:51:59.1922060Z       name: 'error'
+backend	Run pnpm test	2026-09-16T18:51:59.1922237Z       stack: |-
+backend	Run pnpm test	2026-09-16T18:51:59.1922837Z         /home/runner/work/knowscroll/knowscroll/node_modules/.pnpm/pg@8.23.0/node_modules/pg/lib/client.js:694:17
+backend	Run pnpm test	2026-09-16T18:51:59.1923862Z         process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+backend	Run pnpm test	2026-09-16T18:51:59.1924405Z       ...
+backend	Run pnpm test	2026-09-16T18:51:59.1925348Z # (node:3520) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 2)
+backend	Run pnpm test	2026-09-16T18:51:59.1926358Z # (Use `node --trace-warnings ...` to show where the warning was created)
+backend	Run pnpm test	2026-09-16T18:51:59.6329595Z     # Subtest: Job deletion cascades only the private binding and preserves recorded Ask source history
+backend	Run pnpm test	2026-09-16T18:51:59.6331938Z     ok 4 - Job deletion cascades only the private binding and preserves recorded Ask source history
+backend	Run pnpm test	2026-09-16T18:51:59.6332605Z       ---
+backend	Run pnpm test	2026-09-16T18:51:59.6333029Z       duration_ms: 443.268339
+backend	Run pnpm test	2026-09-16T18:51:59.6333376Z       type: 'test'
+backend	Run pnpm test	2026-09-16T18:51:59.6333874Z       ...
+backend	Run pnpm test	2026-09-16T18:51:59.6334438Z     1..4
+backend	Run pnpm test	2026-09-16T18:51:59.6335618Z not ok 78 - 0010 binds only the original Ask/session/queued Job and freezes its family identity
+backend	Run pnpm test	2026-09-16T18:51:59.6343721Z   ---
+backend	Run pnpm test	2026-09-16T18:51:59.6389960Z   duration_ms: 3929.665752
+backend	Run pnpm test	2026-09-16T18:51:59.6410082Z   type: 'test'
+backend	Run pnpm test	2026-09-16T18:51:59.6413761Z   location: '/home/runner/work/knowscroll/knowscroll/tests/reasoning-ask-context-migration.test.ts:76:1'
+backend	Run pnpm test	2026-09-16T18:51:59.6414480Z   failureType: 'subtestsFailed'
+backend	Run pnpm test	2026-09-16T18:51:59.6414753Z   error: '1 subtest failed'
+backend	Run pnpm test	2026-09-16T18:51:59.6414952Z   code: 'ERR_TEST_FAILURE'
+backend	Run pnpm test	2026-09-16T18:51:59.6415145Z   ...
