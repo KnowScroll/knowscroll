@@ -57,7 +57,7 @@ export const directContextPayload=z.object({
   const ids=value[name].map(item=>'keepEventId' in item?item.keepEventId:item.assetId);
   if(new Set(ids).size!==ids.length)ctx.addIssue({code:'custom',path:[name],message:'Duplicate selected identity'});
  }
- if(value.facts.some(f=>!value.assets.some(a=>a.assetId===f.assetId)||BigInt(f.keepSequence)>BigInt(value.eventHighWater)||BigInt(f.exposureSequence)>BigInt(f.keepSequence)))
+ if(value.facts.some(f=>!value.assets.some(a=>a.assetId===f.assetId)||(reasoningCounter.safeParse(f.keepSequence).success&&reasoningCounter.safeParse(value.eventHighWater).success&&BigInt(f.keepSequence)>BigInt(value.eventHighWater))||(reasoningCounter.safeParse(f.exposureSequence).success&&reasoningCounter.safeParse(f.keepSequence).success&&BigInt(f.exposureSequence)>BigInt(f.keepSequence))))
   ctx.addIssue({code:'custom',path:['facts'],message:'Unbound asset or invalid event ordering'});
 });
 export type DirectContextPayload=z.infer<typeof directContextPayload>;
