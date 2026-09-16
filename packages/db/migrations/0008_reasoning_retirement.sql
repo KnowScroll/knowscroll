@@ -2,8 +2,7 @@
 ALTER TABLE reasoning_job ADD COLUMN withdrawn_at timestamptz;
 CREATE INDEX reasoning_job_retirement_candidates ON reasoning_job(id) WHERE withdrawn_at IS NOT NULL;
 CREATE INDEX reasoning_accounting_purge_candidates ON reasoning_accounting(attempt_id)
- WHERE all_duties_closed_at IS NOT NULL AND liability_state='settled' AND remote_state='released'
- AND NOT reconciliation_hold AND NOT idempotency_hold;
+ WHERE all_duties_closed_at IS NOT NULL;
 CREATE FUNCTION reasoning_withdrawal_clock_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='INSERT' THEN
