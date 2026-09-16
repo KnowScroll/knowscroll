@@ -128,3 +128,51 @@ test('family router preserves Keep V1 and refuses an unknown metadata family',as
    error=>error instanceof ReasoningDenied&&error.code==='context_unsupported');
  });
 });
+
+test('Ask authority rechecks session expiry after a physical bucket wait and rolls admission back',async()=>{
+ await withReasoningContextSchema('ask_bucket_expiry',async pool=>{
+  const graph=await seedDirectContextGraph(pool);
+  await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '3 seconds' WHERE id=$1",[graph.scope.sessionId]);
+  await compile(pool,graph);
+  const stepId=await attachPendingStep(pool,graph),fairness=createReasoningFairness(pool,createSealedContextAuthority(resolverFor(graph)));
+  await fairness.installPolicy({version:graph.policy.policyVersion,quantum:100,maxCharge:100,scale:100,basis:{input_tokens:100,output_tokens:100,total_tokens:100,requests:100},maxProbes:8,maxAdmissions:1});
+  await fairness.enqueue({policyVersion:graph.policy.policyVersion,class:'interactive',universeId:graph.scope.universeId,privacyEpoch:0,jobId:graph.jobId,stepId,contextId:graph.contextId,requestId:randomUUID(),requestHash:'e'.repeat(64),inputTokensUpperBound:1,maxOutputTokens:1,costCeilingMicroUsd:null,deadline:new Date(Date.now()+60_000).toISOString(),permitTtlMs:30_000});
+  const blocker=await pool.connect();
+  let pending:ReturnType<typeof fairness.schedule>|undefined;
+  try{
+   await blocker.query('BEGIN');
+   await blocker.query('SELECT id FROM reasoning_bucket WHERE id=$1 FOR UPDATE',[[...graph.policy.buckets].sort((a,b)=>a.bucketId.localeCompare(b.bucketId))[0]!.bucketId]);
+   const pid=(await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
+   pending=fairness.schedule({policyVersion:graph.policy.policyVersion,owner:'ask-expiry-worker',leaseMs:30_000});void pending.catch(()=>{});
+   let observed=false;
+   for(let i=0;i<300;i++){
+    if((await pool.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))",[pid])).rowCount){observed=true;break;}
+    await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   assert.equal(observed,true,'admission must wait on the locked physical bucket');
+   let expired=false;
+   for(let i=0;i<600;i++){
+    if((await pool.query('SELECT clock_timestamp()>=expires_at AS expired FROM device_session WHERE id=$1',[graph.scope.sessionId])).rows[0]!.expired){expired=true;break;}
+    await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   assert.equal(expired,true);
+   await blocker.query('COMMIT');
+   await assert.rejects(pending,error=>error instanceof ReasoningDenied&&error.code==='context_inactive_session');
+  }finally{
+   await blocker.query('ROLLBACK');blocker.release();if(pending)await pending.catch(()=>{});
+  }
+  assert.equal((await pool.query('SELECT status FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.status,'queued');
+  for(const table of ['reasoning_attempt','reasoning_accounting','reasoning_permit'])assert.equal((await pool.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0]!.n,0);
+ });
+});
+
+test('Ask compiler rejects oversized canonical source bytes without truncation or partial binding',async()=>{
+ await withReasoningContextSchema('ask_byte_bound',async pool=>{
+  const graph=await seedDirectContextGraph(pool);
+  const body='界'.repeat(25000);
+  await pool.query('UPDATE asset SET body=$2 WHERE id=$1',[graph.assetId,body]);
+  await pool.query("UPDATE decision SET candidates=jsonb_set(candidates,'{0,body}',to_jsonb($2::text)) WHERE id=$1",[graph.decisionId,body]);
+  await assert.rejects(compile(pool,graph),error=>error instanceof ReasoningDenied&&error.code==='context_bounds_exceeded');
+  for(const table of ['reasoning_context','reasoning_context_job_session','reasoning_context_job_ask'])assert.equal((await pool.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0]!.n,0);
+ });
+});
