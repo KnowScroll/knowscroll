@@ -145,9 +145,11 @@ try {
     body: JSON.stringify(clearBody)
   });
   assert(withheld.status === 200, 'withheld clear response commits');
+  const withheldReceipt = await withheld.json() as Clear;
   const retry = await api<Clear>(
       a.token, '/v1/history/clear',
       {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(clearBody)});
+  assert(JSON.stringify(retry) === JSON.stringify(withheldReceipt), 'exact retry replays the withheld receipt');
   assert(retry.privacyEpoch === clearBody.expectedPrivacyEpoch + 1, 'caller rolls forward one epoch');
   await status(aOther.token, '/v1/session', 401);
   const afterClear = await counts(client, a.scope.universeId), bAfterClear = await counts(client, b.scope.universeId);
@@ -180,6 +182,7 @@ try {
       aUniverse.traces.some(t => t.eventId === fresh.keep.eventId) &&
           bUniverse.traces.some(t => t.eventId === bFirst.keep.eventId),
       'new A epoch and untouched B project independently');
+  assert(!aUniverse.traces.some(t => t.eventId === aPending.keep.eventId), 'cleared old Trace cannot return');
   assert(!interrupted, 'journey interrupted');
   const hashes = Object.fromEntries(await Promise.all([
     'apps/api/src/app.ts', 'apps/worker/src/project.ts', 'packages/db/src/privacy.ts',
