@@ -30,6 +30,8 @@ jobs:
       - run: pnpm test
       - name: Verify deterministic fairness policy traces
         run: pnpm exec tsx scripts/capture-fairness-evidence.ts artifacts/fairness-ci.json
+      - name: Verify durable fairness across disposable PostgreSQL restart
+        run: pnpm exec tsx scripts/fairness/sql-restart.ts artifacts/sql-fairness-restart-ci.json
       - run: pnpm exec tsx --test scripts/journey-verifier.test.ts
       - name: Verify isolated HTTP, worker and PostgreSQL journey
         run: pnpm exec tsx scripts/run-isolated-journey.ts
