@@ -8,6 +8,7 @@ KnowScroll is an emergent personal universe: Reel and Scroll encounters lead to 
 
 1. **[Project state](docs/PROJECT-STATE.md)** — what exists, evidence, next work and blockers.
 2. **[Architecture](docs/architecture/README.md)** — the system and who owns each responsibility.
+3. **[v1 release contract](docs/product/v1-release.md)** — the full experience/UI, real video integration and end-to-end acceptance required for v1.
 
 The full [product definition](docs/product/definition.md) remains the target. This repository begins with one executable slice; it does not claim the full recommendation engine is built.
 
