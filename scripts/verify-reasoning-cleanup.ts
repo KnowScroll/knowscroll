@@ -27,8 +27,11 @@ const allowedCleanupErrors = new Set([
   'child_stop_failed',
   'process_group_cleanup_failed',
   'pool_close_failed',
+  'pool_disconnect_failed',
   'database_still_present',
-  'database_drop_failed',
+  'database_drop_graceful_failed',
+  'database_drop_force_failed',
+  'database_verify_failed',
   'admin_close_failed',
   'temporary_directory_cleanup_failed',
   'process_group_still_present',
@@ -44,11 +47,12 @@ type Manifest = {
     phase: unknown;
     secondaryConditions: unknown;
     cleanupErrors: unknown;
+    poolError?: unknown;
   };
   cleanupStage?: unknown;
 };
 const allowedCleanupStages = new Set([
-  'children', 'pool', 'database', 'admin', 'temporary_directory', 'complete',
+  'children', 'pool', 'pool_disconnect', 'database', 'admin', 'temporary_directory', 'complete',
 ]);
 const stderrSignatures = [
   ['node_unhandled_error_event', /Unhandled 'error' event/],
@@ -127,7 +131,25 @@ function sanitizedDiagnostic(manifest: Manifest | undefined, exit: {code: number
   const cleanupErrorsValid = Array.isArray(raw?.cleanupErrors)
     && raw.cleanupErrors.length <= allowedCleanupErrors.size
     && raw.cleanupErrors.every(value => typeof value === 'string' && allowedCleanupErrors.has(value));
-  const classification = classificationValid && cleanupErrorsValid
+  const hasPoolCondition = raw?.classification === 'pool_runtime_error'
+    || (Array.isArray(raw?.secondaryConditions) && raw.secondaryConditions.some(condition =>
+      condition && typeof condition === 'object' && !Array.isArray(condition)
+      && (condition as Record<string, unknown>).classification === 'pool_runtime_error'));
+  const poolError = raw?.poolError;
+  const poolErrorValid = !hasPoolCondition
+    ? poolError === undefined
+    : Boolean(poolError && typeof poolError === 'object' && !Array.isArray(poolError)
+      && Object.keys(poolError).length === 4
+      && ((poolError as Record<string, unknown>).origin === 'db_pool'
+        || (poolError as Record<string, unknown>).origin === 'admin_client')
+      && (poolError as Record<string, unknown>).phase !== undefined
+      && (allowedFailurePhases as readonly unknown[]).includes((poolError as Record<string, unknown>).phase)
+      && typeof (poolError as Record<string, unknown>).cleanupStage === 'string'
+      && ((poolError as Record<string, unknown>).cleanupStage === 'not_started'
+        || allowedCleanupStages.has((poolError as Record<string, unknown>).cleanupStage as string))
+      && ((poolError as Record<string, unknown>).sqlState === '57P01'
+        || (poolError as Record<string, unknown>).sqlState === 'unknown'));
+  const classification = classificationValid && cleanupErrorsValid && poolErrorValid
     ? raw!.classification as RunnerFailureClassification
     : raw !== undefined
       ? 'invalid_runner_diagnostic'
@@ -144,7 +166,8 @@ function sanitizedDiagnostic(manifest: Manifest | undefined, exit: {code: number
   const cleanupStage = typeof manifest?.cleanupStage === 'string'
     && allowedCleanupStages.has(manifest.cleanupStage) ? manifest.cleanupStage
       : manifest?.cleanupStage === undefined ? 'unavailable' : 'invalid';
-  return {classification, phase, secondaryConditions, cleanupErrors, cleanupStage};
+  return {classification, phase, secondaryConditions, cleanupErrors, cleanupStage,
+    poolError: poolErrorValid ? poolError ?? null : 'invalid'};
 }
 function validManifestIdentity(manifest: Manifest | undefined, runnerPid: number | undefined, database: URL) {
   return Boolean(manifest && typeof manifest.database?.name === 'string' && Array.isArray(manifest.processes)

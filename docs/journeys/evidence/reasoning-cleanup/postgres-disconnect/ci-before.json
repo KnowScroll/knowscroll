@@ -1,0 +1,37 @@
+{
+  "issue": 70,
+  "run": "https://github.com/KnowScroll/knowscroll/actions/runs/35119384841",
+  "head": "429d3127291450469a1e1899ed14e290aafe1f16",
+  "diagnostic": {
+    "error": "retirement_journey_failed",
+    "failureCode": "pool_error",
+    "stage": "source_evidence",
+    "cleanup": true,
+    "cleanupFailures": [],
+    "childExit": {
+      "code": 0,
+      "signal": null
+    },
+    "childClose": {
+      "code": 0,
+      "signal": null
+    },
+    "childClosed": true,
+    "stoppedEvent": true,
+    "stderrObserved": false,
+    "interrupted": false,
+    "unexpectedPoolError": true,
+    "childFailure": false,
+    "batches": 2
+  },
+  "extractedFrom": "gh run view35119384841 --log-failed",
+  "limits": [
+    "Original error origin, SQLSTATE and exact phase were not retained.",
+    "Confirms pool error flag; does not establish its precise cause.",
+    "Three older opaque shutdown failures remain separately retained."
+  ],
+  "installedDependencyVersions": {
+    "pg-pool": "3.14.0",
+    "pg": "8.23.0"
+  }
+}
