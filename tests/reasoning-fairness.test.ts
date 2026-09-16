@@ -142,3 +142,105 @@ test('expired work is recorded before a saturated physical gate can hide it', ()
   const result = scheduleTick(policy, enqueue(policy, state, {...candidate('late', 'w'), deadline: 10}), {now: 20});
   assert.ok(result.decisions.some(d => d.kind === 'deadline_missed' && d.attemptId === 'attempt-late'));
 });
+
+test('an unfinished inner turn survives an outer spend cap without another quantum', () => {
+  const policy = abundantPolicy();
+  let state = createSnapshot(policy);
+  for (let i = 0; i < 14; i++) state = enqueue(policy, state, candidate(`inner-${i}`, 'u', 'accumulated_interpretation', 40));
+  const admitted = [] as Array<{ innerGeneration?: number; visitGeneration?: number }>;
+  let creditBeforeBoundary = 0;
+  for (let i = 0; i < 13; i++) {
+    if (i === 12) creditBeforeBoundary = state.universeLanes['accumulated_interpretation:u']!.credit;
+    const result = scheduleTick(policy, state, {maxAdmissionsPerTick: 1, maxScanPerTick: 128});
+    state = result.snapshot;
+    const selection = result.decisions.find(d => d.kind === 'admitted')!;
+    admitted.push(selection);
+    state = settle(policy, state, selection.attemptId!, {
+      receiptId: `inner-refund-${i}`, actual: {tokens: 1, budget: 1, rate: 1}, terminal: true,
+    }).snapshot;
+  }
+  // Capped class spend is 500; twelve C40 reservations spend 480. The
+  // third inner turn has spent only 80 of its 200 allowance, so it resumes
+  // after the outer turn changes. Its credit must not earn another quantum.
+  assert.ok(admitted[12]!.visitGeneration! > admitted[11]!.visitGeneration!);
+  assert.equal(admitted[12]!.innerGeneration, admitted[11]!.innerGeneration);
+  assert.equal(state.universeLanes['accumulated_interpretation:u']!.credit, creditBeforeBoundary - 1);
+});
+
+test('closed not_sent and terminal states cannot be reopened by a new receipt', () => {
+  const policy = abundantPolicy();
+  const base = scheduleTick(policy, enqueue(policy, createSnapshot(policy), candidate('closed', 'u'))).snapshot;
+  const notSent = settle(policy, base, 'attempt-closed', {receiptId: 'ns', actual: {}, outcome: 'not_sent'}).snapshot;
+  for (const outcome of ['consumed', 'unknown', 'terminal'] as const) {
+    const result = settle(policy, notSent, 'attempt-closed', {receiptId: `bad-${outcome}`, actual: {}, outcome});
+    assert.equal(result.snapshot.reservations['attempt-closed']!.status, 'not_sent');
+    assert.equal(result.snapshot.reservations['attempt-closed']!.settledCharge, 0);
+    assert.equal(result.snapshot.reservations['attempt-closed']!.frozen, true);
+  }
+  const terminal = settle(policy, base, 'attempt-closed', {receiptId: 'terminal', actual: {}, terminal: true}).snapshot;
+  const contradicted = settle(policy, terminal, 'attempt-closed', {receiptId: 'consumed-again', actual: {}, outcome: 'consumed'});
+  assert.equal(contradicted.snapshot.reservations['attempt-closed']!.status, 'terminal');
+  assert.equal(contradicted.snapshot.reservations['attempt-closed']!.frozen, true);
+});
+
+test('policy binding applies to enqueue, settlement and rate rollover as well as selection', () => {
+  const policy = abundantPolicy();
+  const base = scheduleTick(policy, enqueue(policy, createSnapshot(policy), candidate('bound', 'u'))).snapshot;
+  const changed = {...policy, scale: 50};
+  assert.throws(() => enqueue(changed, base, candidate('new', 'v')), /policy_version_mismatch/);
+  assert.throws(() => settle(changed, base, 'attempt-bound', {receiptId: 'r', actual: {}}), /policy_version_mismatch/);
+  assert.throws(() => rolloverRateWindow(changed, base), /policy_version_mismatch/);
+});
+
+test('late original-window usage does not consume renewed rate capacity or release budget uncertainty', () => {
+  const policy = fixturePolicy({physical: [
+    {key: 'budget', kind: 'budget', capacity: 1000},
+    {key: 'rate', kind: 'rate', capacity: 100},
+    {key: 'remote', kind: 'remote', capacity: 2},
+  ]});
+  let state = scheduleTick(policy, enqueue(policy, createSnapshot(policy), candidate('old-window', 'a', 'interactive', 100))).snapshot;
+  state = settle(policy, state, 'attempt-old-window', {receiptId: 'old-terminal', actual: {}, terminal: true}).snapshot;
+  state = rolloverRateWindow(policy, state);
+  state = settle(policy, state, 'attempt-old-window', {receiptId: 'late-usage', actual: {tokens: 80, rate: 80}}).snapshot;
+  assert.equal(state.reservations['attempt-old-window']!.rateWindowId, 0);
+  assert.equal(state.rateWindowId, 1);
+  assert.equal(state.reservations['attempt-old-window']!.actual.budget, undefined);
+  state = enqueue(policy, state, candidate('new-window', 'b', 'interactive', 100));
+  state = scheduleTick(policy, state).snapshot;
+  assert.ok(state.reservations['attempt-new-window']);
+});
+
+test('virtual time cannot regress or disappear between ticks, and empty probes count', () => {
+  const policy = abundantPolicy();
+  let state = enqueue(policy, createSnapshot(policy), {...candidate('delayed', 'u', 'housekeeping'), notBefore: 10});
+  const first = scheduleTick(policy, state, {now: 5, maxScanPerTick: 1});
+  state = first.snapshot;
+  assert.equal(state.classCursor, 1);
+  assert.ok(first.decisions.some(d => d.kind === 'scan_exhausted'));
+  assert.throws(() => scheduleTick(policy, state, {now: 4}), /clock_regression/);
+  assert.throws(() => scheduleTick(policy, state, {now: Number.NaN}), /invalid_now/);
+  state = scheduleTick(policy, state).snapshot;
+  assert.equal(state.now, 5);
+  assert.equal(state.reservations['attempt-delayed'], undefined);
+});
+
+test('refund caps record discarded credit and do not bank a second windfall', () => {
+  const policy = abundantPolicy();
+  let state = createSnapshot(policy);
+  for (let i = 0; i < 7; i++) state = enqueue(policy, state, candidate(`cap-${i}`, 'u', 'interactive', 100));
+  state = scheduleTick(policy, state, {maxAdmissionsPerTick: 16, maxScanPerTick: 128}).snapshot;
+  state = scheduleTick(policy, state).snapshot; // Empty lanes drop positive idle credit.
+  let classDiscarded = 0, universeDiscarded = 0;
+  for (let i = 0; i < 7; i++) {
+    const result = settle(policy, state, `attempt-cap-${i}`, {
+      receiptId: `cap-refund-${i}`, actual: {tokens: 1, budget: 1, rate: 1}, terminal: true,
+    });
+    state = result.snapshot;
+    classDiscarded += result.decisions[0]!.classRefundDiscarded!;
+    universeDiscarded += result.decisions[0]!.universeRefundDiscarded!;
+  }
+  assert.equal(state.classLanes.interactive.credit, 600);
+  assert.equal(state.universeLanes['interactive:u']!.credit, 200);
+  assert.equal(classDiscarded, 93);
+  assert.equal(universeDiscarded, 493);
+});

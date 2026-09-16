@@ -113,6 +113,23 @@ const traces: ReturnType<Scenario['finish']>[] = [];
   traces.push(s.finish());
 }
 {
+  const s = new Scenario('sustained-unequal-universe-cost');
+  s.add(...jobs('small-cost-', 200, 'a-small', 'interactive', 40),
+    ...jobs('large-cost-', 80, 'b-large', 'interactive', 100));
+  const totals: Record<string, number> = { 'a-small': 0, 'b-large': 0 };
+  let maximumLead = 0;
+  for (let tick = 0; tick < 80; tick++) {
+    const selection = admitted(s.tick({ maxAdmissionsPerTick: 1, maxScanPerTick: 128 }));
+    assert.equal(selection.length, 1);
+    const d = selection[0]!;
+    totals[d.universeId!]! += d.charge!;
+    maximumLead = Math.max(maximumLead, Math.abs(totals['a-small']! - totals['b-large']!));
+    assert.ok(maximumLead <= 200, `unequal-cost service diverged: ${JSON.stringify(totals)}`);
+  }
+  s.observe('80-unequal-cost-admissions-with-both-backlogged', { totals, maximumLead, bound: 200 });
+  traces.push(s.finish());
+}
+{
   const s = new Scenario('borrowing-then-renewed-demand');
   s.add(...jobs('borrow-', 80, 'borrower', 'background_inquiry', 20));
   assert.equal(admitted(s.tick({ maxAdmissionsPerTick: 10, maxScanPerTick: 128 })).length, 10);
@@ -185,10 +202,14 @@ const traces: ReturnType<Scenario['finish']>[] = [];
   const s = new Scenario('estimate-correction-and-overage');
   s.add(candidate('under', 'under', 'interactive', 20));
   s.tick({ maxAdmissionsPerTick: 1 });
-  const receipt: Receipt = { receiptId: 'actual-90', actual: { tokens: 90, budget: 90, rate: 90 }, terminal: true };
+  const receipt: Receipt = { receiptId: 'actual-150', actual: { tokens: 150, budget: 150, rate: 150 }, terminal: true };
   s.receipt('attempt-under', receipt);
-  assert.equal(s.state.reservations['attempt-under']!.settledCharge, 90);
+  assert.equal(s.state.reservations['attempt-under']!.settledCharge, 150);
   assert.ok(s.state.pausedDimensions.includes('budget'));
+  assert.ok(s.state.universeLanes['interactive:under']!.credit < 0);
+  const debt = s.state.universeLanes['interactive:under']!.credit;
+  s.tick();
+  assert.equal(s.state.universeLanes['interactive:under']!.credit, debt, 'idle cannot erase overage debt');
   const before = snapshotHash(s.state);
   s.receipt('attempt-under', receipt);
   assert.equal(snapshotHash(s.state), before);
