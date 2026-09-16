@@ -398,6 +398,9 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         if (input.inputTokensUpperBound > policy.maxInputTokens || input.maxOutputTokens > policy.maxOutputTokens) deny('policy_limit_exceeded');
         const buckets = await lockPolicyBuckets(client, policy);
         assertBucketBindings(policy, buckets);
+        if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: input.contextId, policyVersion: job.policy_version})) {
+          deny('stale_context');
+        }
         const stillCurrent = await client.query(
           `SELECT 1 FROM reasoning_job WHERE id=$1 AND status='running' AND lease_owner=$2 AND lease_fence=$3::bigint
            AND lease_expires_at>clock_timestamp() AND deadline>clock_timestamp() AND $4::timestamptz>clock_timestamp()`,
@@ -547,6 +550,9 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
         }
         const buckets = await lockPolicyBuckets(client, policy);
         assertBucketBindings(policy, buckets);
+        if (!await authority.validateContext(client, {...scope, stepId: input.stepId, contextId: attemptRow.context_id, policyVersion: job.policy_version})) {
+          deny('stale_context');
+        }
         const stillAuthorized = await client.query(
           `SELECT 1 FROM reasoning_job j JOIN reasoning_permit p ON p.attempt_id=$4
            JOIN reasoning_accounting a ON a.attempt_id=$4
@@ -753,7 +759,10 @@ export function createReasoningAdmission(db: pg.Pool, authority: ReasoningAuthor
           [input.attemptId, withdrawOutput],
         );
         if (accounting.rowCount !== 1) deny('attempt_not_dispatched');
-        if (currentLease) {
+        const mayChangePrivateCheckpoint = currentLease
+          && ['running', 'waiting'].includes(job.status)
+          && ['active', 'awaiting_reconciliation'].includes(step.rows[0].status);
+        if (mayChangePrivateCheckpoint) {
           await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [input.attemptId]);
           await client.query("UPDATE reasoning_step SET status='awaiting_reconciliation' WHERE id=$1", [input.stepId]);
           await client.query("UPDATE reasoning_job SET status='waiting' WHERE id=$1 AND status='running'", [input.jobId]);
