@@ -45,12 +45,62 @@ test('Ask validator fails closed on malformed seals and changed literal source',
    const graph=await seedAskContextGraph(pool);
    await compileAsk(pool,graph);
    const stepId=await attachPendingStep(pool,graph);
-   await pool.query("UPDATE ledger SET payload=jsonb_set(payload,'{question}',to_jsonb('rewritten'::text)) WHERE id=$1",[graph.askEventId]);
+   await assert.rejects(pool.query("UPDATE ledger SET payload=jsonb_set(payload,'{question}',to_jsonb('rewritten'::text)) WHERE id=$1",[graph.askEventId]),/immutable/);
+   await pool.query('ALTER TABLE ledger DISABLE TRIGGER ask_ledger_no_update');
+   try {
+    await pool.query("UPDATE ledger SET payload=jsonb_set(payload,'{question}',to_jsonb('rewritten'::text)) WHERE id=$1",[graph.askEventId]);
+   } finally { await pool.query('ALTER TABLE ledger ENABLE TRIGGER ask_ledger_no_update'); }
    const changedAsk=await inTransaction(pool,async client=>{
     await lockForValidation(client,graph,stepId);
     return validateDirectAskContext(client,scope(graph,stepId),resolverFor(graph),'lock');
    });
    assert.deepEqual(changedAsk,{valid:false,reason:'stale_lineage'});
+  });
+ });
+});
+
+test('Ask validator rejects surgery on every sealed storage representation',async t=>{
+ for(const variant of ['missing_dependency','extra_dependency','changed_dependency','payload','metadata_hash'] as const) await t.test(variant,async()=>{
+  await withReasoningContextSchema(`ask_seal_${variant}`,async pool=>{
+   const graph=await seedAskContextGraph(pool);
+   await compileAsk(pool,graph);
+   const stepId=await attachPendingStep(pool,graph);
+   if(variant==='missing_dependency') {
+    await assert.rejects(pool.query('DELETE FROM reasoning_context_dependency WHERE context_id=$1',[graph.contextId]),/sealed/i);
+    await pool.query('ALTER TABLE reasoning_context_dependency DISABLE TRIGGER reasoning_context_dependency_guard');
+    try { await pool.query('DELETE FROM reasoning_context_dependency WHERE context_id=$1',[graph.contextId]); }
+    finally { await pool.query('ALTER TABLE reasoning_context_dependency ENABLE TRIGGER reasoning_context_dependency_guard'); }
+   }
+   if(variant==='extra_dependency') {
+    await pool.query('ALTER TABLE reasoning_context_dependency DISABLE TRIGGER reasoning_context_dependency_guard');
+    try { await pool.query(`INSERT INTO reasoning_context_dependency(context_id,universe_id,privacy_epoch,identity,canonical_dependency)
+      VALUES($1,$2,0,'extra:tamper','{}')`,[graph.contextId,graph.scope.universeId]); }
+    finally { await pool.query('ALTER TABLE reasoning_context_dependency ENABLE TRIGGER reasoning_context_dependency_guard'); }
+   }
+   if(variant==='changed_dependency') {
+    const original=(await pool.query<{canonical_dependency:string}>('SELECT canonical_dependency FROM reasoning_context_dependency WHERE context_id=$1 ORDER BY identity LIMIT 1',[graph.contextId])).rows[0]!;
+    const changed={...JSON.parse(original.canonical_dependency),hash:'b'.repeat(64)};
+    await pool.query('ALTER TABLE reasoning_context_dependency DISABLE TRIGGER reasoning_context_dependency_guard');
+    try { await pool.query('UPDATE reasoning_context_dependency SET canonical_dependency=$2 WHERE context_id=$1',[graph.contextId,JSON.stringify(changed)]); }
+    finally { await pool.query('ALTER TABLE reasoning_context_dependency ENABLE TRIGGER reasoning_context_dependency_guard'); }
+   }
+   if(variant==='payload') {
+    await assert.rejects(pool.query('UPDATE reasoning_context_payload SET canonical_payload=$2 WHERE context_id=$1',[graph.contextId,'{}']),/sealed/i);
+    await pool.query('ALTER TABLE reasoning_context_payload DISABLE TRIGGER reasoning_context_payload_guard');
+    try { await pool.query('UPDATE reasoning_context_payload SET canonical_payload=$2 WHERE context_id=$1',[graph.contextId,'{}']); }
+    finally { await pool.query('ALTER TABLE reasoning_context_payload ENABLE TRIGGER reasoning_context_payload_guard'); }
+   }
+   if(variant==='metadata_hash') {
+    await assert.rejects(pool.query('UPDATE reasoning_context SET content_hash=$2 WHERE id=$1',[graph.contextId,'b'.repeat(64)]),/immutable/i);
+    await pool.query('ALTER TABLE reasoning_context DISABLE TRIGGER reasoning_context_guard');
+    try { await pool.query('UPDATE reasoning_context SET content_hash=$2 WHERE id=$1',[graph.contextId,'b'.repeat(64)]); }
+    finally { await pool.query('ALTER TABLE reasoning_context ENABLE TRIGGER reasoning_context_guard'); }
+   }
+   const result=await inTransaction(pool,async client=>{
+    await lockForValidation(client,graph,stepId);
+    return validateDirectAskContext(client,scope(graph,stepId),resolverFor(graph),'lock');
+   });
+   assert.deepEqual(result,{valid:false,reason:'corrupt_seal'});
   });
  });
 });
