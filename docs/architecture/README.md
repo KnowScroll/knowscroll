@@ -41,7 +41,7 @@ The [machine-readable component map](component-map.json) and table below describ
 | Cutroom Adapter | External run reconciliation and asset import | Port only; upstream exists |
 | Projector / Social | Authorized projections, visits and Blend | Planned |
 | Rooms / Inhabitants | Bounded situated collaboration | Planned |
-| Evaluation / Operations | Journey receipts, quality and current runtime inspection | J001, J002 session/epoch journey and live state command |
+| Evaluation / Operations | Journey receipts, quality and current runtime inspection | J001, J002 sessions/epochs, J003 history clear and live state command |
 
 ## Full target and current implementation
 
@@ -49,6 +49,6 @@ The [target design](target/README.md) retains the complete recommendation engine
 
 Current code has one PostgreSQL database, two Node processes and one Android application. API requests never invoke a provider. A keep admits a source event and job atomically. The short worker transaction records an explicit Trace, updates Accounts and completes the job together. Replay cannot duplicate the kept asset. Composer persists candidate selection before the client reports actual exposure.
 
-[ADR-0009](../decisions/0009-device-sessions-and-privacy-epochs.md) adds private per-session universe ownership. Authentication, revocation and deterministic projection use universe-first locking. Old-epoch jobs are discarded without projection; a busy universe does not block another ready universe. This is a privacy fence, not an implemented clear/delete/pause workflow or the target semantic read-set protocol.
+[ADR-0009](../decisions/0009-device-sessions-and-privacy-epochs.md) adds private per-session universe ownership. Authentication, revocation and deterministic projection use universe-first locking. Old-epoch jobs are discarded without projection; a busy universe does not block another ready universe. [ADR-0010](../decisions/0010-clear-scroll-history.md) adds retryable Clear Scroll history and Android cache invalidation. Full account deletion, backup erasure, pause and semantic read sets remain separate future scope.
 
 The target provider lifecycle is Job → Step → Attempt → Proposal → validation → apply. Every paid request requires its own Attempt before dispatch. Context read sets and privacy/source/policy versions reject stale results. Neither database leasing nor SDK retries imply exactly-once paid execution. These are target contracts, not hidden capabilities of the bootstrap worker.
