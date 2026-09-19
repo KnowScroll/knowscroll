@@ -1,6 +1,6 @@
 {
   "repository": "KnowScroll/Cutroom",
-  "revision": "238df85411108a94377311363dd296d785688f70",
+  "revision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
   "wireVersion": 1,
   "files": [
     {
@@ -26,7 +26,7 @@
     {
       "path": "record.ts",
       "upstreamPath": "packages/reel-contract/src/record.ts",
-      "sha256": "04cafb52da57154198fdc2aef26b0da3846e128682414415b36439914a5cfa01"
+      "sha256": "057d30f0681c47fe227124c1e4c3f41b71f2756350b99103dfa450536b08a410"
     },
     {
       "path": "routes.ts",

@@ -31,3 +31,19 @@ No new paid-call ceiling was supplied. Main `.env` contains configured names `MI
 and `FAL_AI_KEY`; `CUTROOM_BASE_URL` is blank. Values were not printed or copied to worker lanes.
 See [Cutroom local handoff](cutroom-local-handoff.md), [cleanup inventory](worktrees.md) and
 [runtime evidence](../journeys/evidence/claude-handoff/README.md).
+
+## September 20 — Claude Code coordinator, wave 1 (#89)
+
+Owner decisions: KnowScroll does **not** modify or develop Cutroom and integrates only against its
+published reel-contract; a live test (≤ $2 total) waits until upstream ships real providers; H3 is
+fal MiniMax H3 Max, used only by Cutroom; desktop is a TypeScript web app (ADR-0022, #92).
+
+| Change | Problem and delivered consequence | Remaining boundary |
+|---|---|---|
+| #89 (this PR) | Upstream `86d6e2c` made `RunRecord.takes` required; client repinned with strict tests. KnowScroll-owned `ops/cutroom-host/` runs pinned upstream API/worker as separate SSD processes (stand-ins + ffmpeg); 12-scenario joined proof against real service/SQLite | No real providers, import, publication, playback or product dispatch; proof not in CI |
+
+Workers: Claude Code Sonnet (`claude-sonnet-5`, forced via `CLAUDE_CODE_SUBAGENT_MODEL`) for host,
+proof (two phases) and independent review; coordinator Opus reproduced self-check, joined proof and
+the full backend suite on the integration head. Upstream's own suite shows 16 deterministic macOS
+failures at the pin (recorded, not filed upstream per owner). Measured workflow usage: 4 agents,
+~1.31 M subagent tokens, ~3 h wall time.

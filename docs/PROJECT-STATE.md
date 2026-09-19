@@ -45,6 +45,8 @@ Owner decision, 2026-09-16: **v1 requires the entire documented user experience,
 
 - [Pinned Cutroom HTTP client #86](operations/cutroom-http-client.md) validates the current wire schema, original identity, stage/status/cursors and bounded loopback transport. Thirty local HTTP checks, separate synthetic caller/server restarts and474 backend tests passed. No automatic resubmission, real Cutroom call, asset import, publication or product generation loop is implemented.
 
+- [Local Cutroom service boundary #89](journeys/evidence/cutroom-local/README.md) repins the client to upstream `86d6e2c` (required `RunRecord.takes`; [ADR-0021](decisions/0021-cutroom-successor-pin-and-local-host.md)) and adds a KnowScroll-owned SSD operator host that runs the pinned upstream API and worker as separate processes with upstream stand-ins. The real client passed 12 joined scenarios against that service and SQLite, including lost-response reconciliation, restart/crash recovery, cancellation and a completed stand-in video. Real providers, import, publication and playback remain open; KnowScroll does not modify Cutroom and live spend (≤$2) waits for upstream providers.
+
 ## What is not built
 
 The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, production reasoning admission/dispatch, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. The MiniMax adapter is certified only for the bounded development cases below. The ordinary ReasoningProvider remains unready, and Cutroom has only an unwired HTTP client plus an unimplemented import port.

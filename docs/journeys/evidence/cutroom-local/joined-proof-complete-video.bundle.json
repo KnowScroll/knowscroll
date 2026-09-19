@@ -1,0 +1,837 @@
+{
+  "label": "upstream test-support stand-in script — a complete video run (THREE_RANKS)",
+  "cutroomRevision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+  "sourceFiles": [
+    {
+      "path": "tests/engine/harness.ts",
+      "sha256": "37f82ebacf9e1d0b3bc29960dc390015e4d27b5ef4ec62e54d45bc08f349fd0a"
+    },
+    {
+      "path": "tests/engine/plans.ts",
+      "sha256": "d17e6453d6161bd9d0e5d13d5f6d928894872418946f5486dc8e5de1d63a7cd8"
+    },
+    {
+      "path": "tests/engine/stills.ts",
+      "sha256": "4740a83e9bc8f4e726edabb1a6af19530b1b151d5bfd9bb5f30a2ae767147960"
+    },
+    {
+      "path": "tests/engine/video.ts",
+      "sha256": "f36c098142c982e6275ad8b4935d358df7a47eb183d8d18d760d6fcabfd7dbe0"
+    }
+  ],
+  "builders": [
+    "videoRequest",
+    "videoScript",
+    "THREE_RANKS",
+    "THREE_RANKS_PICS"
+  ],
+  "request": {
+    "contractVersion": 1,
+    "requestId": "wave1-proof-complete-video",
+    "worldId": "world-1",
+    "narration": [
+      {
+        "text": "In 1215 a charter was sealed at Runnymede.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "It bound a king to the law of the land.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "The barons who forced it were not democrats.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "They wanted their own privileges back.",
+        "claimIds": []
+      },
+      {
+        "text": "Within weeks the pope annulled it.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "Yet it was reissued three times.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Each reissue shortened it.",
+        "claimIds": []
+      },
+      {
+        "text": "Three of its clauses are still law in England today.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "supporting"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "main"
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-seal",
+          "text": "a wax seal on parchment",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-pressing",
+          "text": "the seal being pressed into hot wax",
+          "type": "event",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-crowd",
+          "text": "armed men gathered together",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-law",
+          "text": "a printed statute book",
+          "type": "presence",
+          "claimId": "c4"
+        },
+        {
+          "id": "show-meadow",
+          "text": "a meadow beside a river",
+          "type": "presence"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "any real living person",
+          "type": "presence"
+        },
+        {
+          "id": "never-flag",
+          "text": "a modern flag",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-1",
+      "version": 2,
+      "text": "quiet, precise, natural light"
+    },
+    "options": {
+      "until": "video",
+      "budgetCents": 300
+    }
+  },
+  "standin": {
+    "model": {
+      "planner": [
+        {
+          "value": {
+            "shots": [
+              {
+                "unit": 0,
+                "durationSeconds": 13,
+                "subjectIds": []
+              },
+              {
+                "unit": 1,
+                "durationSeconds": 13,
+                "subjectIds": []
+              },
+              {
+                "unit": 2,
+                "durationSeconds": 12,
+                "subjectIds": []
+              },
+              {
+                "unit": 3,
+                "durationSeconds": 12,
+                "subjectIds": []
+              }
+            ],
+            "subjects": []
+          }
+        },
+        {
+          "value": {
+            "shots": [
+              {
+                "unit": 0,
+                "durationSeconds": 7,
+                "subjectIds": [
+                  "seal"
+                ]
+              },
+              {
+                "unit": 1,
+                "durationSeconds": 7,
+                "subjectIds": [
+                  "barons"
+                ]
+              },
+              {
+                "unit": 2,
+                "durationSeconds": 7,
+                "subjectIds": [
+                  "seal",
+                  "hall"
+                ]
+              },
+              {
+                "unit": 3,
+                "durationSeconds": 7,
+                "subjectIds": [
+                  "barons"
+                ]
+              },
+              {
+                "unit": 4,
+                "durationSeconds": 6,
+                "subjectIds": [
+                  "seal"
+                ]
+              },
+              {
+                "unit": 5,
+                "durationSeconds": 6,
+                "subjectIds": [
+                  "hall"
+                ]
+              }
+            ],
+            "subjects": [
+              {
+                "id": "seal",
+                "name": "a wax seal"
+              },
+              {
+                "id": "barons",
+                "name": "the barons"
+              },
+              {
+                "id": "hall",
+                "name": "a stone hall"
+              }
+            ]
+          }
+        }
+      ],
+      "witness": [
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a round red disc on cream paper",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a round red disc on cream paper",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "men in mail coats",
+                "count": 3,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a round red disc on cream paper",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              },
+              {
+                "label": "a long grey room with arches",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a round red disc on cream paper",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": [],
+            "actions": [],
+            "eventOrder": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "men in mail coats",
+                "count": 3,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": [],
+            "actions": [],
+            "eventOrder": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a round red disc on cream paper",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              },
+              {
+                "label": "a long grey room with arches",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": [],
+            "actions": [],
+            "eventOrder": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "men in mail coats",
+                "count": 3,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": [],
+            "actions": [],
+            "eventOrder": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a round red disc on cream paper",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": [],
+            "actions": [],
+            "eventOrder": []
+          }
+        },
+        {
+          "value": {
+            "entities": [
+              {
+                "label": "a long grey room with arches",
+                "count": 1,
+                "position": "centre",
+                "prominence": "foreground",
+                "faceVisible": "noFace",
+                "occluded": false,
+                "clippedByEdge": false
+              }
+            ],
+            "framing": "medium",
+            "setting": "a dim stone interior",
+            "lighting": "dim",
+            "readableTextPresent": false,
+            "ambiguities": [],
+            "unsafeDepictions": [],
+            "actions": [],
+            "eventOrder": []
+          }
+        }
+      ],
+      "reconciler": [
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "seal",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-seal",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "seal",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-seal",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "barons",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-crowd",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "seal",
+                "entity": 0,
+                "countMatches": true
+              },
+              {
+                "id": "hall",
+                "entity": 1,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "seal",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-seal",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "show-pressing",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "show-meadow",
+                "shown": true,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "barons",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-crowd",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "show-meadow",
+                "shown": true,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "seal",
+                "entity": 0,
+                "countMatches": true
+              },
+              {
+                "id": "hall",
+                "entity": 1,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "show-meadow",
+                "shown": true,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "barons",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-crowd",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "show-meadow",
+                "shown": true,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "seal",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "show-meadow",
+                "shown": true,
+                "entity": null
+              }
+            ]
+          }
+        },
+        {
+          "value": {
+            "subjects": [
+              {
+                "id": "hall",
+                "entity": 0,
+                "countMatches": true
+              }
+            ],
+            "criteria": [
+              {
+                "id": "show-law",
+                "shown": true,
+                "entity": 0
+              },
+              {
+                "id": "never-person",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "never-flag",
+                "shown": false,
+                "entity": null
+              },
+              {
+                "id": "show-meadow",
+                "shown": true,
+                "entity": null
+              }
+            ]
+          }
+        }
+      ],
+      "judge": [
+        {
+          "value": {
+            "answers": [
+              {
+                "question": "Are the shots in a sensible order?",
+                "answer": "yes"
+              },
+              {
+                "question": "Does the pacing work?",
+                "answer": "yes"
+              },
+              {
+                "question": "Does every shot sit well beside the shot that follows it?",
+                "answer": "yes"
+              },
+              {
+                "question": "Do the burned captions follow the narration?",
+                "answer": "yes"
+              },
+              {
+                "question": "Does every shot show something no other shot repeats?",
+                "answer": "yes"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "images": {},
+    "sensors": {},
+    "video": {},
+    "narration": {},
+    "media": {}
+  },
+  "notes": "Every take passes every gate (2-5) on its first attempt and Gate 7 accepts the cut, so the run's record lists six takes, all used:true (upstream tests/reel-takes-record.test.ts, \"a completed video run\")."
+}
