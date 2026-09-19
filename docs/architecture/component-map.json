@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-09-16",
+  "updated": "2026-09-19",
   "note": "Paths are ownership roots, not proof every target module exists. No separate service is implied.",
   "components": [
     {
@@ -84,7 +84,7 @@
       "component": "Cutroom Adapter",
       "responsibility": "External HTTP runs and verified asset import",
       "path": "apps/worker/src/cutroom",
-      "status": "port-only",
+      "status": "pinned-http-client-fixture-verified-no-import-or-product-dispatch",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/9"
     },
     {

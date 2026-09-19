@@ -1,6 +1,6 @@
 # ADR-0020 — Pinned, unwired Cutroom HTTP client
 
-Date:2026-09-19. Status: accepted for#86 after independent MiniMax M3 review of4e6aeb8 and the explicit dispositions below; implementation proof remains pending. Extends ADR0007's source pin without changing its separate-service or publication ownership.
+Date:2026-09-19. Status: accepted for#86 after independent MiniMax M3 review of4e6aeb8 and the explicit dispositions below; implementation proof is recorded in the linked evidence. Extends ADR0007's source pin without changing its separate-service or publication ownership.
 
 ## Scope and reference
 
@@ -31,3 +31,7 @@ Real local HTTP tests exercise each route/status/result variant, replay and requ
 ## Independent design disposition
 
 MiniMax M3 accepted the core boundary and requested explicit error pairs,409 interpretation, local variation refusal and stable replay bytes. These are stated above. The reviewed server passes original text into submitRun, but this audit did not inspect its comparison algorithm; the reviewer's claim of a raw-text equality check is not established. Likewise, a finished status without a stored result is allowed by the wire shape/handler, not demonstrated as an actual engine interleaving. The client accepts the declared409 shape without claiming that runtime race exists.
+
+## Implementation evidence
+
+The [operations guide](../operations/cutroom-http-client.md) and [HTTP/restart evidence](../journeys/evidence/cutroom-http/README.md) record the unwired implementation,474 backend tests,30 local HTTP checks and separate caller/stand-in restarts. No live Cutroom, provider, host import or product persistence claim follows.

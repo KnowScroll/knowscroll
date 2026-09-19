@@ -1,0 +1,65 @@
+{
+  "reviews": [
+    {
+      "runId": "20260919-211528-read-only-independent-de-3a55",
+      "model": "MiniMax-M3",
+      "revision": "4e6aeb8",
+      "scope": "proposed contract",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 28381,
+        "input": 6304,
+        "output": 17128,
+        "cache_read": 4949,
+        "total": 28381,
+        "cost_usd": 0.022742
+      }
+    },
+    {
+      "runId": "20260919-212543-independent-implementati-25ea",
+      "model": "MiniMax-M3",
+      "revision": "b2e2179",
+      "scope": "client and HTTP tests",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 29176,
+        "input": 177,
+        "output": 11919,
+        "cache_read": 17080,
+        "total": 29176,
+        "cost_usd": 0.015381
+      }
+    },
+    {
+      "runId": "20260919-213254-continue-an-existing-del-eb37",
+      "model": "MiniMax-M3",
+      "revision": "30b3c58",
+      "scope": "separate-process fixture and CI",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 47909,
+        "input": 10094,
+        "output": 892,
+        "cache_read": 36923,
+        "total": 47909,
+        "cost_usd": 0.006314
+      }
+    }
+  ],
+  "disposition": "Accepted after coordinator source and runtime verification. Reviews are static; only the coordinator ran the accepted runtime checks.",
+  "clarifications": [
+    "Error statuses are enumerated per route;409 result/record accepts either declared RunStatus state as unavailable data.",
+    "Unsupported plan variation is refused locally. Submit reuses exact prepared bytes; no automatic retry follows a lost response or lookup404.",
+    "Upstream raw-text comparison and finished-without-result interleaving are not established by handler inspection.",
+    "The restart stand-in counts every repeated POST, but its replay/conflict branch is not exercised by that single-submit journey. Explicit byte-identical repeat is separately tested against the unit HTTP fixture.",
+    "Fixture persistence is not a product intent journal or upstream durability certificate."
+  ],
+  "dependencyEvidence": {
+    "localResolvedZod": "4.6.5",
+    "upstreamPackageRange": "^4.6.5",
+    "upstreamPackageUrl": "https://github.com/KnowScroll/Cutroom/blob/238df85411108a94377311363dd296d785688f70/packages/reel-contract/package.json"
+  }
+}
