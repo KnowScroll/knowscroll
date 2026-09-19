@@ -84,10 +84,10 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
    await pool.query('ALTER TABLE reasoning_job DISABLE TRIGGER reasoning_withdrawal_clock_guard');
    try {await pool.query("UPDATE reasoning_job SET withdrawn_at=clock_timestamp()-interval '168 hours'+interval '1 minute' WHERE id=$1",[graph.jobId]);}
    finally {await pool.query('ALTER TABLE reasoning_job ENABLE TRIGGER reasoning_withdrawal_clock_guard');}
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),{probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),{expiredJobs:0,probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,1);
    await ageWithdrawalForTest(pool,graph.jobId,168);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),{probes:1,retiredJobs:1,purgedAccounting:0,skipped:0});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),{expiredJobs:0,probes:2,retiredJobs:1,purgedAccounting:0,skipped:1});
   });
  });
 
@@ -96,8 +96,8 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
    const graph=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,graph.jobId);
    const [first,second]=await Promise.all([
-    createReasoningMaintenance(pool).runBatch({maxProbes:1}),
-    createReasoningMaintenance(pool).runBatch({maxProbes:1}),
+    createReasoningMaintenance(pool).runBatch({maxProbes:2}),
+    createReasoningMaintenance(pool).runBatch({maxProbes:2}),
    ]);
    assert.equal(first.retiredJobs+second.retiredJobs,1);
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.count,0);
@@ -110,17 +110,17 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
    const nonterminal=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,nonterminal.jobId);
    await pool.query("UPDATE reasoning_step SET status='pending' WHERE id=$1",[nonterminal.stepIds[0]]);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:1}),{probes:1,retiredJobs:0,purgedAccounting:0,skipped:1});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:2}),{expiredJobs:0,probes:2,retiredJobs:0,purgedAccounting:0,skipped:2});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[nonterminal.jobId])).rows[0]!.count,1);
 
    const ready=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,ready.jobId);await attachFairReady(pool,ready);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),{probes:3,retiredJobs:0,purgedAccounting:0,skipped:3});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:3}),{expiredJobs:0,probes:3,retiredJobs:0,purgedAccounting:0,skipped:3});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[ready.jobId])).rows[0]!.count,1);
 
    const active=await seedWithdrawnReasoningGraph(pool);
    await ageWithdrawalForTest(pool,active.jobId);await attachActiveAttempt(pool,active);
-   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:5}),{probes:5,retiredJobs:0,purgedAccounting:0,skipped:5});
+   assert.deepEqual(await createReasoningMaintenance(pool).runBatch({maxProbes:5}),{expiredJobs:0,probes:5,retiredJobs:0,purgedAccounting:0,skipped:5});
    assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[active.jobId])).rows[0]!.count,1);
   });
  });
@@ -135,8 +135,8 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
    try {
     await holder.query('BEGIN');
     await holder.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE',[locked.universeId]);
-    const result=await createReasoningMaintenance(pool).runBatch({maxProbes:3});
-    assert.deepEqual(result,{probes:3,retiredJobs:1,purgedAccounting:0,skipped:2});
+    const result=await createReasoningMaintenance(pool).runBatch({maxProbes:5});
+    assert.deepEqual(result,{expiredJobs:0,probes:5,retiredJobs:1,purgedAccounting:0,skipped:4});
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[locked.jobId])).rows[0]!.count,1);
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[open.jobId])).rows[0]!.count,0);
    } finally {await holder.query('ROLLBACK');holder.release();}
@@ -163,7 +163,7 @@ test('reasoning retirement adversarial SQL boundaries',async t=>{
       WHERE datname=current_database() AND state='active' AND wait_event_type='Lock' AND query LIKE '%DELETE FROM reasoning_context%'`)).rows[0]!.count)===1,'context delete lock');
     stop.abort();
     await holder.query('ROLLBACK');
-    assert.deepEqual(await pending,{probes:1,retiredJobs:1,purgedAccounting:0,skipped:0});
+    assert.deepEqual(await pending,{expiredJobs:0,probes:2,retiredJobs:1,purgedAccounting:0,skipped:1});
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[blocked.jobId])).rows[0]!.count,0);
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_job WHERE id=$1',[untouched.jobId])).rows[0]!.count,1);
    } finally {await holder.query('ROLLBACK');holder.release();}

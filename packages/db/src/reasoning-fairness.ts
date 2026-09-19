@@ -1,3 +1,4 @@
+import {expireIdleDirectJob} from './reasoning-idle-lifecycle.js';
 import {lockBoundContextSession} from './reasoning-context-session.ts';
 import type pg from 'pg';
 import {preflightAttemptInTransaction,reserveAttemptInTransaction,REASONING_ADMISSION_LIMITS,type ClaimJobInput,type ReserveAttemptInput,type ReservedAttempt} from './reasoning-admission.js';
@@ -84,7 +85,7 @@ async function bypass(client:pg.PoolClient,version:string,d:Discovery,remove=fal
  * full reservation and Attempt/Permit is in this same transaction. A no-credit
  * visit can commit its earned quantum, but only after all physical guards pass.
  */
-async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessScheduleInput,d:Discovery):Promise<{event:FairnessObservation;admitted?:Omit<FairnessScheduled,'observations'|'probes'>}>{
+async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessScheduleInput,d:Discovery):Promise<{event:FairnessObservation;terminalExpiry?:true;admitted?:Omit<FairnessScheduled,'observations'|'probes'>}>{
  return tx(db,async client=>{
   if(!d.universe){await lockCursor(client,input.policyVersion,d);d.lane.credit=String(BigInt(d.lane.credit)<0n?d.lane.credit:0);d.lane.remaining=null;closeInner(d);await save(client,input.policyVersion,d,true);return {event:observation(d,'no_candidate','empty_class')};}
   const domain=(await client.query<{privacy_epoch:number}>('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED',[d.universe.universe_id])).rows[0];
@@ -92,11 +93,41 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
   if(!d.ready){await lockCursor(client,input.policyVersion,d);await client.query('UPDATE reasoning_fairness_universe SET ready_count=0,credit=LEAST(credit,0),candidate_cursor=0 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,d.klass,d.universe.universe_id]);closeInner(d);await save(client,input.policyVersion,d);return {event:observation(d,'ineligible','empty_membership')};}
   // Original session precedes Job; dependency locks precede shared resources.
   await lockBoundContextSession(client,d.ready);
-  const job=(await client.query('SELECT class,status,privacy_epoch,deadline FROM reasoning_job WHERE id=$1 FOR UPDATE',[d.ready.jobId])).rows[0];
+  const job=(await client.query(`SELECT class,status,privacy_epoch,deadline,wake_kind,
+    deadline<=clock_timestamp() AS deadline_expired,
+    (lease_owner IS NOT NULL AND lease_expires_at>clock_timestamp()) AS healthy_lease
+    FROM reasoning_job WHERE id=$1 FOR UPDATE`,[d.ready.jobId])).rows[0];
   if(!job){deny('fairness_cas_retry');}
+  // Expiry uses the Job's own deadline and original binding, never a shorter
+  // request deadline or a stale discovery clock. This precedes shared locks.
+  const originalBinding=(await client.query(`SELECT 1 FROM reasoning_context_job_session
+    WHERE (job_id,universe_id,privacy_epoch)=($1,$2,$3)`,
+    [d.ready.jobId,d.ready.universeId,domain.privacy_epoch])).rowCount===1;
+  const boundDirect=job.wake_kind==='direct'&&originalBinding;
+  const currentScope=job.privacy_epoch===domain.privacy_epoch&&d.ready.privacyEpoch===domain.privacy_epoch;
+  if(boundDirect&&currentScope&&job.status==='queued'&&job.deadline_expired) {
+   if(job.healthy_lease) {
+    await lockCursor(client,input.policyVersion,d);await bypass(client,input.policyVersion,d);
+    return {event:observation(d,'temporarily_blocked','idle_healthy_lease')};
+   }
+   await client.query('SAVEPOINT idle_direct_expiry');
+   try {
+    await expireIdleDirectJob(client,{jobId:d.ready.jobId,universeId:d.ready.universeId,privacyEpoch:d.ready.privacyEpoch});
+    await client.query('RELEASE SAVEPOINT idle_direct_expiry');
+    return {event:observation(d,'ineligible','deadline_missed'),terminalExpiry:true};
+   } catch(error) {
+    // Only closed, permanent graph eligibility failures may advance this head.
+    // Authority/membership/CAS failures and SQL errors abort the whole probe.
+    if(!(error instanceof ReasoningDenied)||!['idle_graph_too_large','idle_incomplete_graph','idle_unsafe_attempt','idle_fence_overflow'].includes(error.code))throw error;
+    await client.query('ROLLBACK TO SAVEPOINT idle_direct_expiry');
+    await client.query('RELEASE SAVEPOINT idle_direct_expiry');
+    await lockCursor(client,input.policyVersion,d);await bypass(client,input.policyVersion,d);
+    return {event:observation(d,'ineligible',error.code)};
+   }
+  }
   if(job.class!==d.klass||job.status!=='queued'||domain.privacy_epoch!==d.ready.privacyEpoch||job.privacy_epoch!==domain.privacy_epoch||d.ready.deadlineMissed){
    await lockCursor(client,input.policyVersion,d);
-   if(d.ready.deadlineMissed&&job.status==='queued')await client.query("UPDATE reasoning_job SET status='expired' WHERE id=$1",[d.ready.jobId]);
+   if(d.ready.deadlineMissed&&job.status==='queued'&&!boundDirect)await client.query("UPDATE reasoning_job SET status='expired' WHERE id=$1",[d.ready.jobId]);
    await bypass(client,input.policyVersion,d,true);return {event:observation(d,'ineligible',d.ready.deadlineMissed?'deadline_missed':'stale_job')};
   }
   let locked=false;
@@ -169,7 +200,7 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    for(let probes=1;probes<=policy.maxProbes;probes++){
     const d=await discover(db,input.policyVersion);
     if(d.state.paused)return {kind:'policy_paused',observations:[...observations,observation(d,'policy_paused')],probes};
-    try{const result=await probe(db,authority,input,d);lastProgress={generation:(BigInt(d.state.generation)+1n).toString(),klass:d.klass};observations.push(result.event);if(result.admitted)return {...result.admitted,observations,probes};}
+    try{const result=await probe(db,authority,input,d);lastProgress=result.terminalExpiry?undefined:{generation:(BigInt(d.state.generation)+1n).toString(),klass:d.klass};observations.push(result.event);if(result.admitted)return {...result.admitted,observations,probes};}
     catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused','policy_binding_changed','expired_lease_or_job'].includes(error.code))throw error;observations.push(observation(d,error.code==='fairness_policy_paused'?'policy_paused':'temporarily_blocked',error.code));}
    }
    // A bounded scan cannot establish absence. Yield its current class opportunity

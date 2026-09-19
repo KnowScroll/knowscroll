@@ -1,0 +1,83 @@
+{
+  "observedAt": "2026-09-16T22:08:04.693Z",
+  "git": {
+    "head": "d404c090312e8a6175a751d7f111902aa6f1666d",
+    "dirty": true
+  },
+  "journey": "J002",
+  "result": "passed",
+  "runtime": {
+    "apiBase": "http://127.0.0.1:49292",
+    "database": {
+      "host": "127.0.0.1",
+      "port": "55432",
+      "name": "knowscroll_j002_f007a2b343c54970"
+    },
+    "worker": "separate process launched after stale job arrangement"
+  },
+  "causal": {
+    "oldEpochA": {
+      "decisionId": "2d685807-7245-450c-8179-96d1177116cd",
+      "exposureId": "a6772b97-66f7-46e4-9ccf-380e39740c4b",
+      "exposureEventId": "685de936-f897-454a-a9c8-8e40a2799667",
+      "eventId": "18324c76-0735-4499-913b-930909cd6d98",
+      "jobId": "b022d633-ce45-45ea-9fa3-65817b5ce4ad"
+    },
+    "currentB": {
+      "decisionId": "a508f8ff-d0e9-4b3e-ab62-4ba7595edd85",
+      "exposureId": "8e85f9c3-26a8-45b8-85dc-237b66a9bb9e",
+      "exposureEventId": "c4e68d42-e3f0-431d-9e99-6015396d53a3",
+      "eventId": "6d7bb658-0525-4d3c-b973-574e69c12e75",
+      "jobId": "cfc3d6c1-e327-486b-b664-49d7bcc54cb7"
+    }
+  },
+  "projection": {
+    "beforeA": {
+      "accountsRevision": 0,
+      "universeRevision": 0,
+      "traceCount": 0
+    },
+    "afterA": {
+      "accountsRevision": 0,
+      "universeRevision": 0,
+      "traceCount": 0
+    },
+    "beforeB": {
+      "accountsRevision": 0,
+      "universeRevision": 0,
+      "traceCount": 0
+    },
+    "afterB": {
+      "accountsRevision": 1,
+      "universeRevision": 1,
+      "traceCount": 1
+    },
+    "oldEpochA": {
+      "status": "discarded",
+      "discardedAt": "2026-09-16T22:08:04.249Z",
+      "completedAt": null
+    },
+    "currentB": {
+      "status": "completed",
+      "discardedAt": null,
+      "completedAt": "2026-09-16T22:08:04.556Z"
+    }
+  },
+  "sourceHashes": {
+    "apps/api/src/app.ts": "95c3d2f11640f636db53fe11adf76ab42ef791aff45a341c4a3ff0599dab686a",
+    "apps/worker/src/project.ts": "2077b25e5e19e8871ad9704f5035878dceb2d6cfe406fd48489459f3a5f6945d",
+    "packages/db/src/identity.ts": "7e0d14a00775b3ca368056901ed1214359aa36a1e12c120b01a67c4ee48f8124",
+    "packages/db/migrations/0002_identity_epochs.sql": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+  },
+  "checks": [
+    "two private sessions",
+    "foreign decision and exposure denial",
+    "foreign event denial",
+    "idempotence",
+    "expiry",
+    "stale epoch denial",
+    "current epoch admission",
+    "discarded old job",
+    "completed current private projection"
+  ]
+}

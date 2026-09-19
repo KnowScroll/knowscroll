@@ -50,13 +50,39 @@ test('SQL fairness bypasses permanently impossible work and serializes competing
    assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_attempt WHERE job_id=$1',[impossible.jobId])).rows[0]?.n,0);
   });
  });
- await t.test('two concurrent schedulers never duplicate a claim or fairness debit',async()=>{
+ await t.test('concurrent schedulers do not duplicate a claim, and bounded quiescent follow-up admits each remaining Job',async()=>{
   await withFairnessSchema('contention',async pool=>{
    const first=await seedFairnessGraph(pool),second=await seedFairnessGraph(pool);
    const fairness=createReasoningFairness(pool,fairnessAuthority(new Map([[first.jobId,first.policy],[second.jobId,second.policy]])));await fairness.installPolicy(sqlFairnessPolicy);await enqueue(fairness,first);await enqueue(fairness,second);
-   const settled=await Promise.all([fairness.schedule({policyVersion:'fairness-v1',owner:'worker-a',leaseMs:20_000}),fairness.schedule({policyVersion:'fairness-v1',owner:'worker-b',leaseMs:20_000})]);
-   assert.equal(settled.filter(value=>value.kind==='admitted').length,2);assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_attempt')).rows[0]?.n,2);
+   const concurrent=await Promise.all([fairness.schedule({policyVersion:'fairness-v1',owner:'worker-a',leaseMs:20_000}),fairness.schedule({policyVersion:'fairness-v1',owner:'worker-b',leaseMs:20_000})]);
+   const initiallyAdmitted=concurrent.filter(value=>value.kind==='admitted');
+   assert.equal(new Set(initiallyAdmitted.map(value=>value.claim.jobId)).size,initiallyAdmitted.length);
+   for(const value of concurrent){
+    assert.ok(value.probes>=1&&value.probes<=sqlFairnessPolicy.maxProbes);
+    assert.ok(value.observations.length>=1);
+    if(value.kind==='admitted')assert.ok(value.observations.some(observation=>observation.kind==='admitted'&&observation.jobId===value.claim.jobId));
+    else {
+     const final=value.observations.at(-1);
+     assert.equal(final?.kind,'scan_exhausted');assert.equal(final?.reason,'probe_budget');
+    }
+   }
+   assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_attempt')).rows[0]?.n,initiallyAdmitted.length);
+   assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_fairness_attempt')).rows[0]?.n,initiallyAdmitted.length);
+   assert.equal((await pool.query(`SELECT count(*)::int n FROM (
+    SELECT job_id FROM reasoning_attempt GROUP BY job_id HAVING count(*)>1
+   ) duplicate_job`)).rows[0]?.n,0);
+   const remaining=2-initiallyAdmitted.length;
+   const quiescent:Array<(typeof concurrent)[number]>=[];
+   for(let index=0;index<remaining;index+=1)quiescent.push(await fairness.schedule({
+    policyVersion:'fairness-v1',owner:`worker-followup-${index}`,leaseMs:20_000,
+   }));
+   assert.ok(quiescent.every(value=>value.kind==='admitted'),'each fixed post-contention follow-up must admit one remaining ready Job');
+   for(const value of quiescent)if(value.kind==='admitted')assert.ok(value.observations.some(observation=>observation.kind==='admitted'&&observation.jobId===value.claim.jobId));
+   const admitted=[...initiallyAdmitted,...quiescent];
+   assert.equal(admitted.length,2);assert.equal(new Set(admitted.map(value=>value.claim.jobId)).size,2);
+   assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_attempt')).rows[0]?.n,2);
    assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_fairness_attempt')).rows[0]?.n,2);
+   assert.equal((await pool.query('SELECT count(*)::int n FROM reasoning_fairness_ready')).rows[0]?.n,0);
   });
  });
  await t.test('a locked universe consumes a bounded blocked probe while another universe progresses',async()=>{

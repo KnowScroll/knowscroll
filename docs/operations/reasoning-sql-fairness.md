@@ -10,6 +10,8 @@ Issue [#55](https://github.com/KnowScroll/knowscroll/issues/55) implements the [
 
 The ready index tracks active universe membership separately from retained accounting. Candidate discovery performs indexed keyset queries, each limited to one universe or one queue head. It does not filter an arbitrarily long invalid backlog before applying LIMIT. Expired, stale, impossible and blocked heads are inspected and reported. Physical impossibility removes the ready entry without inventing a successful or terminal Job transition; a trusted caller must explicitly reshape/re-enqueue or cancel it.
 
+[Idle direct lifecycle #75](reasoning-idle-lifecycle.md) safely closes bound direct Jobs only when their actual database deadline has elapsed. A shorter ready-request deadline dequeues that request and leaves its still-live Job queued; bounded maintenance can expire it later without membership. Atomic closure handles refunds and arbitrary membership removal before stamping withdrawal. Its terminal-expiry result suppresses stale scheduler snapshot saves, including the final bounded-scan class yield. Healthy leases and the ADR's closed permanent-refusal set are bypassed without deletion; SQL/authority/integrity errors roll back as specified in ADR-0018. Legacy unbound/background expiry is outside this new lifecycle contract.
+
 ## One probe, one short transaction
 
 `schedule` currently returns at most one admitted Attempt. It may inspect up to `maxProbes` heads or empty scopes; all such probes count. A fresh call resumes persisted class and universe turns. `maxAdmissions` remains an upper bound, not a promise to fill a batch.
