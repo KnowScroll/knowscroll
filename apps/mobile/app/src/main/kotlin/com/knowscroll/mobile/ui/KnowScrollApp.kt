@@ -28,6 +28,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val universe by viewModel.universe.collectAsStateWithLifecycle()
         val scroll by viewModel.scroll.collectAsStateWithLifecycle()
         val historyClear by viewModel.historyClear.collectAsStateWithLifecycle()
+        val signOut by viewModel.signOut.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val context = LocalContext.current
 
@@ -57,17 +58,24 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
             }
         }
         Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-        when (screen) {
+        if (signOut is SignOutState.SignedOut) {
+            SignedOutScreen()
+        } else when (screen) {
             is Screen.Universe -> UniverseScreen(
                 state = universe,
                 historyClear = historyClear,
+                signOut = signOut,
                 onEnterScroll = viewModel::enterScroll,
                 onOpenTrace = viewModel::openTrace,
                 onRetry = viewModel::retryUniverse,
                 onRequestHistoryClear = viewModel::requestHistoryClearConfirmation,
                 onCancelHistoryClear = viewModel::cancelHistoryClear,
                 onConfirmHistoryClear = viewModel::confirmHistoryClear,
-                onRetryHistoryClear = viewModel::retryHistoryClear
+                onRetryHistoryClear = viewModel::retryHistoryClear,
+                onRequestSignOut = viewModel::requestSignOutConfirmation,
+                onCancelSignOut = viewModel::cancelSignOutConfirmation,
+                onConfirmSignOut = viewModel::confirmSignOut,
+                onRetrySignOut = viewModel::retrySignOut
             )
             is Screen.Scroll, is Screen.TraceRevisit -> ScrollScreen(
                 state = scroll,

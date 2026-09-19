@@ -47,7 +47,8 @@ sealed interface ScrollState {
 }
 sealed interface ReaderOrigin {
     data object Discovery:ReaderOrigin
-    data class SavedTrace(val eventId:String):ReaderOrigin
+    /** keptAt is the original Keep Ledger's created_at, verbatim from the Trace revisit receipt. */
+    data class SavedTrace(val eventId:String,val keptAt:String):ReaderOrigin
 }
 sealed interface KeepState {
     data object Idle:KeepState
@@ -74,6 +75,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
     private var observedUniverseId=store.readObservedUniverseId()
     private var busy=false
+    private var signOutBusy=false
     private var reconciling=false
     private var reconcileAfterCurrent:Boolean?=null
     private var ready=false
@@ -83,12 +85,22 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val _universe=MutableStateFlow<UniverseState>(UniverseState.Loading); val universe=_universe.asStateFlow()
     private val _scroll=MutableStateFlow<ScrollState>(ScrollState.Idle); val scroll=_scroll.asStateFlow()
     private val _historyClear=MutableStateFlow<HistoryClearState>(HistoryClearState.Idle); val historyClear=_historyClear.asStateFlow()
+    private val _signOut=MutableStateFlow<SignOutState>(SignOutState.Idle); val signOut=_signOut.asStateFlow()
     private val _toast=MutableStateFlow<String?>(null); val toast=_toast.asStateFlow()
 
-    init { reconcilePrivacy(restoreStoredScroll=true) }
+    init {
+        val restored=signOutRestoreState(store.readPendingSignOut(),store.readSignedOut())
+        _signOut.value=restored
+        if(restored is SignOutState.SignedOut){
+            ready=false
+        } else {
+            if(restored is SignOutState.Retryable)beginSignOut()
+            reconcilePrivacy(restoreStoredScroll=true)
+        }
+    }
 
     fun consumeToast(){_toast.value=null}
-    fun onForeground(){reconcilePrivacy(restoreStoredScroll=true)}
+    fun onForeground(){if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)}
     fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen() in setOf("scroll","revisit"),queueIfBusy=true)
     fun retryScrollLoad(){
         val pending=revisit
@@ -141,7 +153,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 store.writeRevisit(accepted)
                 _scroll.value=ScrollState.Reading(
                     receipt.scroll,receipt.exposureId,requested.eventId,KeepState.Kept(requested.eventId),
-                    accepted.readingPosition,origin=ReaderOrigin.SavedTrace(requested.eventId)
+                    accepted.readingPosition,origin=ReaderOrigin.SavedTrace(requested.eventId,receipt.keptAt)
                 )
             } catch(e:Exception){
                 if(e is CancellationException)throw e
@@ -354,6 +366,55 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     fun retryHistoryClear(){
         val pending=store.readPendingClear()
         if(pending!=null)beginHistoryClear(pending) else reconcilePrivacy(false)
+    }
+
+    fun requestSignOutConfirmation(){
+        if(_universe.value is UniverseState.Loaded && !reconciling && _signOut.value is SignOutState.Idle){
+            _signOut.value=SignOutState.Confirming
+        }
+    }
+
+    fun cancelSignOutConfirmation(){
+        if(_signOut.value is SignOutState.Confirming)_signOut.value=SignOutState.Idle
+    }
+
+    fun confirmSignOut(){
+        if(_signOut.value !is SignOutState.Confirming)return
+        store.writePendingSignOut()
+        beginSignOut()
+    }
+
+    fun retrySignOut(){
+        if(_signOut.value is SignOutState.Retryable && store.readPendingSignOut() && !signOutBusy)beginSignOut()
+    }
+
+    /** Idempotent on the server: a retried revoke of an already-revoked session simply
+     * returns 401, which resolves here to the same terminal signed-out state. */
+    private fun beginSignOut(){
+        if(signOutBusy)return
+        signOutBusy=true
+        _signOut.value=SignOutState.Revoking
+        viewModelScope.launch {
+            try {
+                api.revokeSession()
+                completeSignOut()
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(isSignOutAmbiguous(e))_signOut.value=SignOutState.Retryable(message(e))
+                else completeSignOut()
+            } finally { signOutBusy=false }
+        }
+    }
+
+    /** Reuses the existing purge/fail-closed machinery: this device's private reading,
+     * navigation and pending-clear state is removed, and no control here will ever
+     * reuse the now-dead token. */
+    private fun completeSignOut(){
+        store.clearPendingSignOut()
+        store.writeSignedOut()
+        purgeForScope(observedUniverseId,observedPrivacyEpoch)
+        ready=false
+        _signOut.value=SignOutState.SignedOut
     }
 
     private fun beginHistoryClear(request:HistoryClearRequest){

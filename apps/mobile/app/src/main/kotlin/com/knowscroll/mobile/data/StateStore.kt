@@ -128,6 +128,23 @@ class StateStore(context: Context) {
         check(prefs.edit().remove("pendingHistoryClear").commit()) { "Could not clear pending history clear" }
     }
 
+    /** In-flight/uncertain sign-out (#91), persisted before dispatch like pending Clear
+     * History so process death never silently drops or duplicates the request. */
+    fun writePendingSignOut() {
+        check(prefs.edit().putBoolean("pendingSignOut", true).commit()) { "Could not save pending sign-out" }
+    }
+    fun readPendingSignOut(): Boolean = prefs.getBoolean("pendingSignOut", false)
+    fun clearPendingSignOut() {
+        check(prefs.edit().remove("pendingSignOut").commit()) { "Could not clear pending sign-out" }
+    }
+
+    /** Durable terminal marker: this device's session is known-dead. Never cleared by
+     * ordinary privacy purges; only a fresh app data reset removes it. */
+    fun writeSignedOut() {
+        check(prefs.edit().putBoolean("signedOut", true).commit()) { "Could not save signed-out state" }
+    }
+    fun readSignedOut(): Boolean = prefs.getBoolean("signedOut", false)
+
     /** Removes only private encounter/navigation state and retains the monotonic privacy epoch. */
     @Synchronized fun purgePrivateState(universeId: String, epoch: Long) {
         val observed = if(readObservedUniverseId()==universeId)maxOf(readObservedPrivacyEpoch(),epoch) else epoch
