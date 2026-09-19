@@ -1,6 +1,6 @@
 {
   "scenario": "revokedSessionDiscardsOpenTrace",
-  "traceEventFingerprint": "40874f52a113af4a",
+  "traceEventFingerprint": "25debaacd3a3c56a",
   "controlStatus": 204,
   "revisitPurged": true,
   "contentAbsent": true,

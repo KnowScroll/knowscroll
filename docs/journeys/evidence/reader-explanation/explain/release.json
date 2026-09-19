@@ -1,9 +1,9 @@
 {
   "check": "android-reader-explain-91",
   "result": "passed",
-  "observedAt": "2026-09-19T20:31:06.720360+00:00",
+  "observedAt": "2026-09-19T22:47:09.702460+00:00",
   "source": {
-    "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+    "revision": "68a30dbc745420396abcfbb97718c39b158f7773",
     "dirty": false,
     "files": [
       {
@@ -32,7 +32,7 @@
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderExplainJourneyTest.kt",
-        "sha256": "0609c61921cd3790de66e2eec13e0fc0e945cb6c475a3365e969fc5356b1707f"
+        "sha256": "06da750ae6c6af117727661d92bf566821712961c6f8befa449681da142714f4"
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderJourneyTest.kt",
@@ -48,7 +48,7 @@
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/SignOutJourneyTest.kt",
-        "sha256": "d6487a343ceb1660fae12393fb0e94a865b6b5930e940a8b9335869d04040141"
+        "sha256": "5531e290eba63ffd072e451a57b0a399614386b90ccba880cac4de61d0c45951"
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/TraceRevisitJourneyTest.kt",
@@ -88,7 +88,7 @@
       },
       {
         "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt",
-        "sha256": "2285587936e959d7489f16943f1774204cd817f92d3a5ced59f125a550baf29d"
+        "sha256": "c373a7a9458eda928abe1877ab4d11c7214aa994d2fd1bc183dcb3d1a53105fe"
       },
       {
         "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/KnowScrollApp.kt",
@@ -124,7 +124,7 @@
       },
       {
         "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/universe/UniverseScreen.kt",
-        "sha256": "40af508e45e2df325a329837c7254d1f752f40960ade356894db6b0467a722ef"
+        "sha256": "3bbd7a4409fa52c2569216bdb29a93f53e8cebbf8c08abdce7894ec1963be9ec"
       },
       {
         "path": "apps/mobile/app/src/main/res/drawable/ic_launcher_foreground.xml",
@@ -144,7 +144,7 @@
       },
       {
         "path": "apps/mobile/app/src/main/res/values/strings.xml",
-        "sha256": "9c1a8aaa4b598557383517b6fb76f1ebdadfc00c597c5d37da887737921940a4"
+        "sha256": "bdb6a88de1d8751c06da827913fc6ca691c073d2b291ad0686c952c3c1d2b204"
       },
       {
         "path": "apps/mobile/app/src/main/res/values/themes.xml",
@@ -165,6 +165,10 @@
       {
         "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/ReaderExplainTest.kt",
         "sha256": "f54f1f6ded39f43168dcec779240e9ad1b6cd9f2c9ce5fbd890d7afc18c687ba"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/SignOutColdStartOrderingTest.kt",
+        "sha256": "da5100eaf65d467cb8abd5a4aab1e0a8e194b5ab9d2ba451c31ad6d0574a66c9"
       },
       {
         "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/SignOutStateTest.kt",
@@ -222,8 +226,8 @@
     "apiPort": "4326",
     "proxyPort": 4321,
     "coldRestart": {
-      "beforePid": "10480",
-      "afterPid": "10523"
+      "beforePid": "4069",
+      "afterPid": "4110"
     }
   },
   "phases": {
@@ -243,15 +247,15 @@
     },
     "savedTrace": {
       "scenario": "explainSheetShowsSavedTraceOriginWithKeptDateAndNoReason",
-      "traceEventId": "695c5d5d-5a73-4c79-8921-accc1ce7b036",
-      "keptAt": "2026-09-19T20:28:45.077Z",
+      "traceEventId": "5b283060-656c-408e-babe-6ea62280e344",
+      "keptAt": "2026-09-19T22:45:14.722Z",
       "reasonAbsentAsExpected": true,
       "originStatesKeptDate": true
     },
     "prepare": {
       "scenario": "explainSheetPrepareForRotationAndProcessDeath",
       "assetId": "10000000-0000-4000-8000-000000000002",
-      "exposureId": "bd33ce64-6ffa-46c9-bb8d-60aeab4d38c6",
+      "exposureId": "f19205ba-5543-4971-a3f4-41e7da98b1f6",
       "readingPosition": 0,
       "sheetRestoredAfterRecreation": false,
       "readingSessionPreservedAfterRecreation": true,
@@ -260,7 +264,7 @@
     "processDeath": {
       "scenario": "explainSheetRestoresReadingAfterProcessDeath",
       "assetId": "10000000-0000-4000-8000-000000000002",
-      "exposureId": "bd33ce64-6ffa-46c9-bb8d-60aeab4d38c6",
+      "exposureId": "f19205ba-5543-4971-a3f4-41e7da98b1f6",
       "readingSessionRestored": true,
       "sheetOpenAfterProcessDeath": false
     },
@@ -336,7 +340,7 @@
     "installedPathAfter": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
     "untouched": true
   },
-  "journeyPackagePath": "package:/data/app/~~jGrIyK5ZAZrpNIszvKaM8g==/com.knowscroll.mobile.journey-kCiGJ-Jjh2VzDlEdHW-1dA==/base.apk",
+  "journeyPackagePath": "package:/data/app/~~bfuArREa037RvDnVxmCODQ==/com.knowscroll.mobile.journey-_hm-8u82E8mOGIIwHZeLmA==/base.apk",
   "limits": [
     "Transport loss and session revocation are explicitly injected fixtures; every successful response and every terminal signed-out state comes from the real API/session logic",
     "No owner visual acceptance or manual TalkBack traversal recorded here",

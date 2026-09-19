@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.ReaderExplainJourneyTest:.
 
-Time: 1,029.116
+Time: 7.452
 
 OK (1 test)
 

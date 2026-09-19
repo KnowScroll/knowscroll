@@ -1,6 +1,6 @@
 {
   "scenario": "explicitNextLeavesTraceForFreshDiscovery",
-  "traceEventFingerprint": "da32181403f35c8c",
+  "traceEventFingerprint": "95500eaa406d18b0",
   "freshExposureRecorded": true,
   "savedOriginDiscarded": true,
   "result": "passed"

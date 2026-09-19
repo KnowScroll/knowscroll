@@ -1,9 +1,9 @@
 {
   "check": "android-trace-revisit-78",
   "result": "passed",
-  "observedAt": "2026-09-19T20:41:52.761768+00:00",
+  "observedAt": "2026-09-19T22:58:00.344358+00:00",
   "source": {
-    "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+    "revision": "68a30dbc745420396abcfbb97718c39b158f7773",
     "dirty": false,
     "files": [
       {
@@ -36,7 +36,7 @@
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderExplainJourneyTest.kt",
-        "sha256": "0609c61921cd3790de66e2eec13e0fc0e945cb6c475a3365e969fc5356b1707f"
+        "sha256": "06da750ae6c6af117727661d92bf566821712961c6f8befa449681da142714f4"
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderJourneyTest.kt",
@@ -52,7 +52,7 @@
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/SignOutJourneyTest.kt",
-        "sha256": "d6487a343ceb1660fae12393fb0e94a865b6b5930e940a8b9335869d04040141"
+        "sha256": "5531e290eba63ffd072e451a57b0a399614386b90ccba880cac4de61d0c45951"
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/TraceRevisitJourneyTest.kt",
@@ -92,7 +92,7 @@
       },
       {
         "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt",
-        "sha256": "2285587936e959d7489f16943f1774204cd817f92d3a5ced59f125a550baf29d"
+        "sha256": "c373a7a9458eda928abe1877ab4d11c7214aa994d2fd1bc183dcb3d1a53105fe"
       },
       {
         "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/KnowScrollApp.kt",
@@ -128,7 +128,7 @@
       },
       {
         "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/universe/UniverseScreen.kt",
-        "sha256": "40af508e45e2df325a329837c7254d1f752f40960ade356894db6b0467a722ef"
+        "sha256": "3bbd7a4409fa52c2569216bdb29a93f53e8cebbf8c08abdce7894ec1963be9ec"
       },
       {
         "path": "apps/mobile/app/src/main/res/drawable/ic_launcher_foreground.xml",
@@ -148,7 +148,7 @@
       },
       {
         "path": "apps/mobile/app/src/main/res/values/strings.xml",
-        "sha256": "9c1a8aaa4b598557383517b6fb76f1ebdadfc00c597c5d37da887737921940a4"
+        "sha256": "bdb6a88de1d8751c06da827913fc6ca691c073d2b291ad0686c952c3c1d2b204"
       },
       {
         "path": "apps/mobile/app/src/main/res/values/themes.xml",
@@ -169,6 +169,10 @@
       {
         "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/ReaderExplainTest.kt",
         "sha256": "f54f1f6ded39f43168dcec779240e9ad1b6cd9f2c9ce5fbd890d7afc18c687ba"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/SignOutColdStartOrderingTest.kt",
+        "sha256": "da5100eaf65d467cb8abd5a4aab1e0a8e194b5ab9d2ba451c31ad6d0574a66c9"
       },
       {
         "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/SignOutStateTest.kt",
@@ -236,15 +240,15 @@
     "compact": "840x1680 at font_scale1.3",
     "regular": "AVD native size at font_scale1.0",
     "coldRestart": {
-      "beforePid": "12504",
-      "afterPid": "12547",
+      "beforePid": "5300",
+      "afterPid": "5342",
       "refetchedTrace": true
     }
   },
   "phases": {
     "prepare": {
       "scenario": "prepareProjectedTraceForRevisit",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "assetFingerprint": "576f18824476444f",
       "universeFingerprint": "11e594f481958c10",
       "selectionRevision": 1,
@@ -257,7 +261,7 @@
     },
     "cold": {
       "scenario": "coldRestoreRefetchesSavedTraceIdentityAndPosition",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "assetFingerprint": "576f18824476444f",
       "universeFingerprint": "11e594f481958c10",
       "selectionRevision": 1,
@@ -268,14 +272,14 @@
     },
     "sources": {
       "scenario": "reopensVerifiedTraceShowsSourcesAndReturns",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "sourcesVisible": true,
       "returnedToUniverse": true,
       "result": "passed"
     },
     "retry": {
       "scenario": "traceReadDropRetriesSameIdentity",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "assetFingerprint": "576f18824476444f",
       "universeFingerprint": "11e594f481958c10",
       "selectionRevision": 1,
@@ -286,7 +290,7 @@
     },
     "drift": {
       "scenario": "changedSourceDiscardsTraceReader",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "controlStatus": 204,
       "revisitPurged": true,
       "contentAbsent": true,
@@ -295,14 +299,14 @@
     },
     "next": {
       "scenario": "explicitNextLeavesTraceForFreshDiscovery",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "freshExposureRecorded": true,
       "savedOriginDiscarded": true,
       "result": "passed"
     },
     "clear": {
       "scenario": "clearHistoryDiscardsOpenTrace",
-      "traceEventFingerprint": "da32181403f35c8c",
+      "traceEventFingerprint": "95500eaa406d18b0",
       "controlStatus": 204,
       "revisitPurged": true,
       "contentAbsent": true,
@@ -311,7 +315,7 @@
     },
     "authority": {
       "scenario": "revokedSessionDiscardsOpenTrace",
-      "traceEventFingerprint": "40874f52a113af4a",
+      "traceEventFingerprint": "25debaacd3a3c56a",
       "controlStatus": 204,
       "revisitPurged": true,
       "contentAbsent": true,
@@ -334,13 +338,13 @@
   "readOnlyRevisitRowsUnchanged": true,
   "privateRowHashes": {
     "accounts": "4a1a0189d382d72230efea42034bcec9ad7ba353a78e8d9b960cc0399bb919e1",
-    "decision": "bc80409746da3d64497c518015488a935bad5847efec4c9938f6a15b64d4e50c",
-    "device_session": "dc3dfdf6406d42e912da40c2864dd3413b23cb0adfb67aa77709915038b71014",
+    "decision": "45379affd6f3b9780ecc1bfe9d6dbd21200f480f3c9809a5521c5631188d8769",
+    "device_session": "4f2df328f55b8c0fd1f5d85c00a4b2964857f33e7f4800a112eeb1c06cc800cc",
     "explicit_ask": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "exposure": "b325053b27fe7ae2860de913e0131343e480baecb82e5bb9248e50cf3a5094c5",
+    "exposure": "a998455580d0d4038bcdf78e0f01993ea9b55d22260b6a0e0ac6643ea10040e5",
     "history_clear_receipt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "job": "bab23c58663c69b730a5d00c66e65026df74f579403bdd435d51d4a306f6afc1",
-    "ledger": "6a3dc2d7c38af401ed92019e77661d7f1222363596f3d840835eb645aca74e50",
+    "job": "a106e13874ec4876d61f7e0081d7c1ca4e6dd0271236958eca48c6ebb7a390db",
+    "ledger": "eada355c647c5279445ac797316a9a4d61056b014e9f6a6aa447933a540e2103",
     "reasoning_accounting": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "reasoning_attempt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "reasoning_bucket": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -364,7 +368,7 @@
     "reasoning_settlement": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "reasoning_settlement_adjustment": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "reasoning_step": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "trace": "41374c2722ec72c7c1da016d3bdd87ffc639f2c53c9be9b7aaf5038177283369",
+    "trace": "2ca19f186d740e61aa36fab913dafd1b78724efed6f7699a1e3c1fca24a69fbf",
     "universe": "56500dfabf74a23abcdca2d99f50f9e8f5b2f7d96c0a02ff4364d465a0ffc3da"
   },
   "afterExplicitNextCounts": {

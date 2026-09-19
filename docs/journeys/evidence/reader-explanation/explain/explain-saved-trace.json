@@ -1,7 +1,7 @@
 {
   "scenario": "explainSheetShowsSavedTraceOriginWithKeptDateAndNoReason",
-  "traceEventId": "695c5d5d-5a73-4c79-8921-accc1ce7b036",
-  "keptAt": "2026-09-19T20:28:45.077Z",
+  "traceEventId": "5b283060-656c-408e-babe-6ea62280e344",
+  "keptAt": "2026-09-19T22:45:14.722Z",
   "reasonAbsentAsExpected": true,
   "originStatesKeptDate": true
 }

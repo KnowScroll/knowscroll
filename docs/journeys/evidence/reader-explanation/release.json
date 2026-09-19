@@ -1,174 +1,303 @@
 {
-  "check": "reader-explanation-91",
+  "check": "reader-explanation-91-review-fix",
   "issue": 91,
-  "observedAt": "2026-09-19T21:50:19.956513+00:00",
-  "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+  "reviewRound": "accept-with-fixes bounded repair",
+  "observedAtRange": [
+    "2026-09-19T22:40:00Z",
+    "2026-09-19T23:00:30Z"
+  ],
+  "revision": "68a30dbc745420396abcfbb97718c39b158f7773",
   "revisionDirtyAtObservation": true,
-  "note": "This session (Claude Sonnet 5, worker lane 91-reader-explain) verified a prior same-branch attempt's real emulator instrumentation run at this exact commit by cross-checking every recorded source file sha256 against the current committed tree (0 mismatches across all five phase receipts below), then independently reran the JVM/build/lint commands fresh in its own session. The ~5-phase, 32-scenario instrumentation suite itself was not re-executed live in this session; see 'verificationMethod' below and the README for the full accounting.",
-  "verificationMethod": {
-    "hashVerifiedReceipts": {
-      "reader-explain (new feature, this issue)": {
-        "filesChecked": 51,
-        "mismatches": [],
-        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
-        "dirty": false,
-        "result": "passed"
-      },
-      "reader (regression: reader + reader-authority)": {
-        "filesChecked": 51,
-        "mismatches": [],
-        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
-        "dirty": false,
-        "result": "passed"
-      },
-      "history (regression: privacy/clear-history)": {
-        "filesChecked": 53,
-        "mismatches": [],
-        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
-        "result": "passed"
-      },
-      "journey (regression: real journey / J001)": {
-        "filesChecked": 51,
-        "mismatches": [],
-        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
-        "result": "passed"
-      },
-      "trace-revisit (regression)": {
-        "filesChecked": 55,
-        "mismatches": [],
-        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
-        "dirty": false,
-        "result": "passed"
-      }
-    },
-    "freshThisSession": {
-      "command": "apps/mobile/gradlew -p apps/mobile :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --console plain",
-      "result": "BUILD SUCCESSFUL",
-      "jvmUnitTests": {
-        "total": 22,
-        "failures": 0,
-        "classes": [
-          "ReaderDiscoveryTest(5)",
-          "ReaderExplainTest(7)",
-          "SignOutStateTest(6)",
-          "TraceRevisitStateTest(4)"
-        ]
-      },
-      "lintDebug": "0 errors, pre-existing dependency-version warnings only"
-    }
-  },
-  "phasesObserved": {
-    "explain (new, part A: Why this appeared)": [
-      "discovery",
-      "blankReason",
-      "savedTrace",
-      "prepare",
-      "processDeath"
-    ],
-    "signOut (new, part B: Sign out this device)": [
-      "signOutCancel",
-      "signOutSuccess",
-      "signOutNetworkDrop",
-      "signOut401"
-    ],
-    "reader regression": [
-      "readerSourcesThresholdAndRest",
-      "readerNextFailurePreservesPage",
-      "readerNextRevokedSessionFailsClosed",
-      "sourceSheetClearOnForeground"
-    ],
-    "history regression": [
-      "clearHistoryConfirmationCancelIsHarmless",
-      "clearHistoryClearsNonemptyHistory",
-      "differentUniverseBindingDropsPendingClearAndCache",
-      "higherPrivacyEpochPurgesCachedScrollOnForeground",
-      "pendingClearProcessDeathPrepare/Restore"
-    ],
-    "journey (real) regression": [
-      "sourcedScrollKeepAndReturn",
-      "compactLayoutAndRecovery",
-      "unavailableIsHonest",
-      "processDeathPrepare/RestoreKeepReturnAndNext"
-    ],
-    "trace-revisit regression": [
-      "prepareProjectedTraceForRevisit",
-      "reopensVerifiedTraceShowsSourcesAndReturns",
-      "traceReadDropRetriesSameIdentity",
-      "changedSourceDiscardsTraceReader",
-      "explicitNextLeavesTraceForFreshDiscovery",
-      "clearHistoryDiscardsOpenTrace",
-      "revokedSessionDiscardsOpenTrace",
-      "coldRestoreRefetchesSavedTraceIdentityAndPosition"
+  "avd": "KnowScroll_API36",
+  "androidApiLevel": 36,
+  "verificationMethod": "Every scenario below was actually driven end-to-end in this session against a real, booted API36 emulator and disposable API/worker/PostgreSQL processes this session started and stopped; none of it is a hash-based re-assertion of a prior run.",
+  "commands": [
+    "apps/mobile/gradlew -p apps/mobile :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --console plain",
+    "python3 scripts/android-reader-explain-journey.py",
+    "python3 scripts/android-reader-journey.py",
+    "python3 scripts/android-history-journey.py",
+    "python3 scripts/android-trace-revisit-journey.py",
+    "python3 scripts/android-journey.py"
+  ],
+  "jvmUnitTests": {
+    "total": 26,
+    "failures": 0,
+    "classes": [
+      "ReaderDiscoveryTest(5)",
+      "ReaderExplainTest(7)",
+      "SignOutStateTest(6)",
+      "SignOutColdStartOrderingTest(4)",
+      "TraceRevisitStateTest(4)"
     ]
   },
-  "domainCounts": {
-    "beforeExplain": {
-      "decision": 0,
-      "exposure": 0,
-      "ledger": 0,
-      "job": 0,
-      "trace": 0
+  "lintDebug": "0 errors, pre-existing dependency-version warnings only",
+  "scenarios": [
+    {
+      "group": "explain (new: Why this appeared)",
+      "scenario": "explainSheetShowsDiscoveryReasonTruthAndSourcesNote",
+      "durationSeconds": 9.494,
+      "result": "passed",
+      "evidence": "explain/explainSheetShowsDiscoveryReasonTruthAndSourcesNote.txt"
     },
-    "afterExplain": {
-      "decision": 4,
-      "exposure": 4,
-      "ledger": 5,
-      "job": 1,
-      "trace": 1
+    {
+      "group": "explain (new: Why this appeared)",
+      "scenario": "explainSheetReportsNoRecordedExplanationForABlankReason",
+      "durationSeconds": 7.452,
+      "result": "passed",
+      "evidence": "explain/explainSheetReportsNoRecordedExplanationForABlankReason.txt"
     },
-    "beforeSignOut": {
-      "decision": 4,
-      "exposure": 4,
-      "ledger": 5,
-      "job": 1,
-      "trace": 1
+    {
+      "group": "explain (new: Why this appeared)",
+      "scenario": "explainSheetShowsSavedTraceOriginWithKeptDateAndNoReason",
+      "durationSeconds": 67.371,
+      "result": "passed",
+      "evidence": "explain/explainSheetShowsSavedTraceOriginWithKeptDateAndNoReason.txt"
     },
-    "afterSignOut": {
-      "decision": 4,
-      "exposure": 4,
-      "ledger": 5,
-      "job": 1,
-      "trace": 1
+    {
+      "group": "explain (new: Why this appeared)",
+      "scenario": "explainSheetPrepareForRotationAndProcessDeath",
+      "durationSeconds": 6.692,
+      "result": "passed",
+      "evidence": "explain/explainSheetPrepareForRotationAndProcessDeath.txt"
+    },
+    {
+      "group": "explain (new: Why this appeared)",
+      "scenario": "explainSheetRestoresReadingAfterProcessDeath",
+      "durationSeconds": 3.117,
+      "result": "passed",
+      "evidence": "explain/explainSheetRestoresReadingAfterProcessDeath.txt"
+    },
+    {
+      "group": "signOut (new: Sign out this device)",
+      "scenario": "signOutConfirmationCancelIsHarmless",
+      "durationSeconds": 6.151,
+      "result": "passed",
+      "evidence": "explain/signOutConfirmationCancelIsHarmless.txt"
+    },
+    {
+      "group": "signOut (new: Sign out this device)",
+      "scenario": "signOutConfirmedRevokeEndsSessionHonestly",
+      "durationSeconds": 5.81,
+      "result": "passed",
+      "evidence": "explain/signOutConfirmedRevokeEndsSessionHonestly.txt"
+    },
+    {
+      "group": "signOut (new: Sign out this device)",
+      "scenario": "signOutNetworkDroppedRevokeThenRetrySucceeds",
+      "durationSeconds": 7.821,
+      "result": "passed",
+      "evidence": "explain/signOutNetworkDroppedRevokeThenRetrySucceeds.txt"
+    },
+    {
+      "group": "signOut (new: Sign out this device)",
+      "scenario": "signOutAlreadyRevokedSessionResolvesAsSignedOut",
+      "durationSeconds": 5.219,
+      "result": "passed",
+      "evidence": "explain/signOutAlreadyRevokedSessionResolvesAsSignedOut.txt"
+    },
+    {
+      "group": "regression: reader/reader-authority/reader-privacy",
+      "scenario": "readerSourcesThresholdAndRest",
+      "durationSeconds": 24.171,
+      "result": "passed",
+      "evidence": "regression/reader/readerSourcesThresholdAndRest.txt"
+    },
+    {
+      "group": "regression: reader/reader-authority/reader-privacy",
+      "scenario": "readerNextFailurePreservesPage",
+      "durationSeconds": 9.917,
+      "result": "passed",
+      "evidence": "regression/reader/readerNextFailurePreservesPage.txt"
+    },
+    {
+      "group": "regression: reader/reader-authority/reader-privacy",
+      "scenario": "sourceSheetClearOnForeground",
+      "durationSeconds": 10.478,
+      "result": "passed",
+      "evidence": "regression/reader/sourceSheetClearOnForeground.txt"
+    },
+    {
+      "group": "regression: reader/reader-authority/reader-privacy",
+      "scenario": "readerNextRevokedSessionFailsClosed",
+      "durationSeconds": 6.074,
+      "result": "passed",
+      "evidence": "regression/reader/readerNextRevokedSessionFailsClosed.txt"
+    },
+    {
+      "group": "regression: clear-history (privacy)",
+      "scenario": "clearHistoryConfirmationCancelIsHarmless",
+      "durationSeconds": 6.838,
+      "result": "passed",
+      "evidence": "regression/history/clearHistoryConfirmationCancelIsHarmless.txt"
+    },
+    {
+      "group": "regression: clear-history (privacy)",
+      "scenario": "clearHistoryClearsNonemptyHistory",
+      "durationSeconds": 12.601,
+      "result": "passed",
+      "evidence": "regression/history/clearHistoryClearsNonemptyHistory.txt"
+    },
+    {
+      "group": "regression: clear-history (privacy)",
+      "scenario": "pendingClearProcessDeathPrepare",
+      "durationSeconds": 8.451,
+      "result": "passed",
+      "evidence": "regression/history/pendingClearProcessDeathPrepare.txt"
+    },
+    {
+      "group": "regression: clear-history (privacy)",
+      "scenario": "pendingClearProcessDeathRestore",
+      "durationSeconds": 3.63,
+      "result": "passed",
+      "evidence": "regression/history/pendingClearProcessDeathRestore.txt"
+    },
+    {
+      "group": "regression: clear-history (privacy)",
+      "scenario": "higherPrivacyEpochPurgesCachedScrollOnForeground",
+      "durationSeconds": 7.648,
+      "result": "passed",
+      "evidence": "regression/history/higherPrivacyEpochPurgesCachedScrollOnForeground.txt"
+    },
+    {
+      "group": "regression: clear-history (privacy)",
+      "scenario": "differentUniverseBindingDropsPendingClearAndCache",
+      "durationSeconds": 8.905,
+      "result": "passed",
+      "evidence": "regression/history/differentUniverseBindingDropsPendingClearAndCache.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "prepareProjectedTraceForRevisit",
+      "durationSeconds": 9.365,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/prepareProjectedTraceForRevisit.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "coldRestoreRefetchesSavedTraceIdentityAndPosition",
+      "durationSeconds": 3.004,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/coldRestoreRefetchesSavedTraceIdentityAndPosition.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "reopensVerifiedTraceShowsSourcesAndReturns",
+      "durationSeconds": 7.443,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/reopensVerifiedTraceShowsSourcesAndReturns.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "traceReadDropRetriesSameIdentity",
+      "durationSeconds": 6.224,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/traceReadDropRetriesSameIdentity.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "explicitNextLeavesTraceForFreshDiscovery",
+      "durationSeconds": 6.017,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/explicitNextLeavesTraceForFreshDiscovery.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "clearHistoryDiscardsOpenTrace",
+      "durationSeconds": 5.448,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/clearHistoryDiscardsOpenTrace.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "revokedSessionDiscardsOpenTrace",
+      "durationSeconds": 9.177,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/revokedSessionDiscardsOpenTrace.txt"
+    },
+    {
+      "group": "regression: trace revisit",
+      "scenario": "changedSourceDiscardsTraceReader",
+      "durationSeconds": 6.55,
+      "result": "passed",
+      "evidence": "regression/trace-revisit/changedSourceDiscardsTraceReader.txt"
+    },
+    {
+      "group": "regression: real journey (J001)",
+      "scenario": "processDeathPrepare",
+      "durationSeconds": 3.65,
+      "result": "passed",
+      "evidence": "regression/journey/processDeathPrepare.txt"
+    },
+    {
+      "group": "regression: real journey (J001)",
+      "scenario": "processDeathRestoreKeepReturnAndNext",
+      "durationSeconds": 3.741,
+      "result": "passed",
+      "evidence": "regression/journey/processDeathRestoreKeepReturnAndNext.txt"
+    },
+    {
+      "group": "regression: real journey (J001)",
+      "scenario": "sourcedScrollKeepAndReturn",
+      "durationSeconds": 5.934,
+      "result": "passed",
+      "evidence": "regression/journey/sourcedScrollKeepAndReturn.txt"
+    },
+    {
+      "group": "regression: real journey (J001)",
+      "scenario": "unavailableIsHonest",
+      "durationSeconds": 3.397,
+      "result": "passed",
+      "evidence": "regression/journey/unavailableIsHonest.txt"
+    },
+    {
+      "group": "regression: real journey (J001)",
+      "scenario": "compactLayoutAndRecovery",
+      "durationSeconds": 3.892,
+      "result": "passed",
+      "evidence": "regression/journey/compactLayoutAndRecovery.txt"
     }
-  },
-  "transportFixture": {
-    "blankNextFeedReason": false,
-    "feedReasonsBlanked": 1,
-    "remainingRevokeDrops": 0,
-    "revokeSocketsDropped": 2,
-    "revokeSucceeded": 2,
-    "revokeUnauthorized": 1,
-    "sessionsRevoked": 1,
-    "sessionsRestored": 2
-  },
-  "runtime": {
-    "database": "disposable PostgreSQL",
-    "api": "separate process",
-    "worker": "separate process",
-    "device": "36",
-    "compact": "840x1680 at font_scale1.3",
-    "regular": "AVD native size at font_scale1.0",
-    "apiPort": "4326",
-    "proxyPort": 4321,
-    "coldRestart": {
-      "beforePid": "10480",
-      "afterPid": "10523"
+  ],
+  "scenarioCount": 32,
+  "finalResult": "passed",
+  "firstAttemptFailures": [
+    {
+      "scenario": "readerSourcesThresholdAndRest",
+      "script": "android-reader-journey.py",
+      "error": "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms (waiting for the journey app's window to regain foreground focus)",
+      "durationSeconds": 25.704,
+      "diagnosis": "com.android.systemui ANR observed on this emulator at the same time (adb shell dumpsys window showed mCurrentFocus=... Application Not Responding: com.android.systemui); not a code defect in ReaderJourneyTest.kt or product code, neither of which this issue's fix touched.",
+      "evidence": "incidents/readerSourcesThresholdAndRest-first-attempt.txt",
+      "recovery": "adb shell input keyevent KEYCODE_HOME dismissed the ANR; emulator restarted with more memory (3584MB) for the remaining runs; the identical scenario, unmodified, passed on immediate retry in 24.171s",
+      "retryEvidence": "regression/reader/readerSourcesThresholdAndRest.txt"
+    },
+    {
+      "scenario": "processDeathRestoreKeepReturnAndNext",
+      "script": "android-journey.py",
+      "error": "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms (waitText after am force-stop + relaunch)",
+      "durationSeconds": 18.27,
+      "diagnosis": "Same class of transient emulator stall as the readerSourcesThresholdAndRest failure above, occurring later in the same session; not a code defect (RealJourneyTest.kt and product code are unmodified by this issue's fix).",
+      "evidence": "incidents/processDeathRestoreKeepReturnAndNext-first-attempt.txt",
+      "recovery": "Re-ran android-journey.py with no code change; the identical scenario passed in 3.741s",
+      "retryEvidence": "regression/journey/processDeathRestoreKeepReturnAndNext.txt"
     }
+  ],
+  "durationOutlierInvestigation": {
+    "finding": "explainSheetReportsNoRecordedExplanationForABlankReason previously recorded Time: 1029.116s against every sibling scenario's 3-27s (see prior evidence, superseded by this run)",
+    "freshMeasurement": 7.452,
+    "conclusion": "Not reproduced. The identical test, at the identical code path (ReaderExplainJourneyTest.kt and the AppViewModel/ScrollScreen code it exercises are unchanged by this bounded fix except for the strings.xml wording), against the new commit, completed in 7.452s -- squarely inside the normal 3-27s range.",
+    "ruledOut": [
+      "No explicit wait/poll/timeout in ReaderExplainJourneyTest.kt or its helpers exceeds compose.waitUntil(15_000) (15s); none can deterministically produce 1029s.",
+      "ApiClient.request has maxAttempts=2 with delays of at most 1_200ms between attempts and 5s/8s connect/read timeouts; no code path there can silently accumulate to 1029s on a single scenario.",
+      "The blank-reason scenario's steps (openReaderFresh, openExplainSheet, assertions, screenshot, writeReceipt) are structurally the same shape as explainSheetShowsDiscoveryReasonTruthAndSourcesNote (9.494s this run), which never showed the same anomaly.",
+      "The android-reader-explain-journey.py subprocess.check_output(..., timeout=120) bound on each am instrument call is inconsistent with a genuine unbounded 1029s local hang completing the same script run to a passed release.json afterward; this inconsistency in the historical receipt is noted, not resolved."
+    ],
+    "supportingObservationThisSession": "This session directly observed a real, reproducible mechanism by which this exact AVD/host can stall for many seconds independent of product code: a com.android.systemui Application-Not-Responding state, captured via adb shell dumpsys window twice (once mid-session, once on a completely fresh boot), causing two other pre-existing, unmodified regression scenarios (readerSourcesThresholdAndRest, processDeathRestoreKeepReturnAndNext) to fail with the same ComposeTimeoutException-after-15000ms shape before passing cleanly on immediate retry. See incidents/systemui-anr-observation.txt.",
+    "notEstablished": "Whether the original, now-gone 1029.116s process was stalled by this same systemui/emulator mechanism, a different one, or something else. That process was not instrumented at the time and cannot be re-examined."
   },
-  "ownerPackage": {
-    "installedPathBefore": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
-    "installedPathAfter": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
-    "untouched": true
-  },
-  "providerCalls": 0,
-  "limits": [
-    "Transport loss and session revocation are explicitly injected fixtures; every successful response and every terminal signed-out state comes from the real API/session logic",
-    "No owner visual acceptance or manual TalkBack traversal recorded here",
-    "No desktop, physical device, Reel, semantic/living/social world or live provider proof",
-    "Concurrent restore-of-a-pending-sign-out with a still-inflight universe reconciliation is not exercised; only sequential ambiguous-then-retry and pre-revoked-then-401 are covered",
-    "The five-phase, 32-scenario emulator instrumentation run cited above was executed in an earlier attempt at this exact task on this exact commit (hash-verified, clean tree at capture time); this session did not itself drive the emulator through that full suite again.",
-    "No owner visual acceptance or manual TalkBack traversal was recorded.",
-    "No desktop, physical device, Reel, semantic/living/social world or live provider proof.",
-    "Fixture and source-level proof here is not live product acceptance."
-  ]
+  "cleanup": {
+    "disposableDatabasesDropped": true,
+    "disposableProcessesExited": true,
+    "emulatorShutDownAfterward": true,
+    "ownerPackageUntouched": true
+  }
 }

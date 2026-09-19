@@ -1,0 +1,60 @@
+com.knowscroll.mobile.RealJourneyTest:.
+
+Time: 4.142
+
+OK (1 test)
+
+
+
+
+com.knowscroll.mobile.RealJourneyTest:
+Error in processDeathRestoreKeepReturnAndNext(com.knowscroll.mobile.RealJourneyTest):
+androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)
+	at com.knowscroll.mobile.RealJourneyTest.waitText(RealJourneyTest.kt:28)
+	at com.knowscroll.mobile.RealJourneyTest.access$waitText(RealJourneyTest.kt:25)
+	at com.knowscroll.mobile.RealJourneyTest$processDeathRestoreKeepReturnAndNext$1.invokeSuspend(RealJourneyTest.kt:132)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source:1)
+	at com.knowscroll.mobile.RealJourneyTest.processDeathRestoreKeepReturnAndNext(RealJourneyTest.kt:114)
+
+
+Time: 18.27
+There was 1 failure:
+1) processDeathRestoreKeepReturnAndNext(com.knowscroll.mobile.RealJourneyTest)
+androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)
+	at com.knowscroll.mobile.RealJourneyTest.waitText(RealJourneyTest.kt:28)
+	at com.knowscroll.mobile.RealJourneyTest.access$waitText(RealJourneyTest.kt:25)
+	at com.knowscroll.mobile.RealJourneyTest$processDeathRestoreKeepReturnAndNext$1.invokeSuspend(RealJourneyTest.kt:132)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source:1)
+	at com.knowscroll.mobile.RealJourneyTest.processDeathRestoreKeepReturnAndNext(RealJourneyTest.kt:114)
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+
+
+
+Traceback (most recent call last):
+  File "/Volumes/Mrigesh SSD/knowscroll-worktrees/91-reader-explain/scripts/android-journey.py", line 51, in <module>
+    instrument('processDeathRestoreKeepReturnAndNext')
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/Mrigesh SSD/knowscroll-worktrees/91-reader-explain/scripts/android-journey.py", line 36, in instrument
+    if 'OK (1 test)' not in result:raise RuntimeError('Android instrumentation did not pass')
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Android instrumentation did not pass

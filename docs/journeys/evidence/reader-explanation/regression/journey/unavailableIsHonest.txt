@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.RealJourneyTest:.
 
-Time: 3.889
+Time: 3.397
 
 OK (1 test)
 

@@ -1,6 +1,6 @@
 {
   "scenario": "coldRestoreRefetchesSavedTraceIdentityAndPosition",
-  "traceEventFingerprint": "da32181403f35c8c",
+  "traceEventFingerprint": "95500eaa406d18b0",
   "assetFingerprint": "576f18824476444f",
   "universeFingerprint": "11e594f481958c10",
   "selectionRevision": 1,

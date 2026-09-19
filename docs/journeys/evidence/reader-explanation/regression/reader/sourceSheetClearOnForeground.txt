@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.ReaderPrivacyJourneyTest:.
 
-Time: 15.065
+Time: 10.478
 
 OK (1 test)
 
