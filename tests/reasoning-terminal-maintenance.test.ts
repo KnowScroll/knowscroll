@@ -109,3 +109,29 @@ test('a rejected private deletion rolls back the entire graph and Clear erases a
   const original=await clear();assert.equal(await exists(pool,young.jobId),false);assert.deepEqual(await clear(),original);
  });
 });
+
+test('terminal retirement rechecks unsafe children after an actual lock wait',async()=>{
+ await withReasoningMaintenanceSchema('terminal_wait',async pool=>{
+  const graph=await terminal(pool,'completed');await age(pool,graph.jobId,169);
+  const blocker=await pool.connect();await blocker.query('BEGIN');
+  let pending:Promise<unknown>|undefined;
+  try {
+   const pid=Number((await blocker.query('SELECT pg_backend_pid() pid')).rows[0].pid);
+   await blocker.query('SELECT id FROM reasoning_step WHERE id=$1 FOR UPDATE',[graph.stepId]);
+   pending=createReasoningMaintenance(pool).runBatch({maxProbes:2});void pending.catch(()=>{});
+   let observed=false;
+   for(let probe=0;probe<40;probe++) {
+    observed=(await pool.query('SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))',[pid])).rowCount!==0;
+    if(observed)break;
+    await new Promise(resolve=>setTimeout(resolve,5));
+   }
+   assert(observed,'maintenance reached the child resource wait');
+   // Deliberately bypass the normal universe-first writer discipline as an adversary.
+   await blocker.query("UPDATE reasoning_step SET status='pending' WHERE id=$1",[graph.stepId]);
+   await blocker.query('COMMIT');
+   const result=await pending as {retiredJobs:number};assert.equal(result.retiredJobs,0);
+   assert.equal(await exists(pool,graph.jobId),true);
+   assert.equal((await pool.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[graph.contextId])).rowCount,1);
+  } finally {await blocker.query('ROLLBACK');blocker.release();if(pending)await pending.catch(()=>{});}
+ });
+});
