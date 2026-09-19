@@ -17,3 +17,6 @@ Expected path → observed path; revision/environment/time; redacted receipt or 
 ## Handoff
 
 Divergence, blockers, next action. Update PROJECT-STATE only if durable truth changed.
+Refresh the coordinator-owned CHECKPOINT when the current wave, decision, runtime observation
+or next action changes; link it. State whether source was deployed and which evidence level
+was reached. Preserve old receipts and their actual revisions.

@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-19 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning primitives and J004 synthetic fault proof verified; durable SQL fairness, frozen context authority and seven-day withdrawn-context retirement and literal Ask recording plus sealed Ask context verified; next milestone: Owner Alpha.** This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-19 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning primitives and J004 synthetic fault proof verified; durable SQL fairness, frozen context authority and seven-day withdrawn-context retirement and literal Ask recording plus sealed Ask context verified; next milestone: Owner Alpha.** Current owner/runtime/host decisions are summarized in [CHECKPOINT](CHECKPOINT.md). This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## v1 release scope
 
@@ -121,3 +121,18 @@ Private-repository branch protection is unavailable on the current GitHub plan (
 ## Dated owner runtime observation — September19
 
 At2026-09-19T14:37:17Z, main was `5d34403`; the owner database retained migrations0001–0009, three completed bootstrap Jobs and no current projection heartbeat. The owner API was unavailable and former API/worker/maintenance PIDs were absent. The dedicated SSD PostgreSQL cluster had stopped and was restarted without applying migrations. This observation supersedes older running-process observations, not their historical evidence. #78 verification uses disposable databases; owner deployment remains separate.
+
+## September 19 handoff and local Cutroom decision
+
+Owner chose local Cutroom with media/storage on the external SSD and Claude Code ultracode
+coordination using cheaper workers. [Checkpoint](CHECKPOINT.md), [system navigation](operations/system-navigation.md)
+and [handoff](handoffs/claude-code-v1.md) are the current entry points. [#89](https://github.com/KnowScroll/knowscroll/issues/89)
+is next: current upstream52a62dd adds required RunRecord.takes within version1, so the old strict
+client must be reviewed/repinned before connecting. Upstream real-provider adapters and a service
+launcher remain missing; local ffmpeg and stand-in pipeline tests are not live H3 proof.
+
+The timestamped owner read at2026-09-19 17:55:29UTC saw migrations0001–0009 only (code has0012),
+API unavailable and stale projection heartbeat. No later owner rollout was performed.
+See [evidence](journeys/evidence/claude-handoff/README.md). Nineteen obsolete clean inactive
+worktrees and bootstrap scratch were privately archived and removed; [inventory](operations/worktrees.md)
+records preserved data, active references and restoration. Historical receipts remain unchanged.

@@ -6,9 +6,10 @@ KnowScroll is an emergent personal universe: Reel and Scroll encounters lead to 
 
 ## Start here
 
-1. **[Project state](docs/PROJECT-STATE.md)** — what exists, evidence, next work and blockers.
-2. **[Architecture](docs/architecture/README.md)** — the system and who owns each responsibility.
-3. **[v1 release contract](docs/product/v1-release.md)** — the full experience/UI, real video integration and end-to-end acceptance required for v1.
+1. **[Shared checkpoint](docs/CHECKPOINT.md)** — owner decisions, deployed-versus-source truth and next action.
+2. **[Project state](docs/PROJECT-STATE.md)** — what exists, evidence, next work and blockers.
+3. **[Architecture](docs/architecture/README.md)** — the system and who owns each responsibility.
+4. **[v1 release contract](docs/product/v1-release.md)** — the full experience/UI, real video integration and end-to-end acceptance required for v1.
 
 The full [product definition](docs/product/definition.md) remains the target. This repository begins with one executable slice; it does not claim the full recommendation engine is built.
 
@@ -37,6 +38,9 @@ The [pinned Cutroom HTTP client](docs/operations/cutroom-http-client.md) now has
 See the [ADRs](docs/decisions/README.md) for alternatives and consequences. One repository lets contracts evolve together; deployments remain independent.
 
 ## Run it
+
+These are setup commands, not a claim the owner deployment is current. Read the checkpoint
+before running initialization against existing data; use disposable environments for acceptance.
 
 ```sh
 # From this repository on the configured Mac:
