@@ -1,6 +1,6 @@
 # Saved Trace source revisit — #78
 
-Status: accepted for #78 after independent Terra review of `d741217`; coordinator typecheck passed. Consumer implementation and journey proof remain pending. Extends the existing bootstrap HTTP surface; no schema or retention change.
+Status: accepted for #78 after independent Terra review of `d741217`; coordinator typecheck passed. Consumer implementation and joined journey proof are recorded in [issue78 evidence](../journeys/evidence/trace-revisit/README.md). Extends the existing bootstrap HTTP surface; no schema or retention change.
 
 ## Read authority and source
 

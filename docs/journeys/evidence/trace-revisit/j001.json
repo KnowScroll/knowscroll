@@ -1,0 +1,78 @@
+{
+  "observedAt": "2026-09-19T14:40:29.614Z",
+  "git": {
+    "head": "7132c84b6500e04a2eaa774bd43992500ef2e117",
+    "dirty": false
+  },
+  "sourceHashes": {
+    "scripts/verify-journey.ts": "74573f39e6678baf66315e555d87f18213d1049e007a1ed21ff6bc29e0a8bd8b",
+    "scripts/journey-verifier.ts": "24f991c6b278ba28e79e44608b96f5fca19f92ad04f0931c6dcde82990381312",
+    "apps/api/src/app.ts": "eb1a421537579b7af0b27f88030c6ec560063602ecf4e2efe6ffc8efa873922c",
+    "apps/worker/src/project.ts": "2077b25e5e19e8871ad9704f5035878dceb2d6cfe406fd48489459f3a5f6945d",
+    "packages/db/migrations/0001_bootstrap.sql": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+  },
+  "journey": "J001",
+  "surface": "real HTTP plus PostgreSQL persisted causal lineage; worker-process launch evidence is supplied only by the isolated runner",
+  "environment": {
+    "apiBase": "http://127.0.0.1:58692",
+    "database": {
+      "kind": "PostgreSQL",
+      "host": "127.0.0.1",
+      "port": "55432",
+      "name": "knowscroll_journey_27e8e483a37f0e8d"
+    },
+    "node": "v22.23.0"
+  },
+  "source": {
+    "assetId": "10000000-0000-4000-8000-000000000001",
+    "assetRevision": 1,
+    "sourceTitle": "NASA · Orbits and Kepler’s Laws",
+    "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
+    "truthState": "documented"
+  },
+  "decisionId": "2d2c2c29-1956-4d9d-9f25-d3891686853b",
+  "exposure": {
+    "exposureId": "a8061d14-55ac-4b18-9b0d-cd321b159cad",
+    "eventId": "b6a65826-82ad-4340-82c7-146b64303fe8"
+  },
+  "accepted": {
+    "eventId": "6cdfcee9-5aed-4c78-bd63-c20688a79cbb",
+    "jobId": "cc1a3796-f52c-4018-8b3c-961b90ce4607",
+    "status": "accepted"
+  },
+  "event": {
+    "eventId": "6cdfcee9-5aed-4c78-bd63-c20688a79cbb",
+    "causationId": "b6a65826-82ad-4340-82c7-146b64303fe8",
+    "exposureId": "a8061d14-55ac-4b18-9b0d-cd321b159cad",
+    "kind": "keep",
+    "jobId": "cc1a3796-f52c-4018-8b3c-961b90ce4607",
+    "jobStatus": "completed",
+    "projected": true
+  },
+  "beforeRevision": 0,
+  "afterRevision": 1,
+  "nextDecisionId": "0b0d0f57-d3eb-4ddf-ad10-5d356b64ec9e",
+  "nextAssetIds": [
+    "10000000-0000-4000-8000-000000000002",
+    "10000000-0000-4000-8000-000000000003"
+  ],
+  "persisted": {
+    "decision": {
+      "id": "2d2c2c29-1956-4d9d-9f25-d3891686853b",
+      "accountRevision": 0,
+      "policyVersion": "editorial-unkept-v1"
+    },
+    "lineage": {
+      "exposureEventId": "b6a65826-82ad-4340-82c7-146b64303fe8",
+      "keepEventId": "6cdfcee9-5aed-4c78-bd63-c20688a79cbb",
+      "jobId": "cc1a3796-f52c-4018-8b3c-961b90ce4607",
+      "traceEventId": "6cdfcee9-5aed-4c78-bd63-c20688a79cbb"
+    },
+    "projection": {
+      "accountsRevision": 1,
+      "universeRevision": 1,
+      "completedAt": "2026-09-19T14:40:29.284Z"
+    }
+  },
+  "result": "passed"
+}

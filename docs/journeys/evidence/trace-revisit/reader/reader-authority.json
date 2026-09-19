@@ -1,0 +1,15 @@
+{
+  "scenario": "readerNextRevokedSessionFailsClosed",
+  "application": "journey",
+  "controlStatus": 204,
+  "assetFingerprint": "576f18824476444f",
+  "universeFingerprint": "11e594f481958c10",
+  "privacyEpoch": 1,
+  "exposureWasVisibleBeforeRevocation": true,
+  "nextFeed401FailedClosed": true,
+  "readerCachePurged": true,
+  "visitedPurged": true,
+  "sourceControlRemoved": true,
+  "oldPageAbsent": true,
+  "result": "passed"
+}
