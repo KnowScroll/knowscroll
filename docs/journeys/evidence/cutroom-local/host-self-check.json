@@ -1,0 +1,205 @@
+{
+  "utc": "20260919T191558Z",
+  "node": "v22.23.0",
+  "cutroomRuntime": "/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742",
+  "cutroomRevision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+  "checks": [
+    {
+      "name": "node-version predicate: 22.17 rejected",
+      "ok": true,
+      "detail": "nodeVersionOk(22.17.0) === false"
+    },
+    {
+      "name": "node-version predicate: 22.18 accepted",
+      "ok": true,
+      "detail": "nodeVersionOk(22.18.0) === true"
+    },
+    {
+      "name": "node-version predicate: current node accepted",
+      "ok": true,
+      "detail": "nodeVersionOk(v22.23.0) === true"
+    },
+    {
+      "name": "node-version refusal (documented limitation)",
+      "ok": true,
+      "detail": "not exercised as a live spawn: the environment rules forbid invoking any Node other than the pinned one, so the refusal is proved as the pure predicate above plus its call site in checkNodeVersion(), not a live process on an unsupported binary."
+    },
+    {
+      "name": "usage: unknown role",
+      "ok": true,
+      "detail": "exit 2, reason=usage, detail='first argument must be one of api, worker, init-instance; got \"bogus\"'"
+    },
+    {
+      "name": "usage: missing --cutroom",
+      "ok": true,
+      "detail": "exit 2, reason=usage, detail='--cutroom is required'"
+    },
+    {
+      "name": "usage: flag not valid for role",
+      "ok": true,
+      "detail": "exit 2, reason=usage, detail='flag for 'port' is not valid for role 'init-instance''"
+    },
+    {
+      "name": "usage: malformed --expect-revision",
+      "ok": true,
+      "detail": "exit 2, reason=usage, detail='--expect-revision must be a 40-character hex revision, got 'not-hex''"
+    },
+    {
+      "name": "revision-mismatch: scratch repo HEAD differs",
+      "ok": true,
+      "detail": "exit 2, reason=revision-mismatch, detail='runtime HEAD is 5b482f5d32c10047af8ea2ed5d43203f67ee8240, expected 1111111111111111111111111111111111111111'"
+    },
+    {
+      "name": "runtime-dirty: scratch repo has tracked changes",
+      "ok": true,
+      "detail": "exit 2, reason=runtime-dirty, detail='runtime has tracked changes: M tracked.txt'"
+    },
+    {
+      "name": "instance-not-absolute",
+      "ok": true,
+      "detail": "exit 2, reason=instance-not-absolute, detail='--instance must be an absolute path, got 'relative/instance''"
+    },
+    {
+      "name": "instance-outside-dev-root",
+      "ok": true,
+      "detail": "exit 2, reason=instance-outside-dev-root, detail='instance '/tmp/outside-dev-root-instance' resolves to '/private/tmp/outside-dev-root-instance', outside KS_DEV_ROOT '/Volumes/Mrigesh SSD/knowscroll-dev''"
+    },
+    {
+      "name": "instance-inside-cutroom",
+      "ok": true,
+      "detail": "exit 2, reason=instance-inside-cutroom, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-7ueluG/nested-instance' resolves to '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-7ueluG/nested-instance', inside the Cutroom checkout '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-7ueluG''"
+    },
+    {
+      "name": "instance-not-initialized: never initialized",
+      "ok": true,
+      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-06-never-initialized' has no instance.json; run init-instance first'"
+    },
+    {
+      "name": "instance-not-initialized: init-instance on a differently-initialized instance",
+      "ok": true,
+      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-07-conflict' was initialized for revision 2222222222222222222222222222222222222222, not 86d6e2c8b74228db4a5a953e53c53a7b77cef46e'"
+    },
+    {
+      "name": "bad-port",
+      "ok": true,
+      "detail": "exit 2, reason=bad-port, detail='--port must be an integer 0-65535, got '99999''"
+    },
+    {
+      "name": "bad-number",
+      "ok": true,
+      "detail": "exit 2, reason=bad-number, detail='--lease-ms must be a positive integer, got '0''"
+    },
+    {
+      "name": "providers-not-allowed",
+      "ok": true,
+      "detail": "exit 2, reason=providers-not-allowed, detail='provider mode 'real' is not allowed; only 'standin' is'"
+    },
+    {
+      "name": "secret-in-environment",
+      "ok": true,
+      "detail": "exit 2, reason=secret-in-environment, detail='forbidden environment variable name(s) present: MINIMAX_API_KEY'"
+    },
+    {
+      "name": "bad-standin-script: unknown top-level key",
+      "ok": true,
+      "detail": "exit 2, reason=bad-standin-script, detail=''/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-bad-script-20260919T191558Z.json' has unknown top-level key 'notAllowed''"
+    },
+    {
+      "name": "init-instance: layout created",
+      "ok": true,
+      "detail": "artifacts/, logs/, BUDGET.md and instance.json all present under /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-13-layout"
+    },
+    {
+      "name": "init-instance: BUDGET.md hash recorded correctly",
+      "ok": true,
+      "detail": "db1c4fe828f3b9025cc7aebe07d94af0f4aef4c20d2efc78e43894a72bf54e92"
+    },
+    {
+      "name": "init-instance: idempotent rerun keeps createdAt and exits 0",
+      "ok": true,
+      "detail": "createdAt unchanged (2026-09-19T19:16:04.727Z), idempotent=true"
+    },
+    {
+      "name": "init-instance: different-revision refusal on a real layout",
+      "ok": true,
+      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-13-layout' was initialized for revision 4444444444444444444444444444444444444444, not 86d6e2c8b74228db4a5a953e53c53a7b77cef46e'"
+    },
+    {
+      "name": "api: readiness line observed",
+      "ok": true,
+      "detail": "{\"ready\":true,\"role\":\"api\",\"pid\":86699,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T19:16:06.149Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/artifacts\",\"providers\":\"standin\",\"baseUrl\":\"http://127.0.0.1:63512\",\"port\":63512}"
+    },
+    {
+      "name": "api: observed port is nonzero on 127.0.0.1",
+      "ok": true,
+      "detail": "http://127.0.0.1:63512"
+    },
+    {
+      "name": "api: GET /v1/runs?requestId=absent -> 404 not-found",
+      "ok": true,
+      "detail": "{\"status\":404,\"body\":{\"contractVersion\":1,\"error\":\"not-found\",\"detail\":\"no run for requestId 'absent'\"}}"
+    },
+    {
+      "name": "api: unknown route -> 404",
+      "ok": true,
+      "detail": "{\"status\":404,\"body\":{\"contractVersion\":1,\"error\":\"not-found\",\"detail\":\"no route GET /nope\"}}"
+    },
+    {
+      "name": "worker: readiness observed with no stand-in script (ffmpeg ready)",
+      "ok": true,
+      "detail": "{\"ready\":true,\"role\":\"worker\",\"pid\":86766,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T19:16:07.296Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/artifacts\",\"providers\":\"standin\",\"renderProfile\":\"small\",\"leaseMs\":60000,\"pollMs\":500,\"standinScriptSha256\":null}"
+    },
+    {
+      "name": "submit: 202 accepted",
+      "ok": true,
+      "detail": "{\"status\":202,\"body\":{\"contractVersion\":1,\"outcome\":\"accepted\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"replayed\":false}}"
+    },
+    {
+      "name": "poll: run reached a terminal state",
+      "ok": true,
+      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"state\":\"finished\",\"lastSeq\":3}"
+    },
+    {
+      "name": "result: observed shape with an empty model script (reported, not assumed)",
+      "ok": true,
+      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"costCents\":0,\"status\":\"failed\",\"detail\":\"the stand-in's script has no answer for planner call 1\"}"
+    },
+    {
+      "name": "record: response includes a takes array",
+      "ok": true,
+      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"pictures\":[],\"takes\":[],\"degradations\":[]}"
+    },
+    {
+      "name": "stop: api stopped gracefully within 30s",
+      "ok": true,
+      "detail": "exit 0"
+    },
+    {
+      "name": "stop: worker stopped gracefully within 30s",
+      "ok": true,
+      "detail": "exit 0"
+    },
+    {
+      "name": "restart: same runId/requestId observed after restart on the same port",
+      "ok": true,
+      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"state\":\"finished\",\"lastSeq\":3}"
+    },
+    {
+      "name": "sigkill: worker killed",
+      "ok": true,
+      "detail": "signal=SIGKILL"
+    },
+    {
+      "name": "sigkill: a fresh worker starts cleanly on the same db",
+      "ok": true,
+      "detail": "{\"ready\":true,\"role\":\"worker\",\"pid\":87099,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T19:16:10.369Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/artifacts\",\"providers\":\"standin\",\"renderProfile\":\"small\",\"leaseMs\":60000,\"pollMs\":500,\"standinScriptSha256\":null}"
+    },
+    {
+      "name": "cleanup: no host.ts process left running",
+      "ok": true,
+      "detail": "none"
+    }
+  ],
+  "ok": true,
+  "note": "Real local service with upstream stand-in providers. Never real generation, never a live provider call."
+}
