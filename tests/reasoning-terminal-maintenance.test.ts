@@ -135,3 +135,34 @@ test('terminal retirement rechecks unsafe children after an actual lock wait',as
   } finally {await blocker.query('ROLLBACK');blocker.release();if(pending)await pending.catch(()=>{});}
  });
 });
+
+test('finish clock refuses a lease that expires while terminal safety inspection is blocked',async()=>{
+ await withReasoningMaintenanceSchema('finish_clock_wait',async pool=>{
+  const graph=await seedIdleGraph(pool);
+  const claim=await graph.admission.claimJob({owner:'finish-clock-wait',leaseMs:60_000});assert.equal(claim?.jobId,graph.jobId);
+  await pool.query("UPDATE reasoning_step SET status='succeeded' WHERE id=$1",[graph.stepId]);
+  await pool.query("UPDATE reasoning_job SET lease_expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1",[graph.jobId]);
+  const blocker=await pool.connect();await blocker.query('BEGIN');
+  let pending:Promise<pg.QueryResult>|undefined;
+  try {
+   const pid=Number((await blocker.query('SELECT pg_backend_pid() pid')).rows[0].pid);
+   await blocker.query('LOCK TABLE reasoning_fairness_ready IN ACCESS EXCLUSIVE MODE');
+   pending=pool.query("UPDATE reasoning_job SET status='completed',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1",[graph.jobId]);
+   void pending.catch(()=>{});
+   let observed=false;
+   for(let probe=0;probe<100;probe++) {
+    observed=(await pool.query('SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))',[pid])).rowCount!==0;
+    if(observed)break;
+    await new Promise(resolve=>setTimeout(resolve,5));
+   }
+   assert(observed,'terminal guard encountered the blocked safety relation');
+   for(let probe=0;probe<150;probe++) {
+    if((await pool.query('SELECT lease_expires_at<=clock_timestamp() expired FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0].expired)break;
+    await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   assert.equal((await pool.query('SELECT lease_expires_at<=clock_timestamp() expired FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0].expired,true);
+   await blocker.query('COMMIT');await assert.rejects(pending,/safely terminal|live lease/);
+   assert.deepEqual((await pool.query('SELECT status,finished_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0],{status:'running',finished_at:null});
+  } finally {await blocker.query('ROLLBACK');blocker.release();if(pending)await pending.catch(()=>{});}
+ });
+});
