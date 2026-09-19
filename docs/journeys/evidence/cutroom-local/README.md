@@ -226,3 +226,22 @@ this lane's brief — 42/42 pass):
 - **This is source/runtime proof only**, explicitly labelled throughout as "real local service with
   upstream stand-in providers" — never real generation, never a product journey, and never owner
   acceptance.
+
+## Coordinator reproduction on the integration head (2026-09-19/20)
+
+The coordinator merged host and proof lanes into `claude/89-cutroom-local` and re-ran everything
+there with a stripped environment (`PATH`, `HOME`, `TMPDIR`, `KS_DEV_ROOT`, `LANG` only):
+
+- `node ops/cutroom-host/self-check.ts` — **overall PASS**, receipt
+  `$KS_DEV_ROOT/cutroom/logs/host-selfcheck-20260919T215041Z.json` (snapshot `host-self-check.json` is this run).
+- `pnpm exec tsx scripts/run-local-cutroom-journey.ts` — **12/12 PASS**, run stamp
+  `2026-09-19T21-51-08-110Z`; `joined-proof.json` is this run's snapshot (the builder's
+  `2026-09-19T20-32-25-145Z` run remains in `$KS_DEV_ROOT/cutroom/logs/`). S7 again produced a 29 s
+  9:16 H.264 stand-in render with 6 takes, all used; the takes/used checks are enforced in the
+  verification step even though the snapshot lists them as observations.
+- `pnpm typecheck`; 47 targeted Cutroom client/helper/compat checks; full backend `pnpm test`
+  (479 + 12 passing, 0 failing).
+
+Upstream Cutroom's own suite at this pin has 16 tests that fail deterministically on this Mac (see
+the shared checkpoint); the stand-in paths exercised here were unaffected. Recorded only; KnowScroll
+does not modify Cutroom.

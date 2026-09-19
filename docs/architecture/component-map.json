@@ -84,14 +84,14 @@
       "component": "Cutroom Adapter",
       "responsibility": "External HTTP runs and verified asset import",
       "path": "apps/worker/src/cutroom",
-      "status": "pinned-http-client-86d6e2c-fixture-verified-no-import-or-product-dispatch",
+      "status": "pinned-client-86d6e2c-verified-against-real-local-cutroom-with-stand-ins-no-import-or-product-dispatch",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/9"
     },
     {
       "component": "Local Cutroom Host",
       "responsibility": "Operator composition that starts pinned upstream Cutroom API and worker as separate SSD processes; stand-in providers only (ADR-0021)",
       "path": "ops/cutroom-host",
-      "status": "contract-accepted-implementation-pending",
+      "status": "stand-in-host-self-check-and-12-scenario-joined-proof-verified-no-real-providers",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/89"
     },
     {

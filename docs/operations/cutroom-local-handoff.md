@@ -4,6 +4,17 @@ Status: current source audit and accepted hosting decision, 2026-09-19, #88/#89.
 The owner chose local execution on this Mac with all generated media and working storage on SSD.
 This resolves the pending local-versus-remote choice in ADR-0020; it does not certify a deployment.
 
+## September 20 outcome (#89)
+
+The client now pins upstream `86d6e2c8` ([ADR-0021](../decisions/0021-cutroom-successor-pin-and-local-host.md)).
+A KnowScroll-owned operator host (`ops/cutroom-host/`) starts the pinned upstream API and worker as
+separate SSD processes with upstream stand-ins and real ffmpeg. The repinned client passed a
+12-scenario joined proof against that real service and storage — replay, conflict, lost response,
+graceful restart, crash reclaim, cancellation and a completed stand-in video — see
+[evidence](../journeys/evidence/cutroom-local/README.md). Owner decisions: KnowScroll does not modify
+Cutroom; a live test of at most $2 waits until upstream ships real providers. The sections below are
+the September 19 audit, kept as history.
+
 ## Current upstream and compatibility
 
 Fresh clone: `/Volumes/Mrigesh SSD/cutroom`, remote `KnowScroll/Cutroom`, main

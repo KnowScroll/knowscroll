@@ -1,5 +1,5 @@
 {
-  "utc": "20260919T191558Z",
+  "utc": "20260919T215041Z",
   "node": "v22.23.0",
   "cutroomRuntime": "/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742",
   "cutroomRevision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
@@ -47,7 +47,7 @@
     {
       "name": "revision-mismatch: scratch repo HEAD differs",
       "ok": true,
-      "detail": "exit 2, reason=revision-mismatch, detail='runtime HEAD is 5b482f5d32c10047af8ea2ed5d43203f67ee8240, expected 1111111111111111111111111111111111111111'"
+      "detail": "exit 2, reason=revision-mismatch, detail='runtime HEAD is f13c1a7feee16a98ec70f3821c73c42ef93759aa, expected 1111111111111111111111111111111111111111'"
     },
     {
       "name": "runtime-dirty: scratch repo has tracked changes",
@@ -67,17 +67,17 @@
     {
       "name": "instance-inside-cutroom",
       "ok": true,
-      "detail": "exit 2, reason=instance-inside-cutroom, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-7ueluG/nested-instance' resolves to '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-7ueluG/nested-instance', inside the Cutroom checkout '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-7ueluG''"
+      "detail": "exit 2, reason=instance-inside-cutroom, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-flEPjV/nested-instance' resolves to '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-flEPjV/nested-instance', inside the Cutroom checkout '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-scratch-flEPjV''"
     },
     {
       "name": "instance-not-initialized: never initialized",
       "ok": true,
-      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-06-never-initialized' has no instance.json; run init-instance first'"
+      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-06-never-initialized' has no instance.json; run init-instance first'"
     },
     {
       "name": "instance-not-initialized: init-instance on a differently-initialized instance",
       "ok": true,
-      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-07-conflict' was initialized for revision 2222222222222222222222222222222222222222, not 86d6e2c8b74228db4a5a953e53c53a7b77cef46e'"
+      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-07-conflict' was initialized for revision 2222222222222222222222222222222222222222, not 86d6e2c8b74228db4a5a953e53c53a7b77cef46e'"
     },
     {
       "name": "bad-port",
@@ -102,12 +102,12 @@
     {
       "name": "bad-standin-script: unknown top-level key",
       "ok": true,
-      "detail": "exit 2, reason=bad-standin-script, detail=''/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-bad-script-20260919T191558Z.json' has unknown top-level key 'notAllowed''"
+      "detail": "exit 2, reason=bad-standin-script, detail=''/Volumes/Mrigesh SSD/knowscroll-dev/tmp/host-selfcheck-bad-script-20260919T215041Z.json' has unknown top-level key 'notAllowed''"
     },
     {
       "name": "init-instance: layout created",
       "ok": true,
-      "detail": "artifacts/, logs/, BUDGET.md and instance.json all present under /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-13-layout"
+      "detail": "artifacts/, logs/, BUDGET.md and instance.json all present under /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-13-layout"
     },
     {
       "name": "init-instance: BUDGET.md hash recorded correctly",
@@ -117,22 +117,22 @@
     {
       "name": "init-instance: idempotent rerun keeps createdAt and exits 0",
       "ok": true,
-      "detail": "createdAt unchanged (2026-09-19T19:16:04.727Z), idempotent=true"
+      "detail": "createdAt unchanged (2026-09-19T21:50:51.937Z), idempotent=true"
     },
     {
       "name": "init-instance: different-revision refusal on a real layout",
       "ok": true,
-      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-13-layout' was initialized for revision 4444444444444444444444444444444444444444, not 86d6e2c8b74228db4a5a953e53c53a7b77cef46e'"
+      "detail": "exit 2, reason=instance-not-initialized, detail='instance '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-13-layout' was initialized for revision 4444444444444444444444444444444444444444, not 86d6e2c8b74228db4a5a953e53c53a7b77cef46e'"
     },
     {
       "name": "api: readiness line observed",
       "ok": true,
-      "detail": "{\"ready\":true,\"role\":\"api\",\"pid\":86699,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T19:16:06.149Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/artifacts\",\"providers\":\"standin\",\"baseUrl\":\"http://127.0.0.1:63512\",\"port\":63512}"
+      "detail": "{\"ready\":true,\"role\":\"api\",\"pid\":95237,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T21:50:53.469Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live/artifacts\",\"providers\":\"standin\",\"baseUrl\":\"http://127.0.0.1:54268\",\"port\":54268}"
     },
     {
       "name": "api: observed port is nonzero on 127.0.0.1",
       "ok": true,
-      "detail": "http://127.0.0.1:63512"
+      "detail": "http://127.0.0.1:54268"
     },
     {
       "name": "api: GET /v1/runs?requestId=absent -> 404 not-found",
@@ -147,27 +147,27 @@
     {
       "name": "worker: readiness observed with no stand-in script (ffmpeg ready)",
       "ok": true,
-      "detail": "{\"ready\":true,\"role\":\"worker\",\"pid\":86766,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T19:16:07.296Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/artifacts\",\"providers\":\"standin\",\"renderProfile\":\"small\",\"leaseMs\":60000,\"pollMs\":500,\"standinScriptSha256\":null}"
+      "detail": "{\"ready\":true,\"role\":\"worker\",\"pid\":95293,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T21:50:54.711Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live/artifacts\",\"providers\":\"standin\",\"renderProfile\":\"small\",\"leaseMs\":60000,\"pollMs\":500,\"standinScriptSha256\":null}"
     },
     {
       "name": "submit: 202 accepted",
       "ok": true,
-      "detail": "{\"status\":202,\"body\":{\"contractVersion\":1,\"outcome\":\"accepted\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"replayed\":false}}"
+      "detail": "{\"status\":202,\"body\":{\"contractVersion\":1,\"outcome\":\"accepted\",\"requestId\":\"req-selfcheck-20260919T215041Z\",\"runId\":\"e79dbeed-6dae-42f9-b9f3-c8b4f3451d3a\",\"replayed\":false}}"
     },
     {
       "name": "poll: run reached a terminal state",
       "ok": true,
-      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"state\":\"finished\",\"lastSeq\":3}"
+      "detail": "{\"contractVersion\":1,\"runId\":\"e79dbeed-6dae-42f9-b9f3-c8b4f3451d3a\",\"requestId\":\"req-selfcheck-20260919T215041Z\",\"state\":\"finished\",\"lastSeq\":3}"
     },
     {
       "name": "result: observed shape with an empty model script (reported, not assumed)",
       "ok": true,
-      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"costCents\":0,\"status\":\"failed\",\"detail\":\"the stand-in's script has no answer for planner call 1\"}"
+      "detail": "{\"contractVersion\":1,\"runId\":\"e79dbeed-6dae-42f9-b9f3-c8b4f3451d3a\",\"requestId\":\"req-selfcheck-20260919T215041Z\",\"costCents\":0,\"status\":\"failed\",\"detail\":\"the stand-in's script has no answer for planner call 1\"}"
     },
     {
       "name": "record: response includes a takes array",
       "ok": true,
-      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"pictures\":[],\"takes\":[],\"degradations\":[]}"
+      "detail": "{\"contractVersion\":1,\"runId\":\"e79dbeed-6dae-42f9-b9f3-c8b4f3451d3a\",\"pictures\":[],\"takes\":[],\"degradations\":[]}"
     },
     {
       "name": "stop: api stopped gracefully within 30s",
@@ -182,7 +182,7 @@
     {
       "name": "restart: same runId/requestId observed after restart on the same port",
       "ok": true,
-      "detail": "{\"contractVersion\":1,\"runId\":\"ab274ec5-f5ea-47a9-8a95-c2d721bffae6\",\"requestId\":\"req-selfcheck-20260919T191558Z\",\"state\":\"finished\",\"lastSeq\":3}"
+      "detail": "{\"contractVersion\":1,\"runId\":\"e79dbeed-6dae-42f9-b9f3-c8b4f3451d3a\",\"requestId\":\"req-selfcheck-20260919T215041Z\",\"state\":\"finished\",\"lastSeq\":3}"
     },
     {
       "name": "sigkill: worker killed",
@@ -192,7 +192,7 @@
     {
       "name": "sigkill: a fresh worker starts cleanly on the same db",
       "ok": true,
-      "detail": "{\"ready\":true,\"role\":\"worker\",\"pid\":87099,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T19:16:10.369Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T191558Z-14-live/artifacts\",\"providers\":\"standin\",\"renderProfile\":\"small\",\"leaseMs\":60000,\"pollMs\":500,\"standinScriptSha256\":null}"
+      "detail": "{\"ready\":true,\"role\":\"worker\",\"pid\":95740,\"node\":\"v22.23.0\",\"execPath\":\"/Users/comreton/.hermes/node/bin/node\",\"startedAt\":\"2026-09-19T21:50:58.234Z\",\"cutroomRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"hostSha256\":\"e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead\",\"instance\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live\",\"dbPath\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live/cutroom.sqlite\",\"artifactRoot\":\"/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/host-selfcheck-20260919T215041Z-14-live/artifacts\",\"providers\":\"standin\",\"renderProfile\":\"small\",\"leaseMs\":60000,\"pollMs\":500,\"standinScriptSha256\":null}"
     },
     {
       "name": "cleanup: no host.ts process left running",
