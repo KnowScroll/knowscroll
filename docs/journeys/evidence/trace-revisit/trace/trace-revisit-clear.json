@@ -1,0 +1,9 @@
+{
+  "scenario": "clearHistoryDiscardsOpenTrace",
+  "traceEventFingerprint": "83800584a089ee5c",
+  "controlStatus": 204,
+  "revisitPurged": true,
+  "contentAbsent": true,
+  "requestedAssetFingerprint": "576f18824476444f",
+  "result": "passed"
+}

@@ -1,0 +1,112 @@
+{
+  "check": "trace-revisit-integration-78",
+  "testedBackendRevision": "cfa27a747555fe00a7965cd2ea386e2ccbc0fb4a",
+  "testedDeviceRevision": "45304d24ba5886371fa2fe3c481309f2b0034ec2",
+  "testedRegressionRevision": "7132c84b6500e04a2eaa774bd43992500ef2e117",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 388,
+    "passed": 400
+  },
+  "androidJvmTests": 9,
+  "instrumentationPhases": {
+    "savedTrace": 8,
+    "reader": 4,
+    "existingAndroid": 5,
+    "history": 6
+  },
+  "verifiedRecordedHashes": 92,
+  "productionFiles": [
+    {
+      "path": "apps/api/src/app.ts",
+      "sha256": "eb1a421537579b7af0b27f88030c6ec560063602ecf4e2efe6ffc8efa873922c"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/ApiClient.kt",
+      "sha256": "7cfe245536c221ee221fff9f682de80e7ecc08c9d0e3cb63785a6c6404acabc8"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Models.kt",
+      "sha256": "785ed3d7652288f92d196d507941e82909f4dac98366ac9fc3b994ee18604a8e"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/StateStore.kt",
+      "sha256": "89a341317856f3daaa1d72f432a996750115dfb3b0819fb71545c8ad220d5b8c"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt",
+      "sha256": "8d50da1aa178494455445cde711d72bb340a5826d94a943c03795ef3087ea9d7"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/KnowScrollApp.kt",
+      "sha256": "972d2a4f036d8c0acadf4aa9addb1e0dedd8b1ba8e9d607b2ff1682fab703ae1"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/ScrollScreen.kt",
+      "sha256": "38bf498826a4dc47e82467f2f84f835e70d9fecc3a64361bba96c806f9200013"
+    },
+    {
+      "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/universe/UniverseScreen.kt",
+      "sha256": "a6be238d9d537fb386362150def01d64db8504777452bc70f11584e61cf8b413"
+    },
+    {
+      "path": "apps/mobile/app/src/main/res/values/strings.xml",
+      "sha256": "ac4da78b2916a494452f7680ad81f1390367edd374130a3bcf8e81eb49918530"
+    },
+    {
+      "path": "packages/contracts/src/trace-revisit.ts",
+      "sha256": "9fbcae2dbbf73b679ac819e29df899363fee61a514215d5fd65ea7b5a9ec3a37"
+    },
+    {
+      "path": "packages/db/src/trace-revisit.ts",
+      "sha256": "998bc193f7cac9e26dd4b071161945a59d268a87a1db01c00278fd1c51490e69"
+    }
+  ],
+  "commands": [
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-integrated-tests-20260919.log",
+      "sha256": "70725e4b1aa81cf5650c86d947cb670e6e63f85d441923ab299b99f629a4330b",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-android-trace-20260919-final.log",
+      "sha256": "964cf460433813aad44b797107fc865532dc4707142e95a44e573d5dedef2f53",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-reader-regression-20260919.log",
+      "sha256": "d735c72243cec616ab8cf2c2f06acd0fc5499a529f014c31a6096aefa910c6e8",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-android-regression-20260919.log",
+      "sha256": "3c39737f78874d190653d5f74235f262d783cf5508f0e2b1d9a776737638fbe1",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-history-regression-20260919.log",
+      "sha256": "6b899e1ddf1967459ef87a5d6b708cf6d161f18524b9c4a6669bba75ffda2dfb",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-j001-20260919.log",
+      "sha256": "ed740b86c46dc5411703ef964757f69672bced7f9a5eebdc0f02d929b6dfdfb2",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-j002-20260919.log",
+      "sha256": "e97b64cae1a9eb226256736dc5713ae5bba6ebd1a66725af6d3fe4d9f31cbff8",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-j003-20260919.log",
+      "sha256": "53203e11ed5e25dd620ce6e7aceaec51b43c96d3331ecf130cc3e05623c7f890",
+      "exitCode": 0
+    }
+  ],
+  "limits": [
+    "No owner deployment, provider invocation, production identity or manual TalkBack proof",
+    "Activity recreation and observed process replacement are tested; physical-device eviction timing and owner acceptance are not",
+    "Full desktop, generated Reels, live Cutroom and journeys A-I remain incomplete"
+  ]
+}

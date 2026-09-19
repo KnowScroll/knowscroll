@@ -1,0 +1,7 @@
+{
+  "scenario": "reopensVerifiedTraceShowsSourcesAndReturns",
+  "traceEventFingerprint": "83800584a089ee5c",
+  "sourcesVisible": true,
+  "returnedToUniverse": true,
+  "result": "passed"
+}

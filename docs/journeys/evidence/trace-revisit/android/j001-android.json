@@ -1,0 +1,14 @@
+{
+  "journey": "J001",
+  "surface": "Android instrumentation + real API\/worker\/PostgreSQL",
+  "observedAt": "2026-09-19T14:40:10.214762Z",
+  "assetId": "10000000-0000-4000-8000-000000000002",
+  "eventId": "57979c34-cc70-430b-9516-c13f3a131815",
+  "causationId": "36863832-fc3b-4d2e-9ba1-553df82fe4b8",
+  "exposureId": "ab0a4a75-6e50-4f0d-a826-1668af0ba682",
+  "jobId": "8e9943c8-4bbc-4a51-8813-1e9c9bf0d50d",
+  "projected": true,
+  "revision": 2,
+  "activityRecreation": "passed",
+  "result": "passed"
+}

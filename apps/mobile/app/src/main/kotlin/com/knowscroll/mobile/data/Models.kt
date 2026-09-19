@@ -35,6 +35,16 @@ data class ScrollItem(
     val reason: String
 )
 
+/** A source-verified read of a projected Keep Trace. It is not a discovery candidate. */
+data class TraceRevisit(
+    val traceEventId: String,
+    val universeId: String,
+    val privacyEpoch: Long,
+    val exposureId: String,
+    val keptAt: String,
+    val scroll: ScrollItem
+)
+
 data class ExposureRequest(val decisionId: String, val assetId: String, val clientExposureId: String)
 data class ExposureResponse(val exposureId: String, val eventId: String)
 

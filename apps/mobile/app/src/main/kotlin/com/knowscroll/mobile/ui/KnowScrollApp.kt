@@ -39,7 +39,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
             }
         }
 
-        BackHandler(enabled = screen is Screen.Scroll) { viewModel.returnToUniverse() }
+        BackHandler(enabled = screen is Screen.Scroll || screen is Screen.TraceRevisit) { viewModel.returnToUniverse() }
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         LaunchedEffect(lifecycle) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -50,7 +50,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val reading = scroll as? ScrollState.Reading
         LaunchedEffect(screen, reading?.item?.assetId, lifecycle) {
             val assetId = reading?.item?.assetId
-            if (screen is Screen.Scroll && assetId != null) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            if ((screen is Screen.Scroll || screen is Screen.TraceRevisit) && assetId != null) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 withFrameNanos { }; withFrameNanos { }
                 viewModel.onVisible(assetId)
                 awaitCancellation()
@@ -62,13 +62,14 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 state = universe,
                 historyClear = historyClear,
                 onEnterScroll = viewModel::enterScroll,
+                onOpenTrace = viewModel::openTrace,
                 onRetry = viewModel::retryUniverse,
                 onRequestHistoryClear = viewModel::requestHistoryClearConfirmation,
                 onCancelHistoryClear = viewModel::cancelHistoryClear,
                 onConfirmHistoryClear = viewModel::confirmHistoryClear,
                 onRetryHistoryClear = viewModel::retryHistoryClear
             )
-            is Screen.Scroll -> ScrollScreen(
+            is Screen.Scroll, is Screen.TraceRevisit -> ScrollScreen(
                 state = scroll,
                 onKeep = viewModel::keep,
                 onReturn = viewModel::returnToUniverse,

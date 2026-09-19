@@ -14,6 +14,16 @@ data class ScrollSession(
     val readingPosition: Int = 0
 )
 
+/** The only persisted revisit data. Content must be fetched again after process death. */
+data class TraceRevisitSession(
+    val eventId: String,
+    val assetId: String,
+    val privacyEpoch: Long,
+    val universeId: String,
+    val revision: Int? = null,
+    val readingPosition: Int = 0
+)
+
 /** Persist the whole retry envelope together, not a UUID detached from its payload. */
 class StateStore(context: Context) {
     private val prefs = context.getSharedPreferences("ks_session_v1", Context.MODE_PRIVATE)
@@ -55,6 +65,35 @@ class StateStore(context: Context) {
         return ScrollSession(o.getString("decisionId"),item,o.optLong("privacyEpoch",0),o.optString("universeId",""),o.getString("clientExposureId"),o.getString("clientEventId"),o.getString("exposureId"),o.getString("exposureEventId"),o.getString("keepJobId"),o.getString("keepEventId"),position)
     }
 
+    fun writeRevisit(value: TraceRevisitSession) {
+        val json = JSONObject().apply {
+            put("eventId", value.eventId); put("assetId", value.assetId)
+            put("privacyEpoch", value.privacyEpoch); put("universeId", value.universeId)
+            value.revision?.let { put("revision", it) }
+            put("readingPosition", value.readingPosition)
+        }
+        check(prefs.edit().putString("revisit", json.toString()).commit()) {
+            "Could not save the saved-Trace identity"
+        }
+    }
+
+    fun readRevisit(): TraceRevisitSession? {
+        val raw = prefs.getString("revisit", null) ?: return null
+        return runCatching {
+            val json = JSONObject(raw)
+            TraceRevisitSession(
+                eventId = json.getString("eventId"), assetId = json.getString("assetId"),
+                privacyEpoch = json.getLong("privacyEpoch"), universeId = json.getString("universeId"),
+                revision = if (json.has("revision")) json.getInt("revision") else null,
+                readingPosition = json.optInt("readingPosition", 0)
+            )
+        }.getOrNull()
+    }
+
+    fun clearRevisit() {
+        check(prefs.edit().remove("revisit").commit()) { "Could not clear saved-Trace identity" }
+    }
+
     fun readObservedPrivacyEpoch(): Long = prefs.getLong("privacyEpoch", 0L)
     fun readObservedUniverseId(): String = prefs.getString("privacyUniverseId", "") ?: ""
 
@@ -94,6 +133,7 @@ class StateStore(context: Context) {
         val observed = if(readObservedUniverseId()==universeId)maxOf(readObservedPrivacyEpoch(),epoch) else epoch
         check(prefs.edit()
             .remove("session").remove("readingAssetId").remove("readingPosition")
+            .remove("revisit")
             .remove("visited").remove("pendingHistoryClear")
             .putString("screen", "universe").putString("privacyUniverseId",universeId)
             .putLong("privacyEpoch", observed).commit()) {

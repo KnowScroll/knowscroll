@@ -1,0 +1,13 @@
+{
+  "scenario": "prepareProjectedTraceForRevisit",
+  "traceEventFingerprint": "83800584a089ee5c",
+  "assetFingerprint": "576f18824476444f",
+  "universeFingerprint": "11e594f481958c10",
+  "selectionRevision": 1,
+  "readingPosition": 1816,
+  "traceReaderVisible": true,
+  "savedOriginVisible": true,
+  "exactSelectedContentAsserted": true,
+  "activityRecreationPreservedIdentityAndPosition": true,
+  "result": "passed"
+}
