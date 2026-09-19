@@ -1,0 +1,98 @@
+[
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "docs/features/reel-contract.md",
+    "sha256": "374197542a54f38394a29f33ba9d6cf011232f61f298f5b1736c578a0ce0b8a8"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "packages/reel-contract/src/request.ts",
+    "sha256": "82150483be29bbbdbef5560b3a8c9f8f5a32b320ae03c3bf99e4bd48dc346b02"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "packages/reel-contract/src/responses.ts",
+    "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "packages/reel-contract/src/routes.ts",
+    "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "packages/reel-contract/src/record.ts",
+    "sha256": "04cafb52da57154198fdc2aef26b0da3846e128682414415b36439914a5cfa01"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "packages/reel-contract/src/events.ts",
+    "sha256": "f04fe6a515cc9d2fcf358f74fae86d019c89a3c60dcd128ecbbb1b27e6a35527"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "apps/api/src/server.ts",
+    "sha256": "c5e2e1e5c4c8b43afe91de43a4153e3e48a8b066351dd6c0450ee5df5f822360"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "docs/features/reel-contract.md",
+    "sha256": "59ecdfe52632983e9d91f99dcb20b8b6c70564de61f0a8031ee0ecaca52d718c"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "packages/reel-contract/src/request.ts",
+    "sha256": "2f35b19a741805e0881f0eecd42f6c2a3bd532d26b2fd6ce3e81e4f0650d8ab5"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "packages/reel-contract/src/responses.ts",
+    "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "packages/reel-contract/src/routes.ts",
+    "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "packages/reel-contract/src/record.ts",
+    "sha256": "04cafb52da57154198fdc2aef26b0da3846e128682414415b36439914a5cfa01"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "packages/reel-contract/src/events.ts",
+    "sha256": "f04fe6a515cc9d2fcf358f74fae86d019c89a3c60dcd128ecbbb1b27e6a35527"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "apps/api/src/server.ts",
+    "sha256": "7ce56f7092d1bc2d9e0b70a2ac5afe2e7de00b02d61851c1f265ccaf84a31f1f"
+  },
+  {
+    "revision": "60ba257cbe9bfbdd32040a1acd793644c00e74e5",
+    "side": "pinned",
+    "path": "packages/reel-contract/src/version.ts",
+    "sha256": "2315bf14736f6c7809bfb9267adc3f10969eefe2659d24907874c9e1bc76455a"
+  },
+  {
+    "revision": "238df85411108a94377311363dd296d785688f70",
+    "side": "current",
+    "path": "packages/reel-contract/src/version.ts",
+    "sha256": "2315bf14736f6c7809bfb9267adc3f10969eefe2659d24907874c9e1bc76455a"
+  }
+]
