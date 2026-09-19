@@ -331,7 +331,7 @@ finally:
         try:
             action()
         except Exception as error:
-            cleanup_errors.append(type(error).__name__)
+            cleanup_errors.append(type(error).__name__ + ': ' + str(error))
     clean(lambda: run(['adb', 'shell', 'wm', 'size', 'reset']))
     clean(lambda: run(['adb', 'shell', 'settings', 'put', 'system', 'font_scale', original_font if original_font != 'null' else '1.0']))
     if proxy:
@@ -351,9 +351,10 @@ finally:
                 child.wait(timeout=5)
                 cleanup_errors.append('ServiceRequiredForcedShutdown')
             for _ in range(50):
-                try:
-                    os.killpg(child.pid, 0)
-                except ProcessLookupError:
+                # Darwin may report EPERM to killpg(..., 0) after group exit.
+                # Observe actual process-group membership, never treat EPERM as absence.
+                groups = subprocess.check_output(['ps', '-axo', 'pgid='], text=True)
+                if str(child.pid) not in {line.strip() for line in groups.splitlines()}:
                     break
                 time.sleep(.1)
             else:

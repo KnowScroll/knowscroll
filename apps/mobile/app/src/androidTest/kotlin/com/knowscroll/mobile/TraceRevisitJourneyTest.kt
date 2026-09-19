@@ -80,6 +80,11 @@ class TraceRevisitJourneyTest {
     }
 
     private fun showTraceCard(traceEventId:String) {
+        // A fresh instrumentation Activity first reconciles/refetches its saved origin.
+        waitUntil {
+            compose.onAllNodesWithContentDescription(traceDescription(traceEventId)).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithContentDescription("Return to the universe").fetchSemanticsNodes().isNotEmpty()
+        }
         if(compose.onAllNodesWithContentDescription(traceDescription(traceEventId)).fetchSemanticsNodes().isEmpty()) {
             val home=compose.onAllNodesWithContentDescription("Return to the universe")
             if(home.fetchSemanticsNodes().isNotEmpty()) home[0].performClick()
