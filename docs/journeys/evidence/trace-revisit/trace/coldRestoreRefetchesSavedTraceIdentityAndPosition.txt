@@ -1,8 +1,5 @@
-
 com.knowscroll.mobile.TraceRevisitJourneyTest:.
 
 Time: 4.756
 
 OK (1 test)
-
-
