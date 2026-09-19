@@ -1,6 +1,6 @@
 # ADR-0019 — Seven-day completed/failed private-context retirement
 
-Date: 2026-09-19. Status: proposal for #81; owner duration accepted, implementation contract awaiting independent review. Extends ADR-0015/0018 without changing their recorded evidence.
+Date: 2026-09-19. Status: accepted for #81 after independent MiniMax M3 review of `aaa3931` and the clarifications below; implementation proof remains pending. Extends ADR-0015/0018 without changing their recorded evidence.
 
 ## Owner decision and scope
 
@@ -10,7 +10,7 @@ Current private reasoning storage has no ordinary product completion consumer. T
 
 ## Authoritative terminal clock
 
-Reserve new migration0012 after verified main0011; never edit old migrations. Add nullable `reasoning_job.finished_at` and an index for non-null candidate IDs. Existing rows remain null. The new column may coexist in the schema with withdrawn_at but one Job cannot have both timestamps. Existing cancelled/expired withdrawal semantics and their trigger remain unchanged.
+Reserve new migration0012 after verified main0011; never edit old migrations. Add nullable `reasoning_job.finished_at` and an index for non-null candidate IDs. Existing rows remain null. The new column may coexist in the schema with withdrawn_at but one Job cannot have both timestamps. Existing cancelled/expired withdrawal semantics and their trigger remain unchanged. A new CHECK constraint explicitly requires finished_at to imply completed/failed status and withdrawn_at IS NULL; the new finished-clock trigger also rejects adding a withdrawal clock to a stamped Job. Do not edit migration0011 or broaden the old withdrawal guard to enforce this new field.
 
 A BEFORE INSERT/UPDATE trigger supplies the finished clock automatically when a Job changes from running/waiting into completed/failed. It requires the old positive fence and live owner lease, unchanged fence, no new lease, no withdrawal clock, no fair-ready row, only terminal Steps, and only inactive Attempts whose retained accounting exists, has withdrawn output authority and state not_sent/unknown/responded. Caller-supplied finished_at on that valid transition is ignored and replaced by clock_timestamp(). A supplied finished_at on any other unstamped transition or insertion is rejected. Existing terminal rows cannot acquire a retrospective clock. Terminal insertions with a null clock remain deliberately unretirable; ordinary authoring creates queued Jobs, and an import/legacy row is not completion evidence.
 
@@ -36,3 +36,7 @@ Real PostgreSQL proves both outcomes, automatic clock and caller-time rejection,
 ## Limits
 
 No owner deployment, provider calls, saved-output retention policy, completion/application authority, new public route or full-v1 claim. Future storage for unsaved private outputs must join this erasure graph before product use; current absent output storage cannot be claimed deleted. Legacy rows without a trusted finish clock remain a visible conservative limit.
+
+## Independent review disposition
+
+The MiniMax M3 review accepted the policy with three clarifications. Mutual exclusion is explicitly enforced by the new CHECK and finished trigger, not merely inferred from disjoint statuses; old applied migration0011 remains immutable. Migration and maintenance eligibility/discovery ship in one reviewed PR. A single shared two-branch SQL predicate used before and after waits is equivalent to separate eligibility functions and avoids divergence. Any non-null finished_at supplied on a legacy/repeated/invalid transition is rejected; ordinary no-op legacy updates remain null. The existing withdrawn-fence policy is unchanged; this slice does not silently retrofit a separate lifecycle invariant. The reviewer performed a static design review, not runtime verification.

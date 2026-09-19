@@ -6,6 +6,11 @@ import {expireIdleDirectJob,isIdleWithdrawalIneligible} from './reasoning-idle-l
 const DEFAULT_MAX_PROBES=32;
 const MAX_PROBES=128;
 const GRAPH_LIMITS=Object.freeze({steps:128,attempts:128,contexts:128,reads:16_384});
+// Use the same explicit clock/status branches before and after private-row waits.
+const RETIREMENT_CLOCK_PREDICATE=`(
+ (status IN ('cancelled','expired') AND withdrawn_at<=clock_timestamp()-interval '168 hours' AND finished_at IS NULL)
+ OR (status IN ('completed','failed') AND finished_at<=clock_timestamp()-interval '168 hours' AND withdrawn_at IS NULL)
+)`;
 
 type Lane='expiry'|'job'|'accounting';
 type Candidate={id:string;universeId:string;privacyEpoch:number};
@@ -50,7 +55,7 @@ async function discover(pool:pg.PoolClient,lane:Lane,cursor:string|null):Promise
      AND EXISTS(SELECT 1 FROM universe u WHERE u.id=reasoning_job.universe_id AND u.privacy_epoch=reasoning_job.privacy_epoch)
      AND EXISTS(SELECT 1 FROM reasoning_context_job_session b
        WHERE (b.job_id,b.universe_id,b.privacy_epoch)=(reasoning_job.id,reasoning_job.universe_id,reasoning_job.privacy_epoch))`
-  :lane==='job'? "withdrawn_at IS NOT NULL"
+  :lane==='job'? "(withdrawn_at IS NOT NULL OR finished_at IS NOT NULL)"
   : "all_duties_closed_at IS NOT NULL";
  const after=cursor===null?undefined:(await pool.query<{id:string;universe_id:string;privacy_epoch:number}>(
   `SELECT ${idColumn} AS id,universe_id,privacy_epoch FROM ${table} WHERE ${base} AND ${idColumn}>$1 ORDER BY ${idColumn} LIMIT 1`,[cursor],
@@ -70,11 +75,11 @@ async function lockUniverse(client:pg.PoolClient,universeId:string):Promise<bool
  return (await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED',[universeId])).rowCount===1;
 }
 
-async function eligibleWithdrawnJob(client:pg.PoolClient,candidate:Candidate):Promise<boolean> {
+async function eligiblePrivateJob(client:pg.PoolClient,candidate:Candidate):Promise<boolean> {
  const job=(await client.query<{id:string}>(
   `SELECT id FROM reasoning_job
-   WHERE id=$1 AND universe_id=$2 AND withdrawn_at<=clock_timestamp()-interval '168 hours'
-    AND status IN ('cancelled','expired') AND lease_owner IS NULL AND lease_expires_at IS NULL
+   WHERE id=$1 AND universe_id=$2 AND ${RETIREMENT_CLOCK_PREDICATE}
+    AND lease_owner IS NULL AND lease_expires_at IS NULL
     AND NOT EXISTS(SELECT 1 FROM reasoning_fairness_ready WHERE job_id=reasoning_job.id)
     AND NOT EXISTS(SELECT 1 FROM reasoning_step WHERE job_id=reasoning_job.id
       AND status NOT IN ('succeeded','failed','cancelled','superseded'))
@@ -105,8 +110,8 @@ async function eligibleWithdrawnJob(client:pg.PoolClient,candidate:Candidate):Pr
  // A read after all waits prevents a stale candidate from becoming an erase.
  return (await client.query(
   `SELECT 1 FROM reasoning_job
-   WHERE id=$1 AND universe_id=$2 AND withdrawn_at<=clock_timestamp()-interval '168 hours'
-    AND status IN ('cancelled','expired') AND lease_owner IS NULL AND lease_expires_at IS NULL
+   WHERE id=$1 AND universe_id=$2 AND ${RETIREMENT_CLOCK_PREDICATE}
+    AND lease_owner IS NULL AND lease_expires_at IS NULL
     AND NOT EXISTS(SELECT 1 FROM reasoning_fairness_ready WHERE job_id=reasoning_job.id)
     AND NOT EXISTS(SELECT 1 FROM reasoning_step WHERE job_id=reasoning_job.id
       AND status NOT IN ('succeeded','failed','cancelled','superseded'))
@@ -120,7 +125,7 @@ async function eligibleWithdrawnJob(client:pg.PoolClient,candidate:Candidate):Pr
 
 async function retireJob(client:pg.PoolClient,candidate:Candidate):Promise<boolean> {
  if(!await lockUniverse(client,candidate.universeId)) return false;
- if(!await eligibleWithdrawnJob(client,candidate)) return false;
+ if(!await eligiblePrivateJob(client,candidate)) return false;
  await client.query('SET CONSTRAINTS ALL DEFERRED');
  const attempts=await client.query('DELETE FROM reasoning_attempt WHERE job_id=$1',[candidate.id]);
  await client.query('DELETE FROM reasoning_step WHERE job_id=$1',[candidate.id]);
