@@ -33,8 +33,8 @@ actively committing there.
    from a clean, detached, pinned Cutroom runtime checkout. It copies or reimplements no Cutroom
    code, is never imported by KnowScroll API/worker/mobile, and in this ADR composes only Cutroom's
    own stand-ins plus its ffmpeg adapters (**provider mode `standin`**). Any other provider mode is
-   refused. This keeps upstream untouched while its lane is active; an upstream host/real-adapter
-   feature is proposed to Cutroom under its own gates and would supersede this host.
+   refused. Upstream is run as released and never modified (owner decision below); if upstream
+   later ships its own host or real adapters, re-evaluate and supersede this host.
 
 3. **Host process contract.** `node ops/cutroom-host/host.ts <api|worker> --cutroom <runtime dir>
    --expect-revision <40-hex> --instance <dir> [--port <n>] [--standin-script <json>]
@@ -66,17 +66,25 @@ actively committing there.
    running host listener with an explicit port. It is not an H3/provider endpoint. Provider keys
    are never passed to the host in `standin` mode or to worker lanes.
 
+6. **Owner decisions, 2026-09-20.** KnowScroll does not develop or modify Cutroom: it integrates
+   against the published [reel-contract](https://github.com/KnowScroll/Cutroom/blob/main/docs/features/reel-contract.md)
+   and, while upstream lacks real providers, proceeds against that contract (stand-ins/fixtures)
+   without building them. A bounded live test may spend **at most $2 in total**, and only after
+   upstream Cutroom itself ships real providers; none is authorized before then. H3 is fal's
+   [MiniMax H3 Max](https://fal.ai/minimax-h3-max); its key is in the ignored owner `.env` and is used
+   only by Cutroom's own providers, never by KnowScroll processes.
+
 ## Alternatives and why
 
-- *Upstream `apps/host` now:* correct long-term owner, but needs Cutroom's four approved gates and
-  would collide with an active upstream lane. Proposed upstream instead.
+- *Upstream `apps/host` now:* correct long-term owner, but KnowScroll does not develop Cutroom
+  (owner decision 2026-09-20); upstream's own gates and lane own any launcher.
 - *Import Cutroom into KnowScroll's worker:* duplicates ownership and puts engine code in the
   product runtime (ADR-0007). Rejected.
 - *Keep only the synthetic fixture:* cannot reveal real storage, restart or record behavior. Kept
   for CI fault coverage, not as integration proof.
 - *KnowScroll-written provider adapters injected into the Cutroom worker:* violates upstream's
-  providers-only model-client rule and splits spend accounting. Not adopted; real adapters remain
-  an explicit upstream dependency pending the owner's choice of implementer, endpoint and cap.
+  providers-only model-client rule and splits spend accounting. Not adopted; real adapters are an
+  upstream Cutroom responsibility that KnowScroll neither builds nor injects.
 
 ## Consequences
 
