@@ -1,6 +1,6 @@
 # ADR-0019 — Seven-day completed/failed private-context retirement
 
-Date: 2026-09-19. Status: accepted for #81 after independent MiniMax M3 review of `aaa3931` and the clarifications below; implementation proof remains pending. Extends ADR-0015/0018 without changing their recorded evidence.
+Date: 2026-09-19. Status: accepted for #81 after independent MiniMax M3 review of `aaa3931` and the clarifications below; implementation and process evidence are linked below. Extends ADR-0015/0018 without changing their recorded evidence.
 
 ## Owner decision and scope
 
@@ -40,3 +40,7 @@ No owner deployment, provider calls, saved-output retention policy, completion/a
 ## Independent review disposition
 
 The MiniMax M3 review accepted the policy with three clarifications. Mutual exclusion is explicitly enforced by the new CHECK and finished trigger, not merely inferred from disjoint statuses; old applied migration0011 remains immutable. Migration and maintenance eligibility/discovery ship in one reviewed PR. A single shared two-branch SQL predicate used before and after waits is equivalent to separate eligibility functions and avoids divergence. Any non-null finished_at supplied on a legacy/repeated/invalid transition is rejected; ordinary no-op legacy updates remain null. The existing withdrawn-fence policy is unchanged; this slice does not silently retrofit a separate lifecycle invariant. The reviewer performed a static design review, not runtime verification.
+
+## Implementation evidence
+
+[SQL and separate-process evidence](../journeys/evidence/terminal-retirement/README.md) records exact tested revisions, independent review and limitations. The final clock guard captures database time after safety inspection and requires the original lease to remain live at that instant. A blocked-safety-relation test proves expiry during the wait cannot establish a finish clock.

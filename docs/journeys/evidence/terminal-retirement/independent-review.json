@@ -1,0 +1,61 @@
+{
+  "reviews": [
+    {
+      "runId": "20260919-202246-bounded-independent-desi-7c27",
+      "model": "MiniMax-M3",
+      "revision": "aaa3931",
+      "scope": "design",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 32069,
+        "input": 4684,
+        "output": 18425,
+        "cache_read": 8960,
+        "total": 32069,
+        "cost_usd": 0.024053
+      }
+    },
+    {
+      "runId": "20260919-203131-independent-implementati-b471",
+      "model": "MiniMax-M3",
+      "revision": "4e3c919",
+      "scope": "implementation",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 64863,
+        "input": 259,
+        "output": 3676,
+        "cache_read": 60928,
+        "total": 64863,
+        "cost_usd": 0.008145
+      }
+    },
+    {
+      "runId": "20260919-203830-continue-an-existing-del-6822",
+      "model": "MiniMax-M3",
+      "revision": "34b2894",
+      "scope": "final lease-check delta",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 22233,
+        "input": 1850,
+        "output": 927,
+        "cache_read": 19456,
+        "total": 22233,
+        "cost_usd": 0.002835
+      }
+    }
+  ],
+  "disposition": "Accepted after coordinator verification; independent static review only, runtime proof belongs to coordinator.",
+  "corrections": [
+    "New CHECK and finished trigger enforce clock mutual exclusion; applied migration0011 remains immutable.",
+    "Column is finished_at; the bootstrap job table exists; cursor wrap can revisit within the bounded batch. Reviewer explicitly retracted contrary observations."
+  ],
+  "limits": [
+    "No runtime verification by reviewers",
+    "No completion consumer, provider invocation, deployment or product success certification"
+  ]
+}

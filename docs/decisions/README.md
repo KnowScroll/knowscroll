@@ -28,6 +28,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0018 — Safely withdraw idle direct Jobs](0018-idle-direct-job-withdrawal.md): original-session cancellation, trusted database deadline expiry, atomic fairness closure and bounded maintenance.
 
+- [ADR-0019 — Completed/failed private retirement](0019-completed-failed-private-retirement.md): owner-approved168-hour finish clock, conservative legacy retention and bounded private cleanup.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

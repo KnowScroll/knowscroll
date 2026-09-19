@@ -1,0 +1,88 @@
+{
+  "check": "terminal-private-retirement-81",
+  "testedRevision": "bd47c05d6be7392502be2814923454387beebe6d",
+  "checkoutDirty": "Documentation and evidence only during final execution; runtime source hashes verified below.",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 432,
+    "passed": 444
+  },
+  "focusedTerminalTests": 44,
+  "processRevision": "34b2894d40088af7aebce41fcc0360607d1da0e2",
+  "j004Revision": "bd47c05d6be7392502be2814923454387beebe6d",
+  "j004Cases": 13,
+  "localFixtureRequests": 4,
+  "verifiedProcessAndJourneyHashes": 28,
+  "files": [
+    {
+      "path": "packages/db/migrations/0012_terminal_private_retirement.sql",
+      "sha256": "a4a8e64b822149527b2165485edf4058a7128831c6962c2b7d62a4cea3a43ccb"
+    },
+    {
+      "path": "packages/db/src/reasoning-maintenance.ts",
+      "sha256": "c44e157495738d22f2af2c3ff2057b199fa0a5de9f32c3fb2636a3045ad8f7e3"
+    },
+    {
+      "path": "scripts/run-isolated-retirement-journey.ts",
+      "sha256": "9dfcc16f639882a21cb38bb83402217cf2e66591694258fd0c515d51dbcb74cc"
+    },
+    {
+      "path": "scripts/fixtures/reasoning-actor.ts",
+      "sha256": "a45038e5a57015e5182d9195bf3485e9969434df61a853a68523a6815dbfa172"
+    },
+    {
+      "path": "scripts/run-isolated-reasoning-journey.ts",
+      "sha256": "3d8daf6611ae9b024ac63fe866e23ed7aab47e43e5620edd19b2644f3d216d38"
+    },
+    {
+      "path": "tests/reasoning-terminal-clock.test.ts",
+      "sha256": "476e9e10246e953e8c0813ffe6a490db012b5e7af0fed2054274446b807db1c7"
+    },
+    {
+      "path": "tests/reasoning-terminal-migration.test.ts",
+      "sha256": "4ca237ec0e84e0743ee65d8951c2ca5f715733966f0d721e617d412586c8c42a"
+    },
+    {
+      "path": "tests/reasoning-terminal-maintenance.test.ts",
+      "sha256": "a8cd27851a9aeb17977a80eb5317a9c6b8c9a0375dd6ce5cb5e580e559444d4d"
+    },
+    {
+      "path": "tests/helpers/reasoning-terminal-fixture.ts",
+      "sha256": "62085d32f6e041e1414ca14cf9e99c6c4d31c9605563f6480460d41135217fdf"
+    }
+  ],
+  "commands": [
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-final-typecheck-2.log",
+      "sha256": "19b782d0251427a83ff31ff6e54eda93cae781afc88d8cfaf6babd2ba32c44a5",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-final-focused-2.log",
+      "sha256": "6f3c288deb316b2d07aad48fa2725ccedabf619d2fc4b77c0c64847eb3afa785",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-final-suite.log",
+      "sha256": "fa7048f3089d399ac821ac891e00cdde3592d8c4f2207b77c99a2a3195805e33",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-retirement-process-final.log",
+      "sha256": "e50aa7085fba31b90cc83d73a0fe4dda260ca4f72a92c8270316cc99ff7ba7a8",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-j004-corrected.log",
+      "sha256": "51e5589d50a1c0a33c20b49488e6602e8904b2d3a40c6ead4be5568a45ff863f",
+      "exitCode": 0
+    }
+  ],
+  "limits": [
+    "No owner migrations or service deployment; owner schema remains through0009 at the dated observation",
+    "No product completion consumer, provider request, answer publication or seven-day wall-clock soak",
+    "Legacy null terminal clocks are deliberately not backfilled",
+    "Full mobile/desktop product, real Cutroom integration and owner acceptance remain required by issue72",
+    "Original issue57 missing acknowledgement cause remains unknown"
+  ]
+}
