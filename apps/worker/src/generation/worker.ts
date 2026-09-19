@@ -176,7 +176,7 @@ async function followToTerminal(
   return 'aborted';
 }
 
-async function fetchResultAndRecord(resolved: Resolved, holder: Holder, ref: CutroomRunRef, client: ReturnType<typeof createCutroomHttpClient>): Promise<string> {
+async function fetchResultAndRecord(resolved: Resolved, holder: Holder, ref: CutroomRunRef, client: ReturnType<typeof createCutroomHttpClient>): Promise<{jobStatus: string; enginePath: string | null}> {
   let resultValue: Awaited<ReturnType<typeof client.result>> | null = null;
   for (let attempt = 0; attempt <= resolved.maxLookupRetries; attempt += 1) {
     const outcome = await client.result(ref);
@@ -193,7 +193,8 @@ async function fetchResultAndRecord(resolved: Resolved, holder: Holder, ref: Cut
   else resolved.log({service: 'generation-worker', event: 'record_unavailable', jobId: holder.jobId, record});
 
   await storage.settle(resolved.db, holder);
-  return jobStatus;
+  const enginePath = value.status === 'completed' && value.until === 'video' ? value.video.path : null;
+  return {jobStatus, enginePath};
 }
 
 /** Processes exactly one claimed job through as much of its lifecycle as this stage owns.
@@ -255,11 +256,12 @@ export async function processClaimedJob(options: GenerationWorkerOptions, claim:
       return Boolean(job?.cancelRequestedAt);
     });
     if (followed === 'aborted') return {jobId: claim.jobId, outcome: 'following_paused'};
-    const jobStatus = await fetchResultAndRecord(resolved, holder, ref, client);
+    const {jobStatus, enginePath} = await fetchResultAndRecord(resolved, holder, ref, client);
     if (jobStatus === 'importing') {
+      if (!enginePath) throw new Error('generation_worker_defect: importing status without a video engine path');
       try {
         const imported = await resolved.importPort.importFinishedVideo({
-          attemptId: attempt.id, runId: attempt.runId, enginePath: '', engineArtifactRoot: engine.artifactRoot,
+          attemptId: attempt.id, runId: attempt.runId, enginePath, engineArtifactRoot: engine.artifactRoot,
         });
         resolved.log({service: 'generation-worker', event: 'imported', jobId: claim.jobId, imported});
       } catch (error) {

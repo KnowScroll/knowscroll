@@ -272,7 +272,14 @@ test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', asyn
       assert.equal(claim?.jobId, job.jobId);
 
       const logs: Record<string, unknown>[] = [];
-      const processing = processClaimedJob({db: pool, owner: 'runtime-test', pollMs: 10, maxFollowIterations: 500, log: (line) => logs.push(line)}, claim!);
+      const importCalls: Array<{attemptId: string; runId: string; enginePath: string; engineArtifactRoot: string}> = [];
+      const spyImportPort = {
+        async importFinishedVideo(input: {attemptId: string; runId: string; enginePath: string; engineArtifactRoot: string}) {
+          importCalls.push(input);
+          throw new Error('import_port_not_implemented: the media import lane is not wired into this stage');
+        },
+      };
+      const processing = processClaimedJob({db: pool, owner: 'runtime-test', pollMs: 10, maxFollowIterations: 500, log: (line) => logs.push(line), importPort: spyImportPort}, claim!);
       await pollUntil(async () => Boolean((await attemptRow(job.jobId)).run_id));
       const run = engine.runByRequestId(job.requestId);
       assert.ok(run, 'the fixture actually received the real submit');
@@ -291,6 +298,11 @@ test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', asyn
       assert.equal(grant.reserved_cents, 0);
       assert.equal(grant.spent_cents, 210);
       assert.ok(logs.some((line) => line.event === 'import_not_available'), 'the worker logs honestly instead of fabricating an import');
+      assert.equal(importCalls.length, 1);
+      assert.equal(importCalls[0]?.attemptId, attempt.id);
+      assert.equal(importCalls[0]?.runId, run!.runId);
+      assert.equal(importCalls[0]?.enginePath, '/artifacts/run/fixture.mp4', 'the untrusted engine path from the result is handed to the import port unchanged');
+      assert.equal(importCalls[0]?.engineArtifactRoot, '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/generation-runtime-test/artifacts');
     });
   });
 
