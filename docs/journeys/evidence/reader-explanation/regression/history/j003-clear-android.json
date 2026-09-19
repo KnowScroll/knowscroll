@@ -1,0 +1,8 @@
+{
+  "beforePrivacyEpoch": 0,
+  "privacyEpoch": 1,
+  "clearedAssetId": "10000000-0000-4000-8000-000000000002",
+  "tracesAfter": 0,
+  "localSessionCleared": true,
+  "sharedLibraryRetained": true
+}

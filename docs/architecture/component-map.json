@@ -11,6 +11,13 @@
       "issue": "https://github.com/KnowScroll/knowscroll/issues/3"
     },
     {
+      "component": "Desktop Web",
+      "responsibility": "Desktop release UI per definition \u00a79.5 (ADR-0022)",
+      "path": "apps/web",
+      "status": "decided-implementation-pending",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/92"
+    },
+    {
       "component": "API",
       "responsibility": "Authentication boundary, admission, HTTP contracts",
       "path": "apps/api",

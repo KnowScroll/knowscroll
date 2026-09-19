@@ -1,0 +1,31 @@
+Direct observation captured during this session's regression re-run (issue #91 review
+round), immediately after the readerSourcesThresholdAndRest first failure and again on
+a completely fresh emulator boot, before any instrumentation had run against it:
+
+$ adb shell dumpsys window | grep mCurrentFocus
+  mCurrentFocus=Window{39b1575 u0 Application Not Responding: com.android.systemui}
+  mFocusedApp=ActivityRecord{101250791 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t2}
+
+$ adb shell cat /proc/meminfo | head -3
+MemTotal:        2531868 kB
+MemFree:           303616 kB
+MemAvailable:     1111992 kB
+
+Recurred on a second, completely fresh boot of the same AVD (KnowScroll_API36) with more
+memory allocated to the guest (-memory 3584 instead of docs' suggested 2048), persisting
+across six checks five seconds apart immediately after sys.boot_completed=1:
+
+$ adb shell dumpsys window | grep mCurrentFocus   (repeated x6, 5s apart)
+  mCurrentFocus=Window{734b50 u0 Application Not Responding: com.android.systemui}   (x6)
+
+Both times, `adb shell input keyevent KEYCODE_HOME` dismissed the ANR window and returned
+focus to the launcher (`com.google.android.apps.nexuslauncher`); the emulator was usable
+immediately afterward and every subsequent regression scenario in this session passed.
+
+This is offered as a real, directly observed mechanism by which this AVD/host can become
+unresponsive for many seconds at the systemui level, independent of KnowScroll's own code
+(neither ReaderJourneyTest.kt nor RealJourneyTest.kt, where the two transient failures in
+this session's regression run occurred, was touched by issue #91's fix). It is not offered
+as proof of what specifically caused the pre-existing 1029.116s reader-explanation outlier;
+that process is gone and was not instrumented for this. See the reader-explanation README's
+"Duration outlier" section for exactly what is and is not established.

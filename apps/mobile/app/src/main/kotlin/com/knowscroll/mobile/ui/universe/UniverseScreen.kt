@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +36,7 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.ui.UniverseState
 import com.knowscroll.mobile.ui.HistoryClearState
+import com.knowscroll.mobile.ui.SignOutState
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
 
@@ -42,6 +44,7 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 fun UniverseScreen(
     state: UniverseState,
     historyClear: HistoryClearState,
+    signOut: SignOutState,
     onEnterScroll: () -> Unit,
     onOpenTrace: (com.knowscroll.mobile.data.Trace) -> Unit,
     onRetry: () -> Unit,
@@ -49,6 +52,10 @@ fun UniverseScreen(
     onCancelHistoryClear: () -> Unit,
     onConfirmHistoryClear: () -> Unit,
     onRetryHistoryClear: () -> Unit,
+    onRequestSignOut: () -> Unit,
+    onCancelSignOut: () -> Unit,
+    onConfirmSignOut: () -> Unit,
+    onRetrySignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -79,12 +86,16 @@ fun UniverseScreen(
                 }
                 is UniverseState.Loaded -> LoadedBlock(state.universe,onEnterScroll,onOpenTrace)
             }
-            if(state is UniverseState.Loaded || historyClear !is HistoryClearState.Idle){
+            if(state is UniverseState.Loaded || historyClear !is HistoryClearState.Idle || signOut !is SignOutState.Idle){
                 PrivacyControls(historyClear,onRequestHistoryClear,onRetryHistoryClear)
+                SignOutControls(signOut,onRequestSignOut,onRetrySignOut)
             }
         }
         if(historyClear is HistoryClearState.Confirming) ClearHistoryConfirmation(
             onCancel=onCancelHistoryClear,onConfirm=onConfirmHistoryClear
+        )
+        if(signOut is SignOutState.Confirming) SignOutConfirmation(
+            onCancel=onCancelSignOut,onConfirm=onConfirmSignOut
         )
     }
 }
@@ -178,6 +189,58 @@ private fun PrivacyControls(
             else -> Unit
         }
     }
+}
+
+/** Sign out this device (#91). Distinct from Clear History: it ends only this
+ * device's session; it never erases recorded Scroll history. */
+@Composable
+private fun SignOutControls(
+    state:SignOutState,
+    onRequestSignOut:()->Unit,
+    onRetrySignOut:()->Unit
+){
+    Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+        OutlinedButton(
+            onClick=onRequestSignOut,
+            enabled=state is SignOutState.Idle,
+            colors=ButtonDefaults.outlinedButtonColors(contentColor=Cosmos.Cream),
+            modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).semantics{contentDescription="Sign out this device"}
+        ){Text(stringResource(R.string.sign_out_action))}
+        when(state){
+            is SignOutState.Revoking -> Text(stringResource(R.string.sign_out_progress),style=MaterialTheme.typography.bodyMedium,color=Cosmos.MutedOnDark)
+            is SignOutState.Retryable -> {
+                Text(state.message,style=MaterialTheme.typography.bodyMedium,color=Cosmos.Coral)
+                OutlinedButton(
+                    onClick=onRetrySignOut,
+                    colors=ButtonDefaults.outlinedButtonColors(contentColor=Cosmos.Cream),
+                    modifier=Modifier.fillMaxWidth().semantics{contentDescription="Retry sign out this device"}
+                ){Text(stringResource(R.string.sign_out_retry))}
+            }
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun SignOutConfirmation(onCancel:()->Unit,onConfirm:()->Unit){
+    AlertDialog(
+        onDismissRequest=onCancel,
+        title={Text(stringResource(R.string.sign_out_title))},
+        text={Text(stringResource(R.string.sign_out_effects))},
+        confirmButton={
+            Button(
+                onClick=onConfirm,
+                colors=ButtonDefaults.buttonColors(containerColor=Cosmos.Coral,contentColor=Cosmos.Dark),
+                modifier=Modifier.heightIn(min=48.dp).semantics{contentDescription="Confirm sign out this device"}
+            ){Text(stringResource(R.string.sign_out_confirm))}
+        },
+        dismissButton={
+            OutlinedButton(
+                onClick=onCancel,
+                modifier=Modifier.heightIn(min=48.dp).semantics{contentDescription="Cancel sign out this device"}
+            ){Text(stringResource(R.string.sign_out_cancel))}
+        }
+    )
 }
 
 @Composable

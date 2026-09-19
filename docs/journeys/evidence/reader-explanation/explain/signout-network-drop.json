@@ -1,0 +1,7 @@
+{
+  "scenario": "signOutNetworkDroppedRevokeThenRetrySucceeds",
+  "controlStatus": 204,
+  "firstAttemptAmbiguousLocalStateKept": true,
+  "explicitRetrySameRequestSucceeded": true,
+  "sessionVerifiedDeadAfter401": true
+}

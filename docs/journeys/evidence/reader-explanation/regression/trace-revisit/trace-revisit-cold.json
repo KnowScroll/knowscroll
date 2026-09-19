@@ -1,0 +1,11 @@
+{
+  "scenario": "coldRestoreRefetchesSavedTraceIdentityAndPosition",
+  "traceEventFingerprint": "95500eaa406d18b0",
+  "assetFingerprint": "576f18824476444f",
+  "universeFingerprint": "11e594f481958c10",
+  "selectionRevision": 1,
+  "readingPosition": 1954,
+  "coldRefetchedSameIdentity": true,
+  "positionRestored": true,
+  "result": "passed"
+}

@@ -1,0 +1,7 @@
+{
+  "scenario": "signOutConfirmedRevokeEndsSessionHonestly",
+  "resolvedVia": "204",
+  "signedOutScreenShown": true,
+  "noRetryControlOffered": true,
+  "sessionVerifiedDeadAfter401": true
+}

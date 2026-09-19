@@ -1,0 +1,5 @@
+{
+  "scenario": "signOutAlreadyRevokedSessionResolvesAsSignedOut",
+  "controlStatus": 204,
+  "firstAttemptResolvedAsSignedOutViaReal401": true
+}

@@ -24,9 +24,15 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.ScrollItem
 import com.knowscroll.mobile.ui.DiscoveryState
 import com.knowscroll.mobile.ui.KeepState
+import com.knowscroll.mobile.ui.ReaderOrigin
 import com.knowscroll.mobile.ui.ScrollState
 import com.knowscroll.mobile.ui.canRequestDiscovery
+import com.knowscroll.mobile.ui.explainOriginText
+import com.knowscroll.mobile.ui.explainReasonText
+import com.knowscroll.mobile.ui.explainShowsSourcesNote
+import com.knowscroll.mobile.ui.NO_REASON_RECORDED
 import com.knowscroll.mobile.ui.theme.Cosmos
+import com.knowscroll.mobile.ui.truthStateMeaning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -96,6 +102,7 @@ private fun ReadingSheet(
     val readingScroll = rememberScrollState(state.readingPosition)
     val positionDescription = stringResource(R.string.reader_position_description, readingScroll.value)
     var sourcesOpen by rememberSaveable { mutableStateOf(false) }
+    var explainOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(item.assetId, readingScroll) {
         snapshotFlow { readingScroll.value }.distinctUntilChanged().collectLatest {
             delay(200)
@@ -105,7 +112,7 @@ private fun ReadingSheet(
     DisposableEffect(item.assetId, readingScroll) {
         onDispose { onReadingPosition(item.assetId, readingScroll.value) }
     }
-    BackHandler(enabled = sourcesOpen) { sourcesOpen = false }
+    BackHandler(enabled = sourcesOpen || explainOpen) { sourcesOpen = false; explainOpen = false }
 
     Column(Modifier.fillMaxSize()) {
         Text(
@@ -143,11 +150,12 @@ private fun ReadingSheet(
                     }
                     DiscoveryThreshold(state.keep, state.discovery, onNext)
                 }
-                ReaderControls(state.keep, state.discovery, onKeep, onReturn) { sourcesOpen = true }
+                ReaderControls(state.keep, state.discovery, onKeep, onReturn, { sourcesOpen = true }) { explainOpen = true }
             }
         }
     }
     if (sourcesOpen) SourceSheet(item) { sourcesOpen = false }
+    if (explainOpen) ExplainSheet(item, state.origin) { explainOpen = false }
 }
 
 @Composable
@@ -193,10 +201,14 @@ private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: (
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReaderControls(keep: KeepState, discovery: DiscoveryState, onKeep: () -> Unit, onReturn: () -> Unit, onSources: () -> Unit) {
+private fun ReaderControls(
+    keep: KeepState, discovery: DiscoveryState, onKeep: () -> Unit, onReturn: () -> Unit,
+    onSources: () -> Unit, onExplain: () -> Unit
+) {
     val homeDescription = stringResource(R.string.reader_home_description)
     val keepDescription = stringResource(R.string.reader_keep_description)
     val sourcesDescription = stringResource(R.string.reader_sources_description)
+    val explainDescription = stringResource(R.string.reader_explain_description)
     val keepLabel = stringResource(when (keep) {
         is KeepState.Kept -> R.string.action_kept
         is KeepState.Saving -> R.string.reader_keep_pending
@@ -229,6 +241,56 @@ private fun ReaderControls(keep: KeepState, discovery: DiscoveryState, onKeep: (
                 modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = sourcesDescription },
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
             ) { Text(stringResource(R.string.action_sources)) }
+            TextButton(
+                onClick = onExplain,
+                modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = explainDescription },
+                colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
+            ) { Text(stringResource(R.string.reader_explain_action)) }
+        }
+    }
+}
+
+/** "Why this appeared" (#91): only fields the API actually returned — the verbatim
+ * reason, the truth state's fixed meaning, and the reader's own discovery/saved-Trace
+ * origin. No interest, learning or hidden profile is shown or implied. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, onDismiss: () -> Unit) {
+    val closeDescription = stringResource(R.string.reader_explain_close_description)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Cosmos.Cream, contentColor = Cosmos.InkOnCream
+    ) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                stringResource(R.string.reader_explain_sheet_title),
+                style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() }
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.reader_explain_reason_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+                Text(explainReasonText(item.reason) ?: NO_REASON_RECORDED, style = MaterialTheme.typography.bodyLarge)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.reader_explain_truth_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+                Text(item.truthState.uppercase(), style = MaterialTheme.typography.titleMedium)
+                truthStateMeaning(item.truthState)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                if (explainShowsSourcesNote(item.truthState)) {
+                    Text(stringResource(R.string.reader_explain_documented_sources_note), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.reader_explain_origin_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+                Text(explainOriginText(origin), style = MaterialTheme.typography.bodyMedium)
+            }
+            OutlinedButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = closeDescription }
+            ) { Text(stringResource(R.string.reader_explain_close)) }
         }
     }
 }
