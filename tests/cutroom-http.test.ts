@@ -31,7 +31,7 @@ async function fixture(body:(context:{origin:string;seen:Seen[];handle:(handler:
 test('Cutroom schemas match all seven pinned upstream source hashes',async()=>{
  const root='packages/contracts/src/cutroom-v1/';
  const manifest=JSON.parse(await readFile(root+'source.json','utf8'));
- assert.equal(manifest.revision,'238df85411108a94377311363dd296d785688f70');assert.equal(manifest.files.length,7);
+ assert.equal(manifest.revision,'86d6e2c8b74228db4a5a953e53c53a7b77cef46e');assert.equal(manifest.files.length,7);
  for(const file of manifest.files)assert.equal(createHash('sha256').update(await readFile(root+file.path)).digest('hex'),file.sha256,file.path);
 });
 
@@ -141,10 +141,22 @@ test('result variants remain distinct and completed stage plus identity are chec
    f.handle((_req,res)=>json(res,409,{...status,state}));
    assert.equal((await client.result(ref)).kind,'pending');assert.equal((await client.record(ref)).kind,'pending');
   }
-  f.handle((_req,res)=>json(res,200,{contractVersion:1,runId:ref.runId,pictures:[],degradations:[]}));
+  const take={takeId:'take-1',shotId:'shot-0',number:1,used:true,observationId:'obs-1',reconciliationId:'rec-1',checks:[{gate:'gate2',outcome:'accept'}]};
+  f.handle((_req,res)=>json(res,200,{contractVersion:1,runId:ref.runId,pictures:[],takes:[take,{...take,takeId:'take-2',number:2,used:false,checks:[{gate:'gate2',outcome:'fail'}]}],degradations:[]}));
   assert.equal((await client.record(ref)).kind,'ok');
-  f.handle((_req,res)=>json(res,200,{contractVersion:1,runId:'foreign',pictures:[],degradations:[]}));
-  assert.equal((await client.record(ref)).kind,'protocol_error');
+  f.handle((_req,res)=>json(res,200,{contractVersion:1,runId:ref.runId,pictures:[],takes:[],degradations:[]}));
+  assert.equal((await client.record(ref)).kind,'ok');
+  // Successor pin 86d6e2c (ADR-0021): the pre-takes record shape is no longer tolerated, and take entries stay strict.
+  for(const record of [
+   {contractVersion:1,runId:ref.runId,pictures:[],degradations:[]},
+   {contractVersion:1,runId:ref.runId,pictures:[],takes:[{...take,unexpected:true}],degradations:[]},
+   {contractVersion:1,runId:ref.runId,pictures:[],takes:[{...take,number:0}],degradations:[]},
+   {contractVersion:1,runId:ref.runId,pictures:[],takes:[{...take,checks:[{gate:'gate2',outcome:'maybe'}]}],degradations:[]},
+   {contractVersion:1,runId:'foreign',pictures:[],takes:[],degradations:[]},
+  ]) {
+   f.handle((_req,res)=>json(res,200,record));
+   assert.equal((await client.record(ref)).kind,'protocol_error');
+  }
  });
 });
 

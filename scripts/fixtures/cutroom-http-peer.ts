@@ -51,7 +51,7 @@ try {
      {contractVersion:1,runId:state.runId,seq:2,at:'2026-09-19T00:00:01Z',type:'run.finished',status:'completed'},
     ]});
     else if(url.pathname===`/v1/runs/${state.runId}/result`)json(200,{contractVersion:1,runId:state.runId,requestId:state.requestId,costCents:0,status:'completed',until:'video',estimateCents:1,stills:[],degradations:[],video:{path:'/synthetic/no-media-exists.mp4'}});
-    else if(url.pathname===`/v1/runs/${state.runId}/record`)json(200,{contractVersion:1,runId:state.runId,pictures:[],degradations:[]});
+    else if(url.pathname===`/v1/runs/${state.runId}/record`)json(200,{contractVersion:1,runId:state.runId,pictures:[],takes:[],degradations:[]});
     else json(404,{contractVersion:1,error:'not-found',detail:'Fixture observation only'});
    } catch {json(500,{contractVersion:1,error:'internal',detail:'Fixture failure'});}
   });
