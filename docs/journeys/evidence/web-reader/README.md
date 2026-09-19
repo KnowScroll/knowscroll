@@ -90,3 +90,22 @@ Screenshots: `screenshots/*.png`.
   and are torn down/dropped at the end of the run (`databaseDropped: true` in
   `last-run-receipt.json`); this run's specific values are historical and not a
   live service.
+
+## Coordinator reproduction after merging main (2026-09-19/20)
+
+The coordinator merged current `main` (which carries the #93 Cutroom slice) into this lane at
+`4f718b5cd0d514d59c63f9dbb6810b8c6fa3a124` and re-ran everything independently:
+
+- `pnpm typecheck` and `pnpm typecheck:web` — 0 errors.
+- `pnpm test:web` — 32/32.
+- `pnpm exec tsx scripts/run-web-reader-journey.ts` — **14/14 Playwright checks passed**, disposable
+  database `knowscroll_test_16cf08b657d4baa1` created and dropped, dynamic ports (api 62936,
+  fault proxy 62951, web 62952), dev-auth proxy smoke check passed. The injected-fault specs log
+  `socket hang up` from the proxy by design; those are the faults under test, not failures.
+- Independent secret check, not relying on the lane's own test: `vite build` refuses by default; with
+  the test-only escape hatch and `KS_DEV_TOKEN=probe-token-abc123xyz`, the 336 kB client bundle
+  contains neither that token nor any `Authorization` header.
+- Full backend `pnpm test` on the merged head (result recorded in the #92 pull request).
+
+Unchanged limits: Chromium only; no owner visual acceptance; no production identity; Playwright not
+in CI; no Reel, Ask, Friends, branch, Clear or sign-out surfaces on web yet.
