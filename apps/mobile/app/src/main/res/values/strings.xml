@@ -12,6 +12,7 @@
     <string name="action_enter_scroll">Enter Scroll</string>
     <string name="traces_heading">Traces</string>
     <string name="trace_unknown_title">Untitled Scroll</string>
+    <string name="trace_revisit_action">Reopen saved Scroll %1$s</string>
     <string name="privacy_heading">Privacy controls</string>
     <string name="clear_history_action">Clear Scroll history</string>
     <string name="clear_history_title">Clear Scroll history?</string>
@@ -38,6 +39,7 @@
     <string name="action_home">Home</string>
     <string name="action_sources">Sources</string>
     <string name="reader_origin">YOUR UNIVERSE / SCROLL</string>
+    <string name="reader_saved_trace_origin">SAVED FROM YOUR KEEP</string>
     <string name="reader_truth_label">SCROLL · %1$s</string>
     <string name="reader_source_marker">SOURCE</string>
     <string name="reader_source_sheet_title">Sources and truth</string>

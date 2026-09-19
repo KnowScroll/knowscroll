@@ -1,0 +1,20 @@
+[
+  {
+    "log": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-android-trace-20260919.log",
+    "sha256": "73ebf61ef2f6b8dc3ff0b95da688f4240e968f75717e412824027889b0019bb9",
+    "result": "failed",
+    "diagnosisAndRepair": "Device preparation required a projected Keep but never created one. Corrected by performing an explicit real UI Keep."
+  },
+  {
+    "log": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-android-trace-20260919-prepared.log",
+    "sha256": "f17063c0a1ef8cbdf71e35ba13b6a99c501d66df4d75a09dadaf519b6c35bc0e",
+    "result": "failed",
+    "diagnosisAndRepair": "Source phase checked navigation before cold-restored reader was ready. Added a readiness wait; also changed child group absence verification to actual ps membership after a cleanup PermissionError. The original PermissionError location was not separately identified."
+  },
+  {
+    "log": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/78-android-trace-20260919-complete.log",
+    "sha256": "477f0ccc5e1457c1f10df221fabefadea7b15cfa9a295ab03d03d0884cba5734",
+    "result": "failed",
+    "diagnosisAndRepair": "Added test assertion used an invalid Compose extension import; assertExists is an interaction member. Removed the import before rerunning."
+  }
+]

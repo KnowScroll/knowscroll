@@ -1,0 +1,401 @@
+{
+  "check": "android-trace-revisit-78",
+  "result": "passed",
+  "observedAt": "2026-09-19T14:44:42.958479+00:00",
+  "source": {
+    "revision": "45304d24ba5886371fa2fe3c481309f2b0034ec2",
+    "dirty": false,
+    "files": [
+      {
+        "path": "apps/api/src/app.ts",
+        "sha256": "eb1a421537579b7af0b27f88030c6ec560063602ecf4e2efe6ffc8efa873922c"
+      },
+      {
+        "path": "apps/mobile/AGENTS.md",
+        "sha256": "f47b9b6b040f47d3cb1eb200f64be5e8b369495485304f85efe00551d77cfb0f"
+      },
+      {
+        "path": "apps/mobile/CLAUDE.md",
+        "sha256": "918b1c90559355ef78f33fdf3562f2b021ef8bdfd8a5c8415e5decd44934de55"
+      },
+      {
+        "path": "apps/mobile/README.md",
+        "sha256": "741decd4543871ee51439231648607493e0a634ddc061effb21cca9755855ef5"
+      },
+      {
+        "path": "apps/mobile/app/build.gradle.kts",
+        "sha256": "1171175638a7b86de55155a0396ad95a3a64227ffbbb5588375b66e824b92acb"
+      },
+      {
+        "path": "apps/mobile/app/proguard-rules.pro",
+        "sha256": "46390625450748ba1e9d0906310bbb2b3893b4bff48968ee4c5d56a9490226db"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderAuthorityJourneyTest.kt",
+        "sha256": "c324fefd8fd38e46029641fbe88022765a5226814287840c0095bb53ae94b41c"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderJourneyTest.kt",
+        "sha256": "483a019f33b1efdb91433e8de12819ae564f359bb00e739916032a419dac000a"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderPrivacyJourneyTest.kt",
+        "sha256": "52e08fb07a013d679d63829829118102f3246ff42399ca3e60a8a04b40dc09a6"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/RealJourneyTest.kt",
+        "sha256": "ab22849c44ecfe31046b62c9d502e9f65dda23a1a7d199d19c3d67dc45aa2841"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/TraceRevisitJourneyTest.kt",
+        "sha256": "0ffa53c63b77c5ae6963e971ed426cd807b43d18a26bfd83a7cb159696324466"
+      },
+      {
+        "path": "apps/mobile/app/src/debug/AndroidManifest.xml",
+        "sha256": "0641e1cd0ba3aefe4e784d3e77765d9ed305d9141c11f4cda5e69f0c2b11c843"
+      },
+      {
+        "path": "apps/mobile/app/src/debug/res/xml/network_security_config_debug.xml",
+        "sha256": "6f0e250df6f150a5749e27885b74fd9c0cc6a5410b22b432eb7d19ef3c67d29b"
+      },
+      {
+        "path": "apps/mobile/app/src/main/AndroidManifest.xml",
+        "sha256": "3bf0999071efb0f8b2d4a70e564c97ea90d27402c57bab75289139e109ecc0ac"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/KnowScrollApp.kt",
+        "sha256": "5b2cf59c361865cf3f1dd0c743334ecd48311077b0818619931c774f77d0180f"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/MainActivity.kt",
+        "sha256": "b13bcbff804c9c35ec42867745ebbc85af4a3682c9193fa68ed5e98014fb411a"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/ApiClient.kt",
+        "sha256": "7cfe245536c221ee221fff9f682de80e7ecc08c9d0e3cb63785a6c6404acabc8"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Models.kt",
+        "sha256": "785ed3d7652288f92d196d507941e82909f4dac98366ac9fc3b994ee18604a8e"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/StateStore.kt",
+        "sha256": "89a341317856f3daaa1d72f432a996750115dfb3b0819fb71545c8ad220d5b8c"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt",
+        "sha256": "8d50da1aa178494455445cde711d72bb340a5826d94a943c03795ef3087ea9d7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/KnowScrollApp.kt",
+        "sha256": "972d2a4f036d8c0acadf4aa9addb1e0dedd8b1ba8e9d607b2ff1682fab703ae1"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/ReaderDiscovery.kt",
+        "sha256": "adae935352806fa664a8c7f48bdc01bce65872ada18728c862f5b292c1c02d1a"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/common/CosmosBackground.kt",
+        "sha256": "ae51a22fe8112dfbf0715f18584850645e19978383ed3b8301bc41fc6616efab"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/ScrollScreen.kt",
+        "sha256": "38bf498826a4dc47e82467f2f84f835e70d9fecc3a64361bba96c806f9200013"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/theme/Theme.kt",
+        "sha256": "4ce0a109afa26648381203bd21ab611e6f2388019f82d3feedaa08fba92a01c7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/universe/UniverseScreen.kt",
+        "sha256": "a6be238d9d537fb386362150def01d64db8504777452bc70f11584e61cf8b413"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/drawable/ic_launcher_foreground.xml",
+        "sha256": "a35e51e6783c317b371a7d060947f5f7c9862a9a82461a7d76a97a72dd78ac69"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+        "sha256": "c0c46d4d940303781f8c1f6fe6e3d2216ad6de9dd41fb60f6b0aea246d9de0d5"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+        "sha256": "c0c46d4d940303781f8c1f6fe6e3d2216ad6de9dd41fb60f6b0aea246d9de0d5"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values/colors.xml",
+        "sha256": "969a9b2afb4ed0bf55bd74189dda7d388f0c484727e34bd64afa82d10f061c77"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values/strings.xml",
+        "sha256": "ac4da78b2916a494452f7680ad81f1390367edd374130a3bcf8e81eb49918530"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values/themes.xml",
+        "sha256": "b1729a5cc0cb1f34fe65586efab69031593593fba87d649bec559e9dae8756d7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values-night/themes.xml",
+        "sha256": "dc2f299d38df6162c2fa2d1860933b24a19fef23e6457e38cbd77ab22bb6fc05"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/xml/data_extraction_rules.xml",
+        "sha256": "776da0ea3dbffa486ed46800e94f1b7a8cc71b3b6280f3654fa333e62493101e"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/ReaderDiscoveryTest.kt",
+        "sha256": "3de032d946a5882dd0fc7b125648b384f12d74440030d3369cfb4d70d088adb7"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/TraceRevisitStateTest.kt",
+        "sha256": "dea6d108185afdefcd2eee15982f7abad95066c1ad1e03fc5f3e6464ab0bc472"
+      },
+      {
+        "path": "apps/mobile/build.gradle.kts",
+        "sha256": "c6e823e62d3f7903e288d2d7f459f547cb41ec82b0d676d60592f58896f6bbd9"
+      },
+      {
+        "path": "apps/mobile/gradle/wrapper/gradle-wrapper.jar",
+        "sha256": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7"
+      },
+      {
+        "path": "apps/mobile/gradle/wrapper/gradle-wrapper.properties",
+        "sha256": "a46f766489ec4017b6ad877e6f7f8388c3dd858451f056777b9e716316800506"
+      },
+      {
+        "path": "apps/mobile/gradle.properties",
+        "sha256": "d2eebe04a72102733513bf126f37ec05429b7c1a3edcdd6248c66b995528307f"
+      },
+      {
+        "path": "apps/mobile/gradlew",
+        "sha256": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59"
+      },
+      {
+        "path": "apps/mobile/gradlew.bat",
+        "sha256": "59328c7a17f673b1a63040bfb380a0c749e5d6df3406f7f18641060314cd9aa1"
+      },
+      {
+        "path": "apps/mobile/local.properties.template",
+        "sha256": "90ed570e48d84362adbff6160c533156e7ccbb0adb85464727d65a346ddf76db"
+      },
+      {
+        "path": "apps/mobile/settings.gradle.kts",
+        "sha256": "feec88b293a79c703eba0517c0c10e8855f4bc43f0f49783ddf7d43dae4c9abf"
+      },
+      {
+        "path": "packages/contracts/src/trace-revisit.ts",
+        "sha256": "9fbcae2dbbf73b679ac819e29df899363fee61a514215d5fd65ea7b5a9ec3a37"
+      },
+      {
+        "path": "packages/db/src/identity.ts",
+        "sha256": "7e0d14a00775b3ca368056901ed1214359aa36a1e12c120b01a67c4ee48f8124"
+      },
+      {
+        "path": "packages/db/src/trace-revisit.ts",
+        "sha256": "998bc193f7cac9e26dd4b071161945a59d268a87a1db01c00278fd1c51490e69"
+      },
+      {
+        "path": "scripts/android-trace-revisit-journey.py",
+        "sha256": "260a18f7b0fb76070cd2bce7fe924ab237bac0e86a7d55d793c1d5f075cbb828"
+      }
+    ]
+  },
+  "runtime": {
+    "database": "disposable PostgreSQL",
+    "api": "separate process",
+    "worker": "separate process",
+    "device": "36",
+    "compact": "840x1680 at font_scale1.3",
+    "regular": "AVD native size at font_scale1.0",
+    "coldRestart": {
+      "beforePid": "7395",
+      "afterPid": "7442",
+      "refetchedTrace": true
+    }
+  },
+  "phases": {
+    "prepare": {
+      "scenario": "prepareProjectedTraceForRevisit",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "assetFingerprint": "576f18824476444f",
+      "universeFingerprint": "11e594f481958c10",
+      "selectionRevision": 1,
+      "readingPosition": 1816,
+      "traceReaderVisible": true,
+      "savedOriginVisible": true,
+      "exactSelectedContentAsserted": true,
+      "activityRecreationPreservedIdentityAndPosition": true,
+      "result": "passed"
+    },
+    "cold": {
+      "scenario": "coldRestoreRefetchesSavedTraceIdentityAndPosition",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "assetFingerprint": "576f18824476444f",
+      "universeFingerprint": "11e594f481958c10",
+      "selectionRevision": 1,
+      "readingPosition": 1816,
+      "coldRefetchedSameIdentity": true,
+      "positionRestored": true,
+      "result": "passed"
+    },
+    "sources": {
+      "scenario": "reopensVerifiedTraceShowsSourcesAndReturns",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "sourcesVisible": true,
+      "returnedToUniverse": true,
+      "result": "passed"
+    },
+    "retry": {
+      "scenario": "traceReadDropRetriesSameIdentity",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "assetFingerprint": "576f18824476444f",
+      "universeFingerprint": "11e594f481958c10",
+      "selectionRevision": 1,
+      "readingPosition": 0,
+      "controlStatus": 204,
+      "sameIdentityRetried": true,
+      "result": "passed"
+    },
+    "drift": {
+      "scenario": "changedSourceDiscardsTraceReader",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "controlStatus": 204,
+      "revisitPurged": true,
+      "contentAbsent": true,
+      "requestedAssetFingerprint": "576f18824476444f",
+      "result": "passed"
+    },
+    "next": {
+      "scenario": "explicitNextLeavesTraceForFreshDiscovery",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "freshExposureRecorded": true,
+      "savedOriginDiscarded": true,
+      "result": "passed"
+    },
+    "clear": {
+      "scenario": "clearHistoryDiscardsOpenTrace",
+      "traceEventFingerprint": "83800584a089ee5c",
+      "controlStatus": 204,
+      "revisitPurged": true,
+      "contentAbsent": true,
+      "requestedAssetFingerprint": "576f18824476444f",
+      "result": "passed"
+    },
+    "authority": {
+      "scenario": "revokedSessionDiscardsOpenTrace",
+      "traceEventFingerprint": "33d005be8beee853",
+      "controlStatus": 204,
+      "revisitPurged": true,
+      "contentAbsent": true,
+      "requestedAssetFingerprint": "576f18824476444f",
+      "result": "passed"
+    }
+  },
+  "initialKeepCounts": {
+    "decision": 1,
+    "exposure": 1,
+    "ledger": 2,
+    "job": 1,
+    "trace": 1,
+    "explicit_ask": 0,
+    "reasoning_job": 0,
+    "reasoning_attempt": 0,
+    "reasoning_accounting": 0
+  },
+  "readOnlyRevisitCountsUnchanged": true,
+  "readOnlyRevisitRowsUnchanged": true,
+  "privateRowHashes": {
+    "accounts": "4a1a0189d382d72230efea42034bcec9ad7ba353a78e8d9b960cc0399bb919e1",
+    "decision": "a65a1b80d3e16ac89e00e3b8b9471ba58a44f4a5263869fde983dee27fdad21b",
+    "device_session": "45c284c9f597c10582a3be484bd2bdad3d853b69d05c7cb73ced598b5bbad785",
+    "explicit_ask": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "exposure": "58b54b8bee3255ae1d01dc183ab40a32a05559e25c802e21a95618eb65117293",
+    "history_clear_receipt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "job": "653d52d7a7acbdd7bc2923a2f542006bcfdd02a0b0441892debb333a07beb680",
+    "ledger": "72b4745f99f66250494266bbd59c85eb57b835106837bba8c30fdff32035a18e",
+    "reasoning_accounting": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_attempt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_bucket": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_context": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_context_dependency": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_context_job_ask": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_context_job_session": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_context_payload": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_context_read": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_attempt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_class": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_delta": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_policy": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_ready": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_scheduler": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_fairness_universe": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_job": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_permit": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_receipt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_reservation": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_settlement": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_settlement_adjustment": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reasoning_step": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "trace": "12c9917dcce6631ba038ec3fa72c9a014eb1c2cba9407cd4999d3ca5f45b79db",
+    "universe": "56500dfabf74a23abcdca2d99f50f9e8f5b2f7d96c0a02ff4364d465a0ffc3da"
+  },
+  "afterExplicitNextCounts": {
+    "decision": 2,
+    "exposure": 2,
+    "ledger": 3,
+    "job": 1,
+    "trace": 1,
+    "explicit_ask": 0,
+    "reasoning_job": 0,
+    "reasoning_attempt": 0,
+    "reasoning_accounting": 0
+  },
+  "afterClearCounts": {
+    "decision": 0,
+    "exposure": 0,
+    "ledger": 0,
+    "job": 0,
+    "trace": 0,
+    "explicit_ask": 0,
+    "reasoning_job": 0,
+    "reasoning_attempt": 0,
+    "reasoning_accounting": 0
+  },
+  "afterAuthorityCounts": {
+    "decision": 1,
+    "exposure": 1,
+    "ledger": 2,
+    "job": 1,
+    "trace": 1,
+    "explicit_ask": 0,
+    "reasoning_job": 0,
+    "reasoning_attempt": 0,
+    "reasoning_accounting": 0
+  },
+  "transportFixture": {
+    "remainingDrops": 0,
+    "traceSocketsDropped": 2,
+    "traceReadsForwarded": 12,
+    "sessionsRevoked": 1,
+    "unauthorizedTraceReads": 0,
+    "unauthorizedScopeResponses": 1,
+    "unauthorizedRoutes": [
+      "/v1/universe"
+    ],
+    "changedSourceResponses": 1,
+    "sourceMutations": 2,
+    "historyClears": 1
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Transport loss/source drift/revocation are explicitly injected in disposable state; successful content comes from real services",
+    "No owner visual acceptance or manual TalkBack traversal",
+    "No historical source-version viewer, desktop, Reel or live provider proof"
+  ],
+  "cleanup": {
+    "databaseDropped": true,
+    "childrenExited": true,
+    "fontRestored": true,
+    "displaySizeReset": true
+  }
+}

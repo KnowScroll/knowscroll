@@ -1,6 +1,7 @@
 package com.knowscroll.mobile.ui.universe
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ fun UniverseScreen(
     state: UniverseState,
     historyClear: HistoryClearState,
     onEnterScroll: () -> Unit,
+    onOpenTrace: (com.knowscroll.mobile.data.Trace) -> Unit,
     onRetry: () -> Unit,
     onRequestHistoryClear: () -> Unit,
     onCancelHistoryClear: () -> Unit,
@@ -75,7 +77,7 @@ fun UniverseScreen(
                         modifier = Modifier.semantics { contentDescription = "Retry loading the universe" }
                     ) { Text(stringResource(R.string.action_retry)) }
                 }
-                is UniverseState.Loaded -> LoadedBlock(state.universe,onEnterScroll)
+                is UniverseState.Loaded -> LoadedBlock(state.universe,onEnterScroll,onOpenTrace)
             }
             if(state is UniverseState.Loaded || historyClear !is HistoryClearState.Idle){
                 PrivacyControls(historyClear,onRequestHistoryClear,onRetryHistoryClear)
@@ -90,7 +92,8 @@ fun UniverseScreen(
 @Composable
 private fun LoadedBlock(
     universe: Universe,
-    onEnterScroll: () -> Unit
+    onEnterScroll: () -> Unit,
+    onOpenTrace: (com.knowscroll.mobile.data.Trace) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         if (universe.traces.isEmpty()) {
@@ -102,11 +105,14 @@ private fun LoadedBlock(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 universe.traces.forEach { trace ->
+                    val traceDescription = stringResource(R.string.trace_revisit_action, trace.eventId)
                     Surface(
                         color = Color(0xFF0A1B26),
                         contentColor = Cosmos.InkOnDark,
                         shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth()
+                            .clickable { onOpenTrace(trace) }
+                            .semantics { contentDescription = traceDescription }
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

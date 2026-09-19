@@ -14,7 +14,7 @@ The full [product definition](docs/product/definition.md) remains the target. Th
 
 ## Verified slice
 
-The Android app reads sourced Scrolls, records visible exposures and explicit keeps, and restores reading position after process death and Activity recreation. It offers source access while reading and deliberate end-of-content discovery with retained-page retry and finite-library rest. A real API and separate worker persist scoped events and saved Traces in PostgreSQL. Operator-issued device sessions expire and can be revoked; privacy epochs prevent obsolete work from changing state. Public login, generated Reels and semantic world evolution remain future work.
+The Android app reads sourced Scrolls, records visible exposures and explicit keeps, and restores reading position after process death and Activity recreation. It offers source access while reading and deliberate end-of-content discovery with retained-page retry and finite-library rest. A real API and separate worker persist scoped events and saved Traces in PostgreSQL. Saved Traces reopen their verified original Scroll/source with read-only origin and fresh authority checks after restoration. Operator-issued device sessions expire and can be revoked; privacy epochs prevent obsolete work from changing state. Public login, generated Reels and semantic world evolution remain future work.
 
 Clear Scroll history removes recorded encounters and saved Traces, preserves the shared library, and signs out other devices. Its retry and local-restoration boundaries are defined in [ADR-0010](docs/decisions/0010-clear-scroll-history.md). [Project state](docs/PROJECT-STATE.md) distinguishes implementation from the broader target and links runtime evidence.
 

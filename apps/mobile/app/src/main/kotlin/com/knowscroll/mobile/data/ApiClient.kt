@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 import java.net.ConnectException
@@ -15,6 +16,7 @@ import java.net.URL
 sealed class ApiException(message: String) : Exception(message) {
     class Network(message: String) : ApiException(message)
     class Server(val statusCode: Int, body: String) : ApiException("HTTP $statusCode: $body")
+    class Protocol(message: String) : ApiException(message)
     object MissingToken : ApiException("KS_DEV_TOKEN is not configured")
     class InteractionConflict(message: String) : ApiException(message)
 }
@@ -84,6 +86,28 @@ class ApiClient(
                 jobStatus = obj.optStringOrNull("jobStatus"),
                 projected = obj.optBoolean("projected", false)
             )
+        }
+    }
+
+    suspend fun getTraceRevisit(eventId: String): TraceRevisit = io {
+        try {
+            get("/v1/traces/$eventId") { obj ->
+                val names = setOf("mode", "traceEventId", "universeId", "privacyEpoch", "exposureId", "keptAt", "scroll")
+                protocol(jsonNames(obj) == names && obj.getString("mode") == "kept_revisit") {
+                    "Trace revisit returned an unexpected receipt shape"
+                }
+                val scroll = obj.getJSONObject("scroll")
+                TraceRevisit(
+                    traceEventId = obj.getString("traceEventId"),
+                    universeId = obj.getString("universeId"),
+                    privacyEpoch = obj.getLong("privacyEpoch"),
+                    exposureId = obj.getString("exposureId"),
+                    keptAt = obj.getString("keptAt"),
+                    scroll = parseTraceRevisitScroll(scroll)
+                )
+            }
+        } catch(error:JSONException) {
+            throw ApiException.Protocol("Trace revisit returned malformed JSON")
         }
     }
 
@@ -209,6 +233,26 @@ class ApiClient(
             truthState = o.getString("truthState"), reason = o.optString("reason", "")
         )
     }
+
+    /** The revisit response is strict and intentionally has no recommendation metadata. */
+    private fun parseTraceRevisitScroll(o: JSONObject): ScrollItem {
+        val names = setOf(
+            "assetId", "revision", "kind", "title", "summary", "body",
+            "sourceTitle", "sourceUrl", "truthState"
+        )
+        protocol(jsonNames(o) == names) { "Trace revisit returned an unexpected Scroll shape" }
+        val item=ScrollItem(
+            assetId = o.getString("assetId"), revision = o.getInt("revision"),
+            kind = o.getString("kind"), title = o.getString("title"),
+            summary = o.getString("summary"), body = o.getString("body"),
+            sourceTitle = o.getString("sourceTitle"), sourceUrl = o.getString("sourceUrl"),
+            truthState = o.getString("truthState"), reason = ""
+        )
+        protocol(item.kind=="Scroll" && item.revision>0 && item.truthState=="documented") {
+            "Trace revisit returned an invalid Scroll"
+        }
+        return item
+    }
 }
 
 private fun jsonObj(vararg pairs: Pair<String, Any?>): JSONObject {
@@ -219,3 +263,14 @@ private fun jsonObj(vararg pairs: Pair<String, Any?>): JSONObject {
 
 private fun JSONObject.optStringOrNull(name: String): String? =
     if (isNull(name)) null else optString(name, "").ifEmpty { null }
+
+private fun jsonNames(value:JSONObject):Set<String> {
+    val names=mutableSetOf<String>()
+    val iterator=value.keys()
+    while(iterator.hasNext()) names.add(iterator.next())
+    return names
+}
+
+private inline fun protocol(condition:Boolean,message:()->String) {
+    if(!condition)throw ApiException.Protocol(message())
+}

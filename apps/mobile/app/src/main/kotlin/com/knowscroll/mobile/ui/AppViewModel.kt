@@ -13,6 +13,9 @@ import com.knowscroll.mobile.data.InteractionRequest
 import com.knowscroll.mobile.data.ScrollItem
 import com.knowscroll.mobile.data.ScrollSession
 import com.knowscroll.mobile.data.StateStore
+import com.knowscroll.mobile.data.Trace
+import com.knowscroll.mobile.data.TraceRevisit
+import com.knowscroll.mobile.data.TraceRevisitSession
 import com.knowscroll.mobile.data.Universe
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -21,7 +24,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-sealed interface Screen { data object Universe: Screen; data class Scroll(val assetId:String):Screen }
+sealed interface Screen {
+    data object Universe: Screen
+    data class Scroll(val assetId:String):Screen
+    data class TraceRevisit(val eventId:String):Screen
+}
 sealed interface UniverseState {
     data object Loading:UniverseState
     data class Loaded(val universe:Universe):UniverseState
@@ -30,9 +37,17 @@ sealed interface UniverseState {
 sealed interface ScrollState {
     data object Idle:ScrollState
     data object Loading:ScrollState
-    data class Reading(val item:ScrollItem,val exposureId:String,val eventId:String,val keep:KeepState,val readingPosition:Int,val discovery:DiscoveryState=DiscoveryState.Idle):ScrollState
-    data class Unavailable(val message:String):ScrollState
+    data class Reading(
+        val item:ScrollItem,val exposureId:String,val eventId:String,val keep:KeepState,
+        val readingPosition:Int,val discovery:DiscoveryState=DiscoveryState.Idle,
+        val origin:ReaderOrigin=ReaderOrigin.Discovery
+    ):ScrollState
+    data class Unavailable(val message:String,val retryable:Boolean=true):ScrollState
     data object Exhausted:ScrollState
+}
+sealed interface ReaderOrigin {
+    data object Discovery:ReaderOrigin
+    data class SavedTrace(val eventId:String):ReaderOrigin
 }
 sealed interface KeepState {
     data object Idle:KeepState
@@ -55,6 +70,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val api=ApiClient()
     private val store=StateStore(application)
     private var session:ScrollSession?=null
+    private var revisit:TraceRevisitSession?=null
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
     private var observedUniverseId=store.readObservedUniverseId()
     private var busy=false
@@ -73,14 +89,79 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     fun consumeToast(){_toast.value=null}
     fun onForeground(){reconcilePrivacy(restoreStoredScroll=true)}
-    fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen()=="scroll",queueIfBusy=true)
-    fun retryScrollLoad()=enterScroll()
+    fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen() in setOf("scroll","revisit"),queueIfBusy=true)
+    fun retryScrollLoad(){
+        val pending=revisit
+        if(_screen.value is Screen.TraceRevisit && pending!=null)loadTraceRevisit(pending)
+        else if(_screen.value is Screen.TraceRevisit)return
+        else enterScroll()
+    }
 
     fun enterScroll(){
         if(busy || reconciling || !ready || store.readPendingClear()!=null)return
         val current=session
         if(current!=null && current.keepJobId.isEmpty() && current.privacyEpoch==observedPrivacyEpoch){show(current);return}
         loadNext()
+    }
+
+    /** A Trace has an explicit origin and never becomes a new discovery or exposure. */
+    fun openTrace(trace:Trace){
+        if(busy || reconciling || !ready || store.readPendingClear()!=null)return
+        val requested=TraceRevisitSession(
+            eventId=trace.eventId,assetId=trace.assetId,privacyEpoch=observedPrivacyEpoch,
+            universeId=observedUniverseId
+        )
+        revisit=requested
+        store.writeRevisit(requested)
+        loadTraceRevisit(requested)
+    }
+
+    private fun loadTraceRevisit(requested:TraceRevisitSession,restoring:Boolean=false){
+        if(busy || (!restoring && reconciling) || !ready || store.readPendingClear()!=null)return
+        if(requested.privacyEpoch!=observedPrivacyEpoch || requested.universeId!=observedUniverseId){
+            discardRevisit();return
+        }
+        busy=true
+        val version=++navigationVersion
+        val epoch=observedPrivacyEpoch
+        _screen.value=Screen.TraceRevisit(requested.eventId)
+        savedState["screen"]="revisit";store.writeScreen("revisit")
+        _scroll.value=ScrollState.Loading
+        viewModelScope.launch {
+            try {
+                val receipt=api.getTraceRevisit(requested.eventId)
+                if(!operationIsCurrent(version,epoch))return@launch
+                val accepted=acceptTraceRevisit(receipt,requested,observedUniverseId,observedPrivacyEpoch)
+                if(accepted==null){
+                    discardRevisit()
+                    _scroll.value=ScrollState.Unavailable("This saved Scroll could not be verified.",retryable=false)
+                    return@launch
+                }
+                revisit=accepted
+                store.writeRevisit(accepted)
+                _scroll.value=ScrollState.Reading(
+                    receipt.scroll,receipt.exposureId,requested.eventId,KeepState.Kept(requested.eventId),
+                    accepted.readingPosition,origin=ReaderOrigin.SavedTrace(requested.eventId)
+                )
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion || _screen.value !is Screen.TraceRevisit)return@launch
+                when {
+                    e is ApiException.Server && e.statusCode==409 -> {
+                        discardRevisit()
+                        _scroll.value=ScrollState.Unavailable("This saved Scroll's source has changed and cannot be reopened.",retryable=false)
+                    }
+                    e is ApiException.Protocol || e is ApiException.Server && e.statusCode in setOf(400,404,422) -> {
+                        discardRevisit()
+                        _scroll.value=ScrollState.Unavailable("This saved Scroll is unavailable.",retryable=false)
+                    }
+                    invalidatesReader(e) || e is IllegalStateException -> {
+                        purgeForScope(requested.universeId,epoch);failClosed(message(e))
+                    }
+                    else -> _scroll.value=ScrollState.Unavailable(message(e))
+                }
+            } finally { if(version==navigationVersion)busy=false }
+        }
     }
 
     fun nextScroll(){
@@ -90,7 +171,6 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     private fun loadNext(preserveReading:Boolean=false){
         if(busy || reconciling || !ready || store.readPendingClear()!=null)return
-        val previous=if(preserveReading)session else null
         val reading=if(preserveReading)_scroll.value as? ScrollState.Reading else null
         busy=true
         val version=++navigationVersion
@@ -108,13 +188,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             try {
                 val feed=api.getFeed()
                 if(!operationIsCurrent(version,epoch))return@launch
-                when(val selected=selectDiscovery(feed,universeId,epoch,visited,session?.item?.assetId)){
+                when(val selected=selectDiscovery(feed,universeId,epoch,visited,reading?.item?.assetId ?: session?.item?.assetId)){
                     DiscoverySelection.InvalidScope -> {
                         purgeForScope(feed.universeId,feed.privacyEpoch)
                         failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
                     }
                     DiscoverySelection.Exhausted -> {
-                        if(previous!=null){
+                        if(reading!=null){
                             (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Exhausted)}
                         } else _scroll.value=ScrollState.Exhausted
                     }
@@ -122,16 +202,17 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         val next=ScrollSession(feed.decisionId,selected.item,feed.privacyEpoch,feed.universeId)
                         if(!operationIsCurrent(version,epoch))return@launch
                         session?.let{visited.add(it.item.assetId);store.writeVisited(visited)}
+                        discardRevisit()
                         store.write(next);session=next;show(next)
                     }
                 }
             } catch(e:Exception){
                 if(e is CancellationException)throw e
-                if(version!=navigationVersion || _screen.value !is Screen.Scroll)return@launch
+                if(version!=navigationVersion || (_screen.value !is Screen.Scroll && _screen.value !is Screen.TraceRevisit))return@launch
                 if(invalidatesReader(e)){
                     purgeForScope(universeId,epoch)
                     failClosed(message(e))
-                } else if(previous!=null){
+                } else if(reading!=null){
                     (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Failed)}
                 } else _scroll.value=ScrollState.Unavailable(message(e))
             } finally{if(version==navigationVersion)busy=false}
@@ -152,6 +233,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     /** Called by the resumed Compose screen after display frames, never by candidate retrieval. */
     fun onVisible(assetId:String){
+        if(_screen.value is Screen.TraceRevisit)return
         val current=session ?: return
         if(current.item.assetId!=assetId || current.exposureId.isNotEmpty() || busy || !ready)return
         val version=navigationVersion
@@ -185,6 +267,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     fun keep(){
         if(busy || !ready)return
+        if((_scroll.value as? ScrollState.Reading)?.origin is ReaderOrigin.SavedTrace)return
         val currentSession=session ?: return
         if(currentSession.keepJobId.isNotEmpty())return
         val currentState=_scroll.value as? ScrollState.Reading ?: return
@@ -222,12 +305,20 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun updateReadingPosition(assetId:String,position:Int){
+        val reading=_scroll.value as? ScrollState.Reading
+        if(reading?.origin is ReaderOrigin.SavedTrace){
+            val current=revisit ?: return
+            if(reading.item.assetId!=assetId || current.assetId!=assetId || current.readingPosition==position || position<0)return
+            val updated=current.copy(readingPosition=position)
+            revisit=updated;store.writeRevisit(updated)
+            _scroll.value=reading.copy(readingPosition=position)
+            return
+        }
         val current=session ?: return
         if(current.item.assetId!=assetId || current.readingPosition==position || current.privacyEpoch!=observedPrivacyEpoch || store.readPendingClear()!=null)return
         val updated=current.copy(readingPosition=position)
         store.writeReadingPosition(assetId,position)
         session=updated
-        val reading=_scroll.value as? ScrollState.Reading
         if(reading?.item?.assetId==assetId){
             _scroll.value=reading.copy(readingPosition=position)
         }
@@ -235,6 +326,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     fun returnToUniverse(){
         navigationVersion++
+        if(_screen.value is Screen.TraceRevisit)discardRevisit()
         visited.clear();store.writeVisited(visited)
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
@@ -332,8 +424,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(reconciling){if(queueIfBusy)reconcileAfterCurrent=restoreStoredScroll;return}
         reconciling=true;ready=false;busy=false
         val version=++navigationVersion
-        val wantedScroll=restoreStoredScroll && store.readScreen()=="scroll"
+        val storedScreen=store.readScreen()
+        val wantedScroll=restoreStoredScroll && storedScreen=="scroll"
+        val wantedRevisit=restoreStoredScroll && storedScreen=="revisit"
         if(wantedScroll){_screen.value=Screen.Scroll("");_scroll.value=ScrollState.Loading}
+        else if(wantedRevisit){_screen.value=Screen.TraceRevisit("");_scroll.value=ScrollState.Loading}
         else{_screen.value=Screen.Universe;_universe.value=UniverseState.Loading}
         viewModelScope.launch {
             try {
@@ -353,11 +448,20 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     _historyClear.value=HistoryClearState.Clearing
                     completeHistoryClear(api.clearScrollHistory(pending),pending,version)
                 } else {
-                    applyUniverse(actual,wantedScroll,version)
+                    applyUniverse(actual,wantedScroll || wantedRevisit,version)
                 }
             } catch(e:Exception){
                 if(store.readPendingClear()!=null)handleHistoryClearFailure(e,version)
-                else failClosed(message(e))
+                else {
+                    if(reconciliationFailurePurgesPrivateState(e)){
+                        val scope=revisit
+                        purgeForScope(
+                            scope?.universeId?.takeIf { it.isNotBlank() } ?: observedUniverseId,
+                            maxOf(observedPrivacyEpoch,scope?.privacyEpoch ?: 0L)
+                        )
+                    }
+                    failClosed(message(e))
+                }
             } finally{
                 reconciling=false
                 val next=reconcileAfterCurrent
@@ -381,11 +485,15 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _universe.value=UniverseState.Loaded(actual)
         _historyClear.value=HistoryClearState.Idle
         ready=true
-        val cached=if(restoreStoredScroll)runCatching{store.read()}.getOrNull() else null
+        val cached=if(restoreStoredScroll && store.readScreen()=="scroll")runCatching{store.read()}.getOrNull() else null
+        val cachedRevisit=if(restoreStoredScroll && store.readScreen()=="revisit")store.readRevisit() else null
         if(cached!=null && cached.privacyEpoch==observedPrivacyEpoch && cached.universeId==observedUniverseId && store.readPendingClear()==null){
             session=cached;show(cached)
+        } else if(cachedRevisit!=null && cachedRevisit.privacyEpoch==observedPrivacyEpoch && cachedRevisit.universeId==observedUniverseId && store.readPendingClear()==null){
+            revisit=cachedRevisit
+            loadTraceRevisit(cachedRevisit,restoring=true)
         } else {
-            if(cached!=null)purgeForScope(observedUniverseId,observedPrivacyEpoch)
+            if(cached!=null || cachedRevisit!=null || (restoreStoredScroll && store.readScreen()=="revisit"))purgeForScope(observedUniverseId,observedPrivacyEpoch)
             _screen.value=Screen.Universe;savedState["screen"]="universe";store.writeScreen("universe")
         }
     }
@@ -395,6 +503,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         observedUniverseId=store.readObservedUniverseId()
         observedPrivacyEpoch=store.readObservedPrivacyEpoch()
         session=null;visited.clear()
+        revisit=null
         _scroll.value=ScrollState.Idle
         _screen.value=Screen.Universe
         savedState["screen"]="universe"
@@ -405,6 +514,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _screen.value=Screen.Universe
         _scroll.value=ScrollState.Idle
         _universe.value=UniverseState.Unavailable(reason)
+    }
+
+    private fun discardRevisit(){
+        revisit=null
+        store.clearRevisit()
     }
 
     private fun operationIsCurrent(version:Long,epoch:Long,value:ScrollSession?=null):Boolean {
@@ -426,4 +540,26 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             else -> "Connection interrupted. Please retry; your action keeps the same identity."
         }
     }
+}
+
+/** Refuse a response that cannot be tied back to the Trace card and reconciled scope. */
+internal fun acceptTraceRevisit(
+    receipt:TraceRevisit,
+    requested:TraceRevisitSession,
+    universeId:String,
+    privacyEpoch:Long
+):TraceRevisitSession? {
+    if(receipt.traceEventId!=requested.eventId || receipt.universeId!=universeId ||
+        receipt.privacyEpoch!=privacyEpoch || receipt.scroll.assetId!=requested.assetId ||
+        receipt.exposureId.isBlank() || receipt.scroll.kind!="Scroll" || receipt.scroll.truthState!="documented" || receipt.scroll.revision<=0 ||
+        requested.revision?.let { it!=receipt.scroll.revision }==true
+    ) return null
+    return requested.copy(revision=receipt.scroll.revision)
+}
+
+/** Only an unavailable transport/service leaves a private revisit identity for explicit retry. */
+internal fun reconciliationFailurePurgesPrivateState(error:Exception):Boolean = when(error) {
+    is ApiException.Network -> false
+    is ApiException.Server -> error.statusCode !in 500..599 && error.statusCode!=429
+    else -> true
 }

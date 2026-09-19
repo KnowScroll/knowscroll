@@ -20,3 +20,7 @@ Errors: {error:string}; non-2xx is failure. No server/provider stack traces. No 
 Unknown, expired, revoked and old-epoch sessions return generic 401. Foreign decisions/exposures fail 422; foreign events return 404. Retained older-epoch references fail 409 before idempotency replay. History clear removes old records, so erased references use the existing missing-reference 422/404 behavior. Epoch-invalidated jobs still present report `jobStatus:"discarded"`, `projected:false`; history clear removes its universe's jobs with the rest of its bootstrap encounter data. Full account deletion, semantic reset and pause personalization remain separate scope.
 
 Mobile reads title/summary/body/sources; Source opens the actual URL. Home begins as an honest empty universe and offers Enter Scroll. After keep, return restores origin and refreshes traces. Show visible connection error/retry. Do not add unavailable Ask/Friends/Reel buttons as fake working features.
+
+## Saved Trace source revisit
+
+`GET /v1/traces/:eventId` follows the strict [source revisit contract](trace-revisit.md). It authorizes the current owner scope, validates the original Keep/exposure/decision lineage and unchanged shared source, and returns a no-store read receipt. It creates no new events. Universe Trace titles now derive from validated selection history; unavailable entries retain a neutral label.
