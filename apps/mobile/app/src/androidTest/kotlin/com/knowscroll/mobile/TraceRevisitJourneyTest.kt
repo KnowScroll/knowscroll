@@ -2,6 +2,8 @@ package com.knowscroll.mobile
 
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertExists
+import org.junit.Assert.assertNotEquals
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasContentDescription
@@ -130,12 +132,25 @@ class TraceRevisitJourneyTest {
     @Test fun prepareProjectedTraceForRevisit() {
         val trace=keepThroughUi()
         open(trace.eventId)
+        val selected=runBlocking { ApiClient().getTraceRevisit(trace.eventId) }
+        compose.onNodeWithText(selected.scroll.title).assertExists()
+        compose.onNodeWithText(selected.scroll.body).assertExists()
+        compose.onNodeWithText(selected.scroll.sourceTitle).assertExists()
+        assertEquals(selected.scroll.revision,store().readRevisit()?.revision)
         compose.onNodeWithContentDescription("Scroll reading content")
             .performScrollToNode(hasContentDescription("Get the next Scroll"))
         waitUntil { (store().readRevisit()?.readingPosition ?: 0)>0 }
+        val before=store().readRevisit() ?: error("Missing revisit before recreation")
+        compose.activityRule.scenario.recreate()
+        waitUntil {
+            compose.onAllNodesWithText("SAVED FROM YOUR KEEP").fetchSemanticsNodes().isNotEmpty() &&
+                displayedPosition()=="Reading position ${before.readingPosition}"
+        }
+        assertEquals(before,store().readRevisit())
         screenshot("trace-revisit-prepare.png")
         receipt("trace-revisit-prepare.json","prepareProjectedTraceForRevisit",trace.eventId) {
             put("traceReaderVisible",true);put("savedOriginVisible",true)
+            put("exactSelectedContentAsserted",true);put("activityRecreationPreservedIdentityAndPosition",true)
         }
     }
 
@@ -201,6 +216,25 @@ class TraceRevisitJourneyTest {
         } finally {
             control("/__journey/source-mode",JSONObject().put("assetId",trace.assetId).put("mode","original"))
         }
+    }
+
+    @Test fun explicitNextLeavesTraceForFreshDiscovery() {
+        val trace=projectedTrace();open(trace.eventId)
+        compose.onNodeWithContentDescription("Scroll reading content")
+            .performScrollToNode(hasContentDescription("Get the next Scroll"))
+        compose.onNodeWithContentDescription("Get the next Scroll").performClick()
+        waitUntil {
+            store().readRevisit()==null && store().readScreen()=="scroll" &&
+                store().read()?.let { it.item.assetId!=trace.assetId && it.exposureId.isNotEmpty() }==true
+        }
+        assertNotEquals(trace.assetId,store().read()?.item?.assetId)
+        assertEquals("",store().read()?.keepJobId)
+        screenshot("trace-revisit-next.png")
+        receipt("trace-revisit-next.json","explicitNextLeavesTraceForFreshDiscovery",trace.eventId) {
+            put("freshExposureRecorded",true);put("savedOriginDiscarded",true)
+        }
+        compose.onNodeWithContentDescription("Return to the universe").performClick()
+        showTraceCard(trace.eventId)
     }
 
     @Test fun clearHistoryDiscardsOpenTrace() {

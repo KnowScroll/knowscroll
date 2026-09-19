@@ -292,6 +292,14 @@ try:
             raise RuntimeError('Read-only trace phase mutated existing private rows: ' + label)
     if control['traceSocketsDropped'] != 2 or control['changedSourceResponses'] < 1 or control['sourceMutations'] < 2:
         raise RuntimeError('Expected real transport and source-drift failures were not observed')
+    instrument('TraceRevisitJourneyTest', 'explicitNextLeavesTraceForFreshDiscovery')
+    phases['next'] = app_file('trace-revisit-next.json')
+    app_file('trace-revisit-next.png')
+    after_next = counts()
+    expected_next = {**baseline, 'decision': baseline['decision'] + 1,
+                     'exposure': baseline['exposure'] + 1, 'ledger': baseline['ledger'] + 1}
+    if after_next != expected_next:
+        raise RuntimeError('Explicit Next must create exactly one fresh discovery/exposure and no Keep')
     instrument('TraceRevisitJourneyTest', 'clearHistoryDiscardsOpenTrace')
     phases['clear'] = app_file('trace-revisit-clear.json')
     app_file('trace-revisit-clear.png')
@@ -320,7 +328,7 @@ try:
                            'coldRestart': {'beforePid': before_pid, 'afterPid': after_pid, 'refetchedTrace': True}},
                'phases': phases, 'initialKeepCounts': baseline, 'readOnlyRevisitCountsUnchanged': True,
                'readOnlyRevisitRowsUnchanged': True, 'privateRowHashes': baseline_snapshot,
-               'afterClearCounts': after_clear, 'afterAuthorityCounts': counts(),
+               'afterExplicitNextCounts': after_next, 'afterClearCounts': after_clear, 'afterAuthorityCounts': counts(),
                'transportFixture': {key: value for key, value in control.items() if key != 'dropEventId'}, 'providerCalls': 0,
                'limits': ['Transport loss/source drift/revocation are explicitly injected in disposable state; successful content comes from real services',
                           'No owner visual acceptance or manual TalkBack traversal', 'No historical source-version viewer, desktop, Reel or live provider proof']}
@@ -351,8 +359,8 @@ finally:
                 child.wait(timeout=5)
                 cleanup_errors.append('ServiceRequiredForcedShutdown')
             for _ in range(50):
-                # Darwin may report EPERM to killpg(..., 0) after group exit.
-                # Observe actual process-group membership, never treat EPERM as absence.
+                # Observe actual process-group membership; a signal permission
+                # error is not evidence of absence.
                 groups = subprocess.check_output(['ps', '-axo', 'pgid='], text=True)
                 if str(child.pid) not in {line.strip() for line in groups.splitlines()}:
                     break
