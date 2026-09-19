@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.ReaderJourneyTest:.
+
+Time: 27.321
+
+OK (1 test)
+
+

@@ -1,0 +1,24 @@
+{
+  "scenario": "readerSourcesThresholdAndRest",
+  "sourceSessionPreserved": true,
+  "closedRecreationReadingPosition": 804,
+  "sourceOpenRecreationReadingPosition": 804,
+  "sourceOpenRecreationRetryEnvelopePreserved": true,
+  "sourceSheetRestoredAfterRecreation": false,
+  "sourceLaunchReturnSessionPreserved": true,
+  "externalWindowObserved": true,
+  "externalWindowPackage": "com.android.chrome",
+  "browserUnavailableObserved": false,
+  "readerLifecycleBeforeReturn": "CREATED",
+  "browserContentLoaded": null,
+  "sourceBackStayedInReader": true,
+  "visitedAssetIds": [
+    "10000000-0000-4000-8000-000000000001",
+    "10000000-0000-4000-8000-000000000002",
+    "10000000-0000-4000-8000-000000000003"
+  ],
+  "lastAssetId": "10000000-0000-4000-8000-000000000003",
+  "finiteLibraryRest": true,
+  "nextInitiallyHidden": true,
+  "returnedHome": true
+}

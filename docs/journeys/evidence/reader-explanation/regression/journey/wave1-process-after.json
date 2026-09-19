@@ -1,0 +1,14 @@
+{
+  "assetId": "10000000-0000-4000-8000-000000000001",
+  "nextAssetId": "10000000-0000-4000-8000-000000000002",
+  "clientExposureId": "de60f525-eb68-4169-8de4-e05b6db2b6c8",
+  "clientEventId": "1f4a9d7d-7ce8-4565-bdf4-8e2518daa776",
+  "exposureId": "ceaf6bf0-cb9e-4b67-83d7-342ccd1b73f7",
+  "exposureEventId": "4984e5fc-ae17-4ba0-bcce-44a5308ba054",
+  "keepEventId": "9441ac8d-3c39-4333-bb03-1de9a0717545",
+  "keepJobId": "7bbcf947-37b6-4052-926b-5e2bc0168a2a",
+  "readingPosition": 698,
+  "screenAfterReturn": "universe",
+  "processDeath": "passed",
+  "idempotentRetries": "passed"
+}

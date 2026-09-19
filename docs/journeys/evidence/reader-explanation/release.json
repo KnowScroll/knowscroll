@@ -1,0 +1,174 @@
+{
+  "check": "reader-explanation-91",
+  "issue": 91,
+  "observedAt": "2026-09-19T21:50:19.956513+00:00",
+  "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+  "revisionDirtyAtObservation": true,
+  "note": "This session (Claude Sonnet 5, worker lane 91-reader-explain) verified a prior same-branch attempt's real emulator instrumentation run at this exact commit by cross-checking every recorded source file sha256 against the current committed tree (0 mismatches across all five phase receipts below), then independently reran the JVM/build/lint commands fresh in its own session. The ~5-phase, 32-scenario instrumentation suite itself was not re-executed live in this session; see 'verificationMethod' below and the README for the full accounting.",
+  "verificationMethod": {
+    "hashVerifiedReceipts": {
+      "reader-explain (new feature, this issue)": {
+        "filesChecked": 51,
+        "mismatches": [],
+        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+        "dirty": false,
+        "result": "passed"
+      },
+      "reader (regression: reader + reader-authority)": {
+        "filesChecked": 51,
+        "mismatches": [],
+        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+        "dirty": false,
+        "result": "passed"
+      },
+      "history (regression: privacy/clear-history)": {
+        "filesChecked": 53,
+        "mismatches": [],
+        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+        "result": "passed"
+      },
+      "journey (regression: real journey / J001)": {
+        "filesChecked": 51,
+        "mismatches": [],
+        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+        "result": "passed"
+      },
+      "trace-revisit (regression)": {
+        "filesChecked": 55,
+        "mismatches": [],
+        "revision": "8eec469da7f9bf149faca39ffe51286a5999d751",
+        "dirty": false,
+        "result": "passed"
+      }
+    },
+    "freshThisSession": {
+      "command": "apps/mobile/gradlew -p apps/mobile :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --console plain",
+      "result": "BUILD SUCCESSFUL",
+      "jvmUnitTests": {
+        "total": 22,
+        "failures": 0,
+        "classes": [
+          "ReaderDiscoveryTest(5)",
+          "ReaderExplainTest(7)",
+          "SignOutStateTest(6)",
+          "TraceRevisitStateTest(4)"
+        ]
+      },
+      "lintDebug": "0 errors, pre-existing dependency-version warnings only"
+    }
+  },
+  "phasesObserved": {
+    "explain (new, part A: Why this appeared)": [
+      "discovery",
+      "blankReason",
+      "savedTrace",
+      "prepare",
+      "processDeath"
+    ],
+    "signOut (new, part B: Sign out this device)": [
+      "signOutCancel",
+      "signOutSuccess",
+      "signOutNetworkDrop",
+      "signOut401"
+    ],
+    "reader regression": [
+      "readerSourcesThresholdAndRest",
+      "readerNextFailurePreservesPage",
+      "readerNextRevokedSessionFailsClosed",
+      "sourceSheetClearOnForeground"
+    ],
+    "history regression": [
+      "clearHistoryConfirmationCancelIsHarmless",
+      "clearHistoryClearsNonemptyHistory",
+      "differentUniverseBindingDropsPendingClearAndCache",
+      "higherPrivacyEpochPurgesCachedScrollOnForeground",
+      "pendingClearProcessDeathPrepare/Restore"
+    ],
+    "journey (real) regression": [
+      "sourcedScrollKeepAndReturn",
+      "compactLayoutAndRecovery",
+      "unavailableIsHonest",
+      "processDeathPrepare/RestoreKeepReturnAndNext"
+    ],
+    "trace-revisit regression": [
+      "prepareProjectedTraceForRevisit",
+      "reopensVerifiedTraceShowsSourcesAndReturns",
+      "traceReadDropRetriesSameIdentity",
+      "changedSourceDiscardsTraceReader",
+      "explicitNextLeavesTraceForFreshDiscovery",
+      "clearHistoryDiscardsOpenTrace",
+      "revokedSessionDiscardsOpenTrace",
+      "coldRestoreRefetchesSavedTraceIdentityAndPosition"
+    ]
+  },
+  "domainCounts": {
+    "beforeExplain": {
+      "decision": 0,
+      "exposure": 0,
+      "ledger": 0,
+      "job": 0,
+      "trace": 0
+    },
+    "afterExplain": {
+      "decision": 4,
+      "exposure": 4,
+      "ledger": 5,
+      "job": 1,
+      "trace": 1
+    },
+    "beforeSignOut": {
+      "decision": 4,
+      "exposure": 4,
+      "ledger": 5,
+      "job": 1,
+      "trace": 1
+    },
+    "afterSignOut": {
+      "decision": 4,
+      "exposure": 4,
+      "ledger": 5,
+      "job": 1,
+      "trace": 1
+    }
+  },
+  "transportFixture": {
+    "blankNextFeedReason": false,
+    "feedReasonsBlanked": 1,
+    "remainingRevokeDrops": 0,
+    "revokeSocketsDropped": 2,
+    "revokeSucceeded": 2,
+    "revokeUnauthorized": 1,
+    "sessionsRevoked": 1,
+    "sessionsRestored": 2
+  },
+  "runtime": {
+    "database": "disposable PostgreSQL",
+    "api": "separate process",
+    "worker": "separate process",
+    "device": "36",
+    "compact": "840x1680 at font_scale1.3",
+    "regular": "AVD native size at font_scale1.0",
+    "apiPort": "4326",
+    "proxyPort": 4321,
+    "coldRestart": {
+      "beforePid": "10480",
+      "afterPid": "10523"
+    }
+  },
+  "ownerPackage": {
+    "installedPathBefore": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
+    "installedPathAfter": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
+    "untouched": true
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Transport loss and session revocation are explicitly injected fixtures; every successful response and every terminal signed-out state comes from the real API/session logic",
+    "No owner visual acceptance or manual TalkBack traversal recorded here",
+    "No desktop, physical device, Reel, semantic/living/social world or live provider proof",
+    "Concurrent restore-of-a-pending-sign-out with a still-inflight universe reconciliation is not exercised; only sequential ambiguous-then-retry and pre-revoked-then-401 are covered",
+    "The five-phase, 32-scenario emulator instrumentation run cited above was executed in an earlier attempt at this exact task on this exact commit (hash-verified, clean tree at capture time); this session did not itself drive the emulator through that full suite again.",
+    "No owner visual acceptance or manual TalkBack traversal was recorded.",
+    "No desktop, physical device, Reel, semantic/living/social world or live provider proof.",
+    "Fixture and source-level proof here is not live product acceptance."
+  ]
+}

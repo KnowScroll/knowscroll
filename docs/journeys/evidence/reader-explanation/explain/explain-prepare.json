@@ -1,0 +1,9 @@
+{
+  "scenario": "explainSheetPrepareForRotationAndProcessDeath",
+  "assetId": "10000000-0000-4000-8000-000000000002",
+  "exposureId": "bd33ce64-6ffa-46c9-bb8d-60aeab4d38c6",
+  "readingPosition": 0,
+  "sheetRestoredAfterRecreation": false,
+  "readingSessionPreservedAfterRecreation": true,
+  "phase": "before-force-stop"
+}
