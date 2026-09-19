@@ -129,20 +129,9 @@ export async function readJob(pool:pg.Pool,jobId:string):Promise<{
  };
 }
 
-/** Marks the Job's attempt active and accounting eligible so a stamp attempt
- * must fail the safe-terminal predicate. The accounting and attempt
- * reactivations are forbidden by the original guards, so this bypasses both
- * triggers for the duration of the helper. */
+/** Test-only inactive-to-active corruption; accounting stays safely withdrawn. */
 export async function corruptTerminalClosure(pool:pg.Pool,jobId:string):Promise<void> {
- await pool.query('ALTER TABLE reasoning_accounting DISABLE TRIGGER reasoning_accounting_guard');
- await pool.query('ALTER TABLE reasoning_attempt DISABLE TRIGGER ALL');
- try {
-  await pool.query(`UPDATE reasoning_accounting SET state='reserved',output_authority='eligible',remote_disposition='unconfirmed' WHERE attempt_id IN (SELECT id FROM reasoning_attempt WHERE job_id=$1)`,[jobId]);
- } finally {
-  await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER reasoning_accounting_guard');
-  await pool.query('ALTER TABLE reasoning_attempt ENABLE TRIGGER ALL');
- }
- await pool.query('ALTER TABLE reasoning_attempt DISABLE TRIGGER ALL');
+ await pool.query('ALTER TABLE reasoning_attempt DISABLE TRIGGER reasoning_attempt_guard');
  try {await pool.query('UPDATE reasoning_attempt SET active=true WHERE job_id=$1',[jobId]);}
- finally {await pool.query('ALTER TABLE reasoning_attempt ENABLE TRIGGER ALL');}
+ finally {await pool.query('ALTER TABLE reasoning_attempt ENABLE TRIGGER reasoning_attempt_guard');}
 }

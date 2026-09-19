@@ -221,7 +221,7 @@ test('the safe-terminal guard refuses every unsafe transition: missing/expired l
  await t.test('a queued Job with no lease cannot acquire the retention clock',async()=>{
   await withReasoningTerminalSchema('unsafe_no_lease',async pool=>{
    const graph=await seedTerminalGraph(pool);
-   await pool.query('UPDATE reasoning_job SET lease_owner=NULL,lease_expires_at=NULL WHERE id=$1',[graph.jobId]);
+   await pool.query("UPDATE reasoning_job SET status='queued',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1",[graph.jobId]);
    await assert.rejects(pool.query(`UPDATE reasoning_job SET status='completed' WHERE id=$1`,[graph.jobId]),
     /Finish retention clock requires a safely terminal Job/);
    assert.equal((await pool.query('SELECT finished_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.finished_at,null);
@@ -276,7 +276,7 @@ test('the safe-terminal guard refuses every unsafe transition: missing/expired l
   });
  });
 
- await t.test('an active Attempt or eligible accounting blocks stamping; restoring the safe shape allows a stamp',async()=>{
+ await t.test('an active Attempt blocks stamping; deactivation allows a stamp',async()=>{
   await withReasoningTerminalSchema('unsafe_attempt',async pool=>{
    const graph=await seedTerminalGraph(pool);
    await corruptTerminalClosure(pool,graph.jobId);
@@ -296,94 +296,34 @@ test('the safe-terminal guard refuses every unsafe transition: missing/expired l
   });
  });
 
- await t.test('an Attempt whose retained accounting row was deleted is refused by the orphan guard',async()=>{
+ await t.test('missing accounting is refused while the inactive orphan Attempt remains',async()=>{
   await withReasoningTerminalSchema('unsafe_missing_accounting',async pool=>{
    const graph=await seedTerminalGraph(pool);
-   // The FK from reasoning_attempt → reasoning_accounting prevents a
-   // normal DELETE on the accounting row, and the accounting_guard
-   // protects the retained duty window. Use test-only bypasses on both
-   // so the orphan attempt is observable to the stamp trigger's LEFT
-   // JOIN. The completed/failed stamp trigger under test is the only
-   // safety boundary for this transition.
-   await pool.query('ALTER TABLE reasoning_attempt DISABLE TRIGGER ALL');
-   await pool.query('ALTER TABLE reasoning_accounting DISABLE TRIGGER reasoning_accounting_guard');
+   const prior=(await pool.query('SELECT * FROM reasoning_accounting WHERE attempt_id=$1',[graph.attemptIds[0]!])).rows[0];
+   // Parent-side FK and cascade triggers would prevent the deliberately corrupt
+   // orphan. Bypass only in this disposable schema; keep the finish guard live.
+   await pool.query('ALTER TABLE reasoning_accounting DISABLE TRIGGER ALL');
    try {await pool.query('DELETE FROM reasoning_accounting WHERE attempt_id=$1',[graph.attemptIds[0]!]);}
-   finally {
-    await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER reasoning_accounting_guard');
-    await pool.query('ALTER TABLE reasoning_attempt ENABLE TRIGGER ALL');
-   }
-   // Clear the live lease so the orphan-accounting guard is the reason
-   // the transition is rejected.
-   await assert.rejects(pool.query(`UPDATE reasoning_job SET status='completed',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`,[graph.jobId]),
-    /Finish retention clock requires a safely terminal Job/);
-   assert.equal((await pool.query('SELECT finished_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.finished_at,null);
-   // The remaining Attempt row is still inactive (no accounting row, so the
-   // guard sees ac.attempt_id IS NULL).
-   const attemptState=(await pool.query('SELECT active FROM reasoning_attempt WHERE id=$1',[graph.attemptIds[0]!])).rows[0]!.active;
-   assert.equal(attemptState,false);
+   finally {await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER ALL');}
+   await assert.rejects(stampTerminal(pool,graph.jobId,'completed'),/safely terminal/);
+   assert.equal((await pool.query('SELECT active FROM reasoning_attempt WHERE id=$1',[graph.attemptIds[0]!])).rows[0].active,false);
+   await pool.query('INSERT INTO reasoning_accounting SELECT * FROM jsonb_populate_record(NULL::reasoning_accounting,$1::jsonb)',[JSON.stringify(prior)]);
+   assert((await stampTerminal(pool,graph.jobId,'completed')).finished_at instanceof Date);
   });
  });
-
- await t.test('an inactive Attempt whose accounting output_authority is eligible blocks stamping',async()=>{
-  await withReasoningTerminalSchema('unsafe_accounting_authority',async pool=>{
+ for(const variant of ['authority','state'] as const) await t.test(`inactive Attempt with unsafe accounting ${variant} refuses the finish clock`,async()=>{
+  await withReasoningTerminalSchema(`unsafe_accounting_${variant}`,async pool=>{
    const graph=await seedTerminalGraph(pool);
-   // The fixture's accounting row is forced to (state='not_sent',
-   // output_authority='withdrawn', remote_disposition='not_sent') by the
-   // accounting CHECK. To exercise the output_authority branch in
-   // isolation we replace the row with one whose state='unknown' (a state
-   // allowed by the finished trigger) but output_authority='eligible'. The
-   // attempt FK triggers and the accounting retention guard are disabled
-   // for the duration so the test-only swap is permitted.
-   const dispatchId=randomUUID();
-   await pool.query('ALTER TABLE reasoning_attempt DISABLE TRIGGER ALL');
    await pool.query('ALTER TABLE reasoning_accounting DISABLE TRIGGER reasoning_accounting_guard');
    try {
-    await pool.query('DELETE FROM reasoning_accounting WHERE attempt_id=$1',[graph.attemptIds[0]!]);
-    await pool.query(`INSERT INTO reasoning_accounting
-     (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,
-      state,output_authority,liability_state,remote_state,remote_disposition,reconciliation_hold,idempotency_hold,
-      dispatch_id,dispatch_committed_at)
-     VALUES($1,$2,0,$3,$4,$5,1,clock_timestamp()+interval '1 hour',
-      'unknown','eligible','settled','released','terminal',false,false,$6,clock_timestamp())`,
-     [graph.attemptIds[0]!,graph.universeId,randomUUID(),'terminal-fixture','terminal-fixture',dispatchId]);
-   } finally {
-    await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER reasoning_accounting_guard');
-    await pool.query('ALTER TABLE reasoning_attempt ENABLE TRIGGER ALL');
-   }
-   // With lease cleared, the only guard that fires is the output_authority
-   // check (state='unknown' is allowed; attempt is inactive).
-   await assert.rejects(pool.query(`UPDATE reasoning_job SET status='completed',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`,[graph.jobId]),
-    /Finish retention clock requires a safely terminal Job/);
-   assert.equal((await pool.query('SELECT finished_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.finished_at,null);
-  });
- });
-
- await t.test('an inactive Attempt whose accounting state is reserved blocks stamping',async()=>{
-  await withReasoningTerminalSchema('unsafe_accounting_state',async pool=>{
-   const graph=await seedTerminalGraph(pool);
-   // The fixture seeds accounting with state='not_sent' and a retained
-   // duty window (all_duties_closed_at NULL), which the accounting_guard
-   // protects on DELETE. Replace the row with one whose state='reserved'
-   // (not in the finished trigger's allow set) but output_authority stays
-   // 'withdrawn'. The attempt FK triggers and the accounting retention
-   // guard are disabled for the test-only swap.
-   await pool.query('ALTER TABLE reasoning_attempt DISABLE TRIGGER ALL');
+    if(variant==='authority')await pool.query(`UPDATE reasoning_accounting SET state='unknown',output_authority='eligible',remote_disposition='unconfirmed',dispatch_id=$2,dispatch_committed_at=clock_timestamp() WHERE attempt_id=$1`,[graph.attemptIds[0]!,randomUUID()]);
+    else await pool.query(`UPDATE reasoning_accounting SET state='reserved',remote_disposition='unconfirmed' WHERE attempt_id=$1`,[graph.attemptIds[0]!]);
+   } finally {await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER reasoning_accounting_guard');}
+   await assert.rejects(stampTerminal(pool,graph.jobId,'completed'),/safely terminal/);
    await pool.query('ALTER TABLE reasoning_accounting DISABLE TRIGGER reasoning_accounting_guard');
-   try {
-    await pool.query('DELETE FROM reasoning_accounting WHERE attempt_id=$1',[graph.attemptIds[0]!]);
-    await pool.query(`INSERT INTO reasoning_accounting
-     (attempt_id,universe_id,privacy_epoch,request_id,route_id,route_profile_version,max_output_tokens,deadline,
-      state,output_authority,liability_state,remote_state,remote_disposition,reconciliation_hold,idempotency_hold)
-     VALUES($1,$2,0,$3,$4,$5,1,clock_timestamp()+interval '1 hour','reserved','withdrawn','settled','released','unconfirmed',false,false)`,
-     [graph.attemptIds[0]!,graph.universeId,randomUUID(),'terminal-fixture','terminal-fixture']);
-   } finally {
-    await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER reasoning_accounting_guard');
-    await pool.query('ALTER TABLE reasoning_attempt ENABLE TRIGGER ALL');
-   }
-   // With lease cleared, only the state guard fires.
-   await assert.rejects(pool.query(`UPDATE reasoning_job SET status='completed',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`,[graph.jobId]),
-    /Finish retention clock requires a safely terminal Job/);
-   assert.equal((await pool.query('SELECT finished_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.finished_at,null);
+   try {await pool.query(`UPDATE reasoning_accounting SET state='not_sent',output_authority='withdrawn',remote_disposition='not_sent',dispatch_id=NULL,dispatch_committed_at=NULL WHERE attempt_id=$1`,[graph.attemptIds[0]!]);}
+   finally {await pool.query('ALTER TABLE reasoning_accounting ENABLE TRIGGER reasoning_accounting_guard');}
+   assert((await stampTerminal(pool,graph.jobId,'completed')).finished_at instanceof Date);
   });
  });
 
@@ -404,9 +344,10 @@ test('the safe-terminal guard refuses every unsafe transition: missing/expired l
 });
 
 test('a positive lease_fence is required and a changed fence is refused before stamping',async t=>{
- await t.test('a stamp succeeds with the fixture positive fence, proving the positive-fence predicate',async()=>{
+ await t.test('the existing lease constraint excludes a zero fence; the positive fence stamps safely',async()=>{
   await withReasoningTerminalSchema('positive_fence',async pool=>{
    const graph=await seedTerminalGraph(pool,{terminalStatus:'completed'});
+   await assert.rejects(pool.query('UPDATE reasoning_job SET lease_fence=0 WHERE id=$1',[graph.jobId]),/reasoning_job_check1/);
    // The fixture inserts lease_fence=1 (positive). The stamp succeeds
    // because OLD.lease_fence>0 holds.
    const fence=(await pool.query('SELECT lease_fence::text AS fence FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0]!.fence;

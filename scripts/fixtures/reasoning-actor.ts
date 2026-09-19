@@ -39,9 +39,15 @@ process.on("message", async (raw: any) => {
       if (!claim || claim.jobId !== input.jobId)
         throw Error("unexpected_claim");
       const requestId = randomUUID();
+      // Actor startup is outside the request horizon. Clamp to the actual Job
+      // deadline so slow process startup cannot manufacture an invalid request.
+      const jobDeadline = (await db.query<{deadline: Date}>(
+        'SELECT deadline FROM reasoning_job WHERE id=$1', [input.jobId],
+      )).rows[0]!.deadline;
       const deadline = new Date(
         Math.min(
           Date.now() + (input.deadlineMs ?? 45000),
+          jobDeadline.getTime(),
           new Date(claim.leaseExpiresAt).getTime() + 40000,
         ),
       ).toISOString();
