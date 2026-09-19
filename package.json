@@ -13,7 +13,9 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
+    "typecheck:web": "pnpm --filter web typecheck",
     "test": "./scripts/test.sh",
+    "test:web": "pnpm --filter web test",
     "verify:journey": "tsx scripts/verify-journey.ts",
     "state": "tsx scripts/state.ts"
   },

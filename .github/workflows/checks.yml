@@ -28,6 +28,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Web (apps/web) typecheck
+        run: pnpm typecheck:web
+      - name: Web (apps/web) unit/component tests
+        run: pnpm test:web
       - name: Verify deterministic fairness policy traces
         run: pnpm exec tsx scripts/capture-fairness-evidence.ts artifacts/fairness-ci.json
       - name: Verify durable fairness across disposable PostgreSQL restart

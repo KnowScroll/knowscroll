@@ -12,8 +12,12 @@
   },
   "include": [
     "apps/**/*.ts",
+    "ops/**/*.ts",
     "packages/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts"
+  ],
+  "exclude": [
+    "apps/web/**"
   ]
 }

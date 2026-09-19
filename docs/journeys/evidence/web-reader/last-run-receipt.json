@@ -1,0 +1,14 @@
+{
+  "journey": "web-reader-92",
+  "startedAt": "2026-09-19T22:42:03.498Z",
+  "database": "knowscroll_test_16cf08b657d4baa1",
+  "apiPort": 62936,
+  "faultProxyPort": 62951,
+  "webPort": 62952,
+  "devAuthProxySmokeCheck": "passed (unauthenticated /v1/session via proxy returned 200)",
+  "playwright": {
+    "result": "passed"
+  },
+  "finishedAt": "2026-09-19T22:42:21.087Z",
+  "databaseDropped": true
+}
