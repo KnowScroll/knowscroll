@@ -1,0 +1,175 @@
+{
+  "observedAt": "2026-09-19T17:58:19.638814+00:00",
+  "archiveRoot": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff",
+  "gitBundleVerified": true,
+  "removed": [
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/cleanup-integration",
+      "head": "46590340981a72a310e4fdb65d226c8d856f2a04",
+      "branch": "refs/heads/codex/70-disconnect-integration",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/cleanup-integration-local-files.tar.gz",
+      "preservedFileCount": 165,
+      "archiveSha256": "8fdae6b103d6858fb984bead3e530f17284be411a27a827f9895e0b841445d0b"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/coordination",
+      "head": "c5ba8b287553d7a5e42fe8101e6a40991c489f57",
+      "branch": "refs/heads/codex/66-ask-context-integration",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/coordination-local-files.tar.gz",
+      "preservedFileCount": 565,
+      "archiveSha256": "716e75c31b585efa16b54183b4eafaf136f69ec757af3af28b00f2578b9260d5"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/core",
+      "head": "1c1c5a5d4dada43b30345c587142f9d2906a38f0",
+      "branch": "refs/heads/codex/74-reader-authority-review",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/core-local-files.tar.gz",
+      "preservedFileCount": 3,
+      "archiveSha256": "2dc215151cb1a274dae66f66355a3ec17cb07c8307a756c2ddbd610e34f612f5"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/cutroom-audit",
+      "head": "0cb9658668597cf699ff9f5bfd46fe190b7c1939",
+      "branch": "refs/heads/codex/84-cutroom-boundary-audit",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/cutroom-audit-local-files.tar.gz",
+      "preservedFileCount": 1,
+      "archiveSha256": "c77313e3862f7f2ba89562efd3c90ac72eaa206212594f2573b4491f81854135"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/cutroom-http",
+      "head": "5d0b1fe8d233abc35b708a1c54916a3cb78d8ef1",
+      "branch": "refs/heads/codex/86-cutroom-http-contract",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/cutroom-http-local-files.tar.gz",
+      "preservedFileCount": 4,
+      "archiveSha256": "f2b5e9bcbed6226ad1caa98ff3a1fdf502a91b64388e64ed043b61dac483248b"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/lifecycle",
+      "head": "d747ca9a038cf714626ffede5d942a52a0516686",
+      "branch": "refs/heads/codex/75-idle-lifecycle-contract",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/lifecycle-local-files.tar.gz",
+      "preservedFileCount": 28,
+      "archiveSha256": "fd298f93a3072b2704fc40884d9c0426b6fcef782799c492fc3017e1a84c49ff"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/lifecycle-privacy",
+      "head": "45b2159bb61322958da4d07fc26f6ac2d435fb7c",
+      "branch": "refs/heads/codex/75-idle-privacy",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/lifecycle-privacy-local-files.tar.gz",
+      "preservedFileCount": 2,
+      "archiveSha256": "13c6057309d987da2440e5501aaa671777f17943a95159162545c23e27d85a4f"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/lifecycle-review",
+      "head": "9b1bfa8b8b898f72e812a507478dfc6eb8203720",
+      "branch": "refs/heads/codex/75-scheduler-concurrency-check",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/lifecycle-review-local-files.tar.gz",
+      "preservedFileCount": 2,
+      "archiveSha256": "04295f7765d6dda4a75dcd6e1552df8aaf9a688a815769692913b57b70ef8129"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/lifecycle-runtime",
+      "head": "853a971904462fd0ac3a4d97c3972ea2e7d7ed04",
+      "branch": "refs/heads/codex/75-idle-runtime",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/lifecycle-runtime-local-files.tar.gz",
+      "preservedFileCount": 2,
+      "archiveSha256": "c9c3d0d42d1f4e0e69ada51c6525f71aeb15ccec7e3ff59fd98091ac1efb9c9b"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/mobile",
+      "head": "d9e9279f33810f45f038900774c2bbff41064269",
+      "branch": "refs/heads/codex/66-ci-promise-observation",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/mobile-local-files.tar.gz",
+      "preservedFileCount": 193,
+      "archiveSha256": "910b4059268edc527a8b7fbd2a5d48d56904b430ab7ef5b7462f303c99bad2a6"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/reader-integration",
+      "head": "b14cf52970ba773b138d587d70e840dca5a32f7d",
+      "branch": "refs/heads/codex/74-reader-integration",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/reader-integration-local-files.tar.gz",
+      "preservedFileCount": 54,
+      "archiveSha256": "6ec099ea5228dec24151540d6eae6bdea6fbac9fad82ee6fac546c0482225c58"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/reader-ui",
+      "head": "dc2334b953f6323f7b77d2557f1a937bb8dc6ad7",
+      "branch": "refs/heads/codex/74-reader-ui",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/reader-ui-local-files.tar.gz",
+      "preservedFileCount": 3,
+      "archiveSha256": "37835dbde956abb3db93fa41c4a057abaf18dfe59fffedea40af37da186703fc"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/reasoning",
+      "head": "a2d94094d82d2ce7979d149eff222543c6a2950e",
+      "branch": "refs/heads/codex/66-ask-context-compiler",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/reasoning-local-files.tar.gz",
+      "preservedFileCount": 58,
+      "archiveSha256": "9bc058b73efc4d0fd0c6c9d82dc859ba5c28723d1d32ebf620329deb630f151d"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/revisit-api",
+      "head": "94002d9ea303c9ce22ef78456206b59e9f76d8a1",
+      "branch": "refs/heads/codex/78-trace-revisit-api",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/revisit-api-local-files.tar.gz",
+      "preservedFileCount": 2,
+      "archiveSha256": "1a45e5d01692d421f9892563361e1cd789f64f4841a293d7a17870d2faa1bf97"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/revisit-mobile",
+      "head": "ac571d9bb34b5939482f6d9754b79dbe2f02f116",
+      "branch": "refs/heads/codex/78-trace-revisit-mobile",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/revisit-mobile-local-files.tar.gz",
+      "preservedFileCount": 3,
+      "archiveSha256": "a165145127650792f58bfc0b581dce1252c355abdd00a837e8400a92c53c7a74"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/revisit-review",
+      "head": "fe2099186ff6c9d7b62b2bb8bd20761bb4608a8a",
+      "branch": "refs/heads/codex/78-trace-revisit-review",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/revisit-review-local-files.tar.gz",
+      "preservedFileCount": 2,
+      "archiveSha256": "0a015f03a890be569286bd0e317cceec2a286e0f2e1ee8d51e7ae54dff577af8"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention",
+      "head": "fa0b0beb76d97ded4c55ce5b5fa362ca9d5af404",
+      "branch": "refs/heads/codex/terminal-retention-contract",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/terminal-retention-local-files.tar.gz",
+      "preservedFileCount": 10,
+      "archiveSha256": "641f39cee5684db4d7aadc54adfaf36b49168b2aa46391f558cc1552e68786e7"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention-tests",
+      "head": "06f6682b36b2852e755cf9a88ce95f1c668e6a55",
+      "branch": "refs/heads/codex/81-terminal-retention-tests",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/terminal-retention-tests-local-files.tar.gz",
+      "preservedFileCount": 2,
+      "archiveSha256": "cb30b034b8a3c05ba077ba05464cfc2c85cb41807958258c319e5395a212c7f2"
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/v1-release-docs",
+      "head": "103c214eae94f75bdc16fde479b92359e40486c9",
+      "branch": "refs/heads/codex/72-v1-release-contract",
+      "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/v1-release-docs-local-files.tar.gz",
+      "preservedFileCount": 4,
+      "archiveSha256": "4aa22d605a0adfd4aae7188bf97d8b8007cf1472a0574056f82a1b0da9c24d9f"
+    }
+  ],
+  "preserved": [
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-worktrees/revisit",
+      "reason": "active reference or dirty checkout"
+    }
+  ],
+  "limits": [
+    "Regenerable node_modules/build/.gradle/.kotlin/dist excluded from archives; Git branches retained",
+    "Owner databases and existing dev/tmp evidence were not deleted"
+  ],
+  "bootstrap": {
+    "removedPath": "/Volumes/Mrigesh SSD/knowscroll-bootstrap",
+    "archive": "/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/bootstrap-scratch.tar.gz",
+    "verifiedFiles": 50,
+    "archiveSha256": "6c11d974c490f23221e871a01e74138390f3da25e594c62ab3e1f381c8951d6c"
+  }
+}

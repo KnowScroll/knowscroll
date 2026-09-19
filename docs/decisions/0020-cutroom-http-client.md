@@ -35,3 +35,11 @@ MiniMax M3 accepted the core boundary and requested explicit error pairs,409 int
 ## Implementation evidence
 
 The [operations guide](../operations/cutroom-http-client.md) and [HTTP/restart evidence](../journeys/evidence/cutroom-http/README.md) record the unwired implementation,474 backend tests,30 local HTTP checks and separate caller/stand-in restarts. No live Cutroom, provider, host import or product persistence claim follows.
+
+## September 19 owner hosting decision
+
+The owner selected local Cutroom on this Mac with source, data and media on the external SSD.
+This resolves the pending hosting preference above without claiming deployment or authorizing
+unbounded paid calls. The newer upstream record delta and missing launcher/provider composition
+are tracked in #89 and [local handoff](../operations/cutroom-local-handoff.md); the implemented
+client remains pinned to238df854 until a reviewed successor contract lands.

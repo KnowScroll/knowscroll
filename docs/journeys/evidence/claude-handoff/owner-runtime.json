@@ -1,0 +1,85 @@
+{
+  "observedAt": "2026-09-19T17:55:29.766Z",
+  "git": "cfe7ababdd9de0209582fd143c2ae71fc87b9602",
+  "migrations": [
+    {
+      "name": "0001_bootstrap.sql",
+      "applied_at": "2026-09-15T17:53:16.458Z",
+      "checksum": "c0c881a391eeb063502e94ad1af768bb3ee09996b9c58a4a7788736f49a06188"
+    },
+    {
+      "name": "0002_identity_epochs.sql",
+      "applied_at": "2026-09-15T19:41:02.262Z",
+      "checksum": "03b42b9da13064f57abc632bf220d48a1bab738ce1fb416b53433b62d96cca34"
+    },
+    {
+      "name": "0003_history_clear.sql",
+      "applied_at": "2026-09-16T04:52:44.414Z",
+      "checksum": "657043580030ca969ee662020f2eb772765a57de2a53491f0f205d22cb79471b"
+    },
+    {
+      "name": "0004_reasoning_storage.sql",
+      "applied_at": "2026-09-16T08:47:06.779Z",
+      "checksum": "9fbe687364f9f5ba7f8ac618db3a2a858a530611c66e9b12254e58e99f1f497e"
+    },
+    {
+      "name": "0005_reasoning_runtime.sql",
+      "applied_at": "2026-09-16T09:30:35.540Z",
+      "checksum": "a5ff33760e0bdc7a4a07562eedcba5abfdb67de2f61cd7729a30b864651127e6"
+    },
+    {
+      "name": "0006_reasoning_fairness.sql",
+      "applied_at": "2026-09-16T13:10:35.351Z",
+      "checksum": "7a75780b03366e354d62f2f763df3ff7b7679254ca1bb3b53c980044e91ac1bc"
+    },
+    {
+      "name": "0007_sealed_reasoning_context.sql",
+      "applied_at": "2026-09-16T13:36:13.059Z",
+      "checksum": "e1baf0ea78610e46e3449b5da0ac503190bf30745f4a3c424e16e6c1ab4f9948"
+    },
+    {
+      "name": "0008_reasoning_retirement.sql",
+      "applied_at": "2026-09-16T14:45:03.602Z",
+      "checksum": "4f7667d57c488dbf789f4ba5575b7c435ad8004a940a4bab7ff89ec41bdadf66"
+    },
+    {
+      "name": "0009_explicit_asks.sql",
+      "applied_at": "2026-09-16T16:32:40.648Z",
+      "checksum": "5b4482e0ae71674cca05f01df3119727936919227c53684552caff572affbfc4"
+    }
+  ],
+  "jobs": [
+    {
+      "status": "completed",
+      "count": 3
+    }
+  ],
+  "workers": [
+    {
+      "worker_id": "local-52642",
+      "last_seen": "2026-09-17T14:52:12.616Z",
+      "recently_seen": false
+    },
+    {
+      "worker_id": "local-3463",
+      "last_seen": "2026-09-16T08:47:39.036Z",
+      "recently_seen": false
+    },
+    {
+      "worker_id": "local-82368",
+      "last_seen": "2026-09-16T04:55:23.986Z",
+      "recently_seen": false
+    },
+    {
+      "worker_id": "local-90222",
+      "last_seen": "2026-09-15T19:41:01.523Z",
+      "recently_seen": false
+    }
+  ],
+  "api": false,
+  "capabilities": {
+    "reasoning": false,
+    "cutroom": false,
+    "worldEvolution": false
+  }
+}

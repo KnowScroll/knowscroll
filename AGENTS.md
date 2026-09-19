@@ -1,6 +1,6 @@
 # KnowScroll
 
-Build an emergent personal universe through Reel | Scroll encounters. Start with README.md and docs/PROJECT-STATE.md. Read the scoped AGENTS.md for every component you change; root discovery does not imply nested instructions were loaded.
+Build an emergent personal universe through Reel | Scroll encounters. Start with docs/CHECKPOINT.md, README.md and docs/PROJECT-STATE.md. Read the scoped AGENTS.md for every component you change; root discovery does not imply nested instructions were loaded.
 
 This is the new private product repository. Previous research lives separately; its code and old operational gates are not current implementation authority. Product laws and accepted ADRs govern changes. Never present a target architecture as implemented runtime.
 
@@ -18,3 +18,8 @@ This is the new private product repository. Previous research lives separately; 
 
 ## Commands
 See docs/operations/development.md for SSD environment and setup. `pnpm typecheck`, `pnpm test`, `pnpm verify:journey`; Android uses `apps/mobile/gradlew`. A passing build does not prove a user journey.
+
+## Shared steering and session continuity
+The coordinator maintains docs/CHECKPOINT.md after material decisions, failures and delivery waves.
+Use docs/operations/system-navigation.md to distinguish product/architecture/source/runtime truth.
+A fresh or compacted session reads the checkpoint and verifies live state before acting.

@@ -2,7 +2,7 @@
 
 ## Start a session
 
-Read README → PROJECT-STATE → assigned issue → relevant ADR/contract and scoped AGENTS. Check `git status`, fetch remote, and inspect `pnpm state` when changing runtime. Do not reconstruct the project from historical proposals.
+Read CHECKPOINT → README → PROJECT-STATE → assigned issue → relevant ADR/contract and scoped AGENTS. Check `git status`, fetch remote, and inspect `pnpm state` when changing runtime. Do not reconstruct the project from historical proposals.
 
 Claim an issue in GitHub and name your lane. Use a separate worktree under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`. Do not let two sessions own the same schema or contract edit. Shared contracts land first, then dependent consumers rebase. A worktree isolates files, not ports, databases or provider budgets: give running lanes distinct ports/databases; integration uses the coordinator environment.
 
@@ -25,3 +25,10 @@ Do not mark a journey proven because typecheck passed. Do not mark target compon
 ## GitHub enforcement limitation
 
 GitHub returned HTTP403 when enabling branch protection for this private repository on the current plan. The repository remains private. CI and PR templates are active, but required checks/reviews and force-push protection are not server-enforced. Use the documented review workflow; enabling enforcement later requires an eligible GitHub plan. No subscription was changed.
+
+## Shared checkpoint
+
+Read [system navigation](docs/operations/system-navigation.md) and keep the coordinator-owned
+[checkpoint](docs/CHECKPOINT.md) current through compaction and handoffs. Runtime observations
+are timestamped and distinct from source status. [Delivery history](docs/operations/delivery-history.md)
+links decisions to changes; GitHub remains the task board.

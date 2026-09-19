@@ -1,48 +1,48 @@
-# Parallel worktrees
+# SSD workspace inventory
 
-Prepared under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`:
+Status: current local inventory after #88 cleanup, 2026-09-19. Recheck `git worktree list`,
+`git status` and process references before changing anything. Old lane tables were historical
+and have been replaced; their Git history and issue receipts remain available.
 
-| Directory / branch | Issue | Local API port | Database |
-|---|---|---|---|
-| `mobile` / `codex/64-ask-privacy` | #64 independent Sol privacy tests | 4312 | knowscroll_mobile |
-| `core` / `codex/64-ask-review` | #64 independent Terra SQL/contract review | 4313 | knowscroll_core |
-| `reasoning` / `codex/64-ask-admission` | #64 Terra Ask admission/API and tests | 4314 | knowscroll_reasoning |
-| `coordination` / `codex/64-explicit-ask-integration` | #64 shared source-fact contract/migration and integration | 4315 | knowscroll_coordination |
+| Path under `/Volumes/Mrigesh SSD` | Purpose and current status |
+|---|---|
+| `knowscroll-product` | Canonical product checkout on main; ignored owner `.env`, dependencies and accepted local artifacts. Preserve owner data/configuration |
+| `knowscroll-worktrees/claude-handoff` | #88 documentation/coordinator lane, branch `codex/88-claude-handoff`; no private `.env` or runtime |
+| `knowscroll-worktrees/revisit` | Completed #78 lane at `d37933e`; retained because ADB PID44151 referenced it during cleanup. Old code, not a current work starting point |
+| `knowscroll-dev` | Shared SDK/AVD/user files, Gradle, Corepack/npm/pnpm caches, tooling, PostgreSQL data on port55432, logs/temp/evidence, pio run records, private archives |
+| `cutroom` | Separate fresh upstream source clone at52a62dd; dependencies/submodule not initialized, no service started |
+| `knowscroll-bootstrap` | **Removed after verified archive.** One-time Sept15 scripts, downloaded metadata, issue drafts and founding inventory; never current product source |
 
-Each has its own ignored `.env` and local Android configuration. All use the dedicated SSD PostgreSQL cluster at port55432 and the same SSD package/SDK/Gradle caches. Databases and API ports are separate. These lanes are prepared, not autonomous agents already running.
+## Completed cleanup
 
-The reasoning directory also hosted the completed `codex/12-journey-proof` slice during wave one. Inspect `git worktree list`, branch status and the coordination issue before reassigning any directory. The coordinator environment has no provider credentials; generate mobile local configuration only if that checkout needs an Android build.
+Nineteen clean inactive product worktrees were archived and removed with `git worktree remove`
+without force. Their branch references remain, and `source-branches.bundle` captures all refs.
+Local ignored evidence/configuration was archived with per-file SHA256 verification before removal.
+Regenerable `node_modules`, `build`, `.gradle`, `.kotlin` and `dist` were excluded. Bootstrap scratch
+was archived and verified before its original folder was removed. The normal owner database,
+main artifacts, existing dev/tmp failure logs and referenced revisit lane were preserved.
 
-Wave-two ownership and dependency history is in [#21](https://github.com/KnowScroll/knowscroll/issues/21). Previous branches remain available; the directory name does not determine the current issue or grant permission to edit another component.
+Private archive root: `/Volumes/Mrigesh SSD/knowscroll-dev/archive/2026-09-19-handoff/`.
+Directory mode0700, archives/manifests mode0600; these may contain local secrets and must not be
+uploaded. `cleanup.json` maps former paths to archives and retained commits; each
+`<lane>-manifest.json` verifies local files. Historical absolute evidence paths from deleted
+lanes resolve via those archives. Use an isolated SSD restore directory to extract only needed
+files; never overwrite current `.env` or restore old configuration wholesale.
 
-Wave-three ownership is in [#29](https://github.com/KnowScroll/knowscroll/issues/29). Each lane started from verified `f2cedd2` plus the shared ADR-0010 contract. Destructive privacy verification uses newly created disposable databases and the `.journey` Android package; the normal lane/owner histories are preserved.
+A sanitized [cleanup receipt](../journeys/evidence/claude-handoff/cleanup.json) is checked in.
+Do not remove `knowscroll-dev`: it holds the owner's actual PostgreSQL cluster and accepted evidence.
+Do not drop old test databases whose ownership is unknown. This cleanup makes no claim that every
+historic test database or app-managed internal-drive file has been removed.
 
-Open Claude Code or Codex in the relevant directory and give the opening brief in [agent-workflow.md](agent-workflow.md). Read README, PROJECT-STATE and the issue before editing. Claim shared contract/schema changes with the coordinator. Use `pnpm test` for an isolated test database; use the lane’s normal API/worker commands for interactive work.
+## New workers
 
-Before starting a lane, fetch and fast-forward or rebase onto current main as appropriate. Do not reset an active worktree or share a checked-out branch. The coordinator integrates PRs into the main checkout and verifies the combined journey.
+Coordinator creates a fresh named issue branch from verified current main in this SSD worktree
+parent. Assign explicit nonoverlapping files, a unique database, port and owned process set;
+shared caches are fine, shared running databases are not. Source `scripts/env.sh` from the checkout
+before installs/builds/tests. Create a provider-free ignored `.env` only when needed; don't copy
+owner keys into worker lanes. Only one coordinator operates the Android emulator; destructive UI
+checks use the separate `.journey` app and disposable database. Inspect scoped AGENTS/CLAUDE files.
 
-To add another lane, use standard `git worktree add -b codex/<issue>-<name> <SSD-path> main`; provision a distinct local database and PORT in ignored .env, then source scripts/env.sh, install dependencies, run dev-init.sh and mobile-config.sh. Never reuse another running lane’s port or silently point at its database.
-
-Wave four is coordinated in [#37](https://github.com/KnowScroll/knowscroll/issues/37). The mobile lane is idle after #31. Adapter/runner workers receive no provider credentials; only the coordinator executes the bounded live certification after offline verification. ADR-0011 owns the boundary.
-
-Issue #42 uses coordinator-owned ADR/shared schema edits and read-only Sol/Terra review in the idle lanes. The [next implementation plan](reasoning-implementation-plan.md) assigns #44–#46 after storage contracts are released; their presence in the issue board does not mean workers are already executing them.
-
-Issue #44 uses coordinator-owned migration 0004, a Sol storage-test lane, and a privacy helper lane begun by Sol and completed by Terra after a model-capacity failure. Terra independently reviews the migration, tests and helpers. No provider calls are part of this slice. #45 consumes the reviewed storage interfaces next; #46 owns process crash proof.
-
-Issue #45 uses Sol for admission/lease/recovery, Terra for cumulative reconciliation and a separate Terra reviewer. Coordinator owns migration 0005, shared policy validation, the unwired invocation boundary and integrated SQL/HTTP proof. All provider responses remain test fixtures; #46 owns J004 next.
-
-Issue #46 uses Sol for the disposable J004 process harness and Terra for independent review. Coordinator owns the receipt verifier, corruption counterexamples, independent SIGTERM/SIGINT cleanup checker, CI and documentation. No production module, migration, provider call or normal Android surface changes in this slice.
-
-Issue #54 uses Terra (`gpt-5.6-terra`) for the pure deterministic model and a second Terra worker for independent adversarial review. Sol is unavailable due to a model usage limit. Coordinator owns ADR-0013, policy decisions, integration, source-stamped evidence and docs. There are no provider calls, migrations or ordinary runtime changes in this slice.
-
-Issue #55 uses coordinator-owned migration 0006, shared transaction/preflight helpers, retained corrections/privacy and final scheduler integration. Terra supplies bounded SQL tests and an independent concurrency/privacy reviewer; Sol supplies independent sustained service tests. The original scheduler draft was superseded after review, and acceptance uses the integrated implementation. Sol also diagnosed and repaired #57 separately in merged PR #58. All provider calls remain disabled.
-
-Issue #60 uses Terra for the compiler and focused SQL tests, a separate Terra for independent seal/lock/policy adversaries, and Sol for authentication/privacy counterexamples. Coordinator owns migration 0007, strict contracts, phase composition, original-session Job binding and integration. Completed lane branches retain their original commits; a clean branch does not mean its tree already includes the final squash merge. Inspect live state before reassignment. Issue #62 subsequently records the owner’s seven-day retention decision; see its separate maintenance implementation and deployment evidence.
-
-Issue #62 records the owner’s seven-day decision. Coordinator owns ADR-0015, migration 0008, withdrawal stamping, process verification, CI and integration. Terra implements the maintenance helper/separate worker, Sol independently tests privacy and late usage, and another Terra reviews SQL/concurrency. Prior branches are preserved. No provider calls or normal projection-worker changes.
-
-Issue #64 uses coordinator-owned ADR-0016/migration0009/contracts, Terra DB/API admission, independent Terra SQL/contract review and Sol privacy/HTTP adversaries. Coordinator owns separate-process HTTP restart/retry proof and integration. Prior branches remain retained; no worker shares owner data or launches provider work.
-
-Issue #66 uses fresh named branches in coordination (schema/routing/lock integration, port4315), reasoning (Sol compiler, port4314), core (independent Terra contract/migration/concurrency review, port4313), and mobile (independent Terra privacy/retirement tests, port4312). Every test database is disposable and unique. Prior completed branches remain retained. Owner processes/schema are not implicitly upgraded by source integration. #74 is the next independent Android reader slice; inspect current branches before assigning it.
-
-Issue #74 uses reader-ui (`codex/74-reader-ui`, Sol) and reader-integration (`codex/74-reader-integration`, coordinator), with independent Terra review/tests in core. Only the coordinator operates the API36 emulator. Provider-free local lane configuration uses ports4320/4321; joined disposable runners use4311/4316 sequentially and only the `.journey` package. Old branches are retained. The proposed #75 contract begins separately in lifecycle; inspect current state before reassignment.
+Git isolation does not isolate ports, SQLite, PostgreSQL, media roots or budgets. Never reset,
+force-delete or reassign an active lane. Before retiring a completed lane, confirm clean tracked
+and untracked work, no process references, retained Git commits and verified local evidence archives.

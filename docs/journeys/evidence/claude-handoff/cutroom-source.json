@@ -1,0 +1,79 @@
+{
+  "upstreamRevision": "52a62dd8ea8cd3f258f9be2b167cbeac4a0bda2a",
+  "consumerPin": "238df85411108a94377311363dd296d785688f70",
+  "files": [
+    {
+      "path": "package.json",
+      "sha256": "cc56539dad2a4bce19ff3e93d34e4f92fdebccca6957dd032ed2b46e51edf0ad"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "e855238484c8284bce7394332edc24b93b73e7365652f22cfd0c6c24ce90e159"
+    },
+    {
+      "path": ".gitmodules",
+      "sha256": "9560ac95ed88db173482a0bc7b65e523b68952b09ae479dd6d0efb74d413969c"
+    },
+    {
+      "path": "apps/api/src/server.ts",
+      "sha256": "7ce56f7092d1bc2d9e0b70a2ac5afe2e7de00b02d61851c1f265ccaf84a31f1f"
+    },
+    {
+      "path": "apps/worker/src/worker.ts",
+      "sha256": "ac602e59696b5c029e73d5594aa8ca0e35c99aa693306c2b096a37df38f62ab2"
+    },
+    {
+      "path": "packages/providers/src/index.ts",
+      "sha256": "c8e898ec9c1f30770b1ceeb3e476bee86d2c0f48a03f55f6145c0ea4fd6106d4"
+    },
+    {
+      "path": "packages/providers/src/artifacts.ts",
+      "sha256": "952c2e7d7cb0d191fbda523d72ac7f1291dae8b123235c69b4a1eb799a219141"
+    },
+    {
+      "path": "packages/domain/src/db.ts",
+      "sha256": "9c65a949d966d34f371f8d693397a6b840a5f257e389e34a34b196d34028ceb9"
+    },
+    {
+      "path": "docs/features/reel-render.md",
+      "sha256": "a975847c208ebaeae6bd8a09e21cd653147005232eeb34e27211bfbf3c5ee6d4"
+    },
+    {
+      "path": "docs/features/reel-takes.md",
+      "sha256": "a5cdde5e59dd1c3f79f3e5ad2f3779b8324a1f397aa5601d25a1484719ee0464"
+    },
+    {
+      "path": "packages/reel-contract/src/version.ts",
+      "sha256": "2315bf14736f6c7809bfb9267adc3f10969eefe2659d24907874c9e1bc76455a"
+    },
+    {
+      "path": "packages/reel-contract/src/request.ts",
+      "sha256": "2f35b19a741805e0881f0eecd42f6c2a3bd532d26b2fd6ce3e81e4f0650d8ab5"
+    },
+    {
+      "path": "packages/reel-contract/src/responses.ts",
+      "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+    },
+    {
+      "path": "packages/reel-contract/src/events.ts",
+      "sha256": "f04fe6a515cc9d2fcf358f74fae86d019c89a3c60dcd128ecbbb1b27e6a35527"
+    },
+    {
+      "path": "packages/reel-contract/src/record.ts",
+      "sha256": "057d30f0681c47fe227124c1e4c3f41b71f2756350b99103dfa450536b08a410"
+    },
+    {
+      "path": "packages/reel-contract/src/routes.ts",
+      "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+    },
+    {
+      "path": "packages/reel-contract/src/errors.ts",
+      "sha256": "de1f24a800c02a1166e05976dfa89023326d413bb6c771c448566940d26873ea"
+    }
+  ],
+  "limits": [
+    "Source inspection only; no actual Cutroom service or providers launched",
+    "README/AGENTS capability status is stale; source and feature boundaries inspected",
+    "Six of seven wire modules unchanged; record adds takes within version1"
+  ]
+}
