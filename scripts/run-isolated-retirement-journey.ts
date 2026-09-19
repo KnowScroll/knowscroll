@@ -106,7 +106,33 @@ try {
   const timestamp=(await db!.query('SELECT withdrawn_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0].withdrawn_at;assert(timestamp);
   return {...graph,attemptId:reserved.attemptId,requestId,dispatchId};
  }
+ async function seedFinished(outcome:'completed'|'failed') {
+  const graph=await seedDirectContextGraph(db!);
+  const authority=createDirectContextAuthority(async()=>graph.policy);
+  await inTransaction(db!,c=>compileDirectContext(c,graph.scope,{jobId:graph.jobId,contextId:graph.contextId,keepEventIds:graph.keepEventIds},authority.resolvePolicy));
+  const stepId=await attachPendingStep(db!,graph);
+  const claimed=await createReasoningAdmission(db!,authority).claimJob({owner:'terminal-process-fixture',leaseMs:60_000});
+  assert.equal(claimed?.jobId,graph.jobId);
+  // Local fixture models a safe terminal consumer; no provider or result application.
+  await inTransaction(db!,async c=>{
+   await c.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE',[graph.scope.universeId]);
+   await c.query('SELECT id FROM reasoning_job WHERE id=$1 FOR UPDATE',[graph.jobId]);
+   await c.query('UPDATE reasoning_step SET status=$2 WHERE id=$1',[stepId,outcome==='completed'?'succeeded':'failed']);
+   await c.query('UPDATE reasoning_job SET status=$2,lease_owner=NULL,lease_expires_at=NULL WHERE id=$1',[graph.jobId,outcome]);
+  });
+  assert((await db!.query('SELECT finished_at FROM reasoning_job WHERE id=$1',[graph.jobId])).rows[0].finished_at);
+  return graph;
+ }
  stage='seed';
+ const completed=await seedFinished('completed'),failed=await seedFinished('failed'),youngFinished=await seedFinished('completed');
+ await inTransaction(db,async c=>{
+  await c.query('ALTER TABLE reasoning_job DISABLE TRIGGER reasoning_finished_clock_guard');
+  await c.query("UPDATE reasoning_job SET finished_at=clock_timestamp()-interval '168 hours' WHERE id=ANY($1::uuid[])",[[completed.jobId,failed.jobId]]);
+  await c.query('ALTER TABLE reasoning_job ENABLE TRIGGER reasoning_finished_clock_guard');
+ });
+ const sourceSnapshot=async()=>Promise.all(['ledger','decision','exposure','trace','explicit_ask'].map(async table=>
+  (await db!.query(`SELECT to_jsonb(t) AS row FROM ${table} t WHERE universe_id=ANY($1::uuid[]) ORDER BY to_jsonb(t)::text`,[[completed.scope.universeId,failed.scope.universeId]])).rows));
+ const terminalSourcesBefore=await sourceSnapshot();
  const due=await seedWithdrawn(true),young=await seedWithdrawn(false),closed=await seedWithdrawn(false);
  // Fixture-only time travel in this newly created test DB; production has no clock override.
  await inTransaction(db,async c=>{
@@ -145,8 +171,14 @@ try {
  stage='scheduled_deletion';
  await until(async()=>batches.length>=2&&(await db!.query('SELECT 1 FROM reasoning_job WHERE id=$1',[due.jobId])).rowCount===0&&
   (await db!.query('SELECT 1 FROM reasoning_accounting WHERE attempt_id=$1',[closed.attemptId])).rowCount===0&&
+  (await db!.query('SELECT 1 FROM reasoning_job WHERE id=ANY($1::uuid[])',[[completed.jobId,failed.jobId]])).rowCount===0&&
   (await db!.query("SELECT 1 FROM reasoning_job WHERE id=$1 AND status='expired' AND withdrawn_at IS NOT NULL",[idle.jobId])).rowCount===1,'scheduled_deletion');
  stage='retention_assertions';
+ assert.deepEqual(await sourceSnapshot(),terminalSourcesBefore);
+ assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=ANY($1::uuid[])',[[completed.contextId,failed.contextId]])).rowCount,0);
+ assert.equal((await db.query('SELECT 1 FROM reasoning_context_job_session WHERE job_id=ANY($1::uuid[])',[[completed.jobId,failed.jobId]])).rowCount,0);
+ assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[youngFinished.contextId])).rowCount,1);
+ assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[youngFinished.jobId])).rowCount,1);
  assert.deepEqual(await snapshot(),before);
  assert.equal((await db.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[due.contextId])).rowCount,0);
  assert.equal((await db.query('SELECT 1 FROM reasoning_job WHERE id=$1',[young.jobId])).rowCount,1);
@@ -178,10 +210,10 @@ try {
  stage='source_evidence';
  evidence={check:'scheduled-withdrawn-reasoning-retirement',result:'passed',observedAt:new Date().toISOString(),
   source:{revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim()!=='',
-   files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','scripts/lib/pg-disconnect.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/migrations/0011_idle_direct_withdrawal.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-idle-lifecycle.ts','packages/db/src/reasoning-idle-lifecycle-contract.ts','packages/db/src/reasoning-idle-fairness.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
+   files:await Promise.all(['scripts/run-isolated-retirement-journey.ts','scripts/lib/pg-disconnect.ts','packages/db/migrations/0008_reasoning_retirement.sql','packages/db/migrations/0011_idle_direct_withdrawal.sql','packages/db/migrations/0012_terminal_private_retirement.sql','packages/db/src/reasoning-maintenance.ts','packages/db/src/reasoning-idle-lifecycle.ts','packages/db/src/reasoning-idle-lifecycle-contract.ts','packages/db/src/reasoning-idle-fairness.ts','packages/db/src/reasoning-admission.ts','packages/db/src/reasoning-context.ts','packages/db/src/reasoning-storage.ts','apps/worker/src/reasoning/maintenance-main.ts','tests/helpers/reasoning-context-fixture.ts'].map(async path=>({path,sha256:createHash('sha256').update(await readFile(path)).digest('hex')})))},
   runtime:{separateWorker:true,scheduledBatches:batches.length,intervalMs:100,idleGracefulShutdown:true,workerStdioClosed:true,finalStoppedAcknowledgement:true},
-  assertions:{idleDirectJobExpiredWithRevokedOriginalSession:true,idleExpiryFencedAndClocked:true,idleContextRetainedUntilRetirement:true,expiryAggregateObserved:true,oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
-  limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','idle SIGTERM shutdown; no in-flight signal barrier in this receipt','no completed/failed-job retirement or owner maintenance deployment']};
+  assertions:{completedPrivateGraphRetiredAt168Hours:true,failedPrivateGraphRetiredAt168Hours:true,youngFinishedGraphPreserved:true,terminalSourceHistoryUnchanged:true,idleDirectJobExpiredWithRevokedOriginalSession:true,idleExpiryFencedAndClocked:true,idleContextRetainedUntilRetirement:true,expiryAggregateObserved:true,oldPrivateGraphRemoved:true,youngPrivateGraphPreserved:true,unknownAccountingAndReservationsUnchangedDuringRetirement:true,closedAccountingPurgedAfter31Days:true,lateReceiptSettledWithoutPrivateResurrection:true,receiptReplayNoOp:true},providerCalls:0,
+  limits:['synthetic contexts and accounting, no provider request','fixture-only timestamp aging in newly created disposable DB','not seven days of elapsed wall-clock observation','idle SIGTERM shutdown; no in-flight signal barrier in this receipt','safe terminal transitions are local SQL fixtures, not product completion/application or owner deployment']};
 } catch(error) {
  failure=true;failureCode??=error instanceof RetirementJourneyFailure?error.code:'unexpected_harness_failure';
  failureSnapshot={childExit,childClose,childClosed,stoppedEvent,stderrObserved,interrupted,unexpectedPoolError,childFailure,batches:batches.length,
