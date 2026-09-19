@@ -1,0 +1,94 @@
+{
+  "check": "cutroom-http-client-86",
+  "testedRevision": "30b3c5898682f0c1eed26e9417f923822713871a",
+  "upstreamRevision": "238df85411108a94377311363dd296d785688f70",
+  "backendTests": {
+    "baseline": 12,
+    "additional": 462,
+    "passed": 474
+  },
+  "focusedHttpTests": 30,
+  "processSourceHashesVerified": 11,
+  "commands": [
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/86-final-typecheck.log",
+      "sha256": "0b68635ed730929dde201fa10e1845ae37d4a28e406b48e631d7acc46b6e7124",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/86-http-tests-final.log",
+      "sha256": "c4aec4ec84d66a2bd8fda08e4d7561e6de4fbf276ecd36f5b67a87f8d61e48f1",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/86-full-suite.log",
+      "sha256": "74822246cbcd47dc2dfcfd66b4c24742bb024889a3737e86fe54cf022892faf5",
+      "exitCode": 0
+    },
+    {
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/86-process-journey-final.log",
+      "sha256": "514bee2daac6e0de15abc60ea8a25a6c7e88ffb34a5a93723209110e687d7dd9",
+      "exitCode": 0
+    }
+  ],
+  "files": [
+    {
+      "path": "apps/worker/src/cutroom/http-client.ts",
+      "sha256": "b082ab329afaa0c93264c6c904adb26c1c978772100e924bb3a6ef48b9ee9b00"
+    },
+    {
+      "path": "scripts/fixtures/cutroom-http-peer.ts",
+      "sha256": "adf340abed062308b6ecaaf97dee8d615319d0fe0a2f5308a26a5b1ff84d377f"
+    },
+    {
+      "path": "scripts/run-isolated-cutroom-http-journey.ts",
+      "sha256": "2834c19de4ca8f769cb58bf0046cf6a3f1a000658f44dbc0a2edf062333e6553"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/version.ts",
+      "sha256": "2315bf14736f6c7809bfb9267adc3f10969eefe2659d24907874c9e1bc76455a"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/request.ts",
+      "sha256": "2f35b19a741805e0881f0eecd42f6c2a3bd532d26b2fd6ce3e81e4f0650d8ab5"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/responses.ts",
+      "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/events.ts",
+      "sha256": "f04fe6a515cc9d2fcf358f74fae86d019c89a3c60dcd128ecbbb1b27e6a35527"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/record.ts",
+      "sha256": "04cafb52da57154198fdc2aef26b0da3846e128682414415b36439914a5cfa01"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/routes.ts",
+      "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/errors.ts",
+      "sha256": "de1f24a800c02a1166e05976dfa89023326d413bb6c771c448566940d26873ea"
+    },
+    {
+      "path": "packages/contracts/src/cutroom-v1/source.json",
+      "sha256": "193c771d6709191014ac8ef4972deca8e7fa6a413dbc563846d61fff7a68e124"
+    },
+    {
+      "path": "tests/cutroom-http.test.ts",
+      "sha256": "5b75fb217d11536af479fb402941c3f03439cddef244377c771333c4b9ba669f"
+    },
+    {
+      "path": ".github/workflows/checks.yml",
+      "sha256": "28d1f78b125aa1edfd2dea61e33d2f19e8f1a6f6fb43e4fe99c3266471399353"
+    }
+  ],
+  "limits": [
+    "Synthetic local HTTP stand-in, not real Cutroom or provider execution",
+    "Stand-in persistence and lifecycle do not certify upstream durability or canonical idempotency",
+    "No real media, import, publication, funding or owner deployment",
+    "Caller intent persistence is a fixture, not a product GenerationJob store"
+  ]
+}

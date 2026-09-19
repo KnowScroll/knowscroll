@@ -38,7 +38,7 @@ The [machine-readable component map](component-map.json) and table below describ
 | Reasoning Plane | Global bounded execution, budgets, attempts, context isolation | Development certification, storage and atomic execution primitives; product dispatch disabled |
 | Quartermaster | Demand, reuse/adapt/join/fund decisions | Planned |
 | Inventory / Content Plane | Asset revisions, rights, availability, private bindings | Three editorial Scrolls |
-| Cutroom Adapter | External run reconciliation and asset import | Port only; upstream exists |
+| Cutroom Adapter | External run reconciliation and asset import | Pinned unwired HTTP client; host import/publication absent |
 | Projector / Social | Authorized projections, visits and Blend | Planned |
 | Rooms / Inhabitants | Bounded situated collaboration | Planned |
 | Evaluation / Operations | Journey receipts, quality and current runtime inspection | J001, J002 sessions/epochs, J003 history clear, J004 reasoning faults and live state command |
@@ -58,3 +58,5 @@ The target provider lifecycle is Job → Step → Attempt → Proposal → valid
 [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md) specifies separate reasoning records, one-time dispatch authorization, late accounting after privacy clear and canonical universe-first locks. Shared metadata, storage, SQL admission/reconciliation and an unwired invocation boundary exist. [J004](../journeys/J004.md) verifies separate-process crashes, late accounting and cleanup with local fixtures; these primitives do not enable product reasoning.
 
 [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) and the [fairness model](../operations/reasoning-fairness.md) define bounded class/universe turns and validate synthetic scheduling/accounting counterexamples. [Durable SQL fair selection](../operations/reasoning-sql-fairness.md) now composes claim and full reservation atomically. The ordinary provider path stays disabled.
+
+[ADR0020 and the Cutroom HTTP client](../operations/cutroom-http-client.md) add strict source-pinned wire handling with local fixture/restart proof. The target supply-plane arrows remain unwired; result metadata does not become an eligible asset.

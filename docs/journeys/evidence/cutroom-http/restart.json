@@ -1,0 +1,106 @@
+{
+  "check": "cutroom-http-fixture-restart",
+  "result": "passed",
+  "observedAt": "2026-09-19T16:01:52.365Z",
+  "source": {
+    "revision": "30b3c5898682f0c1eed26e9417f923822713871a",
+    "dirty": false,
+    "files": [
+      {
+        "path": "apps/worker/src/cutroom/http-client.ts",
+        "sha256": "b082ab329afaa0c93264c6c904adb26c1c978772100e924bb3a6ef48b9ee9b00"
+      },
+      {
+        "path": "scripts/fixtures/cutroom-http-peer.ts",
+        "sha256": "adf340abed062308b6ecaaf97dee8d615319d0fe0a2f5308a26a5b1ff84d377f"
+      },
+      {
+        "path": "scripts/run-isolated-cutroom-http-journey.ts",
+        "sha256": "2834c19de4ca8f769cb58bf0046cf6a3f1a000658f44dbc0a2edf062333e6553"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/version.ts",
+        "sha256": "2315bf14736f6c7809bfb9267adc3f10969eefe2659d24907874c9e1bc76455a"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/request.ts",
+        "sha256": "2f35b19a741805e0881f0eecd42f6c2a3bd532d26b2fd6ce3e81e4f0650d8ab5"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/responses.ts",
+        "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/events.ts",
+        "sha256": "f04fe6a515cc9d2fcf358f74fae86d019c89a3c60dcd128ecbbb1b27e6a35527"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/record.ts",
+        "sha256": "04cafb52da57154198fdc2aef26b0da3846e128682414415b36439914a5cfa01"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/routes.ts",
+        "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/errors.ts",
+        "sha256": "de1f24a800c02a1166e05976dfa89023326d413bb6c771c448566940d26873ea"
+      },
+      {
+        "path": "packages/contracts/src/cutroom-v1/source.json",
+        "sha256": "193c771d6709191014ac8ef4972deca8e7fa6a413dbc563846d61fff7a68e124"
+      }
+    ]
+  },
+  "assertions": {
+    "lostSubmitAcknowledgementUncertain": true,
+    "callerAndStandInProcessesReplaced": true,
+    "originalBytesAndIdentityReconciled": true,
+    "submitRequests": 1,
+    "readRequests": 5,
+    "cancelRequests": 1,
+    "syntheticPathIsOnlyMetadata": true,
+    "bodySha256": "a2e3dbdc0fcde97070e868cc6fd9447163be573671f53d9a5cd374fa6b7c12db"
+  },
+  "processes": [
+    {
+      "role": "server-before-restart",
+      "pid": 22269,
+      "code": 0,
+      "signal": null,
+      "stoppedAcknowledgement": true
+    },
+    {
+      "role": "caller-before-restart",
+      "pid": 22272,
+      "code": 0,
+      "signal": null,
+      "stoppedAcknowledgement": false
+    },
+    {
+      "role": "server-after-restart",
+      "pid": 22273,
+      "code": 0,
+      "signal": null,
+      "stoppedAcknowledgement": true
+    },
+    {
+      "role": "caller-after-restart",
+      "pid": 22274,
+      "code": 0,
+      "signal": null,
+      "stoppedAcknowledgement": false
+    }
+  ],
+  "cleanup": {
+    "processesExited": true,
+    "directoryAbsent": true,
+    "forced": false
+  },
+  "limits": [
+    "Synthetic local HTTP stand-in, not real Cutroom or provider execution",
+    "Stand-in persistence and lifecycle do not certify upstream durability or canonical idempotency",
+    "No real media, import, publication, funding or owner deployment",
+    "Caller intent persistence is a fixture, not a product GenerationJob store"
+  ]
+}

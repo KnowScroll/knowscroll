@@ -30,6 +30,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0019 — Completed/failed private retirement](0019-completed-failed-private-retirement.md): owner-approved168-hour finish clock, conservative legacy retention and bounded private cleanup.
 
+- [ADR0020 — Pinned Cutroom HTTP client](0020-cutroom-http-client.md): fixed source revision, strict bounded wire outcomes and uncertainty-safe reconciliation; no import or product dispatch.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

@@ -41,11 +41,13 @@ Owner decision, 2026-09-16: **v1 requires the entire documented user experience,
 
 - Migration `0012_terminal_private_retirement.sql` and [completed/failed private retirement #81](journeys/evidence/terminal-retirement/README.md) extend maintenance to safely finished private graphs after the owner-approved 168 hours. The immutable database clock requires a safe transition under a live lease; legacy terminal rows without a trusted clock remain unretired. Saved source history and unknown liabilities survive. Clear remains immediate. No completion consumer or provider authority is added.
 
-- [Current Cutroom contract audit #84](operations/cutroom-contract-audit.md) identifies typed-criterion drift within wire version1, removal of the plan-only server gate, and a pictures-only record at upstream `238df854`. All16 compared source hashes are recorded. The adapter remains a port; host/import/accounting and real joined generation are unverified.
+- [Current Cutroom contract audit #84](operations/cutroom-contract-audit.md) identifies typed-criterion drift within wire version1, removal of the plan-only server gate, and a pictures-only record at upstream `238df854`. All16 compared source hashes are recorded. This audit preceded the unwired client below; host/import/accounting and real joined generation remain unverified.
+
+- [Pinned Cutroom HTTP client #86](operations/cutroom-http-client.md) validates the current wire schema, original identity, stage/status/cursors and bounded loopback transport. Thirty local HTTP checks, separate synthetic caller/server restarts and474 backend tests passed. No automatic resubmission, real Cutroom call, asset import, publication or product generation loop is implemented.
 
 ## What is not built
 
-The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, production reasoning admission/dispatch, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. The MiniMax adapter is certified only for the bounded development cases below. The ordinary ReasoningProvider remains unready, and Cutroom remains a port declaration.
+The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, production reasoning admission/dispatch, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. The MiniMax adapter is certified only for the bounded development cases below. The ordinary ReasoningProvider remains unready, and Cutroom has only an unwired HTTP client plus an unimplemented import port.
 
 ## Current decisions
 
