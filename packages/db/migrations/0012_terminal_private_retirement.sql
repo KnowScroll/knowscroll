@@ -8,6 +8,7 @@ CREATE INDEX reasoning_job_finished_retirement_candidates ON reasoning_job(id)
  WHERE finished_at IS NOT NULL;
 
 CREATE FUNCTION reasoning_finished_clock_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE finish_time timestamptz;
 BEGIN
  IF TG_OP='INSERT' THEN
   IF NEW.finished_at IS NOT NULL THEN RAISE EXCEPTION 'Finish time cannot be supplied on creation'; END IF;
@@ -33,7 +34,9 @@ BEGIN
         OR ac.state NOT IN ('not_sent','unknown','responded')))
   THEN RAISE EXCEPTION 'Finish retention clock requires a safely terminal Job'; END IF;
   -- Clock is assigned even when the application supplies NULL or a backdated value.
-  NEW.finished_at:=clock_timestamp();
+  finish_time:=clock_timestamp();
+  IF OLD.lease_expires_at<=finish_time THEN RAISE EXCEPTION 'Finish retention clock requires a live lease after safety checks'; END IF;
+  NEW.finished_at:=finish_time;
  ELSIF NEW.finished_at IS NOT NULL THEN
   RAISE EXCEPTION 'Finish retention clock requires a new safe terminal transition';
  END IF;
