@@ -20,6 +20,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -58,6 +59,24 @@ class TraceRevisitJourneyTest {
         guardJourneyApp()
         ApiClient().getUniverse().traces.firstOrNull()
             ?: error("Runner must project a real Keep before Trace revisit checks")
+    }
+
+    private fun keepThroughUi() = runBlocking {
+        guardJourneyApp()
+        waitUntil { compose.onAllNodesWithContentDescription("Enter Scroll").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Enter Scroll").performClick()
+        waitUntil { store().read()?.exposureId?.isNotEmpty()==true }
+        compose.onNodeWithContentDescription("Keep this Scroll").performClick()
+        waitUntil { store().read()?.keepJobId?.isNotEmpty()==true }
+        val kept=store().read() ?: error("Missing accepted Keep")
+        compose.onNodeWithContentDescription("Return to the universe").performClick()
+        val api=ApiClient()
+        repeat(60) {
+            val trace=api.getUniverse().traces.firstOrNull { it.assetId==kept.item.assetId }
+            if(trace!=null) return@runBlocking trace
+            delay(250)
+        }
+        error("Separate worker did not project the UI Keep")
     }
 
     private fun showTraceCard(traceEventId:String) {
@@ -104,7 +123,7 @@ class TraceRevisitJourneyTest {
     }
 
     @Test fun prepareProjectedTraceForRevisit() {
-        val trace=projectedTrace()
+        val trace=keepThroughUi()
         open(trace.eventId)
         compose.onNodeWithContentDescription("Scroll reading content")
             .performScrollToNode(hasContentDescription("Get the next Scroll"))
@@ -125,6 +144,7 @@ class TraceRevisitJourneyTest {
                 displayedPosition()=="Reading position ${before.readingPosition}"
         }
         assertEquals(before.revision,store().readRevisit()?.revision)
+        screenshot("trace-revisit-cold.png")
         receipt("trace-revisit-cold.json","coldRestoreRefetchesSavedTraceIdentityAndPosition",before.eventId) {
             put("coldRefetchedSameIdentity",true);put("positionRestored",true)
         }
@@ -146,12 +166,14 @@ class TraceRevisitJourneyTest {
 
     @Test fun traceReadDropRetriesSameIdentity() {
         val trace=projectedTrace()
+        showTraceCard(trace.eventId)
         val controlStatus=control("/__journey/trace-mode",JSONObject().put("eventId",trace.eventId).put("mode","drop_next"))
         compose.onNodeWithContentDescription(traceDescription(trace.eventId)).performClick()
         waitUntil { compose.onAllNodesWithText("This Scroll is unavailable.").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(trace.eventId,store().readRevisit()?.eventId)
         compose.onNodeWithText("Retry").performClick()
         waitUntil { compose.onAllNodesWithText("SAVED FROM YOUR KEEP").fetchSemanticsNodes().isNotEmpty() }
+        screenshot("trace-revisit-retry.png")
         receipt("trace-revisit-retry.json","traceReadDropRetriesSameIdentity",trace.eventId) {
             put("controlStatus",controlStatus);put("sameIdentityRetried",true)
         }
@@ -159,6 +181,7 @@ class TraceRevisitJourneyTest {
 
     @Test fun changedSourceDiscardsTraceReader() {
         val trace=projectedTrace()
+        showTraceCard(trace.eventId)
         val changed=control("/__journey/source-mode",JSONObject().put("assetId",trace.assetId).put("mode","changed"))
         try {
             compose.onNodeWithContentDescription(traceDescription(trace.eventId)).performClick()
@@ -188,7 +211,7 @@ class TraceRevisitJourneyTest {
     }
 
     @Test fun revokedSessionDiscardsOpenTrace() {
-        val trace=projectedTrace();open(trace.eventId)
+        val trace=keepThroughUi();open(trace.eventId)
         val status=control("/__journey/revoke-sessions",JSONObject())
         compose.activityRule.scenario.recreate()
         waitUntil { store().readRevisit()==null && compose.onAllNodesWithText("The universe is unreachable.").fetchSemanticsNodes().isNotEmpty() }

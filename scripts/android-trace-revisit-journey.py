@@ -262,10 +262,11 @@ try:
     component = package + '/com.knowscroll.mobile.MainActivity'
     run(['adb', 'shell', 'am', 'start', '-W', '-n', component])
     before_pid = subprocess.check_output(['adb', 'shell', 'pidof', package], text=True).strip()
-    before_cold_reads = control['traceReadsForwarded']
     run(['adb', 'shell', 'am', 'force-stop', package])
     if subprocess.run(['adb', 'shell', 'pidof', package], capture_output=True).returncode == 0:
         raise RuntimeError('Journey process survived requested force-stop')
+    with control_lock:
+        before_cold_reads = control['traceReadsForwarded']
     run(['adb', 'shell', 'am', 'start', '-W', '-n', component])
     after_pid = subprocess.check_output(['adb', 'shell', 'pidof', package], text=True).strip()
     if not before_pid or not after_pid or before_pid == after_pid:
