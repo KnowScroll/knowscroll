@@ -111,6 +111,12 @@ class ApiClient(
         }
     }
 
+    /** POST /v1/session/revoke {} -> 204. Revokes only the authenticated session; the
+     * caller decides what "ambiguous vs confirmed" means for its own retry policy. */
+    suspend fun revokeSession(): Unit = io {
+        post("/v1/session/revoke", "{}", setOf(204), false) { }
+    }
+
     suspend fun clearScrollHistory(req: HistoryClearRequest): HistoryClearReceipt = io {
         val body = jsonObj(
             "requestId" to req.requestId,
@@ -155,7 +161,8 @@ class ApiClient(
                         "Interaction key reused with different content"
                     )
                 }
-                if (code in expected) return parse(JSONObject(responseBody))
+                // A 204 (e.g. session revoke) has no body; every other expected response is JSON.
+                if (code in expected) return parse(JSONObject(responseBody.ifBlank { "{}" }))
                 if (isTransient(code)) {
                     lastError = ApiException.Server(code, responseBody)
                     if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)

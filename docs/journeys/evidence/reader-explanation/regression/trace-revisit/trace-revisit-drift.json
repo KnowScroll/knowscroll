@@ -1,0 +1,9 @@
+{
+  "scenario": "changedSourceDiscardsTraceReader",
+  "traceEventFingerprint": "95500eaa406d18b0",
+  "controlStatus": 204,
+  "revisitPurged": true,
+  "contentAbsent": true,
+  "requestedAssetFingerprint": "576f18824476444f",
+  "result": "passed"
+}

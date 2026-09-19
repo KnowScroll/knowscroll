@@ -1,0 +1,9 @@
+{
+  "scenario": "revokedSessionDiscardsOpenTrace",
+  "traceEventFingerprint": "25debaacd3a3c56a",
+  "controlStatus": 204,
+  "revisitPurged": true,
+  "contentAbsent": true,
+  "requestedAssetFingerprint": "576f18824476444f",
+  "result": "passed"
+}

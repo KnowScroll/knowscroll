@@ -1,0 +1,7 @@
+{
+  "scenario": "explainSheetRestoresReadingAfterProcessDeath",
+  "assetId": "10000000-0000-4000-8000-000000000002",
+  "exposureId": "f19205ba-5543-4971-a3f4-41e7da98b1f6",
+  "readingSessionRestored": true,
+  "sheetOpenAfterProcessDeath": false
+}
