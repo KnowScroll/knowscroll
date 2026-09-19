@@ -247,3 +247,24 @@ sequence of steps). This round:
 - The owner/dev `com.knowscroll.mobile` package's installed path was checked before and
   after every script run and found unchanged; only `com.knowscroll.mobile.journey` was
   installed/cleared by these scripts.
+
+## Coordinator reproduction after merging main (2026-09-19/20)
+
+Current `main` (carrying #93 Cutroom and #95 desktop web) was merged into this lane at `e5fb9bfb2cbc326e90cda2b2e798f630f9159ff9`
+and the coordinator re-ran the evidence independently on a freshly booted AVD:
+
+- `:app:assembleDebug :app:lintDebug :app:testDebugUnitTest` — build and lint clean, **26 JVM tests**
+  across 5 classes, 0 failures (including the new `SignOutColdStartOrderingTest`).
+- `scripts/android-reader-explain-journey.py` — **9/9 scenarios passed** at revision
+  `e5fb9bf` with a clean tree, first attempt, no retry. Recorded facts include the real composer
+  reason text, `documented` plus its §12 meaning, a saved Trace's real `keptAt`, sign-out resolved
+  via a real 204, an ambiguous network-dropped revoke retried successfully with the same request, and
+  an already-revoked session resolving through a real 401. Domain counts before and after sign-out are
+  identical (4 decisions, 4 exposures, 5 ledger rows, 1 job, 1 trace) — **signing out erases no history**.
+- `scripts/android-journey.py` — existing J001 regression passed on the same build.
+
+**Known limitation (unchanged by this slice):** an *open* explanation sheet does not reopen after
+Activity recreation; the instrumentation records the observed outcome rather than asserting one, and
+the reading session, position, exposure identity and retry envelope do survive both recreation and
+real process death. This matches the existing Sources sheet. Restoring transient sheet state across
+recreation is tracked separately under #3.
