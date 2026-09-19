@@ -43,3 +43,9 @@ This resolves the pending hosting preference above without claiming deployment o
 unbounded paid calls. The newer upstream record delta and missing launcher/provider composition
 are tracked in #89 and [local handoff](../operations/cutroom-local-handoff.md); the implemented
 client remains pinned to238df854 until a reviewed successor contract lands.
+
+## September 20 successor pin
+
+[ADR-0021](0021-cutroom-successor-pin-and-local-host.md) moves the copied wire modules to Cutroom
+`86d6e2c8`, whose only wire change is the required `RunRecord.takes`. Every other rule above is
+unchanged; the local stand-in host and joined-proof boundary are defined there.

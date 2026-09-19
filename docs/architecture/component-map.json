@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-09-19",
+  "updated": "2026-09-20",
   "note": "Paths are ownership roots, not proof every target module exists. No separate service is implied.",
   "components": [
     {
@@ -84,8 +84,15 @@
       "component": "Cutroom Adapter",
       "responsibility": "External HTTP runs and verified asset import",
       "path": "apps/worker/src/cutroom",
-      "status": "pinned-http-client-fixture-verified-no-import-or-product-dispatch",
+      "status": "pinned-client-86d6e2c-verified-against-real-local-cutroom-with-stand-ins-no-import-or-product-dispatch",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/9"
+    },
+    {
+      "component": "Local Cutroom Host",
+      "responsibility": "Operator composition that starts pinned upstream Cutroom API and worker as separate SSD processes; stand-in providers only (ADR-0021)",
+      "path": "ops/cutroom-host",
+      "status": "stand-in-host-self-check-and-12-scenario-joined-proof-verified-no-real-providers",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/89"
     },
     {
       "component": "Projector / Social",
