@@ -25,7 +25,16 @@ try {
     if(req.method==='POST'&&url.pathname==='/v1/runs') {
      const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(Buffer.from(chunk));
      const text=Buffer.concat(chunks).toString('utf8'),body=SubmitRequest.parse(JSON.parse(text));
-     const state:State={requestId:body.requestId,runId:'fixture-run',bodySha256:createHash('sha256').update(text).digest('hex'),submits:1,cancels:0,reads:0};
+     const bodySha256=createHash('sha256').update(text).digest('hex');
+     let prior:State|undefined;
+     try {prior=await readState();}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+     if(prior) {
+      prior.submits++;await durable(statePath,prior);
+      if(prior.requestId!==body.requestId||prior.bodySha256!==bodySha256)json(409,{contractVersion:1,outcome:'refused',reason:'conflict',requestId:body.requestId,detail:'Fixture body conflict'});
+      else json(202,{contractVersion:1,outcome:'accepted',requestId:prior.requestId,runId:prior.runId,replayed:true});
+      return;
+     }
+     const state:State={requestId:body.requestId,runId:'fixture-run',bodySha256,submits:1,cancels:0,reads:0};
      // A fixture commit followed by deliberate loss of the acknowledgement.
      await durable(statePath,state);req.socket.destroy();return;
     }

@@ -64,7 +64,7 @@ try {
  assert.notEqual(firstServer.child.pid,secondServer.child.pid);assert.notEqual(firstCaller.child.pid,secondCaller.child.pid);
  await stop(secondServer);
  assertions={lostSubmitAcknowledgementUncertain:true,callerAndStandInProcessesReplaced:true,originalBytesAndIdentityReconciled:true,
-  generationSubmits:state.submits,readRequests:state.reads,cancelRequests:state.cancels,syntheticPathIsOnlyMetadata:true,
+  submitRequests:state.submits,readRequests:state.reads,cancelRequests:state.cancels,syntheticPathIsOnlyMetadata:true,
   bodySha256:first.bodySha256};
 } catch {failed=true;}
 finally {
