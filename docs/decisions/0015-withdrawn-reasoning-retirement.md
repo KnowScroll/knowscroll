@@ -31,3 +31,7 @@ The separate process is exercised against disposable PostgreSQL before release. 
 Immediate erasure and retention until Clear History were considered; the owner selected seven days. A process clock, creation/deadline proxy, or fabricated backfill was rejected because each can erase earlier than the accepted policy. Sharing the projection loop was rejected to keep maintenance failure/latency separate.
 
 Real PostgreSQL tests must prove authoritative timestamps, early refusal, rollback, bounded probes, independent clients, locked-universe progress, exclusion of unsafe/oversized graphs, unchanged unknown reservations and debt, late usage, immediate clear/replay behavior and separate all-duties retention. A separate-process disposable receipt proves scheduling/shutdown and observed deletion, not live provider behavior, production capacity or completed-job retention.
+
+## Later extension
+
+[ADR-0019](0019-completed-failed-private-retirement.md) records the September19 owner choice of168 hours for safely completed/failed private graphs through a separate finish clock. This preserves the original #62 policy, implementation and evidence above as historical records.

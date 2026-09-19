@@ -895,7 +895,7 @@ try {
           g,
           c,
           `worker-${name}`,
-          deadline ? 4500 : 45000,
+          deadline ? 5000 : 45000,
           deadline ? 10000 : 5000,
         );
       if (deadline) {

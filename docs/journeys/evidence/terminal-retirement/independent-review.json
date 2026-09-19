@@ -1,0 +1,109 @@
+{
+  "reviews": [
+    {
+      "runId": "20260919-202246-bounded-independent-desi-7c27",
+      "model": "MiniMax-M3",
+      "revision": "aaa3931",
+      "scope": "design",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 32069,
+        "input": 4684,
+        "output": 18425,
+        "cache_read": 8960,
+        "total": 32069,
+        "cost_usd": 0.024053
+      }
+    },
+    {
+      "runId": "20260919-203131-independent-implementati-b471",
+      "model": "MiniMax-M3",
+      "revision": "4e3c919",
+      "scope": "implementation",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 64863,
+        "input": 259,
+        "output": 3676,
+        "cache_read": 60928,
+        "total": 64863,
+        "cost_usd": 0.008145
+      }
+    },
+    {
+      "runId": "20260919-203830-continue-an-existing-del-6822",
+      "model": "MiniMax-M3",
+      "revision": "34b2894",
+      "scope": "final lease-check delta",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 22233,
+        "input": 1850,
+        "output": 927,
+        "cache_read": 19456,
+        "total": 22233,
+        "cost_usd": 0.002835
+      }
+    },
+    {
+      "runId": "20260919-205402-bounded-read-only-verifi-e020",
+      "model": "MiniMax-M3",
+      "revision": "bd47c05",
+      "scope": "final test-fixture and J004 delta",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 69000,
+        "input": 66,
+        "output": 2728,
+        "cache_read": 66206,
+        "total": 69000,
+        "cost_usd": 0.007266
+      }
+    },
+    {
+      "runId": "20260919-204341-continue-an-existing-del-aceb",
+      "model": "MiniMax-M3",
+      "revision": "06f6682",
+      "scope": "test author correction handoff",
+      "status": "done",
+      "exitCode": 0,
+      "tokens": {
+        "estimated_total": 117687,
+        "input": 122,
+        "output": 1315,
+        "cache_read": 116250,
+        "total": 117687,
+        "cost_usd": 0.00859
+      }
+    },
+    {
+      "runId": "20260919-202555-issue81-bounded-adversar-40a5",
+      "model": "MiniMax-M3",
+      "revision": "d5e46c3",
+      "scope": "initial test author stopped after repeated filtered suite runs",
+      "status": "killed",
+      "exitCode": -15,
+      "tokens": {
+        "estimated_total": 4430567
+      }
+    }
+  ],
+  "disposition": "Accepted after coordinator verification; independent static review only, runtime proof belongs to coordinator.",
+  "corrections": [
+    "New CHECK and finished trigger enforce clock mutual exclusion; applied migration0011 remains immutable.",
+    "Column is finished_at; the bootstrap job table exists; cursor wrap can revisit within the bounded batch. Reviewer explicitly retracted contrary observations.",
+    "Final reviewer predicted auto-generated lease constraint reasoning_job_check8. Rejected with actual PostgreSQL catalog evidence: the table-level lease constraint is reasoning_job_check1; column-level checks use column-specific names. The focused44 and full444 tests passed without changing the assertion. Review accepted the remaining fixture and deadline delta."
+  ],
+  "limits": [
+    "No runtime verification by reviewers",
+    "No completion consumer, provider invocation, deployment or product success certification"
+  ],
+  "constraintCatalogEvidence": {
+    "path": "postgres-constraint-names.txt",
+    "scope": "Read-only catalog query on the existing owner database; no owner data mutation; independently matches generated-test error and passing assertion."
+  }
+}

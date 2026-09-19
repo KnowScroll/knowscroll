@@ -1,0 +1,108 @@
+{
+  "j004": {
+    "receiptPath": "artifacts/terminal-retirement-j004.json",
+    "receiptSha256": "161ddeea1c0d1e5074c4a356a0dd342616f4e74fadd7922c1460f90713e22f20",
+    "result": "failed",
+    "lastCase": "deadline_before_dispatch",
+    "denials": [
+      {
+        "event": "operation_denied",
+        "pid": 1587,
+        "at": "2026-09-19T15:17:42.224Z",
+        "data": {
+          "operation": "authorize",
+          "denial": "stale_lease"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1647,
+        "at": "2026-09-19T15:17:44.556Z",
+        "data": {
+          "operation": "authorize",
+          "denial": "stale_lease"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1656,
+        "at": "2026-09-19T15:17:45.131Z",
+        "data": {
+          "operation": "invoke",
+          "denial": "fixture_lost_commit_ack"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1656,
+        "at": "2026-09-19T15:17:45.164Z",
+        "data": {
+          "operation": "authorize",
+          "denial": "dispatch_already_decided"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1702,
+        "at": "2026-09-19T15:17:46.825Z",
+        "data": {
+          "operation": "authorize",
+          "denial": "stale_lease"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1711,
+        "at": "2026-09-19T15:17:48.985Z",
+        "data": {
+          "operation": "authorize",
+          "denial": "stale_lease"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1711,
+        "at": "2026-09-19T15:17:48.991Z",
+        "data": {
+          "operation": "mark",
+          "denial": "attempt_not_dispatched"
+        }
+      },
+      {
+        "event": "operation_denied",
+        "pid": 1809,
+        "at": "2026-09-19T15:17:50.261Z",
+        "data": {
+          "operation": "reserve",
+          "denial": "invalid_deadline"
+        }
+      }
+    ],
+    "cleanup": {
+      "databaseAbsent": true,
+      "processesExited": true,
+      "checkedAt": "2026-09-19T15:17:55.460Z"
+    },
+    "explanation": "The actor recorded invalid_deadline during reserve. Its preexisting request calculation omitted the Job deadline. Exact original internal deadline subpredicate was not recorded; issue82 fixes this demonstrated construction risk. Original issue57 remains unattributed."
+  },
+  "focusedTestFailures": [
+    {
+      "logPath": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-final-focused.log",
+      "sha256": "592676a545ee4faf20409bbf87d202cced1b5e0d6c1f0af0608b74a250c04d1f",
+      "exitCode": 1,
+      "excerpt": "    # Subtest: an Attempt whose retained accounting row was deleted is refused by the orphan guard\n    not ok 6 - an Attempt whose retained accounting row was deleted is refused by the orphan guard\n      ---\n      duration_ms: 256.33375\n      type: 'test'\n      location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:299:10'\n      failureType: 'testCodeFailure'\n      error: 'update or delete on table \"reasoning_accounting\" violates foreign key constraint \"reasoning_attempt_id_universe_id_privacy_epoch_fkey\" on table \"reasoning_attempt\"'\n      code: '23503'\n      name: 'error'\n      stack: |-\n    # Subtest: an inactive Attempt whose accounting output_authority is eligible blocks stamping\n    not ok 7 - an inactive Attempt whose accounting output_authority is eligible blocks stamping\n      ---\n      duration_ms: 287.691709\n      type: 'test'\n      location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:327:10'\n      failureType: 'testCodeFailure'\n      error: 'update or delete on table \"reasoning_accounting\" violates foreign key constraint \"reasoning_attempt_id_universe_id_privacy_epoch_fkey\" on table \"reasoning_attempt\"'\n      code: '23503'\n      name: 'error'\n      stack: |-\n    # Subtest: an inactive Attempt whose accounting state is reserved blocks stamping\n    not ok 8 - an inactive Attempt whose accounting state is reserved blocks stamping\n      ---\n      duration_ms: 215.380375\n      type: 'test'\n      location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:361:10'\n      failureType: 'testCodeFailure'\n      error: 'update or delete on table \"reasoning_accounting\" violates foreign key constraint \"reasoning_attempt_id_universe_id_privacy_epoch_fkey\" on table \"reasoning_attempt\"'\n      code: '23503'\n      name: 'error'\n      stack: |-\n    1..9\nnot ok 4 - the safe-terminal guard refuses every unsafe transition: missing/expired lease, fair-ready, non-terminal step, unsafe attempt\n  ---\n  duration_ms: 2213.337708\n  type: 'test'\n  location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:220:1'\n  failureType: 'subtestsFailed'\n  error: '3 subtests failed'\n  code: 'ERR_TEST_FAILURE'\n  ...\n# Subtest: a positive lease_fence is required and a changed fence is refused before stamping"
+    },
+    {
+      "logPath": "/Volumes/Mrigesh SSD/knowscroll-dev/tmp/81-fixed-focused.log",
+      "sha256": "37504f152d2a38733c77b61758246b45d260fcc74b9f55204cdd23b6b1c3bdf5",
+      "exitCode": 1,
+      "excerpt": "    # Subtest: an active Attempt blocks stamping; deactivation allows a stamp\n    not ok 5 - an active Attempt blocks stamping; deactivation allows a stamp\n      ---\n      duration_ms: 191.1615\n      type: 'test'\n      location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:279:10'\n      failureType: 'testCodeFailure'\n      error: 'Reasoning attempt cannot reactivate'\n      code: 'P0001'\n      name: 'error'\n      stack: |-\n    1..9\nnot ok 4 - the safe-terminal guard refuses every unsafe transition: missing/expired lease, fair-ready, non-terminal step, unsafe attempt\n  ---\n  duration_ms: 1912.770083\n  type: 'test'\n  location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:220:1'\n  failureType: 'subtestsFailed'\n  error: '1 subtest failed'\n  code: 'ERR_TEST_FAILURE'\n  ...\n# Subtest: a positive lease_fence is required and a changed fence is refused before stamping\n    # Subtest: a zero fence refuses a stamp and restoring the positive fence allows it\n    not ok 1 - a zero fence refuses a stamp and restoring the positive fence allows it\n      ---\n      duration_ms: 174.048875\n      type: 'test'\n      location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:347:10'\n      failureType: 'testCodeFailure'\n      error: 'new row for relation \"reasoning_job\" violates check constraint \"reasoning_job_check1\"'\n      code: '23514'\n      name: 'error'\n      stack: |-\n    1..2\nnot ok 5 - a positive lease_fence is required and a changed fence is refused before stamping\n  ---\n  duration_ms: 348.823542\n  type: 'test'\n  location: '/Volumes/Mrigesh SSD/knowscroll-worktrees/terminal-retention/tests/reasoning-terminal-clock.test.ts:346:1'\n  failureType: 'subtestsFailed'\n  error: '1 subtest failed'\n  code: 'ERR_TEST_FAILURE'\n  ...\n# Subtest: a stamp failure rolls back the Job status"
+    }
+  ],
+  "corrections": [
+    "Parent-side FK enforcement prevented three test-only accounting deletions before the terminal guard. Orphan setup now bypasses parent triggers only in its disposable schema; state/authority cases update accounting without deletion.",
+    "The active-attempt fixture initially hit the existing no-reactivation guard; only that guard is now bypassed to exercise the finish predicate.",
+    "A live zero fence is already forbidden by the lease CHECK; the test asserts that boundary instead of claiming it reached the finish trigger."
+  ],
+  "workerLimit": "The initial MiniMax M3 author repeated filtered full-suite runs and was stopped. Those reports are not accepted as passing evidence. A single bounded correction handoff committed tests; coordinator inspected, corrected and executed them."
+}
