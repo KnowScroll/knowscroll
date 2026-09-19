@@ -34,6 +34,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0021 — Cutroom successor pin and local SSD host](0021-cutroom-successor-pin-and-local-host.md): `86d6e2c` record with required takes; KnowScroll-owned operator host composing upstream API/worker with stand-ins only.
 
+- [ADR-0023 — Generated Reel supply](0023-generated-reel-supply.md): editorial briefs over sourced Scrolls, guarded budget grants and Cutroom attempts, verified local-host import; nothing eligible or published.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
