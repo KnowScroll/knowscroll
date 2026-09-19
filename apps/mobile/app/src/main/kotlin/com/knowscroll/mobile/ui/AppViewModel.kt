@@ -94,8 +94,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(restored is SignOutState.SignedOut){
             ready=false
         } else {
-            if(restored is SignOutState.Retryable)beginSignOut()
-            reconcilePrivacy(restoreStoredScroll=true)
+            // #91 review fix: a restored ambiguous sign-out and privacy reconciliation must
+            // never race against the same possibly-dead token as two independent coroutines.
+            // Retrying it is dispatched from inside reconcilePrivacy, same as pending Clear
+            // History, so cold start is one ordered path.
+            reconcilePrivacy(restoreStoredScroll=true,retrySignOutFirst=restored is SignOutState.Retryable)
         }
     }
 
@@ -395,14 +398,22 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         signOutBusy=true
         _signOut.value=SignOutState.Revoking
         viewModelScope.launch {
-            try {
-                api.revokeSession()
-                completeSignOut()
-            } catch(e:Exception){
-                if(e is CancellationException)throw e
-                if(isSignOutAmbiguous(e))_signOut.value=SignOutState.Retryable(message(e))
-                else completeSignOut()
-            } finally { signOutBusy=false }
+            try { attemptSignOutRevoke() }
+            finally { signOutBusy=false }
+        }
+    }
+
+    /** The actual revoke attempt, factored out so a cold-start retry can run it to
+     * completion sequentially inside reconcilePrivacy's own coroutine (#91 review fix)
+     * instead of as a second, independently launched coroutine racing the same token. */
+    private suspend fun attemptSignOutRevoke(){
+        try {
+            api.revokeSession()
+            completeSignOut()
+        } catch(e:Exception){
+            if(e is CancellationException)throw e
+            if(isSignOutAmbiguous(e))_signOut.value=SignOutState.Retryable(message(e))
+            else completeSignOut()
         }
     }
 
@@ -481,9 +492,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
     }
 
-    private fun reconcilePrivacy(restoreStoredScroll:Boolean,queueIfBusy:Boolean=false){
+    private fun reconcilePrivacy(restoreStoredScroll:Boolean,queueIfBusy:Boolean=false,retrySignOutFirst:Boolean=false){
         if(reconciling){if(queueIfBusy)reconcileAfterCurrent=restoreStoredScroll;return}
         reconciling=true;ready=false;busy=false
+        if(retrySignOutFirst){signOutBusy=true;_signOut.value=SignOutState.Revoking}
         val version=++navigationVersion
         val storedScreen=store.readScreen()
         val wantedScroll=restoreStoredScroll && storedScreen=="scroll"
@@ -493,6 +505,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         else{_screen.value=Screen.Universe;_universe.value=UniverseState.Loading}
         viewModelScope.launch {
             try {
+                // #91 review fix: resolve a restored ambiguous sign-out fully, in this same
+                // coroutine, before this (possibly now-dead) token is reused for anything
+                // else. A resolved sign-out stops here; it never also fetches the universe.
+                if(!continueReconcilingAfterSignOutRetry(retrySignOutFirst,::attemptSignOutRevoke){_signOut.value is SignOutState.SignedOut})return@launch
                 val actual=api.getUniverse()
                 val pending=store.readPendingClear()
                 val localUniverse=store.readObservedUniverseId()
@@ -524,6 +540,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     failClosed(message(e))
                 }
             } finally{
+                if(retrySignOutFirst)signOutBusy=false
                 reconciling=false
                 val next=reconcileAfterCurrent
                 reconcileAfterCurrent=null
@@ -623,4 +640,21 @@ internal fun reconciliationFailurePurgesPrivateState(error:Exception):Boolean = 
     is ApiException.Network -> false
     is ApiException.Server -> error.statusCode !in 500..599 && error.statusCode!=429
     else -> true
+}
+
+/** Cold-start ordering gate (#91 review fix). A restored ambiguous sign-out must fully
+ * resolve -- successfully or not -- before anything else reuses the same possibly-dead
+ * session token, in one sequential path, never as a second concurrently launched
+ * request. [retrySignOut] is only invoked (and only awaited to completion) when
+ * [retrySignOutFirst] is set; the caller must not proceed to reuse the token (e.g. fetch
+ * the universe) when this returns false, because the retry itself already reached a
+ * durable signed-out outcome. */
+internal suspend fun continueReconcilingAfterSignOutRetry(
+    retrySignOutFirst:Boolean,
+    retrySignOut:suspend ()->Unit,
+    isSignedOutNow:()->Boolean
+):Boolean {
+    if(!retrySignOutFirst)return true
+    retrySignOut()
+    return !isSignedOutNow()
 }

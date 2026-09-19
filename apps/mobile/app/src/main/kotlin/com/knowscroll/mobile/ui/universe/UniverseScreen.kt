@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -203,7 +204,7 @@ private fun SignOutControls(
             onClick=onRequestSignOut,
             enabled=state is SignOutState.Idle,
             colors=ButtonDefaults.outlinedButtonColors(contentColor=Cosmos.Cream),
-            modifier=Modifier.fillMaxWidth().semantics{contentDescription="Sign out this device"}
+            modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).semantics{contentDescription="Sign out this device"}
         ){Text(stringResource(R.string.sign_out_action))}
         when(state){
             is SignOutState.Revoking -> Text(stringResource(R.string.sign_out_progress),style=MaterialTheme.typography.bodyMedium,color=Cosmos.MutedOnDark)
@@ -230,13 +231,13 @@ private fun SignOutConfirmation(onCancel:()->Unit,onConfirm:()->Unit){
             Button(
                 onClick=onConfirm,
                 colors=ButtonDefaults.buttonColors(containerColor=Cosmos.Coral,contentColor=Cosmos.Dark),
-                modifier=Modifier.semantics{contentDescription="Confirm sign out this device"}
+                modifier=Modifier.heightIn(min=48.dp).semantics{contentDescription="Confirm sign out this device"}
             ){Text(stringResource(R.string.sign_out_confirm))}
         },
         dismissButton={
             OutlinedButton(
                 onClick=onCancel,
-                modifier=Modifier.semantics{contentDescription="Cancel sign out this device"}
+                modifier=Modifier.heightIn(min=48.dp).semantics{contentDescription="Cancel sign out this device"}
             ){Text(stringResource(R.string.sign_out_cancel))}
         }
     )

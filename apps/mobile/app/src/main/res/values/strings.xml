@@ -72,7 +72,7 @@
     <string name="reader_explain_reason_heading">REASON</string>
     <string name="reader_explain_truth_heading">TRUTH STATE</string>
     <string name="reader_explain_origin_heading">ORIGIN</string>
-    <string name="reader_explain_documented_sources_note">Sources below shows this evidence.</string>
+    <string name="reader_explain_documented_sources_note">Sources below show this evidence.</string>
     <string name="reader_explain_close">Back to reading</string>
     <string name="reader_explain_close_description">Close why this appeared</string>
 

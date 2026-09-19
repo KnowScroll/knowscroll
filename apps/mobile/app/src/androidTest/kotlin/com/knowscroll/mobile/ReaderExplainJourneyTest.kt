@@ -84,7 +84,7 @@ class ReaderExplainJourneyTest {
         assertVisible(opened.item.reason)
         assertVisible("DOCUMENTED")
         assertVisible("Directly supported by strong cited evidence.")
-        assertVisible("Sources below shows this evidence.")
+        assertVisible("Sources below show this evidence.")
         assertVisible("You opened this Scroll through deliberate discovery from your universe.")
         screenshot("explain-discovery.png")
         compose.onNodeWithContentDescription("Close why this appeared").assertHeightIsAtLeast(48.dp).performClick()

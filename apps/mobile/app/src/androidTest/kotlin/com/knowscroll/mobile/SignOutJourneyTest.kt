@@ -3,6 +3,7 @@ package com.knowscroll.mobile
 import android.graphics.Bitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.knowscroll.mobile.data.ApiClient
@@ -63,8 +64,13 @@ class SignOutJourneyTest {
 
     private fun openSignOutConfirmation() {
         waitDescription("Sign out this device")
+        // Accessible, thumb-sized control per Law 13, matching the reader explain
+        // control's existing ≥48dp assertion.
+        compose.onNodeWithContentDescription("Sign out this device").assertHeightIsAtLeast(48.dp)
         compose.onNodeWithContentDescription("Sign out this device").performScrollTo().performClick()
         waitText("Sign out this device?")
+        compose.onNodeWithContentDescription("Confirm sign out this device").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithContentDescription("Cancel sign out this device").assertHeightIsAtLeast(48.dp)
     }
 
     /** Real 401 proof that a token, once actually revoked, cannot silently keep working. */
