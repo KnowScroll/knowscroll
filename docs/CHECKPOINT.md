@@ -16,7 +16,7 @@ for the distinct authorities for product, design, implementation and runtime.
 
 | Fact | Evidence and practical consequence |
 |---|---|
-| Last product code | `cfe7ababdd9de0209582fd143c2ae71fc87b9602`, PR #87; this handoff follows in #88 |
+| Last product code | `cfe7ababdd9de0209582fd143c2ae71fc87b9602`, PR #87; handoff docs are in #88 / PR #90 |
 | Code migrations | `packages/db/migrations/0001` through `0012`; applied files are immutable |
 | Owner database | Observed **0001–0009 only**, 2026-09-19 17:55:29 UTC; 0010–0012 are not deployed there |
 | Owner API/worker | Health probe false; projection heartbeat last seen Sept 17, not recent. No owner rollout performed |
@@ -47,15 +47,15 @@ reads a timestamped local observation; its capability flags are hard-coded, not 
 
 ## Next work and current lanes
 
-1. Finish #88 handoff/documentation only; receiving coordinator reads [Claude handoff](handoffs/claude-code-v1.md).
+1. Receiving coordinator reads [Claude handoff](handoffs/claude-code-v1.md), verifies PR #90's merge and current state.
 2. Start [#89](https://github.com/KnowScroll/knowscroll/issues/89): review the newer record contract,
    establish actual local Cutroom API/worker bootstrap with isolated SSD storage, and verify actual
    upstream HTTP/storage without paid providers. Set `CUTROOM_BASE_URL` only from the observed listener.
 3. Then coordinate #8/#9 intent/admission and import/publication boundaries plus missing upstream
    real-provider adapters. Run independent #3 UI work only against released contracts.
 
-Active at this checkpoint: #88 coordinator in `knowscroll-worktrees/claude-handoff`; no delegated
-implementation. `revisit` is retained because ADB references it; it is an old completed branch,
+At handoff, the #88 documentation lane remains in `knowscroll-worktrees/claude-handoff`; no
+implementation workers are running. `revisit` is retained because ADB references it; it is an old completed branch,
 not the starting point for new work. Other 19 obsolete checkouts and bootstrap scratch were archived
 and removed. [Workspace inventory](operations/worktrees.md) gives recovery locations and constraints.
 

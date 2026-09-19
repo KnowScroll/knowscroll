@@ -7,8 +7,8 @@ This resolves the pending local-versus-remote choice in ADR-0020; it does not ce
 ## Current upstream and compatibility
 
 Fresh clone: `/Volumes/Mrigesh SSD/cutroom`, remote `KnowScroll/Cutroom`, main
-`52a62dd8ea8cd3f258f9be2b167cbeac4a0bda2a`. No dependencies installed, submodule initialized,
-server launched or provider called during this handoff. Recheck before using this observation.
+`52a62dd8ea8cd3f258f9be2b167cbeac4a0bda2a`. Dependencies are not installed and `steering-ref`
+is uninitialized. No server was launched or provider called. Recheck before using this observation.
 
 Compared with KnowScroll's accepted pin `238df85411108a94377311363dd296d785688f70`, six of
 seven copied wire modules are unchanged. `packages/reel-contract/src/record.ts` adds a required

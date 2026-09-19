@@ -74,6 +74,7 @@
   "limits": [
     "Source inspection only; no actual Cutroom service or providers launched",
     "README/AGENTS capability status is stale; source and feature boundaries inspected",
-    "Six of seven wire modules unchanged; record adds takes within version1"
+    "Six of seven wire modules unchanged; record adds takes within version1",
+    "steering-ref is uninitialized; dependencies are not installed. Inspect/init its pinned revision before using upstream decision tooling."
   ]
 }

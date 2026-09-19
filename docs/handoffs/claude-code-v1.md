@@ -55,7 +55,7 @@ Read product definition and design direction for any UI. Do not load every histo
 
 Verify live Git status, branch, remote, open PRs, issue/Project state, listener/process identities
 and owner runtime before relying on this handoff. Last product code was cfe7ababdd9de0209582fd143c2ae71fc87b9602,
-followed by the #88 documentation/handoff change: resolve its actual merged revision from GitHub.
+followed by the #88 documentation/handoff change in PR90: resolve its actual merged revision from GitHub.
 Never reset another checkout or replace uncommitted work. Preserve both repositories' own rules.
 
 FULL V1 — NEVER NARROW THIS
