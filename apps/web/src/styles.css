@@ -1,0 +1,377 @@
+/*
+ * Cosmos palette pinned from docs/product/design-direction.md and
+ * apps/mobile/.../ui/theme/Theme.kt (same hex values, ported for parity).
+ * System sans/monospace stacks only: "no network font dependency is needed
+ * to open the app" carries over from the native bootstrap decision.
+ */
+:root {
+  --cosmos-dark: #03101a;
+  --cosmos-surface: #0a1b26;
+  --cosmos-cream: #fffdf2;
+  --cosmos-cream-dim: #e9e3ce;
+  --cosmos-teal: #33c4b4;
+  --cosmos-coral: #ff684c;
+  --cosmos-yellow: #ffd058;
+  --ink-on-cream: #03101a;
+  --ink-on-dark: #fffdf2;
+  --muted-on-dark: #b7c3cc;
+  --muted-on-cream: #52606a;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--cosmos-dark);
+  color: var(--ink-on-dark);
+}
+
+button,
+a.primary {
+  font-family: inherit;
+  font-size: 0.95rem;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+button.primary,
+a.primary {
+  background: var(--cosmos-teal);
+  color: var(--ink-on-cream);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.ghost {
+  background: transparent;
+  color: inherit;
+  border-color: currentColor;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--cosmos-yellow);
+  outline-offset: 2px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: var(--muted-on-dark);
+  text-transform: uppercase;
+}
+
+/* ---------- Universe ---------- */
+
+.universe-screen {
+  position: relative;
+  min-height: 100vh;
+  padding: 40px clamp(24px, 6vw, 96px);
+  overflow: hidden;
+}
+
+.cosmos-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cosmos-background {
+    animation: cosmos-twinkle 6s ease-in-out infinite alternate;
+  }
+}
+@keyframes cosmos-twinkle {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.universe-content {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+}
+
+.universe-content h1 {
+  font-weight: 300;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin: 4px 0 24px;
+}
+
+.empty-universe {
+  color: var(--muted-on-dark);
+  max-width: 60ch;
+  line-height: 1.6;
+}
+
+.trace-list {
+  list-style: none;
+  margin: 8px 0 24px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trace-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--cosmos-surface);
+  color: var(--ink-on-dark);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 56px;
+}
+
+.trace-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cosmos-yellow);
+  flex: none;
+}
+
+.trace-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trace-title {
+  font-weight: 600;
+}
+
+.trace-date {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted-on-dark);
+}
+
+.enter-scroll {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 1.05rem;
+}
+
+.unavailable-block h2 {
+  color: var(--cosmos-coral);
+}
+.unavailable-block .detail {
+  color: var(--muted-on-dark);
+}
+
+/* ---------- Scroll reader ---------- */
+
+.scroll-screen {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.rest-screen {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 48px 24px;
+}
+.rest-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.origin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px clamp(20px, 4vw, 48px);
+}
+
+.origin-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-on-dark);
+}
+
+.reading-columns {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: center;
+  gap: 24px;
+  padding: 0 clamp(20px, 4vw, 48px) 24px;
+}
+
+.reading-columns.with-rail {
+  grid-template-columns: minmax(0, 760px) minmax(280px, 340px);
+  justify-content: center;
+}
+
+.reading-stage {
+  background: var(--cosmos-cream);
+  color: var(--ink-on-cream);
+  border-radius: 20px;
+  max-width: 760px;
+  width: 100%;
+  justify-self: center;
+  padding: clamp(24px, 4vw, 40px);
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.reading-stage h2 {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  margin: 8px 0 16px;
+  max-width: 34ch;
+}
+
+.reading-stage .truth-state {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--muted-on-cream);
+  text-transform: none;
+}
+.reading-stage .truth-state.small {
+  margin-top: 0;
+}
+
+.reading-stage .reason,
+.reading-stage .summary {
+  color: var(--muted-on-cream);
+  max-width: 68ch;
+}
+
+.reading-stage .body {
+  max-width: 68ch;
+  line-height: 1.7;
+  font-size: 1.05rem;
+  white-space: pre-wrap;
+}
+
+.why-this-appeared dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 12px 0;
+  max-width: 60ch;
+}
+.why-this-appeared dt {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: var(--muted-on-cream);
+}
+.why-this-appeared dd {
+  margin: 0;
+}
+
+.discovery-threshold {
+  background: var(--cosmos-cream-dim);
+  border-radius: 16px;
+  padding: 20px;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.source-rail {
+  background: var(--cosmos-surface);
+  border-radius: 20px;
+  padding: 24px;
+  align-self: start;
+  max-width: 340px;
+}
+.source-rail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.source-rail .source-title {
+  font-weight: 600;
+  margin-top: 12px;
+}
+.source-rail .source-url {
+  color: var(--muted-on-dark);
+  word-break: break-all;
+  font-size: 0.85rem;
+}
+.source-rail .source-link {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.reader-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px clamp(20px, 4vw, 48px) 12px;
+  flex-wrap: wrap;
+}
+.keep-message {
+  color: var(--cosmos-coral);
+  width: 100%;
+}
+
+.keyboard-help {
+  padding: 0 clamp(20px, 4vw, 48px) 20px;
+  color: var(--muted-on-dark);
+  font-size: 0.75rem;
+}
+
+.toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: var(--cosmos-surface);
+  color: var(--ink-on-dark);
+  padding: 12px 16px;
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  z-index: 10;
+}
+
+@media (max-width: 900px) {
+  .reading-columns.with-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
