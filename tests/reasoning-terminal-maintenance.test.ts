@@ -42,12 +42,18 @@ async function sourceHistory(pool:pg.Pool,universeId:string) {
 
 test('completed and failed private context retire at 168 hours while young graphs and source history survive',async()=>{
  await withReasoningMaintenanceSchema('terminal_age',async pool=>{
-  const completed=await terminal(pool,'completed'),failed=await terminal(pool,'failed'),young=await terminal(pool,'completed');
+  const completed=await terminal(pool,'completed'),failed=await terminal(pool,'failed'),young=await terminal(pool,'completed'),legacy=await terminal(pool,'failed');
+  await inTransaction(pool,async c=>{
+   await c.query('ALTER TABLE reasoning_job DISABLE TRIGGER reasoning_finished_clock_guard');
+   await c.query('UPDATE reasoning_job SET finished_at=NULL WHERE id=$1',[legacy.jobId]);
+   await c.query('ALTER TABLE reasoning_job ENABLE TRIGGER reasoning_finished_clock_guard');
+  });
   await age(pool,completed.jobId,168);await age(pool,failed.jobId,169);await age(pool,young.jobId,167);
   const before=await sourceHistory(pool,completed.scope.universeId);
   const result=await createReasoningMaintenance(pool).runBatch({maxProbes:24});
   assert.equal(result.retiredJobs,2);assert.equal(await exists(pool,completed.jobId),false);assert.equal(await exists(pool,failed.jobId),false);
-  assert.equal(await exists(pool,young.jobId),true);
+  assert.equal(await exists(pool,young.jobId),true);assert.equal(await exists(pool,legacy.jobId),true);
+  assert.equal((await pool.query('SELECT finished_at FROM reasoning_job WHERE id=$1',[legacy.jobId])).rows[0].finished_at,null);
   assert.equal((await pool.query('SELECT 1 FROM reasoning_context_payload WHERE context_id=$1',[completed.contextId])).rowCount,0);
   assert.equal((await pool.query('SELECT 1 FROM reasoning_context_job_session WHERE job_id=$1',[completed.jobId])).rowCount,0);
   assert.deepEqual(await sourceHistory(pool,completed.scope.universeId),before);
