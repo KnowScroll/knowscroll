@@ -1,0 +1,1266 @@
+{
+  "label": "real local service with upstream stand-in providers — never real generation, never product acceptance",
+  "runStamp": "2026-09-19T20-32-25-145Z",
+  "knowscrollHead": "f52d451dc6165db128ddd25ab53fc56b5e89800b",
+  "cutroomRevision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+  "cutroomRuntime": "/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742",
+  "hostSha256": "e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead",
+  "node": "v22.23.0",
+  "execPath": "/Users/comreton/.hermes/node/bin/node",
+  "ffmpegVersion": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "overallStatus": "pass",
+  "scenarios": [
+    {
+      "name": "S0 prepare-runtime verify + init-instance",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "prepare-runtime.sh verify mode reports verified:true",
+          "pass": true,
+          "detail": "{\"verified\":true,\"target\":\"/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742\",\"revision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"nodeModules\":true,\"steeringRef\":\"e05e9f0257f3066b441f6554b67a786d6635c6a4\",\"ffmpeg\":true,\"ffprobe\":true}"
+        },
+        {
+          "description": "init-instance created a fresh instance",
+          "pass": true
+        },
+        {
+          "description": "instance.json exists after init-instance",
+          "pass": true
+        },
+        {
+          "description": "BUDGET.md exists after init-instance",
+          "pass": true
+        },
+        {
+          "description": "init-instance is idempotent on rerun",
+          "pass": true
+        }
+      ],
+      "observations": [],
+      "data": {
+        "prepareRuntimeVerify": {
+          "verified": true,
+          "target": "/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742",
+          "revision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+          "nodeModules": true,
+          "steeringRef": "e05e9f0257f3066b441f6554b67a786d6635c6a4",
+          "ffmpeg": true,
+          "ffprobe": true
+        },
+        "initInstance": {
+          "initialized": true,
+          "idempotent": false,
+          "instance": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-s0",
+          "createdAt": "2026-09-19T20:32:27.690Z",
+          "cutroomRevision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+          "budgetSource": "steering-ref/steering/BUDGET.md",
+          "budgetSha256": "db1c4fe828f3b9025cc7aebe07d94af0f4aef4c20d2efc78e43894a72bf54e92",
+          "hostSha256": "e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead"
+        }
+      }
+    },
+    {
+      "name": "S1 prepare + submit -> accepted, replayed=false",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "submit outcome is accepted",
+          "pass": true
+        },
+        {
+          "description": "a brand-new submit is not replayed",
+          "pass": true
+        }
+      ],
+      "observations": [
+        "runId 4c642e7b-507c-4d72-a064-94f5647d7b14 accepted for requestId wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z"
+      ],
+      "data": {
+        "submit": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z",
+            "runId": "4c642e7b-507c-4d72-a064-94f5647d7b14",
+            "replayed": false
+          },
+          "ref": {
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z",
+            "runId": "4c642e7b-507c-4d72-a064-94f5647d7b14",
+            "until": "video"
+          }
+        }
+      }
+    },
+    {
+      "name": "S2 exact replay of the same prepared bytes -> replayed=true, same runId",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "an exact replay reports replayed:true",
+          "pass": true
+        },
+        {
+          "description": "an exact replay reports the same runId",
+          "pass": true,
+          "detail": "4c642e7b-507c-4d72-a064-94f5647d7b14 vs 4c642e7b-507c-4d72-a064-94f5647d7b14"
+        }
+      ],
+      "observations": [],
+      "data": {
+        "submit": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z",
+            "runId": "4c642e7b-507c-4d72-a064-94f5647d7b14",
+            "replayed": true
+          },
+          "ref": {
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z",
+            "runId": "4c642e7b-507c-4d72-a064-94f5647d7b14",
+            "until": "video"
+          }
+        }
+      }
+    },
+    {
+      "name": "S3 same requestId, different body -> 409 conflict",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "the server refuses a same-id different-body submit as conflict (409)",
+          "pass": true
+        }
+      ],
+      "observations": [],
+      "data": {
+        "submit": {
+          "kind": "refused",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "refused",
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z",
+            "reason": "conflict",
+            "detail": "this requestId was already used with different content"
+          }
+        }
+      }
+    },
+    {
+      "name": "S4 server-side invalid body (422) + client-local unsupported planVaryOn refusal",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "a schema-invalid body (narration < 4 sentences) is rejected 422",
+          "pass": true,
+          "detail": "422"
+        },
+        {
+          "description": "the 422 refusal reason is invalid",
+          "pass": true,
+          "detail": "{\"contractVersion\":1,\"outcome\":\"refused\",\"requestId\":\"wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-invalid\",\"reason\":\"invalid\",\"detail\":\"narration: Too small: expected array to have >=4 items\"}"
+        },
+        {
+          "description": "prepareCutroomRequest rejects planVaryOn:'angle' locally, before any HTTP call",
+          "pass": true
+        }
+      ],
+      "observations": [],
+      "data": {
+        "rawInvalidSubmit": {
+          "status": 422,
+          "body": {
+            "contractVersion": 1,
+            "outcome": "refused",
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-invalid",
+            "reason": "invalid",
+            "detail": "narration: Too small: expected array to have >=4 items"
+          }
+        }
+      }
+    },
+    {
+      "name": "S5 lost response, reconciled by requestId, then a genuine replay",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "a genuinely lost response surfaces as a transport_error",
+          "pass": true,
+          "detail": "{\"kind\":\"transport_error\",\"code\":\"network\",\"writeUncertain\":true}"
+        },
+        {
+          "description": "the lost POST is reported write-uncertain",
+          "pass": true
+        },
+        {
+          "description": "the proxy dropped exactly the one armed connection",
+          "pass": true,
+          "detail": "1"
+        },
+        {
+          "description": "the later exact replay reports replayed:true",
+          "pass": true
+        },
+        {
+          "description": "the replay names the same runId the lookup found",
+          "pass": true
+        },
+        {
+          "description": "exactly one run row exists for this requestId",
+          "pass": true,
+          "detail": "[{\"run_id\":\"16c71c39-dd82-4f2d-a955-a2660dc58ba6\",\"request_id\":\"wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-lost-response\",\"state\":\"running\"}]"
+        }
+      ],
+      "observations": [
+        "the server genuinely processed the lost submit: runId 16c71c39-dd82-4f2d-a955-a2660dc58ba6 exists for requestId wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-lost-response"
+      ],
+      "data": {
+        "lostSubmit": {
+          "kind": "transport_error",
+          "code": "network",
+          "writeUncertain": true
+        },
+        "lookupAfterLoss": {
+          "kind": "ok",
+          "value": {
+            "contractVersion": 1,
+            "runId": "16c71c39-dd82-4f2d-a955-a2660dc58ba6",
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-lost-response",
+            "state": "running",
+            "lastSeq": 1
+          }
+        },
+        "replayAfterLoss": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-lost-response",
+            "runId": "16c71c39-dd82-4f2d-a955-a2660dc58ba6",
+            "replayed": true
+          },
+          "ref": {
+            "requestId": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-lost-response",
+            "runId": "16c71c39-dd82-4f2d-a955-a2660dc58ba6",
+            "until": "video"
+          }
+        },
+        "runRowsForRequestId": [
+          {
+            "run_id": "16c71c39-dd82-4f2d-a955-a2660dc58ba6",
+            "request_id": "wave1-proof-complete-video-protocol-2026-09-19T20-32-25-145Z-lost-response",
+            "state": "running"
+          }
+        ]
+      }
+    },
+    {
+      "name": "S6 lookup of an absent requestId -> 404",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "a lookup for an unused requestId is not_found",
+          "pass": true,
+          "detail": "{\"kind\":\"not_found\"}"
+        }
+      ],
+      "observations": [
+        "this is a current observation only: absence now does not certify absence later"
+      ],
+      "data": {
+        "lookup": {
+          "kind": "not_found"
+        }
+      }
+    },
+    {
+      "name": "S7 complete video run",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "strict cursor paging reached run.finished with continuous seqs",
+          "pass": true,
+          "detail": "41 events"
+        },
+        {
+          "description": "result is completed/video with a contained, ffprobe-readable video",
+          "pass": true,
+          "detail": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video/artifacts/8583a1ea-af44-4822-85bf-3149e9701428/a1-render.mp4"
+        }
+      ],
+      "observations": [
+        "runId 8583a1ea-af44-4822-85bf-3149e9701428",
+        "wall time submit-to-finished: 11343ms (small render profile)",
+        "6 takes, 6 used:true",
+        "3 stills all contained in the instance artifact root"
+      ],
+      "data": {
+        "submit": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-complete-video-2026-09-19T20-32-25-145Z",
+            "runId": "8583a1ea-af44-4822-85bf-3149e9701428",
+            "replayed": false
+          },
+          "ref": {
+            "requestId": "wave1-proof-complete-video-2026-09-19T20-32-25-145Z",
+            "runId": "8583a1ea-af44-4822-85bf-3149e9701428",
+            "until": "video"
+          }
+        },
+        "wallMs": 11343,
+        "result": {
+          "contractVersion": 1,
+          "runId": "8583a1ea-af44-4822-85bf-3149e9701428",
+          "requestId": "wave1-proof-complete-video-2026-09-19T20-32-25-145Z",
+          "costCents": 0,
+          "status": "completed",
+          "until": "video",
+          "estimateCents": 220,
+          "stills": [
+            {
+              "pictureId": "a1-shot-0-a",
+              "shotId": "shot-0",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video/artifacts/8583a1ea-af44-4822-85bf-3149e9701428/a1-shot-0-a.png"
+            },
+            {
+              "pictureId": "a1-shot-1-single",
+              "shotId": "shot-1",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video/artifacts/8583a1ea-af44-4822-85bf-3149e9701428/a1-shot-1-single.png"
+            },
+            {
+              "pictureId": "a1-shot-2-single",
+              "shotId": "shot-2",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video/artifacts/8583a1ea-af44-4822-85bf-3149e9701428/a1-shot-2-single.png"
+            }
+          ],
+          "video": {
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video/artifacts/8583a1ea-af44-4822-85bf-3149e9701428/a1-render.mp4"
+          },
+          "degradations": []
+        },
+        "record": {
+          "takes": 6,
+          "used": 6
+        },
+        "videoSha256": "892481748be618d27d179a7b8662450b14b88140b1c206d0ead8d1f631031548",
+        "videoFfprobe": {
+          "streams": [
+            {
+              "index": 0,
+              "codec_name": "h264",
+              "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+              "profile": "High",
+              "codec_type": "video",
+              "codec_tag_string": "avc1",
+              "codec_tag": "0x31637661",
+              "mime_codec_string": "avc1.64000b",
+              "width": 108,
+              "height": 192,
+              "coded_width": 108,
+              "coded_height": 192,
+              "has_b_frames": 2,
+              "sample_aspect_ratio": "1:1",
+              "display_aspect_ratio": "9:16",
+              "pix_fmt": "yuv420p",
+              "level": 11,
+              "chroma_location": "left",
+              "field_order": "progressive",
+              "is_avc": "true",
+              "nal_length_size": "4",
+              "id": "0x1",
+              "r_frame_rate": "24/1",
+              "avg_frame_rate": "24/1",
+              "time_base": "1/12288",
+              "start_pts": 0,
+              "start_time": "0.000000",
+              "duration_ts": 356352,
+              "duration": "29.000000",
+              "bit_rate": "63189",
+              "bits_per_raw_sample": "8",
+              "nb_frames": "696",
+              "extradata_size": 44,
+              "disposition": {
+                "default": 1,
+                "dub": 0,
+                "original": 0,
+                "comment": 0,
+                "lyrics": 0,
+                "karaoke": 0,
+                "forced": 0,
+                "hearing_impaired": 0,
+                "visual_impaired": 0,
+                "clean_effects": 0,
+                "attached_pic": 0,
+                "timed_thumbnails": 0,
+                "non_diegetic": 0,
+                "captions": 0,
+                "descriptions": 0,
+                "metadata": 0,
+                "dependent": 0,
+                "still_image": 0,
+                "multilayer": 0
+              },
+              "tags": {
+                "language": "und",
+                "handler_name": "VideoHandler",
+                "encoder": "Lavc62.28.102 libx264"
+              }
+            },
+            {
+              "index": 1,
+              "codec_name": "aac",
+              "codec_long_name": "AAC (Advanced Audio Coding)",
+              "profile": "LC",
+              "codec_type": "audio",
+              "codec_tag_string": "mp4a",
+              "codec_tag": "0x6134706d",
+              "mime_codec_string": "mp4a.40.2",
+              "sample_fmt": "fltp",
+              "sample_rate": "48000",
+              "channels": 2,
+              "channel_layout": "stereo",
+              "bits_per_sample": 0,
+              "initial_padding": 0,
+              "id": "0x2",
+              "r_frame_rate": "0/0",
+              "avg_frame_rate": "0/0",
+              "time_base": "1/48000",
+              "start_pts": 0,
+              "start_time": "0.000000",
+              "duration_ts": 1392000,
+              "duration": "29.000000",
+              "bit_rate": "128061",
+              "nb_frames": "1361",
+              "extradata_size": 5,
+              "disposition": {
+                "default": 1,
+                "dub": 0,
+                "original": 0,
+                "comment": 0,
+                "lyrics": 0,
+                "karaoke": 0,
+                "forced": 0,
+                "hearing_impaired": 0,
+                "visual_impaired": 0,
+                "clean_effects": 0,
+                "attached_pic": 0,
+                "timed_thumbnails": 0,
+                "non_diegetic": 0,
+                "captions": 0,
+                "descriptions": 0,
+                "metadata": 0,
+                "dependent": 0,
+                "still_image": 0,
+                "multilayer": 0
+              },
+              "tags": {
+                "language": "und",
+                "handler_name": "SoundHandler"
+              }
+            }
+          ],
+          "format": {
+            "filename": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video/artifacts/8583a1ea-af44-4822-85bf-3149e9701428/a1-render.mp4",
+            "nb_streams": 2,
+            "nb_programs": 0,
+            "nb_stream_groups": 0,
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+            "format_long_name": "QuickTime / MOV",
+            "start_time": "0.000000",
+            "duration": "29.000000",
+            "size": "714264",
+            "bit_rate": "197038",
+            "probe_score": 100,
+            "tags": {
+              "major_brand": "isom",
+              "minor_version": "512",
+              "compatible_brands": "isomiso2avc1mp41",
+              "encoder": "Lavf62.12.102"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "S8 graceful restart mid-run, resumed by a reconstructed caller",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "at least one event was observed before restarting",
+          "pass": true
+        },
+        {
+          "description": "worker1 reports {\"stopped\":true} on SIGTERM",
+          "pass": true
+        },
+        {
+          "description": "api1 reports {\"stopped\":true} on SIGTERM",
+          "pass": true
+        },
+        {
+          "description": "the run is genuinely still running when both processes stopped",
+          "pass": true,
+          "detail": "[{\"run_id\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"request_id\":\"wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z\",\"state\":\"running\"}]"
+        },
+        {
+          "description": "api2 restarted on the exact same port",
+          "pass": true,
+          "detail": "62725 vs 62725"
+        },
+        {
+          "description": "the reconstructed caller process exits 0",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null} "
+        },
+        {
+          "description": "the reconstructed caller resumed at least one event",
+          "pass": true
+        },
+        {
+          "description": "after restart the run reaches completed/video with a contained, ffprobe-readable video",
+          "pass": true
+        }
+      ],
+      "observations": [
+        "intent persisted after acceptance at /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart/intent.json",
+        "14 pre-restart events observed before stopping (cursor 14), after a 900ms interrupt budget",
+        "jobs after graceful stop: reel.plan=done, reel.keyframes=done, reel.clips=done, reel.assemble=queued",
+        "14 pre-restart + 27 post-restart events, seq-continuous with no regression or duplication"
+      ],
+      "data": {
+        "submit": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z",
+            "runId": "5408b8d2-6b16-4c33-a9be-b41a8dc2950e",
+            "replayed": false
+          },
+          "ref": {
+            "requestId": "wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z",
+            "runId": "5408b8d2-6b16-4c33-a9be-b41a8dc2950e",
+            "until": "video"
+          }
+        },
+        "jobsBeforeStop": [
+          {
+            "id": 1,
+            "kind": "reel.plan",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:32:51.402Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 2,
+            "kind": "reel.keyframes",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:32:51.416Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 3,
+            "kind": "reel.clips",
+            "state": "running",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:32:51.443Z",
+            "lease_until": "2026-09-19T20:33:51.443Z",
+            "cost_cents": 0
+          }
+        ],
+        "runRowAfterStop": [
+          {
+            "run_id": "5408b8d2-6b16-4c33-a9be-b41a8dc2950e",
+            "request_id": "wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z",
+            "state": "running"
+          }
+        ],
+        "jobsAfterStop": [
+          {
+            "id": 1,
+            "kind": "reel.plan",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:32:51.402Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 2,
+            "kind": "reel.keyframes",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:32:51.416Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 3,
+            "kind": "reel.clips",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:32:51.443Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 4,
+            "kind": "reel.assemble",
+            "state": "queued",
+            "attempts": 0,
+            "locked_at": null,
+            "lease_until": null,
+            "cost_cents": 0
+          }
+        ],
+        "reconstructedCallerStdout": [
+          "{\"resuming\":true,\"requestId\":\"wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z\",\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"until\":\"video\",\"fromSince\":14}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":15,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"2\",\"outcome\":\"accept\",\"shotId\":\"shot-0\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":16,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"3\",\"outcome\":\"accept\",\"shotId\":\"shot-0\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":17,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"4\",\"outcome\":\"accept\",\"shotId\":\"shot-0\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":18,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"5\",\"outcome\":\"accept\",\"shotId\":\"shot-0\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":19,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"2\",\"outcome\":\"accept\",\"shotId\":\"shot-1\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":20,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"3\",\"outcome\":\"accept\",\"shotId\":\"shot-1\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":21,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"4\",\"outcome\":\"accept\",\"shotId\":\"shot-1\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":22,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"5\",\"outcome\":\"accept\",\"shotId\":\"shot-1\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":23,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"2\",\"outcome\":\"accept\",\"shotId\":\"shot-2\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":24,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"3\",\"outcome\":\"accept\",\"shotId\":\"shot-2\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":25,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"4\",\"outcome\":\"accept\",\"shotId\":\"shot-2\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":26,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"5\",\"outcome\":\"accept\",\"shotId\":\"shot-2\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":27,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"2\",\"outcome\":\"accept\",\"shotId\":\"shot-3\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":28,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"3\",\"outcome\":\"accept\",\"shotId\":\"shot-3\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":29,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"4\",\"outcome\":\"accept\",\"shotId\":\"shot-3\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":30,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"5\",\"outcome\":\"accept\",\"shotId\":\"shot-3\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":31,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"2\",\"outcome\":\"accept\",\"shotId\":\"shot-4\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":32,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"3\",\"outcome\":\"accept\",\"shotId\":\"shot-4\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":33,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"4\",\"outcome\":\"accept\",\"shotId\":\"shot-4\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":34,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"5\",\"outcome\":\"accept\",\"shotId\":\"shot-4\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":35,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"2\",\"outcome\":\"accept\",\"shotId\":\"shot-5\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":36,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"3\",\"outcome\":\"accept\",\"shotId\":\"shot-5\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":37,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"4\",\"outcome\":\"accept\",\"shotId\":\"shot-5\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":38,\"at\":\"2026-09-19T20:32:56.255Z\",\"type\":\"verdict\",\"gate\":\"5\",\"outcome\":\"accept\",\"shotId\":\"shot-5\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":39,\"at\":\"2026-09-19T20:32:59.664Z\",\"type\":\"verdict\",\"gate\":\"7\",\"outcome\":\"accept\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":40,\"at\":\"2026-09-19T20:32:59.664Z\",\"type\":\"stage.finished\",\"stage\":\"video\"}}",
+          "{\"resumedEvent\":{\"contractVersion\":1,\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"seq\":41,\"at\":\"2026-09-19T20:32:59.664Z\",\"type\":\"run.finished\",\"status\":\"completed\"}}",
+          "{\"resumeComplete\":true,\"requestId\":\"wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z\",\"runId\":\"5408b8d2-6b16-4c33-a9be-b41a8dc2950e\",\"finalNextSince\":41,\"resumedEventCount\":27}"
+        ],
+        "reconstructedCallerStderr": [],
+        "result": {
+          "contractVersion": 1,
+          "runId": "5408b8d2-6b16-4c33-a9be-b41a8dc2950e",
+          "requestId": "wave1-proof-complete-video-s8-2026-09-19T20-32-25-145Z",
+          "costCents": 0,
+          "status": "completed",
+          "until": "video",
+          "estimateCents": 220,
+          "stills": [
+            {
+              "pictureId": "a1-shot-0-a",
+              "shotId": "shot-0",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart/artifacts/5408b8d2-6b16-4c33-a9be-b41a8dc2950e/a1-shot-0-a.png"
+            },
+            {
+              "pictureId": "a1-shot-1-single",
+              "shotId": "shot-1",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart/artifacts/5408b8d2-6b16-4c33-a9be-b41a8dc2950e/a1-shot-1-single.png"
+            },
+            {
+              "pictureId": "a1-shot-2-single",
+              "shotId": "shot-2",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart/artifacts/5408b8d2-6b16-4c33-a9be-b41a8dc2950e/a1-shot-2-single.png"
+            }
+          ],
+          "video": {
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart/artifacts/5408b8d2-6b16-4c33-a9be-b41a8dc2950e/a1-render.mp4"
+          },
+          "degradations": []
+        },
+        "record": {
+          "takes": 6,
+          "used": 6
+        },
+        "videoSha256": "892481748be618d27d179a7b8662450b14b88140b1c206d0ead8d1f631031548"
+      }
+    },
+    {
+      "name": "S9 crash: SIGKILL worker and api, restart, and reclaim the abandoned job",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "worker1 holds at model call 12 (shot 0's reconcile call)",
+          "pass": true,
+          "detail": "12"
+        },
+        {
+          "description": "worker1 was actually killed by SIGKILL",
+          "pass": true,
+          "detail": "{\"code\":null,\"signal\":\"SIGKILL\"}"
+        },
+        {
+          "description": "api1 was actually killed by SIGKILL",
+          "pass": true,
+          "detail": "{\"code\":null,\"signal\":\"SIGKILL\"}"
+        },
+        {
+          "description": "api2 restarted on the exact same port",
+          "pass": true
+        },
+        {
+          "description": "after the crash+restart the run completed a video with a contained, ffprobe-readable file",
+          "pass": true
+        },
+        {
+          "description": "the full event history (across the api restart) is seq-continuous with no gaps or duplicates",
+          "pass": true
+        },
+        {
+          "description": "reel.clips was reclaimed and run a second time",
+          "pass": true,
+          "detail": "{\"id\":3,\"kind\":\"reel.clips\",\"state\":\"done\",\"attempts\":2,\"locked_at\":\"2026-09-19T20:33:07.253Z\",\"lease_until\":null,\"cost_cents\":0}"
+        }
+      ],
+      "observations": [
+        "using recommendedLeaseMs=1000 from phase 1's upstream-validated restart fixture",
+        "7 takes recorded, 6 used:true"
+      ],
+      "data": {
+        "submit": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-restart-s9-2026-09-19T20-32-25-145Z",
+            "runId": "34136b9b-f03f-4369-a211-f4ad69ab002b",
+            "replayed": false
+          },
+          "ref": {
+            "requestId": "wave1-proof-restart-s9-2026-09-19T20-32-25-145Z",
+            "runId": "34136b9b-f03f-4369-a211-f4ad69ab002b",
+            "until": "video"
+          }
+        },
+        "result": {
+          "contractVersion": 1,
+          "runId": "34136b9b-f03f-4369-a211-f4ad69ab002b",
+          "requestId": "wave1-proof-restart-s9-2026-09-19T20-32-25-145Z",
+          "costCents": 0,
+          "status": "completed",
+          "until": "video",
+          "estimateCents": 220,
+          "stills": [
+            {
+              "pictureId": "a1-shot-0-a",
+              "shotId": "shot-0",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart/artifacts/34136b9b-f03f-4369-a211-f4ad69ab002b/a1-shot-0-a.png"
+            },
+            {
+              "pictureId": "a1-shot-1-single",
+              "shotId": "shot-1",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart/artifacts/34136b9b-f03f-4369-a211-f4ad69ab002b/a1-shot-1-single.png"
+            },
+            {
+              "pictureId": "a1-shot-2-single",
+              "shotId": "shot-2",
+              "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart/artifacts/34136b9b-f03f-4369-a211-f4ad69ab002b/a1-shot-2-single.png"
+            }
+          ],
+          "video": {
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart/artifacts/34136b9b-f03f-4369-a211-f4ad69ab002b/a1-render.mp4"
+          },
+          "degradations": []
+        },
+        "record": {
+          "takes": 7,
+          "used": 6
+        },
+        "jobsAfterRecovery": [
+          {
+            "id": 1,
+            "kind": "reel.plan",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:33:03.457Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 2,
+            "kind": "reel.keyframes",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:33:03.467Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 3,
+            "kind": "reel.clips",
+            "state": "done",
+            "attempts": 2,
+            "locked_at": "2026-09-19T20:33:07.253Z",
+            "lease_until": null,
+            "cost_cents": 0
+          },
+          {
+            "id": 4,
+            "kind": "reel.assemble",
+            "state": "done",
+            "attempts": 1,
+            "locked_at": "2026-09-19T20:33:13.321Z",
+            "lease_until": null,
+            "cost_cents": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "S10 cancel with no worker, then observe what starting one produces",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "with no worker started, the run is running before cancel",
+          "pass": true
+        },
+        {
+          "description": "cancel() returns a schema-valid RunStatus (per the contract)",
+          "pass": true,
+          "detail": "{\"contractVersion\":1,\"runId\":\"1da09b4f-10bd-4f6c-866a-3be9da9f53f3\",\"requestId\":\"wave1-proof-cancel-2026-09-19T20-32-25-145Z\",\"state\":\"running\",\"lastSeq\":1}"
+        }
+      ],
+      "observations": [
+        "cancel response state: running",
+        "state after starting a worker post-cancel (15s window): finished",
+        "actual terminal result upstream produced after a cancel with no worker, then a worker started: {\"contractVersion\":1,\"runId\":\"1da09b4f-10bd-4f6c-866a-3be9da9f53f3\",\"requestId\":\"wave1-proof-cancel-2026-09-19T20-32-25-145Z\",\"costCents\":0,\"status\":\"cancelled\"}"
+      ],
+      "data": {
+        "submit": {
+          "kind": "accepted",
+          "value": {
+            "contractVersion": 1,
+            "outcome": "accepted",
+            "requestId": "wave1-proof-cancel-2026-09-19T20-32-25-145Z",
+            "runId": "1da09b4f-10bd-4f6c-866a-3be9da9f53f3",
+            "replayed": false
+          },
+          "ref": {
+            "requestId": "wave1-proof-cancel-2026-09-19T20-32-25-145Z",
+            "runId": "1da09b4f-10bd-4f6c-866a-3be9da9f53f3",
+            "until": "video"
+          }
+        },
+        "statusBeforeCancel": {
+          "kind": "ok",
+          "value": {
+            "contractVersion": 1,
+            "runId": "1da09b4f-10bd-4f6c-866a-3be9da9f53f3",
+            "requestId": "wave1-proof-cancel-2026-09-19T20-32-25-145Z",
+            "state": "running",
+            "lastSeq": 1
+          }
+        },
+        "cancelResponse": {
+          "kind": "ok",
+          "value": {
+            "contractVersion": 1,
+            "runId": "1da09b4f-10bd-4f6c-866a-3be9da9f53f3",
+            "requestId": "wave1-proof-cancel-2026-09-19T20-32-25-145Z",
+            "state": "running",
+            "lastSeq": 1
+          }
+        },
+        "finalState": "finished",
+        "result": {
+          "contractVersion": 1,
+          "runId": "1da09b4f-10bd-4f6c-866a-3be9da9f53f3",
+          "requestId": "wave1-proof-cancel-2026-09-19T20-32-25-145Z",
+          "costCents": 0,
+          "status": "cancelled"
+        },
+        "record": {
+          "contractVersion": 1,
+          "runId": "1da09b4f-10bd-4f6c-866a-3be9da9f53f3",
+          "pictures": [],
+          "takes": [],
+          "degradations": []
+        }
+      }
+    },
+    {
+      "name": "S11 cleanup: processes gone, runtime unchanged, instances listed",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "worker process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "worker process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "worker process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "reconstructed-caller process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":null,\"signal\":\"SIGKILL\"}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":null,\"signal\":\"SIGKILL\"}"
+        },
+        {
+          "description": "worker process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":null,\"signal\":\"SIGKILL\"}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "worker process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "api process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "worker process has exited by cleanup time",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "no host.ts or reconstructed-caller process remains in ps",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "description": "the pinned runtime HEAD is unchanged",
+          "pass": true
+        },
+        {
+          "description": "the pinned runtime ignored/tracked git status is unchanged",
+          "pass": true,
+          "detail": "before=!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo after=!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo"
+        },
+        {
+          "description": "the pinned runtime top-level listing is unchanged",
+          "pass": true
+        }
+      ],
+      "observations": [
+        "kept: /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-cancel (181414 bytes)",
+        "kept: /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video (3868930 bytes)",
+        "kept: /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart (4624322 bytes)",
+        "kept: /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart (3870999 bytes)",
+        "kept: /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-protocol (188811 bytes)",
+        "kept: /Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-s0 (7823 bytes)"
+      ],
+      "data": {
+        "psAfterCleanup": "",
+        "runtimeBefore": {
+          "head": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+          "ignoredStatus": "!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo",
+          "lsA": [
+            ".artifacts",
+            ".claude",
+            ".dependency-cruiser.cjs",
+            ".editorconfig",
+            ".env.example",
+            ".git",
+            ".gitattributes",
+            ".gitignore",
+            ".gitmodules",
+            ".npmrc",
+            ".prettierignore",
+            ".prettierrc.json",
+            ".tmp",
+            "AGENTS.md",
+            "CLAUDE.md",
+            "DECISIONS.md",
+            "JOURNAL.md",
+            "PROMPTS",
+            "README.md",
+            "apps",
+            "db",
+            "dist",
+            "docs",
+            "drizzle.config.ts",
+            "eslint.config.mjs",
+            "node_modules",
+            "package.json",
+            "packages",
+            "pnpm-lock.yaml",
+            "pnpm-workspace.yaml",
+            "scripts",
+            "steering-ref",
+            "tests",
+            "tsconfig.base.json",
+            "tsconfig.json",
+            "tsconfig.tooling.json"
+          ]
+        },
+        "runtimeAfter": {
+          "head": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+          "ignoredStatus": "!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo",
+          "lsA": [
+            ".artifacts",
+            ".claude",
+            ".dependency-cruiser.cjs",
+            ".editorconfig",
+            ".env.example",
+            ".git",
+            ".gitattributes",
+            ".gitignore",
+            ".gitmodules",
+            ".npmrc",
+            ".prettierignore",
+            ".prettierrc.json",
+            ".tmp",
+            "AGENTS.md",
+            "CLAUDE.md",
+            "DECISIONS.md",
+            "JOURNAL.md",
+            "PROMPTS",
+            "README.md",
+            "apps",
+            "db",
+            "dist",
+            "docs",
+            "drizzle.config.ts",
+            "eslint.config.mjs",
+            "node_modules",
+            "package.json",
+            "packages",
+            "pnpm-lock.yaml",
+            "pnpm-workspace.yaml",
+            "scripts",
+            "steering-ref",
+            "tests",
+            "tsconfig.base.json",
+            "tsconfig.json",
+            "tsconfig.tooling.json"
+          ]
+        },
+        "instanceDirs": [
+          {
+            "name": "proof-2026-09-19T20-32-25-145Z-cancel",
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-cancel",
+            "bytes": 181414
+          },
+          {
+            "name": "proof-2026-09-19T20-32-25-145Z-complete-video",
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video",
+            "bytes": 3868930
+          },
+          {
+            "name": "proof-2026-09-19T20-32-25-145Z-crash-restart",
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart",
+            "bytes": 4624322
+          },
+          {
+            "name": "proof-2026-09-19T20-32-25-145Z-graceful-restart",
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart",
+            "bytes": 3870999
+          },
+          {
+            "name": "proof-2026-09-19T20-32-25-145Z-protocol",
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-protocol",
+            "bytes": 188811
+          },
+          {
+            "name": "proof-2026-09-19T20-32-25-145Z-s0",
+            "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-s0",
+            "bytes": 7823
+          }
+        ]
+      }
+    }
+  ],
+  "runtimeBefore": {
+    "head": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+    "ignoredStatus": "!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo",
+    "lsA": [
+      ".artifacts",
+      ".claude",
+      ".dependency-cruiser.cjs",
+      ".editorconfig",
+      ".env.example",
+      ".git",
+      ".gitattributes",
+      ".gitignore",
+      ".gitmodules",
+      ".npmrc",
+      ".prettierignore",
+      ".prettierrc.json",
+      ".tmp",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "DECISIONS.md",
+      "JOURNAL.md",
+      "PROMPTS",
+      "README.md",
+      "apps",
+      "db",
+      "dist",
+      "docs",
+      "drizzle.config.ts",
+      "eslint.config.mjs",
+      "node_modules",
+      "package.json",
+      "packages",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "scripts",
+      "steering-ref",
+      "tests",
+      "tsconfig.base.json",
+      "tsconfig.json",
+      "tsconfig.tooling.json"
+    ]
+  },
+  "runtimeAfter": {
+    "head": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+    "ignoredStatus": "!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo",
+    "lsA": [
+      ".artifacts",
+      ".claude",
+      ".dependency-cruiser.cjs",
+      ".editorconfig",
+      ".env.example",
+      ".git",
+      ".gitattributes",
+      ".gitignore",
+      ".gitmodules",
+      ".npmrc",
+      ".prettierignore",
+      ".prettierrc.json",
+      ".tmp",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "DECISIONS.md",
+      "JOURNAL.md",
+      "PROMPTS",
+      "README.md",
+      "apps",
+      "db",
+      "dist",
+      "docs",
+      "drizzle.config.ts",
+      "eslint.config.mjs",
+      "node_modules",
+      "package.json",
+      "packages",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "scripts",
+      "steering-ref",
+      "tests",
+      "tsconfig.base.json",
+      "tsconfig.json",
+      "tsconfig.tooling.json"
+    ]
+  },
+  "instanceDirs": [
+    {
+      "name": "proof-2026-09-19T20-32-25-145Z-cancel",
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-cancel",
+      "bytes": 181414
+    },
+    {
+      "name": "proof-2026-09-19T20-32-25-145Z-complete-video",
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-complete-video",
+      "bytes": 3868930
+    },
+    {
+      "name": "proof-2026-09-19T20-32-25-145Z-crash-restart",
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-crash-restart",
+      "bytes": 4624322
+    },
+    {
+      "name": "proof-2026-09-19T20-32-25-145Z-graceful-restart",
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-graceful-restart",
+      "bytes": 3870999
+    },
+    {
+      "name": "proof-2026-09-19T20-32-25-145Z-protocol",
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-protocol",
+      "bytes": 188811
+    },
+    {
+      "name": "proof-2026-09-19T20-32-25-145Z-s0",
+      "path": "/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/proof-2026-09-19T20-32-25-145Z-s0",
+      "bytes": 7823
+    }
+  ]
+}
