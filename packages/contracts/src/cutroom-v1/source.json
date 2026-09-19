@@ -1,0 +1,42 @@
+{
+  "repository": "KnowScroll/Cutroom",
+  "revision": "238df85411108a94377311363dd296d785688f70",
+  "wireVersion": 1,
+  "files": [
+    {
+      "path": "version.ts",
+      "upstreamPath": "packages/reel-contract/src/version.ts",
+      "sha256": "2315bf14736f6c7809bfb9267adc3f10969eefe2659d24907874c9e1bc76455a"
+    },
+    {
+      "path": "request.ts",
+      "upstreamPath": "packages/reel-contract/src/request.ts",
+      "sha256": "2f35b19a741805e0881f0eecd42f6c2a3bd532d26b2fd6ce3e81e4f0650d8ab5"
+    },
+    {
+      "path": "responses.ts",
+      "upstreamPath": "packages/reel-contract/src/responses.ts",
+      "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+    },
+    {
+      "path": "events.ts",
+      "upstreamPath": "packages/reel-contract/src/events.ts",
+      "sha256": "f04fe6a515cc9d2fcf358f74fae86d019c89a3c60dcd128ecbbb1b27e6a35527"
+    },
+    {
+      "path": "record.ts",
+      "upstreamPath": "packages/reel-contract/src/record.ts",
+      "sha256": "04cafb52da57154198fdc2aef26b0da3846e128682414415b36439914a5cfa01"
+    },
+    {
+      "path": "routes.ts",
+      "upstreamPath": "packages/reel-contract/src/routes.ts",
+      "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+    },
+    {
+      "path": "errors.ts",
+      "upstreamPath": "packages/reel-contract/src/errors.ts",
+      "sha256": "de1f24a800c02a1166e05976dfa89023326d413bb6c771c448566940d26873ea"
+    }
+  ]
+}
