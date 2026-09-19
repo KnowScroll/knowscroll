@@ -1,0 +1,24 @@
+{
+  "issue": 84,
+  "reviewer": "MiniMax-M3",
+  "runId": "20260919-210038-issue84-read-only-cutroo-8738",
+  "status": "done",
+  "exitCode": 0,
+  "tokens": {
+    "estimated_total": 23015,
+    "input": 1053,
+    "output": 3460,
+    "cache_read": 18502,
+    "total": 23015,
+    "cost_usd": 0.005578
+  },
+  "scope": "Seven paired upstream files reviewed by worker; coordinator additionally checked both version.ts files and existing KnowScroll ADR0007/target ownership. Source only, no engine run.",
+  "disposition": [
+    "Accepted byte-comparison and observed typed-criterion/server-handler changes after direct coordinator verification.",
+    "Rejected suggested new asset/auth/usage/cancel/idempotency endpoints as unsolicited upstream designs, not established contract requirements.",
+    "Corrected reviewer line references by linking actual pinned files; criterion.type is enforced by Zod, not only declared in documentation.",
+    "Loopback binding is enforced by code. The reviewed route surface has no download transport; absence across all upstream code was not established.",
+    "Record lacks all-paid-attempt accounting; costCents must not be presented as independently verified complete spend.",
+    "No new API header, cancellation body or remote binding is assumed."
+  ]
+}

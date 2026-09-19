@@ -28,3 +28,7 @@ Results contain absolute filesystem paths on the engine host, not CDN or mobile 
 ## Sources and verification
 
 [Pinned upstream contract](https://github.com/KnowScroll/Cutroom/blob/60ba257cbe9bfbdd32040a1acd793644c00e74e5/docs/features/reel-contract.md), [content lifecycle target](../architecture/target/23-CONTENT-DEMAND-AND-INVENTORY.md).
+
+## Later source observation — September19
+
+The [current contract audit](../operations/cutroom-contract-audit.md) records changes at upstream238df854, including required criterion types within version1 and video admission. It preserves this original pin and decision as history. A successor adapter contract must deliberately adopt its implementation revision; no live integration or new transport is established by the audit.
