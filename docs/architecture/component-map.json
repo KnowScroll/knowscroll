@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-09-19",
+  "updated": "2026-09-20",
   "note": "Paths are ownership roots, not proof every target module exists. No separate service is implied.",
   "components": [
     {
@@ -9,6 +9,13 @@
       "path": "apps/mobile",
       "status": "partial",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/3"
+    },
+    {
+      "component": "Desktop Web",
+      "responsibility": "Desktop release UI per definition \u00a79.5 (ADR-0022)",
+      "path": "apps/web",
+      "status": "decided-implementation-pending",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/92"
     },
     {
       "component": "API",

@@ -32,6 +32,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR0020 — Pinned Cutroom HTTP client](0020-cutroom-http-client.md): fixed source revision, strict bounded wire outcomes and uncertainty-safe reconciliation; no import or product dispatch.
 
+- [ADR-0022 — Desktop is a TypeScript web surface](0022-desktop-web-surface.md): owner-chosen React/TypeScript/Vite app in `apps/web`; loopback dev-only auth proxy; §9.5 desktop interactions.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
