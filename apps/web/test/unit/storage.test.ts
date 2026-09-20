@@ -85,4 +85,19 @@ describe('ReaderStorage epoch-scoped persistence', () => {
     const storage = new ReaderStorage(backend);
     expect(storage.readSession()).toBeNull();
   });
+
+  it('round-trips the real why-this-appeared reason for the most recently kept Trace', () => {
+    const storage = new ReaderStorage(new MemoryStorageBackend());
+    expect(storage.readLastKept()).toBeNull();
+    const value = { eventId: 'e1', title: 'A star is a balancing act', reason: 'You read about orbits.', privacyEpoch: 0, universeId: 'u1' };
+    storage.writeLastKept(value);
+    expect(storage.readLastKept()).toEqual(value);
+  });
+
+  it('purgePrivateState clears the last-kept reason along with every other private artifact', () => {
+    const storage = new ReaderStorage(new MemoryStorageBackend());
+    storage.writeLastKept({ eventId: 'e1', title: 't', reason: 'r', privacyEpoch: 0, universeId: 'u1' });
+    storage.purgePrivateState('u1', 1);
+    expect(storage.readLastKept()).toBeNull();
+  });
 });

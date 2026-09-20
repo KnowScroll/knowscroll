@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T17:41:49.393Z",
-  "url": "http://127.0.0.1:51808/",
+  "timestamp": "2026-09-20T18:56:21.468Z",
+  "url": "http://127.0.0.1:59392/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -148,25 +148,6 @@
       "description": "Ensure aria-hidden=\"true\" is not present on the document body.",
       "help": "aria-hidden=\"true\" must not be present on the document body",
       "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-body?application=playwright",
-      "nodes": []
-    },
-    {
-      "id": "aria-hidden-focus",
-      "impact": null,
-      "tags": [
-        "cat.name-role-value",
-        "wcag2a",
-        "wcag412",
-        "TTv5",
-        "TT6.a",
-        "EN-301-549",
-        "EN-9.4.1.2",
-        "RGAAv4",
-        "RGAA-10.8.1"
-      ],
-      "description": "Ensure aria-hidden elements are not focusable nor contain focusable elements",
-      "help": "ARIA hidden element must not be focusable or contain focusable elements",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-focus?application=playwright",
       "nodes": []
     },
     {
@@ -1508,7 +1489,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -1669,6 +1650,166 @@
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            "nav"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -1776,7 +1917,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -1849,6 +1990,194 @@
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            "nav"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aria-hidden-focus",
+      "impact": null,
+      "tags": [
+        "cat.name-role-value",
+        "wcag2a",
+        "wcag412",
+        "TTv5",
+        "TT6.a",
+        "EN-301-549",
+        "EN-9.4.1.2",
+        "RGAAv4",
+        "RGAA-10.8.1"
+      ],
+      "description": "Ensure aria-hidden elements are not focusable nor contain focusable elements",
+      "help": "ARIA hidden element must not be focusable or contain focusable elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-focus?application=playwright",
+      "nodes": [
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements while a modal is open"
+            },
+            {
+              "id": "focusable-disabled",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            },
+            {
+              "id": "focusable-not-tabbable",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">〜</span>",
+          "target": [
+            ".current > .dock-icon[aria-hidden=\"true\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements while a modal is open"
+            },
+            {
+              "id": "focusable-disabled",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            },
+            {
+              "id": "focusable-not-tabbable",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">◎</span>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"] > .dock-icon[aria-hidden=\"true\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements while a modal is open"
+            },
+            {
+              "id": "focusable-disabled",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            },
+            {
+              "id": "focusable-not-tabbable",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">▱</span>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"] > .dock-icon[aria-hidden=\"true\"]"
           ]
         }
       ]
@@ -1956,7 +2285,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -2029,6 +2358,78 @@
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            "nav"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -2206,7 +2607,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -2335,6 +2736,134 @@
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            "nav"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -2442,7 +2971,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -2515,6 +3044,78 @@
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            "nav"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -2605,7 +3206,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -2657,12 +3258,87 @@
           "target": [
             ".teal"
           ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
+          ]
         }
       ]
     },
     {
       "id": "color-contrast",
-      "impact": null,
+      "impact": "serious",
       "tags": [
         "cat.color",
         "wcag2aa",
@@ -2826,7 +3502,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -3077,6 +3753,106 @@
           "html": "<p class=\"keyboard-help\">Keyboard: ↓ reads on, then takes the next discovery · N next · S sources · Escape or Home returns to Universe.</p>",
           "target": [
             ".keyboard-help"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#fffdf2",
+                "bgColor": "#283943",
+                "contrastRatio": 11.71,
+                "fontSize": "7.9pt (10.5px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 11.71"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#fffdf2",
+                "bgColor": "#283943",
+                "contrastRatio": 11.71,
+                "fontSize": "13.5pt (18px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 11.71"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">〜</span>",
+          "target": [
+            ".current > .dock-icon[aria-hidden=\"true\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#b4b8b4",
+                "bgColor": "#051824",
+                "contrastRatio": 8.99,
+                "fontSize": "7.9pt (10.5px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 8.99"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#b4b8b4",
+                "bgColor": "#051824",
+                "contrastRatio": 8.99,
+                "fontSize": "7.9pt (10.5px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 8.99"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -3362,6 +4138,27 @@
           "target": [
             "section"
           ]
+        },
+        {
+          "any": [
+            {
+              "id": "landmark-is-unique",
+              "data": {
+                "role": "navigation",
+                "accessibleText": "main navigation"
+              },
+              "relatedNodes": [],
+              "impact": "moderate",
+              "message": "Landmarks must have a unique role or role/label/title (i.e. accessible name) combination"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            "nav"
+          ]
         }
       ]
     },
@@ -3434,7 +4231,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button>",
           "target": [
-            ".cream:nth-child(2)"
+            ".cream.pill:nth-child(2)"
           ]
         },
         {
@@ -3472,6 +4269,60 @@
           "target": [
             ".teal"
           ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
+          ]
         }
       ]
     },
@@ -3507,6 +4358,70 @@
       ]
     }
   ],
-  "incomplete": [],
+  "incomplete": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "tags": [
+        "cat.color",
+        "wcag2aa",
+        "wcag143",
+        "TTv5",
+        "TT13.c",
+        "EN-301-549",
+        "EN-9.1.4.3",
+        "ACT",
+        "RGAAv4",
+        "RGAA-3.2.1"
+      ],
+      "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",
+      "nodes": [
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "messageKey": "nonBmp"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element content contains only non-text characters"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">◎</span>",
+          "target": [
+            "button[aria-label=\"Atlas — your universe\"] > .dock-icon[aria-hidden=\"true\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element content contains only non-text characters"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "messageKey": "nonBmp"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element content contains only non-text characters"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">▱</span>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"] > .dock-icon[aria-hidden=\"true\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element content contains only non-text characters"
+        }
+      ]
+    }
+  ],
   "violations": []
 }
