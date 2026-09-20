@@ -1,6 +1,9 @@
 # ADR-0028 — Evidence-backed semantic worlds: a world is a shared source, a system is what one reader has actually reached
 
-Date: 2026-09-21. Status: proposed contract, not yet consumed, under #6 (part of #10) / #113.
+Date: 2026-09-21. Status: contract migration 0017 landed; the consumer described as future work
+below (`packages/db/src/worlds.ts`, `GET /v1/worlds`, the `POST /v1/exposures` projection hook) is
+now implemented under #113 — see the updated Consequences section. Not yet reviewed/accepted by
+the coordinator. Under #6 (part of #10) / #113.
 Builds on [ADR-0004](0004-ledger-events-derived.md) (canonical history, derived state, exposure
 lineage) and the asset shape [ADR-0025](0025-eligible-reels-in-inventory.md) generalised. Cites
 [docs/product/definition.md](../product/definition.md) §3 (laws 1, 4, 5, 6) and §4 (the cosmic
@@ -125,14 +128,38 @@ not its kind.
 With the current editorial library, one recompute against `shared_source_v1` produces exactly two
 worlds — NASA orbits/Kepler and NASA stars — matching the owner's expectation of "two planets."
 Once a single universe's reader has been exposed to at least one Scroll from each, that universe's
-`world_system` gains both as members, matching "one solar system." Nothing in this migration
-creates that data; a later consumer (explicitly out of scope here) must run the derivation and
-write the rows, and the guards above are what keep that consumer honest rather than what replaces
-it. No existing table, trigger, or index changes; `asset`, `exposure`, and `ledger` are read-only
-inputs to this contract. What remains unproved: no consumer exists yet to run the derivation, mint
-`world`/`world_system` rows, or expose them to mobile or web; the two-world, one-system outcome
-above is what the schema permits and requires if such a consumer is built against the current
-seeded content, not something this migration has itself produced or verified end to end.
+`world_system` gains both as members, matching "one solar system." No existing table, trigger, or
+index changes; `asset`, `exposure`, and `ledger` are read-only inputs to this contract.
+
+**Update (#113): the consumer this section originally deferred now exists.**
+`packages/db/src/worlds.ts` implements `deriveWorlds` (recomputes the shared `world` catalog from
+`asset` alone) and `deriveWorldSystemForUniverse` (recomputes one universe's `world_system` from
+its own `exposure` rows); both are idempotent by the same evidence-key lookup this ADR describes,
+proven by `tests/worlds.test.ts` calling each twice and asserting no new rows and identical output.
+`POST /v1/exposures` (`apps/api/src/app.ts`) calls both, in the same transaction and under the same
+universe lock `authenticateAndLock` already holds, immediately after recording the new exposure —
+this is the "projection that keeps them current as a reader encounters more" from #113's brief, not
+a separate async job. `GET /v1/worlds` (documented in `docs/contracts/bootstrap-http.md`) is a pure
+read of the already-projected state, never a recompute-on-read. Verified against the real seeded
+editorial library and real disposable PostgreSQL: a universe with no exposures derives no system
+(never an empty one); one exposed source derives one world; two derive two worlds in one system;
+re-running the derivation directly (outside any HTTP call) inserts no additional rows; the database
+itself refuses (at commit) a world or system named with no evidence, a world_member deletion that
+would strand its world, and a world_member whose asset does not actually carry its world's source;
+every count returned by the API is checked against an independent direct-SQL count over
+`asset`/`exposure` in the same test. Full suite (`pnpm test`, 669/669) and `pnpm typecheck` pass
+with this consumer wired in.
+
+**What remains unproved:** no mobile or web UI reads `GET /v1/worlds` yet — this ADR update ships
+the derivation, the projection and the API only, exactly as #113 scoped it, not a rendered universe
+view. `packages/db/src/privacy.ts`'s `clearScrollHistory` deletes a universe's `exposure` rows but
+does not touch `world_system`/`world_system_member`; after a history clear, that universe's
+existing system rows go stale (they keep reporting worlds/seen-counts derived from now-erased
+exposures) until something re-runs `deriveWorldSystemForUniverse` for it, which nothing currently
+does automatically. This is a real gap at the intersection of ADR-0028 and ADR-0010, deliberately
+left alone here rather than modified unilaterally, since privacy-lifecycle scope and retry contract
+belong to whichever lane owns ADR-0010 (tracked as #4 elsewhere in this delivery). No coordinator
+review of this consumer has happened yet.
 
 ## Sources / verification
 
