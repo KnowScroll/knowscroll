@@ -27,6 +27,10 @@ import {
   SIGN_IN_TOKEN_TTL_MINUTES,
 } from '../packages/db/src/sign-in.ts';
 
+// This suite defines its own owner address rather than inheriting operator configuration: a test
+// must not pass or fail because of what happens to be in a local .env or a CI job's environment.
+process.env.KS_OWNER_EMAIL ??= 'owner@knowscroll.test';
+
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('Sign-in tests require an isolated knowscroll_test_* database');
 }

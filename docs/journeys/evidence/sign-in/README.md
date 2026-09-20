@@ -89,3 +89,13 @@ authenticated call → sign-out → replayed and expired tokens refused identica
 
 Limits unchanged: no sign-in UI on either surface; delivery is the local development sink only, so
 no real email is sent by this slice; production mode refuses to start without a real sender.
+
+### CI caught what local runs hid (2026-09-20)
+
+The first push failed CI with `invalid_config: KS_OWNER_EMAIL must be set before sign-in can be
+used`, while the same suite passed locally at 626/626. The sign-in tests called `resolveOwnerEmail()`
+at import time and inherited the address from the developer's environment; a CI runner has no such
+value. A test must not pass or fail because of what happens to be configured on one machine, so both
+suites now set their own fixture address (`owner@knowscroll.test`) and never read operator
+configuration. Reproduced the CI condition locally by running with `KS_OWNER_EMAIL` removed from the
+environment: 23/23.
