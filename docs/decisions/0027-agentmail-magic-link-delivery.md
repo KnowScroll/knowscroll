@@ -50,6 +50,15 @@ coordinator performs exactly one real send, reads the message back from the same
 (`GET /v0/inboxes/{inbox}/messages` then `GET .../messages/{id}`), extracts the link, completes a
 real sign-in, and records the outcome with the token, link and address redacted.
 
+## Status of the chosen inbox (recorded 2026-09-20, coordinator)
+
+The owner chose `knowscroll@agentmail.to`. Probing with the owner's key showed the credential is
+valid (`GET /v0/inboxes` → 200) but sees only `gradientt-cro@agentmail.to`, that reading the chosen
+inbox answers 404, and that this credential may not create one (`POST /v0/inboxes` → 403). The
+decision is unchanged and no address is hard-coded — the inbox is `AGENTMAIL_INBOX_ID` configuration
+throughout — but §5's real send cannot happen until the owner creates that inbox, supplies a key
+scoped to create it, or names a different one. Nothing was created and nothing was sent.
+
 ## Alternatives and why
 
 - *SMTP:* another credential shape and no read-back, so the loop could not be proved end to end here.

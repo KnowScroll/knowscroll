@@ -198,33 +198,48 @@ export class AgentMailSender implements MagicLinkSender {
     const body = requestBody(input.to, input.link);
     const url = `${this.baseUrl}/v0/inboxes/${encodeURIComponent(this.inboxId)}/messages/send`;
 
+    // The timer stays armed until the body has been read, not merely until the headers arrive. A
+    // server that answers and then stalls mid-body is the shape that matters: `fetch` has already
+    // resolved, and the sign-in route awaits this call, so clearing the timeout here would let an
+    // unauthenticated request hang indefinitely on a provider that goes quiet mid-response.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response: Response;
     try {
-      response = await this.fetchImpl(url, {
-        method: 'POST',
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body,
-      });
-    } catch {
-      if (controller.signal.aborted) throw new AgentMailSendError('timeout');
-      throw new AgentMailSendError('network_error');
+      let response: Response;
+      try {
+        response = await this.fetchImpl(url, {
+          method: 'POST',
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${this.apiKey}`,
+          },
+          body,
+        });
+      } catch {
+        if (controller.signal.aborted) throw new AgentMailSendError('timeout');
+        throw new AgentMailSendError('network_error');
+      }
+
+      let raw: string | null;
+      try {
+        raw = await readBoundedText(response);
+      } catch {
+        // A body that aborts, resets or decodes badly is a failed send like any other; the reason
+        // separates "we ran out of time" from "the connection broke", and neither carries a body.
+        if (controller.signal.aborted) throw new AgentMailSendError('timeout');
+        throw new AgentMailSendError('network_error');
+      }
+
+      if (response.status < 200 || response.status >= 300) {
+        throw new AgentMailSendError('http_error', response.status, messageIdFromErrorBody(raw));
+      }
+      const parsed = parseSendResponse(raw);
+      if (!parsed) throw new AgentMailSendError('malformed_response', response.status);
+      this.lastDeliveryMetadata = parsed;
     } finally {
       clearTimeout(timer);
     }
-
-    const raw = await readBoundedText(response);
-    if (response.status < 200 || response.status >= 300) {
-      throw new AgentMailSendError('http_error', response.status, messageIdFromErrorBody(raw));
-    }
-    const parsed = parseSendResponse(raw);
-    if (!parsed) throw new AgentMailSendError('malformed_response', response.status);
-    this.lastDeliveryMetadata = parsed;
   }
 }

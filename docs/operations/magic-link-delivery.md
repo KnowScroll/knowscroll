@@ -31,7 +31,11 @@ Set these as ordinary process environment variables — naming them here, never 
   the API is started with; never written to this repository, a lane `.env` committed anywhere, a
   log line, an error message, a receipt or any file this code writes. The owner's key lives only in
   the owner's own `.env` and is never given to a worker lane.
-- `AGENTMAIL_INBOX_ID` — the sending/receiving inbox (the owner's is `knowscroll@agentmail.to`).
+- `AGENTMAIL_INBOX_ID` — the sending/receiving inbox. The owner chose `knowscroll@agentmail.to`,
+  but on 2026-09-20 that inbox **did not exist** under the owner's credential: `GET /v0/inboxes`
+  answered 200 and listed only `gradientt-cro@agentmail.to`, and the credential may not create an
+  inbox (`POST /v0/inboxes` → 403). Set this variable to an inbox the credential can actually see;
+  the code treats it as ordinary configuration and hard-codes no address. See issue #106.
   Not a secret, but still configuration rather than a literal in code, since it is part of the
   request path (`/v0/inboxes/{inbox}/messages/send`).
 - `AGENTMAIL_BASE_URL` — optional. Exists **only** so a test can point `AgentMailSender` at a local

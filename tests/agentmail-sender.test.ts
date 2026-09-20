@@ -222,6 +222,55 @@ test('a stalled connection is bounded by the configured timeout', { timeout: 5_0
   });
 });
 
+test('a response that stalls after its headers is bounded by the same timeout', { timeout: 5_000 }, async (t) => {
+  // The dangerous shape is not a connection that never answers -- it is one that answers, so
+  // `fetch` resolves, and then stalls mid-body. The sign-in route awaits `send()`, so an unbounded
+  // body read would hold an unauthenticated request open indefinitely. The timeout must cover the
+  // whole exchange, not just the headers.
+  let arrived!: () => void;
+  const requestArrived = new Promise<void>((resolve) => { arrived = resolve; });
+  const server = await fixture((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.write('{"message_id":"msg_partial'); // headers sent, body never finished
+    arrived();
+  });
+  t.after(server.close);
+  const sender = new AgentMailSender({ apiKey: FIXTURE_API_KEY, inboxId: 'inbox', baseUrl: server.baseUrl, timeoutMs: 150 });
+  const pending = sender.send({ to: 'owner@example.test', link: 'http://x/confirm?token=t' });
+  await requestArrived;
+  await assert.rejects(pending, (error: unknown) => {
+    assert.ok(error instanceof AgentMailSendError);
+    assert.equal(error.reason, 'timeout');
+    return true;
+  });
+});
+
+test('a real 3xx with a Location header is refused, not followed', async (t) => {
+  // The request-init option alone does not prove the guarantee. A provider (or anything sitting in
+  // front of it) answering a redirect must not cause a second request carrying the bearer key and
+  // the link to somewhere else: the redirect is an ordinary failed send.
+  const server = await fixture((req, res) => {
+    if (req.url?.endsWith('/messages/send')) {
+      res.writeHead(302, { location: '/redirected-target' });
+      res.end();
+      return;
+    }
+    jsonSuccess(res);
+  });
+  t.after(server.close);
+  const sender = new AgentMailSender({ apiKey: FIXTURE_API_KEY, inboxId: 'inbox', baseUrl: server.baseUrl });
+  await assert.rejects(
+    sender.send({ to: 'owner@example.test', link: 'http://x/confirm?token=t' }),
+    (error: unknown) => {
+      assert.ok(error instanceof AgentMailSendError);
+      assert.notEqual(error.reason, 'malformed_response'); // it never reached a success body
+      return true;
+    },
+  );
+  assert.equal(server.requests(), 1, 'the redirect target must never be requested');
+  assert.equal(sender.lastDelivery, null);
+});
+
 // -------------------------------------------------------------------------------------------
 // Base URL: defaults to the real host, verified without ever calling the network.
 // -------------------------------------------------------------------------------------------
