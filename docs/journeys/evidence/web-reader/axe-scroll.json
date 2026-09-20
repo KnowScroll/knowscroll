@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T12:19:30.360Z",
-  "url": "http://127.0.0.1:49954/",
+  "timestamp": "2026-09-20T17:41:49.393Z",
+  "url": "http://127.0.0.1:51808/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1586,7 +1586,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -1626,7 +1626,7 @@
             }
           ],
           "impact": null,
-          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
+          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button></section>",
           "target": [
             "section"
           ]
@@ -1666,7 +1666,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -1810,7 +1810,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -1828,7 +1828,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
+          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button></section>",
           "target": [
             "section"
           ]
@@ -1846,7 +1846,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -1990,7 +1990,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -2008,7 +2008,7 @@
             }
           ],
           "impact": null,
-          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
+          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button></section>",
           "target": [
             "section"
           ]
@@ -2026,7 +2026,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -2268,7 +2268,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -2300,7 +2300,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
+          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button></section>",
           "target": [
             "section"
           ]
@@ -2332,7 +2332,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -2476,7 +2476,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -2494,7 +2494,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
+          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button></section>",
           "target": [
             "section"
           ]
@@ -2512,7 +2512,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -2628,7 +2628,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -2653,7 +2653,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -2709,16 +2709,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#33c4b4",
-                "bgColor": "#03101a",
-                "contrastRatio": 8.87,
-                "fontSize": "9.0pt (12px)",
-                "fontWeight": "normal",
+                "fgColor": "#15302a",
+                "bgColor": "#f0efe5",
+                "contrastRatio": 12.21,
+                "fontSize": "9.4pt (12.5px)",
+                "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 8.87"
+              "message": "Element has sufficient color contrast of 12.21"
             }
           ],
           "all": [],
@@ -2734,16 +2734,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#b3b6b1",
-                "bgColor": "#03101a",
-                "contrastRatio": 9.37,
-                "fontSize": "7.5pt (10px)",
+                "fgColor": "#15302a",
+                "bgColor": "#ff684c",
+                "contrastRatio": 4.93,
+                "fontSize": "7.1pt (9.5px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 9.37"
+              "message": "Element has sufficient color contrast of 4.93"
             }
           ],
           "all": [],
@@ -2752,6 +2752,31 @@
           "html": "<span class=\"head-band-kind\">Scroll</span>",
           "target": [
             ".head-band-kind"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#15302a",
+                "bgColor": "#64d47d",
+                "contrastRatio": 7.56,
+                "fontSize": "7.5pt (10px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 7.56"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"truth-pill state-documented head-band-state\">DOCUMENTED · 1 SOURCE</span>",
+          "target": [
+            ".head-band-state"
           ]
         },
         {
@@ -2826,7 +2851,7 @@
           "impact": null,
           "html": "<span class=\"truth-pill state-documented\">DOCUMENTED</span>",
           "target": [
-            ".truth-pill"
+            ".truth-line > .truth-pill.state-documented"
           ]
         },
         {
@@ -2974,7 +2999,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -3024,7 +3049,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
@@ -3226,7 +3251,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<header class=\"head-band\"><button type=\"button\" class=\"pill cream\" aria-label=\"Return to Universe\" aria-keyshortcuts=\"Escape\">‹ Universe</button><span class=\"head-band-origin\">Deliberate discovery · a new sourced encounter</span><span class=\"head-band-kind\">Scroll</span></header>",
+          "html": "<header class=\"head-band\">",
           "target": [
             "header"
           ]
@@ -3333,7 +3358,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
+          "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button></section>",
           "target": [
             "section"
           ]
@@ -3425,7 +3450,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep this</button>",
           "target": [
             ".yellow"
           ]
@@ -3443,7 +3468,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
+          "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">keep going →</button>",
           "target": [
             ".teal"
           ]
