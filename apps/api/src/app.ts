@@ -17,6 +17,8 @@ import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/ex
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
 import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
+import { registerSignInRoutes } from './sign-in-routes.ts';
+import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
   const match = /^Bearer (\S+)$/.exec(authorization ?? '');
@@ -81,7 +83,7 @@ async function feedCandidates(client: import('pg').PoolClient, kinds: readonly (
   return merged;
 }
 
-export function buildApp(developmentToken: string, options: { mediaRoot?: string } = {}) {
+export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits } = {}) {
   if (developmentToken.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
   // Resolved once at build time (deployment configuration, never per-request data), but only
   // actually required the first time the media route is hit: a caller that never touches
@@ -98,6 +100,11 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   });
 
   app.addHook('onReady', async () => { await ensureDevelopmentSession(developmentToken); });
+
+  // ADR-0026: real sign-in (magic link, single owner account). Additive — every route above and
+  // below is unchanged, and a session this mints authenticates through the exact same
+  // `authenticateAndLock` path as a development-token session.
+  registerSignInRoutes(app, options.magicLinkLimits);
 
   const authenticated = <T>(
     authorization: string | undefined,

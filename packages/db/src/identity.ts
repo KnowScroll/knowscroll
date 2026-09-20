@@ -2,7 +2,9 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { OWNER_ID, lockUniverse, transaction } from './index.ts';
 
-const DEFAULT_EXPIRY_HOURS = 24 * 30;
+/** Also reused by `sign-in.ts` (ADR-0026 section 3) so a magic-link session's expiry stays
+ * consistent with every other device session's default. */
+export const DEFAULT_EXPIRY_HOURS = 24 * 30;
 const MIN_EXPIRY_HOURS = 1;
 const MAX_EXPIRY_HOURS = 720;
 
@@ -41,6 +43,10 @@ function scopeFromRow(row: Record<string, unknown>): AuthScope {
  };
 }
 
+/** @deprecated ADR-0026 section 5: the operator-provisioned development token remains the local
+ * bootstrap path (kept working for existing tooling/journeys) but is superseded by real magic-link
+ * sign-in (`sign-in.ts`) as the production identity path; a production-mode process refuses to
+ * start at all (see `apps/api/src/main.ts`), so this never runs in production either way. */
 export async function ensureDevelopmentSession(token: string): Promise<void> {
  if (token.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
  const hash = tokenHash(token);

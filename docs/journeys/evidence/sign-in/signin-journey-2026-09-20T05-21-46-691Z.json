@@ -1,0 +1,125 @@
+{
+  "journey": "J008",
+  "evidenceLevel": "disposable database and scratch development sink — never the owner universe, never a real mail provider",
+  "runStamp": "2026-09-20T05-21-46-691Z",
+  "knowscrollHead": "c13a33efc50083718273d54055c51997ba5786d0",
+  "node": "v22.23.0",
+  "database": "knowscroll_test_signin_journey_dc67dc6472924511",
+  "checks": [
+    {
+      "name": "unknown address status",
+      "expected": "202",
+      "observed": "202",
+      "pass": true
+    },
+    {
+      "name": "owner address status",
+      "expected": "202",
+      "observed": "202",
+      "pass": true
+    },
+    {
+      "name": "unknown and owner response bodies are byte-identical",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "development sink produced a link",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "sink content carries no @ character (no address written)",
+      "expected": "false",
+      "observed": "false",
+      "pass": true
+    },
+    {
+      "name": "extracted a token from the confirmation link",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "first confirm status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "first confirm reports valid:true",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "repeated confirm still reports valid:true (GET never consumes)",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "session consumption status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "minted session origin",
+      "expected": "magic_link",
+      "observed": "magic_link",
+      "pass": true
+    },
+    {
+      "name": "minted session names an account",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "authenticated call using the minted session",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "sign-out status",
+      "expected": "204",
+      "observed": "204",
+      "pass": true
+    },
+    {
+      "name": "revoked session is refused",
+      "expected": "401",
+      "observed": "401",
+      "pass": true
+    },
+    {
+      "name": "replayed token status",
+      "expected": "401",
+      "observed": "401",
+      "pass": true
+    },
+    {
+      "name": "replayed token error shape",
+      "expected": "{\"error\":\"Unauthorized\"}",
+      "observed": "{\"error\":\"Unauthorized\"}",
+      "pass": true
+    },
+    {
+      "name": "expired token status",
+      "expected": "401",
+      "observed": "401",
+      "pass": true
+    },
+    {
+      "name": "expired token error shape matches the replay refusal exactly",
+      "expected": "{\"error\":\"Unauthorized\"}",
+      "observed": "{\"error\":\"Unauthorized\"}",
+      "pass": true
+    }
+  ],
+  "result": "passed"
+}
