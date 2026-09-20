@@ -263,7 +263,8 @@ test('a real 3xx with a Location header is refused, not followed', async (t) => 
     sender.send({ to: 'owner@example.test', link: 'http://x/confirm?token=t' }),
     (error: unknown) => {
       assert.ok(error instanceof AgentMailSendError);
-      assert.notEqual(error.reason, 'malformed_response'); // it never reached a success body
+      assert.equal(error.reason, 'http_error');
+      assert.equal(error.httpStatus, 302);
       return true;
     },
   );

@@ -32,7 +32,7 @@ Set these as ordinary process environment variables — naming them here, never 
   log line, an error message, a receipt or any file this code writes. The owner's key lives only in
   the owner's own `.env` and is never given to a worker lane.
 - `AGENTMAIL_INBOX_ID` — the sending/receiving inbox. The owner chose `knowscroll@agentmail.to`,
-  but on 2026-09-20 that inbox **did not exist** under the owner's credential: `GET /v0/inboxes`
+  but on 2026-09-20 that inbox was **not visible to** the owner's credential: `GET /v0/inboxes`
   answered 200 and listed only `gradientt-cro@agentmail.to`, and the credential may not create an
   inbox (`POST /v0/inboxes` → 403). Set this variable to an inbox the credential can actually see;
   the code treats it as ordinary configuration and hard-codes no address. See issue #106.
