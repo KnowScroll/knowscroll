@@ -311,6 +311,23 @@ a:focus-visible,
   max-width: 46ch;
 }
 
+/* Growth note (sec.5c: Living Observatory's own `#growthCaption` recipe,
+   recoloured to Cosmos's yellow). Carries only a real, already-recorded
+   why-this-appeared reason for the most recently kept Trace -- never an
+   invented cross-topic claim (sec.5c's own rule for this element). */
+.growth-caption {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--yellow);
+  margin-top: 14px;
+  border-left: 2px solid var(--yellow);
+  padding-left: 10px;
+  line-height: 1.6;
+  max-width: 260px;
+}
+
 /* Decorative starfield only; see CosmosBackground.tsx for the full rule
    (definition.md law 6, ui-system.md sec.6): it carries no semantic
    identity, must stay aria-hidden, and must not drift under reduced
@@ -347,6 +364,11 @@ a:focus-visible,
   position: absolute;
   inset: 0;
   z-index: 1;
+  transform-origin: 50% 50%;
+  /* Sheet-motion timing (ui-system.md sec.3), applied to the map-tools zoom
+     scale; suspended under reduced motion by the global rule above -- the
+     scale still changes, instantly. */
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .universe-bodies-nav {
   display: contents;
@@ -374,9 +396,17 @@ a:focus-visible,
   background: radial-gradient(circle at 34% 30%, var(--teal-2), var(--teal) 55%, var(--sea-2) 100%);
   box-shadow: 0 0 26px rgba(51, 196, 180, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
+/* A kept Trace's sphere is now an illustrated <svg> (UniverseScreen.tsx's
+   BodySurface), coloured and sized from the Trace's own real age and
+   position -- never one identical flat gradient for every Trace. The glow
+   (box-shadow) is set inline per body from the same real palette; only the
+   background reset lives here. */
 .body-button.trace {
-  background: radial-gradient(circle at 34% 30%, #fff6cf, var(--yellow) 55%, #a9791f 100%);
-  box-shadow: 0 0 26px rgba(255, 208, 88, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  background: transparent;
+}
+.body-surface {
+  display: block;
+  border-radius: 50%;
 }
 /* Faint dust: a scatter of tiny points rather than a solid disc -- the
    unexplored/invitation bodies are deliberately less solid than a real one. */
@@ -408,11 +438,15 @@ a:focus-visible,
   align-items: center;
   gap: 4px;
   width: max-content;
-  max-width: 26ch;
+  /* Overridden per body (labelWidthStyle in UniverseScreen.tsx) with the exact
+     character budget its grid slot can safely hold, so two labels can never
+     physically overlap at any count the finite library can produce -- 26ch
+     stays only as the sparse-layout default. */
+  max-width: var(--label-max, 26ch);
 }
 .body-name {
   white-space: nowrap;
-  max-width: 26ch;
+  max-width: var(--label-max, 26ch);
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-sans);
@@ -471,6 +505,43 @@ a:focus-visible,
   height: 8px;
   border-radius: 50%;
   border: 1.5px dashed var(--muted);
+}
+
+/* Map tools (sec.5c: Living Observatory's own `.map-tools`/`#scaleLabel`
+   recipe), shown once there is at least one real body to zoom around --
+   paired with the legend above on the same condition. Zoom is a real,
+   functional camera scale over the one honest level this build has (there
+   is no semantic geography to navigate into, sec.5b/6), never a decorative
+   control that does nothing. */
+.map-tools {
+  position: absolute;
+  z-index: 2;
+  bottom: 35px;
+  left: 36px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.zoom-button {
+  height: 34px;
+  width: 34px;
+  border: 1px solid var(--sea);
+  border-radius: 50%;
+  background: var(--space-2);
+  color: var(--cream);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.map-scale-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-left: 4px;
 }
 
 /* Hint line, centred above the dock (sec.5b: `.hint`, "Tap a planet". */
@@ -867,6 +938,19 @@ a:focus-visible,
   padding: 0 clamp(24px, 5vw, 55px) 20px;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* The reader's dock (sec.5b: "the frame every level shares") floats over the
+   canvas and, being position:absolute, never takes layout space or shifts
+   .scroll-layout's own carefully-tuned height math (docs/journeys/evidence/
+   web-ui: "why six rounds" -- that math is not touched again here). At a
+   short window there is no room to reserve for it without reopening that
+   history, so it steps aside instead: the head band's own "‹ Universe" pill
+   stays reachable regardless. */
+@media (max-height: 480px) {
+  .scroll-screen .universe-dock {
+    display: none;
+  }
 }
 
 /* Global toast (App.tsx): Cosmos's literal cream toast recipe, .25s motion

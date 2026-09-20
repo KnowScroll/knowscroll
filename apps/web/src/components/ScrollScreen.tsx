@@ -108,6 +108,40 @@ export function ScrollScreen({ state, onVisible, onKeep, onNext, onReturn, onRet
   );
 }
 
+/**
+ * The same three-entry dock as the Universe (ui-system.md sec.5b: "the frame
+ * every level shares"), missing from the reader until now. Cable ("read a
+ * Scroll") is the one already current while reading, matching how Atlas
+ * marks itself current on the Universe; Atlas and Keep both return there --
+ * this build has no separate "your saved Traces" screen to deep-link into
+ * (sec.5b's own table: Keep names the real saved Traces, which live on the
+ * Universe itself), so both honestly land on the one screen that shows them.
+ */
+function ScrollDock({ onReturn }: { onReturn: () => void }) {
+  return (
+    <nav className="universe-dock" aria-label="Main navigation">
+      <button type="button" className="dock-button current" aria-current="page" onClick={() => {}} aria-label="Cable — read a Scroll">
+        <span className="dock-icon" aria-hidden="true">
+          〜
+        </span>
+        Cable
+      </button>
+      <button type="button" className="dock-button" onClick={onReturn} aria-label="Atlas — your universe">
+        <span className="dock-icon" aria-hidden="true">
+          ◎
+        </span>
+        Atlas
+      </button>
+      <button type="button" className="dock-button" onClick={onReturn} aria-label="Keep — your saved Traces">
+        <span className="dock-icon" aria-hidden="true">
+          ▱
+        </span>
+        Keep
+      </button>
+    </nav>
+  );
+}
+
 function RestScreen({
   title,
   message,
@@ -138,6 +172,7 @@ function RestScreen({
           </button>
         </div>
       </div>
+      <ScrollDock onReturn={onReturn} />
     </main>
   );
 }
@@ -357,6 +392,7 @@ function ReadingStage({
         {sourcesOpen && <SourceRail item={item} truthMeaning={truthMeaning} onClose={() => setSourcesOpen(false)} />}
       </div>
       <p className="keyboard-help">Keyboard: ↓ reads on, then takes the next discovery · N next · S sources · Escape or Home returns to Universe.</p>
+      <ScrollDock onReturn={onReturn} />
     </main>
   );
 }

@@ -24,10 +24,43 @@ Playwright/Chromium rather than only read, per sec.7's own instruction.
   existing in-article pill adjacent to the claim, law 13; the new head-band state pill). No
   accessible name changed; see "Accessible names" below.
 
-## Accessible names: unchanged
+## Update: five owner-observed gaps fixed against a populated (13-Trace) run
 
-Every accessible name an existing test or journey depends on is byte-for-byte unchanged —
-`Your universe`, `Enter Scroll`, `Saved Traces`, `Revisit the saved Trace: …`, `Return to
+The first pass above matched the frame but was judged short against the references once real
+history existed. Fixed, all against real data:
+
+1. **Headline now follows real behaviour, never a fixed string.** `UniverseScreen.tsx` computes one
+   of three real stages from the kept-Trace count alone (never a date, per sec.5c):
+   `Somewhere new starts here.` (0 kept), `Your first little world.` (1–9 kept, with a real
+   why-this-appeared reason in a yellow left-ruled note once one exists — captured verbatim from
+   the feed's own `reason` at the moment Keep was accepted, via `storage.ts`'s new
+   `writeLastKept`/`readLastKept`, scoped and purged exactly like every other private artifact), or
+   `A world taking shape.` (10+ kept). **This changes the Universe heading's accessible name**, so
+   it is no longer always `Your universe`; every Playwright assertion that depended on that literal
+   string was updated to the real stage text the run actually reaches (`apps/web/e2e/*.spec.ts`).
+2. **Bodies now carry real visual variety.** Each kept Trace's sphere is an illustrated `<svg>`
+   (`BodySurface`), never a flat identical gradient: size and a terminator/crater surface scale
+   with the Trace's own real age (`createdAt`), colour cycles across Cosmos's own approved accent
+   palette by the Trace's real recency rank. Nothing is random and nothing implies a meaning beyond
+   "how long this has been kept" — the same fact `body-sub` already showed as text.
+3. **Labels can no longer overlap at any count.** Replaced the continuous golden-angle spiral with
+   a deterministic row/column grid (`layoutBodies`) sized from the real body count; each slot's
+   label is capped to a character budget provably narrower than its own share of the canvas at
+   1024×768 (sec.7's smaller fidelity width), so two labels cannot physically collide regardless of
+   title length. The "still unexplored" body is laid out as the grid's trailing slot, not a fixed
+   position, so it cannot collide with the last row either.
+4. **Missing frame parts added.** `SYSTEM VIEW`'s honest equivalent (`UNIVERSE VIEW` — this build
+   has exactly one real level, so naming a level it doesn't have would be dishonest) plus real,
+   functional zoom/recenter controls (`.map-tools`), shown once there is something to key
+   (paired with the legend, sec.5c). The three-entry dock (Cable/Atlas/Keep) is now also drawn on
+   the Scroll reader (`ScrollScreen.tsx`'s `ScrollDock`), not only the Universe.
+5. **Dock destinations unchanged**: still exactly Cable (read), Atlas (universe), Keep (Traces) —
+   no Ask entry, on either screen.
+
+## Accessible names: unchanged except the Universe heading (see above)
+
+Every other accessible name an existing test or journey depends on is byte-for-byte unchanged —
+`Enter Scroll`, `Saved Traces`, `Revisit the saved Trace: …`, `Return to
 Universe`, `Keep this Scroll` / `Keeping…` / `Kept`, `Next discovery`, `Open sources panel` /
 `Close sources panel`, `Open source`, `Retry loading the universe`, `The universe is unavailable`.
 Where the reference's own words differ from these (e.g. Cosmos/Living Observatory's "Keep this" and
@@ -120,8 +153,11 @@ product does not have real data for.
    (`docs/contracts/bootstrap-http.md`) does not return one. Not drawn.
 2. **No status pill ("Lately").** Needs a real recency signal this contract does not expose. Not
    drawn (sec.5b already allows "a real recency or state, **or omitted**").
-3. **No zoom controls, no system/planet/interior levels.** These need semantic geography, which
-   sec.5b/6 already say does not exist. Not drawn.
+3. **No system/planet/interior levels.** These need semantic geography, which sec.5b/6 already say
+   does not exist. Not drawn. (Superseded in part: `.map-tools` zoom/recenter controls **are** now
+   drawn, per the "Update" section above — they are a real optical zoom over the one level this
+   build has, never a claim of levels that do not exist. The scale label honestly reads
+   `UNIVERSE VIEW`, not the reference's literal `SYSTEM VIEW`.)
 4. **The unread remainder is shown, but not counted.** The feed endpoint returns up to three bounded
    candidates and never a total library size, so there is no real number to put on the "Still
    unexplored" body. It is drawn (sec.5b: emptiness/rest is a state of the design, not an excuse to
@@ -130,10 +166,12 @@ product does not have real data for.
    word fits a reel-watching product; this surface reads text. Reusing "Watch" would misdescribe
    the action. The *role* (one primary CTA, prominent, with a helper line) is kept; the verb is our
    own product's honest one.
-6. **The Idea Room invitation card, and the growth caption, are never drawn.** Both need a
-   specific fabricated claim (a fictional room and two fictional agents; a specific "you tried a
-   route from X to Y" claim) that nothing in this reader's real history supports. Sec.6/law 9
-   already forbid this regardless of how prominently the reference frames it.
+6. **The Idea Room invitation card is never drawn.** It needs a fictional room and two fictional
+   agents that nothing in this reader's real history supports (sec.6/law 9 forbid this regardless
+   of how prominently the reference frames it). The growth caption's *literal* claim ("you tried a
+   route from X to Y") is likewise never drawn for the same reason — but the same yellow left-ruled
+   visual element is now reused for something wholly real instead (per the "Update" section above):
+   the actual why-this-appeared reason for the most recently kept Trace, once one exists.
 7. **Cosmos's reader action row has two pills, not three.** "Not so fast" has no contract
    (sec.5b's own table already says so); the row is "Keep this" (yellow) and "keep going →" (teal)
    only.

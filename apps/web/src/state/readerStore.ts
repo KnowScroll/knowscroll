@@ -366,6 +366,12 @@ export class ReaderStore {
         const kept: ScrollSession = { ...latest, keepJobId: receipt.jobId, keepEventId: receipt.eventId };
         if (!this.operationIsCurrent(version, epoch, exposed)) return;
         this.storage.writeSession(kept);
+        // Real, non-fabricated: the feed's own recommendation reason for the Scroll that was
+        // just actually kept -- never a generic growth claim (ui-system.md sec.5c). Never
+        // written for a Trace revisit, since that path deliberately carries no reason at all.
+        if (exposed.item.reason.trim().length > 0) {
+          this.storage.writeLastKept({ eventId: receipt.eventId, title: exposed.item.title, reason: exposed.item.reason, universeId: exposed.universeId, privacyEpoch: epoch });
+        }
         this.session = kept;
         this.show(kept);
         void this.pollProjection(receipt.eventId, version, epoch, kept);
