@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T21:31:57.820Z",
-  "url": "http://127.0.0.1:51449/",
+  "timestamp": "2026-09-20T21:46:01.632Z",
+  "url": "http://127.0.0.1:54920/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -2415,7 +2415,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T21:31:51.498Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T21:45:55.209Z</span>",
           "target": [
             "li:nth-child(1) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2465,7 +2465,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T21:31:57.261Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T21:46:00.971Z</span>",
           "target": [
             "li:nth-child(2) > .trace-card > .trace-text > .trace-date"
           ]

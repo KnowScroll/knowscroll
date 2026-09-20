@@ -108,9 +108,12 @@ function WorldBody({ world, index, total }: { world: WorldSummary; index: number
   // semantic identity unless it is one of the two guarded facts below). No attention/ranking
   // signal exists to place a world honestly closer or farther, so every body sits on the one
   // real orbit, evenly spaced by the order the API returned.
-  const angle = (index / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2;
+  // Start on the wide axis, not the top. Starting at -90 degrees put two worlds directly above and
+  // below the centre, so each label column ran through the sun and the upper one's source link sat
+  // on top of it. The ellipse is wider than it is tall; spreading from the horizontal uses it.
+  const angle = (index / Math.max(total, 1)) * Math.PI * 2;
   const left = 50 + Math.cos(angle) * 40;
-  const top = 50 + Math.sin(angle) * 24;
+  const top = 50 + Math.sin(angle) * 30;
   // The one distinct, database-verified treatment this view draws: has this reader's own exposure
   // history reached every recorded Scroll behind this world, or is there real, counted more to it.
   // `GET /v1/worlds` only ever returns a world this universe has encountered at least once

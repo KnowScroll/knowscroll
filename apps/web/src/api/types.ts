@@ -29,6 +29,10 @@ export const universe = z
     universeId: z.string(),
     revision: z.number(),
     privacyEpoch: z.number().int(),
+    // ADR-0030 added this to the bootstrap response. The schema is strict, so omitting a field the
+    // server now sends fails every universe load and the reader sees an honest-looking "unavailable"
+    // for a server that is perfectly healthy. Null means recording is running.
+    recordingPausedAt: z.string().nullable(),
     traces: z.array(trace),
     capabilities,
   })
