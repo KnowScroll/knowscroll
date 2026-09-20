@@ -128,19 +128,93 @@ A generated encounter additionally carries its generated label, and stand-in med
 **simulated** marker. A compelling presentation may never upgrade a weak claim, so the pill is drawn
 with equal weight regardless of state.
 
+## 5b. The product surfaces, as Cosmos actually draws them
+
+**This section exists because the earlier draft of this document was a reduction.** It extracted
+colours, type sizes and pill geometry, added a rule of its own ("not available, therefore not drawn"),
+and left out everything that makes the reference a product: the navigable universe, the dock, the
+labelled bodies, the chips and hints and back controls. The web surface was then built to that
+reduction and reviewed six times for correctness while nobody asked the only question that mattered —
+*does it read as the same product?* It did not. Fidelity from here means: **stand a screen beside the
+reference and it is recognisably the same thing.**
+
+Cosmos, driven from day 1 to day 30, shows five levels. Read it yourself before building:
+`docs/product/references/cosmos.html`, the stage chips (`day 1 · one planet` → `day 30 · a system`)
+and the flow chips (`universe`, `system`, `planet`, `interior`, `reel`).
+
+### The frame every level shares
+
+| Element | Cosmos's own values |
+|---|---|
+| **Dock** (`.nav`) | pinned `left/right:14px; bottom:16px`, height 62, `border-radius:22px`, `background:rgba(6,26,39,.78)`, `border:1px solid rgba(255,255,255,.12)`, `backdrop-filter:blur(12px)`, `box-shadow:0 10px 30px rgba(0,0,0,.4)`, `gap:4px`, `padding:6px` |
+| **Dock entry** (`.nav button`) | `flex:1`, icon over label, 20×20 icon, Bricolage 700 at 10.5px, `border-radius:16px`, `opacity:.7`; the current one `background:rgba(255,255,255,.14); opacity:1` |
+| **Context chip** (`.chip`, top-left) | cream `rgba(255,253,242,.94)` on ink, `radius:999px`, `padding:7px 12px 7px 9px`, weight 800, 12.5px, `box-shadow:0 8px 22px rgba(0,0,0,.35)` |
+| **Status pill** (`.pillbtn`, top-right — "Lately") | same recipe, `top:34px; right:14px`, with a state dot |
+| **Breadcrumb** (`.crumb`) | cream pill, `padding:7px 8px 7px 14px`, `max-width:250px`, truncating |
+| **Back** (`.back`) | cream pill, `left:12px; bottom:96px`, height 38, `padding:0 14px 0 10px` — reads "‹ universe", "‹ orbit" |
+| **Hint line** (`.hint`) | centred above the dock at `bottom:100px`, Instrument Sans 12.5px, `opacity:.75`, text-shadow — "Tap a planet · the ship flies there" |
+| **Action pill** (`.btn`) | height 40, `padding:0 16px`, `radius:999px`, weight 800, 13px, Bricolage |
+
+**The screen is a canvas with floating controls over it**, not a document with a header. Nothing is a
+bar across the top; every control is a shadowed cream pill or the translucent dock.
+
+### The levels
+
+1. **Universe** — star ground, one or more bodies with a name and a mono sub-label ("Technology",
+   `3 STOPS`), a dim nebula for what has not been explored (labelled `?????` or "LATER · A FRIEND"),
+   the `DAY n ▸` pill, the hint, the dock.
+2. **System** (day 30) — title and subtitle read "Technology" / "a system · 3 planets · a station";
+   a glowing sun, elliptical orbit rings, textured planets each with a name and some with a mono
+   status above them (`READY TO IGNITE`), a station, a tiny ship, a nebula; a `⊕ RECENTER` pill and a
+   `‹ universe` back pill.
+3. **Interior** — an illustrated map: coloured landmasses with uppercase names and mono sub-lists
+   (`MODELS · DATA · ALIGNMENT`), dashed routes between them, cloud cover, a compass rose, an
+   `UNCHARTED` chip, a `+ / 100% / −` zoom stack, `‹ orbit` back.
+4. **Reel / reader** — an origin chip ("● in Machine learning ›"), a large rounded stage, a caption
+   overlaid on it with a word highlighted in yellow, a mono position line (`SHOT 3 OF 6 · FOUNDATION
+   MODELS`) and a thin progress bar; **below the stage**: a green state pill (`CHECKED OUT · 3
+   SOURCES`), the title, a one-line summary, and a row of three coloured pills — **"Not so fast"
+   (coral), "Keep this" (yellow), "keep going →" (teal)**.
+5. **Planet** — between system and interior; same frame.
+
+### What we can honestly put in it today
+
+Drawing the interface is not the same as fabricating data. The rule against inventing stays exactly
+as strict; it governs the *content*, not whether the surface exists.
+
+| Cosmos element | What it carries for us now |
+|---|---|
+| Bodies in the universe | **Real kept Traces and encountered Scrolls** — one body each, its real title as the label. Never an invented topic. |
+| The unexplored nebula | **The real unread remainder** of the finite library, counted, not decorated |
+| `DAY n ▸` | the real age of the universe |
+| Status pill | a real recency or state, or omitted |
+| State pill on the reader | the real truth state plus the real source count — `DOCUMENTED · 3 SOURCES` |
+| Stage | a Scroll is text, so the stage is typographic rather than video; a Reel uses the video stage once one is eligible |
+| "Not so fast" | **no contract exists** — not drawn until one does |
+| Dock | **Cable** (read), **Atlas** (universe), **Keep** (Traces) are real. **Ask** has no contract on web, so the dock carries three entries, not four |
+| System, interior, planet levels | **no semantic geography exists**, so these levels are not built yet; the universe level is, and it must look like the reference's universe level |
+
+An empty universe still draws the frame: ground, dock, hint, and an honest line where the bodies
+would be. Emptiness is a state of the design, not an excuse to omit it.
+
 ## 6. What the interface may show today
 
 Only these have data: the honest empty universe, saved Traces, entering a Scroll, reading with
 sources and truth state, why this appeared, deliberate next discovery, finite-library rest, Keep,
 Trace revisit, Clear History, sign out, magic-link sign-in, and Reel playback for an eligible Reel.
 
-**Not available, therefore not drawn**: semantic world geography, branches and continuations, Ask
-answers, rooms, inhabitants, friends and Blend. Cosmos's map and Living Observatory's room are
-references for a later contract, not licence to draw a pretty map that means nothing — the design
-direction is explicit that background specks carry no semantic identity. A decorative star ground is
-allowed and must be marked decorative in code; a node that implies meaning is not.
+**Not available, therefore not drawn** governs *content*, never whether a surface is built. No
+invented topic, no fabricated branch, no Ask answer, no room, no inhabitant, no friend, no Blend, and
+no node that implies a meaning nothing recorded. But a body whose label is a Scroll the reader really
+kept is real, and drawing it is required, not forbidden — see §5b. The mistake to avoid is a pretty map
+of nothing; the mistake just made was an honest page of nothing, and it is the worse of the two,
+because it fails the reader *and* the reference.
 
 ## 7. How fidelity is judged
+
+**First test, before any measurement:** render the reference and the build at the same size, put them
+side by side, and ask whether they read as the same product. A build that matches every token and
+still looks like a text page has failed. This test is first because it is the one that was skipped.
 
 Screenshots at 1440×900 and 1024×768 sit beside the reference rendered at the same size. On a phone,
 the comparable sizes are the emulator's own resolution at font scale 1.0 and 840×1680 at font scale 1.3,
