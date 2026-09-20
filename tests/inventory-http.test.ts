@@ -60,11 +60,15 @@ const REQUIRED_GATES = ['lineage_complete', 'source_support', 'engine_record', '
 
 async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha256: string; sourceAssetId: string; generatedReelId: string }> {
   const sourceAssetId = randomUUID();
+  // ADR-0028: a minted Reel's `source_title`/`source_url` (copied verbatim from this Scroll by
+  // `mintReelAsset`) is now also the composer's `sourceKey` for diversity ranking. A literal
+  // identical URL across every fixture this file mints would make composer-signals-v1 see them
+  // all as "one source" and cap them at max_per_source — tagged uniquely, each fixture is its own
+  // source, matching what a real distinct generation would be.
   await pool.query(
     `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
-     VALUES($1,1,'Scroll','Library title','Library summary','Library body text.','Library source',
-       'https://example.test/library','documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
-    [sourceAssetId],
+     VALUES($1,1,'Scroll','Library title','Library summary','Library body text.',$2,$3,'documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
+    [sourceAssetId, `Library source ${tag}`, `https://example.test/library-${tag}`],
   );
 
   const briefJson = brief(sourceAssetId, tag);
@@ -169,10 +173,35 @@ async function feed(token: string, kinds?: string): Promise<{ status: number; bo
   return { status: response.statusCode, body: response.statusCode === 200 ? response.json() : response.json() };
 }
 
+/**
+ * ADR-0028: the real Composer ranks every unread candidate on equal footing and fills the whole
+ * bounded slate from whatever is eligible — it does not, unlike the retired bootstrap policy,
+ * favor a fixed feed position. A fresh identity's candidate pool is otherwise every Scroll ever
+ * inserted by `db:seed` or an earlier test/file in this run (this file's own docstring above
+ * already notes the shared `asset` table), so a growing set of same-scored, never-exposed Scrolls
+ * can otherwise out-tie-break this file's own fixture Reel by sheer numbers. Marking everything
+ * that already exists as kept for the fresh universe excludes it from candidacy outright (the real
+ * production mechanism, not a scoring trick), leaving this test's own fixture(s) as the whole pool
+ * — restoring the deterministic "the eligible Reel is offered" proof ADR-0025 requires.
+ */
+async function existingLibraryIds(): Promise<string[]> {
+  return (await pool.query<{ id: string }>("SELECT id FROM asset WHERE kind IN ('Scroll','Reel')")).rows.map(r => r.id);
+}
+
+/** `excludeIds` must be snapshotted BEFORE this test's own fixture (its library Scroll and/or
+ * minted Reel) is created, or the exclusion would swallow the very candidate the test wants to
+ * see. */
+async function provisionIsolatedIdentity(excludeIds: readonly string[]): ReturnType<typeof provisionIdentity> {
+  const identity = await provisionIdentity();
+  if (excludeIds.length) await pool.query('UPDATE accounts SET kept_asset_ids=$2::uuid[] WHERE universe_id=$1', [identity.scope.universeId, excludeIds]);
+  return identity;
+}
+
 test('GET /v1/feed default excludes an eligible Reel; kinds=Scroll,Reel includes it with the documented shape', async () => {
   await app.ready();
+  const preexisting = await existingLibraryIds();
   await withFixtureReel('default-vs-optin', async (reel) => {
-    const identity = await provisionIdentity();
+    const identity = await provisionIsolatedIdentity(preexisting);
 
     const defaultFeed = await feed(identity.token);
     assert.equal(defaultFeed.status, 200, JSON.stringify(defaultFeed.body));
@@ -211,8 +240,9 @@ test('unknown or malformed kinds are refused with 400, never silently dropped', 
 });
 
 test('exposure, keep and the events lookup work identically for a Reel; a kept Reel is excluded from later candidates', async () => {
+  const preexisting = await existingLibraryIds();
   await withFixtureReel('exposure-keep', async (reel) => {
-    const identity = await provisionIdentity();
+    const identity = await provisionIsolatedIdentity(preexisting);
 
     const optIn = await feed(identity.token, 'Scroll,Reel');
     const item = optIn.body.items.find((entry) => entry.assetId === reel.assetId)!;
@@ -267,8 +297,9 @@ test('exposure, keep and the events lookup work identically for a Reel; a kept R
 });
 
 test('an Ask naming a Reel exposure is refused (migration 0009\'s own lineage guard requires a Scroll candidate)', async () => {
+  const preexisting = await existingLibraryIds();
   await withFixtureReel('ask-refusal', async (reel) => {
-    const identity = await provisionIdentity();
+    const identity = await provisionIsolatedIdentity(preexisting);
     const optIn = await feed(identity.token, 'Scroll,Reel');
     const exposure = await app.inject({
       method: 'POST', url: '/v1/exposures', headers: headers(identity.token),

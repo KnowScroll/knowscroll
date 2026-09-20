@@ -12,7 +12,8 @@ import {
   UnauthorizedSession,
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
-import { compose } from '../../../packages/core/src/composer.ts';
+import { COMPOSER_SIGNALS_V1, rankSignalCandidates } from '../../../packages/core/src/composer.ts';
+import { loadComposerExplanationTemplates, loadComposerPolicy, loadComposerSignalCandidates } from '../../../packages/db/src/composer-signals.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
 import { SHARED_SOURCE_V1, projectWorldsForEncounter, readWorldSystem } from '../../../packages/db/src/worlds.ts';
@@ -172,9 +173,31 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     if (kinds === null) throw new HttpError(400, 'Invalid kinds parameter');
     const account = (await client.query('SELECT * FROM accounts WHERE universe_id=$1', [scope.universeId])).rows[0];
     const assets = await feedCandidates(client, kinds);
-    const items = compose(assets, account.kept_asset_ids);
+
+    // ADR-0028 (#114/#5): real retrieval-time signals, a versioned policy and a registered
+    // explanation vocabulary, all fetched with bounded SQL — never a provider call
+    // (packages/core/AGENTS.md, ADR-0016). `policy_version` stays 'editorial-unkept-v1' (section 1:
+    // retrieval itself is unchanged); `ranking_version` records the policy that actually ordered
+    // and explained this slate, so migration 0017's own invariants apply to every decision from
+    // here on.
+    const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V1);
+    const templates = await loadComposerExplanationTemplates(client);
+    const { candidates, nowMs } = await loadComposerSignalCandidates(client, scope.universeId, assets);
+    const ranked = rankSignalCandidates(candidates, account.kept_asset_ids, policy, templates, nowMs);
+    const items = ranked.map(r => r.item);
+
     const decisionId = randomUUID();
-    await client.query('INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6)', [decisionId, scope.universeId, account.revision, 'editorial-unkept-v1', JSON.stringify(items), scope.privacyEpoch]);
+    await client.query(
+      'INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch,ranking_version) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [decisionId, scope.universeId, account.revision, 'editorial-unkept-v1', JSON.stringify(items), scope.privacyEpoch, policy.version],
+    );
+    for (const r of ranked) {
+      await client.query(
+        `INSERT INTO decision_signal(id,decision_id,universe_id,asset_id,rank,retrieval_score,inputs,explanation_key)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [randomUUID(), decisionId, scope.universeId, r.item.assetId, r.rank, r.retrievalScore, JSON.stringify(r.inputs), r.explanationKey],
+      );
+    }
     return { decisionId, universeId: scope.universeId, accountRevision: account.revision, privacyEpoch: scope.privacyEpoch, items };
   }));
 
