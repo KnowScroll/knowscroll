@@ -32,10 +32,19 @@ CREATE TABLE generation_budget_grant (
  cap_cents integer NOT NULL CHECK (cap_cents > 0),
  reserved_cents integer NOT NULL DEFAULT 0 CHECK (reserved_cents >= 0),
  spent_cents integer NOT NULL DEFAULT 0 CHECK (spent_cents >= 0),
+ /** Real spend beyond what was reserved. ADR-0012: never clamp actual usage to a reservation —
+  * record the excess and stop admitting new work on this grant. */
+ overage_cents integer NOT NULL DEFAULT 0 CHECK (overage_cents >= 0),
+ /** Set when an overage is recorded; blocks further admission until an operator resolves it. */
+ admission_paused_at timestamptz,
  authorization_ref text CHECK (authorization_ref IS NULL OR length(btrim(authorization_ref)) BETWEEN 1 AND 500),
  expires_at timestamptz NOT NULL,
  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
- CHECK (reserved_cents + spent_cents <= cap_cents),
+ /** The cap binds what may be RESERVED, and admission also counts prior spend. Settlement may push
+  * spent past the cap only by recording the same amount as overage, which pauses admission. */
+ CHECK (reserved_cents <= cap_cents),
+ CHECK (spent_cents <= cap_cents + overage_cents),
+ CHECK (overage_cents = 0 OR admission_paused_at IS NOT NULL),
  CHECK (mode = 'standin' OR authorization_ref IS NOT NULL)
 );
 
@@ -213,7 +222,9 @@ BEGIN
  THEN RAISE EXCEPTION 'Live generation grants may not exceed the owner cap of 200 cents in total'; END IF;
  IF TG_OP = 'UPDATE' AND (NEW.mode, NEW.cap_cents, NEW.authorization_ref, NEW.created_at)
    IS DISTINCT FROM (OLD.mode, OLD.cap_cents, OLD.authorization_ref, OLD.created_at)
- THEN RAISE EXCEPTION 'A grant''s mode, cap and authorization are immutable'; END IF;
+  OR NEW.overage_cents < OLD.overage_cents
+  OR (OLD.admission_paused_at IS NOT NULL AND NEW.admission_paused_at IS NULL AND NEW.overage_cents > 0)
+ THEN RAISE EXCEPTION 'A grant''s mode, cap and authorization are immutable, and a recorded overage never shrinks'; END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER generation_live_cap_guard BEFORE INSERT OR UPDATE ON generation_budget_grant
@@ -225,8 +236,12 @@ BEGIN
   SELECT 1 FROM cutroom_engine e, generation_budget_grant g, generation_brief b
   WHERE e.id = NEW.engine_id AND g.id = NEW.grant_id AND b.id = NEW.brief_id
    AND e.provider_mode = g.mode AND b.review_state = 'approved' AND e.retired_at IS NULL
-   AND g.expires_at > clock_timestamp()
- ) THEN RAISE EXCEPTION 'A generation job needs an approved brief, an active engine and an unexpired grant of the engine''s mode'; END IF;
+   AND g.expires_at > clock_timestamp() AND g.admission_paused_at IS NULL
+   -- The caller reserves this job's budget in the same transaction BEFORE inserting, so the
+   -- reservation is already counted here: requiring it to still cover this budget is how the
+   -- schema itself refuses a job admitted without reserving, and a paused or exhausted grant.
+   AND g.reserved_cents >= NEW.budget_cents AND g.reserved_cents + g.spent_cents <= g.cap_cents
+ ) THEN RAISE EXCEPTION 'A generation job needs an approved brief, an active engine, and an unexpired, unpaused grant of the engine''s mode with its budget already reserved within cap'; END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER generation_job_admission_guard BEFORE INSERT ON generation_job

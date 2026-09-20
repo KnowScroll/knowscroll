@@ -106,6 +106,7 @@ test('migration 0013 guards the generation records', async (t) => {
     /approved brief/);
    await assert.rejects(pool.query('UPDATE generation_brief SET brief=$2 WHERE id=$1',[ids.brief,JSON.stringify({})]));
    await pool.query(`UPDATE generation_brief SET review_state='approved' WHERE id=$1`,[ids.brief]);
+   await pool.query('UPDATE generation_budget_grant SET reserved_cents=reserved_cents+220 WHERE id=$1',[ids.grant]);
    await pool.query(
     `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
      VALUES($1,$2,$3,$4,'video',220,now()+interval '1 hour')`,[ids.job,ids.brief,ids.engine,ids.grant]);
@@ -124,6 +125,45 @@ test('migration 0013 guards the generation records', async (t) => {
     `INSERT INTO generation_budget_grant(id,mode,cap_cents,authorization_ref,expires_at)
      VALUES($1,'live',1,'owner decision 2026-09-20',now()+interval '1 day')`,[randomUUID()]),
     /owner cap/);
+  });
+
+  await t.test('real spend beyond a reservation is recorded as overage and pauses admission', async () => {
+   // ADR-0012: never clamp actual usage to the reservation. The cap binds what may be reserved and
+   // what may be admitted; settlement may push spend past it only by recording the same overage,
+   // which pauses the grant so no further job is admitted on it.
+   const grant=randomUUID();
+   await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,reserved_cents,expires_at) VALUES($1,'standin',300,200,now()+interval '1 day')`,[grant]);
+   await assert.rejects(pool.query('UPDATE generation_budget_grant SET reserved_cents=400 WHERE id=$1',[grant]));
+   await assert.rejects(pool.query('UPDATE generation_budget_grant SET reserved_cents=0,spent_cents=400 WHERE id=$1',[grant]),/violates/);
+   await assert.rejects(pool.query('UPDATE generation_budget_grant SET reserved_cents=0,spent_cents=400,overage_cents=100 WHERE id=$1',[grant]),/violates/);
+   await pool.query(`UPDATE generation_budget_grant SET reserved_cents=0,spent_cents=400,overage_cents=100,admission_paused_at=now() WHERE id=$1`,[grant]);
+   await assert.rejects(pool.query('UPDATE generation_budget_grant SET overage_cents=0 WHERE id=$1',[grant]),/overage/);
+   await assert.rejects(pool.query('UPDATE generation_budget_grant SET admission_paused_at=NULL WHERE id=$1',[grant]),/overage/);
+   await assert.rejects(pool.query(
+    `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
+     VALUES($1,$2,$3,$4,'video',1,now()+interval '1 hour')`,[randomUUID(),ids.brief,ids.engine,grant]),
+    /unpaused|within cap/);
+  });
+
+  await t.test('a fully committed grant admits nothing further', async () => {
+   // The caller reserves inside the same transaction before inserting, so the guard refuses a
+   // grant whose reserved plus spent already fills its cap; the reservation itself is bounded by
+   // the table's own `reserved_cents <= cap_cents` CHECK.
+   const grant=randomUUID();
+   await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,reserved_cents,spent_cents,expires_at) VALUES($1,'standin',300,0,150,now()+interval '1 day')`,[grant]);
+   const admitted=randomUUID();
+   await pool.query('UPDATE generation_budget_grant SET reserved_cents=150 WHERE id=$1',[grant]);
+   await pool.query(
+    `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
+     VALUES($1,$2,$3,$4,'video',150,now()+interval '1 hour')`,[admitted,ids.brief,ids.engine,grant]);
+   // These tables are shared inventory with no per-test scoping, and a worker claims the oldest
+   // ready job, so a fixture job never stays claimable after the check that needed it.
+   await pool.query(`UPDATE generation_job SET status='cancelled' WHERE id=$1`,[admitted]);
+   await pool.query('UPDATE generation_budget_grant SET reserved_cents=0,spent_cents=300 WHERE id=$1',[grant]);
+   await assert.rejects(pool.query(
+    `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
+     VALUES($1,$2,$3,$4,'video',1,now()+interval '1 hour')`,[randomUUID(),ids.brief,ids.engine,grant]),
+    /within cap/);
   });
 
   await t.test('an attempt keeps its identity and only walks the declared states', async () => {
@@ -170,6 +210,8 @@ test('migration 0013 guards the generation records', async (t) => {
    await assert.rejects(pool.query('DELETE FROM media_object WHERE sha256=$1',[sha]));
   });
  } finally {
+  // Same reason as above: leave no claimable job behind for another test file in this database.
+  await pool.query(`UPDATE generation_job SET status='cancelled' WHERE id=$1 AND status='queued'`,[ids.job]).catch(()=>undefined);
   await pool.end();
  }
 });

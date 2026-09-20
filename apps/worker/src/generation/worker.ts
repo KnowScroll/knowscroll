@@ -281,7 +281,20 @@ async function handleImport(
   // Only now — a real, containment-checked, hashed and probed file is durably recorded as this
   // job's generated Reel — is the reported cost actually verified. Settle before marking the job
   // completed, so a job never reaches `completed` with its reservation still `held`.
-  if (attempt.settlement === 'held') await storage.settle(resolved.db, holder);
+  // The asset is durably recorded, so settlement always runs. A cost above this job's ceiling is a
+  // real overage: it is recorded (never clamped), it pauses admission on the grant, and the job is
+  // parked for an operator instead of quietly completing as if the budget had held.
+  let overageCents = 0;
+  if (attempt.settlement === 'held') ({overageCents} = await storage.settle(resolved.db, holder));
+  if (overageCents > 0) {
+    const detail = `settled_over_budget:${overageCents}c_above_ceiling`;
+    await storage.parkNeedsOperator(resolved.db, holder, detail);
+    resolved.log({
+      service: 'generation-worker', event: 'settled_over_budget', jobId: claim.jobId,
+      generatedReelId: committed.generatedReelId, overageCents,
+    });
+    return {jobId: claim.jobId, outcome: 'needs_operator', detail};
+  }
   await storage.completeImportedJob(resolved.db, holder);
   resolved.log({
     service: 'generation-worker', event: 'imported', jobId: claim.jobId,

@@ -378,7 +378,8 @@ test('ADR-0023 generation storage: admission, lease/fence, dispatch, outcomes, e
     assert.equal((await grantRow(grantId)).reserved_cents, 120, 'a recorded-but-unsettled result still keeps the reservation held');
 
     const settled = await storage.settle(pool, holder);
-    assert.deepEqual(settled, {releasedCents: 83, spentCents: 37});
+    // A cost within the ceiling carries no overage (ADR-0023: excess is recorded, never clamped).
+    assert.deepEqual(settled, {releasedCents: 83, spentCents: 37, overageCents: 0});
     const grant = await grantRow(grantId);
     assert.equal(grant.reserved_cents, 0);
     assert.equal(grant.spent_cents, 37);

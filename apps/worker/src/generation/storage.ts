@@ -524,7 +524,10 @@ export async function recordRecordSummary(db: pg.Pool, holder: LeaseHolder, reco
   });
 }
 
-export type SettleResult = {releasedCents: number; spentCents: number};
+export type SettleResult = {releasedCents: number; spentCents: number;
+  /** Reported cost beyond this job's ceiling; > 0 pauses admission on the grant. */
+  overageCents: number;
+};
 /** A terminal result's reported cost moves from reserved to spent; the rest of the reservation
  * is released. Never called for a job that never reached a recorded result: an unresolved
  * attempt keeps its whole reservation held, by simply never calling this function. */
@@ -538,17 +541,30 @@ export async function settle(db: pg.Pool, holder: LeaseHolder): Promise<SettleRe
       deny('attempt_not_settleable');
     }
     const reportedCostCents = attempt.reported_cost_cents as number;
+    // ADR-0012: never clamp real usage to what was reserved. A cost above this job's own ceiling is
+    // recorded as an overage on the grant, which pauses further admission on it (migration 0013's
+    // CHECKs and admission guard), and the caller parks the job for an operator. Settlement still
+    // happens: the money was spent whether or not our reservation anticipated it.
+    const overageCents = Math.max(0, reportedCostCents - job.budget_cents);
     const updatedGrant = await client.query(
-      `UPDATE generation_budget_grant SET reserved_cents=reserved_cents-$2,spent_cents=spent_cents+$3
+      `UPDATE generation_budget_grant
+         SET reserved_cents=reserved_cents-$2,
+             spent_cents=spent_cents+$3,
+             overage_cents=overage_cents+$4,
+             admission_paused_at=CASE WHEN $4>0 AND admission_paused_at IS NULL THEN clock_timestamp() ELSE admission_paused_at END
        WHERE id=$1 AND reserved_cents>=$2`,
-      [job.grant_id, job.budget_cents, reportedCostCents],
+      [job.grant_id, job.budget_cents, reportedCostCents, overageCents],
     );
     if (updatedGrant.rowCount !== 1) deny('grant_reservation_missing');
     const updatedAttempt = await client.query(
       `UPDATE cutroom_attempt SET settlement='settled' WHERE id=$1 AND state='finished' AND settlement='held'`, [attempt.id],
     );
     if (updatedAttempt.rowCount !== 1) deny('settlement_race_lost');
-    return {releasedCents: job.budget_cents - reportedCostCents, spentCents: reportedCostCents};
+    return {
+      releasedCents: Math.max(0, job.budget_cents - reportedCostCents),
+      spentCents: reportedCostCents,
+      overageCents,
+    };
   });
 }
 

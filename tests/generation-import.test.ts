@@ -541,6 +541,9 @@ async function seedAttempt(pool: pg.Pool, engineArtifactRoot: string): Promise<A
   );
   const grantId = randomUUID();
   await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`, [grantId]);
+  // Admission requires this job's budget to be reserved already (migration 0013), exactly as the
+  // real caller does inside one transaction before inserting the job.
+  await pool.query('UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1', [grantId]);
   const jobId = randomUUID();
   await pool.query(
     `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)

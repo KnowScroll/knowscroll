@@ -42,8 +42,13 @@ truth state is `synthesis` with an artifact-level generated label. User-initiate
   the engine-host artifact root used for import containment, and a **declared provider mode**
   (`standin` | `live`) with who declared it and when. The contract cannot prove provider mode, so it is
   an operator declaration, cross-checked where the ops host reports it.
-- `generation_budget_grant` holds a cap in integer cents, reserved and spent totals
-  (`reserved + spent ≤ cap`, database-enforced), a mode, an expiry and an authorization reference.
+- `generation_budget_grant` holds a cap in integer cents with reserved, spent and **overage** totals.
+  The cap binds what may be reserved, and admission also counts prior spend (database-enforced).
+  Real spend is never clamped to a reservation (ADR-0012): a reported cost above a job's ceiling is
+  settled and the excess recorded as `overage_cents`, which sets `admission_paused_at` so the grant
+  admits nothing further until an operator resolves it, and the job is parked `needs_operator` with
+  its asset already durably recorded. An overage never shrinks and a paused grant with an overage
+  cannot be silently unpaused. It also holds a mode, an expiry and an authorization reference.
   A `live` grant requires a non-empty owner authorization reference and a `live` engine; with the
   current owner decision no live grant may exceed 200 cents in total across all live grants, and none
   may be created until the owner confirms upstream ships real providers. `standin` grants exercise the
@@ -129,14 +134,13 @@ touches them. When private demand arrives later, its waiter/binding rows carry u
 
 Migration 0013 adds the shared generation records and enforces these rules in the database:
 engine origins are explicit loopback and retired rather than deleted; briefs move only draft →
-approved; `reserved + spent ≤ cap` and live grants stay under the owner's 200-cent total; a job needs
-an approved brief, an active engine and an unexpired grant of the engine's mode; attempt identity,
+approved; a reservation never exceeds the cap, settlement records any excess as an overage that
+pauses the grant, and live grants stay under the owner's 200-cent total; a job needs an approved
+brief, an active engine and an unexpired, unpaused grant of the engine's mode with room for it; attempt identity,
 bytes, cursor and state transitions are guarded; events, media and generated Reels are append-only;
 and a generated Reel must match a finished, completed video attempt of its own job with the engine's
 declared provider mode. `tests/generation-contract.test.ts` exercises each of those guards and the
-brief schema/compiler against a disposable database. Owner deployment remains separate and not
-performed; owner deployment remains separate and not
-performed. J005 must prove, against disposable PostgreSQL, a real generation worker and the local
+brief schema/compiler against a disposable database. Owner deployment remains separate and not performed. J005 proves, against disposable PostgreSQL, a real generation worker and the local
 Cutroom host with stand-ins: admission atomicity, dispatch commit before POST, lost acknowledgement
 reconciled to one run, identical-bytes resend, refusal release, cancellation, worker crash and lease
 reclaim without redispatch, Cutroom restart during following, settlement, and verified import with

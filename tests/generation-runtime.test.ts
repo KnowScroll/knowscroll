@@ -243,7 +243,7 @@ function jobRow(jobId: string) {
   return pool.query('SELECT * FROM generation_job WHERE id=$1', [jobId]).then((r) => r.rows[0]);
 }
 function grantRow(grantId: string) {
-  return pool.query('SELECT reserved_cents,spent_cents FROM generation_budget_grant WHERE id=$1', [grantId]).then((r) => r.rows[0]);
+  return pool.query('SELECT reserved_cents,spent_cents,overage_cents,admission_paused_at FROM generation_budget_grant WHERE id=$1', [grantId]).then((r) => r.rows[0]);
 }
 async function pollUntil(predicate: () => Promise<boolean>, timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -346,6 +346,58 @@ test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', asyn
       assert.equal(importCalls[0]?.enginePath, '/artifacts/run/fixture.mp4', 'the untrusted engine path from the result is handed to the import port unchanged');
       assert.equal(importCalls[0]?.engineArtifactRoot, '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/generation-runtime-test/artifacts');
     });
+  });
+
+  await t.test('a reported cost above the job ceiling is recorded as overage, pauses the grant and parks the job', async () => {
+    // ADR-0012/ADR-0023: real spend is never clamped to a reservation. The asset stays imported,
+    // the excess is recorded, the grant stops admitting work and an operator is told — the job must
+    // not quietly complete, and it must not retry the same failing settlement forever.
+    const world = await makeImportWorld();
+    try {
+      await withFakeEngine(async (engine, engineId) => {
+        const briefId = await approvedBrief();
+        const grantId = await freshGrant();
+        const job = await storage.createJob(pool, {briefId, engineId, grantId, until: 'video', budgetCents: 200, deadlineAt: future()});
+        const claim = await storage.claimJob(pool, {owner: 'runtime-test', leaseMs: 30_000});
+        const enginePath = join(world.engineArtifactRoot, 'over', 'a1-render.mp4');
+        await mkdir(dirname(enginePath), {recursive: true});
+        await makeVideoFixture(enginePath, 6);
+
+        const processing = processClaimedJob(
+          {db: pool, owner: 'runtime-test', pollMs: 10, maxFollowIterations: 500, importPort: createLocalImportPort(world.mediaRoot)},
+          claim!,
+        );
+        await pollUntil(async () => Boolean((await attemptRow(job.jobId)).run_id));
+        const run = engine.runByRequestId(job.requestId)!;
+        // 260c against a 200c ceiling: 60c of genuine overage.
+        engine.finish(run.runId, {status: 'completed', costCents: 260, extra: {until: 'video', estimateCents: 200, stills: [], video: {path: enginePath}, degradations: []}});
+        const outcome = await processing;
+
+        assert.equal(outcome.outcome, 'needs_operator');
+        const parked = await jobRow(job.jobId);
+        assert.equal(parked.status, 'needs_operator');
+        assert.match(String(parked.status_detail), /settled_over_budget:60c/);
+        const attempt = await attemptRow(job.jobId);
+        assert.equal(attempt.settlement, 'settled', 'the money was spent, so it is settled, not left held');
+        assert.equal(attempt.reported_cost_cents, 260);
+
+        const grant = await grantRow(grantId);
+        assert.equal(grant.reserved_cents, 0);
+        assert.equal(grant.spent_cents, 260, 'actual usage is recorded, never clamped to the reservation');
+        assert.equal(grant.overage_cents, 60);
+        assert.ok(grant.admission_paused_at, 'the grant stops admitting new work');
+
+        const reel = (await pool.query('SELECT * FROM generated_reel WHERE attempt_id=$1', [attempt.id])).rows[0];
+        assert.ok(reel, 'the asset that was actually paid for stays durably recorded');
+
+        // A paused grant admits nothing further, so the overage cannot be spent past again.
+        await assert.rejects(
+          storage.createJob(pool, {briefId, engineId, grantId, until: 'video', budgetCents: 1, deadlineAt: future()}),
+        );
+      }, world.engineArtifactRoot);
+    } finally {
+      await cleanupImportWorld(world);
+    }
   });
 
   await t.test('a real local import port completes the job, commits the generated Reel, and settles only then', async () => {

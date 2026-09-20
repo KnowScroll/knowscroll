@@ -98,7 +98,7 @@
       "component": "Generation Supply",
       "responsibility": "Editorial briefs, budget grants, Cutroom attempts, settlement and verified media import (ADR-0023)",
       "path": "apps/worker/src/generation",
-      "status": "contract-and-schema-accepted-runtime-pending",
+      "status": "runtime-and-verified-import-implemented-j005-local-standin-proof-no-eligibility-or-owner-deployment",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/94"
     },
     {
