@@ -143,6 +143,32 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await expect(page.locator('.context-rail')).toBeVisible();
   });
 
+  test('reading position survives a reload below the breakpoint, where the stage scrolls, not the article', async ({ page }) => {
+    // The scroll owner changes with width. While the narrow-width CSS override
+    // was dead the article kept scrolling by accident, which kept the
+    // persistence code working; fixing the cascade exposed that the JS had
+    // never followed. Scrolled to the end and reloaded, a reader here used to
+    // silently land back at the top every time.
+    await page.setViewportSize({ width: 650, height: 420 });
+    await page.goto('/');
+    await openSavedTrace(page);
+    const stage = page.locator('.scroll-layout');
+    const article = page.locator('.reading-column');
+    await expect(article).toBeVisible();
+    expect(await article.evaluate(n => getComputedStyle(n).overflowY)).toBe('visible');
+    expect(await stage.evaluate(n => n.scrollHeight > n.clientHeight)).toBe(true);
+
+    await stage.evaluate(n => { n.scrollTop = 150; });
+    await expect.poll(() => stage.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
+    const saved = await stage.evaluate(n => n.scrollTop);
+    await page.waitForTimeout(400);
+
+    await page.reload();
+    const restored = page.locator('.scroll-layout');
+    await expect(page.locator('.reading-column')).toBeVisible();
+    await expect.poll(() => restored.evaluate(n => n.scrollTop)).toBeCloseTo(saved, -1);
+  });
+
   test('reading position survives a reload, measured on the element that scrolls', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 420 });
     await page.goto('/');

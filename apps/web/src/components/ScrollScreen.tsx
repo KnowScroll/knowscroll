@@ -14,6 +14,22 @@ const SCROLL_STEP = 160;
  * exactly like every transition in styles.css -- the position still changes,
  * instantly.
  */
+/**
+ * The element that genuinely scrolls at the current width. Above the 700px
+ * breakpoint the article owns a bounded box; below it the article flows and the
+ * stage around it scrolls instead. Reading position, and the arrow keys, must
+ * follow the real scroller -- watching the article at narrow widths persists a
+ * position that is always zero, silently, with nothing in the interface to say
+ * so.
+ */
+function scrollOwner(article: HTMLElement | null): HTMLElement | null {
+  if (!article) return null;
+  if (article.scrollHeight > article.clientHeight + 1) return article;
+  const stage = article.parentElement;
+  if (stage && stage.scrollHeight > stage.clientHeight + 1) return stage;
+  return article;
+}
+
 function scrollReadingColumn(node: HTMLElement | null, delta: number): boolean {
   if (!node) return false;
   const atEnd = delta > 0 && node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
@@ -143,19 +159,27 @@ function ReadingStage({
   useVisibleExposure(stageNode, item.assetId, onVisible);
 
   useEffect(() => {
-    const node = stageRef.current;
-    if (!node) return undefined;
-    node.scrollTop = state.readingPosition;
+    const article = stageRef.current;
+    if (!article) return undefined;
+    const stage = article.parentElement;
+    const owner = () => scrollOwner(article);
+    const restored = owner();
+    if (restored) restored.scrollTop = state.readingPosition;
+
+    // Both candidates are observed, because which one scrolls depends on the
+    // viewport width and can change under a resize while the Scroll is open.
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
       if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => onReadingPosition(item.assetId, node.scrollTop), 200);
+      timeout = setTimeout(() => onReadingPosition(item.assetId, owner()?.scrollTop ?? 0), 200);
     };
-    node.addEventListener('scroll', onScroll);
+    article.addEventListener('scroll', onScroll);
+    stage?.addEventListener('scroll', onScroll);
     return () => {
       if (timeout) clearTimeout(timeout);
-      onReadingPosition(item.assetId, node.scrollTop);
-      node.removeEventListener('scroll', onScroll);
+      onReadingPosition(item.assetId, owner()?.scrollTop ?? 0);
+      article.removeEventListener('scroll', onScroll);
+      stage?.removeEventListener('scroll', onScroll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.assetId]);
@@ -174,13 +198,13 @@ function ReadingStage({
       // (ui-system.md sec.4).
       if (event.key === 'ArrowDown' && !sourcesOpen && !whyOpen) {
         event.preventDefault();
-        if (scrollReadingColumn(stageRef.current, SCROLL_STEP)) return;
+        if (scrollReadingColumn(scrollOwner(stageRef.current), SCROLL_STEP)) return;
         onNext();
         return;
       }
       if (event.key === 'ArrowUp' && !sourcesOpen && !whyOpen) {
         event.preventDefault();
-        scrollReadingColumn(stageRef.current, -SCROLL_STEP);
+        scrollReadingColumn(scrollOwner(stageRef.current), -SCROLL_STEP);
         return;
       }
       if (event.key === 'Escape') {

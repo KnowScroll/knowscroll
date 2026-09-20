@@ -105,7 +105,7 @@ why-this trigger below the breakpoint where the rail is collapsed by design, and
 position inside its own 200ms debounce.
 
 **Known and accepted:** reading position is written 200ms after scrolling stops, so a reload inside that
-window loses it. Pre-existing, unchanged by this slice, and not worth a synchronous write on every
+window loses it, at every width. Pre-existing, unchanged by this slice, and not worth a synchronous write on every
 scroll event.
 
 ## Third round: the same mistake twice, and the rule that ended it
@@ -131,6 +131,28 @@ afterwards wins the cascade and silently kills the override, which is what produ
 stylesheet: **4 failed / 31 passed**, every failure the same assertion, `clip content out of reach
 (sources open)`, at the four 420-height widths. With the fix: **35/35**. Recorded because one earlier
 case (`1024×560`) turned out not to discriminate, and an undiscriminating test is not evidence.
+
+## Fourth round: a bug that was hiding a bug
+
+Review rejected the third round on one finding — the risk the coordinator had flagged but not tested.
+
+**Reading position was silently inert below 700px.** `ScrollScreen` attached its scroll listener to
+`.reading-column`, the element that as of the third round correctly stops scrolling at that width. A
+reader could scroll a whole article, reload, and always land back at the top, with nothing in the
+interface to say so. Proven live at 650×420: the stage scrolls to 150, the persisted position reads
+`0` before and `0` after, because the article's `scroll` event never fires.
+
+Why it appeared only now: while the narrow-width override was dead code (round 3's cascade finding),
+`.reading-column` wrongly kept `overflow-y:auto` and kept scrolling, which kept the persistence code
+working **by accident**. Fixing the cascade removed the accident and exposed that the JavaScript had
+never followed the CSS's stated design. One defect was masking another.
+
+`scrollOwner()` now resolves the element that genuinely scrolls — the article when it owns a bounded
+box, the stage when the article flows — and both the persistence effect and the arrow keys use it.
+Listeners sit on both candidates, so a resize across the breakpoint mid-read does not strand it.
+
+**Verified red before green** again: against the third-round component the journey fails exactly one
+test, the new 650×420 persistence case, and passes the other 35. With the fix, **36/36**.
 
 ## Deviations from `docs/product/ui-system.md`, and why
 
