@@ -26,6 +26,12 @@ jobs:
         with:
           node-version: 22.23.0
       - run: pnpm install --frozen-lockfile
+      # ubuntu-latest (24.04, image 20260907.300.1) does not ship ffmpeg/ffprobe in its default
+      # software list (confirmed against actions/runner-images' own Ubuntu2404-Readme.md: only
+      # MediaInfo is listed under media tools, no ffmpeg entry). tests/generation-import.test.ts
+      # (#94 verified media import) needs both on PATH.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm typecheck
       - run: pnpm test
       - name: Web (apps/web) typecheck
