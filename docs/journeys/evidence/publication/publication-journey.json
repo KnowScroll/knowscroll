@@ -1,12 +1,12 @@
 {
   "journey": "J006",
   "evidenceLevel": "stand-in media in a disposable database — never real generation and never the owner's universe",
-  "runStamp": "2026-09-20T02-38-26-148Z",
-  "knowscrollHead": "472c6b5c43736732b85cd0100de149f010db3dc6",
+  "runStamp": "2026-09-20T02-43-48-336Z",
+  "knowscrollHead": "dc6c49506e936bd98e6983221e820db5634984f8",
   "node": "v22.23.0",
   "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
-  "database": "knowscroll_test_pub_journey_1aa8a4d665744905",
-  "generatedReelId": "75e35bce-61fb-41af-b23b-06f3648b032d",
+  "database": "knowscroll_test_pub_journey_43224662088d4e76",
+  "generatedReelId": "8f37fbbd-62a2-47c6-9872-dce5ad47b78b",
   "mediaSha256": "e7c41bb6ea9c14163025fa78eccceb53bde991b25dd48376385a74305a54d121",
   "mediaByteSize": 61319,
   "checks": [

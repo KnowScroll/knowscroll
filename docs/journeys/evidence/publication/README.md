@@ -15,13 +15,13 @@ is started; the owner-local stand-in engine on `127.0.0.1:4390` is never contact
 
 | Field | Value |
 |---|---|
-| KnowScroll HEAD this run's evidence was captured against | `472c6b5c43736732b85cd0100de149f010db3dc6` (the ADR-0024/migration-0014 contract commit this slice was built from; see the PR/commit that carries this evidence for the actual delivered revision) |
+| KnowScroll HEAD this run's evidence was captured against | `dc6c49506e936bd98e6983221e820db5634984f8` (the commit implementing this slice; this evidence-refresh commit necessarily carries a later hash than the one it records — see the PR that carries this evidence for the actual delivered revision) |
 | Node | `v22.23.0` |
 | ffmpeg | `ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers` |
-| Disposable database | `knowscroll_test_pub_journey_1aa8a4d665744905` (dropped at the end of the run) |
-| Generated Reel id | `75e35bce-61fb-41af-b23b-06f3648b032d` |
+| Disposable database | `knowscroll_test_pub_journey_43224662088d4e76` (dropped at the end of the run) |
+| Generated Reel id | `8f37fbbd-62a2-47c6-9872-dce5ad47b78b` |
 | Media sha256 / size | `e7c41bb6ea9c14163025fa78eccceb53bde991b25dd48376385a74305a54d121` / 61319 bytes |
-| Full receipt | `$KS_DEV_ROOT/publication/logs/publication-journey-2026-09-20T02-38-26-148Z.json` |
+| Full receipt | `$KS_DEV_ROOT/publication/logs/publication-journey-2026-09-20T02-43-48-336Z.json` |
 | Sanitized snapshot (this repo) | `publication-journey.json` (next to this file) |
 | Overall | **PASS** (16/16 checks) |
 
