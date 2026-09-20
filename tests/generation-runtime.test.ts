@@ -5,13 +5,21 @@
  * generation, a product journey or owner acceptance. Storage-level admission/lease/event/
  * settlement behaviour is proved without HTTP in `tests/generation-admission.test.ts`. */
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {createHash, randomUUID} from 'node:crypto';
+import {mkdir, mkdtemp, readFile, rm, stat} from 'node:fs/promises';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
+import {tmpdir} from 'node:os';
+import {dirname, join} from 'node:path';
 import test from 'node:test';
+import {promisify} from 'node:util';
 import pg from 'pg';
 import {generationBrief, type GenerationBrief} from '../packages/contracts/src/generation.ts';
 import * as storage from '../apps/worker/src/generation/storage.ts';
+import {createLocalImportPort} from '../apps/worker/src/generation/import-port.ts';
 import {processClaimedJob} from '../apps/worker/src/generation/worker.ts';
+
+const execFileAsync = promisify(execFile);
 
 const databaseUrl = process.env.DATABASE_URL ?? (() => { throw new Error('DATABASE_URL required'); })();
 const databaseName = new URL(databaseUrl).pathname.slice(1);
@@ -207,19 +215,22 @@ function createFakeCutroomServer() {
 }
 type FakeCutroomServer = ReturnType<typeof createFakeCutroomServer>;
 
-async function registeredEngine(origin: string) {
+const DEFAULT_FAKE_ARTIFACT_ROOT = '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/generation-runtime-test/artifacts';
+async function registeredEngine(origin: string, artifactRoot: string) {
   const {id} = await storage.registerEngine(pool, {
     origin, contractRevision: storage.CUTROOM_CONTRACT_REVISION,
-    artifactRoot: '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/generation-runtime-test/artifacts',
-    providerMode: 'standin', declaredBy: 'generation-runtime-test',
+    artifactRoot, providerMode: 'standin', declaredBy: 'generation-runtime-test',
   });
   return id;
 }
-async function withFakeEngine(body: (engine: FakeCutroomServer, engineId: string) => Promise<void>): Promise<void> {
+async function withFakeEngine(
+  body: (engine: FakeCutroomServer, engineId: string) => Promise<void>,
+  artifactRoot: string = DEFAULT_FAKE_ARTIFACT_ROOT,
+): Promise<void> {
   const engine = createFakeCutroomServer();
   const origin = await engine.listen();
   try {
-    const engineId = await registeredEngine(origin);
+    const engineId = await registeredEngine(origin, artifactRoot);
     await body(engine, engineId);
   } finally {
     await engine.close();
@@ -257,13 +268,41 @@ async function drainStrayQueuedJobs(): Promise<void> {
   }
 }
 
+// --- Real-file import fixtures (issue #94 stage A2): a genuine ffmpeg-made MP4 and a scratch ----
+// engine-artifact-root/media-root pair per subtest, never the real stand-in engine on :4390. -----
+
+interface ImportWorld { base: string; engineArtifactRoot: string; mediaRoot: string }
+
+async function makeImportWorld(): Promise<ImportWorld> {
+  const base = await mkdtemp(join(tmpdir(), 'ks-generation-runtime-import-'));
+  const engineArtifactRoot = join(base, 'artifacts');
+  const mediaRoot = join(base, 'media');
+  await mkdir(engineArtifactRoot, {recursive: true});
+  await mkdir(mediaRoot, {recursive: true});
+  return {base, engineArtifactRoot, mediaRoot};
+}
+async function cleanupImportWorld(world: ImportWorld): Promise<void> {
+  await rm(world.base, {recursive: true, force: true});
+}
+async function makeVideoFixture(path: string, durationSeconds: number): Promise<void> {
+  await execFileAsync('ffmpeg', [
+    '-hide_banner', '-loglevel', 'error',
+    '-f', 'lavfi', '-i', `color=size=108x192:duration=${durationSeconds}:rate=24`,
+    '-f', 'lavfi', '-i', `sine=frequency=440:duration=${durationSeconds}`,
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', '-y', path,
+  ]);
+}
+async function sha256OfFile(path: string): Promise<string> {
+  return createHash('sha256').update(await readFile(path)).digest('hex');
+}
+
 test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', async (t) => {
   assetId = (await pool.query<{id: string}>('SELECT id FROM asset ORDER BY editorial_order LIMIT 1')).rows[0]?.id as string;
   assert.ok(assetId, 'the seeded library has at least one asset');
   await drainStrayQueuedJobs();
   try {
 
-  await t.test('dispatches once, follows a real HTTP run to completion, settles, and hands a completed video to the (unimplemented) import port', async () => {
+  await t.test('dispatches once, follows a real HTTP run to completion, and leaves an unwired import port honestly unfinished (reservation stays held)', async () => {
     await withFakeEngine(async (engine, engineId) => {
       const briefId = await approvedBrief();
       const grantId = await freshGrant();
@@ -287,16 +326,19 @@ test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', asyn
       engine.finish(run!.runId, {status: 'completed', costCents: 210, extra: {until: 'video', estimateCents: 210, stills: [], video: {path: '/artifacts/run/fixture.mp4'}, degradations: []}});
       const outcome = await processing;
 
+      // A wiring defect (no real port configured) never fabricates completion OR a typed refusal:
+      // the job stays honestly `importing`, and — per ADR-0023 ("a missing or unverifiable result
+      // keeps the whole reservation held") — settlement is deferred until a real import succeeds.
       assert.equal(outcome.outcome, 'importing');
       assert.equal((await jobRow(job.jobId)).status, 'importing');
       const attempt = await attemptRow(job.jobId);
       assert.equal(attempt.state, 'finished');
-      assert.equal(attempt.settlement, 'settled');
+      assert.equal(attempt.settlement, 'held', 'settlement is deferred to a successful import, not the raw terminal result');
       assert.equal(attempt.reported_cost_cents, 210);
       assert.ok(attempt.record_summary, 'the record summary was fetched and stored');
       const grant = await grantRow(grantId);
-      assert.equal(grant.reserved_cents, 0);
-      assert.equal(grant.spent_cents, 210);
+      assert.equal(grant.reserved_cents, 300, 'the whole reservation stays held while the result is unverified');
+      assert.equal(grant.spent_cents, 0);
       assert.ok(logs.some((line) => line.event === 'import_not_available'), 'the worker logs honestly instead of fabricating an import');
       assert.equal(importCalls.length, 1);
       assert.equal(importCalls[0]?.attemptId, attempt.id);
@@ -304,6 +346,119 @@ test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', asyn
       assert.equal(importCalls[0]?.enginePath, '/artifacts/run/fixture.mp4', 'the untrusted engine path from the result is handed to the import port unchanged');
       assert.equal(importCalls[0]?.engineArtifactRoot, '/Volumes/Mrigesh SSD/knowscroll-dev/cutroom/instances/generation-runtime-test/artifacts');
     });
+  });
+
+  await t.test('a real local import port completes the job, commits the generated Reel, and settles only then', async () => {
+    const world = await makeImportWorld();
+    try {
+      await withFakeEngine(async (engine, engineId) => {
+        const briefId = await approvedBrief();
+        const grantId = await freshGrant();
+        const job = await storage.createJob(pool, {briefId, engineId, grantId, until: 'video', budgetCents: 300, deadlineAt: future()});
+        const claim = await storage.claimJob(pool, {owner: 'runtime-test', leaseMs: 30_000});
+        const enginePath = join(world.engineArtifactRoot, 'run', 'a1-render.mp4');
+        await mkdir(dirname(enginePath), {recursive: true});
+        await makeVideoFixture(enginePath, 6);
+        const expectedSha256 = await sha256OfFile(enginePath);
+
+        const processing = processClaimedJob(
+          {db: pool, owner: 'runtime-test', pollMs: 10, maxFollowIterations: 500, importPort: createLocalImportPort(world.mediaRoot)},
+          claim!,
+        );
+        await pollUntil(async () => Boolean((await attemptRow(job.jobId)).run_id));
+        const run = engine.runByRequestId(job.requestId)!;
+        engine.finish(run.runId, {status: 'completed', costCents: 210, extra: {until: 'video', estimateCents: 210, stills: [], video: {path: enginePath}, degradations: []}});
+        const outcome = await processing;
+
+        assert.equal(outcome.outcome, 'completed');
+        assert.equal((await jobRow(job.jobId)).status, 'completed');
+        const attempt = await attemptRow(job.jobId);
+        assert.equal(attempt.settlement, 'settled');
+        assert.equal(attempt.reported_cost_cents, 210);
+        const grant = await grantRow(grantId);
+        assert.equal(grant.reserved_cents, 0);
+        assert.equal(grant.spent_cents, 210);
+
+        const reel = (await pool.query(
+          'SELECT * FROM generated_reel WHERE attempt_id=$1', [attempt.id],
+        )).rows[0];
+        assert.ok(reel, 'a generated_reel row was committed');
+        assert.equal(reel.provider_mode, 'standin');
+        assert.equal(reel.truth_state, 'synthesis');
+        assert.equal(reel.generated_label, true);
+        assert.equal(reel.availability, 'imported');
+        assert.equal(reel.media_sha256, expectedSha256);
+        assert.equal(reel.engine_path, enginePath);
+
+        const media = (await pool.query('SELECT * FROM media_object WHERE sha256=$1', [expectedSha256])).rows[0];
+        assert.ok(media, 'a media_object row was committed');
+        const installedBytes = await readFile(join(world.mediaRoot, media.storage_key));
+        assert.equal(createHash('sha256').update(installedBytes).digest('hex'), expectedSha256, 'a real MP4 exists at its content-addressed key');
+
+        // The engine's own file is untouched: import copies, never moves.
+        const originalStat = await stat(enginePath);
+        assert.ok(originalStat.isFile());
+      }, world.engineArtifactRoot);
+    } finally {
+      await cleanupImportWorld(world);
+    }
+  });
+
+  await t.test('a typed import refusal (containment failure) leaves the job honestly importing, with no media object or generated Reel, and the reservation still held', async () => {
+    const world = await makeImportWorld();
+    try {
+      await withFakeEngine(async (engine, engineId) => {
+        const briefId = await approvedBrief();
+        const grantId = await freshGrant();
+        const job = await storage.createJob(pool, {briefId, engineId, grantId, until: 'video', budgetCents: 300, deadlineAt: future()});
+        const claim = await storage.claimJob(pool, {owner: 'runtime-test', leaseMs: 30_000});
+        // Outside world.engineArtifactRoot entirely: a genuine containment failure. A distinct
+        // duration (7s, vs. 6s elsewhere in this file) keeps ffmpeg's fully deterministic output
+        // from accidentally colliding, by content hash, with another subtest's already-imported file.
+        const outsidePath = join(world.base, 'outside', 'a1-render.mp4');
+        await mkdir(dirname(outsidePath), {recursive: true});
+        await makeVideoFixture(outsidePath, 7);
+        const wouldBeSha256 = await sha256OfFile(outsidePath);
+
+        const processing = processClaimedJob(
+          {db: pool, owner: 'runtime-test', pollMs: 10, maxFollowIterations: 500, importPort: createLocalImportPort(world.mediaRoot)},
+          claim!,
+        );
+        await pollUntil(async () => Boolean((await attemptRow(job.jobId)).run_id));
+        const run = engine.runByRequestId(job.requestId)!;
+        engine.finish(run.runId, {status: 'completed', costCents: 210, extra: {until: 'video', estimateCents: 210, stills: [], video: {path: outsidePath}, degradations: []}});
+        const outcome = await processing;
+
+        assert.equal(outcome.outcome, 'import_refused');
+        assert.equal(outcome.detail, 'engine_path_not_contained');
+        const jobAfter = await jobRow(job.jobId);
+        assert.equal(jobAfter.status, 'importing', 'left honestly unfinished, never fabricated success or a terminal failure');
+        assert.equal(jobAfter.status_detail, 'import_refused:engine_path_not_contained');
+        const attempt = await attemptRow(job.jobId);
+        assert.equal(attempt.settlement, 'held', 'the reservation stays held for an unverified/refused import');
+        const grant = await grantRow(grantId);
+        assert.equal(grant.reserved_cents, 300);
+        assert.equal(grant.spent_cents, 0);
+        assert.equal((await pool.query('SELECT count(*)::int AS n FROM generated_reel WHERE attempt_id=$1', [attempt.id])).rows[0]?.n, 0);
+        assert.equal((await pool.query('SELECT count(*)::int AS n FROM media_object WHERE sha256=$1', [wouldBeSha256])).rows[0]?.n, 0, 'a refused import never writes a media_object row for the refused bytes');
+
+        // Retryable while the engine file still exists: a fresh claim (lease expired) picks the
+        // job back up and attempts import again. The finished attempt's own recorded result still
+        // names the same (outside) path, so the retry reaches the same honest refusal on unchanged
+        // data — never a fabricated success, and the job is never permanently stuck either.
+        await pool.query(`UPDATE generation_job SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, [job.jobId]);
+        const reclaim = await storage.claimJob(pool, {owner: 'runtime-test-2', leaseMs: 30_000});
+        assert.equal(reclaim?.jobId, job.jobId);
+        const retried = await processClaimedJob(
+          {db: pool, owner: 'runtime-test-2', pollMs: 10, importPort: createLocalImportPort(world.mediaRoot)},
+          reclaim!,
+        );
+        assert.equal(retried.outcome, 'import_refused');
+        assert.equal(retried.detail, 'engine_path_not_contained', 'a retry against unchanged data reaches the same honest refusal, never a fabricated success');
+      }, world.engineArtifactRoot);
+    } finally {
+      await cleanupImportWorld(world);
+    }
   });
 
   await t.test('a plan-only completed result needs no import and reaches "completed" directly', async () => {

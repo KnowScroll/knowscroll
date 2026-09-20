@@ -1,11 +1,13 @@
 /** ADR-0023 section 6: the generation worker loop. Claims a job, authorizes exactly one POST,
- * records the outcome, follows events to a terminal run, fetches the result and settles, and
- * hands a completed video off to the (in this stage, unimplemented) import port. Holds no
- * provider credentials; talks to Cutroom only through the pinned, unwired HTTP client. Never
- * holds a database transaction across an HTTP call. */
+ * records the outcome, follows events to a terminal run, fetches the result and settles, and (#94
+ * stage A2) hands a completed video off to the real verified-import port: a successful import
+ * completes the job, a typed refusal leaves it honestly `importing` and retryable, and a missing
+ * port is a wiring defect, not a fabricated outcome either way. Holds no provider credentials;
+ * talks to Cutroom only through the pinned, unwired HTTP client. Never holds a database
+ * transaction across an HTTP call. */
 import type pg from 'pg';
 import {createCutroomHttpClient, prepareCutroomRequest, type CutroomRunRef} from '../cutroom/http-client.ts';
-import {createUnimplementedImportPort, type ImportPort} from './import-port.ts';
+import {createUnimplementedImportPort, type ImportOutcome, type ImportPort} from './import-port.ts';
 import * as storage from './storage.ts';
 
 export type GenerationWorkerOptions = {
@@ -17,11 +19,17 @@ export type GenerationWorkerOptions = {
   maxLookupRetries?: number;
   importPort?: ImportPort;
   log?: (line: Record<string, unknown>) => void;
+  /** Test-only crash-injection hook (issue #94 J005 S2): called once, right after dispatch
+   * authorization commits and before the first submit is ever sent. `main.ts` wires this from
+   * `GENERATION_HOLD_BEFORE_SUBMIT=1` so a harness can SIGKILL the process at a reproducible point
+   * between "dispatch committed" and "any outcome recorded" — mirroring Cutroom's own
+   * `holdAtCall` design. Defaults to a no-op; never used by ordinary operation. */
+  holdBeforeSubmit?: (context: {jobId: string}) => Promise<void>;
 };
 
 export type ProcessOutcome = {jobId: string; outcome: string; detail?: string};
 
-type Resolved = Required<Pick<GenerationWorkerOptions, 'db' | 'owner' | 'leaseMs' | 'pollMs' | 'maxFollowIterations' | 'maxLookupRetries' | 'importPort'>> & {log: (line: Record<string, unknown>) => void};
+type Resolved = Required<Pick<GenerationWorkerOptions, 'db' | 'owner' | 'leaseMs' | 'pollMs' | 'maxFollowIterations' | 'maxLookupRetries' | 'importPort' | 'holdBeforeSubmit'>> & {log: (line: Record<string, unknown>) => void};
 
 function resolveOptions(options: GenerationWorkerOptions): Resolved {
   return {
@@ -33,6 +41,7 @@ function resolveOptions(options: GenerationWorkerOptions): Resolved {
     maxLookupRetries: options.maxLookupRetries ?? 1,
     importPort: options.importPort ?? createUnimplementedImportPort(),
     log: options.log ?? ((line) => console.log(JSON.stringify(line))),
+    holdBeforeSubmit: options.holdBeforeSubmit ?? (async () => {}),
   };
 }
 
@@ -176,7 +185,16 @@ async function followToTerminal(
   return 'aborted';
 }
 
-async function fetchResultAndRecord(resolved: Resolved, holder: Holder, ref: CutroomRunRef, client: ReturnType<typeof createCutroomHttpClient>): Promise<{jobStatus: string; enginePath: string | null}> {
+/**
+ * Fetches the terminal result and record, then settles — EXCEPT for a completed video result
+ * (`jobStatus === 'importing'`), whose settlement `handleImport` performs itself, only once a real
+ * import actually succeeds. Per ADR-0023 section 3, "a missing or unverifiable result keeps the
+ * whole reservation held"; an unimported video result is not yet verified, so its reservation stays
+ * held (and its `cutroom_attempt.settlement` stays `held`) until import either succeeds (settled)
+ * or the job is honestly abandoned. Every other terminal outcome needs no import and settles here,
+ * immediately, exactly as before this stage.
+ */
+async function fetchResultAndRecord(resolved: Resolved, holder: Holder, ref: CutroomRunRef, client: ReturnType<typeof createCutroomHttpClient>): Promise<{jobStatus: string}> {
   let resultValue: Awaited<ReturnType<typeof client.result>> | null = null;
   for (let attempt = 0; attempt <= resolved.maxLookupRetries; attempt += 1) {
     const outcome = await client.result(ref);
@@ -192,9 +210,84 @@ async function fetchResultAndRecord(resolved: Resolved, holder: Holder, ref: Cut
   if (record.kind === 'ok') await storage.recordRecordSummary(resolved.db, holder, record.value);
   else resolved.log({service: 'generation-worker', event: 'record_unavailable', jobId: holder.jobId, record});
 
-  await storage.settle(resolved.db, holder);
-  const enginePath = value.status === 'completed' && value.until === 'video' ? value.video.path : null;
-  return {jobStatus, enginePath};
+  if (jobStatus !== 'importing') await storage.settle(resolved.db, holder);
+  return {jobStatus};
+}
+
+type EngineInfo = {origin: string; artifactRoot: string; providerMode: string};
+
+/**
+ * ADR-0023 section 4 / issue #94 stage A2: verified import for a finished, completed video
+ * attempt. Called both right after a fresh `run.finished` (from `processClaimedJob`'s own follow)
+ * and on a later lease reclaim of a job still sitting `importing` (the attempt is already
+ * `finished`/`settled` in that case; only the import itself is retried). Never marks the job
+ * `completed` without a real committed `media_object`/`generated_reel` row, and never invents a
+ * request id or resends to Cutroom: this step only ever reads the attempt's own persisted result.
+ */
+async function handleImport(
+  resolved: Resolved,
+  holder: Holder,
+  claim: {jobId: string; briefId: string; engineId: string},
+  engine: EngineInfo,
+  attempt: storage.AttemptSnapshot,
+): Promise<ProcessOutcome> {
+  const result = attempt.result as {status?: string; until?: string; video?: {path?: string}} | null;
+  const enginePath = result?.status === 'completed' && result.until === 'video' ? result.video?.path : undefined;
+  if (!attempt.runId || !enginePath) {
+    throw new Error('generation_worker_defect: importing job has no finished completed-video result to import');
+  }
+
+  let imported: ImportOutcome;
+  try {
+    imported = await resolved.importPort.importFinishedVideo({
+      attemptId: attempt.id, runId: attempt.runId, enginePath, engineArtifactRoot: engine.artifactRoot,
+    });
+  } catch (error) {
+    // A missing/broken port is a wiring defect, never a data refusal: leave the job honestly
+    // `importing` with no status_detail change, so a later reclaim (once a real port is wired or
+    // whatever broke it is fixed) tries again from scratch.
+    resolved.log({
+      service: 'generation-worker', event: 'import_not_available', jobId: claim.jobId,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+    return {jobId: claim.jobId, outcome: 'importing'};
+  }
+
+  if (!imported.ok) {
+    await storage.recordImportRefusal(resolved.db, holder, `import_refused:${imported.reason}`);
+    resolved.log({service: 'generation-worker', event: 'import_refused', jobId: claim.jobId, reason: imported.reason});
+    return {jobId: claim.jobId, outcome: 'import_refused', detail: imported.reason};
+  }
+
+  const briefSha256 = await storage.briefSha256Of(resolved.db, claim.briefId);
+  const committed = await storage.commitImportedReel(resolved.db, {
+    attemptId: attempt.id, briefId: claim.briefId, engineId: claim.engineId, cutroomRunId: attempt.runId,
+    providerMode: engine.providerMode === 'live' ? 'live' : 'standin',
+    enginePath,
+    media: {sha256: imported.sha256, byteSize: imported.byteSize, probe: imported.probe, storageKey: imported.storageKey},
+    lineage: {briefSha256, contractRevision: attempt.contractRevision, runId: attempt.runId, recordSummary: attempt.recordSummary},
+  });
+  if (!committed.ok) {
+    // The imported file is real and verified, but the database will not link it to this job's
+    // lineage (a defect in our own bookkeeping, never Cutroom's fault): record it as a typed,
+    // retryable refusal rather than ever fabricating a generated_reel row. The reservation stays
+    // held, exactly as an import-refused attempt (ADR-0023: "a missing or unverifiable result
+    // keeps the whole reservation held").
+    await storage.recordImportRefusal(resolved.db, holder, `import_refused:${committed.reason}`);
+    resolved.log({service: 'generation-worker', event: 'import_refused', jobId: claim.jobId, reason: committed.reason});
+    return {jobId: claim.jobId, outcome: 'import_refused', detail: committed.reason};
+  }
+
+  // Only now — a real, containment-checked, hashed and probed file is durably recorded as this
+  // job's generated Reel — is the reported cost actually verified. Settle before marking the job
+  // completed, so a job never reaches `completed` with its reservation still `held`.
+  if (attempt.settlement === 'held') await storage.settle(resolved.db, holder);
+  await storage.completeImportedJob(resolved.db, holder);
+  resolved.log({
+    service: 'generation-worker', event: 'imported', jobId: claim.jobId,
+    generatedReelId: committed.generatedReelId, created: committed.created, storageKey: imported.storageKey,
+  });
+  return {jobId: claim.jobId, outcome: 'completed'};
 }
 
 /** Processes exactly one claimed job through as much of its lifecycle as this stage owns.
@@ -226,6 +319,7 @@ export async function processClaimedJob(options: GenerationWorkerOptions, claim:
       }
       throw error;
     }
+    await resolved.holdBeforeSubmit({jobId: claim.jobId});
     const prepared = reprepareOrThrow(dispatch);
     const outcome = await submitAndRecord(resolved, holder, prepared, client, 'first');
     if (outcome === 'refused') return {jobId: claim.jobId, outcome: 'refused'};
@@ -256,27 +350,23 @@ export async function processClaimedJob(options: GenerationWorkerOptions, claim:
       return Boolean(job?.cancelRequestedAt);
     });
     if (followed === 'aborted') return {jobId: claim.jobId, outcome: 'following_paused'};
-    const {jobStatus, enginePath} = await fetchResultAndRecord(resolved, holder, ref, client);
+    const {jobStatus} = await fetchResultAndRecord(resolved, holder, ref, client);
     if (jobStatus === 'importing') {
-      if (!enginePath) throw new Error('generation_worker_defect: importing status without a video engine path');
-      try {
-        const imported = await resolved.importPort.importFinishedVideo({
-          attemptId: attempt.id, runId: attempt.runId, enginePath, engineArtifactRoot: engine.artifactRoot,
-        });
-        resolved.log({service: 'generation-worker', event: 'imported', jobId: claim.jobId, imported});
-      } catch (error) {
-        resolved.log({
-          service: 'generation-worker', event: 'import_not_available', jobId: claim.jobId,
-          detail: error instanceof Error ? error.message : String(error),
-        });
-      }
-      return {jobId: claim.jobId, outcome: 'importing'};
+      const finished = await storage.loadAttempt(resolved.db, claim.jobId);
+      if (!finished) throw new Error('generation_worker_defect: attempt vanished after recordResult');
+      return handleImport(resolved, holder, claim, engine, finished);
     }
     return {jobId: claim.jobId, outcome: jobStatus};
   }
 
-  if (attempt.state === 'finished' && attempt.settlement === 'held') {
-    await storage.settle(resolved.db, holder);
+  if (attempt.state === 'finished') {
+    if (claim.status === 'importing') {
+      // Settlement for a video job is deferred to a successful import (see `handleImport` and
+      // `fetchResultAndRecord`): never settle here ahead of knowing whether the import succeeds.
+      const fresh = await storage.loadAttempt(resolved.db, claim.jobId);
+      return handleImport(resolved, holder, claim, engine, fresh ?? attempt);
+    }
+    if (attempt.settlement === 'held') await storage.settle(resolved.db, holder);
     return {jobId: claim.jobId, outcome: 'settled_after_resume'};
   }
 

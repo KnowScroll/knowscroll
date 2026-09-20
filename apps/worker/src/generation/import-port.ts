@@ -1,9 +1,14 @@
-/** ADR-0023 section 4: verified local-host import boundary. This lane owns only the TYPE the
- * generation worker calls; the implementation (containment/probe/content-addressed write and the
- * `media_object`/`generated_reel` insert) belongs to the parallel import lane
- * (`apps/worker/src/generation/import.ts`, `tests/generation-import.test.ts`). Until that lane is
- * wired in, `main.ts` leaves a completed video job in `importing` and logs honestly rather than
- * fabricating an import result. */
+/** ADR-0023 section 4, issue #94 stage A2: the generation worker's verified-import boundary.
+ * `./import.ts` owns the real filesystem/database implementation (containment, hashing, probe,
+ * content-addressed write, the `media_object`/`generated_reel` insert); this file owns only the
+ * narrow port `worker.ts` calls through, plus the factory that fixes `mediaRoot` (KS_MEDIA_ROOT —
+ * KnowScroll's own deployment configuration, never per-attempt data) at construction. A completed
+ * `ImportOutcome` is never thrown: `{ok:false, reason}` is a well-typed, expected refusal the
+ * worker records honestly. A THROWN error from a port instead means the port itself is missing or
+ * broken (a wiring defect, not a data refusal) — see `createUnimplementedImportPort` below. */
+import {importFinishedVideo, type ImportFinishedVideoInput as RealImportInput, type ImportOutcome} from './import.ts';
+
+export type {ImportOutcome} from './import.ts';
 
 export type ImportFinishedVideoInput = {
   /** The `cutroom_attempt.id` the finished result belongs to. */
@@ -16,23 +21,30 @@ export type ImportFinishedVideoInput = {
   engineArtifactRoot: string;
 };
 
-export type ImportedVideo = {
-  sha256: string;
-  byteSize: number;
-  storageKey: string;
-  probe: unknown;
-};
-
 export interface ImportPort {
-  importFinishedVideo(input: ImportFinishedVideoInput): Promise<ImportedVideo>;
+  importFinishedVideo(input: ImportFinishedVideoInput): Promise<ImportOutcome>;
 }
 
-/** A safe placeholder for this stage only: it always reports itself as not implemented rather
- * than performing any file I/O, so a job that reaches `importing` is never silently marked
- * complete without a real import lane wired in. Never used as the product's actual import path. */
+/** The real import port. `mediaRoot` is fixed once at construction (`main.ts` reads
+ * `KS_MEDIA_ROOT`), matching `import.ts`'s own contract that it is deployment configuration and
+ * never a per-attempt value a caller could vary. */
+export function createLocalImportPort(mediaRoot: string): ImportPort {
+  return {
+    async importFinishedVideo(input: ImportFinishedVideoInput): Promise<ImportOutcome> {
+      const full: RealImportInput = {...input, mediaRoot};
+      return importFinishedVideo(full);
+    },
+  };
+}
+
+/** A safe placeholder for callers that wire no import port at all: it always THROWS rather than
+ * performing any file I/O or returning a fabricated outcome, so a job that reaches `importing`
+ * without a real port configured is left honestly unfinished (`worker.ts` logs `import_not_available`
+ * and takes no further action) instead of ever being marked complete or refused. Never used by
+ * `main.ts`'s real process, which always constructs `createLocalImportPort`. */
 export function createUnimplementedImportPort(): ImportPort {
   return {
-    async importFinishedVideo() {
+    async importFinishedVideo(): Promise<ImportOutcome> {
       throw new Error('import_port_not_implemented: the media import lane is not wired into this stage');
     },
   };

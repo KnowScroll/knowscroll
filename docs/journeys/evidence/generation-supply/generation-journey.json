@@ -1,0 +1,721 @@
+{
+  "runStamp": "2026-09-20T00-20-36-341Z",
+  "evidenceLevel": "real local service with upstream stand-in providers — not real generation",
+  "knowscrollHead": "cfdf501c3c7a9871559615ec81dddce059dcaba9",
+  "cutroomRevision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+  "hostSha256": "e3b560b372311d3879f90b4162ec90cc672bbcc56de35cfb4072bc6c481fdead",
+  "standinScriptSha256": "230f282c8b5b928217faf34c2e9205ead20c7bb09e0a6a3684929907648bc108",
+  "ffmpegVersion": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "nodeVersion": "v22.23.0",
+  "scenarios": [
+    {
+      "name": "S1 happy path: approved brief -> real Cutroom run -> verified import -> completed",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "job reached completed",
+          "pass": true,
+          "detail": "completed"
+        },
+        {
+          "description": "exactly one cutroom_attempt exists for the job",
+          "pass": true
+        },
+        {
+          "description": "event seq 1 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 2 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 3 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 4 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 5 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 6 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 7 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 8 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 9 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 10 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 11 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 12 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 13 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 14 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 15 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 16 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 17 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 18 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 19 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 20 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 21 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 22 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 23 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 24 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 25 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 26 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 27 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 28 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 29 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 30 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 31 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 32 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 33 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 34 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 35 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 36 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 37 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 38 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 39 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 40 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "event seq 41 is continuous",
+          "pass": true,
+          "detail": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41]"
+        },
+        {
+          "description": "stored events are non-empty",
+          "pass": true
+        },
+        {
+          "description": "result persisted",
+          "pass": true
+        },
+        {
+          "description": "record persisted",
+          "pass": true
+        },
+        {
+          "description": "settlement is settled",
+          "pass": true
+        },
+        {
+          "description": "the remainder of the reservation was released",
+          "pass": true,
+          "detail": "{\"reserved_cents\":0,\"spent_cents\":0}"
+        },
+        {
+          "description": "settlement moved exactly the reported cost to spent",
+          "pass": true
+        },
+        {
+          "description": "a generated_reel row was committed",
+          "pass": true
+        },
+        {
+          "description": "provider_mode is standin",
+          "pass": true
+        },
+        {
+          "description": "truth_state is synthesis",
+          "pass": true
+        },
+        {
+          "description": "generated_label is true",
+          "pass": true
+        },
+        {
+          "description": "availability is imported",
+          "pass": true
+        },
+        {
+          "description": "lineage carries brief/contract/run identity",
+          "pass": true,
+          "detail": "{\"runId\":\"902c89b6-62e2-41a4-a80d-10f4c073948a\",\"briefSha256\":\"d0ea415c9438a04ec99f1559d0fb5b0f0fceb30ecb72bde4c5064655b51853e6\",\"recordSummary\":{\"runId\":\"902c89b6-62e2-41a4-a80d-10f4c073948a\",\"takes\":[{\"used\":true,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-0\",\"takeId\":\"a1-shot-0-take-1\",\"observationId\":\"obs-a1-shot-0-take-1\",\"reconciliationId\":\"rec-a1-shot-0-take-1\"},{\"used\":true,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-1\",\"takeId\":\"a1-shot-1-take-1\",\"observationId\":\"obs-a1-shot-1-take-1\",\"reconciliationId\":\"rec-a1-shot-1-take-1\"},{\"used\":true,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-2\",\"takeId\":\"a1-shot-2-take-1\",\"observationId\":\"obs-a1-shot-2-take-1\",\"reconciliationId\":\"rec-a1-shot-2-take-1\"},{\"used\":true,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-3\",\"takeId\":\"a1-shot-3-take-1\",\"observationId\":\"obs-a1-shot-3-take-1\",\"reconciliationId\":\"rec-a1-shot-3-take-1\"},{\"used\":true,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-4\",\"takeId\":\"a1-shot-4-take-1\",\"observationId\":\"obs-a1-shot-4-take-1\",\"reconciliationId\":\"rec-a1-shot-4-take-1\"},{\"used\":true,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-5\",\"takeId\":\"a1-shot-5-take-1\",\"observationId\":\"obs-a1-shot-5-take-1\",\"reconciliationId\":\"rec-a1-shot-5-take-1\"}],\"pictures\":[{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"}],\"chosen\":true,\"shotId\":\"shot-0\",\"pictureId\":\"a1-shot-0-a\",\"observationId\":\"obs-a1-shot-0-a\",\"reconciliationId\":\"rec-a1-shot-0-a\"},{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"}],\"chosen\":false,\"shotId\":\"shot-0\",\"pictureId\":\"a1-shot-0-b\",\"observationId\":\"obs-a1-shot-0-b\",\"reconciliationId\":\"rec-a1-shot-0-b\"},{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"},{\"gate\":\"1S\",\"outcome\":\"accept\"}],\"chosen\":true,\"shotId\":\"shot-1\",\"pictureId\":\"a1-shot-1-single\",\"observationId\":\"obs-a1-shot-1-single\",\"reconciliationId\":\"rec-a1-shot-1-single\"},{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"},{\"gate\":\"1S\",\"outcome\":\"accept\"}],\"chosen\":true,\"shotId\":\"shot-2\",\"pictureId\":\"a1-shot-2-single\",\"observationId\":\"obs-a1-shot-2-single\",\"reconciliationId\":\"rec-a1-shot-2-single\"}],\"degradations\":[],\"contractVersion\":1},\"contractRevision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\"}"
+        },
+        {
+          "description": "a media_object row exists",
+          "pass": true
+        },
+        {
+          "description": "the installed file hashes to its recorded sha256",
+          "pass": true
+        },
+        {
+          "description": "ffprobe independently confirms an h264 video stream",
+          "pass": true,
+          "detail": "{\"index\":0,\"codec_name\":\"h264\",\"codec_long_name\":\"H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10\",\"profile\":\"High\",\"codec_type\":\"video\",\"codec_tag_string\":\"avc1\",\"codec_tag\":\"0x31637661\",\"mime_codec_string\":\"avc1.64000b\",\"width\":108,\"height\":192,\"coded_width\":108,\"coded_height\":192,\"has_b_frames\":2,\"sample_aspect_ratio\":\"1:1\",\"display_aspect_ratio\":\"9:16\",\"pix_fmt\":\"yuv420p\",\"level\":11,\"chroma_location\":\"left\",\"field_order\":\"progressive\",\"is_avc\":\"true\",\"nal_length_size\":\"4\",\"id\":\"0x1\",\"r_frame_rate\":\"24/1\",\"avg_frame_rate\":\"24/1\",\"time_base\":\"1/12288\",\"start_pts\":0,\"start_time\":\"0.000000\",\"duration_ts\":356352,\"duration\":\"29.000000\",\"bit_rate\":\"63189\",\"bits_per_raw_sample\":\"8\",\"nb_frames\":\"696\",\"extradata_size\":44,\"disposition\":{\"default\":1,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0},\"tags\":{\"language\":\"und\",\"handler_name\":\"VideoHandler\",\"encoder\":\"Lavc62.28.102 libx264\"}}"
+        },
+        {
+          "description": "the engine's own file is untouched (import copies, never moves)",
+          "pass": true
+        }
+      ],
+      "observations": [
+        "generated_reel 1da5cbc5-26c1-4771-80d9-134f2ac7f7bb at sha256/89/24/892481748be618d27d179a7b8662450b14b88140b1c206d0ead8d1f631031548.mp4, reported cost 0c"
+      ]
+    },
+    {
+      "name": "S2 generation worker crash between dispatch commit and any recorded outcome",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "the worker held immediately before its first submit for this exact job",
+          "pass": true
+        },
+        {
+          "description": "dispatch is committed but no outcome was ever recorded",
+          "pass": true,
+          "detail": "dispatch_committed"
+        },
+        {
+          "description": "no Cutroom run exists yet",
+          "pass": true
+        },
+        {
+          "description": "the worker actually died by SIGKILL",
+          "pass": true,
+          "detail": "{\"code\":null,\"signal\":\"SIGKILL\"}"
+        },
+        {
+          "description": "the replacement worker completed the job",
+          "pass": true
+        },
+        {
+          "description": "exactly one cutroom_attempt row exists for the job",
+          "pass": true
+        },
+        {
+          "description": "the ORIGINAL request id was reused, never a new one",
+          "pass": true
+        }
+      ],
+      "observations": []
+    },
+    {
+      "name": "S3 Cutroom host restart (SIGTERM both roles, api restarted on the same port) while the run is in flight",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "observed a real port to restart on",
+          "pass": true
+        },
+        {
+          "description": "the original Cutroom worker stopped gracefully (finished its job in hand)",
+          "pass": true,
+          "detail": "{\"code\":0,\"signal\":null}"
+        },
+        {
+          "description": "the restarted api reused the same port",
+          "pass": true
+        },
+        {
+          "description": "the run completed and imported despite the restart",
+          "pass": true
+        },
+        {
+          "description": "event seq 1 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 2 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 3 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 4 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 5 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 6 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 7 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 8 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 9 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 10 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 11 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 12 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 13 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 14 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 15 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 16 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 17 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 18 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 19 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 20 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 21 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 22 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 23 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 24 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 25 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 26 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 27 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 28 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 29 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 30 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 31 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 32 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 33 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 34 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 35 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 36 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 37 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 38 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 39 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 40 has no regression or duplication",
+          "pass": true
+        },
+        {
+          "description": "event seq 41 has no regression or duplication",
+          "pass": true
+        }
+      ],
+      "observations": [
+        "run accepted and in flight; interrupting the Cutroom host now"
+      ]
+    },
+    {
+      "name": "S4 operator cancel while the run is genuinely running",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "the real operator CLI accepted the cancel request",
+          "pass": true,
+          "detail": "{\"ok\":true,\"value\":{\"cancelRequested\":true}}"
+        },
+        {
+          "description": "the job ended cancelled (real contract semantics: effective once the engine worker processes it)",
+          "pass": true,
+          "detail": "cancelled"
+        },
+        {
+          "description": "settlement resolved per the terminal cancelled result",
+          "pass": true,
+          "detail": "{\"id\":\"9fe15776-a786-40d2-bfc2-dc39b628124b\",\"job_id\":\"eb883261-ad67-42c2-8028-00574c0f12a3\",\"ordinal\":1,\"request_id\":\"ks-gen-94cc0335-e335-4409-86a2-848097d4f691\",\"request_body\":\"{\\\"contractVersion\\\":1,\\\"requestId\\\":\\\"ks-gen-94cc0335-e335-4409-86a2-848097d4f691\\\",\\\"worldId\\\":\\\"world-1\\\",\\\"narration\\\":[{\\\"text\\\":\\\"In 1215 a charter was sealed at Runnymede.\\\",\\\"claimIds\\\":[\\\"c1\\\"]},{\\\"text\\\":\\\"It bound a king to the law of the land.\\\",\\\"claimIds\\\":[\\\"c1\\\"]},{\\\"text\\\":\\\"The barons who forced it were not democrats.\\\",\\\"claimIds\\\":[\\\"c2\\\"]},{\\\"text\\\":\\\"They wanted their own privileges back.\\\",\\\"claimIds\\\":[]},{\\\"text\\\":\\\"Within weeks the pope annulled it.\\\",\\\"claimIds\\\":[\\\"c3\\\"]},{\\\"text\\\":\\\"Yet it was reissued three times.\\\",\\\"claimIds\\\":[\\\"c2\\\"]},{\\\"text\\\":\\\"Each reissue shortened it.\\\",\\\"claimIds\\\":[]},{\\\"text\\\":\\\"Three of its clauses are still law in England today.\\\",\\\"claimIds\\\":[\\\"c4\\\"]}],\\\"claims\\\":[{\\\"id\\\":\\\"c1\\\",\\\"role\\\":\\\"main\\\"},{\\\"id\\\":\\\"c2\\\",\\\"role\\\":\\\"supporting\\\"},{\\\"id\\\":\\\"c3\\\",\\\"role\\\":\\\"supporting\\\"},{\\\"id\\\":\\\"c4\\\",\\\"role\\\":\\\"main\\\"}],\\\"criteria\\\":{\\\"mustShow\\\":[{\\\"id\\\":\\\"show-seal\\\",\\\"text\\\":\\\"a wax seal on parchment\\\",\\\"type\\\":\\\"presence\\\",\\\"claimId\\\":\\\"c1\\\"},{\\\"id\\\":\\\"show-pressing\\\",\\\"text\\\":\\\"the seal being pressed into hot wax\\\",\\\"type\\\":\\\"event\\\",\\\"claimId\\\":\\\"c1\\\"},{\\\"id\\\":\\\"show-crowd\\\",\\\"text\\\":\\\"armed men gathered together\\\",\\\"type\\\":\\\"presence\\\",\\\"claimId\\\":\\\"c2\\\"},{\\\"id\\\":\\\"show-law\\\",\\\"text\\\":\\\"a printed statute book\\\",\\\"type\\\":\\\"presence\\\",\\\"claimId\\\":\\\"c4\\\"},{\\\"id\\\":\\\"show-meadow\\\",\\\"text\\\":\\\"a meadow beside a river\\\",\\\"type\\\":\\\"presence\\\"}],\\\"mustNotShow\\\":[{\\\"id\\\":\\\"never-person\\\",\\\"text\\\":\\\"any real living person\\\",\\\"type\\\":\\\"presence\\\"},{\\\"id\\\":\\\"never-flag\\\",\\\"text\\\":\\\"a modern flag\\\",\\\"type\\\":\\\"presence\\\",\\\"claimId\\\":\\\"c4\\\"}],\\\"depictionPolicyVersion\\\":\\\"policy-3\\\"},\\\"style\\\":{\\\"id\\\":\\\"style-1\\\",\\\"version\\\":2,\\\"text\\\":\\\"quiet, precise, natural light\\\"},\\\"options\\\":{\\\"until\\\":\\\"video\\\",\\\"budgetCents\\\":300}}\",\"body_sha256\":\"86cb28a8eef18628a21394b35a76aa15072b45f10a72bdc3d3173b5c3af8deb4\",\"contract_revision\":\"86d6e2c8b74228db4a5a953e53c53a7b77cef46e\",\"state\":\"finished\",\"resend_count\":0,\"run_id\":\"1ee4d590-e7c7-4946-964d-619c861a98d8\",\"replayed\":false,\"refusal\":null,\"last_status\":null,\"next_since\":39,\"result\":{\"runId\":\"1ee4d590-e7c7-4946-964d-619c861a98d8\",\"status\":\"cancelled\",\"costCents\":0,\"requestId\":\"ks-gen-94cc0335-e335-4409-86a2-848097d4f691\",\"contractVersion\":1},\"record_summary\":{\"runId\":\"1ee4d590-e7c7-4946-964d-619c861a98d8\",\"takes\":[{\"used\":false,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-0\",\"takeId\":\"a1-shot-0-take-1\",\"observationId\":\"obs-a1-shot-0-take-1\",\"reconciliationId\":\"rec-a1-shot-0-take-1\"},{\"used\":false,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-1\",\"takeId\":\"a1-shot-1-take-1\",\"observationId\":\"obs-a1-shot-1-take-1\",\"reconciliationId\":\"rec-a1-shot-1-take-1\"},{\"used\":false,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-2\",\"takeId\":\"a1-shot-2-take-1\",\"observationId\":\"obs-a1-shot-2-take-1\",\"reconciliationId\":\"rec-a1-shot-2-take-1\"},{\"used\":false,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-3\",\"takeId\":\"a1-shot-3-take-1\",\"observationId\":\"obs-a1-shot-3-take-1\",\"reconciliationId\":\"rec-a1-shot-3-take-1\"},{\"used\":false,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-4\",\"takeId\":\"a1-shot-4-take-1\",\"observationId\":\"obs-a1-shot-4-take-1\",\"reconciliationId\":\"rec-a1-shot-4-take-1\"},{\"used\":false,\"checks\":[{\"gate\":\"2\",\"outcome\":\"accept\"},{\"gate\":\"3\",\"outcome\":\"accept\"},{\"gate\":\"4\",\"outcome\":\"accept\"},{\"gate\":\"5\",\"outcome\":\"accept\"}],\"number\":1,\"shotId\":\"shot-5\",\"takeId\":\"a1-shot-5-take-1\",\"observationId\":\"obs-a1-shot-5-take-1\",\"reconciliationId\":\"rec-a1-shot-5-take-1\"}],\"pictures\":[{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"}],\"chosen\":true,\"shotId\":\"shot-0\",\"pictureId\":\"a1-shot-0-a\",\"observationId\":\"obs-a1-shot-0-a\",\"reconciliationId\":\"rec-a1-shot-0-a\"},{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"}],\"chosen\":false,\"shotId\":\"shot-0\",\"pictureId\":\"a1-shot-0-b\",\"observationId\":\"obs-a1-shot-0-b\",\"reconciliationId\":\"rec-a1-shot-0-b\"},{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"},{\"gate\":\"1S\",\"outcome\":\"accept\"}],\"chosen\":true,\"shotId\":\"shot-1\",\"pictureId\":\"a1-shot-1-single\",\"observationId\":\"obs-a1-shot-1-single\",\"reconciliationId\":\"rec-a1-shot-1-single\"},{\"checks\":[{\"gate\":\"1\",\"step\":\"technical\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"text\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"witness\",\"outcome\":\"accept\"},{\"gate\":\"1\",\"step\":\"reconcile\",\"outcome\":\"accept\"},{\"gate\":\"1S\",\"outcome\":\"accept\"}],\"chosen\":true,\"shotId\":\"shot-2\",\"pictureId\":\"a1-shot-2-single\",\"observationId\":\"obs-a1-shot-2-single\",\"reconciliationId\":\"rec-a1-shot-2-single\"}],\"degradations\":[],\"contractVersion\":1},\"reported_cost_cents\":0,\"settlement\":\"settled\",\"created_at\":\"2026-09-20T00:21:19.895Z\",\"dispatch_committed_at\":\"2026-09-20T00:21:20.077Z\",\"accepted_at\":\"2026-09-20T00:21:20.101Z\",\"finished_at\":\"2026-09-20T00:21:24.202Z\"}"
+        },
+        {
+          "description": "nothing was imported for a cancelled run",
+          "pass": true
+        },
+        {
+          "description": "the reservation was released per the terminal result",
+          "pass": true,
+          "detail": "{\"reserved_cents\":0}"
+        }
+      ],
+      "observations": []
+    },
+    {
+      "name": "S5 import refusal (containment failure) leaves the job honestly unfinished and retryable",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "the job is left honestly unfinished (still importing), never a fabricated success",
+          "pass": true,
+          "detail": "importing"
+        },
+        {
+          "description": "the typed reason names the containment failure",
+          "pass": true,
+          "detail": "import_refused:engine_path_not_contained"
+        },
+        {
+          "description": "no generated_reel row was ever committed",
+          "pass": true
+        },
+        {
+          "description": "the reservation stays held for an unverified/refused import",
+          "pass": true
+        },
+        {
+          "description": "the full reservation is still held",
+          "pass": true
+        }
+      ],
+      "observations": [
+        "a later reclaim retried the import and reached the same typed refusal on unchanged data"
+      ]
+    },
+    {
+      "name": "S6 cleanup: every spawned process exited, no stray database, owner engine/runtime untouched",
+      "status": "pass",
+      "assertions": [
+        {
+          "description": "api process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "api process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":null,\"signalCode\":\"SIGKILL\"}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "api process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "api process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "api process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "api process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":0,\"signalCode\":null}"
+        },
+        {
+          "description": "generation-worker process has exited",
+          "pass": true,
+          "detail": "{\"exitCode\":null,\"signalCode\":\"SIGTERM\"}"
+        },
+        {
+          "description": "no stray disposable database remains",
+          "pass": true,
+          "detail": "0"
+        },
+        {
+          "description": "the owner-local engine pids are unchanged (still running or still absent, exactly as before)",
+          "pass": true,
+          "detail": "{\"ownerBefore\":{\"apiAlive\":true,\"workerAlive\":true,\"apiStart\":\"Sun Sep 20 03:30:09 2026\",\"workerStart\":\"Sun Sep 20 03:30:09 2026\"},\"ownerAfter\":{\"apiAlive\":true,\"workerAlive\":true,\"apiStart\":\"Sun Sep 20 03:30:09 2026\",\"workerStart\":\"Sun Sep 20 03:30:09 2026\"}}"
+        },
+        {
+          "description": "the owner-local api process was never restarted by this journey",
+          "pass": true
+        },
+        {
+          "description": "the owner-local worker process was never restarted by this journey",
+          "pass": true
+        },
+        {
+          "description": "the pinned Cutroom checkout HEAD is unchanged",
+          "pass": true
+        },
+        {
+          "description": "the pinned Cutroom checkout has no new tracked changes",
+          "pass": true,
+          "detail": "!! apps/api/dist/\n!! apps/api/tsconfig.tsbuildinfo\n!! apps/worker/dist/\n!! apps/worker/tsconfig.tsbuildinfo\n!! dist/\n!! packages/contracts/dist/\n!! packages/contracts/tsconfig.tsbuildinfo\n!! packages/domain/dist/\n!! packages/domain/tsconfig.tsbuildinfo\n!! packages/pipeline/dist/\n!! packages/pipeline/tsconfig.tsbuildinfo\n!! packages/providers/dist/\n!! packages/providers/tsconfig.tsbuildinfo\n!! packages/reel-contract/dist/\n!! packages/reel-contract/tsconfig.tsbuildinfo"
+        }
+      ],
+      "observations": []
+    }
+  ],
+  "overall": "pass"
+}

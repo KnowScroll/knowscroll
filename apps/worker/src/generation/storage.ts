@@ -7,6 +7,7 @@ import {createHash, randomUUID} from 'node:crypto';
 import type pg from 'pg';
 import {briefSource, compileSubmitRequest, generationBrief, type GenerationBrief} from '../../../../packages/contracts/src/generation.ts';
 import {prepareCutroomRequest} from '../cutroom/http-client.ts';
+import {recordImportedReel, type RecordImportedReelInput, type RecordImportedReelOutcome} from './import.ts';
 
 /** The Cutroom revision this worker is pinned to (ADR-0020/0021). An engine declaring a
  * different revision is refused at job creation: this worker only ever prepares bytes for the
@@ -643,4 +644,50 @@ export async function engineOrigin(db: pg.Pool, engineId: string): Promise<{orig
     'SELECT origin,artifact_root,provider_mode FROM cutroom_engine WHERE id=$1', [engineId],
   )).rows[0];
   return row ? {origin: row.origin, artifactRoot: row.artifact_root, providerMode: row.provider_mode} : null;
+}
+
+// --- Verified import (ADR-0023 section 4, issue #94 stage A2) --------------------------------
+
+/** The brief's own content digest, for the `generated_reel.lineage` this job's import records.
+ * Never the brief body itself (sources/claim text must never cross into a generated record). */
+export async function briefSha256Of(db: pg.Pool, briefId: string): Promise<string> {
+  const row = (await db.query<{brief_sha256: string}>('SELECT brief_sha256 FROM generation_brief WHERE id=$1', [briefId])).rows[0];
+  if (!row) throw new Error('generation_worker_defect: brief vanished for an active job');
+  return row.brief_sha256;
+}
+
+/** Thin pool-connect wrapper around `import.ts`'s own one-transaction `recordImportedReel`, so the
+ * worker loop never has to manage a `pg.PoolClient` itself. Owns no additional rules: migration
+ * 0013's lineage trigger remains the only authority for whether an import may be recorded. */
+export async function commitImportedReel(db: pg.Pool, input: RecordImportedReelInput): Promise<RecordImportedReelOutcome> {
+  const client = await db.connect();
+  try {
+    return await recordImportedReel(client, input);
+  } finally {
+    client.release();
+  }
+}
+
+/** A verified import committed: the job reaches its final `completed` status. Only valid from
+ * `importing` — never called for a job that has not actually finished a video attempt. */
+export async function completeImportedJob(db: pg.Pool, holder: LeaseHolder): Promise<void> {
+  await transaction(db, async (client) => {
+    const job = await requireLeasedJob(client, holder);
+    if (job.status !== 'importing') deny('job_not_importing');
+    await client.query(`UPDATE generation_job SET status='completed',status_detail=NULL WHERE id=$1`, [holder.jobId]);
+  });
+}
+
+/**
+ * A typed, honest import refusal: the job's status stays `importing` (never a fabricated success,
+ * never a fabricated terminal failure) with the refusal reason recorded in `status_detail`, so a
+ * later lease reclaim retries the import for as long as the engine's file still exists — exactly
+ * `claimJob`'s own `RECLAIMABLE_STATUSES` behavior, unchanged for this status.
+ */
+export async function recordImportRefusal(db: pg.Pool, holder: LeaseHolder, detail: string): Promise<void> {
+  await transaction(db, async (client) => {
+    const job = await requireLeasedJob(client, holder);
+    if (job.status !== 'importing') deny('job_not_importing');
+    await client.query(`UPDATE generation_job SET status_detail=$2 WHERE id=$1`, [holder.jobId, detail]);
+  });
 }
