@@ -10,6 +10,46 @@ export const historyClearInput = z.object({
 }).strict();
 export type HistoryClearInput = z.infer<typeof historyClearInput>;
 export type HistoryClearReceipt = {receiptId:string;privacyEpoch:number;clearedAt:string};
+
+// ADR-0028 — privacy lifecycle: pause, export and reset. Pause/resume and export share one
+// unconfirmed shape (no destructive confirmation literal is needed for either); reset requires
+// its own deliberate confirmation literal, matching Clear's pattern, because it is irreversible.
+export const privacyLifecycleInput = z.object({
+ requestId: uuid,
+ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+}).strict();
+export type PrivacyLifecycleInput = z.infer<typeof privacyLifecycleInput>;
+export const privacyResetInput = z.object({
+ requestId: uuid,
+ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+ confirmation: z.literal('reset-personal-universe'),
+}).strict();
+export type PrivacyResetInput = z.infer<typeof privacyResetInput>;
+
+export type PrivacyRecordingReceipt = {
+ receiptId:string; action:'pause'|'resume'; privacyEpoch:number;
+ recordingPausedAt:string|null; appliedAt:string;
+};
+export type PrivacyExportRowCounts = {
+ decisions:number; ledger:number; exposures:number; traces:number; jobs:number;
+ deviceSessions:number; reasoningJobs:number; reasoningSteps:number;
+ reasoningReceipts:number; reasoningAccounting:number;
+};
+export type PrivacyExportDeviceSession = {
+ deviceId:string; origin:string; createdAt:string; expiresAt:string; revokedAt:string|null;
+};
+export type PrivacyExportResult = {
+ receiptId:string; privacyEpoch:number; exportedAt:string; rowCounts:PrivacyExportRowCounts;
+ account:{email:string|null};
+ universe:{id:string; revision:number; privacyEpoch:number; recordingPausedAt:string|null};
+ accounts:{keptAssetIds:string[]; revision:number};
+ decisions:unknown[]; ledger:unknown[]; exposures:unknown[]; traces:unknown[]; jobs:unknown[];
+ deviceSessions:PrivacyExportDeviceSession[];
+ reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
+};
+export type PrivacyResetReceipt = {
+ receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;
+};
 export type Lineage = {
   eventId?: string; causationId?: string; exposureId?: string; decisionId?: string;
   jobId?: string; stepId?: string; attemptId?: string; proposalId?: string;
