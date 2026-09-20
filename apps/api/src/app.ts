@@ -14,10 +14,8 @@ import {
 import { compose } from '../../../packages/core/src/composer.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
-
-class HttpError extends Error {
-  constructor(public statusCode: number, message: string) { super(message); }
-}
+import { HttpError } from './errors.ts';
+import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
 
 function bearerToken(authorization: string | undefined): string {
   const match = /^Bearer (\S+)$/.exec(authorization ?? '');
@@ -29,8 +27,13 @@ function emptyObject(value: unknown): value is Record<string, never> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length === 0;
 }
 
-export function buildApp(developmentToken: string) {
+export function buildApp(developmentToken: string, options: { mediaRoot?: string } = {}) {
   if (developmentToken.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
+  // Resolved once at build time (deployment configuration, never per-request data), but only
+  // actually required the first time the media route is hit: a caller that never touches
+  // /v1/media/:sha256 (most existing tests) never needs KS_MEDIA_ROOT/KS_DEV_ROOT set.
+  let mediaRoot: string | undefined = options.mediaRoot;
+  const resolvedMediaRoot = () => mediaRoot ?? (mediaRoot = resolveMediaRoot());
   const app = Fastify({ logger: false, bodyLimit: 16384 });
 
   app.setErrorHandler((error, _req, reply) => {
@@ -182,6 +185,38 @@ export function buildApp(developmentToken: string) {
       if (!row) throw new HttpError(404, 'Event not found');
       return row;
     });
+  });
+
+  // ADR-0024 section 4: content-addressed, authenticated media serving. The sha256 path parameter
+  // is validated before anything else touches it; authorization (session, epoch, and an eligible
+  // or test_eligible generated_reel naming this media) happens in ONE short transaction; bytes are
+  // streamed by sendMedia() entirely OUTSIDE that transaction, which has already committed by the
+  // time this handler calls it.
+  app.route<{ Params: { sha256: string } }>({
+    method: ['GET', 'HEAD'],
+    url: '/v1/media/:sha256',
+    handler: async (req, reply) => {
+      const sha256 = req.params.sha256;
+      if (!MEDIA_SHA256_PATTERN.test(sha256)) throw new HttpError(400, 'Invalid media identifier');
+      const authorized = await authenticated(req.headers.authorization, async (_scope, client) => {
+        // Content-addressed media can in principle be shared by more than one generated_reel row
+        // (the same bytes imported twice). If ANY of them is a genuine 'eligible' reference, this
+        // never reports the simulated marker for that content — a real Reel's bytes are never
+        // mislabelled as stand-in just because some other row also names them 'test_eligible'.
+        const row = (await client.query<{ storage_key: string; simulated: boolean }>(
+          `SELECT m.storage_key, (g.availability = 'test_eligible') AS simulated
+           FROM generated_reel g JOIN media_object m ON m.sha256 = g.media_sha256
+           WHERE g.media_sha256 = $1 AND g.availability IN ('eligible','test_eligible')
+           ORDER BY (g.availability = 'eligible') DESC, g.created_at ASC LIMIT 1`,
+          [sha256],
+        )).rows[0];
+        return row ? { storageKey: row.storage_key, simulated: row.simulated } : null;
+      });
+      // Unknown, ineligible and (below, inside sendMedia) missing-on-disk all return the same 404:
+      // this never tells a caller which of those was true.
+      if (!authorized) throw new HttpError(404, 'Media not found');
+      return sendMedia(req, reply, resolvedMediaRoot(), authorized);
+    },
   });
 
   return app;

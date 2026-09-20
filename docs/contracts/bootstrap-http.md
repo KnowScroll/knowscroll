@@ -24,3 +24,11 @@ Mobile reads title/summary/body/sources; Source opens the actual URL. Home begin
 ## Saved Trace source revisit
 
 `GET /v1/traces/:eventId` follows the strict [source revisit contract](trace-revisit.md). It authorizes the current owner scope, validates the original Keep/exposure/decision lineage and unchanged shared source, and returns a no-store read receipt. It creates no new events. Universe Trace titles now derive from validated selection history; unavailable entries retain a neutral label.
+
+## Media serving
+
+`GET|HEAD /v1/media/:sha256` serves KnowScroll-owned, content-addressed media bytes under [ADR-0024](../decisions/0024-publication-gates-and-media-serving.md). `:sha256` must match `^[0-9a-f]{64}$`, checked before anything else touches it; any other shape is `400`. Authorization (device session, epoch, and a `generated_reel` naming this exact media whose `availability` is `eligible` or `test_eligible`) happens in one short transaction, exactly like every other route above; the bytes themselves are streamed entirely outside that transaction, from the stored `storage_key`, never from any caller-supplied or engine-reported path. An unknown sha256, a Reel that exists but is not eligible, and an eligible Reel whose file is missing on the local disk are all the same `404` — this never tells a caller which of those was true.
+
+A successful response carries `Content-Type: video/mp4`, `Accept-Ranges: bytes`, `Content-Length` and `Cache-Control: private, max-age=31536000, immutable` (content-addressed bytes for a given sha256 never change). `Range: bytes=<start>-<end>` (open-ended and suffix forms both supported; exactly one range per request) returns `206` with `Content-Range: bytes <start>-<end>/<size>`; an unsatisfiable or malformed range returns `416` with `Content-Range: bytes */<size>`. `HEAD` returns the same headers with no body.
+
+A response for a `test_eligible` (stand-in) asset always carries `X-KnowScroll-Media-Simulated: true`; this header is never present on a genuine `eligible` response, so no client can mistake stand-in media for real. When the same content-addressed bytes are reachable through more than one `generated_reel` row, an `eligible` reference always wins over a `test_eligible` one for this marker: real content is never mislabelled simulated.

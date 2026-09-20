@@ -89,10 +89,18 @@ function refuse(reason: ImportRefusalReason): { ok: false; reason: ImportRefusal
 
 // The stated tolerance for "9:16": within 2% of the 9/16 ratio. A caller that needs a different
 // tolerance is a contract change, not a runtime parameter — this module keeps it fixed and named.
-const ASPECT_TARGET = 9 / 16;
-const ASPECT_TOLERANCE_RATIO = 0.02;
-const MIN_DURATION_SECONDS = 5;
-const MAX_DURATION_SECONDS = 120;
+/** The one media profile. Exported so the publication gates re-check exactly what import enforced,
+ * rather than keeping a second copy that can drift (ADR-0024's media_conformance gate). */
+export const MEDIA_PROFILE = {
+  aspectTarget: 9 / 16,
+  aspectToleranceRatio: 0.02,
+  minDurationSeconds: 5,
+  maxDurationSeconds: 120,
+} as const;
+const ASPECT_TARGET = MEDIA_PROFILE.aspectTarget;
+const ASPECT_TOLERANCE_RATIO = MEDIA_PROFILE.aspectToleranceRatio;
+const MIN_DURATION_SECONDS = MEDIA_PROFILE.minDurationSeconds;
+const MAX_DURATION_SECONDS = MEDIA_PROFILE.maxDurationSeconds;
 
 function withinAspectTolerance(width: number, height: number): boolean {
   if (!(width > 0) || !(height > 0)) return false;

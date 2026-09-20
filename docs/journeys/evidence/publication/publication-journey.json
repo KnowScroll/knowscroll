@@ -1,0 +1,111 @@
+{
+  "journey": "J006",
+  "evidenceLevel": "stand-in media in a disposable database — never real generation and never the owner's universe",
+  "runStamp": "2026-09-20T02-43-48-336Z",
+  "knowscrollHead": "dc6c49506e936bd98e6983221e820db5634984f8",
+  "node": "v22.23.0",
+  "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "database": "knowscroll_test_pub_journey_43224662088d4e76",
+  "generatedReelId": "8f37fbbd-62a2-47c6-9872-dce5ad47b78b",
+  "mediaSha256": "e7c41bb6ea9c14163025fa78eccceb53bde991b25dd48376385a74305a54d121",
+  "mediaByteSize": 61319,
+  "checks": [
+    {
+      "name": "seeded generated_reel is imported",
+      "expected": "imported",
+      "observed": "imported",
+      "pass": true
+    },
+    {
+      "name": "gate-evaluation worker exits 0",
+      "expected": "0",
+      "observed": "0",
+      "pass": true
+    },
+    {
+      "name": "witness_alignment is unavailable",
+      "expected": "unavailable",
+      "observed": "unavailable",
+      "pass": true
+    },
+    {
+      "name": "every other required gate passed on this clean fixture",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "auto decision could not reach eligible",
+      "expected": "imported",
+      "observed": "imported",
+      "pass": true
+    },
+    {
+      "name": "database still reports imported",
+      "expected": "imported",
+      "observed": "imported",
+      "pass": true
+    },
+    {
+      "name": "a direct SQL attempt to hand-set eligible is refused by the database",
+      "expected": "rejected",
+      "observed": "rejected: A Reel is eligible only when every required gate passed",
+      "pass": true
+    },
+    {
+      "name": "test_eligible worker call exits 0",
+      "expected": "0",
+      "observed": "0",
+      "pass": true
+    },
+    {
+      "name": "worker reports test_eligible",
+      "expected": "test_eligible",
+      "observed": "test_eligible",
+      "pass": true
+    },
+    {
+      "name": "database reports test_eligible",
+      "expected": "test_eligible",
+      "observed": "test_eligible",
+      "pass": true
+    },
+    {
+      "name": "whole-body GET status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "whole-body bytes are byte-identical to the stored file",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "simulated-media marker is present",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "first Range slice status",
+      "expected": "206",
+      "observed": "206",
+      "pass": true
+    },
+    {
+      "name": "second Range slice status",
+      "expected": "206",
+      "observed": "206",
+      "pass": true
+    },
+    {
+      "name": "Range slices reassemble byte-identically to the whole file",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    }
+  ],
+  "result": "passed"
+}
