@@ -1,11 +1,11 @@
 # Shared delivery checkpoint
 
-Updated 2026-09-20 (Claude Code coordinator, wave 1 in flight). Coordinator-owned current steering
-object, not a transcript. Replace this snapshot when reality changes; preserve prior evidence and
-rationale through Git, issues and [delivery history](operations/delivery-history.md).
+Updated 2026-09-20 (Claude Code coordinator). Coordinator-owned current steering object, not a
+transcript. Replace this snapshot when reality changes; preserve prior evidence and rationale through
+Git, issues and [delivery history](operations/delivery-history.md).
 **Live copy protocol:** during a wave the coordinator edits this file uncommitted in the main
-checkout (so compaction reloads it); the committed copy lands with the wave PR. Before pulling main
-after a merge, `git checkout -- docs/CHECKPOINT.md` in the main checkout.
+checkout (so compaction reloads it); the committed copy lands with a wave PR. After a merge,
+re-apply anything newer here before running `git checkout -- docs/CHECKPOINT.md`.
 
 ## Outcome and authority
 
@@ -18,84 +18,58 @@ remain authoritative and open. Owner Alpha is intermediate. Read [system navigat
 
 | Fact | Evidence and practical consequence |
 |---|---|
-| Main | `ab258ed` (PR #90 merged 2026-09-19T18:20Z); last product code `cfe7aba` (#87) |
-| Code migrations | `packages/db/migrations/0001`–`0012`; applied files are immutable |
-| Owner database | `pnpm state` 2026-09-19T18:29:11Z: **0001–0009 only**; API false; heartbeat last 2026-09-17. No owner rollout |
-| Production | None certified; local test receipts are not production |
-| Android | Sourced Scroll, sources, deliberate next, Keep, saved Trace revisit, bounded Clear; full UI + desktop incomplete |
-| Reasoning | SQL primitives only; Ask `recorded_only`; no paid dispatch or answers |
-| Cutroom upstream | `origin/main` **`86d6e2c`** (reel-takes Slice 2 code `7d5f264`; Slice 3 prompt next; active author XZNON). Canonical clone `/Volumes/Mrigesh SSD/cutroom` still at `52a62dd`, untouched |
-| Wire delta 238df854→86d6e2c | Only `record.ts` (required `takes`); six other modules + `apps/api/src/server.ts` identical |
-| Cutroom runtime (ours) | Detached pinned worktree `/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742`, steering-ref `e05e9f0` (115 decisions, current), deps via `/usr/local/bin/corepack pnpm` 10.15.1 + SSD store. Nvm corepack (Node20) is broken (signing keys) — don't use it |
-| Real providers | Upstream model/image/video/voice/sensors are stand-ins; ffmpeg real. fal H3 / MiniMax T2A explicitly deferred upstream |
+| Main | **`363c818`** (PR #98, #94 generation supply); `b8bfe3e` (#91), `e5573b4` (#92), `7449677` (#89) |
+| Code migrations | `0001`–**`0013`** on main (0013 is generation supply); owner database still at 0009 |
+| Owner database | `pnpm state` 2026-09-19T18:29Z: **0001–0009 only**; API false; heartbeat 2026-09-17. No owner rollout |
+| Android | Sourced Scroll, sources, deliberate next, Keep, Trace revisit, bounded Clear, **why-this sheet and device sign-out** (#91). Sheet state across recreation: #97 |
+| Desktop | `apps/web` first slice **on main** (#92): reader parity, dev-only loopback auth, no production identity |
+| Reasoning | SQL primitives only; Ask `recorded_only`; no paid dispatch, no mobile Ask (ADR-0016) |
+| Cutroom upstream | `origin/main` `86d6e2c` (active author XZNON). Canonical clone `/Volumes/Mrigesh SSD/cutroom` at `52a62dd`, untouched |
+| Cutroom runtime (ours) | Pinned detached worktree `/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742`, deps installed. Use `/usr/local/bin/corepack` (nvm corepack is broken) |
+| Upstream suite at pin | 16 of 322 tests fail deterministically on this Mac (logs in `$KS_DEV_ROOT/cutroom/logs/`). Record only — owner: don't touch Cutroom |
+| Real providers | Upstream model/image/video/voice/sensors are stand-ins; ffmpeg real. fal H3 / MiniMax T2A deferred upstream |
 
-## Current wave — #89 (branch `claude/89-cutroom-local`)
+## Delivered — #89 (PR #93 → `7449677`)
 
-- **Contract published** `72b98ec` (+ `e676bca` owner decisions in ADR-0021): successor pin 86d6e2c (record sha `057d30f0…`), strict takes
-  tests (30/30 pass; negative control fails 2 on old schema), synthetic fixture journey passes.
-  [ADR-0021](decisions/0021-cutroom-successor-pin-and-local-host.md): KnowScroll-owned operator
-  host `ops/cutroom-host/` composes pinned upstream API + worker as separate processes, stand-ins +
-  ffmpeg only; upstream untouched.
-- Lanes (worktrees under `/Volumes/Mrigesh SSD/knowscroll-worktrees/`): `89-host` (`claude/89-host`),
-  `89-proof` (`claude/89-proof`), both from `72b98ec`. Integration lane `89-contract`.
-- Runtime data root: `$KS_DEV_ROOT/cutroom/` (`instances/`, `logs/`). Upstream check log in `logs/`.
-- **Upstream suite at pin on this Mac:** check.mjs typecheck/lint/format/boundaries ok; tests 304/322
-  concurrent; the same 16 fail **serially too** (deterministic here, not only load): e.g. reel-plan-endings 28
-  (plans list empty after BUDGET rewrite), reel-takes-record 4, stills placing/admission/spending, render
-  pass/gates/completed. Logs `upstream-tests-86d6e2c-20260919T184321Z.tap`, `upstream-serial-86d6e2c-20260919T184953Z.log`.
-  Upstream journal says green on its Windows host. Owner: don't touch Cutroom — record only.
-- Workflow `wf_80f519e9-f50` completed (4 agents, all `claude-sonnet-5`, ~1.31 M subagent tokens).
-- Issue comment with verified state and success criteria: #89 comment 5744421559.
-- **Wave result:** host 39-check self-check and 12/12 joined proof reproduced by the coordinator on the
-  integration head (runs `host-selfcheck-20260919T215041Z`, `joined-proof-2026-09-19T21-51-08-110Z`);
-  full backend suite 479+12 pass; independent Sonnet review **accept** (one minor, fixed). PR opened.
-  Set `CUTROOM_BASE_URL` only from an observed running owner-local host listener after merge.
+Successor pin `86d6e2c` (required `RunRecord.takes`); `ops/cutroom-host/` runs the pinned upstream
+API/worker as separate SSD processes with stand-ins + ffmpeg; 12-scenario joined proof and host
+self-check reproduced by the coordinator; backend 479+12 pass; CI green; independent review accept.
+Evidence: `docs/journeys/evidence/cutroom-local/`.
+
+**Running owner-local stand-in engine** (from main, started 2026-09-19T22:00Z): instance
+`$KS_DEV_ROOT/cutroom/instances/owner-local-standin`, **API PID 6937 on 127.0.0.1:4390**, **worker
+PID 6939**, providers `standin`, no stand-in script (a real request fails at the first model call —
+honest). `CUTROOM_BASE_URL=http://127.0.0.1:4390` set in the owner `.env` (that line only; it was
+blank). Not guaranteed across reboot/SSD eject; stop with SIGTERM to both PIDs.
 
 ## Owner decisions and unresolved gates
 
 - **Decided:** Cutroom runs on this Mac; source, SQLite, media, caches, logs on SSD.
-- **Decided:** completed/failed private prompts etc. retire after seven days; Clear immediate.
-- **Decided 2026-09-20:** KnowScroll does **not develop or modify Cutroom** (no upstream PRs/issues, no
-  adapters built or injected). Integrate only against the published
-  [reel-contract](https://github.com/KnowScroll/Cutroom/blob/main/docs/features/reel-contract.md);
-  where upstream lacks real providers, proceed against the contract with stand-ins/fixtures.
-- **Decided 2026-09-20:** live test cap **$2 total**, allowed **only after upstream Cutroom ships real
-  providers**. Not authorized now. H3 = fal [MiniMax H3 Max](https://fal.ai/minimax-h3-max); key is in
-  owner `.env` (owner-stated; presumed `FAL_AI_KEY`, value never read); used only by Cutroom's providers.
+- **Decided:** completed/failed private prompts retire after seven days; Clear immediate.
+- **Decided 2026-09-20:** KnowScroll does **not develop or modify Cutroom**; integrate only against the
+  published [reel-contract](https://github.com/KnowScroll/Cutroom/blob/main/docs/features/reel-contract.md).
+- **Decided 2026-09-20:** live test cap **$2 total**, only **after upstream ships real providers**; not
+  authorized now, and enforced in migration 0013. H3 = fal [MiniMax H3 Max](https://fal.ai/minimax-h3-max),
+  key in owner `.env`, used only by Cutroom's providers (value never read).
 - **Decided 2026-09-20:** desktop surface = TypeScript web app (ADR-0022, #92).
-- Upstream macOS test failures are recorded here/#89 only; do not file upstream (owner: don't touch Cutroom).
 - Historical [#57](https://github.com/KnowScroll/knowscroll/issues/57) stays open; cause unknown.
 
-## Parallel lane — #91 (branch `claude/91-reader-explain`, from main `ab258ed`)
+## Active lanes
 
-- UI slice under #3 on released contracts only: reader "Why this appeared" sheet (API facts only,
-  Law 13) + "Sign out this device" (`POST /v1/session/revoke`). Mobile Ask excluded by ADR-0016.
-- Lane `/Volumes/Mrigesh SSD/knowscroll-worktrees/91-reader-explain`; coordinator-made provider-free
-  `.env` (non-owner DB name `knowscroll_lane91_unused`, fresh token, PORT 4391) + local.properties.
-  Worker owns the emulator (AVD `KnowScroll_API36`) for this task.
-- Workflow `wf_6fba50cf-036` (task `wt0xx1pyb`): Sonnet builder → Sonnet reviewer.
-- UI gap map (read-only agent, verified spot-checks): feed hardcodes `kind='Scroll'`; single `:app`
-  module; Reel/branches/worlds/social/pause/export blocked on missing contracts.
+None. #89, #91, #92 and #94 are merged; their worktrees are removed and their branches pushed.
+`claude-handoff` (#88) and `revisit` remain from earlier work. Records lane `claude/99-records`
+carries this update.
 
-## Parallel lane — #92 desktop web (branch `claude/92-web-reader`, from `ab258ed`)
+## Next work
 
-- **Owner decision 2026-09-20: desktop = TypeScript web app.** ADR-0022 committed `0339b63`
-  (React/TS/Vite `apps/web`; loopback dev proxy injects token server-side; production refused until #2).
-- Lane `/Volumes/Mrigesh SSD/knowscroll-worktrees/92-web-reader`, provider-free `.env`
-  (`knowscroll_lane92_unused`, fresh token, PORT 4392). Playwright browsers → `$KS_DEV_ROOT/playwright-browsers`.
-- Workflow `wf_1b1e6a7a-93a` (task `ws3awaeo0`): Sonnet builder → Sonnet reviewer.
-- Merge note: #89 (ADR-0021) and #92 (ADR-0022) both append to `docs/decisions/README.md` and
-  component-map.json — resolve at merge.
-
-## Next work after #89
-
-1. Coordinator contracts under #8/#9: durable scoped generation intent/admission, all-attempt
-   accounting, verified host-file import (containment/copy/hash into KnowScroll storage).
-2. Import against real stand-in Cutroom output; publication gates (source/rights/truth/continuity).
-3. #3 UI against released contracts (mobile Reel playback, cosmic navigation); desktop decision.
+1. Merge #95 after CI; finish the #91 repair, re-run its evidence, PR and merge.
+2. #94 stages B and A2 (one worker slot free now that #92 merged); then the publication/eligibility + media-serving contract (gates, truth
+   labels, stand-in fence), then feed inclusion and Reel playback on Android and web.
+3. Follow-up #97 filed: transient reader sheet state is lost across Activity recreation (Law 14).
+4. Keep #2 identity in view: web has dev-only auth, Android a dev token; neither is production.
 
 ## Progress reporting
 
-Existing [Project](https://github.com/orgs/KnowScroll/projects/1), issues #2–#12, [Owner Alpha](https://github.com/KnowScroll/knowscroll/milestone/2),
-#72. #89 moved to In Progress 2026-09-20. Owner Alpha 5 closed / 6 open is bookkeeping, not v1 %.
-Workers: Sonnet forced (`CLAUDE_CODE_SUBAGENT_MODEL=sonnet`, FORCE=1); report actual models from results.
+[Project](https://github.com/orgs/KnowScroll/projects/1), issues #2–#12, [Owner Alpha](https://github.com/KnowScroll/knowscroll/milestone/2), #72.
+#89 Done; #91/#92/#94 In Progress. Issue counts are bookkeeping, not a v1 percentage. Workers are
+Sonnet (`claude-sonnet-5`, forced); the coordinator reproduces every claim before merge.

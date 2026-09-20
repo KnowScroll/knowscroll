@@ -40,10 +40,21 @@ fal MiniMax H3 Max, used only by Cutroom; desktop is a TypeScript web app (ADR-0
 
 | Change | Problem and delivered consequence | Remaining boundary |
 |---|---|---|
-| #89 (this PR) | Upstream `86d6e2c` made `RunRecord.takes` required; client repinned with strict tests. KnowScroll-owned `ops/cutroom-host/` runs pinned upstream API/worker as separate SSD processes (stand-ins + ffmpeg); 12-scenario joined proof against real service/SQLite | No real providers, import, publication, playback or product dispatch; proof not in CI |
+| `7449677` / #93 (#89) | Upstream `86d6e2c` made `RunRecord.takes` required; client repinned with strict tests. KnowScroll-owned `ops/cutroom-host/` runs pinned upstream API/worker as separate SSD processes (stand-ins + ffmpeg); 12-scenario joined proof against real service/SQLite | No real providers, import, publication, playback or product dispatch; proof not in CI |
 
 Workers: Claude Code Sonnet (`claude-sonnet-5`, forced via `CLAUDE_CODE_SUBAGENT_MODEL`) for host,
 proof (two phases) and independent review; coordinator Opus reproduced self-check, joined proof and
 the full backend suite on the integration head. Upstream's own suite shows 16 deterministic macOS
 failures at the pin (recorded, not filed upstream per owner). Measured workflow usage: 4 agents,
 ~1.31 M subagent tokens, ~3 h wall time.
+
+| Change | Problem and delivered consequence | Remaining boundary |
+|---|---|---|
+| `e5573b4` / #95 (#92) | v1 needs a desktop surface and none existed. Owner chose a TypeScript web app (ADR-0022); `apps/web` reaches reader parity on existing endpoints with §9.5 desktop interaction, exposure only when genuinely visible, epoch-scoped storage and a loopback dev-only auth proxy | Chromium only; Playwright not in CI; no production identity (#2); no Reel/branch/world/social surfaces |
+| `b8bfe3e` / #96 (#91) | A person could not see why a Scroll appeared, and could not end a device session. Both now exist on Android, built from returned facts only, with a real 204/401 sign-out that erases no history | Open sheet does not survive Activity recreation (#97); no mobile Ask (ADR-0016); no owner visual acceptance |
+| `363c818` / #98 (#94) | No path existed from an authorized request to a verified media file. ADR-0023 + migration 0013, the generation runtime and verified local-host import now carry a job from an editorial brief to a content-addressed MP4, with request bytes persisted before dispatch, original-identity reconciliation, a bounded identical-bytes resend, recorded overage that pauses a grant, and J005 6/6 against a real local Cutroom with stand-ins | No real providers or generation quality; no complete paid-attempt metering; nothing eligible, published, served or playable; J005 local-only; no owner deployment |
+
+Coordinator reproduced every slice before merging: #92's browser journey and an independent bundle
+secret check, #91's on-device journey on a fresh AVD, and #94's J005 plus 539 backend tests. The #94
+review found a real contract defect of the coordinator's own — an over-ceiling cost was
+unrepresentable and wedged the job — fixed before merge. Workers were `claude-sonnet-5` throughout.
