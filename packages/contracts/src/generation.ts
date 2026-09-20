@@ -24,6 +24,15 @@ export const generationBrief=z.strictObject({
  style:StyleContract,
  /** Only the variation the current engine accepts; omitted means the engine's own default. */
  planVaryOn:z.literal('shotCount').optional(),
+ /**
+  * ADR-0025: the editorial display text an inventory asset is minted with once this brief's Reel
+  * clears its gates — never the engine's own record summary. Optional so every brief already
+  * authored/stored before this slice (none of which carried these fields) keeps parsing exactly as
+  * it always has; `apps/worker/src/publication/mint.ts` itself requires both before minting, and
+  * neither ever crosses into `compileSubmitRequest`'s wire request.
+  */
+ title:z.string().min(1).max(200).optional(),
+ summary:z.string().min(1).max(2000).optional(),
 }).superRefine((brief,ctx)=>{
  const listed=brief.claims.map(claim=>claim.id);
  const sourced=brief.claimSources.map(source=>source.claimId);
