@@ -103,6 +103,52 @@ describe('ReaderStore', () => {
     expect(scroll.keep).toEqual({ status: 'kept', jobId: 'job-1' });
   });
 
+  it('keep persists the real why-this-appeared reason for the Universe screen, scoped to this universe/epoch', async () => {
+    await enterReadingScroll();
+    api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });
+    api.interactionQueue.push({ eventId: 'keep-evt-1', jobId: 'job-1', status: 'accepted' });
+    store.keep();
+    await waitFor(() => {
+      const scroll = store.getState().scroll;
+      return scroll.status === 'reading' && scroll.keep.status === 'kept';
+    });
+    expect(storage.readLastKept()).toEqual({
+      eventId: 'keep-evt-1',
+      title: feedItem().title,
+      reason: feedItem().reason,
+      universeId: universeOf().universeId,
+      privacyEpoch: 0,
+    });
+  });
+
+  it('never persists a reason for a Trace revisit, which deliberately carries none', async () => {
+    api.universeQueue.push(universeOf({ traces: [{ eventId: 'e1', assetId: feedItem().assetId, title: 'Kept title', createdAt: '2026-01-01T00:00:00Z' }] }));
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+    api.traceRevisitQueue.push({
+      mode: 'kept_revisit',
+      traceEventId: 'e1',
+      universeId: universeOf().universeId,
+      privacyEpoch: 0,
+      exposureId: 'exp-revisit',
+      keptAt: '2026-01-01T00:00:00Z',
+      scroll: {
+        assetId: feedItem().assetId,
+        revision: 1,
+        kind: 'Scroll',
+        title: feedItem().title,
+        summary: feedItem().summary,
+        body: feedItem().body,
+        sourceTitle: feedItem().sourceTitle,
+        sourceUrl: feedItem().sourceUrl,
+        truthState: 'documented',
+      },
+    });
+    store.openTrace({ eventId: 'e1', assetId: feedItem().assetId, title: 'Kept title', createdAt: '2026-01-01T00:00:00Z' });
+    await waitFor(() => store.getState().scroll.status === 'reading');
+    expect(storage.readLastKept()).toBeNull();
+  });
+
   it('keep retried after a dropped response reuses the same clientEventId/clientExposureId and yields exactly one keep', async () => {
     await enterReadingScroll();
     // First attempt: exposure succeeds, then the interaction response is "dropped" (network failure).

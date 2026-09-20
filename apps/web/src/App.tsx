@@ -7,7 +7,8 @@ import { ReaderStore } from './state/readerStore.ts';
 import { createBrowserStorage } from './state/storage.ts';
 
 export function App() {
-  const store = useMemo(() => new ReaderStore(new ApiClient(), createBrowserStorage()), []);
+  const storage = useMemo(() => createBrowserStorage(), []);
+  const store = useMemo(() => new ReaderStore(new ApiClient(), storage), [storage]);
   const state = useReaderStore(store);
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export function App() {
       {state.screen === 'universe' ? (
         <UniverseScreen
           state={state.universe}
+          storage={storage}
           onEnterScroll={() => store.enterScroll()}
           onOpenTrace={trace => store.openTrace(trace)}
           onRetry={() => store.retryUniverse()}

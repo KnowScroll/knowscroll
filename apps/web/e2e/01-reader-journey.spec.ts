@@ -16,8 +16,9 @@ async function readStoredSession(page: import('@playwright/test').Page): Promise
 test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)', () => {
   test('shows an honest empty universe before any Trace exists', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
-    await expect(page.getByText('Nothing lives here yet.', { exact: false })).toBeVisible();
+    // Real stage, chosen from the (zero) kept Traces, never a fixed headline (ui-system.md sec.5c).
+    await expect(page.getByRole('heading', { name: 'Somewhere new starts here.' })).toBeVisible();
+    await expect(page.getByText('No topics to pick. Just something interesting.', { exact: false })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Saved Traces' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Enter Scroll' })).toBeVisible();
   });
@@ -121,7 +122,8 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(eventResponse.status).toBe(200);
 
     await page.getByRole('button', { name: 'Return to Universe' }).click();
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+    // This is the run's first Keep: the real stage now has 1 kept Trace (ui-system.md sec.5c).
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
     const trace = page.getByRole('button', { name: new RegExp(`Revisit the saved Trace: ${title}`) });
     await expect(trace).toBeVisible();
 
@@ -146,7 +148,8 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
 
   test('a saved-Trace revisit is read-only: verified origin, no new exposure, exact return', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+    // 1 Trace already kept by this point in the run.
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
     const traceButton = page.getByRole('button', { name: /Revisit the saved Trace/ }).first();
     await expect(traceButton).toBeVisible();
 
@@ -162,7 +165,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(exposureRequests).toHaveLength(0);
 
     await page.getByRole('button', { name: 'Return to Universe' }).click();
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
   });
 
   test('reload restores the current Scroll and its retry envelope from storage', async ({ page }) => {

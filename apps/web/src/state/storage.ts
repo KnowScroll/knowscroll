@@ -38,6 +38,21 @@ export interface RevisitSession {
   readingPosition: number;
 }
 
+/**
+ * The real reason the most recently kept Trace was recommended -- captured verbatim from the
+ * feed item's own `reason` field at the moment Keep was accepted (ui-system.md sec.5c: the
+ * growth note must carry "the real why-this-appeared reason", never an invented growth claim).
+ * Scoped and purged exactly like every other private artifact here; it is evidence of what was
+ * shown, the same category of fact `Universe.traces[].title` already carries, never a profile.
+ */
+export interface LastKept {
+  eventId: string;
+  title: string;
+  reason: string;
+  privacyEpoch: number;
+  universeId: string;
+}
+
 export interface StorageBackend {
   getItem(name: string): string | null;
   setItem(name: string, value: string): void;
@@ -88,6 +103,13 @@ export class ReaderStorage {
     this.backend.removeItem(key('session'));
   }
 
+  writeLastKept(value: LastKept): void {
+    this.backend.setItem(key('lastKept'), JSON.stringify(value));
+  }
+  readLastKept(): LastKept | null {
+    return safeParse<LastKept>(this.backend.getItem(key('lastKept')));
+  }
+
   writeRevisit(session: RevisitSession): void {
     this.backend.setItem(key('revisit'), JSON.stringify(session));
   }
@@ -120,6 +142,7 @@ export class ReaderStorage {
     this.backend.removeItem(key('session'));
     this.backend.removeItem(key('revisit'));
     this.backend.removeItem(key('visited'));
+    this.backend.removeItem(key('lastKept'));
     this.backend.setItem(key('screen'), 'universe');
     this.backend.setItem(key('privacyUniverseId'), universeId);
     this.backend.setItem(key('privacyEpoch'), String(observed));

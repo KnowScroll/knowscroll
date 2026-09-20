@@ -3,7 +3,8 @@ import { expect, test } from './support/fixtures.ts';
 test.describe('failure and recovery (real disposable API behind a fault-injecting proxy)', () => {
   test('API unavailable shows a visible retry state that preserves the current page, then recovers', async ({ page, setOutage }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+    // 1 Trace already kept by 01-reader-journey.spec.ts, which runs first in this single-worker suite.
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
 
     await setOutage(true);
     try {
