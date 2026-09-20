@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T10:53:02.185Z",
-  "url": "http://127.0.0.1:53436/",
+  "timestamp": "2026-09-20T11:05:57.904Z",
+  "url": "http://127.0.0.1:56980/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1546,7 +1546,7 @@
             }
           ],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: A star is a balancing act\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
           "target": [
             "article"
           ]
@@ -1792,7 +1792,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: A star is a balancing act\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
           "target": [
             "article"
           ]
@@ -1972,7 +1972,7 @@
             }
           ],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: A star is a balancing act\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
           "target": [
             "article"
           ]
@@ -2236,7 +2236,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: A star is a balancing act\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
           "target": [
             "article"
           ]
@@ -2458,7 +2458,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: A star is a balancing act\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
           "target": [
             "article"
           ]
@@ -2874,7 +2874,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h2>A star is a balancing act</h2>",
+          "html": "<h2>Farther out, a longer year</h2>",
           "target": [
             "h2"
           ]
@@ -2924,7 +2924,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<p class=\"summary\">Gravity pulls inward while pressure pushes outward.</p>",
+          "html": "<p class=\"summary\">Distance and orbital period follow a relationship.</p>",
           "target": [
             ".summary"
           ]
@@ -3049,7 +3049,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<p class=\"keyboard-help\">Keyboard: ↓ or N next discovery · S sources · Escape or Home returns to Universe.</p>",
+          "html": "<p class=\"keyboard-help\">Keyboard: ↓ reads on, then takes the next discovery · N next · S sources · Escape or Home returns to Universe.</p>",
           "target": [
             ".keyboard-help"
           ]
@@ -3080,7 +3080,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h2>A star is a balancing act</h2>",
+          "html": "<h2>Farther out, a longer year</h2>",
           "target": [
             "h2"
           ]
@@ -3144,7 +3144,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h2>A star is a balancing act</h2>",
+          "html": "<h2>Farther out, a longer year</h2>",
           "target": [
             "h2"
           ]
@@ -3474,7 +3474,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: A star is a balancing act\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
           "target": [
             "article"
           ]

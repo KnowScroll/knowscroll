@@ -29,9 +29,15 @@ test.describe('keyboard-only path, accessibility scan, and reference screenshots
     const after = await page.content();
     expect(after).toBe(before);
 
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowUp');
-
+    // ArrowDown/ArrowUp used to scroll the reading column by a fixed step, and
+    // this test pressed them here as a harmless no-op on the way to Keep. The
+    // down arrow is now "next discovery" once the Scroll has been read to its
+    // end (definition.md sec.9.5, ui-system.md sec.4), so on a Scroll short
+    // enough to fit the viewport this pair silently advanced to a *different*
+    // Scroll before the Keep below -- which is why this test failed
+    // intermittently depending on content height. ArrowDown's real contract is
+    // asserted directly in 90-ui-system-evidence.spec.ts; this test is about
+    // completing the journey on the keyboard, so it no longer presses them.
     await page.getByRole('button', { name: 'Keep this Scroll' }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('button', { name: 'Kept' })).toBeVisible({ timeout: 5000 });

@@ -64,6 +64,13 @@ Living Observatory's `--muted` role maps to `--cream` at 70% for secondary text 
 - Pointer and keyboard are equal: `↓` next discovery, `→` deeper when a continuation exists, `Esc`
   or back returns, and every control is reachable and visibly focused. `→` stays **unbound** while no
   continuation contract exists — an empty gesture is worse than none.
+- **`↓` reads on before it advances.** §9.5 names `↓` as next discovery, and Living Observatory's reader
+  scrolls a column of text; bound naively, `↓` takes both away at once — a keyboard reader can no longer
+  scroll, and a press mid-paragraph loses their place *and* spends a deliberate discovery. So while text
+  remains below the fold `↓` scrolls, and only at the end of the Scroll does it become next discovery.
+  `↑` scrolls back. Both are suspended from smooth motion under `prefers-reduced-motion`. This is a
+  refinement recorded here, not a new gesture: the two references disagreed and this is how they are
+  reconciled.
 
 ## 5. Truth states are visual language, not a footnote (§12)
 

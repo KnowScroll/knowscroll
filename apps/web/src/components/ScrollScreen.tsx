@@ -4,6 +4,26 @@ import { useVisibleExposure } from '../hooks/useVisibleExposure.ts';
 import type { DiscoveryState, KeepState } from '../state/discovery.ts';
 import type { ScrollView } from '../state/readerStore.ts';
 
+const SCROLL_STEP = 160;
+
+/**
+ * Scrolls the reading column by one step and reports whether it actually
+ * moved. `false` means the reader is already at the end (or there is nothing
+ * to scroll), which is what turns the down arrow into "next discovery".
+ * Smooth scrolling is motion, so it is suspended under `prefers-reduced-motion`
+ * exactly like every transition in styles.css -- the position still changes,
+ * instantly.
+ */
+function scrollReadingColumn(node: HTMLElement | null, delta: number): boolean {
+  if (!node) return false;
+  const atEnd = delta > 0 && node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+  const atStart = delta < 0 && node.scrollTop <= 0;
+  if (atEnd || atStart) return false;
+  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  node.scrollBy({ top: delta, behavior: reduced ? 'auto' : 'smooth' });
+  return true;
+}
+
 export interface ScrollScreenProps {
   state: ScrollView;
   onVisible: (assetId: string) => void;
@@ -145,12 +165,22 @@ function ReadingStage({
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
       // Pointer and keyboard are equal (definition.md sec.9.5): the down
-      // arrow is the same action as the "Next" pill. ArrowRight is
-      // deliberately never bound -- no continuation contract exists, and an
-      // empty gesture is worse than none (ui-system.md sec.4).
-      if (event.key === 'ArrowDown') {
+      // arrow is the same action as the "Next" pill -- but only once there is
+      // no more of this Scroll to read. While text remains below the fold the
+      // down arrow reads on, because a key that jumps to a different Scroll
+      // mid-paragraph both loses the reader's place and spends a deliberate
+      // discovery by accident. ArrowRight is deliberately never bound -- no
+      // continuation contract exists, and an empty gesture is worse than none
+      // (ui-system.md sec.4).
+      if (event.key === 'ArrowDown' && !sourcesOpen && !whyOpen) {
         event.preventDefault();
+        if (scrollReadingColumn(stageRef.current, SCROLL_STEP)) return;
         onNext();
+        return;
+      }
+      if (event.key === 'ArrowUp' && !sourcesOpen && !whyOpen) {
+        event.preventDefault();
+        scrollReadingColumn(stageRef.current, -SCROLL_STEP);
         return;
       }
       if (event.key === 'Escape') {
@@ -197,7 +227,7 @@ function ReadingStage({
         <span className="head-band-origin">{originLabel}</span>
         <span className="head-band-kind">Scroll</span>
       </header>
-      <div className={`scroll-layout${sourcesOpen ? ' with-source' : ''}`}>
+      <div className="scroll-layout">
         <aside className="context-rail" aria-label="Context">
           <button
             type="button"
@@ -254,7 +284,7 @@ function ReadingStage({
         </article>
         {sourcesOpen && <SourceRail item={item} truthMeaning={truthMeaning} onClose={() => setSourcesOpen(false)} />}
       </div>
-      <p className="keyboard-help">Keyboard: ↓ or N next discovery · S sources · Escape or Home returns to Universe.</p>
+      <p className="keyboard-help">Keyboard: ↓ reads on, then takes the next discovery · N next · S sources · Escape or Home returns to Universe.</p>
     </main>
   );
 }

@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T10:53:15.527Z",
-  "url": "http://127.0.0.1:53436/",
+  "timestamp": "2026-09-20T11:06:15.891Z",
+  "url": "http://127.0.0.1:56980/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1437,7 +1437,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1567,7 +1567,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1791,7 +1791,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1955,7 +1955,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -2077,7 +2077,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -2168,7 +2168,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -2264,7 +2264,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T10:52:52.207Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T11:05:47.727Z</span>",
           "target": [
             "li:nth-child(1) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2289,7 +2289,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-title\">Farther out, a longer year</span>",
+          "html": "<span class=\"trace-title\">A star is a balancing act</span>",
           "target": [
             "li:nth-child(2) > .trace-card > .trace-text > .trace-title"
           ]
@@ -2314,7 +2314,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T10:52:59.789Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T11:05:55.628Z</span>",
           "target": [
             "li:nth-child(2) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2675,7 +2675,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]

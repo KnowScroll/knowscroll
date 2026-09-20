@@ -43,6 +43,40 @@ All at 1440×900 and 1024×768 unless noted. Produced by the two spec files abov
 sources panel open, the densest state). **Zero violations of any impact** in both reports (not
 just zero serious/critical — the required bar).
 
+## Coordinator corrections after the builder's hand-back
+
+Reproducing this slice found five defects. All five are fixed in this branch and every artefact here
+was regenerated afterwards; the earlier screenshots are superseded, not edited.
+
+1. **The reading column jumped ~170px when the source panel opened.** The grid gained a third track on
+   open, so the whole stage re-centred and the sentence being read slid out from under the eye. The
+   rail's track is now always reserved. Pinned by *"opening and closing the source rail never moves the
+   sentence being read"*, which measures the column's box before, during and after.
+2. **The page scrolled instead of the article.** `.scroll-screen` was `min-height:100vh`, so the flex
+   column grew with its content and `.reading-column`'s `height:100%` resolved against a grown parent —
+   the article could never overflow. `node.scrollTop` was therefore always 0, silently emptying the
+   reading-position contract that deviation 4 below restructured the layout to protect. Now
+   `height:100vh` with `overflow:hidden`. This was invisible to the unit tests, which run in jsdom where
+   nothing has layout, and to the screenshots, which never asserted that anything could scroll.
+3. **`↓` took reading away.** Bound unconditionally to next discovery, it left a keyboard reader unable
+   to scroll, and a press mid-paragraph lost their place *and* spent a deliberate discovery. `↓` now
+   reads on while text remains and becomes next discovery only at the end; `↑` reads back. Recorded in
+   `ui-system.md` §4 as the reconciliation of §9.5's `↓` with Living Observatory's scrolling reader.
+4. **The "intermittent flake" was this change, not timing.** `03-keyboard-and-a11y.spec.ts` pressed
+   `ArrowDown` on its way to Keep; once `↓` meant next discovery, that advanced to a *different* Scroll
+   and the Keep landed on the wrong one — passing or failing with content height, not with load. The
+   test now says so and no longer presses them; no timeout was widened.
+5. **`Kept` was dimmed to `opacity:.6`**, turning the agreed yellow olive so the one moment of reward in
+   the reader read like a greyed-out button. Full strength now; the label already says it is spent.
+
+Also: the Universe column was anchored to the top-left of the canvas, leaving two thirds of a 1440px
+screen empty. Cosmos centres its own shell (`max-width:1500px; margin:0 auto`), so it is centred here.
+
+**On the axe result:** both scans report 0 violations, but `axe-universe.json` carries one
+`color-contrast` *incomplete* — axe cannot compute contrast over the decorative star canvas. Checked by
+hand instead: cream `#fffdf2` on space `#03101a` is roughly 18:1, far above AA. Recorded rather than
+presented as a clean sweep.
+
 ## Deviations from `docs/product/ui-system.md`, and why
 
 1. **Orange pill text is ink, not white.** Cosmos's literal `.btn.orange`/`.pill.red` recipes pair

@@ -71,6 +71,57 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     });
   }
 
+  test('the down arrow reads on while text remains, and only then takes the next discovery', async ({ page }) => {
+    // A short viewport guarantees the Scroll overflows, which is the case that
+    // matters: pressing down mid-read must move the text, not the Scroll.
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await page.goto('/');
+    await openSavedTrace(page);
+    const column = page.locator('.reading-column');
+    await expect(column).toBeVisible();
+    const title = await page.getByRole('heading', { level: 2 }).textContent();
+    expect(await column.evaluate(n => n.scrollHeight > n.clientHeight)).toBe(true);
+
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => column.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
+    expect(await page.getByRole('heading', { level: 2 }).textContent()).toBe(title);
+
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(() => column.evaluate(n => n.scrollTop)).toBe(0);
+    expect(await page.getByRole('heading', { level: 2 }).textContent()).toBe(title);
+
+    // Scrolled to the end, the same key becomes next discovery.
+    await column.evaluate(n => { n.scrollTop = n.scrollHeight; });
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => page.getByRole('heading', { level: 2 }).textContent()).not.toBe(title);
+  });
+
+  test('opening and closing the source rail never moves the sentence being read', async ({ page }) => {
+    // A rail that flanks the stage holds its place. If the grid gains a track
+    // on open, the whole stage re-centres and the reading column slides out
+    // from under the eye mid-sentence -- the opposite of the deliberate,
+    // unhurried reading this surface is for.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await openSavedTrace(page);
+    const column = page.locator('.reading-column');
+    await expect(column).toBeVisible();
+    const before = await column.boundingBox();
+
+    await page.getByRole('button', { name: /Open sources panel/ }).click();
+    await expect(page.getByRole('link', { name: /Open source/ })).toBeVisible();
+    const open = await column.boundingBox();
+
+    await page.getByRole('button', { name: /Close sources panel/ }).click();
+    await expect(page.getByRole('link', { name: /Open source/ })).toHaveCount(0);
+    const after = await column.boundingBox();
+
+    expect(before).not.toBeNull();
+    expect(open!.x).toBeCloseTo(before!.x, 0);
+    expect(open!.width).toBeCloseTo(before!.width, 0);
+    expect(after!.x).toBeCloseTo(before!.x, 0);
+  });
+
   for (const viewport of viewports) {
     test(`end-of-library rest at ${viewport.name}: the finite three-asset editorial pool eventually empties`, async ({ page }) => {
       // A fresh page/context per viewport, not a reused one: a returning session restores its

@@ -141,6 +141,13 @@ a:focus-visible,
   opacity: 0.6;
   cursor: default;
 }
+/* "Kept" is a reached state, not an unavailable control. Dimming it turns the
+   agreed yellow olive and makes the one moment of reward in the reader read
+   like a greyed-out button; the label already says it cannot be pressed
+   again. */
+.pill.yellow:disabled {
+  opacity: 1;
+}
 .pill.teal {
   background: var(--teal);
   color: var(--ink);
@@ -251,6 +258,11 @@ a:focus-visible,
   min-height: 100vh;
   padding: 40px clamp(24px, 6vw, 96px);
   overflow: hidden;
+  /* Sits in the upper middle of the star ground rather than flush to the top
+     edge, so the universe has room above and below it. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* Decorative starfield only; see CosmosBackground.tsx for the full rule
@@ -283,6 +295,11 @@ a:focus-visible,
   position: relative;
   z-index: 1;
   max-width: 720px;
+  /* Cosmos centres its own shell (`max-width:1500px; margin:0 auto`), and
+     sec.4 asks for a centred stage. Anchored to the top-left, this column
+     left two thirds of the canvas empty and read as an unfinished page. */
+  margin: 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -374,7 +391,14 @@ a:focus-visible,
 
 .scroll-screen {
   position: relative;
-  min-height: 100vh;
+  /* Bounded, not merely "at least a screen tall". With min-height the flex
+     column grows with its content, .scroll-layout grows with it, and
+     .reading-column's height:100% resolves against the grown parent -- so the
+     article never overflows and the *page* scrolls instead. That silently
+     empties `node.scrollTop`, which is exactly the reading-position contract
+     the reading column is meant to own. */
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -446,29 +470,26 @@ a:focus-visible,
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 230px minmax(300px, 700px);
+  /* The source rail's track is reserved whether or not the panel is open
+     (sec.4: "a source rail and an actions rail flank the stage"). Adding the
+     track only on open re-centres the grid and slides the reading column
+     sideways by ~170px -- the sentence being read moves out from under the
+     eye. A rail that flanks the stage holds its place; the stage does not
+     rearrange itself around it. */
+  grid-template-columns: 230px minmax(300px, 640px) 300px;
   gap: 60px;
   padding: 36px clamp(24px, 5vw, 55px);
   justify-content: center;
 }
-/* A source panel flanks the stage as a third column when open (sec.4:
-   "a source rail ... flank[s] the stage"). */
-.scroll-layout.with-source {
-  grid-template-columns: 230px minmax(300px, 700px) minmax(260px, 320px);
-}
 @media (max-width: 1050px) {
   .scroll-layout {
-    grid-template-columns: 170px 1fr;
+    grid-template-columns: 170px 1fr 260px;
     gap: 30px;
     padding: 30px;
   }
-  .scroll-layout.with-source {
-    grid-template-columns: 170px 1fr minmax(220px, 280px);
-  }
 }
 @media (max-width: 700px) {
-  .scroll-layout,
-  .scroll-layout.with-source {
+  .scroll-layout {
     display: block;
     padding: 23px;
   }
