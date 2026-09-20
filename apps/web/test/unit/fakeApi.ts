@@ -73,6 +73,7 @@ export function universeOf(overrides: Partial<Universe> = {}): Universe {
     universeId: 'aaaaaaaa-0000-4000-8000-000000000000',
     revision: 1,
     privacyEpoch: 0,
+    recordingPausedAt: null,
     traces: [],
     capabilities: { reasoning: false, reels: false, worldEvolution: false },
     ...overrides,
