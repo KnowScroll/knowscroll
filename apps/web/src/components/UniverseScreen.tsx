@@ -9,6 +9,7 @@ export interface UniverseScreenProps {
   storage: ReaderStorage;
   onEnterScroll: () => void;
   onOpenTrace: (trace: Trace) => void;
+  onEnterSystem: () => void;
   onRetry: () => void;
 }
 
@@ -27,7 +28,7 @@ export interface UniverseScreenProps {
  * frames (no system/interior/planet levels: no semantic geography exists
  * yet -- sec.5b's own table).
  */
-export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onRetry }: UniverseScreenProps) {
+export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onEnterSystem, onRetry }: UniverseScreenProps) {
   return (
     <main className="universe-screen" aria-label="Universe">
       <CosmosBackground />
@@ -55,7 +56,7 @@ export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onR
         </div>
       )}
       {state.status === 'loaded' && (
-        <LoadedUniverse universe={state.universe} storage={storage} onEnterScroll={onEnterScroll} onOpenTrace={onOpenTrace} />
+        <LoadedUniverse universe={state.universe} storage={storage} onEnterScroll={onEnterScroll} onOpenTrace={onOpenTrace} onEnterSystem={onEnterSystem} />
       )}
     </main>
   );
@@ -242,9 +243,10 @@ interface LoadedUniverseProps {
   storage: ReaderStorage;
   onEnterScroll: () => void;
   onOpenTrace: (trace: Trace) => void;
+  onEnterSystem: () => void;
 }
 
-function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace }: LoadedUniverseProps) {
+function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnterSystem }: LoadedUniverseProps) {
   const traces = universe.traces;
   const empty = traces.length === 0;
   const stage = stageFor(traces.length);
@@ -402,11 +404,19 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace }: Loade
           </button>
           {/* Living Observatory's own scale label (its `#scaleLabel`) names which of four
               navigable depths ("PLANET"/"SYSTEM"/"GALAXY"/"UNIVERSE VIEW") the reader is at.
-              This build has exactly one real level -- there is no semantic geography to zoom
-              into (sec.5b/6) -- so the honest label for the one level that actually exists is
-              "UNIVERSE VIEW", never the reference's literal "SYSTEM VIEW", which would claim a
-              depth this build does not have. */}
-          <span className="map-scale-label">UNIVERSE VIEW</span>
+              When this was written the build had exactly one real level, so the label said
+              "UNIVERSE VIEW" and said nothing else: naming a depth the build could not reach
+              would have claimed semantic geography that did not exist.
+
+              #116 built that depth for real. A system is now derived from recorded evidence
+              alone (ADR-0028) and served by `GET /v1/worlds`, so the second level named in
+              sec.5b exists and is reachable -- and the label becomes what the reference always
+              made it, a control that goes there. It still claims nothing: the system it opens
+              names only the worlds this reader's own reading has actually reached, and says so
+              plainly when that set is empty. */}
+          <button type="button" className="map-scale-label" onClick={onEnterSystem} aria-label="Open the system view">
+            SYSTEM VIEW
+          </button>
         </div>
       )}
 

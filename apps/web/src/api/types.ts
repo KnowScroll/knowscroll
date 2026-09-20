@@ -87,6 +87,37 @@ export type EventStatus = z.infer<typeof eventStatus>;
 export const traceRevisit = traceRevisitReceipt;
 export type TraceRevisit = z.infer<typeof traceRevisit>;
 
+/**
+ * `GET /v1/worlds` (docs/contracts/bootstrap-http.md, ADR-0028/#113). `packages/contracts/src/worlds.ts`
+ * names this shape as plain TypeScript interfaces (no zod schema exists there to reuse, unlike
+ * trace-revisit above), so the strict runtime shape is written directly here, matching that file
+ * field-for-field: `WorldSummary` (worldId, sourceTitle, sourceUrl, scrollCount, seenCount) and
+ * `WorldSystemResponse` (derivationMethod, system: null | { systemId, worlds }).
+ */
+export const worldSummarySchema = z
+  .object({
+    worldId: z.string(),
+    sourceTitle: z.string(),
+    sourceUrl: z.string(),
+    scrollCount: z.number().int().nonnegative(),
+    seenCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type WorldSummary = z.infer<typeof worldSummarySchema>;
+
+export const worldSystemResponseSchema = z
+  .object({
+    derivationMethod: z.string(),
+    // `null` for a universe whose own exposures have not yet reached any recorded source's
+    // evidence -- never an empty object standing in for "nothing yet" (ADR-0028).
+    system: z
+      .object({ systemId: z.string(), worlds: z.array(worldSummarySchema) })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type WorldSystemResponse = z.infer<typeof worldSystemResponseSchema>;
+
 /** Documented truth states and their required presentation (definition.md section 12). */
 export const TRUTH_STATE_MEANING: Record<string, string> = {
   documented: 'Directly supported by strong cited evidence. Source access and date are shown.',
