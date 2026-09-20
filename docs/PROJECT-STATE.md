@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-09-19 (Asia/Kolkata). **Reliability, privacy and bounded MiniMax certification verified; reasoning primitives and J004 synthetic fault proof verified; durable SQL fairness, frozen context authority and seven-day withdrawn-context retirement and literal Ask recording plus sealed Ask context verified; next milestone: Owner Alpha.** Current owner/runtime/host decisions are summarized in [CHECKPOINT](CHECKPOINT.md). This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
+Updated: 2026-09-20 (Asia/Kolkata). **Reasoning, privacy and reliability primitives verified as before; September 20 adds a pinned local Cutroom service boundary (#89), the desktop web reader (#92), Android reader explanation and device sign-out (#91), and generated-Reel supply through verified media import (#94). No real provider, publication, serving or playback; owner runtime is still behind source. Next milestone: Owner Alpha.** Current owner/runtime/host decisions are summarized in [CHECKPOINT](CHECKPOINT.md). This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## v1 release scope
 
@@ -47,9 +47,17 @@ Owner decision, 2026-09-16: **v1 requires the entire documented user experience,
 
 - [Local Cutroom service boundary #89](journeys/evidence/cutroom-local/README.md) repins the client to upstream `86d6e2c` (required `RunRecord.takes`; [ADR-0021](decisions/0021-cutroom-successor-pin-and-local-host.md)) and adds a KnowScroll-owned SSD operator host that runs the pinned upstream API and worker as separate processes with upstream stand-ins. The real client passed 12 joined scenarios against that service and SQLite, including lost-response reconciliation, restart/crash recovery, cancellation and a completed stand-in video. Real providers, import, publication and playback remain open; KnowScroll does not modify Cutroom and live spend (≤$2) waits for upstream providers.
 
+- [Desktop web surface #92](journeys/evidence/web-reader/README.md): owner decision [ADR-0022](decisions/0022-desktop-web-surface.md) makes desktop a TypeScript web app. `apps/web` (React/Vite) reaches reader parity on existing endpoints with §9.5 desktop interaction, exposure recorded only when the Scroll is genuinely visible, storage fenced by universe and privacy epoch, and a loopback dev-only auth proxy whose token never reaches the client bundle. Production serving is refused until #2 identity exists.
+
+- [Reader explanation and device sign-out #91](journeys/evidence/reader-explanation/README.md): Android shows why a Scroll appeared using only returned facts (composer reason, truth state with its §12 meaning, discovery or saved-Trace origin) and can end this device's session through a real 204 with honest consequences; a 401 is the only resolution of an ambiguous attempt, and signing out erases no history. An open sheet does not survive Activity recreation ([#97](https://github.com/KnowScroll/knowscroll/issues/97)); mobile Ask stays out per ADR-0016.
+
+- [Generated Reel supply #94](journeys/evidence/generation-supply/README.md): [ADR-0023](decisions/0023-generated-reel-supply.md) and migration `0013_generated_reel_supply.sql` add editorial briefs over sourced Scrolls, an engine registry with a declared provider mode, budget grants, one guarded Cutroom attempt per job whose exact request bytes are persisted before dispatch, stored events with a monotonic cursor, settlement that records an overage rather than clamping real spend, and verified local-host import into content-addressed SSD media storage. [J005](journeys/J005.md) proves the path 6/6 against a real local Cutroom with stand-in providers. Nothing is eligible, published, served or playable; no real provider, no owner deployment.
+
 ## What is not built
 
-The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, production reasoning admission/dispatch, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. The MiniMax adapter is certified only for the bounded development cases below. The ordinary ReasoningProvider remains unready, and Cutroom has only an unwired HTTP client plus an unimplemented import port.
+Publication and eligibility gates (a generated Reel cannot become eligible without a Visual Witness
+check, which needs a vision model that product reasoning does not yet have), media serving, mixed
+Reel/Scroll feed and Reel playback on either surface. The complete Composer, semantic bridge/hypothesis layer, meaningful world evolution, generated Reels, production reasoning admission/dispatch, long-horizon runtime, Cutroom adapter, rooms, social Blend, offline sync and production identity. They remain explicit target scope in [architecture/target](architecture/target/README.md) and issues #2–#12. The MiniMax adapter is certified only for the bounded development cases below. The ordinary ReasoningProvider remains unready, and Cutroom has only an unwired HTTP client plus an unimplemented import port.
 
 ## Current decisions
 
