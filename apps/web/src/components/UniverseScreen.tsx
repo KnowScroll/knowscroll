@@ -109,7 +109,7 @@ function LoadedUniverse({
               className="body-button seed"
               style={bodyStyle(50, 52, 84)}
               onClick={onEnterScroll}
-              aria-label="A first possibility: see what catches your curiosity. Enter Scroll"
+              aria-label="A first possibility: see what catches your curiosity"
               ref={firstBodyRef}
             >
               <span className="body-label">
@@ -122,7 +122,7 @@ function LoadedUniverse({
               className="body-button dust"
               style={bodyStyle(20, 34, 42)}
               onClick={onEnterScroll}
-              aria-label="A different angle. Enter Scroll"
+              aria-label="A different angle"
             >
               <span className="body-label">
                 <span className="body-name">A different angle</span>
@@ -133,7 +133,7 @@ function LoadedUniverse({
               className="body-button dust"
               style={bodyStyle(80, 26, 40)}
               onClick={onEnterScroll}
-              aria-label="A little surprise. Enter Scroll"
+              aria-label="A little surprise"
             >
               <span className="body-label">
                 <span className="body-name">A little surprise</span>
@@ -175,7 +175,7 @@ function LoadedUniverse({
               className="body-button nebula"
               style={bodyStyle(88, 68, 46)}
               onClick={onEnterScroll}
-              aria-label="Still unexplored. Enter Scroll"
+              aria-label="Still unexplored"
             >
               <span className="body-label">
                 <span className="body-name">Still unexplored</span>
