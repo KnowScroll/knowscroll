@@ -104,9 +104,13 @@ async function setRecordingPaused(
  action: 'pause' | 'resume',
  input: PrivacyLifecycleInput,
 ): Promise<PrivacyRecordingReceipt> {
+ // The action is part of the replay key. Matching on the request id alone meant a client that
+ // reused an id it had already spent on the opposite action got that earlier receipt back: a
+ // pause request answered 200 with a resume receipt, and recording never stopped. A privacy
+ // control must never report success for something it did not do.
  const old = (await client.query(
-  'SELECT id,action,privacy_epoch,applied_at FROM privacy_recording_receipt WHERE universe_id=$1 AND request_id=$2',
-  [scope.universeId, input.requestId],
+  'SELECT id,action,privacy_epoch,applied_at FROM privacy_recording_receipt WHERE universe_id=$1 AND request_id=$2 AND action=$3',
+  [scope.universeId, input.requestId, action],
  )).rows[0];
  if (old) {
   if (old.privacy_epoch !== input.expectedPrivacyEpoch) throw new PrivacyLifecycleConflict('Pause/resume key was reused with a different expected privacy epoch');

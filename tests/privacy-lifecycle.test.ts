@@ -178,6 +178,24 @@ test('pause/resume replay follows the exact-retry contract but, unlike Clear, ne
   assert.equal((await pool.query('SELECT count(*)::int n FROM privacy_recording_receipt WHERE universe_id=$1', [distinct.scope.universeId])).rows[0].n, 2);
 });
 
+test('a request id already spent on resume cannot silently no-op a later pause', async () => {
+  // Keyed on (universe, requestId) alone, the second call was answered with the first call's
+  // receipt: HTTP 200, a body saying resumed, and recording never actually stopping. A privacy
+  // control that reports success for something it did not do is the worst failure here.
+  const identity = await provisionIdentity({ expiresInHours: 1 });
+  const requestId = randomUUID();
+  const resumed = await resume(identity, { requestId, expectedPrivacyEpoch: 0 });
+  assert.equal(resumed.statusCode, 200);
+
+  const paused = await pause(identity, { requestId, expectedPrivacyEpoch: 0 });
+  assert.equal(paused.statusCode, 200);
+  assert.equal(JSON.parse(paused.body).action, 'pause', 'a pause must be answered as a pause');
+  const row = (await pool.query(
+    'SELECT recording_paused_at FROM universe WHERE id=$1', [identity.scope.universeId],
+  )).rows[0];
+  assert.ok(row.recording_paused_at, 'recording is really paused, not merely reported as handled');
+});
+
 test('pause/resume: auth precedes strict validation, and a malformed body changes nothing', async () => {
   const owner = await provisionIdentity({ expiresInHours: 1 });
   const payload = { requestId: randomUUID(), expectedPrivacyEpoch: 0, extra: true };

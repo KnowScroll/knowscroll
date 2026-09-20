@@ -31,7 +31,11 @@ CREATE TABLE privacy_recording_receipt (
  action text NOT NULL CHECK (action IN ('pause','resume')),
  privacy_epoch integer NOT NULL CHECK (privacy_epoch >= 0),
  applied_at timestamptz NOT NULL,
- UNIQUE (universe_id, request_id)
+ -- The action belongs in the replay key. Keyed on the request id alone, a client that reused an
+ -- id it had already spent on `resume` would get that resume's receipt handed back for a `pause`:
+ -- HTTP 200, a body saying resumed, and recording never actually stopping. A privacy control that
+ -- silently does nothing while reporting success is the worst failure this table can have.
+ UNIQUE (universe_id, request_id, action)
 );
 
 -- A receipt can only ever describe the transition that actually happened: the caller must set
