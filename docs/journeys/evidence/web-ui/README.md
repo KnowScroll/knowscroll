@@ -77,6 +77,37 @@ screen empty. Cosmos centres its own shell (`max-width:1500px; margin:0 auto`), 
 hand instead: cream `#fffdf2` on space `#03101a` is roughly 18:1, far above AA. Recorded rather than
 presented as a clean sweep.
 
+## Second round: what independent review rejected, and what it cost
+
+The first round of coordinator fixes was rejected on review. Three of the findings were against those
+fixes, not the builder's work, and two were reproduced at ordinary desktop window sizes.
+
+1. **The `≤700px` rail collapse was dead code.** `@media (max-width:700px){.context-rail{display:none}}`
+   sat *before* an unconditional `.context-rail{display:flex}` of equal specificity, so the cascade
+   discarded it at every width. Combined with the bounded `100vh`, the rail that should have collapsed
+   instead pushed **Keep out of reach entirely** at 700×560, 700×420, 650×560 and 650×420. Base rules
+   now precede the media queries that narrow them.
+2. **The bounded reader clipped the why-this sheet.** Only `.reading-column` was given a bounded,
+   scrollable box; `.context-rail` was left unbounded, so with production `TRUTH_STATE_MEANING` text the
+   sheet grew past the bottom of the clipped screen at 1280×420 and 1024×560 — the same class of defect
+   as the one being fixed, one element over. The rail is now bounded and scrolls.
+3. **The three-track grid was an undisclosed invention that broke centring.** Living Observatory's
+   literal `.scroll-layout` is two columns; reserving a third fixed the ~170px jump but at
+   `230px / 640px / 300px` it pushed the reading column ~35px off centre and left a permanent empty band
+   on the right. The side tracks are now equal (`minmax(230px,1fr)`), so the stage is genuinely centred
+   *and* stable. Recorded as deviation 10 below.
+4. **`N` and `S` were gated inconsistently.** Gating `S` on `!whyOpen` then broke a pre-existing journey:
+   `S` while the why sheet is open is a way out of it, not a navigation. `S` and the pills now close the
+   other sheet rather than stacking; `N` stays gated because it changes the content behind the sheet.
+
+Two of the tests written for this round were themselves wrong and had to be corrected: they clicked the
+why-this trigger below the breakpoint where the rail is collapsed by design, and they measured reading
+position inside its own 200ms debounce.
+
+**Known and accepted:** reading position is written 200ms after scrolling stops, so a reload inside that
+window loses it. Pre-existing, unchanged by this slice, and not worth a synchronous write on every
+scroll event.
+
 ## Deviations from `docs/product/ui-system.md`, and why
 
 1. **Orange pill text is ink, not white.** Cosmos's literal `.btn.orange`/`.pill.red` recipes pair
@@ -135,6 +166,13 @@ presented as a clean sweep.
    stay reproducible regardless of run order. The dedicated "end-of-library rest" test still opens
    a fresh discovery to demonstrate the exhaustion path itself, and tolerates either landing
    outcome (some room left, or already exhausted) since both are honest results of the same feed.
+
+10. **Three grid tracks, not the reference's two.** Living Observatory's literal `.scroll-layout` is
+    `230px minmax(300px,700px)`. A rail added only when its panel opens re-centres the grid and slides
+    the reading column out from under the reader, so both side tracks are reserved permanently and made
+    equal: `minmax(230px,1fr) minmax(300px,700px) minmax(230px,1fr)`. The reading column therefore sits
+    on the true centre of the stage, which is what sec.4 asks for, at the cost of a reserved gutter on
+    each side. No other value changed.
 
 ## What remains unproved
 

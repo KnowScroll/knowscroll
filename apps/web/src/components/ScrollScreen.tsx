@@ -201,13 +201,14 @@ function ReadingStage({
         onReturn();
         return;
       }
-      if ((event.key === 'n' || event.key === 'N') && !sourcesOpen) {
+      if ((event.key === 'n' || event.key === 'N') && !sourcesOpen && !whyOpen) {
         event.preventDefault();
         onNext();
         return;
       }
       if ((event.key === 's' || event.key === 'S') && !sourcesOpen) {
         event.preventDefault();
+        setWhyOpen(false);
         setSourcesOpen(true);
       }
     };
@@ -232,14 +233,25 @@ function ReadingStage({
           <button
             type="button"
             className="pill cream"
-            onClick={() => setSourcesOpen(v => !v)}
+            onClick={() => {
+              setWhyOpen(false);
+              setSourcesOpen(v => !v);
+            }}
             aria-expanded={sourcesOpen}
             aria-label={sourcesOpen ? 'Close sources panel' : 'Open sources panel'}
             aria-keyshortcuts="s"
           >
             Sources
           </button>
-          <button type="button" className="pill cream" aria-expanded={whyOpen} onClick={() => setWhyOpen(v => !v)}>
+          <button
+            type="button"
+            className="pill cream"
+            aria-expanded={whyOpen}
+            onClick={() => {
+              setSourcesOpen(false);
+              setWhyOpen(v => !v);
+            }}
+          >
             Why this appeared
           </button>
           <WhyThisAppeared item={item} origin={originLabel} truthMeaning={truthMeaning} open={whyOpen} />

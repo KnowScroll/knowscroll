@@ -71,6 +71,79 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     });
   }
 
+  // A bounded 100vh reader trades page scrolling for the risk that something
+  // lands outside the box and no scroll can reach it. These sizes are ordinary
+  // desktop windows, not edge cases: a short laptop window, and a narrow one
+  // below the rail-collapse breakpoint.
+  const crampedViewports = [
+    { name: '1280x420', width: 1280, height: 420 },
+    { name: '1024x560', width: 1024, height: 560 },
+    { name: '700x560', width: 700, height: 560 },
+    { name: '650x420', width: 650, height: 420 },
+  ];
+
+  for (const viewport of crampedViewports) {
+    test(`every control stays reachable at ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto('/');
+      await openSavedTrace(page);
+
+      // Keep must be reachable by scrolling whatever actually scrolls.
+      const keep = page.getByRole('button', { name: /Keep this Scroll|Kept/ });
+      await keep.scrollIntoViewIfNeeded();
+      await expect(keep).toBeInViewport();
+
+      // Above the breakpoint the context rail is present, so the why-this sheet
+      // must not grow past the bottom of a clipped screen. Below it the rail is
+      // collapsed by design and the whole stage flows instead, so the source
+      // sheet is what has to stay reachable.
+      if (viewport.width > 700) {
+        await page.getByRole('button', { name: 'Why this appeared' }).click();
+        const why = page.getByText('No explanation recorded.');
+        await why.scrollIntoViewIfNeeded();
+        await expect(why).toBeInViewport();
+      } else {
+        await expect(page.locator('.context-rail')).toBeHidden();
+        await page.keyboard.press('s');
+        const link = page.getByRole('link', { name: /Open source/ });
+        await link.scrollIntoViewIfNeeded();
+        await expect(link).toBeInViewport();
+      }
+      const clipped = await page.locator('.scroll-screen').evaluate(n => n.scrollHeight > n.clientHeight + 1);
+      expect(clipped, '.scroll-screen must never clip content out of reach').toBe(false);
+    });
+  }
+
+  test('the context rail really does collapse below 700px', async ({ page }) => {
+    // The collapse rule existed but sat before an unconditional rule of equal
+    // specificity, so the cascade silently discarded it.
+    await page.setViewportSize({ width: 660, height: 800 });
+    await page.goto('/');
+    await openSavedTrace(page);
+    await expect(page.locator('.context-rail')).toBeHidden();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.locator('.context-rail')).toBeVisible();
+  });
+
+  test('reading position survives a reload, measured on the element that scrolls', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await page.goto('/');
+    await openSavedTrace(page);
+    const column = page.locator('.reading-column');
+    await column.evaluate(n => { n.scrollTop = 120; });
+    await expect.poll(() => column.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
+    const saved = await column.evaluate(n => n.scrollTop);
+    // The position is written behind a 200ms debounce, so a reload inside that
+    // window legitimately loses it. Wait past the debounce and prove the
+    // persisted value is what comes back.
+    await page.waitForTimeout(400);
+
+    await page.reload();
+    const restored = page.locator('.reading-column');
+    await expect(restored).toBeVisible();
+    await expect.poll(() => restored.evaluate(n => n.scrollTop)).toBeCloseTo(saved, -1);
+  });
+
   test('the down arrow reads on while text remains, and only then takes the next discovery', async ({ page }) => {
     // A short viewport guarantees the Scroll overflows, which is the case that
     // matters: pressing down mid-read must move the text, not the Scroll.

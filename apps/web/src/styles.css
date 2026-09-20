@@ -470,20 +470,38 @@ a:focus-visible,
   flex: 1;
   min-height: 0;
   display: grid;
-  /* The source rail's track is reserved whether or not the panel is open
-     (sec.4: "a source rail and an actions rail flank the stage"). Adding the
-     track only on open re-centres the grid and slides the reading column
-     sideways by ~170px -- the sentence being read moves out from under the
-     eye. A rail that flanks the stage holds its place; the stage does not
-     rearrange itself around it. */
-  grid-template-columns: 230px minmax(300px, 640px) 300px;
+  /* Both rails' tracks are reserved whether or not a panel is open (sec.4: "a
+     source rail and an actions rail flank the stage"). Adding a track only on
+     open re-centres the grid and slides the reading column sideways by ~170px
+     -- the sentence being read moves out from under the eye. The side tracks
+     are equal so the reading column sits on the true centre of the stage, not
+     offset towards whichever rail happens to be wider. */
+  grid-template-columns: minmax(230px, 1fr) minmax(300px, 700px) minmax(230px, 1fr);
   gap: 60px;
   padding: 36px clamp(24px, 5vw, 55px);
   justify-content: center;
 }
+
+/* Base rules come before the media queries that narrow them: an unconditional
+   rule of equal specificity placed after a `max-width` block wins the cascade
+   and silently kills it. */
+.context-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 4px;
+  /* The rail is bounded and scrolls for the same reason the reading column is:
+     .scroll-screen clips at 100vh, so an unbounded rail lets the "why this
+     appeared" sheet grow past the bottom of the screen where no scroll can
+     reach it. */
+  min-height: 0;
+  overflow-y: auto;
+}
+
 @media (max-width: 1050px) {
   .scroll-layout {
-    grid-template-columns: 170px 1fr 260px;
+    grid-template-columns: minmax(170px, 1fr) minmax(280px, 700px) minmax(170px, 1fr);
     gap: 30px;
     padding: 30px;
   }
@@ -492,22 +510,25 @@ a:focus-visible,
   .scroll-layout {
     display: block;
     padding: 23px;
+    /* Block flow at this width, so the whole stage scrolls as one rather than
+       each rail owning its own bounded box. */
+    overflow-y: auto;
   }
   .context-rail {
     display: none;
+  }
+  .reading-column {
+    /* In block flow the article no longer owns a bounded box, so it grows and
+       .scroll-layout above does the scrolling. Leaving height:100% here would
+       pin the article to one screen and push the source sheet below it, out of
+       reach. */
+    height: auto;
+    overflow-y: visible;
   }
   .source-sheet {
     margin-top: 20px;
     width: 100%;
   }
-}
-
-.context-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  padding-top: 4px;
 }
 
 .reading-column {
