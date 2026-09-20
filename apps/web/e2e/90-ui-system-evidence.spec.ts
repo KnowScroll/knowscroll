@@ -143,6 +143,36 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await expect(page.locator('.context-rail')).toBeVisible();
   });
 
+  test('resizing across the breakpoint mid-read keeps the reader where they were', async ({ page }) => {
+    // Maximising, un-maximising or tiling a window is ordinary. Crossing 700px
+    // swaps which element scrolls, and the new one starts at zero, so the depth
+    // has to be carried over as a fraction -- the same text is a different
+    // height in a narrower column, so an absolute offset lands elsewhere.
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await page.goto('/');
+    await openSavedTrace(page);
+    const article = page.locator('.reading-column');
+    const stage = page.locator('.scroll-layout');
+    await expect(article).toBeVisible();
+
+    const depth = await article.evaluate(n => {
+      n.scrollTop = Math.round((n.scrollHeight - n.clientHeight) * 0.6);
+      return n.scrollTop / (n.scrollHeight - n.clientHeight);
+    });
+    expect(depth).toBeGreaterThan(0.5);
+
+    await page.setViewportSize({ width: 650, height: 420 });
+    await expect.poll(() => stage.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
+    const afterNarrow = await stage.evaluate(n => n.scrollTop / (n.scrollHeight - n.clientHeight));
+    expect(afterNarrow, 'depth is preserved going narrow').toBeCloseTo(depth, 1);
+
+    // And back the other way.
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await expect.poll(() => article.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
+    const afterWide = await article.evaluate(n => n.scrollTop / (n.scrollHeight - n.clientHeight));
+    expect(afterWide, 'depth is preserved going wide').toBeCloseTo(depth, 1);
+  });
+
   test('reading position survives a reload below the breakpoint, where the stage scrolls, not the article', async ({ page }) => {
     // The scroll owner changes with width. While the narrow-width CSS override
     // was dead the article kept scrolling by accident, which kept the

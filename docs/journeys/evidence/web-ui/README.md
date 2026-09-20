@@ -149,10 +149,37 @@ never followed the CSS's stated design. One defect was masking another.
 
 `scrollOwner()` now resolves the element that genuinely scrolls — the article when it owns a bounded
 box, the stage when the article flows — and both the persistence effect and the arrow keys use it.
-Listeners sit on both candidates, so a resize across the breakpoint mid-read does not strand it.
+Listeners sit on both candidates, so whichever element is live is always observed. Carrying the
+reader's place *across* a change of owner is a separate problem, solved in the fifth round below.
 
 **Verified red before green** again: against the third-round component the journey fails exactly one
 test, the new 650×420 persistence case, and passes the other 35. With the fix, **36/36**.
+
+## Fifth round: a claim that was not true
+
+Review rejected the fourth round not for the fix, which it confirmed, but for **what the commit message
+and this document claimed about it**: that dual listeners meant a resize across the breakpoint "does not
+strand" the reader. Measured, it did. Crossing 700px mid-read left the position on *neither* element —
+both read `0` — dropping the reader to the top, and their next small scroll overwrote the stored depth
+with a shallow one. Wide-to-narrow and narrow-to-wide both.
+
+The reviewer offered the cheaper option: soften the wording and record it as an accepted gap. That was
+the wrong trade. Maximising, un-maximising and tiling a window are ordinary things to do while reading,
+so the claim was made true instead. Reading depth is now carried as a **fraction** of the scrollable
+range, not an absolute offset — the same text is a different height in a narrower column — read
+synchronously on every scroll, because by the time a resize handler runs the old element has already
+been reset to zero and the depth is gone. On a change of owner it is applied to the new one.
+
+Also taken, though the reviewer said it was not a live defect: `scrollOwner` now checks the parent
+really carries `.scroll-layout` rather than trusting "the parent", so a wrapper added later cannot
+silently make it measure the wrong element.
+
+**Verified red before green:** against the fourth-round component the journey fails exactly one test,
+the new resize case, on `depth is preserved going narrow`; the other 36 pass. With the fix, **37/37**.
+
+**Cleared, and worth stating:** the double-persist race is structurally impossible — at any width only
+one candidate is a real scroll container, so only one ever fires a `scroll` event — and `scrollOwner`'s
+fresh-measurement-per-call design handles "short when wide, long when narrow" correctly by construction.
 
 ## Deviations from `docs/product/ui-system.md`, and why
 

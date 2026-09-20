@@ -26,8 +26,19 @@ function scrollOwner(article: HTMLElement | null): HTMLElement | null {
   if (!article) return null;
   if (article.scrollHeight > article.clientHeight + 1) return article;
   const stage = article.parentElement;
-  if (stage && stage.scrollHeight > stage.clientHeight + 1) return stage;
+  // Named explicitly rather than trusting "the parent": a wrapper introduced
+  // later would otherwise silently make this measure the wrong element.
+  if (stage?.classList.contains('scroll-layout') && stage.scrollHeight > stage.clientHeight + 1) return stage;
   return article;
+}
+
+/** How far through the scrollable range the reader is, 0 to 1. Carried across a
+ *  change of scroll owner, because the same text occupies a different height in
+ *  a narrower column, so an absolute offset would land somewhere else. */
+function scrollFraction(node: HTMLElement | null): number {
+  if (!node) return 0;
+  const range = node.scrollHeight - node.clientHeight;
+  return range > 0 ? node.scrollTop / range : 0;
 }
 
 function scrollReadingColumn(node: HTMLElement | null, delta: number): boolean {
@@ -169,17 +180,35 @@ function ReadingStage({
     // Both candidates are observed, because which one scrolls depends on the
     // viewport width and can change under a resize while the Scroll is open.
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let current = restored;
+    let depth = scrollFraction(restored);
     const onScroll = () => {
+      // Read synchronously: by the time a resize handler runs, the element that
+      // was scrolling has already been reset to zero and the depth is gone.
+      depth = scrollFraction(owner());
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => onReadingPosition(item.assetId, owner()?.scrollTop ?? 0), 200);
     };
+    const onResize = () => {
+      const next = owner();
+      if (!next || next === current) return;
+      // The owner changed, so the reader's place has to be carried onto it --
+      // crossing the breakpoint otherwise drops them back to the top of the
+      // article, which is an ordinary thing to do to a window.
+      const range = next.scrollHeight - next.clientHeight;
+      next.scrollTop = range > 0 ? Math.round(depth * range) : 0;
+      current = next;
+      onReadingPosition(item.assetId, next.scrollTop);
+    };
     article.addEventListener('scroll', onScroll);
     stage?.addEventListener('scroll', onScroll);
+    window.addEventListener('resize', onResize);
     return () => {
       if (timeout) clearTimeout(timeout);
       onReadingPosition(item.assetId, owner()?.scrollTop ?? 0);
       article.removeEventListener('scroll', onScroll);
       stage?.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.assetId]);
