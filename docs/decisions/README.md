@@ -44,6 +44,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0026 — Real sign-in: one owner account, email magic link](0026-magic-link-single-user-identity.md): owner-chosen magic link and single-user v1; one account enforced by the database; tokens hashed, single-use, consumed by POST so a prefetched link cannot sign anyone in.
 
+- [ADR-0027 — Magic links are delivered through AgentMail](0027-agentmail-magic-link-delivery.md): one send attempt, key only in the process environment, failures never become an address oracle, and the loop is proved by reading the inbox back.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
