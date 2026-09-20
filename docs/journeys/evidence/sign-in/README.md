@@ -58,3 +58,34 @@ See [J008.md](../../J008.md#limits): no sign-in UI is exercised (none exists yet
 surface), no real mail provider is contacted (none exists in this codebase), and this is a
 disposable database with a journey-generated `KS_OWNER_EMAIL`, never the owner's real configured
 address or universe.
+
+## Coordinator review fixes (2026-09-20)
+
+The independent security review returned accept-with-fixes; all findings are addressed here, and one
+extra correction came from the coordinator's own reading.
+
+1. **(major) An unknown address was distinguishable from the owner's by the work the database did.**
+   The non-owner path ran a single `SELECT`; the owner path took an advisory lock, ran two counts and
+   inserted. Both paths now take the same lock, run the same two counts (a non-owner counts against a
+   uuid that matches nothing) and generate and hash a token either way. The one remaining asymmetry
+   is the single `INSERT` that only a real, unthrottled owner request performs, which is stated in
+   ADR-0026 rather than hidden. Perfect constant time over a network is not claimed.
+2. **(minor) True concurrent consumption was untested.** A new test starts two consumptions of one
+   valid token together and asserts exactly one session is minted and the loser refuses with the same
+   indistinguishable shape — so a link opened twice at once cannot mint two sessions.
+3. **(nit) A lost first-sign-in adoption race returned 500.** It now refuses as `InvalidSignInToken`,
+   the same 401 shape as every other sign-in failure.
+4. **(coordinator) Production rate limits had been loosened to suit the tests** — 20 per account and
+   40 per fingerprint per 15 minutes. They are back to **5 and 10**, and `buildApp` now accepts
+   injected limits so the HTTP tests, which deliberately request many links inside one window, no
+   longer decide what production does. The rate limit was already a true sliding window
+   (`created_at > now - window`), so a quiet period always restores sign-in; the misleading
+   "running total" comment is corrected.
+
+Coordinator runs on this lane after the fixes: `pnpm typecheck` clean; `signin-token` +
+`signin-http` 23/23; **J008 19/19** (request → sink → GET does not consume → POST consumes once →
+authenticated call → sign-out → replayed and expired tokens refused identically); full backend
+**626/626**.
+
+Limits unchanged: no sign-in UI on either surface; delivery is the local development sink only, so
+no real email is sent by this slice; production mode refuses to start without a real sender.

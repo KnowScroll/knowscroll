@@ -34,7 +34,12 @@ const realDevRoot = process.env.KS_DEV_ROOT;
 process.env.KS_DEV_ROOT = scratchDevRoot; // isolates the development sink from the real machine
 
 const developmentToken = randomBytes(32).toString('hex');
-const app = buildApp(developmentToken);
+// Production defaults are deliberately tight (5 per account, 10 per fingerprint per 15 minutes).
+// This file requests many links inside one window, so it injects a permissive limit rather than
+// loosening what the real route uses.
+const app = buildApp(developmentToken, {
+  magicLinkLimits: { accountWindowMinutes: 15, accountMaxPerWindow: 500, fingerprintWindowMinutes: 15, fingerprintMaxPerWindow: 500 },
+});
 await app.ready();
 
 after(async () => {

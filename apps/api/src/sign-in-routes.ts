@@ -9,6 +9,7 @@ import {
   confirmSignInToken,
   consumeSignInToken,
   requestMagicLink,
+  type MagicLinkRateLimits,
   requesterFingerprint,
 } from '../../../packages/db/src/sign-in.ts';
 import { createMagicLinkSender, type MagicLinkSender } from './magic-link-sender.ts';
@@ -20,7 +21,7 @@ function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   return `http://127.0.0.1:${env.PORT ?? 4310}`;
 }
 
-export function registerSignInRoutes(app: FastifyInstance): void {
+export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRateLimits): void {
   // Resolved lazily and cached, exactly like `resolveMediaRoot()`: a caller that never requests a
   // magic link never needs `KS_DEV_ROOT` set, and a production-mode process only refuses here at
   // the moment this route is actually exercised (main.ts already refuses every production start
@@ -32,10 +33,12 @@ export function registerSignInRoutes(app: FastifyInstance): void {
     const parsed = magicLinkRequestInput.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'Invalid magic-link request');
     const fingerprint = requesterFingerprint(req.ip);
+    // `limits` is injected only by tests that need many links inside one window; production
+    // always uses the documented defaults in packages/db/src/sign-in.ts.
     const issued = await transaction(client => requestMagicLink(client, {
       email: parsed.data.email,
       requesterFingerprint: fingerprint,
-    }));
+    }, limits));
     if (issued) {
       const link = `${resolveApiBaseUrl()}/v1/auth/confirm?token=${encodeURIComponent(issued.token)}`;
       // Best-effort delivery, exactly like a real mail provider: a send failure (including a

@@ -84,9 +84,9 @@ export const SIGN_IN_TOKEN_TTL_MINUTES = 15;
  * same transaction that would insert the token, serialized with `pg_advisory_xact_lock` so
  * concurrent requests cannot both squeeze through the last remaining slot. */
 export const MAGIC_LINK_ACCOUNT_WINDOW_MINUTES = 15;
-export const MAGIC_LINK_ACCOUNT_MAX_PER_WINDOW = 20;
+export const MAGIC_LINK_ACCOUNT_MAX_PER_WINDOW = 5;
 export const MAGIC_LINK_FINGERPRINT_WINDOW_MINUTES = 15;
-export const MAGIC_LINK_FINGERPRINT_MAX_PER_WINDOW = 40;
+export const MAGIC_LINK_FINGERPRINT_MAX_PER_WINDOW = 10;
 
 export interface MagicLinkRateLimits {
   accountWindowMinutes: number;
@@ -116,11 +116,10 @@ export interface MagicLinkRequest {
  * for a non-owner address or a rate-limited owner address; the HTTP layer answers `202` either
  * way, so this function's return value must never leak through an error path.
  *
- * Overriding `limits` is for tests only (the real route always uses the documented defaults
- * above): the per-account count is a running total in a table this schema deliberately never
- * allows deleting from (`sign_in_token_guard`), so a fixed window cannot be resynchronized between
- * test files sharing one disposable database. Tests instead compute a limit relative to the
- * account's *current* count so each test is self-contained regardless of history.
+ * Both counts are over a real sliding window (`created_at > now - window`), so a quiet period
+ * always restores the ability to sign in; tokens are never deleted, but old ones stop counting.
+ * Overriding `limits` is for tests only, because several test files share one disposable database
+ * within a single window and would otherwise throttle each other.
  */
 export async function requestMagicLink(
   client: pg.PoolClient,
@@ -130,44 +129,46 @@ export async function requestMagicLink(
   const email = normalizeEmail(input.email);
   const ownerEmail = resolveOwnerEmail();
 
-  if (email !== ownerEmail) {
-    // Same shape of database work either way: one indexed lookup, nothing persisted, nothing
-    // returned that distinguishes this from a rate-limited owner request.
-    await client.query('SELECT 1 FROM account WHERE email=$1', [email]);
-    return null;
-  }
+  const owner = email === ownerEmail;
 
-  // Serializes every concurrent request for the one account, so the count-then-insert below is
-  // race-free without needing a dedicated counter table this lane is not allowed to migrate in.
+  // Both paths take the same lock, run the same counts and spend the same randomness, so a caller
+  // cannot tell the owner's address from any other by how long the answer takes or by what the
+  // database did. The one residual asymmetry is the single INSERT that only a real, unthrottled
+  // owner request performs; it is documented in ADR-0026 rather than hidden.
   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ks-magic-link-account:${ownerEmail}`]);
 
   let account = (await client.query<{ id: string }>('SELECT id FROM account WHERE email=$1', [email])).rows[0];
-  if (!account) {
+  if (!account && owner) {
     account = (await client.query<{ id: string }>(
       'INSERT INTO account(id,email) VALUES($1,$2) RETURNING id',
       [randomUUID(), email],
     )).rows[0]!;
   }
+  // A non-owner address counts against a uuid that matches nothing, so the same two queries run
+  // with the same plans and return zero.
+  const countedAccountId = account?.id ?? '00000000-0000-4000-8000-000000000000';
 
   const accountCount = (await client.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM sign_in_token
       WHERE account_id=$1 AND created_at > clock_timestamp() - ($2::int * interval '1 minute')`,
-    [account.id, limits.accountWindowMinutes],
+    [countedAccountId, limits.accountWindowMinutes],
   )).rows[0]!.n;
   const fingerprintCount = (await client.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM sign_in_token
       WHERE requester_fingerprint=$1 AND created_at > clock_timestamp() - ($2::int * interval '1 minute')`,
     [input.requesterFingerprint, limits.fingerprintWindowMinutes],
   )).rows[0]!.n;
-  if (accountCount >= limits.accountMaxPerWindow || fingerprintCount >= limits.fingerprintMaxPerWindow) {
-    return null;
-  }
+  const throttled = accountCount >= limits.accountMaxPerWindow || fingerprintCount >= limits.fingerprintMaxPerWindow;
 
+  // Generated either way, so the cost of making and hashing a secret is not a signal.
   const rawToken = randomBytes(32).toString('base64url');
+  const hashed = tokenHash(rawToken);
+  if (!owner || !account || throttled) return null;
+
   await client.query(
     `INSERT INTO sign_in_token(id,account_id,token_hash,purpose,requester_fingerprint,expires_at)
      VALUES($1,$2,$3,'sign_in',$4,clock_timestamp() + ($5::int * interval '1 minute'))`,
-    [randomUUID(), account.id, tokenHash(rawToken), input.requesterFingerprint, SIGN_IN_TOKEN_TTL_MINUTES],
+    [randomUUID(), account.id, hashed, input.requesterFingerprint, SIGN_IN_TOKEN_TTL_MINUTES],
   );
   return { token: rawToken, accountId: account.id };
 }
@@ -255,7 +256,8 @@ export async function consumeSignInToken(client: pg.PoolClient, rawToken: string
     // Cannot happen under the single-account invariant (only one account can ever exist, so a
     // universe found unbound above cannot have been bound by someone else by now), but this
     // function never proceeds on an assumption it has not just re-checked under the lock it holds.
-    if (!adopted) throw new Error('owner universe could not be adopted (already bound to another account)');
+    // Refuse exactly like every other sign-in failure: a caller learns nothing from losing a race.
+    if (!adopted) throw new InvalidSignInToken();
     privacyEpoch = adopted.privacy_epoch;
   }
 

@@ -217,8 +217,8 @@ test('per-fingerprint rate limit is enforced independently of the account limit'
 });
 
 test('documented production rate-limit numbers are exactly what the route uses by default', () => {
-  assert.equal(MAGIC_LINK_ACCOUNT_MAX_PER_WINDOW, 20);
-  assert.equal(MAGIC_LINK_FINGERPRINT_MAX_PER_WINDOW, 40);
+  assert.equal(MAGIC_LINK_ACCOUNT_MAX_PER_WINDOW, 5);
+  assert.equal(MAGIC_LINK_FINGERPRINT_MAX_PER_WINDOW, 10);
   assert.equal(SIGN_IN_TOKEN_TTL_MINUTES, 15);
 });
 
@@ -244,6 +244,27 @@ test('confirm reports validity without ever consuming, and is idempotent under r
 // -------------------------------------------------------------------------------------------
 // consumeSignInToken (POST path): exactly-once, unified refusal, session shape, universe adoption.
 // -------------------------------------------------------------------------------------------
+
+test('two parallel consumptions of one valid token mint exactly one session', async () => {
+  // The sequential replay test below proves a consumed token is dead; this proves the row lock
+  // actually serialises a genuine race, so a leaked link opened twice at once cannot mint two
+  // sessions. Both calls run in their own transaction, started together.
+  const issued = await transaction(client => requestMagicLink(
+    client, { email: OWNER_EMAIL, requesterFingerprint: requesterFingerprint(`race-${randomUUID()}`) }, permissiveLimits(),
+  ));
+  assert.ok(issued);
+
+  const outcomes = await Promise.allSettled([
+    transaction(client => consumeSignInToken(client, issued!.token)),
+    transaction(client => consumeSignInToken(client, issued!.token)),
+  ]);
+  const won = outcomes.filter(o => o.status === 'fulfilled');
+  const lost = outcomes.filter(o => o.status === 'rejected');
+  assert.equal(won.length, 1, 'exactly one consumption succeeds');
+  assert.equal(lost.length, 1, 'the other is refused');
+  assert.ok((lost[0] as PromiseRejectedResult).reason instanceof InvalidSignInToken,
+    'the loser refuses with the same indistinguishable shape as any other bad token');
+});
 
 test('a token is consumed exactly once; replay, expiry, tampering and unknown tokens all refuse identically', async () => {
   const issued = await transaction(client => requestMagicLink(
