@@ -232,6 +232,27 @@ test('the database refuses a world_system with no encountered world', async () =
   );
 });
 
+test('a title variant on one source URL does not break the derivation', async () => {
+  // A real library will spell the same source differently -- a curly apostrophe where an earlier
+  // row had a straight one. Keying a world on the title as well as the URL made the whole
+  // encounter path throw, so every exposure returned 500 until the data was hand-corrected.
+  const identity = await provisionIdentity();
+  await pool.query(
+    `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
+     VALUES($1,1,'Scroll','Variant spelling','s','b',$2,$3,'documented',900)`,
+    [randomUUID(), 'NASA \u00b7 Orbits and Kepler\u2019s Laws (variant)', ORBITS_URL],
+  );
+  const decision = await feed(identity.token);
+  const item = decision.items[0]!;
+  await expose(identity.token, decision.decisionId, item.assetId);
+
+  const worlds = (await pool.query(
+    `SELECT count(*)::int AS n FROM world WHERE derivation_method=$1 AND source_url=$2`,
+    [SHARED_SOURCE_V1, ORBITS_URL],
+  )).rows[0];
+  assert.equal(worlds.n, 1, 'one source URL yields exactly one world whatever its title variants');
+});
+
 test('a world_member cannot claim a source its own asset does not carry', async () => {
   const identity = await provisionIdentity();
   const decision = await feed(identity.token);
@@ -246,7 +267,7 @@ test('a world_member cannot claim a source its own asset does not carry', async 
     transaction(async client => {
       await client.query('INSERT INTO world_member(world_id,asset_id) VALUES($1,$2)', [orbitsWorld.id, starsAsset.id]);
     }),
-    /must carry the same source as its world/,
+    /must carry the same source URL as its world/,
   );
 });
 

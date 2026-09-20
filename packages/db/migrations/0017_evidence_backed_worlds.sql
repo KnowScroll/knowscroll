@@ -50,8 +50,12 @@ BEGIN
  IF w IS NULL THEN RAISE EXCEPTION 'A world member must name an existing world'; END IF;
  SELECT source_title, source_url INTO a FROM asset WHERE id = NEW.asset_id;
  IF a IS NULL THEN RAISE EXCEPTION 'A world member must name an existing asset'; END IF;
- IF (a.source_title, a.source_url) IS DISTINCT FROM (w.source_title, w.source_url) THEN
-  RAISE EXCEPTION 'A world member''s asset must carry the same source as its world';
+ -- A source is identified by its URL. Its title is a human label that legitimately varies for the
+ -- same source -- typography, a later edit, a curly apostrophe where an earlier row had a straight
+ -- one. Requiring the title to match too makes a world undrawable the moment one Scroll spells its
+ -- source differently, which is a data accident, not missing evidence.
+ IF a.source_url IS DISTINCT FROM w.source_url THEN
+  RAISE EXCEPTION 'A world member''s asset must carry the same source URL as its world';
  END IF;
  RETURN NEW;
 END $$;

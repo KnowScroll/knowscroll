@@ -44,11 +44,11 @@ export interface SystemResult {
 
 /**
  * Recomputes the shared world catalog from the `asset` table alone (ADR-0028 section 1): every
- * distinct `(source_title, source_url)` pair among all recorded assets becomes exactly one world,
+ * distinct `source_url` among all recorded assets becomes exactly one world,
  * carrying every asset row sharing that pair as its `world_member` evidence. Idempotent by
  * construction -- a world is looked up by `(derivation_method, source_url)` before ever being
  * inserted, and `world_member` rows are inserted `ON CONFLICT DO NOTHING`, so a second call against
- * unchanged `asset` rows performs no writes at all (only `scroll_count`/`computed_at` are always
+ * unchanged `asset` rows produces identical rows, though it does restate each `computed_at` (only `scroll_count`/`computed_at` are always
  * re-stated, to the same value, which migration 0017's trigger accepts because it is already
  * correct). Must run inside the caller's own transaction, with the universe lock already held if
  * the caller is a request path (this module never acquires it itself, since the world catalog
@@ -60,27 +60,42 @@ export interface SystemResult {
  */
 export async function deriveWorlds(client: pg.PoolClient, method: string = SHARED_SOURCE_V1): Promise<WorldRow[]> {
   const sources = (await client.query<{ source_title: string; source_url: string; scroll_count: string }>(
-    `SELECT source_title, source_url, count(*) FILTER (WHERE kind = 'Scroll') AS scroll_count
-     FROM asset GROUP BY source_title, source_url`,
+    // Grouped by URL alone, because the URL is what identifies a source; the title is a label that
+     // legitimately varies for the same source. Grouping by the pair produced two groups that both
+     // resolved to one world, and the second group's assets then failed the membership guard --
+     // every exposure against a library with one such variant returned 500.
+     // The representative title is chosen deterministically (lowest by collation) so the same
+     // evidence always yields the same world row.
+    `SELECT min(source_title) AS source_title, source_url,
+            count(*) FILTER (WHERE kind = 'Scroll') AS scroll_count
+     FROM asset GROUP BY source_url`,
   )).rows;
 
   const out: WorldRow[] = [];
   for (const source of sources) {
-    const existing = (await client.query<{ id: string }>(
+    // Insert-then-read, never read-then-insert. The `world` catalog is shared across universes and
+    // this module holds no lock of its own, so two transactions meeting a brand-new source at the
+    // same moment would both see "none exists" and both insert -- the loser taking a duplicate-key
+    // error, surfaced as a 500 on a perfectly legitimate encounter. `ON CONFLICT DO NOTHING` makes
+    // the race a no-op and the following read always finds the winner's row.
+    await client.query(
+      `INSERT INTO world(id,derivation_method,source_title,source_url) VALUES($1,$2,$3,$4)
+       ON CONFLICT (derivation_method, source_url) DO NOTHING`,
+      [randomUUID(), method, source.source_title, source.source_url],
+    );
+    const settled = (await client.query<{ id: string }>(
       'SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2',
       [method, source.source_url],
     )).rows[0];
-    const worldId = existing?.id ?? randomUUID();
-    if (!existing) {
-      await client.query(
-        'INSERT INTO world(id,derivation_method,source_title,source_url) VALUES($1,$2,$3,$4)',
-        [worldId, method, source.source_title, source.source_url],
-      );
-    }
+    // The insert above either created this row or lost the race to a transaction that did; either
+    // way it exists by now, and its absence would mean the unique key no longer matches the lookup.
+    if (!settled) throw new Error(`world row missing for source after insert: ${source.source_url}`);
+    const worldId = settled.id;
 
     const members = (await client.query<{ id: string }>(
-      'SELECT id FROM asset WHERE source_title=$1 AND source_url=$2',
-      [source.source_title, source.source_url],
+      // Membership follows the same identity as the grouping: the source URL.
+      'SELECT id FROM asset WHERE source_url=$1',
+      [source.source_url],
     )).rows;
     for (const member of members) {
       await client.query(
