@@ -25,7 +25,7 @@ export function App() {
       {state.toast && (
         <div className="toast" role="status" aria-live="polite">
           {state.toast}
-          <button type="button" className="ghost toast-dismiss" onClick={() => store.consumeToast()} aria-label="Dismiss message">
+          <button type="button" className="pill ghost toast-dismiss" onClick={() => store.consumeToast()} aria-label="Dismiss message">
             Dismiss
           </button>
         </div>

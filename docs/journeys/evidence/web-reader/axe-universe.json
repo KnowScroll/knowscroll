@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-19T22:42:16.713Z",
-  "url": "http://127.0.0.1:62952/",
+  "timestamp": "2026-09-20T10:53:00.833Z",
+  "url": "http://127.0.0.1:53436/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1437,7 +1437,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1477,9 +1477,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -1567,7 +1567,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1585,9 +1585,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -1791,7 +1791,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1809,9 +1809,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -1955,7 +1955,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -1987,9 +1987,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -2077,7 +2077,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -2095,9 +2095,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -2168,7 +2168,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -2193,9 +2193,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -2224,16 +2224,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#fffdf2",
-                "bgColor": "#0a1b26",
-                "contrastRatio": 17.18,
-                "fontSize": "11.4pt (15.2px)",
-                "fontWeight": "normal",
+                "fgColor": "#15302a",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 13.83,
+                "fontSize": "11.3pt (15px)",
+                "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 17.18"
+              "message": "Element has sufficient color contrast of 13.83"
             }
           ],
           "all": [],
@@ -2249,22 +2249,22 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#b7c3cc",
-                "bgColor": "#0a1b26",
-                "contrastRatio": 9.76,
-                "fontSize": "8.4pt (11.2px)",
+                "fgColor": "#0f3644",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 12.61,
+                "fontSize": "8.3pt (11px)",
                 "fontWeight": "normal",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 9.76"
+              "message": "Element has sufficient color contrast of 12.61"
             }
           ],
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-19T22:42:09.300Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T10:52:52.207Z</span>",
           "target": [
             "li:nth-child(1) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2274,22 +2274,22 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#fffdf2",
-                "bgColor": "#0a1b26",
-                "contrastRatio": 17.18,
-                "fontSize": "11.4pt (15.2px)",
-                "fontWeight": "normal",
+                "fgColor": "#15302a",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 13.83,
+                "fontSize": "11.3pt (15px)",
+                "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 17.18"
+              "message": "Element has sufficient color contrast of 13.83"
             }
           ],
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-title\">A star is a balancing act</span>",
+          "html": "<span class=\"trace-title\">Farther out, a longer year</span>",
           "target": [
             "li:nth-child(2) > .trace-card > .trace-text > .trace-title"
           ]
@@ -2299,22 +2299,22 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#b7c3cc",
-                "bgColor": "#0a1b26",
-                "contrastRatio": 9.76,
-                "fontSize": "8.4pt (11.2px)",
+                "fgColor": "#0f3644",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 12.61,
+                "fontSize": "8.3pt (11px)",
                 "fontWeight": "normal",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 9.76"
+              "message": "Element has sufficient color contrast of 12.61"
             }
           ],
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-19T22:42:15.976Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T10:52:59.789Z</span>",
           "target": [
             "li:nth-child(2) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2324,24 +2324,24 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#03101a",
+                "fgColor": "#15302a",
                 "bgColor": "#33c4b4",
-                "contrastRatio": 8.87,
-                "fontSize": "12.6pt (16.8px)",
-                "fontWeight": "normal",
+                "contrastRatio": 6.51,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 8.87"
+              "message": "Element has sufficient color contrast of 6.51"
             }
           ],
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -2675,7 +2675,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\">",
           "target": [
             "li:nth-child(2) > .trace-card"
           ]
@@ -2693,9 +2693,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"primary enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".primary"
+            ".pill"
           ]
         }
       ]
@@ -2727,8 +2727,8 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "8.4pt (11.2px)",
-                "fontWeight": "normal",
+                "fontSize": "7.5pt (10px)",
+                "fontWeight": "bold",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "4.5:1"
               },
@@ -2759,8 +2759,8 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "33.0pt (44px)",
-                "fontWeight": "normal",
+                "fontSize": "28.8pt (38.4px)",
+                "fontWeight": "bold",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "3:1"
               },
@@ -2791,8 +2791,8 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "8.4pt (11.2px)",
-                "fontWeight": "normal",
+                "fontSize": "7.5pt (10px)",
+                "fontWeight": "bold",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "4.5:1"
               },

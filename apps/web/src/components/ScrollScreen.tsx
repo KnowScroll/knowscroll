@@ -14,7 +14,14 @@ export interface ScrollScreenProps {
   onReadingPosition: (assetId: string, position: number) => void;
 }
 
-const SCROLL_STEP = 160;
+/** Only these seven truth states have a documented presentation (definition.md sec.12); anything
+ * else falls back to the neutral base `.truth-pill` tint rather than guessing a colour. */
+const KNOWN_TRUTH_STATES = new Set(['documented', 'synthesis', 'interpretation', 'disputed', 'modelled', 'counterfactual', 'fictional']);
+
+function truthPillClassName(truthState: string): string {
+  const slug = truthState.toLowerCase();
+  return KNOWN_TRUTH_STATES.has(slug) ? `truth-pill state-${slug}` : 'truth-pill';
+}
 
 export function ScrollScreen({ state, onVisible, onKeep, onNext, onReturn, onRetry, onReadingPosition }: ScrollScreenProps) {
   if (state.status === 'reading') {
@@ -71,16 +78,18 @@ function RestScreen({
 }) {
   return (
     <main className="scroll-screen rest-screen" aria-label="Scroll">
-      <p className="eyebrow">{exhausted ? 'Finite library' : 'Discovery'}</p>
-      <h2>{title}</h2>
-      <p>{message}</p>
-      <div className="rest-actions">
-        <button type="button" onClick={onRetry} disabled={!retryable} aria-label={exhausted ? 'Check the library again' : 'Retry'}>
-          {exhausted ? 'Check again' : 'Retry'}
-        </button>
-        <button type="button" onClick={onReturn} aria-label="Return to Universe">
-          Home
-        </button>
+      <div className="rest-card">
+        <p className="eyebrow">{exhausted ? 'Finite library' : 'Discovery'}</p>
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <div className="rest-actions">
+          <button type="button" className="pill teal" onClick={onRetry} disabled={!retryable} aria-label={exhausted ? 'Check the library again' : 'Retry'}>
+            {exhausted ? 'Check again' : 'Retry'}
+          </button>
+          <button type="button" className="pill cream" onClick={onReturn} aria-label="Return to Universe">
+            ‹ Universe
+          </button>
+        </div>
       </div>
     </main>
   );
@@ -135,19 +144,31 @@ function ReadingStage({
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
-      if (event.key === 'Escape' && sourcesOpen) {
-        event.preventDefault();
-        setSourcesOpen(false);
-        return;
-      }
+      // Pointer and keyboard are equal (definition.md sec.9.5): the down
+      // arrow is the same action as the "Next" pill. ArrowRight is
+      // deliberately never bound -- no continuation contract exists, and an
+      // empty gesture is worse than none (ui-system.md sec.4).
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        stageRef.current?.scrollBy({ top: SCROLL_STEP, behavior: 'smooth' });
+        onNext();
         return;
       }
-      if (event.key === 'ArrowUp') {
+      if (event.key === 'Escape') {
         event.preventDefault();
-        stageRef.current?.scrollBy({ top: -SCROLL_STEP, behavior: 'smooth' });
+        if (whyOpen) {
+          setWhyOpen(false);
+          return;
+        }
+        if (sourcesOpen) {
+          setSourcesOpen(false);
+          return;
+        }
+        onReturn();
+        return;
+      }
+      if (event.key === 'Home' && !sourcesOpen && !whyOpen) {
+        event.preventDefault();
+        onReturn();
         return;
       }
       if ((event.key === 'n' || event.key === 'N') && !sourcesOpen) {
@@ -158,78 +179,82 @@ function ReadingStage({
       if ((event.key === 's' || event.key === 'S') && !sourcesOpen) {
         event.preventDefault();
         setSourcesOpen(true);
-        return;
-      }
-      if ((event.key === 'Escape' || event.key === 'Home') && !sourcesOpen) {
-        event.preventDefault();
-        onReturn();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [sourcesOpen, onNext, onReturn]);
+  }, [sourcesOpen, whyOpen, onNext, onReturn]);
 
   const originLabel = state.origin.type === 'saved-trace' ? 'Saved Trace · revisiting a kept Scroll' : 'Deliberate discovery · a new sourced encounter';
   const truthMeaning = TRUTH_STATE_MEANING[item.truthState] ?? 'No documented meaning is defined for this truth state.';
 
   return (
     <main className="scroll-screen reading" aria-label="Scroll reader">
-      <div className="origin-bar">
-        <span className="origin-label">{originLabel}</span>
-        <button type="button" className="ghost" onClick={onReturn} aria-label="Return to Universe" aria-keyshortcuts="Escape Home">
-          Home
+      <header className="head-band">
+        <button type="button" className="pill cream" onClick={onReturn} aria-label="Return to Universe" aria-keyshortcuts="Escape">
+          ‹ Universe
         </button>
-      </div>
-      <div className={`reading-columns${sourcesOpen ? ' with-rail' : ''}`}>
+        <span className="head-band-origin">{originLabel}</span>
+        <span className="head-band-kind">Scroll</span>
+      </header>
+      <div className={`scroll-layout${sourcesOpen ? ' with-source' : ''}`}>
+        <aside className="context-rail" aria-label="Context">
+          <button
+            type="button"
+            className="pill cream"
+            onClick={() => setSourcesOpen(v => !v)}
+            aria-expanded={sourcesOpen}
+            aria-label={sourcesOpen ? 'Close sources panel' : 'Open sources panel'}
+            aria-keyshortcuts="s"
+          >
+            Sources
+          </button>
+          <button type="button" className="pill cream" aria-expanded={whyOpen} onClick={() => setWhyOpen(v => !v)}>
+            Why this appeared
+          </button>
+          <WhyThisAppeared item={item} origin={originLabel} truthMeaning={truthMeaning} open={whyOpen} />
+        </aside>
         <article
-          className="reading-stage"
+          className="reading-column"
           ref={stageRefCallback}
           tabIndex={-1}
           aria-label={`Reading: ${item.title}`}
         >
-          {/* The visible text already states the truth state and its meaning in full;
-              an additional aria-label here would be redundant and axe's aria-prohibited-attr
-              rule flags aria-label on a plain paragraph (generic role) as unsupported. */}
-          <p className="truth-state">
-            <strong>{item.truthState.toUpperCase()}</strong> — {truthMeaning}
-          </p>
+          {/* The truth pill sits directly above the claim it qualifies, never
+              buried at the end (definition.md law 13, sec.12). The visible
+              text already states the truth state and its meaning in full; an
+              additional aria-label here would be redundant and axe's
+              aria-prohibited-attr rule flags aria-label on a generic-role
+              element as unsupported. */}
+          <div className="truth-line">
+            <span className={truthPillClassName(item.truthState)}>{item.truthState.toUpperCase()}</span>
+            <span className="truth-meaning">{truthMeaning}</span>
+          </div>
           <h2>{item.title}</h2>
           {item.reason.trim().length > 0 && <p className="reason">{item.reason}</p>}
           <p className="summary">{item.summary}</p>
           <p className="body">{item.body}</p>
-          <hr />
-          <WhyThisAppeared item={item} origin={originLabel} truthMeaning={truthMeaning} open={whyOpen} onToggle={() => setWhyOpen(v => !v)} />
-          <DiscoveryThreshold keep={state.keep} discovery={state.discovery} onNext={onNext} />
+          <div className="continue">
+            {(state.keep.status === 'failed' || state.keep.status === 'conflict') && (
+              <p role="alert" className="keep-message">
+                {state.keep.message}
+              </p>
+            )}
+            <button
+              type="button"
+              className="pill yellow"
+              onClick={onKeep}
+              disabled={state.keep.status === 'saving' || state.keep.status === 'kept' || state.discovery === 'loading'}
+              aria-label={state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep this Scroll'}
+            >
+              {state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep'}
+            </button>
+            <DiscoveryThreshold keep={state.keep} discovery={state.discovery} onNext={onNext} />
+          </div>
         </article>
         {sourcesOpen && <SourceRail item={item} truthMeaning={truthMeaning} onClose={() => setSourcesOpen(false)} />}
       </div>
-      <div className="reader-controls">
-        {(state.keep.status === 'failed' || state.keep.status === 'conflict') && (
-          <p role="alert" className="keep-message">
-            {state.keep.message}
-          </p>
-        )}
-        <button
-          type="button"
-          className="primary"
-          onClick={onKeep}
-          disabled={state.keep.status === 'saving' || state.keep.status === 'kept' || state.discovery === 'loading'}
-          aria-label={state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep this Scroll'}
-        >
-          {state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep'}
-        </button>
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => setSourcesOpen(v => !v)}
-          aria-expanded={sourcesOpen}
-          aria-label={sourcesOpen ? 'Close sources panel' : 'Open sources panel'}
-          aria-keyshortcuts="s"
-        >
-          Sources
-        </button>
-      </div>
-      <p className="keyboard-help">Keyboard: Up/Down arrows scroll · N next discovery · S sources · Escape or Home returns to Universe.</p>
+      <p className="keyboard-help">Keyboard: ↓ or N next discovery · S sources · Escape or Home returns to Universe.</p>
     </main>
   );
 }
@@ -239,32 +264,26 @@ function WhyThisAppeared({
   origin,
   truthMeaning,
   open,
-  onToggle,
 }: {
   item: { reason: string; truthState: string };
   origin: string;
   truthMeaning: string;
   open: boolean;
-  onToggle: () => void;
 }) {
+  if (!open) return null;
   const reasonText = item.reason.trim().length > 0 ? item.reason : 'No explanation recorded.';
   return (
     <section className="why-this-appeared" aria-label="Why this appeared">
-      <button type="button" className="ghost" aria-expanded={open} onClick={onToggle}>
-        Why this appeared
-      </button>
-      {open && (
-        <dl>
-          <dt>Reason</dt>
-          <dd>{reasonText}</dd>
-          <dt>Truth state</dt>
-          <dd>
-            {item.truthState.toUpperCase()} — {truthMeaning}
-          </dd>
-          <dt>Origin</dt>
-          <dd>{origin}</dd>
-        </dl>
-      )}
+      <dl>
+        <dt>Reason</dt>
+        <dd>{reasonText}</dd>
+        <dt>Truth state</dt>
+        <dd>
+          {item.truthState.toUpperCase()} — {truthMeaning}
+        </dd>
+        <dt>Origin</dt>
+        <dd>{origin}</dd>
+      </dl>
     </section>
   );
 }
@@ -280,7 +299,7 @@ function DiscoveryThreshold({ keep, discovery, onNext }: { keep: KeepState; disc
           Finding the next sourced encounter…
         </p>
       )}
-      <button type="button" className="primary" onClick={onNext} disabled={disabled} aria-label="Next discovery" aria-keyshortcuts="n">
+      <button type="button" className="pill teal" onClick={onNext} disabled={disabled} aria-label="Next discovery" aria-keyshortcuts="n ArrowDown">
         {discovery === 'failed' ? 'Retry next' : discovery === 'exhausted' ? 'Check again' : 'Next'}
       </button>
     </section>
@@ -293,19 +312,23 @@ function SourceRail({ item, truthMeaning, onClose }: { item: { sourceTitle: stri
     railRef.current?.focus();
   }, []);
   return (
-    <aside className="source-rail" aria-label="Source" ref={railRef} tabIndex={-1}>
-      <div className="source-rail-header">
+    <aside className="source-sheet" aria-label="Source" ref={railRef} tabIndex={-1}>
+      <div className="source-sheet-header">
         <h3>Source</h3>
-        <button type="button" className="ghost" onClick={onClose} aria-label="Close sources panel" aria-keyshortcuts="Escape">
+        {/* Distinct accessible name from the context-rail toggle (which already
+            reads "Close sources panel" once open): two controls performing
+            the same action must not share one name. */}
+        <button type="button" className="pill ghost" onClick={onClose} aria-label="Close the source panel" aria-keyshortcuts="Escape">
           Close
         </button>
       </div>
-      <p className="truth-state small">
-        {item.truthState.toUpperCase()} — {truthMeaning}
-      </p>
+      <div className="truth-line on-cream">
+        <span className={truthPillClassName(item.truthState)}>{item.truthState.toUpperCase()}</span>
+        <span className="truth-meaning">{truthMeaning}</span>
+      </div>
       <p className="source-title">{item.sourceTitle}</p>
       <p className="source-url">{item.sourceUrl}</p>
-      <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="primary source-link" aria-label={`Open source: ${item.sourceTitle} (opens in a new tab)`}>
+      <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="pill teal source-link" aria-label={`Open source: ${item.sourceTitle} (opens in a new tab)`}>
         Open source
       </a>
     </aside>

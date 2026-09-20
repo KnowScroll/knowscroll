@@ -26,7 +26,7 @@ export function UniverseScreen({ state, onEnterScroll, onOpenTrace, onRetry }: U
             <h2>The universe is unavailable</h2>
             <p>The bootstrap service could not be reached, or this session is no longer valid.</p>
             <p className="detail">{state.message}</p>
-            <button type="button" onClick={onRetry} aria-label="Retry loading the universe">
+            <button type="button" className="pill orange" onClick={onRetry} aria-label="Retry loading the universe">
               Retry
             </button>
           </div>
@@ -78,7 +78,7 @@ function LoadedUniverse({
           </ul>
         </nav>
       )}
-      <button type="button" className="primary enter-scroll" onClick={onEnterScroll} aria-label="Enter Scroll">
+      <button type="button" className="pill teal enter-scroll" onClick={onEnterScroll} aria-label="Enter Scroll">
         Enter Scroll
       </button>
     </div>
