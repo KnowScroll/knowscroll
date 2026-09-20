@@ -280,6 +280,10 @@ function ReadingStage({
         </button>
         <span className="head-band-origin">{originLabel}</span>
         <span className="head-band-kind">Scroll</span>
+        {/* Cosmos's own state pill (ui-system.md sec.5b): the real truth state plus the
+            real source count -- our schema carries exactly one source per Scroll, so
+            "1 SOURCE" is the honest count, never a placeholder for more. */}
+        <span className={`${truthPillClassName(item.truthState)} head-band-state`}>{item.truthState.toUpperCase()} · 1 SOURCE</span>
       </header>
       <div className="scroll-layout">
         <aside className="context-rail" aria-label="Context">
@@ -342,7 +346,10 @@ function ReadingStage({
               disabled={state.keep.status === 'saving' || state.keep.status === 'kept' || state.discovery === 'loading'}
               aria-label={state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep this Scroll'}
             >
-              {state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep'}
+              {/* Cosmos's own label (ui-system.md sec.5b: "Keep this", yellow) -- the
+                  accessible name stays "Keep this Scroll" above so existing journeys
+                  and tests keep working unchanged. */}
+              {state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep this'}
             </button>
             <DiscoveryThreshold keep={state.keep} discovery={state.discovery} onNext={onNext} />
           </div>
@@ -395,7 +402,9 @@ function DiscoveryThreshold({ keep, discovery, onNext }: { keep: KeepState; disc
         </p>
       )}
       <button type="button" className="pill teal" onClick={onNext} disabled={disabled} aria-label="Next discovery" aria-keyshortcuts="n ArrowDown">
-        {discovery === 'failed' ? 'Retry next' : discovery === 'exhausted' ? 'Check again' : 'Next'}
+        {/* Cosmos's own label (ui-system.md sec.5b: "keep going →", teal). Accessible
+            name stays "Next discovery" so existing journeys and tests keep working. */}
+        {discovery === 'failed' ? 'Retry next' : discovery === 'exhausted' ? 'Check again' : 'keep going →'}
       </button>
     </section>
   );

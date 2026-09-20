@@ -197,6 +197,62 @@ as strict; it governs the *content*, not whether the surface exists.
 An empty universe still draws the frame: ground, dock, hint, and an honest line where the bodies
 would be. Emptiness is a state of the design, not an excuse to omit it.
 
+## 5c. Living Observatory supplies the experience
+
+Cosmos supplies the theme (sec.5b); Living Observatory supplies the journey behaviour and the
+narration that changes as the reader's own history grows (design-direction.md: "Cosmos wins on
+look, Living Observatory wins on structure and behaviour"). Read it yourself before building:
+`docs/product/references/living-observatory.html`, whose own scenario chips run `First visit` →
+`Day 6` → `Day 30` → `Six months`. Its file header states the rule that governs every stage's
+copy: *"Scenario days are authored snapshots, never watch-count thresholds or user mastery."* That
+line is written for the reference's own four fixed demo snapshots; carried into a real product it
+becomes the rule below.
+
+### The frame that never changes, driven by the reader's real behaviour
+
+Living Observatory's own frame is stable across all four of its scenario snapshots: a brand mark
+top-left, an intro block (breadcrumbs, one heading, one italic-weight subtitle, an optional yellow
+left-ruled growth caption), a primary call-to-action with a helper line beneath it
+(`.entry`/`.primary`/`#entryNote`), map tools and a legend once there is something to key
+(`.map-tools`/`.map-key`), and the dock (`.dock`, four entries: World/Watch/Room/Keep in the
+reference — ours stays the three real entries from sec.5b). What changes between its snapshots is
+never the frame, only the words in it: the heading, the one-line subtitle, the growth caption, the
+CTA label, and the helper note. `renderMap()` in the reference computes every one of these strings
+from `state.day`/`state.scale`, never from a wall-clock date — and that is the one part of its own
+mechanism this product keeps: **the stage is chosen from what this reader has actually done, never
+from a date.** Nothing here has "day N" scenario branches; there are exactly two real stages,
+because there are exactly two real states a finite library can be in for one reader:
+
+| State | Chosen when | Living Observatory's own equivalent copy |
+|---|---|---|
+| **First visit** | The universe has no kept Traces at all | `.first-visit`: heading "Somewhere new starts here.", subtitle "No topics to pick. Just something interesting.", CTA "Show me something ↗", helper "Your world begins with what catches your curiosity.", **no** growth caption, **no** map-key, **no** invitation card |
+| **Returning** | At least one kept Trace exists | Its "Day 30" snapshot: heading changes to name what actually happened ("A world taking shape."), CTA becomes "Watch something ↗", helper "A familiar impulse. Somewhere new to go.", the map-key appears |
+
+### What is honestly reused, and what is not
+
+The reference's **first-visit invitation copy is reused verbatim**, because it names no topic and
+asserts nothing about this reader — "A first possibility" / "See what catches your curiosity", "A
+different angle", "A little surprise", the yellow "Show me something ↗" CTA and its helper line.
+This is exactly the honest description of a reader with a finite library and no inferred interests
+(sec.5b/6): drawing it is required, not an invention, because it is drawn from *having nothing*,
+not from having something specific. The unexplored frontier nodes are drawn as **faint dust,
+never omitted** (`layoutMap()`'s `seed`/`possibility1`/`possibility2` nodes; sec.5b/6: "the mistake
+to avoid is a pretty map of nothing").
+
+What is **not** reused: the reference's returning-state vocabulary is "Watch something" because
+its whole product is reel-watching. Ours is a reading Scroll, so the returning CTA keeps this
+product's own honest verb ("Enter Scroll") rather than importing a verb ("Watch") that would
+misdescribe what pressing it does — recorded here as a deviation from Living Observatory's literal
+label, kept faithful to its *role* (one primary, prominent, always-present call to action with a
+helper line) rather than its exact word. The invitation card (`#invitation`, "FROM THE IDEA ROOM")
+is never drawn at any stage: it names a fictional room and fictional agents (Moss, Rook), which law
+9/definition.md forbids fabricating regardless of how the reference frames it. The growth caption
+(`#growthCaption`) needs a specific claim about what changed ("You tried a route from machines to
+flocks."); no such cross-topic route exists yet, so it is not drawn until one does, exactly as
+sec.6 already requires. The map-key legend, and Living Observatory's own real-content substitution
+(a kept Trace's title standing in for a node's label, its date for its sub-label), are the two
+pieces of real structure this product keeps as literal contracts, covered in sec.5b's table.
+
 ## 6. What the interface may show today
 
 Only these have data: the honest empty universe, saved Traces, entering a Scroll, reading with

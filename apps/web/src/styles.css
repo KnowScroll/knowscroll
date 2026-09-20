@@ -251,18 +251,64 @@ a:focus-visible,
   transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* ---------- Universe ---------- */
+/* ---------- Universe (ui-system.md sec.5b/5c) ----------
+ * A canvas with floating controls over it, not a document with a header
+ * (sec.5b: "Nothing is a bar across the top"). Every HUD element below is
+ * absolutely positioned over the star ground, the way Cosmos's own `.hud`
+ * elements sit over `.lvl#L0`, and Living Observatory's `.intro`/`.entry`/
+ * `.dock` sit over `#sky`.
+ */
 
 .universe-screen {
   position: relative;
-  min-height: 100vh;
-  padding: 40px clamp(24px, 6vw, 96px);
+  height: 100vh;
   overflow: hidden;
-  /* Sits in the upper middle of the star ground rather than flush to the top
-     edge, so the universe has room above and below it. */
+}
+
+/* Loading / unavailable: no bodies yet, so the title HUD is centred instead
+   of pinned top-left -- there is nothing else on the ground to anchor it to. */
+.universe-content {
+  position: relative;
+  z-index: 1;
+  max-width: 640px;
+  margin: 0 auto;
+  padding-top: 18vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 8px;
+  padding-left: clamp(24px, 6vw, 96px);
+  padding-right: clamp(24px, 6vw, 96px);
+}
+.universe-content h1 {
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 4px 0 20px;
+}
+
+/* Title HUD, top-left -- Cosmos's own `.title` HUD (`.hud.title`): the one
+   frame element that never moves and never disappears, day 1 through day 30. */
+.universe-title {
+  position: absolute;
+  z-index: 2;
+  top: 36px;
+  left: clamp(20px, 4vw, 48px);
+  right: 150px;
+}
+.universe-title h1 {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin: 6px 0 0;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.universe-subtitle {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 7px;
+  max-width: 46ch;
 }
 
 /* Decorative starfield only; see CosmosBackground.tsx for the full rule
@@ -291,89 +337,213 @@ a:focus-visible,
   }
 }
 
-.universe-content {
-  position: relative;
+/* ---------- Universe bodies: the star ground's labelled planets ----------
+ * Cosmos draws these on a hit-tested canvas; Living Observatory draws them as
+ * absolutely-positioned DOM nodes (`.node`) with a name label beneath, which
+ * is the approach used here -- every body is a real, focusable, labelled
+ * `<button>`, not a canvas pixel a screen reader cannot reach.
+ */
+.universe-bodies {
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  max-width: 720px;
-  /* Cosmos centres its own shell (`max-width:1500px; margin:0 auto`), and
-     sec.4 asks for a centred stage. Anchored to the top-left, this column
-     left two thirds of the canvas empty and read as an unfinished page. */
-  margin: 0 auto;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
-
-.universe-content h1 {
-  /* No desktop number is given for this heading in ui-system.md (only the
-     reading h2 and Reel title are specified); the reading h2 scale (40px)
-     is reused here for one consistent heading rhythm across the app. */
-  font-size: clamp(28px, 3vw, 40px);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  margin: 4px 0 20px;
+.universe-bodies-nav {
+  display: contents;
 }
-
-.empty-universe {
-  color: var(--muted);
-  max-width: 60ch;
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-.trace-list {
+.universe-bodies-nav ul {
+  display: contents;
   list-style: none;
-  margin: 8px 0 24px;
+  margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+}
+.universe-bodies-nav li {
+  display: contents;
 }
 
-/* Cards, like sheets, are cream-surfaced radius-22 (sec.3): the reference
-   prototypes have no literal Trace-card example (Traces are this product's
-   own concept), so the general card/sheet recipe is applied directly. */
-.trace-card {
-  width: 100%;
+.body-button {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 12px;
-  text-align: left;
-  background: var(--cream);
-  color: var(--ink);
-  border-radius: 22px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-  padding: 16px 18px;
+  justify-content: center;
+  padding: 0;
+  background: radial-gradient(circle at 34% 30%, var(--teal-2), var(--teal) 55%, var(--sea-2) 100%);
+  box-shadow: 0 0 26px rgba(51, 196, 180, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.body-button.trace {
+  background: radial-gradient(circle at 34% 30%, #fff6cf, var(--yellow) 55%, #a9791f 100%);
+  box-shadow: 0 0 26px rgba(255, 208, 88, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+/* Faint dust: a scatter of tiny points rather than a solid disc -- the
+   unexplored/invitation bodies are deliberately less solid than a real one. */
+.body-button.dust {
+  background-color: transparent;
+  background-image: radial-gradient(rgba(255, 253, 242, 0.75) 1px, transparent 1.4px);
+  background-size: 7px 7px;
+  box-shadow: none;
+  opacity: 0.55;
+}
+.body-button.nebula {
+  background: transparent;
+  box-shadow: none;
+  border: 1.5px dashed rgba(255, 253, 242, 0.4);
+  opacity: 0.7;
 }
 
-.trace-dot {
+/* Name (+ optional sub-label) beneath a body, stacked as one flowing block so
+   a long real Trace title never overlaps its own date -- unlike two
+   independently-offset absolutely-positioned lines, this scales with content. */
+.body-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 26ch;
+}
+.body-name {
+  white-space: nowrap;
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--cream);
+  background: rgba(3, 16, 26, 0.82);
+  padding: 3px 8px;
+  border-radius: 8px;
+  text-shadow: none;
+}
+.body-button.seed .body-label {
+  max-width: 40ch;
+}
+.body-button.seed .body-name {
+  font-size: 15px;
+  white-space: normal;
+  text-align: center;
+}
+.body-sub {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Legend (sec.5c: Living Observatory's `.map-key`, "Your paths / Still
+   unexplored"), shown once there is at least one real path to key. */
+.universe-legend {
+  position: absolute;
+  z-index: 2;
+  right: clamp(20px, 4vw, 48px);
+  bottom: 110px;
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.universe-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--yellow);
+}
+.legend-ring {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--yellow);
-  flex: none;
+  border: 1.5px dashed var(--muted);
 }
 
-.trace-text {
+/* Hint line, centred above the dock (sec.5b: `.hint`, "Tap a planet". */
+.universe-hint {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 96px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* Call to action + helper line (sec.5c: Living Observatory's `.entry`).
+   Yellow only for the honest first-visit invitation; teal once the reader
+   already has real Traces, matching Cosmos's own "continue" colour role
+   rather than reusing Keep's colour for a second, unrelated action. */
+.universe-cta-block {
+  position: absolute;
+  z-index: 2;
+  left: clamp(20px, 4vw, 48px);
+  bottom: 132px;
+  max-width: 320px;
+}
+.cta-helper {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+/* Dock: Cosmos's own literal `.nav` recipe (sec.5b), three entries only --
+   Cable (read), Atlas (universe, current), Keep (Traces). Ask has no web
+   contract, so it is not drawn (sec.5b/6). */
+.universe-dock {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 16px;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 22px;
+  background: rgba(6, 26, 39, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.dock-button {
+  border: 0;
+  background: transparent;
+  color: var(--cream);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.trace-title {
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   font-weight: 700;
+  font-size: 10.5px;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 8px 20px;
 }
-
-.trace-date {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-muted);
+.dock-button.current {
+  background: rgba(255, 255, 255, 0.14);
+  opacity: 1;
 }
-
-.enter-scroll {
-  margin-top: 8px;
-  align-self: flex-start;
+.dock-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .unavailable-block h2 {
@@ -431,24 +601,32 @@ a:focus-visible,
   justify-content: center;
 }
 
-/* Head band above the stage: back, origin, kind label. 66px, one hairline
-   rule below it (ui-system.md sec.4, Living Observatory's .overlay-head). */
+/* Head band above the stage: back, origin, kind label -- kept as one 66px
+   band for layout (definition.md sec.9.5), but drawn as Cosmos's own
+   floating cream pills over the canvas rather than a bar with a rule under
+   it (sec.5b: "the screen is a canvas with floating controls over it, not a
+   document with a header. Nothing is a bar across the top"). */
 .head-band {
   flex: none;
   height: 66px;
   padding: 0 clamp(20px, 4vw, 32px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--sea);
+  gap: 10px;
 }
 .head-band-origin {
-  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  text-align: center;
-  font-size: 12px;
-  color: var(--teal);
+  max-width: 320px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+  background: rgba(255, 253, 242, 0.94);
+  border-radius: 999px;
+  padding: 7px 14px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -456,11 +634,24 @@ a:focus-visible,
 .head-band-kind {
   flex: none;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink);
+  background: var(--orange);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+/* State pill (sec.5b: Cosmos's `.reel .h .pill.green`, "checked out · 3
+   sources") -- the real truth state plus the real source count, distinct
+   from the truth-line pill inside the article (which stays adjacent to the
+   claim itself, definition.md law 13); this one is the reader's headline
+   state, read before any text. It reuses the same `.truth-pill.state-*`
+   tint as the in-article pill (definition.md sec.12: equal weight, no
+   colour of its own invented) -- only its position in the band is new. */
+.head-band-state {
+  margin-left: auto;
 }
 
 /* Centred two-column reading grid (ui-system.md sec.4, Living Observatory's
