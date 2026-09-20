@@ -8,12 +8,12 @@
   },
   "testEnvironment": {
     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
-    "windowWidth": 1280,
-    "windowHeight": 720,
+    "windowWidth": 1440,
+    "windowHeight": 900,
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T12:19:29.328Z",
+  "timestamp": "2026-09-20T12:19:53.411Z",
   "url": "http://127.0.0.1:49954/",
   "toolOptions": {
     "reporter": "v1"
@@ -1637,7 +1637,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+          "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1440\" height=\"900\"></canvas>",
           "target": [
             "canvas"
           ]
@@ -2734,7 +2734,7 @@
               },
               "relatedNodes": [
                 {
-                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1440\" height=\"900\"></canvas>",
                   "target": [
                     "canvas"
                   ]
@@ -2759,14 +2759,14 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "28.8pt (38.4px)",
+                "fontSize": "30.0pt (40px)",
                 "fontWeight": "bold",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "3:1"
               },
               "relatedNodes": [
                 {
-                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1440\" height=\"900\"></canvas>",
                   "target": [
                     "canvas"
                   ]
@@ -2798,7 +2798,7 @@
               },
               "relatedNodes": [
                 {
-                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1440\" height=\"900\"></canvas>",
                   "target": [
                     "canvas"
                   ]

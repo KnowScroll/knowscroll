@@ -8,12 +8,12 @@
   },
   "testEnvironment": {
     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
-    "windowWidth": 1280,
-    "windowHeight": 720,
+    "windowWidth": 1440,
+    "windowHeight": 900,
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T12:19:30.360Z",
+  "timestamp": "2026-09-20T12:19:53.878Z",
   "url": "http://127.0.0.1:49954/",
   "toolOptions": {
     "reporter": "v1"
@@ -840,30 +840,6 @@
       "nodes": []
     },
     {
-      "id": "link-name",
-      "impact": null,
-      "tags": [
-        "cat.name-role-value",
-        "wcag2a",
-        "wcag244",
-        "wcag412",
-        "section508",
-        "section508.22.a",
-        "TTv5",
-        "TT6.a",
-        "EN-301-549",
-        "EN-9.2.4.4",
-        "EN-9.4.1.2",
-        "ACT",
-        "RGAAv4",
-        "RGAA-6.2.1"
-      ],
-      "description": "Ensure links have discernible text",
-      "help": "Links must have discernible text",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/link-name?application=playwright",
-      "nodes": []
-    },
-    {
       "id": "list",
       "impact": null,
       "tags": [
@@ -1426,9 +1402,9 @@
             }
           ],
           "impact": null,
-          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
+          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
           "target": [
-            "aside"
+            ".context-rail"
           ]
         },
         {
@@ -1466,9 +1442,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -1546,7 +1522,7 @@
             }
           ],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: An orbit is not a perfect circle\">",
           "target": [
             "article"
           ]
@@ -1586,7 +1562,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -1668,7 +1644,127 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         }
       ]
@@ -1738,9 +1834,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
+          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
           "target": [
-            "aside"
+            ".context-rail"
           ]
         },
         {
@@ -1756,9 +1852,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -1792,7 +1888,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: An orbit is not a perfect circle\">",
           "target": [
             "article"
           ]
@@ -1810,7 +1906,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -1848,7 +1944,61 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         }
       ]
@@ -1918,9 +2068,9 @@
             }
           ],
           "impact": null,
-          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
+          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
           "target": [
-            "aside"
+            ".context-rail"
           ]
         },
         {
@@ -1936,9 +2086,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -1972,7 +2122,7 @@
             }
           ],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: An orbit is not a perfect circle\">",
           "target": [
             "article"
           ]
@@ -1990,7 +2140,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -2028,7 +2178,61 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         }
       ]
@@ -2140,9 +2344,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
+          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
           "target": [
-            "aside"
+            ".context-rail"
           ]
         },
         {
@@ -2172,9 +2376,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -2236,7 +2440,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: An orbit is not a perfect circle\">",
           "target": [
             "article"
           ]
@@ -2268,7 +2472,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -2334,7 +2538,103 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         }
       ]
@@ -2404,9 +2704,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
+          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
           "target": [
-            "aside"
+            ".context-rail"
           ]
         },
         {
@@ -2422,9 +2722,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -2458,7 +2758,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: An orbit is not a perfect circle\">",
           "target": [
             "article"
           ]
@@ -2476,7 +2776,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -2514,7 +2814,61 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         }
       ]
@@ -2585,9 +2939,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -2628,7 +2982,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -2655,7 +3009,32 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
           ]
         }
       ]
@@ -2724,7 +3103,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"head-band-origin\">Deliberate discovery · a new sourced encounter</span>",
+          "html": "<span class=\"head-band-origin\">Saved Trace · revisiting a kept Scroll</span>",
           "target": [
             ".head-band-origin"
           ]
@@ -2774,9 +3153,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -2826,7 +3205,7 @@
           "impact": null,
           "html": "<span class=\"truth-pill state-documented\">DOCUMENTED</span>",
           "target": [
-            ".truth-pill"
+            "article > .truth-line > .truth-pill.state-documented"
           ]
         },
         {
@@ -2851,7 +3230,7 @@
           "impact": null,
           "html": "<span class=\"truth-meaning\">Directly supported by strong cited evidence. Source access and date are shown.</span>",
           "target": [
-            ".truth-meaning"
+            "article > .truth-line > .truth-meaning"
           ]
         },
         {
@@ -2874,7 +3253,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h2>Farther out, a longer year</h2>",
+          "html": "<h2>An orbit is not a perfect circle</h2>",
           "target": [
             "h2"
           ]
@@ -2899,32 +3278,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<p class=\"reason\">A different sourced encounter; already-kept Scrolls are excluded.</p>",
-          "target": [
-            ".reason"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#b3b6b1",
-                "bgColor": "#03101a",
-                "contrastRatio": 9.37,
-                "fontSize": "11.3pt (15px)",
-                "fontWeight": "normal",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 9.37"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<p class=\"summary\">Distance and orbital period follow a relationship.</p>",
+          "html": "<p class=\"summary\">A small change in shape changes how a planet moves.</p>",
           "target": [
             ".summary"
           ]
@@ -2959,31 +3313,6 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#15302a",
-                "bgColor": "#ffd058",
-                "contrastRatio": 9.68,
-                "fontSize": "9.8pt (13px)",
-                "fontWeight": "bold",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 9.68"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
-          "target": [
-            ".yellow"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
                 "fgColor": "#b3b6b1",
                 "bgColor": "#03101a",
                 "contrastRatio": 9.37,
@@ -3001,7 +3330,7 @@
           "impact": null,
           "html": "<h3>Ready for another sourced encounter?</h3>",
           "target": [
-            "h3"
+            "section > h3"
           ]
         },
         {
@@ -3026,7 +3355,182 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#15302a",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 13.83,
+                "fontSize": "13.2pt (17.55px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 13.83"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<h3>Source</h3>",
+          "target": [
+            ".source-sheet-header > h3"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#15302a",
+                "bgColor": "#ecede2",
+                "contrastRatio": 11.94,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 11.94"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#15302a",
+                "bgColor": "#64d47d",
+                "contrastRatio": 7.56,
+                "fontSize": "7.5pt (10px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 7.56"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"truth-pill state-documented\">DOCUMENTED</span>",
+          "target": [
+            ".on-cream > .truth-pill.state-documented"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#0f3644",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 12.61,
+                "fontSize": "9.0pt (12px)",
+                "fontWeight": "normal",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 12.61"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"truth-meaning\">Directly supported by strong cited evidence. Source access and date are shown.</span>",
+          "target": [
+            ".on-cream > .truth-meaning"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#15302a",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 13.83,
+                "fontSize": "11.3pt (15px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 13.83"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<p class=\"source-title\">NASA · Orbits and Kepler’s Laws</p>",
+          "target": [
+            ".source-title"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#0f3644",
+                "bgColor": "#fffdf2",
+                "contrastRatio": 12.61,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "normal",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 12.61"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<p class=\"source-url\">https://science.nasa.gov/solar-system/orbits-and-keplers-laws/</p>",
+          "target": [
+            ".source-url"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "fgColor": "#15302a",
+                "bgColor": "#33c4b4",
+                "contrastRatio": 6.51,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has sufficient color contrast of 6.51"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         },
         {
@@ -3080,7 +3584,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h2>Farther out, a longer year</h2>",
+          "html": "<h2>An orbit is not a perfect circle</h2>",
           "target": [
             "h2"
           ]
@@ -3100,7 +3604,25 @@
           "impact": null,
           "html": "<h3>Ready for another sourced encounter?</h3>",
           "target": [
-            "h3"
+            "section > h3"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "minor",
+              "message": "Element has text that is visible to screen readers"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<h3>Source</h3>",
+          "target": [
+            ".source-sheet-header > h3"
           ]
         }
       ]
@@ -3130,7 +3652,13 @@
                   },
                   {
                     "ancestry": [
-                      "html > body > div:nth-child(1) > div > main > div:nth-child(2) > article:nth-child(2) > div:nth-child(6) > section:nth-child(2) > h3:nth-child(1)"
+                      "html > body > div:nth-child(1) > div > main > div:nth-child(2) > article:nth-child(2) > div:nth-child(5) > section:nth-child(2) > h3:nth-child(1)"
+                    ],
+                    "level": 3
+                  },
+                  {
+                    "ancestry": [
+                      "html > body > div:nth-child(1) > div > main > div:nth-child(2) > aside:nth-child(3) > div:nth-child(1) > h3:nth-child(1)"
                     ],
                     "level": 3
                   }
@@ -3144,7 +3672,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h2>Farther out, a longer year</h2>",
+          "html": "<h2>An orbit is not a perfect circle</h2>",
           "target": [
             "h2"
           ]
@@ -3164,7 +3692,25 @@
           "impact": null,
           "html": "<h3>Ready for another sourced encounter?</h3>",
           "target": [
-            "h3"
+            "section > h3"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "heading-order",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "moderate",
+              "message": "Heading order valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<h3>Source</h3>",
+          "target": [
+            ".source-sheet-header > h3"
           ]
         }
       ]
@@ -3226,7 +3772,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<header class=\"head-band\"><button type=\"button\" class=\"pill cream\" aria-label=\"Return to Universe\" aria-keyshortcuts=\"Escape\">‹ Universe</button><span class=\"head-band-origin\">Deliberate discovery · a new sourced encounter</span><span class=\"head-band-kind\">Scroll</span></header>",
+          "html": "<header class=\"head-band\"><button type=\"button\" class=\"pill cream\" aria-label=\"Return to Universe\" aria-keyshortcuts=\"Escape\">‹ Universe</button><span class=\"head-band-origin\">Saved Trace · revisiting a kept Scroll</span><span class=\"head-band-kind\">Scroll</span></header>",
           "target": [
             "header"
           ]
@@ -3312,9 +3858,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
+          "html": "<aside class=\"context-rail\" aria-label=\"Context\"><button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button><button type=\"button\" class=\"pill cream\" aria-expanded=\"false\">Why this appeared</button></aside>",
           "target": [
-            "aside"
+            ".context-rail"
           ]
         },
         {
@@ -3336,6 +3882,85 @@
           "html": "<section class=\"discovery-threshold\" aria-label=\"Next discovery\"><h3>Ready for another sourced encounter?</h3><button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button></section>",
           "target": [
             "section"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "landmark-is-unique",
+              "data": {
+                "role": "complementary",
+                "accessibleText": "source"
+              },
+              "relatedNodes": [],
+              "impact": "moderate",
+              "message": "Landmarks must have a unique role or role/label/title (i.e. accessible name) combination"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "link-name",
+      "impact": null,
+      "tags": [
+        "cat.name-role-value",
+        "wcag2a",
+        "wcag244",
+        "wcag412",
+        "section508",
+        "section508.22.a",
+        "TTv5",
+        "TT6.a",
+        "EN-301-549",
+        "EN-9.2.4.4",
+        "EN-9.4.1.2",
+        "ACT",
+        "RGAAv4",
+        "RGAA-6.2.1"
+      ],
+      "description": "Ensure links have discernible text",
+      "help": "Links must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/link-name?application=playwright",
+      "nodes": [
+        {
+          "any": [
+            {
+              "id": "has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element has text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [
+            {
+              "id": "focusable-no-name",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element is not in tab order or has accessible text"
+            }
+          ],
+          "impact": null,
+          "html": "<a href=\"https://science.nasa.gov/solar-system/orbits-and-keplers-laws/\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"pill teal source-link\" aria-label=\"Open source: NASA · Orbits and Kepler’s Laws (opens in a new tab)\">Open source</a>",
+          "target": [
+            "a"
           ]
         }
       ]
@@ -3389,9 +4014,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"false\" aria-label=\"Open sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-expanded=\"true\" aria-label=\"Close sources panel\" aria-keyshortcuts=\"s\">Sources</button>",
           "target": [
-            "button[aria-label=\"Open sources panel\"]"
+            "button[aria-label=\"Close sources panel\"]"
           ]
         },
         {
@@ -3425,7 +4050,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill yellow\" aria-label=\"Keep this Scroll\">Keep</button>",
+          "html": "<button type=\"button\" class=\"pill yellow\" disabled=\"\" aria-label=\"Kept\">Kept</button>",
           "target": [
             ".yellow"
           ]
@@ -3445,7 +4070,25 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal\" aria-label=\"Next discovery\" aria-keyshortcuts=\"n ArrowDown\">Next</button>",
           "target": [
-            ".teal"
+            "button[aria-keyshortcuts=\"n ArrowDown\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill ghost\" aria-label=\"Close the source panel\" aria-keyshortcuts=\"Escape\">Close</button>",
+          "target": [
+            ".ghost"
           ]
         }
       ]
@@ -3474,9 +4117,27 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: Farther out, a longer year\">",
+          "html": "<article class=\"reading-column\" tabindex=\"-1\" aria-label=\"Reading: An orbit is not a perfect circle\">",
           "target": [
             "article"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "tabindex",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have a tabindex greater than 0"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<aside class=\"source-sheet\" aria-label=\"Source\" tabindex=\"-1\">",
+          "target": [
+            ".source-sheet"
           ]
         }
       ]

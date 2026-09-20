@@ -1,23 +1,43 @@
 /*
- * Cosmos palette pinned from docs/product/design-direction.md and
- * apps/mobile/.../ui/theme/Theme.kt (same hex values, ported for parity).
- * System sans/monospace stacks only: "no network font dependency is needed
- * to open the app" carries over from the native bootstrap decision.
+ * Cosmos palette and type/shape/motion rules, extracted verbatim from
+ * docs/product/ui-system.md sections 1-3 (itself an extraction of
+ * docs/product/references/cosmos.html and living-observatory.html, already
+ * accepted by the owner). Cosmos wins on look; Living Observatory wins on
+ * structure/behaviour, per design-direction.md. No value here is invented;
+ * see docs/journeys/evidence/web-ui/README.md for every place a smallest
+ * necessary choice had to be made because a reference did not cover it.
+ *
+ * Fonts: until font licensing and bundling exist (ui-system.md sec.2), both
+ * Bricolage Grotesque (headings) and Instrument Sans (body) fall back to the
+ * system sans stack. No network font is fetched -- the app opens without one.
  */
 :root {
-  --cosmos-dark: #03101a;
-  --cosmos-surface: #0a1b26;
-  --cosmos-cream: #fffdf2;
-  --cosmos-cream-dim: #e9e3ce;
-  --cosmos-teal: #33c4b4;
-  --cosmos-coral: #ff684c;
-  --cosmos-yellow: #ffd058;
-  --ink-on-cream: #03101a;
-  --ink-on-dark: #fffdf2;
-  --muted-on-dark: #b7c3cc;
-  --muted-on-cream: #52606a;
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+  --space: #03101a;
+  --space-2: #061a27;
+  --deep: #0b2b33;
+  --sea: #17505f;
+  --sea-2: #0f3644;
+  --ink: #15302a;
+  --cream: #fffdf2;
+  --orange: #ff684c;
+  --yellow: #ffd058;
+  --teal: #33c4b4;
+  --teal-2: #8fe9e4;
+  --green: #64d47d;
+  --pink: #ed87b4;
+  /* Living Observatory's --muted role, mapped to --cream at 70% for
+     secondary text on the dark ground (ui-system.md sec.1). */
+  --muted: rgba(255, 253, 242, 0.7);
+  /* Living Observatory's --line role, mapped to --sea. */
+  --line: var(--sea);
+  /* Secondary text drawn on a cream sheet: a solid dark tone is used instead
+     of a translucent ink (rather than an opacity-reduced ink) so every
+     sheet stays comfortably above WCAG AA contrast at the 10-13px sizes
+     these controls use -- see the evidence README's contrast note. */
+  --ink-muted: var(--sea-2);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 * {
@@ -26,63 +46,209 @@
 
 html,
 body,
-#root {
+#root,
+.app-shell {
   height: 100%;
 }
 
 body {
   margin: 0;
-  font-family: var(--sans);
-  background: var(--cosmos-dark);
-  color: var(--ink-on-dark);
+  font-family: var(--font-sans);
+  background: var(--space);
+  color: var(--cream);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-button,
-a.primary {
-  font-family: inherit;
-  font-size: 0.95rem;
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  cursor: pointer;
+h1,
+h2,
+h3 {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  margin: 0;
 }
 
-button.primary,
-a.primary {
-  background: var(--cosmos-teal);
-  color: var(--ink-on-cream);
-  font-weight: 600;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+p {
+  margin: 0;
 }
 
-button.primary:disabled {
-  opacity: 0.6;
-  cursor: default;
+button {
+  font: inherit;
 }
 
-button.ghost {
-  background: transparent;
-  color: inherit;
-  border-color: currentColor;
+a {
+  color: var(--teal);
 }
 
+:focus-visible,
 button:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid var(--cosmos-yellow);
-  outline-offset: 2px;
+  outline: 3px solid var(--teal);
+  outline-offset: 5px;
 }
 
+/* Every transform animation and canvas drift is suspended under reduced
+   motion; state still changes, just instantly (ui-system.md sec.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- micro-label kicker (ui-system.md sec.2) ---------- */
+
 .eyebrow {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  color: var(--muted-on-dark);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ---------- pills: every control (ui-system.md sec.3) ---------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--ink);
+  color: var(--cream);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+.pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* "Kept" is a reached state, not an unavailable control. Dimming it turns the
+   agreed yellow olive and makes the one moment of reward in the reader read
+   like a greyed-out button; the label already says it cannot be pressed
+   again. */
+.pill.yellow:disabled {
+  opacity: 1;
+}
+.pill.teal {
+  background: var(--teal);
+  color: var(--ink);
+}
+.pill.yellow {
+  background: var(--yellow);
+  color: var(--ink);
+}
+.pill.orange {
+  background: var(--orange);
+  /* Cosmos's literal .btn.orange recipe pairs orange with white (#fff) text;
+     at this control's 13px/weight-800 size that combination measures
+     ~2.9:1, below WCAG AA. Ink text on orange measures ~4.9:1, so ink is
+     used here -- see the evidence README's contrast note. */
+  color: var(--ink);
+}
+/* Used only inside a cream sheet/panel (Cosmos's literal .btn.ghost recipe;
+   on the dark ground directly this would be unreadable). */
+.pill.ghost {
+  background: rgba(21, 48, 42, 0.08);
+  color: var(--ink);
+  box-shadow: none;
+}
+/* The near-opaque cream pill Cosmos uses for navigation controls sitting
+   directly on the dark canvas (.back / .pillbtn / .crumb). */
+.pill.cream {
+  background: rgba(255, 253, 242, 0.94);
+  color: var(--ink);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- truth and state pills (sec.3 + sec.5, definition.md sec.12) ---------- */
+
+.truth-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.truth-pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 253, 242, 0.14);
+  color: var(--cream);
+}
+/* One tint per documented truth state (definition.md sec.12); every
+   encounter's truth pill carries equal visual weight regardless of state.
+   The seven tints reuse only Cosmos palette tokens; see the evidence
+   README for the exact mapping rationale (no reference enumerates one). */
+.truth-pill.state-documented {
+  background: var(--green);
+  color: var(--ink);
+}
+.truth-pill.state-synthesis {
+  background: var(--teal);
+  color: var(--ink);
+}
+.truth-pill.state-interpretation {
+  background: var(--sea);
+  color: var(--cream);
+}
+.truth-pill.state-disputed {
+  background: var(--orange);
+  color: var(--ink);
+}
+.truth-pill.state-modelled {
+  background: var(--teal-2);
+  color: var(--ink);
+}
+.truth-pill.state-counterfactual {
+  background: var(--pink);
+  color: var(--ink);
+}
+.truth-pill.state-fictional {
+  background: var(--yellow);
+  color: var(--ink);
+}
+.truth-meaning {
+  font-size: 12px;
+  color: var(--muted);
+}
+.truth-line.on-cream .truth-meaning {
+  color: var(--ink-muted);
+}
+
+/* ---------- sheets and cards (sec.3: radius 22px, cream surface) ---------- */
+
+.sheet {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* ---------- Universe ---------- */
@@ -92,8 +258,17 @@ a:focus-visible,
   min-height: 100vh;
   padding: 40px clamp(24px, 6vw, 96px);
   overflow: hidden;
+  /* Sits in the upper middle of the star ground rather than flush to the top
+     edge, so the universe has room above and below it. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
+/* Decorative starfield only; see CosmosBackground.tsx for the full rule
+   (definition.md law 6, ui-system.md sec.6): it carries no semantic
+   identity, must stay aria-hidden, and must not drift under reduced
+   motion. */
 .cosmos-background {
   position: absolute;
   inset: 0;
@@ -120,18 +295,31 @@ a:focus-visible,
   position: relative;
   z-index: 1;
   max-width: 720px;
+  /* Cosmos centres its own shell (`max-width:1500px; margin:0 auto`), and
+     sec.4 asks for a centred stage. Anchored to the top-left, this column
+     left two thirds of the canvas empty and read as an unfinished page. */
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .universe-content h1 {
-  font-weight: 300;
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  margin: 4px 0 24px;
+  /* No desktop number is given for this heading in ui-system.md (only the
+     reading h2 and Reel title are specified); the reading h2 scale (40px)
+     is reused here for one consistent heading rhythm across the app. */
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 4px 0 20px;
 }
 
 .empty-universe {
-  color: var(--muted-on-dark);
+  color: var(--muted);
   max-width: 60ch;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .trace-list {
@@ -140,27 +328,30 @@ a:focus-visible,
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
+/* Cards, like sheets, are cream-surfaced radius-22 (sec.3): the reference
+   prototypes have no literal Trace-card example (Traces are this product's
+   own concept), so the general card/sheet recipe is applied directly. */
 .trace-card {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
   text-align: left;
-  background: var(--cosmos-surface);
-  color: var(--ink-on-dark);
-  border-radius: 12px;
-  padding: 14px 16px;
-  min-height: 56px;
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 16px 18px;
 }
 
 .trace-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--cosmos-yellow);
+  background: var(--yellow);
   flex: none;
 }
 
@@ -171,33 +362,43 @@ a:focus-visible,
 }
 
 .trace-title {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .trace-date {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  color: var(--muted-on-dark);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
 }
 
 .enter-scroll {
-  width: 100%;
   margin-top: 8px;
-  font-size: 1.05rem;
+  align-self: flex-start;
 }
 
 .unavailable-block h2 {
-  color: var(--cosmos-coral);
+  color: var(--orange);
 }
 .unavailable-block .detail {
-  color: var(--muted-on-dark);
+  color: var(--muted);
+}
+.unavailable-block p {
+  max-width: 60ch;
+  line-height: 1.5;
 }
 
 /* ---------- Scroll reader ---------- */
 
 .scroll-screen {
   position: relative;
-  min-height: 100vh;
+  /* Bounded, not merely "at least a screen tall". With min-height the flex
+     column grows with its content, .scroll-layout grows with it, and
+     .reading-column's height:100% resolves against the grown parent -- so the
+     article never overflows and the *page* scrolls instead. That silently
+     empties `node.scrollTop`, which is exactly the reading-position contract
+     the reading column is meant to own. */
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -206,172 +407,291 @@ a:focus-visible,
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 12px;
   padding: 48px 24px;
+}
+.rest-card {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 32px 36px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.rest-card p {
+  line-height: 1.5;
 }
 .rest-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.origin-bar {
+/* Head band above the stage: back, origin, kind label. 66px, one hairline
+   rule below it (ui-system.md sec.4, Living Observatory's .overlay-head). */
+.head-band {
+  flex: none;
+  height: 66px;
+  padding: 0 clamp(20px, 4vw, 32px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px clamp(20px, 4vw, 48px);
+  gap: 12px;
+  border-bottom: 1px solid var(--sea);
 }
-
-.origin-label {
-  font-family: var(--mono);
-  font-size: 0.72rem;
+.head-band-origin {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--teal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.head-band-kind {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted-on-dark);
+  color: var(--muted);
 }
 
-.reading-columns {
+/* Centred two-column reading grid (ui-system.md sec.4, Living Observatory's
+   .scroll-layout): a 230px context rail and a 300-700px reading column,
+   gap 60px -- never a full-width column of text. */
+.scroll-layout {
   flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  /* Both rails' tracks are reserved whether or not a panel is open (sec.4: "a
+     source rail and an actions rail flank the stage"). Adding a track only on
+     open re-centres the grid and slides the reading column sideways by ~170px
+     -- the sentence being read moves out from under the eye. The side tracks
+     are equal so the reading column sits on the true centre of the stage, not
+     offset towards whichever rail happens to be wider. */
+  grid-template-columns: minmax(230px, 1fr) minmax(300px, 700px) minmax(230px, 1fr);
+  gap: 60px;
+  padding: 36px clamp(24px, 5vw, 55px);
   justify-content: center;
-  gap: 24px;
-  padding: 0 clamp(20px, 4vw, 48px) 24px;
 }
 
-.reading-columns.with-rail {
-  grid-template-columns: minmax(0, 760px) minmax(280px, 340px);
-  justify-content: center;
-}
-
-.reading-stage {
-  background: var(--cosmos-cream);
-  color: var(--ink-on-cream);
-  border-radius: 20px;
-  max-width: 760px;
-  width: 100%;
-  justify-self: center;
-  padding: clamp(24px, 4vw, 40px);
-  max-height: calc(100vh - 220px);
+/* Base rules come before the media queries that narrow them: an unconditional
+   rule of equal specificity placed after a `max-width` block wins the cascade
+   and silently kills it. */
+.context-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 4px;
+  /* The rail is bounded and scrolls for the same reason the reading column is:
+     .scroll-screen clips at 100vh, so an unbounded rail lets the "why this
+     appeared" sheet grow past the bottom of the screen where no scroll can
+     reach it. */
+  min-height: 0;
   overflow-y: auto;
 }
 
-.reading-stage h2 {
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
-  margin: 8px 0 16px;
-  max-width: 34ch;
+.reading-column {
+  min-width: 0;
+  /* The article itself (not an ancestor) owns the scroll position, so
+     `node.scrollTop` in ScrollScreen.tsx keeps meaning reading position
+     persistence exact -- a deliberate departure from Living Observatory's
+     literal CSS, which scrolls the outer grid instead of the reader. */
+  height: 100%;
+  overflow-y: auto;
+}
+.source-sheet {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 20px 22px;
+  align-self: start;
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Bounded and scrollable for the same reason as the rail beside it: the
+     stage is clipped at 100vh, so an unbounded sheet puts "Open source" below
+     the bottom edge with no scrollbar to reach it. A mouse-only reader would
+     simply never see the evidence. */
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-.reading-stage .truth-state {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: var(--muted-on-cream);
-  text-transform: none;
+@media (max-width: 1050px) {
+  .scroll-layout {
+    grid-template-columns: minmax(170px, 1fr) minmax(280px, 700px) minmax(170px, 1fr);
+    gap: 30px;
+    padding: 30px;
+  }
 }
-.reading-stage .truth-state.small {
-  margin-top: 0;
+@media (max-width: 700px) {
+  .scroll-layout {
+    display: block;
+    padding: 23px;
+    /* Block flow at this width, so the whole stage scrolls as one rather than
+       each rail owning its own bounded box. */
+    overflow-y: auto;
+  }
+  .context-rail {
+    display: none;
+  }
+  .reading-column {
+    /* In block flow the article no longer owns a bounded box, so it grows and
+       .scroll-layout above does the scrolling. Leaving height:100% here would
+       pin the article to one screen and push the source sheet below it, out of
+       reach. */
+    height: auto;
+    overflow-y: visible;
+  }
+  .source-sheet {
+    margin-top: 20px;
+    width: 100%;
+  }
 }
 
-.reading-stage .reason,
-.reading-stage .summary {
-  color: var(--muted-on-cream);
-  max-width: 68ch;
+.reading-column h2 {
+  font-size: 40px;
+  line-height: 1.08;
+  letter-spacing: -1.6px;
+  font-weight: 800;
+  margin: 20px 0;
+  color: var(--cream);
 }
-
-.reading-stage .body {
-  max-width: 68ch;
-  line-height: 1.7;
-  font-size: 1.05rem;
+.reading-column .reason,
+.reading-column .summary,
+.reading-column .body {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--muted);
+  max-width: 590px;
+  margin: 0 0 16px;
   white-space: pre-wrap;
 }
 
+.continue {
+  margin-top: 22px;
+  border-top: 1px solid var(--sea);
+  padding-top: 20px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.keep-message {
+  background: var(--cream);
+  color: var(--ink);
+  border-left: 3px solid var(--orange);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 12px 16px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.discovery-threshold {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.discovery-threshold h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0;
+}
+.discovery-threshold [role='alert'] {
+  color: var(--orange);
+  font-size: 13px;
+  width: 100%;
+}
+.discovery-threshold [role='status'] {
+  color: var(--muted);
+  font-size: 13px;
+  width: 100%;
+}
+
+/* Why-this-appeared: a cream sheet under its context-rail trigger. */
+.why-this-appeared {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
 .why-this-appeared dl {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 16px 18px;
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 6px 16px;
-  margin: 12px 0;
-  max-width: 60ch;
+  gap: 6px 14px;
+  margin: 0;
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .why-this-appeared dt {
-  font-family: var(--mono);
-  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted-on-cream);
+  color: var(--ink-muted);
 }
 .why-this-appeared dd {
   margin: 0;
 }
 
-.discovery-threshold {
-  background: var(--cosmos-cream-dim);
-  border-radius: 16px;
-  padding: 20px;
-  margin-top: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.source-rail {
-  background: var(--cosmos-surface);
-  border-radius: 20px;
-  padding: 24px;
-  align-self: start;
-  max-width: 340px;
-}
-.source-rail-header {
+/* Source panel: a cream sheet flanking the stage. */
+.source-sheet-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-.source-rail .source-title {
-  font-weight: 600;
-  margin-top: 12px;
-}
-.source-rail .source-url {
-  color: var(--muted-on-dark);
-  word-break: break-all;
-  font-size: 0.85rem;
-}
-.source-rail .source-link {
-  margin-top: 12px;
-  width: 100%;
-}
-
-.reader-controls {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  padding: 16px clamp(20px, 4vw, 48px) 12px;
-  flex-wrap: wrap;
 }
-.keep-message {
-  color: var(--cosmos-coral);
+.source-sheet .source-title {
+  font-weight: 700;
+  margin-top: 12px;
+}
+.source-sheet .source-url {
+  color: var(--ink-muted);
+  word-break: break-all;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.source-sheet .source-link {
+  margin-top: 14px;
   width: 100%;
 }
 
 .keyboard-help {
-  padding: 0 clamp(20px, 4vw, 48px) 20px;
-  color: var(--muted-on-dark);
-  font-size: 0.75rem;
+  flex: none;
+  padding: 0 clamp(24px, 5vw, 55px) 20px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
+/* Global toast (App.tsx): Cosmos's literal cream toast recipe, .25s motion
+   (sec.3: "toasts .25s"). */
 .toast {
   position: fixed;
   bottom: 16px;
   right: 16px;
-  background: var(--cosmos-surface);
-  color: var(--ink-on-dark);
-  padding: 12px 16px;
-  border-radius: 10px;
+  background: rgba(255, 253, 242, 0.96);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px 12px;
   display: flex;
   gap: 12px;
   align-items: center;
   z-index: 10;
-}
-
-@media (max-width: 900px) {
-  .reading-columns.with-rail {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.25s, transform 0.25s;
 }

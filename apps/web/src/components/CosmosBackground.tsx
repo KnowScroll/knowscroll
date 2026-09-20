@@ -1,10 +1,14 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 
 /**
- * Decorative starfield only (definition.md law 6: the universe canvas is
- * meaningful, not decorative -- this background carries no typed semantic
- * change and is aria-hidden). Static seeded placement; the only motion is a
- * gentle CSS twinkle gated behind `prefers-reduced-motion: no-preference`.
+ * Decorative only -- this canvas carries no semantic identity (ui-system.md
+ * sec.6, definition.md law 6: a background speck is not a typed celestial
+ * object, unlike the universe canvas that law 6 actually governs). Always
+ * aria-hidden. Star placement is static and seeded; the canvas itself never
+ * redraws over time, so there is no drift to suspend. The only motion at all
+ * is a CSS opacity twinkle, and that rule only exists inside
+ * `@media (prefers-reduced-motion: no-preference)`, so `reduce` leaves this
+ * background completely still.
  */
 export function CosmosBackground(): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
