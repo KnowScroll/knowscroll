@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { explicitAskInput, exposureInput, historyClearInput, interactionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
+import { explicitAskInput, exposureInput, historyClearInput, interactionInput, privacyLifecycleInput, privacyResetInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
 import { parseFeedKinds, type FeedAsset, type ReelAssetDisplay } from '../../../packages/contracts/src/inventory.ts';
 import {
   pool,
@@ -8,6 +8,10 @@ import {
   authenticateAndLock,
   ensureDevelopmentSession,
   clearScrollHistory,
+  pauseRecording,
+  resumeRecording,
+  exportUniverse,
+  resetPersonalUniverse,
   revokeSession,
   UnauthorizedSession,
   type AuthScope,
@@ -136,13 +140,53 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     return reply.code(200).send(receipt);
   });
 
+  // ADR-0028: privacy lifecycle. Pause/resume/export/reset all go through the same
+  // `authenticated()` path as every other route above, so the universe lock is held and the
+  // session's epoch is rechecked before any of them runs a single statement.
+  app.post('/v1/privacy/pause', async (req, reply) => {
+    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = privacyLifecycleInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid pause request');
+      return pauseRecording(client, scope, parsed.data);
+    });
+    return reply.code(200).send(receipt);
+  });
+
+  app.post('/v1/privacy/resume', async (req, reply) => {
+    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = privacyLifecycleInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid resume request');
+      return resumeRecording(client, scope, parsed.data);
+    });
+    return reply.code(200).send(receipt);
+  });
+
+  app.post('/v1/privacy/export', async (req, reply) => {
+    const result = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = privacyLifecycleInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid export request');
+      return exportUniverse(client, scope, parsed.data);
+    });
+    return reply.code(200).send(result);
+  });
+
+  app.post('/v1/privacy/reset', async (req, reply) => {
+    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = privacyResetInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid reset request');
+      return resetPersonalUniverse(client, scope, parsed.data);
+    });
+    return reply.code(200).send(receipt);
+  });
+
   app.get('/v1/universe', async req => authenticated(req.headers.authorization, async (scope, client) => {
-    const universe = (await client.query('SELECT revision, privacy_epoch FROM universe WHERE id=$1', [scope.universeId])).rows[0];
+    const universe = (await client.query('SELECT revision, privacy_epoch, recording_paused_at FROM universe WHERE id=$1', [scope.universeId])).rows[0];
     const traces = await listSavedTraces(client,scope);
     return {
       universeId: scope.universeId,
       revision: universe.revision,
       privacyEpoch: universe.privacy_epoch,
+      recordingPausedAt: universe.recording_paused_at ? new Date(universe.recording_paused_at).toISOString() : null,
       traces,
       capabilities: { reasoning: false, reels: false, worldEvolution: false },
     };
