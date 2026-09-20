@@ -33,6 +33,14 @@ source and editorial order; a Reel requires its media and lineage. Every existin
 every exposure, keep, Trace and Accounts entry keeps working unchanged, because the identity a person
 encounters is still `asset.id`.
 
+A Reel asset's identity and provenance are immutable, since they restate a gated generated Reel. A
+**Scroll stays editable in place**: updating a Scroll's content and revision is how this product
+represents a corrected or changed source, which Trace revisit, the `source_support` gate and the
+sealed Ask and reasoning contexts all depend on. The first draft of migration 0015 froze every asset
+row and broke that mechanism in 24 existing tests; the independent review rejected it, and the guard
+now applies provenance immutability to Reel rows only. No asset of either kind is ever deleted, and
+a kind never changes.
+
 ### 2. The feed only offers what the client says it can render
 
 `GET /v1/feed` takes an optional `kinds` parameter, defaulting to `Scroll` alone. A client that can

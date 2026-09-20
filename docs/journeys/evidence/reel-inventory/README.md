@@ -103,3 +103,35 @@ row, the same deterministic projection worker, no new event kind — is what che
 No Reel playback UI, no per-person repetition policy, no correction propagation, no world/bridge
 behaviour, and no owner deployment or owner acceptance are proved or claimed anywhere in this
 journey.
+
+## Coordinator fix after an independent rejection (2026-09-20)
+
+The independent review **rejected** this slice, and it was right. The blocker was in the
+coordinator's own migration 0015: `asset_identity_guard` fired on every `asset` row and froze
+title, summary, body, source fields, truth state and revision for **Scroll** rows too. Updating a
+Scroll in place is how this product represents a corrected or changed source, which Trace revisit,
+the `source_support` gate and the sealed Ask and reasoning contexts all read — so the first draft
+broke 24 existing tests. The builder independently reached the same conclusion and verified it on a
+clean checkout of the contract commit before writing any code of its own.
+
+Fixed here: provenance immutability now applies to **Reel rows only**. Any asset still cannot be
+deleted, cannot change kind, and cannot be un-withdrawn; a Scroll still cannot acquire generated
+media provenance. ADR-0025 records the correction and why.
+
+One existing drift test changed as a consequence: `tests/trace-revisit.test.ts` used to mutate an
+asset's `kind` to `'Reel'` among its drift cases. A kind change is now impossible, which is a
+stronger guarantee than failing closed afterwards, so that case asserts the database refusal
+instead; every other drift column is untouched.
+
+Coordinator runs on this lane after the fix:
+
+- `pnpm typecheck` clean.
+- `tests/trace-revisit.test.ts` + `tests/api-trace-revisit.test.ts` — 46/46.
+- Full backend `pnpm test` — **603/603** (from 579/603 before the fix).
+- `pnpm exec tsx scripts/run-inventory-journey.ts` (J007) — **27/27**, receipt
+  `inventory-journey-2026-09-20T04-24-48-729Z.json`: a stand-in Reel gated, minted, absent from the
+  default feed, offered only with `kinds=Scroll,Reel`, exposed, kept, traced, revisited, and its
+  media streamed byte-identically.
+
+Limits unchanged: stand-in media in a disposable database only; nothing eligible in a real universe
+while the witness gate is unavailable; no Reel playback UI yet; Ask on a Reel still refused.

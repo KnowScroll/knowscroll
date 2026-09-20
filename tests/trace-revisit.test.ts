@@ -115,13 +115,25 @@ test('a relationally valid Trace asset cannot replace the asset in its original 
 });
 
 test('every current display field and revision is guarded while historical titles remain unchanged',async t=>{
- const changes:Record<string,string>={revision:'2',kind:"'Reel'",title:"'Renamed source'",summary:"'Changed summary'",body:"'Changed body'",
+ // `kind` is absent deliberately: since ADR-0025/migration 0015 an inventory asset cannot change
+ // kind at all, so that drift can no longer reach a revisit. Its own subtest below proves the
+ // database refuses it, which is stronger than failing closed afterwards.
+ const changes:Record<string,string>={revision:'2',title:"'Renamed source'",summary:"'Changed summary'",body:"'Changed body'",
   source_title:"'Changed pointer'",source_url:"'https://example.test/changed'",truth_state:"'disputed'"};
  for(const [column,value] of Object.entries(changes)) await t.test(column,async()=>{
   await withTraceRevisitSchema('source_drift',async pool=>{
    const graph=await seedTraceRevisitGraph(pool);
    await pool.query(`UPDATE asset SET ${column}=${value} WHERE id=$1`,[graph.assetId]);
    await assert.rejects(revisit(pool,graph),failed('source_changed'));
+   assert.equal((await listing(pool,graph))[0]!.title,graph.scroll.title);
+  });
+ });
+ await t.test('kind',async()=>{
+  await withTraceRevisitSchema('source_drift',async pool=>{
+   const graph=await seedTraceRevisitGraph(pool);
+   // A Scroll never becomes a Reel: the database refuses the change outright, so the saved Trace
+   // keeps reading its original encounter rather than failing closed after the fact.
+   await assert.rejects(pool.query(`UPDATE asset SET kind='Reel' WHERE id=$1`,[graph.assetId]));
    assert.equal((await listing(pool,graph))[0]!.title,graph.scroll.title);
   });
  });
