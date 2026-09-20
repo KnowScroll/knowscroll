@@ -197,6 +197,54 @@ as strict; it governs the *content*, not whether the surface exists.
 An empty universe still draws the frame: ground, dock, hint, and an honest line where the bodies
 would be. Emptiness is a state of the design, not an excuse to omit it.
 
+## 5c. How the experience progresses (Living Observatory)
+
+Cosmos gives the theme. **Living Observatory gives the experience**, and in places it is simply better
+— above all it solves the problem this document previously solved by deleting things. Drive it
+yourself: the stage chips run `First visit` → `Day 6` → `Day 30` → `Six months`.
+
+**The frame never changes; the narration does.** Every stage has the same parts — a kicker or
+breadcrumb, a large heading, a one-line subtitle, sometimes a yellow left-ruled note, bodies on a star
+ground, a yellow call to action with helper text beneath it, zoom controls with a view label, the
+dock, and a legend. What changes is the copy and how much is out there.
+
+| Stage | Heading | Subtitle | Note | View | Call to action |
+|---|---|---|---|---|---|
+| First visit | "Somewhere new starts here." | "No topics to pick. Just something interesting." | — | `SYSTEM VIEW` | "Show me something ↗" / "Your world begins with what catches your curiosity." |
+| Day 6 | "Your first little world." | "A few encounters are beginning to belong together." | "A trace of what you explored." | `SYSTEM VIEW` | "Watch something ↗" / "A familiar impulse. Somewhere new to go." |
+| Day 30 | "A world taking shape." | "You came for technology. You found yourself asking how things come together." | "Once one planet. Now three places to get lost in." | `SYSTEM VIEW` | "Watch something ↗" |
+| Six months | "Things begin to connect." | "Different worlds. A few questions running through all of them." | "Connections make the world richer." | `GALAXY VIEW` | "Watch something ↗" |
+
+### Why this matters more than the theme
+
+**The first-visit state is the honest empty state, drawn beautifully.** It has no topics, because the
+person has none yet. Its bodies are labelled "A first possibility · See what catches your curiosity",
+"A different angle", "A little surprise" — *generic, truthful names for things not yet known*, with the
+unexplored ones drawn as faint dust rather than omitted. That is exactly our position with a finite
+library and no inferred interests, and it needs **no invented data at all**. The earlier draft of this
+document reached for a prohibition where the reference had already solved it with copy.
+
+### The mapping to what we actually have
+
+- **Empty universe** → the first-visit stage verbatim in spirit: "Somewhere new starts here." / "No
+  topics to pick. Just something interesting.", one body for the encounter on offer, faint bodies for
+  the unread remainder, and "Show me something ↗" as the primary action.
+- **After some reading** → the day-6 stage: "Your first little world.", bodies for real kept Traces and
+  encountered Scrolls by their real titles, the yellow note carrying the **real why-this-appeared
+  reason** — which is what that line is for.
+- **The legend** ("● Your paths · ◌ Still unexplored") appears once there is something to distinguish,
+  and its second half is the real unread count.
+- **The view label** (`SYSTEM VIEW`) is honest about the level being shown; `GALAXY VIEW` waits for
+  data that does not exist.
+- **Zoom controls** are real controls over a real canvas, not decoration.
+- **The Idea Room card** needs rooms, which do not exist. Not drawn.
+- **Watch / Room** in the dock need Reels and social, which do not exist. The dock carries the
+  destinations that work.
+
+A stage is chosen by what the reader has actually done, never by a date. The copy above is the
+reference's; where a line would assert something untrue of this reader, it is rewritten to be true,
+and the rewrite is recorded as a deviation.
+
 ## 6. What the interface may show today
 
 Only these have data: the honest empty universe, saved Traces, entering a Scroll, reading with
