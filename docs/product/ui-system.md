@@ -72,6 +72,54 @@ Living Observatory's `--muted` role maps to `--cream` at 70% for secondary text 
   refinement recorded here, not a new gesture: the two references disagreed and this is how they are
   reconciled.
 
+## 4b. Phone layout (definition §9.5 Mobile, structured as the references' own mobile modes)
+
+Section 4 is titled *Desktop layout* and means it. Nothing in this document extracted a phone
+treatment until now, so "match the agreed UI exactly" could not be obeyed literally on Android. This
+section closes that gap with the same discipline as the rest of the file: every value comes from
+definition §9.5 Mobile, or from the references' own mobile CSS, or it is named as a platform rule.
+
+**§9.5 Mobile states the surface in six lines**, and they govern: one-thumb Cable entry; vertical
+full-height Reel stages; full-width Scroll reading with protected embedded controls; a drag-and-pinch
+universe canvas; a bottom compass with Home, Cable, Scroll, Ask and Friends; sheets only for sources,
+controls and compact branches. "Mobile is not a compressed desktop universe."
+
+- **Full-width reading, one column.** No context rail, no two-column grid, no 66px head band, no
+  1050/700px breakpoints — those are desktop resize thresholds, not phone design values. The head
+  band's *job* survives even though its shape does not: back, where this came from, and the kind label
+  must still be present and still orient the reader (law 14), as a single leading row above the
+  reading surface rather than a fixed bar.
+- **The reading surface is a cream sheet on the space ground**, as the reader already is. Radius 22dp
+  on the corners that show. Body 15sp at 1.8; the 590px measure cap is a desktop constraint and does
+  not apply to a phone column, which is already narrower than that.
+- **Bottom compass**, taken from Living Observatory's own `.dock`: floating rather than docked to the
+  edge, centred, 25px from the bottom, 18px radius, 6px padding, 5px between entries, each entry
+  13px/18px padding at 12px type, with the current entry marked (`aria-current` in the reference, a
+  selected state here). It honours the safe-area inset. §4's "no permanent dashboard chrome" is a
+  desktop rule about sidebars and toolbars; the compass is the phone's primary navigation and §9.5
+  names it explicitly.
+- **The compass shows only what exists.** §9.5 lists Home, Cable, Scroll, Ask and Friends. Ask,
+  Friends and Cable have no contract and no data, and §6's rule is absolute: *not available, therefore
+  not drawn*. So the compass ships with **Home and Scroll**, and grows an entry when a contract does.
+  A compass of dead icons would be the map problem again, in a worse place.
+- **Touch targets are at least 48dp**, which is the Android platform minimum and overrides any
+  smaller value inherited from a CSS reference. Cosmos's pill stays a pill — 999dp radius, weight 800,
+  13sp — but its *height* is whatever satisfies 48dp, not 40px.
+- **Sheets only for sources, controls and compact branches** (§9.5). Cream, 22dp radius, one at a
+  time — opening one closes the other, as the desktop reader settled.
+- **Gesture is primary, and no gesture is invented.** The desktop keyboard contract (`↓` reads on then
+  advances, `→` unbound, `Esc` returns) has no phone equivalent to copy; the deliberate Next control
+  stays an explicit, visible control. A swipe that advances a discovery would spend one by accident,
+  which §3's deliberate-next law forbids.
+- **Reduced motion.** Android's `Settings.Global.ANIMATOR_DURATION_SCALE` of 0 is the platform's
+  version of `prefers-reduced-motion: reduce` and must suspend the same things: sheet motion, any
+  canvas drift, every transition. State still changes, instantly.
+
+**What is deliberately left open:** vertical full-height Reel stages and the drag-and-pinch universe
+canvas are both §9.5 requirements with no data behind them yet — there is no eligible Reel, and the
+universe has no semantic geography. They are not drawn, and this section will be extended when those
+contracts exist.
+
 ## 5. Truth states are visual language, not a footnote (§12)
 
 Each state has one pill, always adjacent to the claim it qualifies, never buried at the end:
@@ -94,6 +142,8 @@ allowed and must be marked decorative in code; a node that implies meaning is no
 
 ## 7. How fidelity is judged
 
-Screenshots at 1440×900 and 1024×768 sit beside the reference rendered at the same size. Palette,
+Screenshots at 1440×900 and 1024×768 sit beside the reference rendered at the same size. On a phone,
+the comparable sizes are the emulator's own resolution at font scale 1.0 and 840×1680 at font scale 1.3,
+which are the two the Android journeys already exercise. Palette,
 type scale, pill geometry, rail proportions, head band and focus treatment must match. Differences
 are recorded with a reason, not discovered later.
