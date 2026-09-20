@@ -1,0 +1,178 @@
+{
+  "journey": "J007",
+  "evidenceLevel": "stand-in media in a disposable database — never real generation and never the owner's universe",
+  "runStamp": "2026-09-20T03-58-39-158Z",
+  "knowscrollHead": "e5ab16c27940fe153ec8113fc05edb525d94b261",
+  "node": "v22.23.0",
+  "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "database": "knowscroll_test_inv_journey_4504359eacfd4235",
+  "generatedReelId": "4a38efb4-6709-48e5-8ec0-bb1b36f92afa",
+  "assetId": "53d53c94-c32f-4bff-9da5-98f26ccf1c8e",
+  "mediaSha256": "e7c41bb6ea9c14163025fa78eccceb53bde991b25dd48376385a74305a54d121",
+  "mediaByteSize": 61319,
+  "checks": [
+    {
+      "name": "seeded generated_reel is imported",
+      "expected": "imported",
+      "observed": "imported",
+      "pass": true
+    },
+    {
+      "name": "gate-evaluation worker exits 0",
+      "expected": "0",
+      "observed": "0",
+      "pass": true
+    },
+    {
+      "name": "worker reports test_eligible",
+      "expected": "test_eligible",
+      "observed": "test_eligible",
+      "pass": true
+    },
+    {
+      "name": "mint worker exits 0",
+      "expected": "0",
+      "observed": "0",
+      "pass": true
+    },
+    {
+      "name": "mint reports created:true on first call",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "second mint is idempotent (created:false, same assetId)",
+      "expected": "false,53d53c94-c32f-4bff-9da5-98f26ccf1c8e",
+      "observed": "false,53d53c94-c32f-4bff-9da5-98f26ccf1c8e",
+      "pass": true
+    },
+    {
+      "name": "default feed status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "default feed never includes the Reel",
+      "expected": "false",
+      "observed": "false",
+      "pass": true
+    },
+    {
+      "name": "default feed carries no kind:Reel item at all",
+      "expected": "false",
+      "observed": "false",
+      "pass": true
+    },
+    {
+      "name": "opted-in feed status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "opted-in feed includes the eligible Reel",
+      "expected": "present",
+      "observed": "present",
+      "pass": true
+    },
+    {
+      "name": "Reel item mediaUrl is the content-addressed route, never an engine path",
+      "expected": "/v1/media/e7c41bb6ea9c14163025fa78eccceb53bde991b25dd48376385a74305a54d121",
+      "observed": "/v1/media/e7c41bb6ea9c14163025fa78eccceb53bde991b25dd48376385a74305a54d121",
+      "pass": true
+    },
+    {
+      "name": "Reel item truthState",
+      "expected": "synthesis",
+      "observed": "synthesis",
+      "pass": true
+    },
+    {
+      "name": "Reel item simulated flag",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "Reel item generatedLabel",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "unknown kind is refused with 400",
+      "expected": "400",
+      "observed": "400",
+      "pass": true
+    },
+    {
+      "name": "exposure status",
+      "expected": "201",
+      "observed": "201",
+      "pass": true
+    },
+    {
+      "name": "keep status",
+      "expected": "202",
+      "observed": "202",
+      "pass": true
+    },
+    {
+      "name": "real projection worker reaches the admitted Reel Keep",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "events lookup status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "events lookup reports kind:keep, projected:true",
+      "expected": "keep,true",
+      "observed": "keep,true",
+      "pass": true
+    },
+    {
+      "name": "the same trace table records the kept Reel (no new event kind)",
+      "expected": "53d53c94-c32f-4bff-9da5-98f26ccf1c8e",
+      "observed": "53d53c94-c32f-4bff-9da5-98f26ccf1c8e",
+      "pass": true
+    },
+    {
+      "name": "a kept Reel is excluded from later candidates",
+      "expected": "false",
+      "observed": "false",
+      "pass": true
+    },
+    {
+      "name": "revisit of a kept Reel returns the existing generic lineage-unavailable error (documented boundary, not a crash)",
+      "expected": "422",
+      "observed": "422",
+      "pass": true
+    },
+    {
+      "name": "whole-body GET status",
+      "expected": "200",
+      "observed": "200",
+      "pass": true
+    },
+    {
+      "name": "whole-body bytes are byte-identical to the stored file",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    },
+    {
+      "name": "simulated-media marker is present",
+      "expected": "true",
+      "observed": "true",
+      "pass": true
+    }
+  ],
+  "result": "passed"
+}
