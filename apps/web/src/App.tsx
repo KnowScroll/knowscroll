@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { ApiClient } from './api/client.ts';
 import { ScrollScreen } from './components/ScrollScreen.tsx';
+import { SystemScreen } from './components/SystemScreen.tsx';
 import { UniverseScreen } from './components/UniverseScreen.tsx';
 import { useReaderStore } from './hooks/useReaderStore.ts';
 import { ReaderStore } from './state/readerStore.ts';
@@ -30,14 +31,19 @@ export function App() {
           </button>
         </div>
       )}
-      {state.screen === 'universe' ? (
+      {state.screen === 'universe' && (
         <UniverseScreen
           state={state.universe}
           onEnterScroll={() => store.enterScroll()}
           onOpenTrace={trace => store.openTrace(trace)}
+          onEnterSystem={() => store.enterSystem()}
           onRetry={() => store.retryUniverse()}
         />
-      ) : (
+      )}
+      {state.screen === 'system' && (
+        <SystemScreen state={state.system} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} />
+      )}
+      {(state.screen === 'scroll' || state.screen === 'revisit') && (
         <ScrollScreen
           state={state.scroll}
           onVisible={assetId => store.onVisible(assetId)}

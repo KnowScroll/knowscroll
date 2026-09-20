@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T12:19:53.411Z",
-  "url": "http://127.0.0.1:49954/",
+  "timestamp": "2026-09-20T21:32:14.276Z",
+  "url": "http://127.0.0.1:51449/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1479,7 +1479,47 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -1587,7 +1627,25 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -1811,7 +1869,25 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -1989,7 +2065,39 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -2097,7 +2205,25 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -2195,7 +2321,32 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -2264,7 +2415,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T12:19:20.791Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T21:31:51.498Z</span>",
           "target": [
             "li:nth-child(1) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2314,7 +2465,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T12:19:28.397Z</span>",
+          "html": "<span class=\"trace-date\">2026-09-20T21:31:57.261Z</span>",
           "target": [
             "li:nth-child(2) > .trace-card > .trace-text > .trace-date"
           ]
@@ -2341,7 +2492,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         }
       ]
@@ -2695,7 +2846,25 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ]
         }
       ]
@@ -2814,6 +2983,44 @@
           "html": "<p class=\"eyebrow\">Saved Traces</p>",
           "target": [
             "nav > p"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+                  "target": [
+                    ".cream"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1440\" height=\"900\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<button type=\"button\" class=\"pill cream\" aria-label=\"View your system\">View your system</button>",
+          "target": [
+            ".cream"
           ],
           "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
         }

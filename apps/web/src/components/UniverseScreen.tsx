@@ -6,10 +6,11 @@ export interface UniverseScreenProps {
   state: UniverseView;
   onEnterScroll: () => void;
   onOpenTrace: (trace: Trace) => void;
+  onEnterSystem: () => void;
   onRetry: () => void;
 }
 
-export function UniverseScreen({ state, onEnterScroll, onOpenTrace, onRetry }: UniverseScreenProps) {
+export function UniverseScreen({ state, onEnterScroll, onOpenTrace, onEnterSystem, onRetry }: UniverseScreenProps) {
   return (
     <main className="universe-screen" aria-label="Universe">
       <CosmosBackground />
@@ -32,7 +33,7 @@ export function UniverseScreen({ state, onEnterScroll, onOpenTrace, onRetry }: U
           </div>
         )}
         {state.status === 'loaded' && (
-          <LoadedUniverse universe={state.universe.traces} onEnterScroll={onEnterScroll} onOpenTrace={onOpenTrace} />
+          <LoadedUniverse universe={state.universe.traces} onEnterScroll={onEnterScroll} onOpenTrace={onOpenTrace} onEnterSystem={onEnterSystem} />
         )}
       </div>
     </main>
@@ -43,10 +44,12 @@ function LoadedUniverse({
   universe,
   onEnterScroll,
   onOpenTrace,
+  onEnterSystem,
 }: {
   universe: Trace[];
   onEnterScroll: () => void;
   onOpenTrace: (trace: Trace) => void;
+  onEnterSystem: () => void;
 }) {
   return (
     <div className="universe-loaded">
@@ -78,9 +81,14 @@ function LoadedUniverse({
           </ul>
         </nav>
       )}
-      <button type="button" className="pill teal enter-scroll" onClick={onEnterScroll} aria-label="Enter Scroll">
-        Enter Scroll
-      </button>
+      <div className="universe-actions">
+        <button type="button" className="pill teal enter-scroll" onClick={onEnterScroll} aria-label="Enter Scroll">
+          Enter Scroll
+        </button>
+        <button type="button" className="pill cream" onClick={onEnterSystem} aria-label="View your system">
+          View your system
+        </button>
+      </div>
     </div>
   );
 }

@@ -7,7 +7,7 @@
  * this file has no DOM/React dependency so its logic is directly unit-testable.
  */
 import { ApiException, describeApiError, invalidatesReader, isUnauthorized, type ReaderApi } from '../api/client.ts';
-import type { EventStatus, FeedItem, FeedResponse, Trace, TraceRevisit, Universe } from '../api/types.ts';
+import type { EventStatus, FeedItem, FeedResponse, Trace, TraceRevisit, Universe, WorldSystemResponse } from '../api/types.ts';
 import { canRequestDiscovery, selectDiscovery, type DiscoveryState, type KeepState } from './discovery.ts';
 import type { ReaderStorage, RevisitSession, ScrollSession } from './storage.ts';
 
@@ -44,12 +44,22 @@ export type ScrollView =
   | { status: 'unavailable'; message: string; retryable: boolean }
   | { status: 'exhausted' };
 
-export type Screen = 'universe' | 'scroll' | 'revisit';
+/** ADR-0028/#113: a read-only view of the real, derived worlds/system geography. Never persisted
+ * across reload (unlike `scroll`/`revisit`) -- a fresh entry re-reads `GET /v1/worlds` every time,
+ * which is cheap and keeps this view from ever showing a stale count. */
+export type SystemView =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'loaded'; response: WorldSystemResponse }
+  | { status: 'unavailable'; message: string };
+
+export type Screen = 'universe' | 'scroll' | 'revisit' | 'system';
 
 export interface ReaderState {
   screen: Screen;
   universe: UniverseView;
   scroll: ScrollView;
+  system: SystemView;
   toast: string | null;
 }
 
@@ -60,6 +70,7 @@ export class ReaderStore {
     screen: 'universe',
     universe: { status: 'loading' },
     scroll: { status: 'idle' },
+    system: { status: 'idle' },
     toast: null,
   };
   private readonly listeners = new Set<Listener>();
@@ -121,6 +132,48 @@ export class ReaderStore {
       return;
     }
     this.loadNext();
+  }
+
+  /** Reads the real, derived worlds/system geography (ADR-0028/#113). Read-only: it creates no
+   * event, holds no private per-Scroll session, and is never restored from storage on reload --
+   * a fresh entry always re-reads `GET /v1/worlds` rather than risking a stale count. */
+  enterSystem(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.busy = true;
+    const version = this.navigationVersion;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ screen: 'system', system: { status: 'loading' } });
+    this.api
+      .getWorlds()
+      .then(response => {
+        if (version !== this.navigationVersion || epoch !== this.observedPrivacyEpoch || universeId !== this.observedUniverseId) return;
+        this.set({ system: { status: 'loaded', response } });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error));
+        } else {
+          this.set({ system: { status: 'unavailable', message: describeApiError(error) } });
+        }
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  retrySystem(): void {
+    if (this.state.screen === 'system') this.enterSystem();
+  }
+
+  /** Leaves the system view without touching any scroll/revisit session or re-fetching the
+   * universe -- unlike `returnToUniverse()`, nothing private was ever held here to purge. */
+  returnFromSystem(): void {
+    if (this.state.screen !== 'system') return;
+    this.navigationVersion++; // invalidates any in-flight getWorlds() so a stale response cannot land
+    this.set({ screen: 'universe', system: { status: 'idle' } });
   }
 
   /** A Trace has an explicit origin and never becomes a new discovery or exposure (docs/contracts/trace-revisit.md). */
@@ -504,13 +557,13 @@ export class ReaderStore {
     this.session = null;
     this.revisit = null;
     this.visited.clear();
-    this.set({ screen: 'universe', scroll: { status: 'idle' } });
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' } });
   }
 
   private failClosed(reason: string): void {
     this.ready = false;
     this.session = null;
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, universe: { status: 'unavailable', message: reason } });
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, universe: { status: 'unavailable', message: reason } });
   }
 
   private discardRevisit(): void {

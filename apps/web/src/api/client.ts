@@ -19,12 +19,14 @@ import {
   interactionResponse,
   traceRevisit,
   universe,
+  worldSystemResponseSchema,
   type EventStatus,
   type ExposureResponse,
   type FeedResponse,
   type InteractionResponse,
   type TraceRevisit,
   type Universe,
+  type WorldSystemResponse,
 } from './types.ts';
 
 export type ApiError =
@@ -82,6 +84,7 @@ export interface ReaderApi {
   postInteraction(body: { clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }): Promise<InteractionResponse>;
   getEvent(eventId: string): Promise<EventStatus>;
   getTraceRevisit(eventId: string): Promise<TraceRevisit>;
+  getWorlds(): Promise<WorldSystemResponse>;
 }
 
 export class ApiClient implements ReaderApi {
@@ -129,6 +132,11 @@ export class ApiClient implements ReaderApi {
 
   async getTraceRevisit(eventId: string): Promise<TraceRevisit> {
     return this.request('GET', `/traces/${encodeURIComponent(eventId)}`, undefined, [200], false, traceRevisit);
+  }
+
+  /** ADR-0028/#113: a pure read of the already-projected worlds/system state, never a recompute-on-read. */
+  async getWorlds(): Promise<WorldSystemResponse> {
+    return this.request('GET', '/worlds', undefined, [200], false, worldSystemResponseSchema);
   }
 
   private async request<T>(
