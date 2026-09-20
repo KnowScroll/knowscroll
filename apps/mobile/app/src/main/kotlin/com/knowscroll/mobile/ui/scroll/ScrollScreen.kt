@@ -56,6 +56,7 @@ fun ScrollScreen(
     onNext: () -> Unit,
     onRetry: () -> Unit,
     onReadingPosition: (String, Int) -> Unit,
+    onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize().background(Cosmos.Dark)) {
@@ -71,10 +72,11 @@ fun ScrollScreen(
                 }
             }
         }
-        // docs/product/ui-system.md section 4b / BottomCompassRedTest: the compass is the phone's
-        // primary navigation and is present on every screen, not just the universe -- "Scroll" is
-        // the current entry here; its own tap is a no-op since it is already the active screen.
-        BottomCompass(selected = CompassTab.Scroll, onSelectHome = onReturn, onSelectScroll = {})
+        // docs/product/ui-system.md section 4b/5b / BottomCompassRedTest: the compass is the
+        // phone's primary navigation and is present on every screen, not just the universe --
+        // "Cable" is the current entry here; its own tap is a no-op since it is already the
+        // active screen. Tapping Keep leaves the reader for the real kept-Traces destination.
+        BottomCompass(selected = CompassTab.Cable, onSelectAtlas = onReturn, onSelectCable = {}, onSelectKeep = onOpenKeep)
     }
 }
 

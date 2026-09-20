@@ -5,6 +5,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import com.knowscroll.mobile.data.Capabilities
 import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.ui.HistoryClearState
@@ -19,15 +20,15 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * docs/product/ui-system.md section 4b: "Bottom compass... ships with Home and Scroll" -- floating
- * navigation with a selected state, taken from Living Observatory's `.dock`. Nothing in
- * UniverseScreen.kt or ScrollScreen.kt renders one; the app switches full-screen between
- * `UniverseScreen` and `ScrollScreen` with no persistent navigation chrome at all.
+ * docs/product/ui-system.md section 5b: the dock's real destinations are "**Cable** (read),
+ * **Atlas** (universe), **Keep** (Traces) are real" -- the same three names the web build (#110)
+ * shipped, which section 4b's own earlier draft (written before this client had a Keep contract)
+ * had shipped as two placeholders, "Home"/"Scroll".
  *
- * A plain text search for "Home" would find a false positive: ScrollScreen's reader already has a
- * "Home" button (return-to-universe), unrelated to a bottom compass. So this test looks for the
- * structural signature a tab-style compass entry would carry -- `Role.Tab` semantics -- which
- * nothing in the app sets today, on any screen.
+ * A plain text search for "Home"/"Scroll" would have found a false positive even before this
+ * rename: ScrollScreen's reader already has a "Home" button (return-to-universe), unrelated to a
+ * bottom compass. So this test looks for the structural signature a tab-style compass entry
+ * carries -- `Role.Tab` semantics -- and confirms the three real labels are the ones drawn.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -36,7 +37,7 @@ class BottomCompassRedTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `universe screen has exactly two compass tabs, Home and Scroll`() {
+    fun `universe screen has exactly three compass tabs, Atlas Cable and Keep`() {
         composeRule.setContent {
             KnowScrollTheme {
                 UniverseScreen(
@@ -45,27 +46,35 @@ class BottomCompassRedTest {
                     signOut = SignOutState.Idle,
                     onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
-                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {}
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
                 )
             }
         }
         composeRule
             .onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
-            .assertCountEquals(2)
+            .assertCountEquals(3)
+        composeRule.onNodeWithText("Atlas").assertExists()
+        composeRule.onNodeWithText("Cable").assertExists()
+        composeRule.onNodeWithText("Keep").assertExists()
     }
 
     @Test
-    fun `scroll screen has exactly two compass tabs, Home and Scroll`() {
+    fun `scroll screen has exactly three compass tabs, Atlas Cable and Keep`() {
         composeRule.setContent {
             KnowScrollTheme {
                 com.knowscroll.mobile.ui.scroll.ScrollScreen(
                     state = com.knowscroll.mobile.ui.ScrollState.Idle,
-                    onKeep = {}, onReturn = {}, onNext = {}, onRetry = {}, onReadingPosition = { _, _ -> }
+                    onKeep = {}, onReturn = {}, onNext = {}, onRetry = {}, onReadingPosition = { _, _ -> },
+                    onOpenKeep = {}
                 )
             }
         }
         composeRule
             .onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
-            .assertCountEquals(2)
+            .assertCountEquals(3)
+        composeRule.onNodeWithText("Atlas").assertExists()
+        composeRule.onNodeWithText("Cable").assertExists()
+        composeRule.onNodeWithText("Keep").assertExists()
     }
 }

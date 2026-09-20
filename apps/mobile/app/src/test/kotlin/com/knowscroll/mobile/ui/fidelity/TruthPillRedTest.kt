@@ -74,7 +74,7 @@ class TruthPillRedTest {
             KnowScrollTheme {
                 ScrollScreen(
                     state = readingState("disputed"), onKeep = {}, onReturn = {}, onNext = {},
-                    onRetry = {}, onReadingPosition = { _, _ -> }
+                    onRetry = {}, onReadingPosition = { _, _ -> }, onOpenKeep = {}
                 )
             }
         }
@@ -98,7 +98,7 @@ class TruthPillRedTest {
                     KnowScrollTheme {
                         ScrollScreen(
                             state = readingState(truthState), onKeep = {}, onReturn = {}, onNext = {},
-                            onRetry = {}, onReadingPosition = { _, _ -> }
+                            onRetry = {}, onReadingPosition = { _, _ -> }, onOpenKeep = {}
                         )
                     }
                 }

@@ -80,7 +80,8 @@ class ScreenshotEvidenceTest {
                     state = emptyUniverse(), historyClear = HistoryClearState.Idle, signOut = SignOutState.Idle,
                     onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
-                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {}
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
                 )
             }
         }
@@ -96,7 +97,8 @@ class ScreenshotEvidenceTest {
                     state = startedUniverse(), historyClear = HistoryClearState.Idle, signOut = SignOutState.Idle,
                     onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
-                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {}
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
                 )
             }
         }
@@ -110,7 +112,7 @@ class ScreenshotEvidenceTest {
             KnowScrollTheme {
                 ScrollScreen(
                     state = readingState(), onKeep = {}, onReturn = {}, onNext = {}, onRetry = {},
-                    onReadingPosition = { _, _ -> }
+                    onReadingPosition = { _, _ -> }, onOpenKeep = {}
                 )
             }
         }

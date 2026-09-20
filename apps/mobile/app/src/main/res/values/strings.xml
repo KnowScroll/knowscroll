@@ -2,10 +2,12 @@
 <resources>
     <string name="app_label">KnowScroll</string>
 
-    <!-- Bottom compass (definition sec.9.5 Mobile / ui-system.md sec.4b): ships with only what
-         has a contract today. -->
-    <string name="compass_home">Home</string>
-    <string name="compass_scroll">Scroll</string>
+    <!-- Bottom compass (definition sec.9.5 Mobile / ui-system.md sec.4b/5b): ships with only what
+         has a contract today. Names match the web build's three real destinations: Atlas
+         (universe), Cable (read), Keep (Traces). -->
+    <string name="compass_atlas">Atlas</string>
+    <string name="compass_cable">Cable</string>
+    <string name="compass_keep">Keep</string>
 
     <!-- Universe (origin) screen -->
     <string name="universe_title">Your universe</string>
@@ -34,7 +36,6 @@
          topics, so the hint says what tapping one actually does. -->
     <string name="universe_hint_started">Tap a kept Scroll to revisit it</string>
     <string name="universe_hint_first">The button below opens your first Scroll</string>
-    <string name="universe_day_pill">DAY %1$d ▸</string>
     <!-- First-visit placeholder bodies (ui-system.md sec.5c): generic, truthful names for
          encounters not yet known, exactly as Living Observatory's own empty state draws them.
          Not a topic, not fabricated content; no encounter is claimed to exist behind them. -->
@@ -54,6 +55,9 @@
     <string name="traces_heading">Traces</string>
     <string name="trace_unknown_title">Untitled Scroll</string>
     <string name="trace_revisit_action">Reopen saved Scroll %1$s</string>
+    <string name="keep_kicker">KNOWSCROLL</string>
+    <string name="keep_title">Keep</string>
+    <string name="keep_empty">Nothing kept yet. Scrolls you keep from Cable show up here.</string>
     <string name="privacy_heading">Privacy controls</string>
     <string name="clear_history_action">Clear Scroll history</string>
     <string name="clear_history_title">Clear Scroll history?</string>

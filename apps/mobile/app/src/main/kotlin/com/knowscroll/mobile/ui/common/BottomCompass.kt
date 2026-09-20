@@ -26,13 +26,19 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.theme.Cosmos
 
 /** Which section the bottom compass currently marks as active. */
-enum class CompassTab { Home, Scroll }
+enum class CompassTab { Atlas, Cable, Keep }
 
 /**
  * docs/product/ui-system.md section 4b: "Bottom compass, taken from Living Observatory's own
  * `.dock`: floating rather than docked to the edge, centred, 25px from the bottom, 18px radius,
  * 6px padding, 5px between entries, each entry 13px/18px padding at 12px type, with the current
- * entry marked... The compass shows only what exists... Home and Scroll."
+ * entry marked". Section 5b names the destinations that actually exist once a contract backs
+ * them: "**Cable** (read), **Atlas** (universe), **Keep** (Traces) are real" -- the same three
+ * the web build (#110) shipped. Android's own §4b draft shipped before the Keep contract
+ * (`GET /v1/universe`'s `traces`, `GET /v1/traces/:eventId`) was wired up on this client, and
+ * named its two placeholders "Home"/"Scroll"; now that Keep has real data this compass grows the
+ * third entry exactly as that section said it would, and takes the same three names web did so
+ * the two surfaces read as the same product rather than diverging on new labels of their own.
  *
  * "Floating" here means visually floating (rounded, shadowed, inset from the edge) rather than an
  * edge-to-edge bar — not that it is drawn as an absolutely-positioned overlay on top of screen
@@ -44,8 +50,9 @@ enum class CompassTab { Home, Scroll }
 @Composable
 fun BottomCompass(
     selected: CompassTab,
-    onSelectHome: () -> Unit,
-    onSelectScroll: () -> Unit,
+    onSelectAtlas: () -> Unit,
+    onSelectCable: () -> Unit,
+    onSelectKeep: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier.fillMaxWidth().padding(bottom = 25.dp), contentAlignment = Alignment.Center) {
@@ -64,15 +71,21 @@ fun BottomCompass(
             Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 CompassEntry(
                     glyph = "◐",
-                    label = stringResource(R.string.compass_home),
-                    selected = selected == CompassTab.Home,
-                    onClick = onSelectHome
+                    label = stringResource(R.string.compass_atlas),
+                    selected = selected == CompassTab.Atlas,
+                    onClick = onSelectAtlas
                 )
                 CompassEntry(
                     glyph = "≡",
-                    label = stringResource(R.string.compass_scroll),
-                    selected = selected == CompassTab.Scroll,
-                    onClick = onSelectScroll
+                    label = stringResource(R.string.compass_cable),
+                    selected = selected == CompassTab.Cable,
+                    onClick = onSelectCable
+                )
+                CompassEntry(
+                    glyph = "✦",
+                    label = stringResource(R.string.compass_keep),
+                    selected = selected == CompassTab.Keep,
+                    onClick = onSelectKeep
                 )
             }
         }

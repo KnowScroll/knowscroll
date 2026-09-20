@@ -87,7 +87,8 @@ class PillGeometryRedTest {
                     signOut = SignOutState.Idle,
                     onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
-                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {}
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
                 )
             }
         }
@@ -113,7 +114,8 @@ class PillGeometryRedTest {
                     signOut = SignOutState.Idle,
                     onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
-                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {}
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
                 )
             }
         }
@@ -139,7 +141,8 @@ class PillGeometryRedTest {
                     signOut = SignOutState.Idle,
                     onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
-                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {}
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
                 )
             }
         }

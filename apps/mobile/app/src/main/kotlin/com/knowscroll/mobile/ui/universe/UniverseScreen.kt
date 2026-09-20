@@ -54,8 +54,6 @@ import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import kotlin.math.max
 import kotlin.math.min
 
@@ -85,6 +83,7 @@ fun UniverseScreen(
     onCancelSignOut: () -> Unit,
     onConfirmSignOut: () -> Unit,
     onRetrySignOut: () -> Unit,
+    onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -129,7 +128,12 @@ fun UniverseScreen(
                     )
                 }
             }
-            BottomCompass(selected = CompassTab.Home, onSelectHome = {}, onSelectScroll = onEnterScroll)
+            BottomCompass(
+                selected = CompassTab.Atlas,
+                onSelectAtlas = {},
+                onSelectCable = onEnterScroll,
+                onSelectKeep = onOpenKeep
+            )
         }
         if (historyClear is HistoryClearState.Confirming) ClearHistoryConfirmation(
             onCancel = onCancelHistoryClear, onConfirm = onConfirmHistoryClear
@@ -140,14 +144,18 @@ fun UniverseScreen(
     }
 }
 
-/** The real age of the universe, in days, from the earliest kept Trace -- the only creation-like
- * timestamp this client has (the universe itself carries no createdAt). Null when there is nothing
- * kept yet, rather than a fabricated "day 0". */
-private fun universeAgeDays(traces: List<Trace>): Int? {
-    val earliest = traces.mapNotNull { runCatching { Instant.parse(it.createdAt) }.getOrNull() }.minOrNull()
-        ?: return null
-    return max(0, ChronoUnit.DAYS.between(earliest, Instant.now()).toInt()) + 1
-}
+// docs/product/ui-system.md sec.5b lists `DAY n ▸` as "the real age of the universe", but
+// GET /v1/universe (docs/contracts/bootstrap-http.md) carries no universe-level createdAt at
+// all -- only each Trace has one. An earlier version of this screen computed a `DAY n` pill from
+// the earliest kept Trace's createdAt anyway, and its own doc comment claimed it "carries the
+// real DAY n age, never a decoration". That claim did not hold: days-since-first-Keep is a real,
+// contract-backed number, but it is not the universe's age -- an owner who signed in on day 1 and
+// kept nothing until day 10 would see "DAY 1", which asserts something about the universe that
+// no field in the contract supports. The web build (docs/CHECKPOINT.md, #110) refused this same
+// pill for the same reason: no universe-creation timestamp exists to draw it from. This client
+// now matches that refusal instead of inventing a proxy -- see §6: "not available, therefore not
+// drawn" governs content, and a mislabelled real field is still a false claim about what it
+// carries.
 
 @Composable
 private fun UniverseCanvasScreen(
@@ -162,17 +170,16 @@ private fun UniverseCanvasScreen(
     onRetrySignOut: () -> Unit
 ) {
     val hasRead = universe.traces.isNotEmpty()
-    val ageDays = universeAgeDays(universe.traces)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-            Column {
-                Text(stringResource(R.string.universe_kicker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-                Text(stringResource(R.string.universe_title), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-            }
-            if (ageDays != null) StatusPill(stringResource(R.string.universe_day_pill, ageDays))
+        // docs/product/ui-system.md sec.5b's `DAY n ▸` status pill is deliberately not drawn here:
+        // see the honesty note above `StatusPill`'s old definition (removed) -- no universe-level
+        // createdAt exists in the bootstrap contract, matching the web build's own refusal.
+        Column {
+            Text(stringResource(R.string.universe_kicker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+            Text(stringResource(R.string.universe_title), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
         }
         Text(
             stringResource(if (hasRead) R.string.universe_heading_started else R.string.universe_heading_first),
@@ -209,56 +216,13 @@ private fun UniverseCanvasScreen(
             )
         }
 
-        if (universe.traces.isNotEmpty()) {
-            Text(stringResource(R.string.traces_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                universe.traces.forEach { trace ->
-                    val traceDescription = stringResource(R.string.trace_revisit_action, trace.eventId)
-                    Surface(
-                        color = Cosmos.SpaceRaised,
-                        contentColor = Cosmos.InkOnDark,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { onOpenTrace(trace) }
-                            .semantics { contentDescription = traceDescription }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(modifier = Modifier.size(8.dp).background(Cosmos.Yellow, CircleShape))
-                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    trace.title.ifBlank { stringResource(R.string.trace_unknown_title) },
-                                    style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnDark
-                                )
-                                Text(trace.createdAt, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // docs/product/ui-system.md sec.5b: the dock's own Keep destination is the real Traces
+        // list now (see KeepScreen.kt); the canvas above already draws one body per kept Trace,
+        // so this screen no longer duplicates the list textually as well.
 
         Spacer(Modifier.height(4.dp))
         PrivacyControls(historyClear, onRequestHistoryClear, onRetryHistoryClear)
         SignOutControls(signOut, onRequestSignOut, onRetrySignOut)
-    }
-}
-
-/** docs/product/ui-system.md section 5b: "Status pill (`.pillbtn`, top-right)" -- cream on ink,
- * fully-rounded. Carries the real `DAY n` age, never a decoration. */
-@Composable
-private fun StatusPill(label: String) {
-    Surface(
-        color = Cosmos.Cream.copy(alpha = 0.94f), contentColor = Cosmos.InkOnCream,
-        shape = RoundedCornerShape(percent = 50)
-    ) {
-        Text(
-            label, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            fontWeight = FontWeight(800), fontSize = 12.5.sp
-        )
     }
 }
 
