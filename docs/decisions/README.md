@@ -42,6 +42,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0025 — A gated Reel becomes inventory](0025-eligible-reels-in-inventory.md): publication mints an `asset` of kind Reel from a gated generated Reel; the feed offers Reels only to clients that ask for them.
 
+- [ADR-0026 — Real sign-in: one owner account, email magic link](0026-magic-link-single-user-identity.md): owner-chosen magic link and single-user v1; one account enforced by the database; tokens hashed, single-use, consumed by POST so a prefetched link cannot sign anyone in.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
