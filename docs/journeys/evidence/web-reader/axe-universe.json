@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T12:19:29.328Z",
-  "url": "http://127.0.0.1:49954/",
+  "timestamp": "2026-09-20T17:41:48.820Z",
+  "url": "http://127.0.0.1:51808/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -367,22 +367,6 @@
       "description": "Ensure the autocomplete attribute is correct and suitable for the form field",
       "help": "autocomplete attribute must be used correctly",
       "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/autocomplete-valid?application=playwright",
-      "nodes": []
-    },
-    {
-      "id": "avoid-inline-spacing",
-      "impact": null,
-      "tags": [
-        "cat.structure",
-        "wcag21aa",
-        "wcag1412",
-        "EN-301-549",
-        "EN-9.1.4.12",
-        "ACT"
-      ],
-      "description": "Ensure that text spacing set through style attributes can be adjusted with custom stylesheets",
-      "help": "Inline text spacing must be adjustable with custom stylesheets",
-      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/avoid-inline-spacing?application=playwright",
       "nodes": []
     },
     {
@@ -1357,9 +1341,9 @@
             }
           ],
           "impact": null,
-          "html": "<nav aria-label=\"Saved Traces\">",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your universe</h1><p class=\"universe-subtitle\">2 kept Traces.</p></div>",
           "target": [
-            "nav"
+            ".universe-title"
           ]
         },
         {
@@ -1397,9 +1381,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            ".universe-bodies-nav"
           ]
         },
         {
@@ -1437,9 +1421,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -1477,9 +1461,249 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(2) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            ".universe-dock"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -1531,9 +1755,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<nav aria-label=\"Saved Traces\">",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your universe</h1><p class=\"universe-subtitle\">2 kept Traces.</p></div>",
           "target": [
-            "nav"
+            ".universe-title"
           ]
         },
         {
@@ -1549,9 +1773,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            ".universe-bodies-nav"
           ]
         },
         {
@@ -1567,9 +1791,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -1585,9 +1809,117 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(2) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            ".universe-dock"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -1669,9 +2001,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-dot\" aria-hidden=\"true\"></span>",
+          "html": "<div class=\"universe-legend\" aria-hidden=\"true\"><span><i class=\"legend-dot\"></i> Your paths</span><span><i class=\"legend-ring\"></i> Still unexplored</span></div>",
           "target": [
-            "li:nth-child(1) > .trace-card > .trace-dot[aria-hidden=\"true\"]"
+            ".universe-legend"
           ]
         },
         {
@@ -1701,9 +2033,73 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<span class=\"trace-dot\" aria-hidden=\"true\"></span>",
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">〜</span>",
           "target": [
-            "li:nth-child(2) > .trace-card > .trace-dot[aria-hidden=\"true\"]"
+            "button[aria-label=\"Cable — read a Scroll\"] > .dock-icon[aria-hidden=\"true\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements while a modal is open"
+            },
+            {
+              "id": "focusable-disabled",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            },
+            {
+              "id": "focusable-not-tabbable",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">◎</span>",
+          "target": [
+            ".current > .dock-icon[aria-hidden=\"true\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "focusable-modal-open",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements while a modal is open"
+            },
+            {
+              "id": "focusable-disabled",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            },
+            {
+              "id": "focusable-not-tabbable",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "No focusable elements contained within element"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">▱</span>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"] > .dock-icon[aria-hidden=\"true\"]"
           ]
         }
       ]
@@ -1755,9 +2151,9 @@
             }
           ],
           "impact": null,
-          "html": "<nav aria-label=\"Saved Traces\">",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your universe</h1><p class=\"universe-subtitle\">2 kept Traces.</p></div>",
           "target": [
-            "nav"
+            ".universe-title"
           ]
         },
         {
@@ -1773,9 +2169,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            ".universe-bodies-nav"
           ]
         },
         {
@@ -1791,9 +2187,9 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -1809,9 +2205,117 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(2) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            ".universe-dock"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -1891,9 +2395,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<nav aria-label=\"Saved Traces\">",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your universe</h1><p class=\"universe-subtitle\">2 kept Traces.</p></div>",
           "target": [
-            "nav"
+            ".universe-title"
           ]
         },
         {
@@ -1923,9 +2427,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            ".universe-bodies-nav"
           ]
         },
         {
@@ -1955,9 +2459,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -1987,9 +2491,201 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(2) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            ".universe-dock"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -2041,9 +2737,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<nav aria-label=\"Saved Traces\">",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your universe</h1><p class=\"universe-subtitle\">2 kept Traces.</p></div>",
           "target": [
-            "nav"
+            ".universe-title"
           ]
         },
         {
@@ -2059,9 +2755,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            ".universe-bodies-nav"
           ]
         },
         {
@@ -2077,9 +2773,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -2095,9 +2791,230 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(2) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            ".universe-dock"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "avoid-inline-spacing",
+      "impact": null,
+      "tags": [
+        "cat.structure",
+        "wcag21aa",
+        "wcag1412",
+        "EN-301-549",
+        "EN-9.1.4.12",
+        "ACT"
+      ],
+      "description": "Ensure that text spacing set through style attributes can be adjusted with custom stylesheets",
+      "help": "Inline text spacing must be adjustable with custom stylesheets",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/avoid-inline-spacing?application=playwright",
+      "nodes": [
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "important-letter-spacing",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Letter-spacing in the style attribute is not set to !important, or meets the minimum"
+            },
+            {
+              "id": "important-word-spacing",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "word-spacing in the style attribute is not set to !important, or meets the minimum"
+            },
+            {
+              "id": "important-line-height",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "line-height in the style attribute is not set to !important, or meets the minimum"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(1) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "important-letter-spacing",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Letter-spacing in the style attribute is not set to !important, or meets the minimum"
+            },
+            {
+              "id": "important-word-spacing",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "word-spacing in the style attribute is not set to !important, or meets the minimum"
+            },
+            {
+              "id": "important-line-height",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "line-height in the style attribute is not set to !important, or meets the minimum"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
+          "target": [
+            "li:nth-child(2) > .trace.body-button"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "important-letter-spacing",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Letter-spacing in the style attribute is not set to !important, or meets the minimum"
+            },
+            {
+              "id": "important-word-spacing",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "word-spacing in the style attribute is not set to !important, or meets the minimum"
+            },
+            {
+              "id": "important-line-height",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "line-height in the style attribute is not set to !important, or meets the minimum"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
           ]
         }
       ]
@@ -2143,9 +3060,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -2168,9 +3085,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(2) > .trace.body-button"
           ]
         },
         {
@@ -2193,9 +3110,109 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -2225,106 +3242,6 @@
               "id": "color-contrast",
               "data": {
                 "fgColor": "#15302a",
-                "bgColor": "#fffdf2",
-                "contrastRatio": 13.83,
-                "fontSize": "11.3pt (15px)",
-                "fontWeight": "bold",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 13.83"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<span class=\"trace-title\">An orbit is not a perfect circle</span>",
-          "target": [
-            "li:nth-child(1) > .trace-card > .trace-text > .trace-title"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#0f3644",
-                "bgColor": "#fffdf2",
-                "contrastRatio": 12.61,
-                "fontSize": "8.3pt (11px)",
-                "fontWeight": "normal",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 12.61"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T12:19:20.791Z</span>",
-          "target": [
-            "li:nth-child(1) > .trace-card > .trace-text > .trace-date"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#15302a",
-                "bgColor": "#fffdf2",
-                "contrastRatio": 13.83,
-                "fontSize": "11.3pt (15px)",
-                "fontWeight": "bold",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 13.83"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<span class=\"trace-title\">A star is a balancing act</span>",
-          "target": [
-            "li:nth-child(2) > .trace-card > .trace-text > .trace-title"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#0f3644",
-                "bgColor": "#fffdf2",
-                "contrastRatio": 12.61,
-                "fontSize": "8.3pt (11px)",
-                "fontWeight": "normal",
-                "expectedContrastRatio": "4.5:1"
-              },
-              "relatedNodes": [],
-              "impact": "serious",
-              "message": "Element has sufficient color contrast of 12.61"
-            }
-          ],
-          "all": [],
-          "none": [],
-          "impact": null,
-          "html": "<span class=\"trace-date\">2026-09-20T12:19:28.397Z</span>",
-          "target": [
-            "li:nth-child(2) > .trace-card > .trace-text > .trace-date"
-          ]
-        },
-        {
-          "any": [
-            {
-              "id": "color-contrast",
-              "data": {
-                "fgColor": "#15302a",
                 "bgColor": "#33c4b4",
                 "contrastRatio": 6.51,
                 "fontSize": "9.8pt (13px)",
@@ -2339,7 +3256,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
           ]
@@ -2529,9 +3446,30 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<nav aria-label=\"Saved Traces\">",
+          "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
-            "nav"
+            ".universe-bodies-nav"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "landmark-is-unique",
+              "data": {
+                "role": "navigation",
+                "accessibleText": "main navigation"
+              },
+              "relatedNodes": [],
+              "impact": "moderate",
+              "message": "Landmarks must have a unique role or role/label/title (i.e. accessible name) combination"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+          "target": [
+            ".universe-dock"
           ]
         }
       ]
@@ -2565,7 +3503,7 @@
             }
           ],
           "impact": null,
-          "html": "<ul class=\"trace-list\">",
+          "html": "<ul>",
           "target": [
             "ul"
           ]
@@ -2657,9 +3595,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 61.04%; top: 46%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(1) > .trace-card"
+            "li:nth-child(1) > .trace.body-button"
           ]
         },
         {
@@ -2675,9 +3613,9 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"trace-card\" aria-label=\"Revisit the saved Trace: A star is a balancing act\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 31.6837%; top: 57.3077%; width: 70px; height: 70px;\">",
           "target": [
-            "li:nth-child(2) > .trace-card"
+            "li:nth-child(2) > .trace.body-button"
           ]
         },
         {
@@ -2693,9 +3631,81 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"pill teal enter-scroll\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
+          "html": "<button type=\"button\" class=\"body-button nebula\" aria-label=\"Still unexplored\" style=\"left: 88%; top: 68%; width: 46px; height: 46px;\"><span class=\"body-label\"><span class=\"body-name\">Still unexplored</span></span></button>",
+          "target": [
+            ".nebula"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
             ".pill"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
           ]
         }
       ]
@@ -2749,7 +3759,7 @@
           "impact": "serious",
           "html": "<p class=\"eyebrow\">KNOWSCROLL</p>",
           "target": [
-            ".universe-content > p"
+            ".eyebrow"
           ],
           "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
         },
@@ -2759,7 +3769,7 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "28.8pt (38.4px)",
+                "fontSize": "22.5pt (30px)",
                 "fontWeight": "bold",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "3:1"
@@ -2791,8 +3801,8 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "7.5pt (10px)",
-                "fontWeight": "bold",
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "normal",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "4.5:1"
               },
@@ -2811,11 +3821,517 @@
           "all": [],
           "none": [],
           "impact": "serious",
-          "html": "<p class=\"eyebrow\">Saved Traces</p>",
+          "html": "<p class=\"universe-subtitle\">2 kept Traces.</p>",
           "target": [
-            "nav > p"
+            ".universe-subtitle"
           ],
           "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<span class=\"body-name\">An orbit is not a perfect circle</span>",
+                  "target": [
+                    "li:nth-child(1) > .trace.body-button > .body-label > .body-name"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"body-name\">An orbit is not a perfect circle</span>",
+          "target": [
+            "li:nth-child(1) > .trace.body-button > .body-label > .body-name"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "7.5pt (10px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"body-sub\">SEP 20</span>",
+          "target": [
+            "li:nth-child(1) > .trace.body-button > .body-label > .body-sub"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<span class=\"body-name\">A star is a balancing act</span>",
+                  "target": [
+                    "li:nth-child(2) > .trace.body-button > .body-label > .body-name"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"body-name\">A star is a balancing act</span>",
+          "target": [
+            "li:nth-child(2) > .trace.body-button > .body-label > .body-name"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "7.5pt (10px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"body-sub\">SEP 20</span>",
+          "target": [
+            "li:nth-child(2) > .trace.body-button > .body-label > .body-sub"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<span class=\"body-name\">Still unexplored</span>",
+                  "target": [
+                    ".nebula > .body-label > .body-name"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"body-name\">Still unexplored</span>",
+          "target": [
+            ".nebula > .body-label > .body-name"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span><i class=\"legend-dot\"></i> Your paths</span>",
+          "target": [
+            ".universe-legend > span:nth-child(1)"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "8.3pt (11px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span><i class=\"legend-ring\"></i> Still unexplored</span>",
+          "target": [
+            ".universe-legend > span:nth-child(2)"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.4pt (12.5px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<p class=\"universe-hint\">Tap a Trace to revisit it</p>",
+          "target": [
+            ".universe-hint"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.0pt (12px)",
+                "fontWeight": "normal",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<p class=\"cta-helper\">A familiar impulse. Somewhere new to go.</p>",
+          "target": [
+            ".cta-helper"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "7.9pt (10.5px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+                  "target": [
+                    ".universe-dock"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Cable — read a Scroll\"><span class=\"dock-icon\" aria-hidden=\"true\">〜</span>Cable</button>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "13.5pt (18px)",
+                "fontWeight": "bold",
+                "messageKey": "shortTextContent",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+                  "target": [
+                    ".universe-dock"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element content is too short to determine if it is actual text content"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">〜</span>",
+          "target": [
+            "button[aria-label=\"Cable — read a Scroll\"] > .dock-icon[aria-hidden=\"true\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element content is too short to determine if it is actual text content"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "7.9pt (10.5px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+                  "target": [
+                    ".current"
+                  ]
+                },
+                {
+                  "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+                  "target": [
+                    ".universe-dock"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<button type=\"button\" class=\"dock-button current\" aria-current=\"page\" aria-label=\"Atlas — your universe\"><span class=\"dock-icon\" aria-hidden=\"true\">◎</span>Atlas</button>",
+          "target": [
+            ".current"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "messageKey": "nonBmp"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element content contains only non-text characters"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">◎</span>",
+          "target": [
+            ".current > .dock-icon[aria-hidden=\"true\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element content contains only non-text characters"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "7.9pt (10.5px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<nav class=\"universe-dock\" aria-label=\"Main navigation\">",
+                  "target": [
+                    ".universe-dock"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<button type=\"button\" class=\"dock-button\" aria-label=\"Keep — your saved Traces\"><span class=\"dock-icon\" aria-hidden=\"true\">▱</span>Keep</button>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "messageKey": "nonBmp"
+              },
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element content contains only non-text characters"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<span class=\"dock-icon\" aria-hidden=\"true\">▱</span>",
+          "target": [
+            "button[aria-label=\"Keep — your saved Traces\"] > .dock-icon[aria-hidden=\"true\"]"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element content contains only non-text characters"
         }
       ]
     }

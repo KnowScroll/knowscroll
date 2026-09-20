@@ -1,6 +1,14 @@
 {
   "journey": "web-reader-92",
-  "startedAt": "2026-09-20T17:04:07.871Z",
-  "error": "error: password authentication failed for user \"knowscroll_lane_112\"",
-  "databaseDropped": false
+  "startedAt": "2026-09-20T17:41:36.296Z",
+  "database": "knowscroll_test_05fb15d934611202",
+  "apiPort": 51791,
+  "faultProxyPort": 51807,
+  "webPort": 51808,
+  "devAuthProxySmokeCheck": "passed (unauthenticated /v1/session via proxy returned 200)",
+  "playwright": {
+    "result": "passed"
+  },
+  "finishedAt": "2026-09-20T17:42:06.699Z",
+  "databaseDropped": true
 }
