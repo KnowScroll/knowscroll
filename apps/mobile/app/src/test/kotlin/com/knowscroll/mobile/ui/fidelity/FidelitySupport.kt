@@ -72,3 +72,10 @@ internal fun findMobileModuleFile(relativeToModuleRoot: String): File {
             (System.getProperty("user.dir") ?: "?")
     )
 }
+
+/** Where [ScreenshotEvidenceTest] writes its rasterized PNGs -- the module's own build output,
+ * kept out of source control by Gradle's default `.gitignore`. #111's evidence README copies the
+ * files it wants from here into docs/journeys/evidence/android-ui/ after the run; the test itself
+ * never writes into docs/ directly, so a JVM test run has no side effect on tracked files. */
+internal fun evidenceOutputDir(): File =
+    File(findMobileModuleFile("app/build.gradle.kts").parentFile, "build/roborazzi-evidence")
