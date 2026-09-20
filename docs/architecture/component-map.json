@@ -84,7 +84,7 @@
       "component": "Inventory / Content Plane",
       "responsibility": "Asset revisions, rights, eligibility and private binding",
       "path": "content",
-      "status": "publication-gates-and-media-serving-contract-accepted-implementation-pending",
+      "status": "publication-gates-and-authenticated-media-serving-implemented-j006-verified; witness-gate-unavailable-so-no-real-eligibility; feed-binding-and-selection-pending",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/8"
     },
     {

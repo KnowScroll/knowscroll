@@ -80,3 +80,34 @@ structural fact, not what a real witness implementation would eventually decide.
 trip authenticates with the API's own bootstrap development identity
 ([bootstrap-http.md](../../contracts/bootstrap-http.md)), a local-development mechanism, not a
 production authentication claim. No owner deployment or owner acceptance is proved or claimed here.
+
+## Coordinator verification and review fixes (2026-09-20)
+
+Independent review returned accept-with-fixes. All three findings are addressed here:
+
+1. **(major) The ADR diverged from the gate that matters.** ADR-0024 said the repetition gate compares
+   against "the eligible corpus", while the implementation compares against every other Reel that
+   already carries fingerprints. The implementation is right — an eligible-only corpus is permanently
+   empty while the witness gate blocks eligibility, so the gate would be inert exactly when it is
+   needed. The ADR now says what the gate does, including that a match on *either* fingerprint fails,
+   and records that the text followed the implementation rather than the reverse.
+2. **(minor)** The component-map status now names what exists (gates and serving implemented and
+   J006-verified, witness unavailable so no real eligibility) instead of reading as "nothing built".
+3. **(nit)** The media profile is no longer duplicated: `import.ts` exports `MEDIA_PROFILE` and the
+   `media_conformance` gate re-checks against that single definition, so the import-time profile and
+   the gate cannot drift apart.
+
+Coordinator runs on this lane:
+
+- `pnpm typecheck` clean.
+- `tests/publication-{guards,gates,http}.test.ts` together on one disposable database — **38/38**.
+- `pnpm exec tsx scripts/run-publication-journey.ts` (J006) — **16/16**, including the database
+  refusing a direct SQL attempt to hand-set `eligible` ("A Reel is eligible only when every required
+  gate passed"), the worker's automatic decision stopping at `imported`, `test_eligible` reached only
+  inside the disposable database, whole-body and Range reads byte-identical to the stored file, and
+  the simulated-media marker present.
+- Full backend `pnpm test` — **577 + 12 passing**.
+
+Unchanged limits: no witness, so no generated Reel can be eligible in a real universe; no feed,
+binding, selection, correction propagation, media retention or playback; stand-in media only, in a
+disposable database.

@@ -42,11 +42,19 @@ Deterministic, model-free, and computed from data KnowScroll already holds:
   hash to `sha256`, and its probe still matches the required profile.
 - **truth_label** — truth state `synthesis` with the generated label set.
 - **repetition** — template and argument fingerprints computed from the brief's structure, compared
-  against the eligible corpus; an empty corpus passes trivially and the fingerprints are stored so a
-  second, near-identical Reel does not.
+  against **every other Reel that already carries fingerprints**, whatever its availability. An
+  eligible-only corpus would be permanently empty while the witness gate blocks eligibility, so the
+  gate would be inert exactly when it is needed; comparing against all fingerprinted Reels is what
+  actually stops a second, near-identical one. A match on *either* fingerprint fails the gate, since
+  repeated structure and a repeated argument are separate slop symptoms. An empty corpus passes and
+  the fingerprints are written once.
 - **witness_alignment** — **required and structurally unavailable.** No vision model exists to make
   this observation, so the gate records `unavailable` with that reason and blocks eligibility. It is
   not stubbed as passing, and no default makes it optional.
+
+The repetition gate's corpus scope and its either-fingerprint rule were corrected here after
+implementation: this ADR first said "the eligible corpus", which the independent review flagged as
+diverging from what the gate must do to have any effect. The rule follows the implementation.
 
 ### 3. The stand-in fence is enforced by the database, not by discipline
 

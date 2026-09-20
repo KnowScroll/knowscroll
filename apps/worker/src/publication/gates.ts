@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { GenerationBrief } from '../../../../packages/contracts/src/generation.ts';
 import { checkRegularFile, readMp4BoxOrder } from '../generation/media-store.ts';
+import {MEDIA_PROFILE} from '../generation/import.ts';
 import type { PublicationGateName, PublicationGateVerdict } from '../../../../packages/contracts/src/publication.ts';
 
 const execFileAsync = promisify(execFile);
@@ -167,10 +168,12 @@ export function evaluateEngineRecord(input: EngineRecordInput): GateOutcome {
 // than imported from apps/worker/src/generation/import.ts, which does not export it and is not
 // this lane's file to change) because this gate must be able to re-check a CURRENT profile even if
 // import-time policy later diverges from it; see docs/journeys/J006.md for the note this leaves.
-const ASPECT_TARGET = 9 / 16;
-const ASPECT_TOLERANCE_RATIO = 0.02;
-const MIN_DURATION_SECONDS = 5;
-const MAX_DURATION_SECONDS = 120;
+// Re-checking what import enforced means using import's own profile, not a second copy of it:
+// a change to the import-time profile must move this gate with it.
+const ASPECT_TARGET = MEDIA_PROFILE.aspectTarget;
+const ASPECT_TOLERANCE_RATIO = MEDIA_PROFILE.aspectToleranceRatio;
+const MIN_DURATION_SECONDS = MEDIA_PROFILE.minDurationSeconds;
+const MAX_DURATION_SECONDS = MEDIA_PROFILE.maxDurationSeconds;
 
 interface FfprobeStream { codec_type?: string; codec_name?: string; width?: number; height?: number }
 interface FfprobeFormat { format_name?: string; duration?: string; tags?: { major_brand?: string } }
