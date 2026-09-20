@@ -40,6 +40,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0024 — Publication gates, eligibility and media serving](0024-publication-gates-and-media-serving.md): recorded gate verdicts derive eligibility; the Visual Witness gate is required and structurally unavailable; stand-in media can only be eligible inside a disposable test database.
 
+- [ADR-0025 — A gated Reel becomes inventory](0025-eligible-reels-in-inventory.md): publication mints an `asset` of kind Reel from a gated generated Reel; the feed offers Reels only to clients that ask for them.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
