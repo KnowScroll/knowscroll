@@ -81,10 +81,28 @@ session — they are how one is obtained.
   consumption reuses that same universe — the database refuses to ever re-bind it to a different
   account.
 
-Delivery is a port (`apps/api/src/magic-link-sender.ts`): this slice ships exactly one
-implementation, a development sink that writes the confirmation link (never the address) to a
-single fixed, mode-0600 file at `$KS_DEV_ROOT/sign-in/magic-link.txt`, overwritten atomically and
-holding only the most recent link. A `NODE_ENV=production` process refuses this sender outright —
-no real provider is implemented, and no provider credential belongs in this repository — which is
-redundant with, but independent of, `apps/api/src/main.ts` already refusing to start any
-production-mode process at all.
+Delivery is a port (`apps/api/src/magic-link-sender.ts`) with two implementations, chosen by
+`KS_MAIL_SENDER` ([ADR-0027](../decisions/0027-agentmail-magic-link-delivery.md); operator setup in
+[magic-link-delivery.md](../operations/magic-link-delivery.md)):
+
+- `dev-sink` (the default outside production): a development sink that writes the confirmation link
+  (never the address) to a single fixed, mode-0600 file at `$KS_DEV_ROOT/sign-in/magic-link.txt`,
+  overwritten atomically and holding only the most recent link.
+- `agentmail`: `AgentMailSender` (`apps/api/src/agentmail-sender.ts`) — one
+  `POST /v0/inboxes/{inbox}/messages/send` to the real AgentMail API with `Authorization: Bearer
+  <AGENTMAIL_API_KEY>` and a strict `{to,subject,text,html}` body (the link appears in both `text`
+  and `html`); a bounded timeout, a bounded response read, no automatic retry and no redirect ever
+  followed. A non-2xx status, a connection refusal, a timeout, or a 2xx response whose body does not
+  parse or lacks a `message_id` are all delivery failures.
+
+Either way, a delivery failure changes neither this route's `202` status nor its body — the same
+no-enumeration guarantee this section already states now extends to delivery itself. A failure is
+recorded for the operator as one structured line on stderr (status code, a short fixed-vocabulary
+reason, a provider message id when one exists) and **never** the address, the token, the link or the
+key; see [magic-link-delivery.md](../operations/magic-link-delivery.md) for the exact shape.
+
+A `NODE_ENV=production` process requires `KS_MAIL_SENDER=agentmail` fully configured (its key and
+inbox both present) and **never falls back** to the development sink — a deployment that cannot send
+real mail refuses to start rather than quietly writing links to a local file. This is redundant with,
+but independent of, `apps/api/src/main.ts` already refusing to start any production-mode process at
+all.
