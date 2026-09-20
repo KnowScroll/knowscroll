@@ -107,3 +107,34 @@ product-facing journey, publication, eligibility or playback (ADR-0023 section 4
 this slice at `availability:'imported'` only); owner deployment or acceptance; live-provider cost
 behavior (no live grant was created or exercised — the database's 200-cent live cap is enforced by
 migration 0013's own trigger, proven in `tests/generation-contract.test.ts`, not by this journey).
+
+## Coordinator verification and the overage fix (2026-09-20)
+
+The independent review of this slice found a real defect in the coordinator's own contract: a
+reported cost above a job's ceiling could not be represented, so settlement would throw *after* the
+media rows had committed and the job would retry that same failing settlement forever. ADR-0012 is
+explicit that real usage is never clamped to a reservation.
+
+Fixed in migration 0013 (never applied outside disposable databases) and the runtime at `615d958`:
+reservations are bounded by the cap; settlement may push spend past it only by recording the same
+amount as `overage_cents`, which requires `admission_paused_at`; an overage never shrinks and a
+paused grant with one cannot be silently unpaused; the admission guard now requires a job's budget to
+be reserved already on an unpaused grant; and the worker parks such a job `needs_operator` with its
+asset still durably recorded instead of completing as though the budget had held.
+
+Coordinator runs at `615d958a7724b74c7fbff9db1c70becca3224706`, after merging current main into this lane:
+
+- `pnpm typecheck` — clean.
+- Four generation suites together against one disposable database — **60/60**, including the new
+  over-budget settlement test and the schema-level overage/pause guards.
+- `pnpm exec tsx scripts/run-generation-journey.ts` (J005) — **6/6 scenarios PASS**, receipt
+  `generation-journey-2026-09-20T00-43-36-507Z.json`: happy path with a real imported MP4, worker
+  crash reconciled by the original request id, Cutroom host restart mid-run, operator cancel,
+  containment-refused import left honestly unfinished, and clean teardown with the owner-local
+  engine (pids 6937/6939) and the pinned runtime untouched.
+- Full backend `pnpm test` — **539/539**.
+
+Two fixture corrections were needed alongside the guard: the import lane's job fixtures now reserve
+before inserting (as the real caller does), and the over-budget test registers its engine with the
+test's own artifact root. Evidence level is unchanged: real local service with upstream stand-in
+providers — **not real generation**, and nothing here is eligible, published or playable.
