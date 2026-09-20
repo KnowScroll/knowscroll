@@ -13,6 +13,7 @@ import {
   requesterFingerprint,
 } from '../../../packages/db/src/sign-in.ts';
 import { createMagicLinkSender, type MagicLinkSender } from './magic-link-sender.ts';
+import { describeSendFailure } from './agentmail-sender.ts';
 import { HttpError } from './errors.ts';
 
 function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
@@ -42,13 +43,18 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
     if (issued) {
       const link = `${resolveApiBaseUrl()}/v1/auth/confirm?token=${encodeURIComponent(issued.token)}`;
       // Best-effort delivery, exactly like a real mail provider: a send failure (including a
-      // misconfigured sink) never distinguishes this response from any other — it is swallowed
-      // here rather than surfaced as a 500 only reachable on the owner-address path. Never log the
-      // address or the token; this message names neither.
+      // misconfigured sink or a rejected AgentMail request) never distinguishes this response from
+      // any other — it is swallowed here rather than surfaced as a 500 only reachable on the
+      // owner-address path (ADR-0027 section 3). The app's own Fastify logger is disabled
+      // (`Fastify({logger:false})` in app.ts), so this writes a structured line to stderr instead —
+      // the same convention `apps/worker/src/**/main.ts` already uses for operator-visible events.
+      // `describeSendFailure()` is the *only* thing ever read off `error`: a closed shape of
+      // httpStatus/reason/messageId that is safe by construction, never `error.message` or a stack,
+      // and never the address, the token or the link this route just built.
       try {
         await resolvedSender().send({ to: parsed.data.email, link });
-      } catch {
-        req.log?.warn?.('magic-link sender failed');
+      } catch (error) {
+        console.error(JSON.stringify({ service: 'api', event: 'magic_link_send_failed', ...describeSendFailure(error) }));
       }
     }
     return reply.code(202).send({ status: 'requested' });
