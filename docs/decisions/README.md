@@ -46,6 +46,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0027 — Magic links are delivered through AgentMail](0027-agentmail-magic-link-delivery.md): one send attempt, key only in the process environment, failures never become an address oracle, and the loop is proved by reading the inbox back.
 
+- [ADR-0028 — Evidence-backed semantic worlds](0028-evidence-backed-worlds.md): a world is the set of assets sharing one recorded source, a system is the worlds one universe's reader has actually encountered, both recompute from `asset`/`exposure` alone, and the database refuses a world or system that names no evidence. Contract only; no consumer yet.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

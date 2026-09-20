@@ -15,6 +15,7 @@ import {
 import { compose } from '../../../packages/core/src/composer.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
+import { SHARED_SOURCE_V1, projectWorldsForEncounter, readWorldSystem } from '../../../packages/db/src/worlds.ts';
 import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
 import { registerSignInRoutes } from './sign-in-routes.ts';
@@ -195,10 +196,20 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       const eventId = randomUUID();
       await client.query('INSERT INTO ledger(id,universe_id,kind,client_key,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6)', [eventId, scope.universeId, 'exposure', body.clientExposureId, JSON.stringify({ ...body, exposureId }), scope.privacyEpoch]);
       await client.query('INSERT INTO exposure(id,universe_id,decision_id,asset_id,event_id,client_key) VALUES($1,$2,$3,$4,$5,$6)', [exposureId, scope.universeId, body.decisionId, body.assetId, eventId, body.clientExposureId]);
+      // ADR-0028: a reader encountering more is exactly what keeps their world/system current.
+      // Runs inside this same transaction, under the universe lock `authenticateAndLock` already
+      // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
+      // is the one deterministic projection step that must never lag behind it.
+      await projectWorldsForEncounter(client, scope.universeId);
       return { exposureId, eventId };
     });
     return reply.code(201).send(result);
   });
+
+  app.get('/v1/worlds', async req => authenticated(req.headers.authorization, async (scope, client) => {
+    const system = await readWorldSystem(client, scope.universeId);
+    return { derivationMethod: SHARED_SOURCE_V1, system };
+  }));
 
   app.post('/v1/interactions', async (req, reply) => {
     const result = await authenticated(req.headers.authorization, async (scope, client) => {
