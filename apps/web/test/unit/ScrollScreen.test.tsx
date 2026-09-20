@@ -31,7 +31,12 @@ describe('ScrollScreen', () => {
         onReadingPosition={vi.fn()}
       />,
     );
-    expect(screen.getByText(/DOCUMENTED/)).toBeInTheDocument();
+    // #112: the truth state now appears twice by design -- the in-article
+    // pill adjacent to the claim (definition.md law 13) and the reader's
+    // headline state pill in the head band (ui-system.md sec.5b, Cosmos's
+    // own "checked out · N sources" pill) -- so this asserts at least one
+    // rather than a single unique match.
+    expect(screen.getAllByText(/DOCUMENTED/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Directly supported by strong cited evidence/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Why this appeared' }));
