@@ -108,6 +108,30 @@ position inside its own 200ms debounce.
 window loses it. Pre-existing, unchanged by this slice, and not worth a synchronous write on every
 scroll event.
 
+## Third round: the same mistake twice, and the rule that ended it
+
+Review rejected the second round too, with two findings, both against the coordinator's own fixes.
+
+1. **The source sheet clipped where the rail no longer did.** `.context-rail` was bounded; `.source-sheet`
+   was not. With the real editorial source strings, "Open source" fell outside the clipped stage at
+   1440×420, 1280×420, 1024×420 and 900×420 — ordinary short laptop windows. It looked reachable to a
+   test because Playwright's `scrollIntoViewIfNeeded` will scroll an `overflow:hidden` ancestor; a
+   mouse-only reader has no scrollbar and simply never sees it. Evidence access is law 9, so this was the
+   point of the surface going missing. The sheet is now bounded like the rail.
+2. **The cascade bug was recreated while fixing the cascade bug.** The new `≤700px` `.reading-column`
+   override sat before the unconditional rule, so it never applied — the same defect as the dead rail
+   collapse, one element over. Nothing broke only because scroll chaining covered it, which meant the
+   real behaviour was a nested double scrollbar rather than the single flowing stage the code claimed.
+
+The fix is structural rather than local: **every base rule for a grid child (`.context-rail`,
+`.reading-column`, `.source-sheet`) now sits above the media queries that narrow it.** Declaring one
+afterwards wins the cascade and silently kills the override, which is what produced both findings.
+
+**These tests were verified red before green.** The whole journey was re-run against the pre-fix
+stylesheet: **4 failed / 31 passed**, every failure the same assertion, `clip content out of reach
+(sources open)`, at the four 420-height widths. With the fix: **35/35**. Recorded because one earlier
+case (`1024×560`) turned out not to discriminate, and an undiscriminating test is not evidence.
+
 ## Deviations from `docs/product/ui-system.md`, and why
 
 1. **Orange pill text is ink, not white.** Cosmos's literal `.btn.orange`/`.pill.red` recipes pair

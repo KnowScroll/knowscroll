@@ -499,6 +499,32 @@ a:focus-visible,
   overflow-y: auto;
 }
 
+.reading-column {
+  min-width: 0;
+  /* The article itself (not an ancestor) owns the scroll position, so
+     `node.scrollTop` in ScrollScreen.tsx keeps meaning reading position
+     persistence exact -- a deliberate departure from Living Observatory's
+     literal CSS, which scrolls the outer grid instead of the reader. */
+  height: 100%;
+  overflow-y: auto;
+}
+.source-sheet {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 20px 22px;
+  align-self: start;
+  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Bounded and scrollable for the same reason as the rail beside it: the
+     stage is clipped at 100vh, so an unbounded sheet puts "Open source" below
+     the bottom edge with no scrollbar to reach it. A mouse-only reader would
+     simply never see the evidence. */
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 @media (max-width: 1050px) {
   .scroll-layout {
     grid-template-columns: minmax(170px, 1fr) minmax(280px, 700px) minmax(170px, 1fr);
@@ -531,15 +557,6 @@ a:focus-visible,
   }
 }
 
-.reading-column {
-  min-width: 0;
-  /* The article itself (not an ancestor) owns the scroll position, so
-     `node.scrollTop` in ScrollScreen.tsx keeps meaning reading position
-     persistence exact -- a deliberate departure from Living Observatory's
-     literal CSS, which scrolls the outer grid instead of the reader. */
-  height: 100%;
-  overflow-y: auto;
-}
 .reading-column h2 {
   font-size: 40px;
   line-height: 1.08;
@@ -633,15 +650,6 @@ a:focus-visible,
 }
 
 /* Source panel: a cream sheet flanking the stage. */
-.source-sheet {
-  background: var(--cream);
-  color: var(--ink);
-  border-radius: 22px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-  padding: 20px 22px;
-  align-self: start;
-  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
 .source-sheet-header {
   display: flex;
   justify-content: space-between;

@@ -76,11 +76,23 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
   // desktop windows, not edge cases: a short laptop window, and a narrow one
   // below the rail-collapse breakpoint.
   const crampedViewports = [
+    { name: '1440x420', width: 1440, height: 420 },
     { name: '1280x420', width: 1280, height: 420 },
+    { name: '1024x420', width: 1024, height: 420 },
+    { name: '900x420', width: 900, height: 420 },
     { name: '1024x560', width: 1024, height: 560 },
     { name: '700x560', width: 700, height: 560 },
     { name: '650x420', width: 650, height: 420 },
   ];
+
+  /** The invariant that matters: nothing may sit outside the clipped stage,
+   *  where a mouse-only reader has no scrollbar to reach it. Playwright's own
+   *  `scrollIntoViewIfNeeded` can scroll an `overflow:hidden` ancestor, so
+   *  "the control is in the viewport" is not on its own proof of reachability. */
+  const expectNothingClipped = async (page: import('@playwright/test').Page, where: string) => {
+    const clipped = await page.locator('.scroll-screen').evaluate(n => n.scrollHeight > n.clientHeight + 1);
+    expect(clipped, `.scroll-screen must never clip content out of reach (${where})`).toBe(false);
+  };
 
   for (const viewport of crampedViewports) {
     test(`every control stays reachable at ${viewport.name}`, async ({ page }) => {
@@ -97,20 +109,26 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       // must not grow past the bottom of a clipped screen. Below it the rail is
       // collapsed by design and the whole stage flows instead, so the source
       // sheet is what has to stay reachable.
+      await expectNothingClipped(page, 'reading');
+
+      // Both sheets, not just the one that was fixed first. The source sheet
+      // carries evidence access (definition.md law 9), so a reader who cannot
+      // see "Open source" has lost the point of the surface.
       if (viewport.width > 700) {
         await page.getByRole('button', { name: 'Why this appeared' }).click();
-        const why = page.getByText('No explanation recorded.');
-        await why.scrollIntoViewIfNeeded();
-        await expect(why).toBeInViewport();
+        await expect(page.getByText('No explanation recorded.')).toBeVisible();
+        await expectNothingClipped(page, 'why-this open');
+        await page.getByRole('button', { name: 'Why this appeared' }).click();
       } else {
         await expect(page.locator('.context-rail')).toBeHidden();
-        await page.keyboard.press('s');
-        const link = page.getByRole('link', { name: /Open source/ });
-        await link.scrollIntoViewIfNeeded();
-        await expect(link).toBeInViewport();
       }
-      const clipped = await page.locator('.scroll-screen').evaluate(n => n.scrollHeight > n.clientHeight + 1);
-      expect(clipped, '.scroll-screen must never clip content out of reach').toBe(false);
+
+      await page.keyboard.press('s');
+      const link = page.getByRole('link', { name: /Open source/ });
+      await expect(link).toBeVisible();
+      await expectNothingClipped(page, 'sources open');
+      await link.scrollIntoViewIfNeeded();
+      await expect(link).toBeInViewport();
     });
   }
 
