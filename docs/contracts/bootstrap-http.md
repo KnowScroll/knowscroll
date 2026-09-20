@@ -1,8 +1,8 @@
 # Bootstrap HTTP contract v1
 
-Status: local development only. [ADR-0009](../decisions/0009-device-sessions-and-privacy-epochs.md) defines operator-provisioned device sessions and privacy epoch fences; production login and public enrollment remain future work.
+Status: local development only. [ADR-0009](../decisions/0009-device-sessions-and-privacy-epochs.md) defines operator-provisioned device sessions and privacy epoch fences; [ADR-0026](../decisions/0026-magic-link-single-user-identity.md) adds real single-owner email magic-link sign-in on top of the same session shape. Production deployment and sign-in UI on either surface remain future work.
 
-Base URL: http://127.0.0.1:4310. Android emulator uses http://10.0.2.2:4310. All /v1 endpoints require `Authorization: Bearer <session token>`. The existing `KS_DEV_TOKEN` enrolls once as an ordinary expiring, revocable owner session. Tokens are local configuration, never committed. JSON uses camelCase, UUID identifiers and ISO timestamps. Backend resolves universe identity from the session; clients cannot pick another universe.
+Base URL: http://127.0.0.1:4310. Android emulator uses http://10.0.2.2:4310. All /v1 endpoints require `Authorization: Bearer <session token>`. **`KS_DEV_TOKEN` (deprecated):** enrolls once as an ordinary expiring, revocable owner session; kept working for existing local tooling and journeys, and — like every path in this file — refused outright because `apps/api/src/main.ts` refuses to start any `NODE_ENV=production` process at all. Real sign-in (below) is the production-track identity path. Tokens are local configuration, never committed. JSON uses camelCase, UUID identifiers and ISO timestamps. Backend resolves universe identity from the session; clients cannot pick another universe.
 
 - GET /health → {status:"ok", database:true}
 - GET /v1/session → {sessionId,deviceId,universeId,privacyEpoch:number,expiresAt}
@@ -34,3 +34,57 @@ Mobile reads title/summary/body/sources; Source opens the actual URL. Home begin
 A successful response carries `Content-Type: video/mp4`, `Accept-Ranges: bytes`, `Content-Length` and `Cache-Control: private, max-age=31536000, immutable` (content-addressed bytes for a given sha256 never change). `Range: bytes=<start>-<end>` (open-ended and suffix forms both supported; exactly one range per request) returns `206` with `Content-Range: bytes <start>-<end>/<size>`; an unsatisfiable or malformed range returns `416` with `Content-Range: bytes */<size>`. `HEAD` returns the same headers with no body.
 
 A response for a `test_eligible` (stand-in) asset always carries `X-KnowScroll-Media-Simulated: true`; this header is never present on a genuine `eligible` response, so no client can mistake stand-in media for real. When the same content-addressed bytes are reachable through more than one `generated_reel` row, an `eligible` reference always wins over a `test_eligible` one for this marker: real content is never mislabelled simulated.
+
+## Sign-in (magic link)
+
+[ADR-0026](../decisions/0026-magic-link-single-user-identity.md): v1 has exactly one account, the
+owner's, enforced by a single-row database index. None of these three routes require an existing
+session — they are how one is obtained.
+
+- `POST /v1/auth/magic-link` body `{email: string}` (a strict, single-field body — any other shape
+  is `400`) → **always `202` `{status:"requested"}`, for every syntactically accepted address,
+  known or unknown.** Only the address configured as `KS_OWNER_EMAIL` (normalised: trimmed,
+  lowercased) ever produces a token, creating the single account on first use; every other address
+  performs one comparable, side-effect-free lookup and nothing more. Nothing in the response, the
+  status code or (deliberately) the database work distinguishes the two cases. Rate-limited per
+  account and per a coarse, salted requester fingerprint (never the raw address or IP), enforced in
+  the same transaction that would insert the token: at most 20 tokens per account and 40 per
+  fingerprint in a rolling 15-minute window (matching the token's own lifetime) — generous enough
+  for a real owner's legitimate retries, since `sign_in_token` rows are never deleted or backdated
+  and so this is a genuine running total for the window's whole real duration, while still bounding
+  an attacker who has the address but not the mailbox — serialized with a database advisory lock so
+  two concurrent requests cannot both squeeze past the last slot.
+  Exceeding either limit is silently absorbed into the same `202` — a rate-limited request never
+  gets a link, but never learns that either. A send failure (including a misconfigured local sink)
+  is likewise swallowed behind the same `202`, exactly like a real mail provider's best-effort
+  delivery. **The address and the issued token are never logged or written anywhere except the
+  one-time hash stored in `sign_in_token.token_hash`.**
+- `GET /v1/auth/confirm?token=<opaque>` → `200 {valid: boolean}`. **Never consumes the token** and
+  is safe to call any number of times — an email client or scanner that prefetches the link cannot
+  burn it or sign anyone in. `valid:true` means an unexpired, unconsumed `sign_in` token exists for
+  that exact secret; this backend response is the entire "confirmation surface" this slice ships —
+  actual sign-in UI on either client surface is later work. A missing/empty `token` query parameter
+  is `400`; any other string (right or wrong) is looked up and answered `valid:false` if it does not
+  match, with no further distinction.
+- `POST /v1/auth/session` body `{token: string}` → consumes the token **exactly once**, under a row
+  lock, and mints a normal device session exactly like `KS_DEV_TOKEN` enrollment does — same
+  `device_session` table, same expiry (30 days, matching `provisionIdentity`'s default), same
+  revocation and privacy-epoch fencing — except `origin:"magic_link"` and a non-null `account_id`.
+  `200 {sessionToken, sessionId, deviceId, universeId, privacyEpoch, expiresAt, accountId,
+  origin:"magic_link"}`; use `sessionToken` as the bearer for every other route in this file exactly
+  like a `KS_DEV_TOKEN`-enrolled token. **Expired, already-consumed, unknown, tampered/malformed and
+  any missing-or-wrong-shaped body all produce the identical `401 {"error":"Unauthorized"}` this
+  file's other routes already use for a bad session** — there is no separate 400 path for this
+  route, so a malformed request is never distinguishable from an expired or replayed token. The
+  *first* successful consumption for the one account adopts KnowScroll's existing bootstrap
+  universe (so the owner's pre-sign-in history becomes theirs, not an orphan); every later
+  consumption reuses that same universe — the database refuses to ever re-bind it to a different
+  account.
+
+Delivery is a port (`apps/api/src/magic-link-sender.ts`): this slice ships exactly one
+implementation, a development sink that writes the confirmation link (never the address) to a
+single fixed, mode-0600 file at `$KS_DEV_ROOT/sign-in/magic-link.txt`, overwritten atomically and
+holding only the most recent link. A `NODE_ENV=production` process refuses this sender outright —
+no real provider is implemented, and no provider credential belongs in this repository — which is
+redundant with, but independent of, `apps/api/src/main.ts` already refusing to start any
+production-mode process at all.
