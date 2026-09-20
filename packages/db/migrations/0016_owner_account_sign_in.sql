@@ -36,7 +36,11 @@ CREATE TABLE sign_in_token (
  purpose text NOT NULL CHECK (purpose = 'sign_in'),
  /** A coarse, salted fingerprint of the requester, for rate limiting only. Never an address. */
  requester_fingerprint text CHECK (requester_fingerprint IS NULL OR requester_fingerprint ~ '^[0-9a-f]{64}$'),
- created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ /** `now()` (transaction start), not `clock_timestamp()`: the ceiling below compares this column
+   * with the inserted expiry, and a volatile clock evaluated twice in one statement can differ by
+   * microseconds, which would reject a correct 15-minute token by a hair. Both sides must come
+   * from the same instant for the bound to mean exactly what it says. */
+ created_at timestamptz NOT NULL DEFAULT now(),
  expires_at timestamptz NOT NULL,
  consumed_at timestamptz,
  consumed_session_id uuid REFERENCES device_session(id),

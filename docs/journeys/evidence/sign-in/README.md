@@ -99,3 +99,15 @@ value. A test must not pass or fail because of what happens to be configured on 
 suites now set their own fixture address (`owner@knowscroll.test`) and never read operator
 configuration. Reproduced the CI condition locally by running with `KS_OWNER_EMAIL` removed from the
 environment: 23/23.
+
+### A second CI failure exposed a real flake in the schema (2026-09-20)
+
+The next CI run failed inside `requestMagicLink` itself: `new row for relation "sign_in_token"
+violates check constraint`. `clock_timestamp()` is volatile, so `created_at`'s default and the
+expiry expression were evaluated at two different instants within one statement; when the second
+landed microseconds later, a correct 15-minute token exceeded the `expires_at <= created_at + 15
+minutes` ceiling by a hair and was rejected. That is production code, not a test artefact — it would
+have refused a real sign-in at random.
+
+Both sides now come from one transaction timestamp (`now()`), so the bound means exactly what it
+says. Verified by running the sign-in suites three times on fresh databases: 23/23 each time.

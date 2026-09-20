@@ -167,7 +167,7 @@ export async function requestMagicLink(
 
   await client.query(
     `INSERT INTO sign_in_token(id,account_id,token_hash,purpose,requester_fingerprint,expires_at)
-     VALUES($1,$2,$3,'sign_in',$4,clock_timestamp() + ($5::int * interval '1 minute'))`,
+     VALUES($1,$2,$3,'sign_in',$4,now() + ($5::int * interval '1 minute'))`,
     [randomUUID(), account.id, hashed, input.requesterFingerprint, SIGN_IN_TOKEN_TTL_MINUTES],
   );
   return { token: rawToken, accountId: account.id };
