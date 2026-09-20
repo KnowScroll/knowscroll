@@ -38,6 +38,8 @@ Read the relevant decision before changing its boundary. These choices were made
 
 - [ADR-0023 — Generated Reel supply](0023-generated-reel-supply.md): editorial briefs over sourced Scrolls, guarded budget grants and Cutroom attempts, verified local-host import; nothing eligible or published.
 
+- [ADR-0024 — Publication gates, eligibility and media serving](0024-publication-gates-and-media-serving.md): recorded gate verdicts derive eligibility; the Visual Witness gate is required and structurally unavailable; stand-in media can only be eligible inside a disposable test database.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

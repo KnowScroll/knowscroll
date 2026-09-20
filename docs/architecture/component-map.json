@@ -84,7 +84,7 @@
       "component": "Inventory / Content Plane",
       "responsibility": "Asset revisions, rights, eligibility and private binding",
       "path": "content",
-      "status": "editorial-library-only",
+      "status": "publication-gates-and-media-serving-contract-accepted-implementation-pending",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/8"
     },
     {
