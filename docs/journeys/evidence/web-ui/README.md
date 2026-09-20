@@ -247,6 +247,18 @@ fresh-measurement-per-call design handles "short when wide, long when narrow" co
     on the true centre of the stage, which is what sec.4 asks for, at the cost of a reserved gutter on
     each side. No other value changed.
 
+## Known and accepted, in the persistence story
+
+- **A 200ms debounce window.** Position is written 200ms after scrolling stops, so a reload inside that
+  window loses it, at every width. A synchronous write on every scroll event would cost more than it saves.
+- **A reload at a different width than the last save.** Depth migrates across a change of scroll owner
+  while the reader is *on the page*, but the persisted value is still a raw pixel offset, not a fraction.
+  Close the browser at 1440px and reopen at 650px and the restore is a pixel assignment into a column
+  that now reflows differently — for this editorial content the ranges happen to be close (~231px vs
+  ~223px, landing at 0.62 against a saved 0.60), but a longer article or a larger width delta could land
+  well off, or clamp to the top or the end. Closing it means changing the persisted format, which is a
+  contract change, not a presentation one. Named here rather than left to be discovered.
+
 ## What remains unproved
 
 - Fidelity was judged by eye against the two reference files and the extracted numbers in
