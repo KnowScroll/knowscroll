@@ -7,14 +7,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.knowscroll.mobile.data.Capabilities
 import com.knowscroll.mobile.data.Universe
+import com.knowscroll.mobile.data.WorldSummary
+import com.knowscroll.mobile.data.WorldSystem
+import com.knowscroll.mobile.data.WorldSystemResponse
 import com.knowscroll.mobile.ui.HistoryClearState
 import com.knowscroll.mobile.ui.SignOutState
+import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.UniverseState
+import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import com.knowscroll.mobile.ui.universe.UniverseScreen
 import org.junit.Assert.assertEquals
@@ -24,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * docs/product/ui-system.md sections 3 and 4b: "Pills for every control" at weight 800 / 13px,
@@ -43,7 +51,21 @@ import org.robolectric.annotation.Config
  * discriminate against the current scaffold. They are kept as a regression lock -- a restyle that
  * shrinks these controls back under 48dp, e.g. by fixing a literal height instead of a minimum,
  * will still be caught here.
+ *
+ * `@GraphicsMode(NATIVE)` (#116 addition): the system-level tests below measure controls whose
+ * size depends on real wrapped text (`WorldBody`'s title/status/tag have no fixed width). Under
+ * Robolectric's default (legacy) graphics mode, text measures at a degenerate ~1dp per character
+ * -- confirmed directly: a bare `Text("plainA")` measured 6dp x 36dp for six characters, and
+ * `MaterialTheme.typography.titleMedium` text wrapped almost one character per line, starving the
+ * "Open source" button of the vertical budget its own `heightIn(min = 48.dp)` needs and collapsing
+ * it to ~6dp under this file's original class-level default. NATIVE mode (Roborazzi/Robolectric's
+ * real rendering path, already used by `ScreenshotEvidenceTest`/`TruthPillRedTest` for the same
+ * reason) gives real font metrics -- the same fixture then measures the title at a normal ~94dp
+ * single line and the button at its real, correct 48dp. This is a test-environment property, not a
+ * production layout defect; the four pre-existing tests above do not depend on text-width
+ * measurement (Material3's own fixed button minimum, not glyph metrics) and are unaffected.
  */
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class PillGeometryRedTest {
@@ -85,7 +107,7 @@ class PillGeometryRedTest {
                     state = UniverseState.Unavailable("offline"),
                     historyClear = HistoryClearState.Idle,
                     signOut = SignOutState.Idle,
-                    onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
                     onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
                     onOpenKeep = {}
@@ -112,7 +134,7 @@ class PillGeometryRedTest {
                     state = UniverseState.Loaded(Universe("u1", 1, 1, emptyList(), Capabilities.AllFalse)),
                     historyClear = HistoryClearState.Idle,
                     signOut = SignOutState.Idle,
-                    onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
                     onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
                     onOpenKeep = {}
@@ -139,7 +161,7 @@ class PillGeometryRedTest {
                     state = UniverseState.Loaded(Universe("u1", 1, 1, emptyList(), Capabilities.AllFalse)),
                     historyClear = HistoryClearState.Idle,
                     signOut = SignOutState.Idle,
-                    onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
                     onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
                     onOpenKeep = {}
@@ -156,5 +178,100 @@ class PillGeometryRedTest {
                 "regression lock in case a future literal height undoes that.",
             height >= 48.dp
         )
+    }
+
+    // #116: the system level's own entry point and controls.
+
+    @Test
+    fun `the SYSTEM VIEW control on the loaded universe screen is a real 48dp control that opens the system view`() {
+        var opened = false
+        composeRule.setContent {
+            KnowScrollTheme {
+                UniverseScreen(
+                    state = UniverseState.Loaded(Universe("u1", 1, 1, emptyList(), Capabilities.AllFalse)),
+                    historyClear = HistoryClearState.Idle,
+                    signOut = SignOutState.Idle,
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = { opened = true }, onRetry = {},
+                    onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
+                )
+            }
+        }
+        val node = composeRule.onNodeWithContentDescription("Open the system view")
+        val bounds = node.getUnclippedBoundsInRoot()
+        val height = bounds.bottom - bounds.top
+        assertTrue(
+            "docs/product/ui-system.md section 4b: touch targets are at least 48dp. Measured $height.",
+            height >= 48.dp
+        )
+        // The universe screen's content column scrolls (UniverseCanvasScreen.kt); the control sits
+        // near the bottom of the 340dp canvas and can start outside the small default Robolectric
+        // window's visible bounds, so it must be scrolled into view before a synthetic click will
+        // actually land, the same way a real touch would need it on-screen first.
+        node.performScrollTo().performClick()
+        assertTrue("Tapping the SYSTEM VIEW control must actually invoke onEnterSystem, not just look clickable.", opened)
+    }
+
+    @Test
+    fun `retry pill on the unavailable system screen is at least 48dp tall`() {
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = SystemState.Unavailable("offline"),
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
+                )
+            }
+        }
+        val bounds = composeRule.onNodeWithContentDescription("Retry loading the system")
+            .getUnclippedBoundsInRoot()
+        val height = bounds.bottom - bounds.top
+        assertTrue(
+            "docs/product/ui-system.md section 4b: touch targets are at least 48dp. Measured $height.",
+            height >= 48.dp
+        )
+    }
+
+    @Test
+    fun `open source pill on the loaded system screen is at least 48dp tall`() {
+        val world = WorldSummary("w1", "NASA . Stars", "https://science.nasa.gov/universe/stars/", 1, 1)
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = SystemState.Loaded(WorldSystemResponse("shared_source_v1", WorldSystem("s1", listOf(world)))),
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
+                )
+            }
+        }
+        val bounds = composeRule.onNodeWithContentDescription("Open NASA . Stars in browser")
+            .getUnclippedBoundsInRoot()
+        val height = bounds.bottom - bounds.top
+        val width = bounds.right - bounds.left
+        assertTrue(
+            "docs/product/ui-system.md section 4b: touch targets are at least 48dp. Measured ${height}x$width.",
+            height >= 48.dp && width >= 48.dp
+        )
+    }
+
+    @Test
+    fun `back pill on the system screen is at least 48dp tall and returns to Universe`() {
+        var returned = false
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = SystemState.Idle,
+                    onReturn = { returned = true }, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
+                )
+            }
+        }
+        val node = composeRule.onNodeWithContentDescription("Return to Universe")
+        val bounds = node.getUnclippedBoundsInRoot()
+        val height = bounds.bottom - bounds.top
+        assertTrue(
+            "docs/product/ui-system.md section 4b: touch targets are at least 48dp. Measured $height.",
+            height >= 48.dp
+        )
+        node.performClick()
+        assertTrue("The back pill must actually invoke onReturn.", returned)
     }
 }

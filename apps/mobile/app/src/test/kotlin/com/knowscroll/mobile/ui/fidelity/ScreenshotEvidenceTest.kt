@@ -78,7 +78,7 @@ class ScreenshotEvidenceTest {
             KnowScrollTheme {
                 UniverseScreen(
                     state = emptyUniverse(), historyClear = HistoryClearState.Idle, signOut = SignOutState.Idle,
-                    onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
                     onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
                     onOpenKeep = {}
@@ -95,7 +95,7 @@ class ScreenshotEvidenceTest {
             KnowScrollTheme {
                 UniverseScreen(
                     state = startedUniverse(), historyClear = HistoryClearState.Idle, signOut = SignOutState.Idle,
-                    onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
                     onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
                     onOpenKeep = {}

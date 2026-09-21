@@ -142,4 +142,23 @@
     <string name="sign_out_heading">Signed out</string>
     <string name="sign_out_done_title">This device is signed out</string>
     <string name="sign_out_done_body">This device\'s session has ended. Your Scroll history was not erased. Other devices are not affected. Using KnowScroll on this device again needs a new device session from the operator.</string>
+
+    <!-- System level (#116, ADR-0028/#113): the real, derived worlds/system geography
+         (docs/product/ui-system.md sec.5b/5c). -->
+    <string name="system_view_description">Open the system view</string>
+    <string name="system_kind_label">SYSTEM</string>
+    <string name="system_head_origin">Derived from recorded sources, never inferred</string>
+    <string name="system_back_description">Return to Universe</string>
+    <string name="system_loading">Deriving your system…</string>
+    <string name="system_unavailable_title">The system is unavailable</string>
+    <string name="system_retry_description">Retry loading the system</string>
+    <string name="system_empty_eyebrow">No system yet</string>
+    <string name="system_empty_title">Nothing has been encountered yet</string>
+    <string name="system_empty_body">There is no system yet because nothing has been encountered. A system only ever names the worlds this universe\'s own reading has actually reached — nothing is arranged ahead of that.</string>
+    <string name="system_eyebrow">System</string>
+    <string name="system_title">Your system</string>
+    <string name="system_fully_explored">FULLY EXPLORED</string>
+    <string name="system_more_to_explore">MORE TO EXPLORE</string>
+    <string name="system_open_source_description">Open %1$s in browser</string>
+    <string name="system_worlds_list_description">Worlds in your system</string>
 </resources>

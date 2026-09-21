@@ -44,7 +44,7 @@ class BottomCompassRedTest {
                     state = UniverseState.Loaded(Universe("u1", 1, 1, emptyList(), Capabilities.AllFalse)),
                     historyClear = HistoryClearState.Idle,
                     signOut = SignOutState.Idle,
-                    onEnterScroll = {}, onOpenTrace = {}, onRetry = {},
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
                     onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
                     onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
                     onOpenKeep = {}
@@ -67,6 +67,26 @@ class BottomCompassRedTest {
                     state = com.knowscroll.mobile.ui.ScrollState.Idle,
                     onKeep = {}, onReturn = {}, onNext = {}, onRetry = {}, onReadingPosition = { _, _ -> },
                     onOpenKeep = {}
+                )
+            }
+        }
+        composeRule
+            .onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+            .assertCountEquals(3)
+        composeRule.onNodeWithText("Atlas").assertExists()
+        composeRule.onNodeWithText("Cable").assertExists()
+        composeRule.onNodeWithText("Keep").assertExists()
+    }
+
+    @Test
+    fun `system screen has exactly three compass tabs, Atlas Cable and Keep`() {
+        // #116: System has no dock entry of its own (sec.4b/5b name exactly Atlas/Cable/Keep) --
+        // it marks Atlas, the level it is reached from and returns to.
+        composeRule.setContent {
+            KnowScrollTheme {
+                com.knowscroll.mobile.ui.system.SystemScreen(
+                    state = com.knowscroll.mobile.ui.SystemState.Idle,
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
                 )
             }
         }
