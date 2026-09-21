@@ -265,4 +265,4 @@ Sources: [issue #5](https://github.com/KnowScroll/knowscroll/issues/5),
 [target recommendation design](../architecture/target/08-RECOMMENDATION.md) (design reference only,
 not adopted here — this ADR is a deliberately smaller, SQL-primitive contract, not that chapter's
 multi-term utility engine), `packages/core/AGENTS.md`, [ADR-0016](0016-explicit-ask-facts.md),
-[ADR-0025](0025-eligible-reels-in-inventory.md), migration `0018_composer_ranking_signals.sql`.
+[ADR-0025](0025-eligible-reels-in-inventory.md), migration `0022_composer_ranking_signals.sql`.
