@@ -2,6 +2,10 @@
 
 ## 2026-09-22 UI refinement successor — #72 / #4
 
+Draft delivery: [PR #129](https://github.com/KnowScroll/knowscroll/pull/129), implementation head
+`e6782b6` (plus this delivery-link update), not merged. Local verification passed: 714 backend,
+76 Web units / 50 browser journeys, 82 Android units / 7 emulator scenarios.
+
 Current local branch: `codex/72-ui-experience-audit`, started from clean `c9c3e72` on the
 external SSD. The dated [audit](design/2026-09-21-ui-audit.md) supersedes earlier claims of visual
 completion below. Both actual clients were inspected before changes. Shared local typography,

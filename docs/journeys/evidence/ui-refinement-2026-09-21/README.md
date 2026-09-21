@@ -2,6 +2,7 @@
 
 Audit and implementation on 21–22 September 2026, branch `codex/72-ui-experience-audit`, baseline
 `c9c3e72`. [Detailed findings, checklist and remaining gaps](../../../design/2026-09-21-ui-audit.md).
+[Draft PR #129](https://github.com/KnowScroll/knowscroll/pull/129) contains this delivery.
 This records a tested refinement slice, not completion of v1 or visual equivalence to the references.
 
 ## Verified result
