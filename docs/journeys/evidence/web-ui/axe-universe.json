@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-20T18:56:40.048Z",
-  "url": "http://127.0.0.1:59392/",
+  "timestamp": "2026-09-20T19:14:54.920Z",
+  "url": "http://127.0.0.1:51617/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1461,7 +1461,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -1969,7 +1969,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -2233,9 +2233,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.000346020833334\" height=\"56.000346020833334\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00032755169753\" height=\"56.00032755169753\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.000346020833334\"]"
+            "svg[width=\"56.00032755169753\"]"
           ]
         },
         {
@@ -2265,9 +2265,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00025858101852\" height=\"56.00025858101852\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.0002440470679\" height=\"56.0002440470679\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.00025858101852\"]"
+            "svg[width=\"56.0002440470679\"]"
           ]
         },
         {
@@ -2501,7 +2501,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -2841,7 +2841,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -3269,7 +3269,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -3562,7 +3562,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -3731,7 +3731,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -4334,7 +4334,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 48%; width: 56.0002px; height: 56.0002px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
