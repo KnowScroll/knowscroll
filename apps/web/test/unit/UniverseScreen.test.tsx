@@ -26,6 +26,7 @@ describe('UniverseScreen', () => {
         onEnterScroll={vi.fn()}
         onOpenTrace={vi.fn()}
         onEnterSystem={onEnterSystem}
+        onOpenPrivacy={vi.fn()}
         onRetry={vi.fn()}
       />,
     );
@@ -47,6 +48,7 @@ describe('UniverseScreen', () => {
         onEnterScroll={vi.fn()}
         onOpenTrace={vi.fn()}
         onEnterSystem={vi.fn()}
+        onOpenPrivacy={vi.fn()}
         onRetry={vi.fn()}
       />,
     );
@@ -54,5 +56,35 @@ describe('UniverseScreen', () => {
     // `GET /v1/worlds` can only return worlds this universe has actually encountered, so on an
     // untouched library there is no system to open and the product does not pretend there is.
     expect(screen.queryByRole('button', { name: 'Open the system view' })).toBeNull();
+  });
+
+  it('offers a real way into the privacy panel regardless of whether anything has been kept (#119)', () => {
+    const onOpenPrivacy = vi.fn();
+    const { rerender } = render(
+      <UniverseScreen
+        state={loaded(0)}
+        storage={storage}
+        onEnterScroll={vi.fn()}
+        onOpenTrace={vi.fn()}
+        onEnterSystem={vi.fn()}
+        onOpenPrivacy={onOpenPrivacy}
+        onRetry={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open privacy controls' }));
+    expect(onOpenPrivacy).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <UniverseScreen
+        state={loaded(3)}
+        storage={storage}
+        onEnterScroll={vi.fn()}
+        onOpenTrace={vi.fn()}
+        onEnterSystem={vi.fn()}
+        onOpenPrivacy={onOpenPrivacy}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Open privacy controls' })).toBeInTheDocument();
   });
 });

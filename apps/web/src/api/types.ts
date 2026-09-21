@@ -11,6 +11,7 @@
  */
 import { z } from 'zod';
 import { traceRevisitReceipt, traceRevisitScroll } from '../../../../packages/contracts/src/trace-revisit.ts';
+import { privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
 
 export type ScrollAsset = z.infer<typeof traceRevisitScroll>;
 
@@ -121,6 +122,114 @@ export const worldSystemResponseSchema = z
   })
   .strict();
 export type WorldSystemResponse = z.infer<typeof worldSystemResponseSchema>;
+
+/**
+ * ADR-0030 / #119: pause, export and reset. Request bodies reuse the contracts package's own
+ * strict zod shapes (`privacyLifecycleInput`/`privacyResetInput`) for their exact field set and
+ * validation, exactly like every other request this file builds against a shared contract.
+ * Response shapes are written here field-for-field against `packages/contracts/src/index.ts`'s
+ * plain TypeScript types (`PrivacyRecordingReceipt`/`PrivacyExportResult`/`PrivacyResetReceipt`),
+ * the same pattern `worldSystemResponseSchema` above already uses because no zod schema exists
+ * there to reuse.
+ */
+export type PrivacyLifecycleRequest = z.infer<typeof privacyLifecycleInput>;
+export type PrivacyResetRequest = z.infer<typeof privacyResetInput>;
+
+/** The one deliberate confirmation literal Reset requires (ADR-0030); reused verbatim as the
+ * phrase the reader must type in the panel, so the UI gate and the wire contract are the same
+ * words rather than two independently-invented ones that could drift apart. */
+export const RESET_CONFIRMATION = 'reset-personal-universe' as const;
+
+export const privacyRecordingReceiptSchema = z
+  .object({
+    receiptId: z.string(),
+    action: z.union([z.literal('pause'), z.literal('resume')]),
+    privacyEpoch: z.number().int(),
+    recordingPausedAt: z.string().nullable(),
+    appliedAt: z.string(),
+  })
+  .strict();
+export type PrivacyRecordingReceipt = z.infer<typeof privacyRecordingReceiptSchema>;
+
+export const privacyExportRowCountsSchema = z
+  .object({
+    decisions: z.number().int().nonnegative(),
+    ledger: z.number().int().nonnegative(),
+    exposures: z.number().int().nonnegative(),
+    traces: z.number().int().nonnegative(),
+    jobs: z.number().int().nonnegative(),
+    deviceSessions: z.number().int().nonnegative(),
+    reasoningJobs: z.number().int().nonnegative(),
+    reasoningSteps: z.number().int().nonnegative(),
+    reasoningReceipts: z.number().int().nonnegative(),
+    reasoningAccounting: z.number().int().nonnegative(),
+  })
+  .strict();
+export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
+
+export const privacyExportDeviceSessionSchema = z
+  .object({
+    deviceId: z.string(),
+    origin: z.string(),
+    createdAt: z.string(),
+    expiresAt: z.string(),
+    revokedAt: z.string().nullable(),
+  })
+  .strict();
+export type PrivacyExportDeviceSession = z.infer<typeof privacyExportDeviceSessionSchema>;
+
+/**
+ * `decisions`/`ledger`/`exposures`/`traces`/`jobs` are raw recorded rows with no shared shape the
+ * contracts package itself types beyond `unknown[]` (`packages/contracts/src/index.ts`'s own
+ * `PrivacyExportResult`); this client never renders or interprets their fields, only offers the
+ * whole export as a file, so validating them as opaque records -- present, an object, nothing
+ * asserted about their contents -- matches what this surface actually depends on.
+ */
+const exportRowSchema = z.record(z.string(), z.unknown());
+export const privacyExportResultSchema = z
+  .object({
+    receiptId: z.string(),
+    privacyEpoch: z.number().int(),
+    exportedAt: z.string(),
+    rowCounts: privacyExportRowCountsSchema,
+    account: z.object({ email: z.string().nullable() }).strict(),
+    universe: z
+      .object({
+        id: z.string(),
+        revision: z.number().int(),
+        privacyEpoch: z.number().int(),
+        recordingPausedAt: z.string().nullable(),
+      })
+      .strict(),
+    accounts: z.object({ keptAssetIds: z.array(z.string()), revision: z.number().int() }).strict(),
+    decisions: z.array(exportRowSchema),
+    ledger: z.array(exportRowSchema),
+    exposures: z.array(exportRowSchema),
+    traces: z.array(exportRowSchema),
+    jobs: z.array(exportRowSchema),
+    deviceSessions: z.array(privacyExportDeviceSessionSchema),
+    reasoning: z
+      .object({
+        jobs: z.array(exportRowSchema),
+        steps: z.array(exportRowSchema),
+        receipts: z.array(exportRowSchema),
+        accounting: z.array(exportRowSchema),
+      })
+      .strict(),
+  })
+  .strict();
+export type PrivacyExportResult = z.infer<typeof privacyExportResultSchema>;
+
+export const privacyResetReceiptSchema = z
+  .object({
+    receiptId: z.string(),
+    epochBefore: z.number().int(),
+    epochAfter: z.number().int(),
+    sessionsRevoked: z.number().int().nonnegative(),
+    resetAt: z.string(),
+  })
+  .strict();
+export type PrivacyResetReceipt = z.infer<typeof privacyResetReceiptSchema>;
 
 /** Documented truth states and their required presentation (definition.md section 12). */
 export const TRUTH_STATE_MEANING: Record<string, string> = {

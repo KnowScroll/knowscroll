@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-21T11:45:57.102Z",
-  "url": "http://127.0.0.1:56639/",
+  "timestamp": "2026-09-21T12:27:13.579Z",
+  "url": "http://127.0.0.1:57779/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1381,6 +1381,46 @@
             }
           ],
           "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-allowed-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attributes are used correctly for the defined role"
+            },
+            {
+              "id": "aria-allowed-attr-elm",
+              "data": null,
+              "relatedNodes": [],
+              "message": "ARIA attributes are allowed for this element",
+              "impact": "critical"
+            },
+            {
+              "id": "aria-no-deprecated-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "No deprecated ARIA attributes are used"
+            }
+          ],
+          "none": [
+            {
+              "id": "aria-unsupported-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute is supported"
+            }
+          ],
+          "impact": null,
           "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
             ".universe-bodies-nav"
@@ -1743,7 +1783,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -1973,6 +2013,24 @@
           ],
           "none": [],
           "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-conditional-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "none": [],
+          "impact": null,
           "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
             ".universe-bodies-nav"
@@ -2137,7 +2195,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -2291,9 +2349,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00013803317901\" height=\"56.00013803317901\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.000108178240744\" height=\"56.000108178240744\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.00013803317901\"]"
+            "svg[width=\"56.000108178240744\"]"
           ]
         },
         {
@@ -2323,9 +2381,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.000008526234566\" height=\"56.000008526234566\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00000855246913\" height=\"56.00000855246913\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.000008526234566\"]"
+            "svg[width=\"56.00000855246913\"]"
           ]
         },
         {
@@ -2523,6 +2581,24 @@
             }
           ],
           "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
+          ]
+        },
+        {
+          "any": [],
+          "all": [],
+          "none": [
+            {
+              "id": "aria-prohibited-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "ARIA attribute is allowed"
+            }
+          ],
+          "impact": null,
           "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
             ".universe-bodies-nav"
@@ -2669,7 +2745,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -2824,6 +2900,38 @@
           "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your first little world.</h1><p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p></div>",
           "target": [
             ".universe-title"
+          ]
+        },
+        {
+          "any": [],
+          "all": [
+            {
+              "id": "aria-valid-attr-value",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute values are valid"
+            },
+            {
+              "id": "aria-errormessage",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-errormessage exists and references elements visible to screen readers that use a supported aria-errormessage technique"
+            },
+            {
+              "id": "aria-level",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-level values are valid"
+            }
+          ],
+          "none": [],
+          "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
           ]
         },
         {
@@ -3143,7 +3251,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -3341,6 +3449,24 @@
           "all": [],
           "none": [],
           "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "aria-valid-attr",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "ARIA attribute name is valid"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
           "html": "<nav aria-label=\"Saved Traces\" class=\"universe-bodies-nav\">",
           "target": [
             ".universe-bodies-nav"
@@ -3505,7 +3631,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -3832,6 +3958,31 @@
           "all": [],
           "none": [],
           "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "button-has-visible-text",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "Element has inner text that is visible to screen readers"
+            },
+            {
+              "id": "aria-label",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "critical",
+              "message": "aria-label attribute exists and is not empty"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
           "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0001px; height: 56.0001px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
@@ -4009,7 +4160,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -4155,7 +4306,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         }
       ]
@@ -4492,6 +4643,24 @@
           "all": [],
           "none": [],
           "impact": null,
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
+          ]
+        },
+        {
+          "any": [
+            {
+              "id": "no-focusable-content",
+              "data": null,
+              "relatedNodes": [],
+              "impact": "serious",
+              "message": "Element does not have focusable descendants"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": null,
           "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0001px; height: 56.0001px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
@@ -4620,7 +4789,7 @@
           "impact": null,
           "html": "<button type=\"button\" class=\"pill teal universe-cta\" aria-label=\"Enter Scroll\">Enter Scroll</button>",
           "target": [
-            ".pill"
+            ".teal"
           ]
         },
         {
@@ -4837,6 +5006,44 @@
           "html": "<p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p>",
           "target": [
             ".universe-subtitle"
+          ],
+          "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+        },
+        {
+          "any": [
+            {
+              "id": "color-contrast",
+              "data": {
+                "contrastRatio": 0,
+                "fontSize": "9.8pt (13px)",
+                "fontWeight": "bold",
+                "messageKey": "imgNode",
+                "expectedContrastRatio": "4.5:1"
+              },
+              "relatedNodes": [
+                {
+                  "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+                  "target": [
+                    ".cream"
+                  ]
+                },
+                {
+                  "html": "<canvas class=\"cosmos-background\" aria-hidden=\"true\" width=\"1280\" height=\"720\"></canvas>",
+                  "target": [
+                    "canvas"
+                  ]
+                }
+              ],
+              "impact": "serious",
+              "message": "Element's background color could not be determined because element contains an image node"
+            }
+          ],
+          "all": [],
+          "none": [],
+          "impact": "serious",
+          "html": "<button type=\"button\" class=\"pill cream privacy-entry\" aria-label=\"Open privacy controls\">Privacy</button>",
+          "target": [
+            ".cream"
           ],
           "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
         },

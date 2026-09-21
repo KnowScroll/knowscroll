@@ -1,5 +1,18 @@
 import type { ReaderApi } from '../../src/api/client.ts';
-import type { EventStatus, ExposureResponse, FeedResponse, InteractionResponse, TraceRevisit, Universe, WorldSystemResponse } from '../../src/api/types.ts';
+import type {
+  EventStatus,
+  ExposureResponse,
+  FeedResponse,
+  InteractionResponse,
+  PrivacyExportResult,
+  PrivacyLifecycleRequest,
+  PrivacyRecordingReceipt,
+  PrivacyResetReceipt,
+  PrivacyResetRequest,
+  TraceRevisit,
+  Universe,
+  WorldSystemResponse,
+} from '../../src/api/types.ts';
 
 /** A hand-written fake of the seven bootstrap endpoints the reader store calls. Never a live/product proof. */
 export class FakeApi implements ReaderApi {
@@ -11,8 +24,17 @@ export class FakeApi implements ReaderApi {
   traceRevisitQueue: Array<TraceRevisit | Error> = [];
   worldsQueue: Array<WorldSystemResponse | Error> = [];
 
+  pauseQueue: Array<PrivacyRecordingReceipt | Error> = [];
+  resumeQueue: Array<PrivacyRecordingReceipt | Error> = [];
+  privacyExportQueue: Array<PrivacyExportResult | Error> = [];
+  resetQueue: Array<PrivacyResetReceipt | Error> = [];
+
   exposureCalls: Array<{ decisionId: string; assetId: string; clientExposureId: string }> = [];
   interactionCalls: Array<{ clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }> = [];
+  pauseCalls: PrivacyLifecycleRequest[] = [];
+  resumeCalls: PrivacyLifecycleRequest[] = [];
+  privacyExportCalls: PrivacyLifecycleRequest[] = [];
+  resetCalls: PrivacyResetRequest[] = [];
   feedCalls = 0;
   universeCalls = 0;
   worldsCalls = 0;
@@ -49,6 +71,22 @@ export class FakeApi implements ReaderApi {
   async getWorlds(): Promise<WorldSystemResponse> {
     this.worldsCalls++;
     return this.take(this.worldsQueue, 'getWorlds');
+  }
+  async postPrivacyPause(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt> {
+    this.pauseCalls.push(body);
+    return this.take(this.pauseQueue, 'postPrivacyPause');
+  }
+  async postPrivacyResume(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt> {
+    this.resumeCalls.push(body);
+    return this.take(this.resumeQueue, 'postPrivacyResume');
+  }
+  async postPrivacyExport(body: PrivacyLifecycleRequest): Promise<PrivacyExportResult> {
+    this.privacyExportCalls.push(body);
+    return this.take(this.privacyExportQueue, 'postPrivacyExport');
+  }
+  async postPrivacyReset(body: PrivacyResetRequest): Promise<PrivacyResetReceipt> {
+    this.resetCalls.push(body);
+    return this.take(this.resetQueue, 'postPrivacyReset');
   }
 }
 
@@ -90,6 +128,59 @@ export function worldSystemOf(overrides: Partial<WorldSystemResponse> = {}): Wor
         { worldId: 'world-stars', sourceTitle: 'NASA · Stars', sourceUrl: 'https://example.com/stars', scrollCount: 8, seenCount: 8 },
       ],
     },
+    ...overrides,
+  };
+}
+
+export function privacyRecordingReceiptOf(overrides: Partial<PrivacyRecordingReceipt> = {}): PrivacyRecordingReceipt {
+  return {
+    receiptId: 'recording-receipt-1',
+    action: 'pause',
+    privacyEpoch: 0,
+    recordingPausedAt: '2026-09-21T10:00:00.000Z',
+    appliedAt: '2026-09-21T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = {}): PrivacyExportResult {
+  return {
+    receiptId: 'export-receipt-1',
+    privacyEpoch: 0,
+    exportedAt: '2026-09-21T10:00:00.000Z',
+    rowCounts: {
+      decisions: 3,
+      ledger: 5,
+      exposures: 3,
+      traces: 1,
+      jobs: 1,
+      deviceSessions: 1,
+      reasoningJobs: 0,
+      reasoningSteps: 0,
+      reasoningReceipts: 0,
+      reasoningAccounting: 0,
+    },
+    account: { email: 'owner@example.com' },
+    universe: { id: universeOf().universeId, revision: 1, privacyEpoch: 0, recordingPausedAt: null },
+    accounts: { keptAssetIds: [], revision: 1 },
+    decisions: [],
+    ledger: [],
+    exposures: [],
+    traces: [],
+    jobs: [],
+    deviceSessions: [],
+    reasoning: { jobs: [], steps: [], receipts: [], accounting: [] },
+    ...overrides,
+  };
+}
+
+export function privacyResetReceiptOf(overrides: Partial<PrivacyResetReceipt> = {}): PrivacyResetReceipt {
+  return {
+    receiptId: 'reset-receipt-1',
+    epochBefore: 0,
+    epochAfter: 1,
+    sessionsRevoked: 1,
+    resetAt: '2026-09-21T10:00:00.000Z',
     ...overrides,
   };
 }
