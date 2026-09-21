@@ -1,5 +1,6 @@
 package com.knowscroll.mobile.ui.universe
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -74,6 +75,7 @@ fun UniverseScreen(
     signOut: SignOutState,
     onEnterScroll: () -> Unit,
     onOpenTrace: (Trace) -> Unit,
+    onEnterSystem: () -> Unit,
     onRetry: () -> Unit,
     onRequestHistoryClear: () -> Unit,
     onCancelHistoryClear: () -> Unit,
@@ -121,6 +123,7 @@ fun UniverseScreen(
                         signOut = signOut,
                         onEnterScroll = onEnterScroll,
                         onOpenTrace = onOpenTrace,
+                        onEnterSystem = onEnterSystem,
                         onRequestHistoryClear = onRequestHistoryClear,
                         onRetryHistoryClear = onRetryHistoryClear,
                         onRequestSignOut = onRequestSignOut,
@@ -164,6 +167,7 @@ private fun UniverseCanvasScreen(
     signOut: SignOutState,
     onEnterScroll: () -> Unit,
     onOpenTrace: (Trace) -> Unit,
+    onEnterSystem: () -> Unit,
     onRequestHistoryClear: () -> Unit,
     onRetryHistoryClear: () -> Unit,
     onRequestSignOut: () -> Unit,
@@ -191,7 +195,7 @@ private fun UniverseCanvasScreen(
         )
         if (hasRead) YellowNote(stringResource(R.string.universe_kept_note, universe.traces.size))
 
-        UniverseCanvas(traces = universe.traces, onOpenTrace = onOpenTrace)
+        UniverseCanvas(traces = universe.traces, onOpenTrace = onOpenTrace, onEnterSystem = onEnterSystem)
 
         Text(
             stringResource(if (hasRead) R.string.universe_hint_started else R.string.universe_hint_first),
@@ -247,7 +251,7 @@ private fun YellowNote(text: String) {
  * requiring semantic geography this client does not have; a stepped zoom is the honest subset).
  */
 @Composable
-private fun UniverseCanvas(traces: List<Trace>, onOpenTrace: (Trace) -> Unit) {
+private fun UniverseCanvas(traces: List<Trace>, onOpenTrace: (Trace) -> Unit, onEnterSystem: () -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     val canvasDescription = stringResource(R.string.universe_canvas_description)
     BoxWithConstraints(
@@ -291,13 +295,34 @@ private fun UniverseCanvas(traces: List<Trace>, onOpenTrace: (Trace) -> Unit) {
             ZoomButton("−", zoomOutDescription) { scale = max(0.7f, scale - 0.15f) }
             ZoomButton("+", zoomInDescription) { scale = min(1.6f, scale + 0.15f) }
             ZoomButton("⊙", recenterDescription) { scale = 1f }
-            Text(
-                stringResource(R.string.universe_view_label),
-                style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark,
-                modifier = Modifier.padding(start = 4.dp)
-            )
+            SystemViewButton(onEnterSystem)
         }
         if (traces.isNotEmpty()) Legend(Modifier.align(Alignment.TopEnd).padding(10.dp))
+    }
+}
+
+/**
+ * docs/product/ui-system.md sec.5c: Living Observatory's own `#scaleLabel` names which navigable
+ * depth the reader is at ("SYSTEM VIEW" when only the universe level existed to name). #116 built
+ * the system level for real (ADR-0028/#113), so -- matching the web lane's own change to this
+ * exact control (`claude/116-system-view`'s `UniverseScreen.tsx`) -- the label becomes what the
+ * reference always made it: a control that goes there. Section 4b overrides the reference's own
+ * ~34px hit area with the Android platform's 48dp minimum.
+ */
+@Composable
+private fun SystemViewButton(onClick: () -> Unit) {
+    val description = stringResource(R.string.system_view_description)
+    Surface(
+        color = Cosmos.SpaceRaised, contentColor = Cosmos.MutedOnDark,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, Cosmos.Sea2),
+        modifier = Modifier.heightIn(min = 48.dp)
+            .clickable(onClickLabel = description, onClick = onClick)
+            .semantics { contentDescription = description }
+    ) {
+        Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.universe_view_label), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+        }
     }
 }
 

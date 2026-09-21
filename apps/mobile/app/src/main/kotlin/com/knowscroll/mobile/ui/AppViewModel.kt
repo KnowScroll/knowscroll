@@ -17,6 +17,7 @@ import com.knowscroll.mobile.data.Trace
 import com.knowscroll.mobile.data.TraceRevisit
 import com.knowscroll.mobile.data.TraceRevisitSession
 import com.knowscroll.mobile.data.Universe
+import com.knowscroll.mobile.data.WorldSystemResponse
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -31,6 +32,10 @@ sealed interface Screen {
     /** docs/product/ui-system.md sec.5b's Keep destination: a read-only view over the already
      * loaded universe's real Traces. No network fetch of its own -- see `openKeep()`. */
     data object Keep: Screen
+    /** docs/product/ui-system.md sec.5b/5c's system level (#116, ADR-0028/#113): a read-only view
+     * of the real, derived worlds/system geography. No network fetch of its own on entry into
+     * this sealed value -- see `enterSystem()`. */
+    data object System: Screen
 }
 sealed interface UniverseState {
     data object Loading:UniverseState
@@ -70,6 +75,17 @@ sealed interface HistoryClearState {
     data class SessionUnavailable(val message:String):HistoryClearState
 }
 
+/** ADR-0028/#113: a read-only view of the real, derived worlds/system geography (docs/product/
+ * ui-system.md sec.5b/5c, #116). Mirrors the web lane's `SystemView` (`claude/116-system-view`'s
+ * `apps/web/src/state/readerStore.ts`): never persisted across process death, unlike `ScrollState`
+ * -- a fresh entry always re-reads `GET /v1/worlds` rather than risking a stale count. */
+sealed interface SystemState {
+    data object Idle:SystemState
+    data object Loading:SystemState
+    data class Loaded(val response:WorldSystemResponse):SystemState
+    data class Unavailable(val message:String):SystemState
+}
+
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
     private val api=ApiClient()
     private val store=StateStore(application)
@@ -89,6 +105,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val _scroll=MutableStateFlow<ScrollState>(ScrollState.Idle); val scroll=_scroll.asStateFlow()
     private val _historyClear=MutableStateFlow<HistoryClearState>(HistoryClearState.Idle); val historyClear=_historyClear.asStateFlow()
     private val _signOut=MutableStateFlow<SignOutState>(SignOutState.Idle); val signOut=_signOut.asStateFlow()
+    private val _system=MutableStateFlow<SystemState>(SystemState.Idle); val system=_system.asStateFlow()
     private val _toast=MutableStateFlow<String?>(null); val toast=_toast.asStateFlow()
 
     init {
@@ -388,6 +405,50 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             observedPrivacyEpoch=store.observePrivacyState(actual.universeId,actual.privacyEpoch)
             _universe.value=UniverseState.Loaded(actual)
         }
+    }
+
+    /** The system level (#116, ADR-0028/#113): reads the real, derived worlds/system geography.
+     * Read-only -- it creates no event, holds no private per-Scroll session, and (mirroring the
+     * web lane's `enterSystem()`) is never restored from storage on process death: a fresh entry
+     * always re-reads `GET /v1/worlds` rather than risking a stale count. */
+    fun enterSystem(){
+        if(busy || reconciling || !ready)return
+        busy=true
+        val version=++navigationVersion
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _screen.value=Screen.System
+        _system.value=SystemState.Loading
+        viewModelScope.launch {
+            try {
+                val response=api.getWorldSystem()
+                if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _system.value=SystemState.Loaded(response)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion)return@launch
+                if(invalidatesReader(e)){
+                    purgeForScope(universeId,epoch)
+                    failClosed(message(e))
+                } else {
+                    _system.value=SystemState.Unavailable(message(e))
+                }
+            } finally{ if(version==navigationVersion)busy=false }
+        }
+    }
+
+    fun retrySystem(){
+        if(_screen.value is Screen.System)enterSystem()
+    }
+
+    /** Leaves the system view without touching any scroll/revisit session or re-fetching the
+     * universe -- unlike `returnToUniverse()`, nothing private was ever held here to purge. */
+    fun returnFromSystem(){
+        if(_screen.value !is Screen.System)return
+        navigationVersion++ // invalidates any in-flight getWorldSystem() so a stale response cannot land
+        _screen.value=Screen.Universe
+        savedState["screen"]="universe";store.writeScreen("universe")
+        _system.value=SystemState.Idle
     }
 
     fun requestHistoryClearConfirmation(){

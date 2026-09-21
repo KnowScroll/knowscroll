@@ -58,6 +58,23 @@ class ApiClient(
             .getOrDefault(false)
     }
 
+    /** ADR-0028/#113: a read-only view of the real, derived worlds/system geography. `system` is
+     * `null` for a universe that has not yet encountered any recorded source's evidence -- never
+     * an empty object (docs/contracts/bootstrap-http.md). */
+    suspend fun getWorldSystem(): WorldSystemResponse = io {
+        get("/v1/worlds") { obj ->
+            WorldSystemResponse(
+                derivationMethod = obj.getString("derivationMethod"),
+                system = obj.optJSONObject("system")?.let { sys ->
+                    WorldSystem(
+                        systemId = sys.getString("systemId"),
+                        worlds = parseWorlds(sys.getJSONArray("worlds"))
+                    )
+                }
+            )
+        }
+    }
+
     suspend fun postExposure(req: ExposureRequest): ExposureResponse = io {
         val body = jsonObj("decisionId" to req.decisionId, "assetId" to req.assetId,
             "clientExposureId" to req.clientExposureId).toString()
@@ -238,6 +255,15 @@ class ApiClient(
             summary = o.getString("summary"), body = o.getString("body"),
             sourceTitle = o.getString("sourceTitle"), sourceUrl = o.getString("sourceUrl"),
             truthState = o.getString("truthState"), reason = o.optString("reason", "")
+        )
+    }
+
+    private fun parseWorlds(arr: JSONArray): List<WorldSummary> = List(arr.length()) { i ->
+        val o = arr.getJSONObject(i)
+        WorldSummary(
+            worldId = o.getString("worldId"),
+            sourceTitle = o.getString("sourceTitle"), sourceUrl = o.getString("sourceUrl"),
+            scrollCount = o.getInt("scrollCount"), seenCount = o.getInt("seenCount")
         )
     }
 

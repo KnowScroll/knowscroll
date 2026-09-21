@@ -70,3 +70,22 @@ data class EventStatus(
     val jobStatus: String?,
     val projected: Boolean
 )
+
+/** ADR-0028/#113's "planet": the shared, universe-independent catalog entry for one recorded
+ * source (`GET /v1/worlds`, docs/contracts/bootstrap-http.md). [scrollCount] is the world's total
+ * recorded Scrolls; [seenCount] is how many of them this universe's own exposures have reached --
+ * both are database-verified, never client-derived. */
+data class WorldSummary(
+    val worldId: String,
+    val sourceTitle: String,
+    val sourceUrl: String,
+    val scrollCount: Int,
+    val seenCount: Int
+)
+
+/** ADR-0028's "solar system": the worlds one universe's reader has actually encountered. */
+data class WorldSystem(val systemId: String, val worlds: List<WorldSummary>)
+
+/** `null` [system] means this universe has not yet encountered any recorded source's evidence --
+ * never an empty object (docs/contracts/bootstrap-http.md). */
+data class WorldSystemResponse(val derivationMethod: String, val system: WorldSystem?)

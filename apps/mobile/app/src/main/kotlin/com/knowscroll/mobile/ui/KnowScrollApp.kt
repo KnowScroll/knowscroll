@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.knowscroll.mobile.ui.keep.KeepScreen
 import com.knowscroll.mobile.ui.scroll.ScrollScreen
+import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import com.knowscroll.mobile.ui.universe.UniverseScreen
 
@@ -30,6 +31,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val scroll by viewModel.scroll.collectAsStateWithLifecycle()
         val historyClear by viewModel.historyClear.collectAsStateWithLifecycle()
         val signOut by viewModel.signOut.collectAsStateWithLifecycle()
+        val system by viewModel.system.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val context = LocalContext.current
 
@@ -42,6 +44,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         }
 
         BackHandler(enabled = screen is Screen.Scroll || screen is Screen.TraceRevisit || screen is Screen.Keep) { viewModel.returnToUniverse() }
+        BackHandler(enabled = screen is Screen.System) { viewModel.returnFromSystem() }
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         LaunchedEffect(lifecycle) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -68,6 +71,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 signOut = signOut,
                 onEnterScroll = viewModel::enterScroll,
                 onOpenTrace = viewModel::openTrace,
+                onEnterSystem = viewModel::enterSystem,
                 onRetry = viewModel::retryUniverse,
                 onRequestHistoryClear = viewModel::requestHistoryClearConfirmation,
                 onCancelHistoryClear = viewModel::cancelHistoryClear,
@@ -93,6 +97,13 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 onOpenTrace = viewModel::openTrace,
                 onSelectAtlas = viewModel::returnToUniverse,
                 onSelectCable = viewModel::enterScroll
+            )
+            is Screen.System -> SystemScreen(
+                state = system,
+                onReturn = viewModel::returnFromSystem,
+                onRetry = viewModel::retrySystem,
+                onEnterScroll = viewModel::enterScroll,
+                onOpenKeep = viewModel::openKeep
             )
         }
         }
