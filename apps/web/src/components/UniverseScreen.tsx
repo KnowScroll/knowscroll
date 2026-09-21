@@ -99,10 +99,10 @@ const STAGE_SUBTITLE_FEW = 'A few encounters are beginning to belong together.';
  * slot's own share of the canvas at the smaller of the two fidelity-tested
  * widths (sec.7: 1024x768).
  */
-const CANVAS_LEFT = 10;
-const CANVAS_RIGHT = 90;
-const CANVAS_TOP = 24;
-const CANVAS_BOTTOM = 72;
+const CANVAS_LEFT = 12;
+const CANVAS_RIGHT = 88;
+const CANVAS_TOP = 8; // % of .universe-bodies, which is already inset clear of the title HUD
+const CANVAS_BOTTOM = 78; // leaves the last row's two-line label inside the inset canvas
 const MIN_ROW_GAP_PCT = 20; // vertical % between row centres; safe for a ~90px body + its label at 1024x768
 const MIN_SUPPORTED_WIDTH_PX = 1024; // the smaller fidelity-tested width (sec.7)
 const AVG_CHAR_PX = 8; // a deliberately wide estimate for 13px/700-weight text -- safer, not tighter

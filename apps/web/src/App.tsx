@@ -43,7 +43,7 @@ export function App() {
         />
       )}
       {state.screen === 'system' && (
-        <SystemScreen state={state.system} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} />
+        <SystemScreen state={state.system} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} onEnterScroll={() => store.enterScroll()} />
       )}
       {(state.screen === 'scroll' || state.screen === 'revisit') && (
         <ScrollScreen

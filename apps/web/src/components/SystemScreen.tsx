@@ -6,6 +6,7 @@ export interface SystemScreenProps {
   state: SystemView;
   onReturn: () => void;
   onRetry: () => void;
+  onEnterScroll: () => void;
 }
 
 /**
@@ -15,7 +16,7 @@ export interface SystemScreenProps {
  * (ADR-0028/#113); a body's position on the ring is decorative (no ranking signal exists to place
  * it honestly), but its identity and its numbers are never decorated.
  */
-export function SystemScreen({ state, onReturn, onRetry }: SystemScreenProps) {
+export function SystemScreen({ state, onReturn, onRetry, onEnterScroll }: SystemScreenProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === 'Home') {
@@ -54,6 +55,30 @@ export function SystemScreen({ state, onReturn, onRetry }: SystemScreenProps) {
         {state.status === 'loaded' && <SystemBody response={state.response} />}
       </div>
       <p className="keyboard-help">Keyboard: Escape or Home returns to Universe.</p>
+
+      {/* The dock is "the frame every level shares" (ui-system.md sec.5b), so the system level
+          carries it too. No entry is marked current: System is not one of the dock's three
+          destinations, and marking Atlas would say the reader is somewhere they are not. */}
+      <nav className="universe-dock" aria-label="Main navigation">
+        <button type="button" className="dock-button" onClick={onEnterScroll} aria-label="Cable — read a Scroll">
+          <span className="dock-icon" aria-hidden="true">
+            〜
+          </span>
+          Cable
+        </button>
+        <button type="button" className="dock-button" onClick={onReturn} aria-label="Atlas — your universe">
+          <span className="dock-icon" aria-hidden="true">
+            ◎
+          </span>
+          Atlas
+        </button>
+        <button type="button" className="dock-button" onClick={onReturn} aria-label="Keep — your saved Traces">
+          <span className="dock-icon" aria-hidden="true">
+            ▱
+          </span>
+          Keep
+        </button>
+      </nav>
     </main>
   );
 }

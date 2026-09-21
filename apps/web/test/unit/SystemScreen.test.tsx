@@ -7,7 +7,7 @@ import { worldSystemOf } from './fakeApi.ts';
 describe('SystemScreen', () => {
   it('renders exactly the worlds GET /v1/worlds returned, with their real counts', () => {
     const response = worldSystemOf();
-    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} />);
+    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
     // Every world's real sourceTitle appears, and no other body was invented.
     expect(screen.getByText("NASA · Orbits and Kepler's Laws")).toBeInTheDocument();
@@ -24,7 +24,7 @@ describe('SystemScreen', () => {
 
   it('gives a fully explored world and a partially explored world visibly distinct treatment', () => {
     const response = worldSystemOf();
-    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} />);
+    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
     expect(screen.getByText('MORE TO EXPLORE')).toBeInTheDocument();
     expect(screen.getByText('FULLY EXPLORED')).toBeInTheDocument();
@@ -32,7 +32,7 @@ describe('SystemScreen', () => {
 
   it('links each world to its real source, opening in a new tab', () => {
     const response = worldSystemOf();
-    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} />);
+    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
     const link = screen.getByRole('link', { name: /Open source: NASA · Stars/ });
     expect(link).toHaveAttribute('href', 'https://example.com/stars');
@@ -42,7 +42,7 @@ describe('SystemScreen', () => {
 
   it('renders the honest empty state when the API returns no system, inventing nothing', () => {
     const response = worldSystemOf({ system: null });
-    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} />);
+    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
     expect(screen.getByText('Nothing has been encountered yet')).toBeInTheDocument();
     expect(screen.getByText(/There is no system yet because nothing has been encountered/)).toBeInTheDocument();
@@ -52,17 +52,36 @@ describe('SystemScreen', () => {
   it('shows an unavailable state with a working Retry', () => {
     const onRetry = vi.fn();
     const state: SystemView = { status: 'unavailable', message: 'Connection interrupted.' };
-    render(<SystemScreen state={state} onReturn={vi.fn()} onRetry={onRetry} />);
+    render(<SystemScreen state={state} onReturn={vi.fn()} onRetry={onRetry} onEnterScroll={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'The system is unavailable' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry loading the system' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('carries the dock, the frame every level shares, marking no entry as current', () => {
+    const onEnterScroll = vi.fn();
+    const onReturn = vi.fn();
+    render(
+      <SystemScreen state={{ status: 'loaded', response: worldSystemOf() }} onReturn={onReturn} onRetry={vi.fn()} onEnterScroll={onEnterScroll} />,
+    );
+
+    const dock = screen.getByRole('navigation', { name: 'Main navigation' });
+    expect(dock).toBeInTheDocument();
+    // System is not one of the dock's three destinations, so marking one current would tell the
+    // reader they are somewhere they are not.
+    expect(dock.querySelector('[aria-current]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cable — read a Scroll' }));
+    expect(onEnterScroll).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Atlas — your universe' }));
+    expect(onReturn).toHaveBeenCalledTimes(1);
+  });
+
   it('returns to Universe on Escape and Home, and via the back pill', () => {
     const onReturn = vi.fn();
     const response = worldSystemOf();
-    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={onReturn} onRetry={vi.fn()} />);
+    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={onReturn} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Return to Universe' }));
     expect(onReturn).toHaveBeenCalledTimes(1);

@@ -362,7 +362,14 @@ a:focus-visible,
  */
 .universe-bodies {
   position: absolute;
-  inset: 0;
+  /* The canvas is the region left over once the frame has taken its own space,
+     not the whole screen. Insetting it here is what keeps the body grid out of
+     the title HUD above and the call to action, legend, hint and dock below --
+     at 1440x900 the bottom row's labels ran straight under the "Enter Scroll"
+     block, which is the kind of collision a screenshot shows and no assertion
+     catches. The two values are fixed pixels because what they clear is fixed:
+     a HUD of three text lines, and a band of chrome anchored to the bottom. */
+  inset: 132px 0 205px 0;
   z-index: 1;
   transform-origin: 50% 50%;
   /* Sheet-motion timing (ui-system.md sec.3), applied to the map-tools zoom
@@ -952,6 +959,11 @@ a:focus-visible,
   padding: 0 clamp(24px, 5vw, 55px) 20px;
   color: var(--muted);
   font-size: 12px;
+  /* The dock is centred and absolute, so a long help line runs underneath it and
+     the last words disappear behind a panel rather than wrapping. Bounding the
+     line to the space left of the dock keeps every word readable at both tested
+     widths; it wraps upward, which the column has room for. */
+  max-width: min(100%, calc(50% - 150px));
 }
 
 /* The reader's dock (sec.5b: "the frame every level shares") floats over the

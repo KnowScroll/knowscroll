@@ -49,7 +49,11 @@
  * gets:
  *   - its title suffixed with `(demo)`, so a reader sees it on every
  *     card, stage and reader screen the interface can show it on, and
- *   - its source title suffixed with `· DEMO EVALUATION DATA, NOT REAL USAGE EVIDENCE`.
+ *   - its source title suffixed with `· DEMO DATA`. This began as the full sentence
+ *     `· DEMO EVALUATION DATA, NOT REAL USAGE EVIDENCE`; the system view (#116) draws the source
+ *     title as a world's name, where that sentence wrapped to four lines and buried the name it
+ *     was marking. The short form says the same thing in the one place it has to be read, and the
+ *     full statement lives here and in the tool's own printed receipt.
  * Both are plain text columns, so the same marker that a reader sees is what a query filters on too
  * (`WHERE title LIKE '%(demo)'`, or the unambiguous source suffix), with no schema change and no new column.
  *
@@ -152,7 +156,7 @@ const { projectOne } = await import('../apps/worker/src/project.ts');
 type LibraryAsset = { assetId: string; title: string; summary: string; body: string; sourceTitle: string; sourceUrl: string };
 
 const DEMO_TITLE_SUFFIX = '(demo)';
-const DEMO_SOURCE_SUFFIX = '· DEMO EVALUATION DATA, NOT REAL USAGE EVIDENCE';
+const DEMO_SOURCE_SUFFIX = '· DEMO DATA';
 
 async function loadLibrary(path: string): Promise<LibraryAsset[]> {
   return JSON.parse(await readFile(resolve(path), 'utf8')) as LibraryAsset[];
