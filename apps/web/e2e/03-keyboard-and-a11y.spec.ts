@@ -16,7 +16,8 @@ function writeEvidence(name: string, data: unknown): void {
 test.describe('keyboard-only path, accessibility scan, and reference screenshots', () => {
   test('completes Universe -> Scroll -> Keep -> Next -> Home using only the keyboard', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+    // 1 Trace already kept by 01-reader-journey.spec.ts, which runs first in this single-worker suite.
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Enter Scroll' }).focus();
     await page.keyboard.press('Enter');
@@ -46,12 +47,14 @@ test.describe('keyboard-only path, accessibility scan, and reference screenshots
     await page.waitForTimeout(300);
 
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible({ timeout: 5000 });
+    // This test just kept a second Trace; still 2, well under the "grown" threshold, so the
+    // headline stays "Your first little world." (ui-system.md sec.5c).
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible({ timeout: 5000 });
   });
 
   test('Universe screen has an accessible name path and no serious/critical axe violations', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
     const results = await new AxeBuilder({ page }).include('main').analyze();
     writeEvidence('axe-universe.json', results);
     const serious = results.violations.filter(v => v.impact === 'serious' || v.impact === 'critical');
@@ -75,7 +78,7 @@ test.describe('keyboard-only path, accessibility scan, and reference screenshots
     test(`reference screenshots at ${viewport.name}`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
       await page.screenshot({ path: join(evidenceDir, 'screenshots', `universe-${viewport.name}.png`), fullPage: true });
 
       await page.getByRole('button', { name: 'Enter Scroll' }).click();

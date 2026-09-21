@@ -24,8 +24,10 @@ test('Universe empty, at both sizes, before anything in this run has kept a Scro
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible();
-    await expect(page.getByText('Nothing lives here yet.', { exact: false })).toBeVisible();
+    // Before any Trace exists, the real stage is "first visit" (ui-system.md sec.5c);
+    // the headline names that, not a fixed "Your universe".
+    await expect(page.getByRole('heading', { name: 'Somewhere new starts here.' })).toBeVisible();
+    await expect(page.getByText('No topics to pick. Just something interesting.', { exact: false })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Saved Traces' })).toHaveCount(0);
     await page.screenshot({ path: join(screenshotsDir, `universe-empty-${viewport.name}.png`), fullPage: true });
   }

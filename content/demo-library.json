@@ -1,0 +1,114 @@
+[
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000001",
+        "title": "Equal areas in equal times",
+        "summary": "A planet sweeps the same area whatever part of its orbit it is on.",
+        "body": "Draw a line from a planet to the Sun and let it sweep as the planet moves. Kepler's second law says that in any fixed span of time that line covers the same area, wherever the planet happens to be. Near the Sun the line is short, so the planet must travel further to cover the area; far away the line is long and the planet can afford to crawl. The rule is a statement about angular momentum before anyone had the words for it.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000002",
+        "title": "How eccentric is an orbit?",
+        "summary": "One number says how far an orbit departs from a circle.",
+        "body": "Eccentricity runs from 0 to just under 1. At 0 the orbit is a circle. Push it towards 1 and the ellipse stretches: the body spends a short, fast passage near its star and a long, slow one far away. Earth's orbit is nearly circular at about 0.017, which is why our seasons come from axial tilt rather than distance. Comets run the other way, with eccentricities close to 1 and centuries between visits.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000003",
+        "title": "The nearest and furthest points",
+        "summary": "Every elliptical orbit has a closest approach and a farthest retreat.",
+        "body": "The closest point of an orbit around the Sun is perihelion, the farthest is aphelion. Speed is highest at perihelion and lowest at aphelion, which follows directly from equal areas in equal times. Earth reaches perihelion in early January \u2014 a fact that surprises people in the northern hemisphere, because it lands in winter. Distance is not what makes the seasons.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000004",
+        "title": "Why an orbit does not run down",
+        "summary": "Nothing is pushing a planet along, and nothing needs to be.",
+        "body": "An orbiting body is in free fall. It is constantly falling towards the Sun and constantly missing, because it also carries sideways motion. In the near-vacuum of space there is almost nothing to rub against, so no energy leaks away and the fall continues indefinitely. Low satellites are the exception: the thin upper atmosphere does drag on them, and without a boost their orbits decay.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000005",
+        "title": "The speed that never comes back",
+        "summary": "Escape velocity is the threshold between orbit and departure.",
+        "body": "Give something enough speed and gravity will slow it forever without ever quite stopping it. That threshold is escape velocity: about 11.2 kilometres per second from Earth's surface, ignoring air. It depends on mass and radius, not on the mass of the thing leaving \u2014 a pebble and a spacecraft need the same speed. Below it you get an orbit or a fall; above it you get a departure.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000006",
+        "title": "When orbits keep time together",
+        "summary": "Bodies that meet in a repeating rhythm nudge each other into patterns.",
+        "body": "Orbital resonance happens when two bodies complete orbits in a simple ratio, so they line up in the same places again and again. Repeated gentle tugs at the same points add up. Some resonances are stabilising and lock moons into step; others clear gaps, which is why parts of the asteroid belt are conspicuously empty. The same arithmetic both builds structure and sweeps it away.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000007",
+        "title": "A bigger orbit is a slower year",
+        "summary": "The further out a body orbits, the longer it takes, and by a fixed rule.",
+        "body": "Kepler's third law ties the period of an orbit to its size: the square of the period grows with the cube of the semi-major axis. Double the distance and the year stretches by nearly three times. It holds for planets around the Sun, moons around planets and stars around each other, which is why the same arithmetic that describes Neptune also weighs distant binaries.",
+        "sourceTitle": "NASA \u00b7 Orbits and Kepler's Laws",
+        "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000008",
+        "title": "What a star is doing all day",
+        "summary": "A star is a standoff between gravity pulling in and pressure pushing out.",
+        "body": "Gravity squeezes a star's gas towards the centre. Fusion in the core releases energy, and the resulting pressure pushes back. For most of a star's life the two balance almost exactly, a state called hydrostatic equilibrium. The steadiness is not stillness \u2014 it is an enormous inward pull matched, second by second, by an enormous outward push.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000009",
+        "title": "The main sequence",
+        "summary": "Most stars spend most of their lives doing one thing.",
+        "body": "A star on the main sequence is fusing hydrogen into helium in its core, and it will stay there for the great majority of its existence. Where it sits along that sequence is set almost entirely by mass. The Sun is a main-sequence star roughly halfway through a stay of about ten billion years.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000010",
+        "title": "Heavier stars die younger",
+        "summary": "More fuel does not mean a longer life; it means a faster burn.",
+        "body": "A star ten times the Sun's mass has ten times the fuel and burns it thousands of times faster, so it lasts a tiny fraction as long. Massive stars live fast and end in a few million years; the smallest red dwarfs will still be fusing hydrogen long after the Sun is gone. Mass sets the pace, and the pace dominates.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000011",
+        "title": "Colour is temperature",
+        "summary": "A star's colour is a thermometer you can read by eye.",
+        "body": "Hot stars glow blue-white; cooler ones glow orange and red. The peak of the light a body emits shifts with temperature, so colour reports the surface heat directly. Betelgeuse looks red because its surface is comparatively cool. Rigel looks blue-white because its surface is far hotter. Brightness is a separate question, set by size and distance as well as heat.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000012",
+        "title": "When the core runs out",
+        "summary": "A star that stops fusing hydrogen in its core does not simply fade.",
+        "body": "As core hydrogen is exhausted the core contracts and heats while the outer layers swell and cool. The star becomes a red giant: larger, cooler at the surface, and often brighter overall. The Sun will do this, expanding far beyond its present size. The inner change is a contraction; the outward appearance is an expansion.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000013",
+        "title": "What a small star leaves behind",
+        "summary": "A white dwarf is a stellar core with nothing left to burn.",
+        "body": "When a star of modest mass has shed its outer layers, the exposed core remains: a white dwarf, roughly Earth-sized but carrying a substantial fraction of the Sun's mass. No fusion sustains it. It is held up by quantum pressure rather than heat, and it cools slowly over timescales longer than the present age of the universe.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    },
+    {
+        "assetId": "d1000000-0000-4000-8000-000000000014",
+        "title": "Where the heavy elements come from",
+        "summary": "The atoms in everyday things were assembled inside stars.",
+        "body": "Fusion in stellar cores builds progressively heavier elements, and the most violent stellar deaths scatter them. Carbon, oxygen and iron in ordinary matter were made this way and released into space, where they became part of later generations of stars and planets. The material of the ground underfoot has a stellar history.",
+        "sourceTitle": "NASA \u00b7 Stars",
+        "sourceUrl": "https://science.nasa.gov/universe/stars/"
+    }
+]
