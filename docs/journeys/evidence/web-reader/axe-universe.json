@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-21T12:08:04.116Z",
-  "url": "http://127.0.0.1:49357/",
+  "timestamp": "2026-09-21T12:27:13.579Z",
+  "url": "http://127.0.0.1:57779/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -2349,9 +2349,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00010762731481\" height=\"56.00010762731481\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.000108178240744\" height=\"56.000108178240744\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.00010762731481\"]"
+            "svg[width=\"56.000108178240744\"]"
           ]
         },
         {
@@ -2381,9 +2381,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.000007949074075\" height=\"56.000007949074075\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00000855246913\" height=\"56.00000855246913\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.000007949074075\"]"
+            "svg[width=\"56.00000855246913\"]"
           ]
         },
         {

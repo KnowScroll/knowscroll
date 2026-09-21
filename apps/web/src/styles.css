@@ -721,7 +721,11 @@ a:focus-visible,
   align-items: center;
   gap: 8px;
   min-width: 0;
-  max-width: 320px;
+  /* Wide enough for the longest provenance line any level actually sets. This is the
+     sentence that says where the screen's own data came from; clipping it mid-word is
+     the one truncation this frame cannot afford, and `text-overflow` never rescued it
+     because the ellipsis does not apply to a flex container's anonymous text item. */
+  max-width: min(480px, 46vw);
   font-size: 12.5px;
   font-weight: 800;
   color: var(--ink);
@@ -1166,6 +1170,14 @@ a:focus-visible,
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* The dock is absolutely positioned, so its containing block is this element's
+     padding box and `bottom: 16px` keeps it pinned to the bottom edge regardless.
+     Padding here therefore shrinks only the flex column -- the stage stops above
+     the dock instead of scrolling underneath it. Padding on the stage itself does
+     not work: inside a scroll container it adds scrollable space below the content
+     rather than stopping the content from rendering in the dock's rectangle, which
+     is how the Reset section ended up drawn under a panel. */
+  padding-bottom: 94px;
 }
 .privacy-stage {
   flex: 1;
