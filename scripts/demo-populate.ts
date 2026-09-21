@@ -47,11 +47,11 @@
  * Every asset this tool inserts from content/demo-library.json — never the three from
  * content/editorial-scrolls.json, which are real production editorial content and carry no marker —
  * gets:
- *   - its title prefixed with `[DEMO — interface evaluation only]`, so a reader sees it on every
+ *   - its title suffixed with `(demo)`, so a reader sees it on every
  *     card, stage and reader screen the interface can show it on, and
  *   - its source title suffixed with `· DEMO EVALUATION DATA, NOT REAL USAGE EVIDENCE`.
  * Both are plain text columns, so the same marker that a reader sees is what a query filters on too
- * (`WHERE title LIKE '[DEMO%'`), with no schema change and no new column.
+ * (`WHERE title LIKE '%(demo)'`, or the unambiguous source suffix), with no schema change and no new column.
  *
  * Stages
  * ------
@@ -151,7 +151,7 @@ const { projectOne } = await import('../apps/worker/src/project.ts');
 
 type LibraryAsset = { assetId: string; title: string; summary: string; body: string; sourceTitle: string; sourceUrl: string };
 
-const DEMO_TITLE_PREFIX = '[DEMO — interface evaluation only]';
+const DEMO_TITLE_SUFFIX = '(demo)';
 const DEMO_SOURCE_SUFFIX = '· DEMO EVALUATION DATA, NOT REAL USAGE EVIDENCE';
 
 async function loadLibrary(path: string): Promise<LibraryAsset[]> {
@@ -177,7 +177,7 @@ async function seedLibrary(): Promise<number> {
          VALUES($1,1,'Scroll',$2,$3,$4,$5,$6,'documented',$7) ON CONFLICT(id) DO NOTHING`,
         [
           a.assetId,
-          `${DEMO_TITLE_PREFIX} ${a.title}`,
+          `${a.title} ${DEMO_TITLE_SUFFIX}`,
           a.summary,
           a.body,
           `${a.sourceTitle} ${DEMO_SOURCE_SUFFIX}`,
