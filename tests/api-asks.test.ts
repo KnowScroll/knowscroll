@@ -112,7 +112,12 @@ test('rejects foreign, stale, altered, and conflicting Ask sources without expos
 
   const ambiguous=await expose(owner.token,await feed(owner.token));
   const candidates=(await pool.query<{candidates:Record<string,unknown>[]}>('SELECT candidates FROM decision WHERE id=$1',[ambiguous.body.decisionId])).rows[0]!.candidates;
-  await pool.query('UPDATE decision SET candidates=$2 WHERE id=$1',[ambiguous.body.decisionId,JSON.stringify([...candidates,{...candidates[0],kind:'Reel'}])]);
+  // ADR-0028: a real decision's `ranking_version` requires its `decision_signal` rows to name
+  // exactly its own `candidates` (migration 0017's coverage trigger). This fixture hand-fabricates
+  // an impossible candidates array no ranking ever produced purely to exercise the Ask route's own
+  // ambiguity check, so it also clears `ranking_version` — the decision is no longer describable
+  // as having been ranked by any policy, which is the truth here.
+  await pool.query('UPDATE decision SET candidates=$2,ranking_version=NULL WHERE id=$1',[ambiguous.body.decisionId,JSON.stringify([...candidates,{...candidates[0],kind:'Reel'}])]);
   const ambiguousInput={clientAskId:randomUUID(),exposureId:ambiguous.receipt.exposureId,expectedPrivacyEpoch:0,question:'Which selected Scroll is this?'};
   assert.equal((await ask(owner.token,ambiguousInput)).statusCode,422);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM explicit_ask WHERE session_id=$1 AND client_ask_id=$2',[owner.scope.sessionId,ambiguousInput.clientAskId])).rows[0].count,0);
