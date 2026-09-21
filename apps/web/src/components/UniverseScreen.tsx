@@ -10,6 +10,7 @@ export interface UniverseScreenProps {
   onEnterScroll: () => void;
   onOpenTrace: (trace: Trace) => void;
   onEnterSystem: () => void;
+  onOpenPrivacy: () => void;
   onRetry: () => void;
 }
 
@@ -28,7 +29,7 @@ export interface UniverseScreenProps {
  * frames (no system/interior/planet levels: no semantic geography exists
  * yet -- sec.5b's own table).
  */
-export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onEnterSystem, onRetry }: UniverseScreenProps) {
+export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy, onRetry }: UniverseScreenProps) {
   return (
     <main className="universe-screen" aria-label="Universe">
       <CosmosBackground />
@@ -56,7 +57,14 @@ export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onE
         </div>
       )}
       {state.status === 'loaded' && (
-        <LoadedUniverse universe={state.universe} storage={storage} onEnterScroll={onEnterScroll} onOpenTrace={onOpenTrace} onEnterSystem={onEnterSystem} />
+        <LoadedUniverse
+          universe={state.universe}
+          storage={storage}
+          onEnterScroll={onEnterScroll}
+          onOpenTrace={onOpenTrace}
+          onEnterSystem={onEnterSystem}
+          onOpenPrivacy={onOpenPrivacy}
+        />
       )}
     </main>
   );
@@ -244,9 +252,10 @@ interface LoadedUniverseProps {
   onEnterScroll: () => void;
   onOpenTrace: (trace: Trace) => void;
   onEnterSystem: () => void;
+  onOpenPrivacy: () => void;
 }
 
-function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnterSystem }: LoadedUniverseProps) {
+function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy }: LoadedUniverseProps) {
   const traces = universe.traces;
   const empty = traces.length === 0;
   const stage = stageFor(traces.length);
@@ -285,6 +294,17 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
         </p>
         {growthNote && <p className="growth-caption">{growthNote}</p>}
       </div>
+
+      {/* #119: reachable regardless of whether anything has been kept yet -- pausing, exporting
+          and resetting are all real capabilities of a universe that has recorded nothing just as
+          much as one that has recorded a great deal, so this is never conditioned on `empty` the
+          way the legend/map-tools below are. Neither Cosmos nor Living Observatory draws a
+          privacy control at all; this sits in Cosmos's own reserved-but-otherwise-unused top-right
+          status-pill slot (`.universe-title`'s own `right:150px` already clears this exact space)
+          rather than inventing a new frame position. */}
+      <button type="button" className="pill cream privacy-entry" onClick={onOpenPrivacy} aria-label="Open privacy controls">
+        Privacy
+      </button>
 
       {/* Every body here is a real, focusable, labelled control (even the empty-state
           invitation bodies, which trigger the same real discovery action as the CTA) --

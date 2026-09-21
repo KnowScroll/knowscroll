@@ -311,6 +311,16 @@ a:focus-visible,
   max-width: 46ch;
 }
 
+/* Privacy entry (#119): Cosmos's own reserved-but-unused top-right status-pill slot
+   (`top:34px; right:14px`, sec.5b's frame table) -- `.universe-title`'s own `right:150px` already
+   clears this space, so this never overlaps the title HUD. */
+.privacy-entry {
+  position: absolute;
+  z-index: 2;
+  top: 34px;
+  right: clamp(20px, 4vw, 48px);
+}
+
 /* Growth note (sec.5c: Living Observatory's own `#growthCaption` recipe,
    recoloured to Cosmos's yellow). Carries only a real, already-recorded
    why-this-appeared reason for the most recently kept Trace -- never an
@@ -1142,6 +1152,113 @@ a:focus-visible,
   .world-body {
     width: 130px;
   }
+}
+
+/* ---------- Privacy panel (#119, ADR-0030) ----------
+ * Neither reference draws a privacy control at all -- Cosmos and Living Observatory both predate
+ * ADR-0030 -- so this section's interior structure is this file's own, honest choice (bounded,
+ * scrollable stage like `.system-stage`; real cream cards, sec.3's own card recipe) rather than a
+ * fidelity match to either reference. The shared frame (head band, dock, sec.3's pills) is not.
+ */
+.privacy-screen {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.privacy-stage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px clamp(24px, 5vw, 55px) 40px;
+}
+.privacy-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(620px, 100%);
+}
+.privacy-section {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  padding: 22px 24px;
+  text-align: left;
+  width: 100%;
+}
+.privacy-section h2 {
+  font-size: 20px;
+  margin: 6px 0 10px;
+}
+.privacy-section p {
+  line-height: 1.55;
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+}
+.privacy-note {
+  font-size: 12.5px;
+}
+.privacy-error {
+  color: var(--orange);
+  font-weight: 700;
+  font-size: 13px;
+}
+.privacy-export-ready {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.privacy-export-summary {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin: 0;
+}
+.privacy-confirm-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.privacy-confirm-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sea);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  margin-bottom: 14px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.6);
+}
+.privacy-reset-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.privacy-receipt {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0 0 14px;
+}
+.privacy-receipt dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.privacy-receipt dd {
+  margin: 0;
+  font-weight: 700;
 }
 
 /* Global toast (App.tsx): Cosmos's literal cream toast recipe, .25s motion

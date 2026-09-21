@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiException } from '../../src/api/client.ts';
-import { ReaderStore } from '../../src/state/readerStore.ts';
+import { ReaderStore, type PrivacyActionState } from '../../src/state/readerStore.ts';
 import { MemoryStorageBackend, ReaderStorage } from '../../src/state/storage.ts';
-import { FakeApi, feedItem, universeOf, worldSystemOf } from './fakeApi.ts';
+import { FakeApi, feedItem, privacyExportResultOf, privacyRecordingReceiptOf, privacyResetReceiptOf, universeOf, worldSystemOf } from './fakeApi.ts';
 
 function tick(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0));
@@ -15,6 +15,14 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void
     if (Date.now() - start > timeoutMs) throw new Error('waitFor timed out');
     await tick();
   }
+}
+
+/** A single read of `store.getState().privacy` narrowed once, so `waitFor` predicates below do
+ * not re-call `getState()` a second time just to read `.action` -- TS cannot narrow across two
+ * separate calls, and re-reading would also risk observing a different tick's state. */
+function privacyActionStatus(store: ReaderStore): PrivacyActionState['status'] | null {
+  const privacy = store.getState().privacy;
+  return privacy.status === 'open' ? privacy.action.status : null;
 }
 
 describe('ReaderStore', () => {
@@ -363,5 +371,179 @@ describe('ReaderStore', () => {
 
     expect(reloaded.getState().screen).toBe('universe');
     expect(storage.readSession()).toBeNull();
+  });
+
+  // ---------- Privacy lifecycle (#119, ADR-0030): pause/resume/export/reset ----------
+
+  async function openLoadedPrivacy(): Promise<void> {
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+    store.openPrivacy();
+  }
+
+  it('openPrivacy shows the panel over the real universe already loaded, and closePrivacy returns without re-fetching', async () => {
+    await openLoadedPrivacy();
+    expect(store.getState().screen).toBe('privacy');
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'idle' } });
+    expect(api.universeCalls).toBe(1);
+
+    store.closePrivacy();
+    expect(store.getState().screen).toBe('universe');
+    expect(store.getState().privacy).toEqual({ status: 'idle' });
+    // Returning is not itself a privacy reconciliation -- nothing changed, so nothing is re-fetched.
+    expect(api.universeCalls).toBe(1);
+  });
+
+  it('openPrivacy is a no-op before the universe has ever loaded', () => {
+    store.openPrivacy();
+    expect(store.getState().screen).toBe('universe');
+    expect(store.getState().privacy).toEqual({ status: 'idle' });
+  });
+
+  it('pause posts one requestId keyed to the current epoch, then genuinely re-reads GET /v1/universe rather than trusting the receipt', async () => {
+    await openLoadedPrivacy();
+
+    // The pause receipt claims one pausedAt value; the *re-read* GET returns a different one.
+    // The panel must end up showing the GET's value -- proof it actually re-read rather than
+    // trusting the POST response it already had in hand.
+    api.pauseQueue.push(privacyRecordingReceiptOf({ recordingPausedAt: '2020-01-01T00:00:00.000Z' }));
+    api.universeQueue.push(universeOf({ recordingPausedAt: '2026-09-21T09:00:00.000Z' }));
+
+    store.pauseRecording();
+    expect(store.getState().privacy).toMatchObject({ status: 'open', action: { status: 'pending', kind: 'pause' } });
+    await waitFor(() => privacyActionStatus(store) === 'idle');
+
+    expect(api.pauseCalls).toEqual([{ requestId: expect.any(String), expectedPrivacyEpoch: 0 }]);
+    expect(api.universeCalls).toBe(2); // the initial load, plus one genuine re-read after pause
+    const universe = store.getState().universe;
+    if (universe.status !== 'loaded') throw new Error('expected loaded universe');
+    expect(universe.universe.recordingPausedAt).toBe('2026-09-21T09:00:00.000Z');
+  });
+
+  it('resume mirrors pause: one request, then a real re-read', async () => {
+    await openLoadedPrivacy();
+    api.resumeQueue.push(privacyRecordingReceiptOf({ action: 'resume', recordingPausedAt: null }));
+    api.universeQueue.push(universeOf({ recordingPausedAt: null }));
+
+    store.resumeRecording();
+    await waitFor(() => privacyActionStatus(store) === 'idle');
+
+    expect(api.resumeCalls).toHaveLength(1);
+    expect(api.universeCalls).toBe(2);
+    const universe = store.getState().universe;
+    if (universe.status !== 'loaded') throw new Error('expected loaded universe');
+    expect(universe.universe.recordingPausedAt).toBeNull();
+  });
+
+  it('a failed pause reuses the same requestId on retry, never minting a second one for the same intent', async () => {
+    await openLoadedPrivacy();
+    api.pauseQueue.push(new ApiException({ kind: 'network', message: 'dropped' }));
+    store.pauseRecording();
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+
+    const failed = store.getState().privacy;
+    if (failed.status !== 'open' || failed.action.status !== 'failed') throw new Error('expected failed pause');
+    const firstRequestId = failed.action.requestId;
+    expect(api.pauseCalls).toHaveLength(1);
+
+    api.pauseQueue.push(privacyRecordingReceiptOf());
+    api.universeQueue.push(universeOf({ recordingPausedAt: '2026-09-21T09:00:00.000Z' }));
+    store.pauseRecording();
+    await waitFor(() => privacyActionStatus(store) === 'idle');
+
+    expect(api.pauseCalls).toHaveLength(2);
+    expect(api.pauseCalls[0]!.requestId).toBe(firstRequestId);
+    expect(api.pauseCalls[1]!.requestId).toBe(firstRequestId);
+  });
+
+  it('a stale-epoch conflict (409) while pausing purges private state and fails closed, exactly like every other scoped route', async () => {
+    await openLoadedPrivacy();
+    api.pauseQueue.push(new ApiException({ kind: 'server', statusCode: 409, body: 'stale epoch' }));
+    store.pauseRecording();
+    await waitFor(() => store.getState().universe.status === 'unavailable');
+
+    expect(store.getState().screen).toBe('universe');
+    expect(store.getState().privacy).toEqual({ status: 'idle' });
+  });
+
+  it('export requests the full record, never re-reading the universe (nothing changed)', async () => {
+    await openLoadedPrivacy();
+    const result = privacyExportResultOf();
+    api.privacyExportQueue.push(result);
+
+    store.requestExport();
+    await waitFor(() => privacyActionStatus(store) === 'export-ready');
+
+    expect(api.privacyExportCalls).toEqual([{ requestId: expect.any(String), expectedPrivacyEpoch: 0 }]);
+    expect(api.universeCalls).toBe(1); // no re-read; export is read-only and changes nothing
+    const view = store.getState().privacy;
+    if (view.status !== 'open' || view.action.status !== 'export-ready') throw new Error('expected export-ready');
+    expect(view.action.result).toEqual(result);
+  });
+
+  it('reset refuses to send anything until the typed confirmation exactly matches the wire literal', async () => {
+    await openLoadedPrivacy();
+    store.beginReset();
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'confirming-reset' } });
+
+    store.confirmReset('reset my universe please');
+    expect(api.resetCalls).toHaveLength(0);
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'confirming-reset' } });
+
+    store.cancelReset();
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'idle' } });
+  });
+
+  it('a confirmed reset purges every cached private artifact and shows the real receipt, never merely firing the request', async () => {
+    await openLoadedPrivacy();
+    // Seed private state that a reset must purge (session, visited, lastKept).
+    storage.writeSession({
+      decisionId: 'd1',
+      item: feedItem(),
+      privacyEpoch: 0,
+      universeId: universeOf().universeId,
+      clientExposureId: 'c1',
+      clientEventId: 'c2',
+      exposureId: 'exp-1',
+      exposureEventId: 'evt-1',
+      keepJobId: 'job-1',
+      keepEventId: 'evt-2',
+      readingPosition: 10,
+    });
+    storage.writeLastKept({ eventId: 'evt-2', title: 'Kept', reason: 'because', universeId: universeOf().universeId, privacyEpoch: 0 });
+
+    const receipt = privacyResetReceiptOf({ epochBefore: 0, epochAfter: 1, sessionsRevoked: 1 });
+    api.resetQueue.push(receipt);
+
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'reset-complete');
+
+    expect(api.resetCalls).toEqual([{ requestId: expect.any(String), expectedPrivacyEpoch: 0, confirmation: 'reset-personal-universe' }]);
+    const view = store.getState().privacy;
+    if (view.status !== 'open' || view.action.status !== 'reset-complete') throw new Error('expected reset-complete');
+    expect(view.action.receipt).toEqual(receipt);
+    expect(store.getState().screen).toBe('privacy'); // stays put so the receipt is actually seen
+
+    // The cached reader state a Reset invalidates (ADR-0030) is gone immediately, not merely on next load.
+    expect(storage.readSession()).toBeNull();
+    expect(storage.readLastKept()).toBeNull();
+  });
+
+  it('acknowledging a completed reset re-reads the universe, which genuinely fails now the session is revoked', async () => {
+    await openLoadedPrivacy();
+    api.resetQueue.push(privacyResetReceiptOf());
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'reset-complete');
+
+    // Reset revokes the calling session (ADR-0030); the very next request from the same token fails 401.
+    api.universeQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.acknowledgeReset();
+    await waitFor(() => store.getState().universe.status === 'unavailable');
+
+    expect(store.getState().screen).toBe('universe');
+    expect(store.getState().privacy).toEqual({ status: 'idle' });
   });
 });

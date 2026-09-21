@@ -1,13 +1,25 @@
 /**
  * The reader state machine. A plain, framework-independent class (mirroring
  * apps/mobile/.../ui/AppViewModel.kt, scoped to this slice: no Ask, Reel,
- * Friends, branch, Clear History or sign-out control exists here per #92).
+ * Friends, branch or sign-out control exists here per #92 -- the privacy
+ * lifecycle below, #119, is the one exception the issue explicitly adds).
  *
  * A React hook subscribes via useSyncExternalStore (src/hooks/useReaderStore.ts);
  * this file has no DOM/React dependency so its logic is directly unit-testable.
  */
 import { ApiException, describeApiError, invalidatesReader, isUnauthorized, type ReaderApi } from '../api/client.ts';
-import type { EventStatus, FeedItem, FeedResponse, Trace, TraceRevisit, Universe, WorldSystemResponse } from '../api/types.ts';
+import { RESET_CONFIRMATION } from '../api/types.ts';
+import type {
+  EventStatus,
+  FeedItem,
+  FeedResponse,
+  PrivacyExportResult,
+  PrivacyResetReceipt,
+  Trace,
+  TraceRevisit,
+  Universe,
+  WorldSystemResponse,
+} from '../api/types.ts';
 import { canRequestDiscovery, selectDiscovery, type DiscoveryState, type KeepState } from './discovery.ts';
 import type { ReaderStorage, RevisitSession, ScrollSession } from './storage.ts';
 
@@ -53,13 +65,33 @@ export type SystemView =
   | { status: 'loaded'; response: WorldSystemResponse }
   | { status: 'unavailable'; message: string };
 
-export type Screen = 'universe' | 'scroll' | 'revisit' | 'system';
+export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy';
+
+/** ADR-0030/#119: pause, export and reset. Every mutating action carries the `kind` it is acting
+ * on and, once sent, the one `requestId` that intent keeps across any retry (server-side replay
+ * key) -- a manual retry after `failed` reuses it rather than minting a fresh one, exactly like
+ * `ScrollSession.clientEventId` already does for Keep. */
+export type PrivacyActionKind = 'pause' | 'resume' | 'export' | 'reset';
+
+export type PrivacyActionState =
+  | { status: 'idle' }
+  | { status: 'confirming-reset' }
+  | { status: 'pending'; kind: PrivacyActionKind; requestId: string }
+  | { status: 'failed'; kind: PrivacyActionKind; requestId: string; message: string }
+  | { status: 'export-ready'; requestId: string; result: PrivacyExportResult }
+  | { status: 'reset-complete'; receipt: PrivacyResetReceipt };
+
+/** Never persisted across reload, like `SystemView` -- reopening the panel starts from `idle` and
+ * the paused/epoch facts it shows are always read from the already-loaded `UniverseView` above,
+ * never a copy of their own that could drift from it. */
+export type PrivacyView = { status: 'idle' } | { status: 'open'; action: PrivacyActionState };
 
 export interface ReaderState {
   screen: Screen;
   universe: UniverseView;
   scroll: ScrollView;
   system: SystemView;
+  privacy: PrivacyView;
   toast: string | null;
 }
 
@@ -71,6 +103,7 @@ export class ReaderStore {
     universe: { status: 'loading' },
     scroll: { status: 'idle' },
     system: { status: 'idle' },
+    privacy: { status: 'idle' },
     toast: null,
   };
   private readonly listeners = new Set<Listener>();
@@ -174,6 +207,193 @@ export class ReaderStore {
     if (this.state.screen !== 'system') return;
     this.navigationVersion++; // invalidates any in-flight getWorlds() so a stale response cannot land
     this.set({ screen: 'universe', system: { status: 'idle' } });
+  }
+
+  // ---------- Privacy lifecycle (#119, ADR-0030): pause, export and reset ----------
+
+  /** Reachable only once the universe has actually loaded: the panel shows that same loaded
+   * `UniverseView`'s own `recordingPausedAt`/`privacyEpoch`, never a copy of its own, so there is
+   * nothing honest to show before a real `GET /v1/universe` has already landed. */
+  openPrivacy(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.universe.status !== 'loaded') return;
+    this.set({ screen: 'privacy', privacy: { status: 'open', action: { status: 'idle' } } });
+  }
+
+  /** Nothing private is held by this view itself (like `returnFromSystem`), so leaving it never
+   * re-fetches anything on its own -- the loaded universe underneath is untouched either way. */
+  closePrivacy(): void {
+    if (this.state.screen !== 'privacy') return;
+    this.set({ screen: 'universe', privacy: { status: 'idle' } });
+  }
+
+  private currentPrivacyAction(): PrivacyActionState | null {
+    return this.state.privacy.status === 'open' ? this.state.privacy.action : null;
+  }
+
+  private setPrivacyAction(action: PrivacyActionState): void {
+    if (this.state.privacy.status !== 'open') return;
+    this.set({ privacy: { status: 'open', action } });
+  }
+
+  /** One `requestId` per user intent (#119): a manual retry after `failed` for the *same* kind
+   * reuses it -- the server is replay-keyed on it, so minting a fresh id per retry would turn one
+   * intent into two actions. Any other transition (including a fresh press after success) mints a
+   * new one, exactly like `ScrollSession.clientEventId` already does for Keep. */
+  private nextPrivacyRequestId(kind: PrivacyActionKind): string {
+    const current = this.currentPrivacyAction();
+    return current && current.status === 'failed' && current.kind === kind ? current.requestId : randomUuid();
+  }
+
+  pauseRecording(): void {
+    this.runPrivacyRecordingAction('pause');
+  }
+
+  resumeRecording(): void {
+    this.runPrivacyRecordingAction('resume');
+  }
+
+  private runPrivacyRecordingAction(kind: 'pause' | 'resume'): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    const requestId = this.nextPrivacyRequestId(kind);
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.busy = true;
+    const version = this.navigationVersion;
+    this.setPrivacyAction({ status: 'pending', kind, requestId });
+    const call =
+      kind === 'pause'
+        ? this.api.postPrivacyPause({ requestId, expectedPrivacyEpoch: epoch })
+        : this.api.postPrivacyResume({ requestId, expectedPrivacyEpoch: epoch });
+    call
+      // The state shown must be the server's, re-read after every action -- never trusted from
+      // the POST receipt this call already has in hand (issue #119's own honesty rule).
+      .then(() => this.api.getUniverse())
+      .then(actual => {
+        if (version !== this.navigationVersion) return;
+        if (actual.universeId !== universeId) {
+          this.purgeForScope(actual.universeId, actual.privacyEpoch);
+          this.failClosed('Your session moved to a different universe. Reconnect to continue.');
+          return;
+        }
+        this.observedPrivacyEpoch = this.storage.observePrivacyState(actual.universeId, actual.privacyEpoch);
+        this.set({ universe: { status: 'loaded', universe: actual } });
+        this.setPrivacyAction({ status: 'idle' });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error));
+        } else {
+          this.setPrivacyAction({ status: 'failed', kind, requestId, message: describeApiError(error) });
+        }
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** Read-only (ADR-0030): unlike pause/resume, nothing changes, so there is nothing to re-read
+   * the universe for -- the result itself is the record, offered to the reader as a file. */
+  requestExport(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    const requestId = this.nextPrivacyRequestId('export');
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.busy = true;
+    const version = this.navigationVersion;
+    this.setPrivacyAction({ status: 'pending', kind: 'export', requestId });
+    this.api
+      .postPrivacyExport({ requestId, expectedPrivacyEpoch: epoch })
+      .then(result => {
+        if (version !== this.navigationVersion) return;
+        this.setPrivacyAction({ status: 'export-ready', requestId, result });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error));
+        } else {
+          this.setPrivacyAction({ status: 'failed', kind: 'export', requestId, message: describeApiError(error) });
+        }
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** Behind an explicit typed confirmation (#119): this only opens the confirmation UI. Nothing
+   * is sent until `confirmReset` is called with the exact matching literal. */
+  beginReset(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (this.state.privacy.action.status !== 'idle') return;
+    this.setPrivacyAction({ status: 'confirming-reset' });
+  }
+
+  cancelReset(): void {
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** Refuses to send anything unless `typed` is exactly the wire contract's own confirmation
+   * literal (`RESET_CONFIRMATION`) -- the panel already gates its Confirm control on this; this
+   * check is defence in depth, not the only gate. */
+  confirmReset(typed: string): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (typed !== RESET_CONFIRMATION) return;
+    const requestId = this.nextPrivacyRequestId('reset');
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.busy = true;
+    const version = this.navigationVersion;
+    this.setPrivacyAction({ status: 'pending', kind: 'reset', requestId });
+    this.api
+      .postPrivacyReset({ requestId, expectedPrivacyEpoch: epoch, confirmation: RESET_CONFIRMATION })
+      .then(receipt => {
+        if (version !== this.navigationVersion) return;
+        // ADR-0030: Reset erases this universe's recorded history and revokes every device
+        // session, including the one that asked for it. The cached private state this client
+        // holds is invalidated the moment that receipt exists -- purged now, not merely on the
+        // next load. The panel deliberately stays open (not `purgeForScope`, which would also
+        // navigate away) so the receipt below is actually seen, not replaced by a navigation.
+        this.storage.purgePrivateState(universeId, receipt.epochAfter);
+        this.observedUniverseId = this.storage.readObservedUniverseId();
+        this.observedPrivacyEpoch = this.storage.readObservedPrivacyEpoch();
+        this.session = null;
+        this.revisit = null;
+        this.visited.clear();
+        this.ready = false; // the calling session is revoked server-side; nothing else may act as it until re-authenticated
+        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' } });
+        this.setPrivacyAction({ status: 'reset-complete', receipt });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error));
+        } else {
+          this.setPrivacyAction({ status: 'failed', kind: 'reset', requestId, message: describeApiError(error) });
+        }
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** Reset revoked the calling session (ADR-0030): this deliberately re-reads the universe so the
+   * real 401 that follows is what closes the loop, rather than the client merely assuming it. */
+  acknowledgeReset(): void {
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (this.state.privacy.action.status !== 'reset-complete') return;
+    this.reconcilePrivacy(false);
   }
 
   /** A Trace has an explicit origin and never becomes a new discovery or exposure (docs/contracts/trace-revisit.md). */
@@ -563,13 +783,19 @@ export class ReaderStore {
     this.session = null;
     this.revisit = null;
     this.visited.clear();
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' } });
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' } });
   }
 
   private failClosed(reason: string): void {
     this.ready = false;
     this.session = null;
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, universe: { status: 'unavailable', message: reason } });
+    this.set({
+      screen: 'universe',
+      scroll: { status: 'idle' },
+      system: { status: 'idle' },
+      privacy: { status: 'idle' },
+      universe: { status: 'unavailable', message: reason },
+    });
   }
 
   private discardRevisit(): void {

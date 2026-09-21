@@ -17,6 +17,9 @@ import {
   exposureResponse,
   feedResponse,
   interactionResponse,
+  privacyExportResultSchema,
+  privacyRecordingReceiptSchema,
+  privacyResetReceiptSchema,
   traceRevisit,
   universe,
   worldSystemResponseSchema,
@@ -24,6 +27,11 @@ import {
   type ExposureResponse,
   type FeedResponse,
   type InteractionResponse,
+  type PrivacyExportResult,
+  type PrivacyLifecycleRequest,
+  type PrivacyRecordingReceipt,
+  type PrivacyResetReceipt,
+  type PrivacyResetRequest,
   type TraceRevisit,
   type Universe,
   type WorldSystemResponse,
@@ -85,6 +93,14 @@ export interface ReaderApi {
   getEvent(eventId: string): Promise<EventStatus>;
   getTraceRevisit(eventId: string): Promise<TraceRevisit>;
   getWorlds(): Promise<WorldSystemResponse>;
+  /** ADR-0030/#119: pause/resume/export/reset all require the caller to already know the
+   * universe's own current `privacyEpoch` (from a real `GET /v1/universe`) and to reuse one
+   * `requestId` per user intent across any retry -- the server is replay-keyed on it, so minting
+   * a fresh id per retry would turn one intent into two actions. */
+  postPrivacyPause(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt>;
+  postPrivacyResume(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt>;
+  postPrivacyExport(body: PrivacyLifecycleRequest): Promise<PrivacyExportResult>;
+  postPrivacyReset(body: PrivacyResetRequest): Promise<PrivacyResetReceipt>;
 }
 
 export class ApiClient implements ReaderApi {
@@ -137,6 +153,29 @@ export class ApiClient implements ReaderApi {
   /** ADR-0028/#113: a pure read of the already-projected worlds/system state, never a recompute-on-read. */
   async getWorlds(): Promise<WorldSystemResponse> {
     return this.request('GET', '/worlds', undefined, [200], false, worldSystemResponseSchema);
+  }
+
+  /**
+   * `treat409AsConflict` stays `false` for all four privacy routes, exactly like `getTraceRevisit`
+   * above: a 409 here means the caller's `expectedPrivacyEpoch` is stale (ADR-0030's exact replay
+   * contract), which is the same "your view of the universe is stale" fact `invalidatesReader`
+   * already recognises generically for every other route in this app -- not the narrower
+   * same-key-different-content case `postInteraction` alone uses `interaction-conflict` for.
+   */
+  async postPrivacyPause(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt> {
+    return this.request('POST', '/privacy/pause', body, [200], false, privacyRecordingReceiptSchema);
+  }
+
+  async postPrivacyResume(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt> {
+    return this.request('POST', '/privacy/resume', body, [200], false, privacyRecordingReceiptSchema);
+  }
+
+  async postPrivacyExport(body: PrivacyLifecycleRequest): Promise<PrivacyExportResult> {
+    return this.request('POST', '/privacy/export', body, [200], false, privacyExportResultSchema);
+  }
+
+  async postPrivacyReset(body: PrivacyResetRequest): Promise<PrivacyResetReceipt> {
+    return this.request('POST', '/privacy/reset', body, [200], false, privacyResetReceiptSchema);
   }
 
   private async request<T>(
