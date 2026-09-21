@@ -46,10 +46,16 @@ enum class CompassTab { Atlas, Cable, Keep }
  * an interactive control underneath it — the exact failure mode #110's evidence README recorded
  * three times on the desktop surface (rails and sheets clipping or hiding reachable controls).
  * Recorded as a deviation from the literal word "floating", not from its intent.
+ *
+ * `selected` is nullable because a level can exist that is not one of the three. The system level
+ * (#116) is reached from Atlas and returns to it, but it is not Atlas: marking Atlas current there
+ * would tell the reader -- and, through `Role.Tab`'s selected state, a screen reader -- that they
+ * are somewhere they are not. On that level nothing is marked, which is what the web surface does
+ * for the same reason (#121). The dock is still drawn and still navigates.
  */
 @Composable
 fun BottomCompass(
-    selected: CompassTab,
+    selected: CompassTab?,
     onSelectAtlas: () -> Unit,
     onSelectCable: () -> Unit,
     onSelectKeep: () -> Unit,

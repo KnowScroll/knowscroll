@@ -1,6 +1,8 @@
 package com.knowscroll.mobile.ui.fidelity
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -10,6 +12,7 @@ import com.knowscroll.mobile.data.WorldSystemResponse
 import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.RobolectricTestRunner
@@ -34,6 +37,39 @@ import org.junit.runner.RunWith
 class SystemScreenRedTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun `the dock marks no entry current on a level that is not one of its destinations`() {
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = SystemState.Loaded(
+                        WorldSystemResponse(
+                            "shared_source_v1",
+                            WorldSystem(
+                                "system-1",
+                                listOf(WorldSummary("w-1", "NASA \u00b7 Stars", "https://example.com/stars", 1, 1)),
+                            ),
+                        ),
+                    ),
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
+                )
+            }
+        }
+
+        // The dock is still drawn and still navigates -- all three destinations are present.
+        composeRule.onNodeWithText("Atlas").assertExists()
+        composeRule.onNodeWithText("Cable").assertExists()
+        composeRule.onNodeWithText("Keep").assertExists()
+
+        // But none of them is marked current. System is reached from Atlas and returns to it, and
+        // is still not Atlas: `Role.Tab`'s selected state is what a screen reader announces as
+        // "selected", so marking Atlas here would tell the reader they are somewhere they are not.
+        val selected = composeRule
+            .onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+            .fetchSemanticsNodes()
+        assertEquals("no dock entry may be marked current on the system level", 0, selected.size)
+    }
 
     @Test
     fun `the empty system says nothing has been encountered yet, not an error`() {

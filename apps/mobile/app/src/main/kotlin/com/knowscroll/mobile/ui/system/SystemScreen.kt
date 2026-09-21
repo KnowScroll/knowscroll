@@ -76,9 +76,11 @@ import kotlin.math.sin
  * Section 4b: no desktop head band, no 1050/700px breakpoints. The head band's *job* survives as a
  * single leading row above the stage instead of a 66px fixed bar: back, where this came from
  * ("Derived from recorded sources, never inferred" -- methodology, not a data value), the kind
- * label. Bottom compass stays present; System has no dock entry of its own (sec.4b/5b name exactly
- * three: Atlas/Cable/Keep), so it marks Atlas -- the level System is reached from and returns to --
- * tapping Atlas here returns to Universe rather than being a no-op, since System is not Atlas itself.
+ * label. Bottom compass stays present and still navigates, but marks **nothing** current: sec.4b/5b
+ * name exactly three destinations (Atlas/Cable/Keep) and System is not one of them. Marking Atlas
+ * would read, to a sighted reader and to a screen reader through `Role.Tab`'s selected state, as
+ * "you are at Atlas" -- which is not true of someone standing on the system level. The web surface
+ * marks nothing here for the same reason (#121), and the two surfaces have to read as one product.
  */
 @Composable
 fun SystemScreen(
@@ -106,7 +108,7 @@ fun SystemScreen(
                 }
             }
             BottomCompass(
-                selected = CompassTab.Atlas,
+                selected = null,
                 onSelectAtlas = onReturn,
                 onSelectCable = onEnterScroll,
                 onSelectKeep = onOpenKeep
