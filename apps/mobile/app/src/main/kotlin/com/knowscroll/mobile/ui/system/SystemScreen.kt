@@ -249,10 +249,17 @@ private fun SystemOrbit(worlds: List<WorldSummary>) {
         }
         worlds.forEachIndexed { index, world ->
             val (leftFraction, topFraction) = worldBodyFraction(index, worlds.size)
+            // Found by actually running this at 840x1680/font-scale 1.3 (docs/product/ui-system.md
+            // sec.7's own second required phone size): a fixed 0.33 amplitude still clips on a
+            // narrower screen -- there is no single amplitude that fits every width, since it was
+            // never bounded by the box's own real size. Clamped here instead: the label column's
+            // raw fraction-based x can now never leave [0, w-150dp], regardless of screen width.
+            val rawX = w * leftFraction - 75.dp
+            val clampedX = rawX.coerceIn(0.dp, (w - 150.dp).coerceAtLeast(0.dp))
             WorldBody(
                 world = world,
                 modifier = Modifier.width(150.dp)
-                    .offset(x = w * leftFraction - 75.dp, y = h * topFraction - 45.dp)
+                    .offset(x = clampedX, y = h * topFraction - 45.dp)
             )
         }
     }
