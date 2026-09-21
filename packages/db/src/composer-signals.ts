@@ -47,6 +47,22 @@ export async function loadComposerSignalCandidates(
     [universeId, ids],
   )).rows;
   const bySignal = new Map(rows.map(row => [row.asset_id, row]));
+
+  // #113/ADR-0029 amendment: the coverage tie-break's own bounded signal query — total recorded
+  // exposures in this universe for ANY asset sharing a candidate's source, not only this one
+  // candidate asset (a source with other, already-exposed assets is not "unseen"). Bounded to the
+  // distinct sourceKeys already present in this request's own candidate set, never every source
+  // the universe has ever encountered.
+  const sourceKeys = [...new Set(assets.map(a => a.sourceUrl))];
+  const sourceRows = sourceKeys.length === 0 ? [] : (await client.query<{ source_url: string; exposure_count: string }>(
+    `SELECT a.source_url, count(*)::int AS exposure_count
+     FROM exposure e JOIN asset a ON a.id = e.asset_id
+     WHERE e.universe_id = $1 AND a.source_url = ANY($2::text[])
+     GROUP BY a.source_url`,
+    [universeId, sourceKeys],
+  )).rows;
+  const bySource = new Map(sourceRows.map(row => [row.source_url, Number(row.exposure_count)]));
+
   const nowRow = (await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!;
 
   const candidates: SignalCandidate[] = assets.map(asset => {
@@ -57,6 +73,7 @@ export async function loadComposerSignalCandidates(
       sourceTitle: asset.sourceTitle,
       exposureCount: signal ? Number(signal.exposure_count) : 0,
       lastExposedAtMs: signal?.last_exposed_at ? signal.last_exposed_at.getTime() : null,
+      sourceExposureCount: bySource.get(asset.sourceUrl) ?? 0,
     };
   });
   return { candidates, nowMs: nowRow.now.getTime() };

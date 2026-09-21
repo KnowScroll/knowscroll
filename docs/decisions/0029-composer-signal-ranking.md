@@ -131,13 +131,75 @@ The property this ADR requires — same universe state and same candidate set pr
 ordering — rests on three things this migration puts in place: (a) `composer_policy` rows are
 immutable, so a policy version is a fixed function forever; (b) `decision_signal.rank` is
 `UNIQUE(decision_id, rank)`, so a real implementation must resolve every tie to a strict total order
-(a stable secondary key, e.g. `asset_id`) rather than leaving it to insertion order or wall-clock
+(a stable secondary key, e.g. `asset_id` — see section 8 for why `asset_id` alone is not a
+sufficient secondary key) rather than leaving it to insertion order or wall-clock
 timing; (c) the recorded `inputs` snapshot is exactly what a pure scoring function may read — no
 signal a real implementation uses may come from anywhere outside what `decision_signal.inputs` is
 structurally required to hold. A later implementation's own test suite proves determinism directly:
 replay the same recorded `inputs` through the same (immutable) policy's scoring function and assert
 byte-identical `rank`/`explanation_key` output. That replay is only possible because this schema
 recorded the exact inputs rather than only the outcome.
+
+### 8. Amendment (2026-09-21, #113): a coverage tie-break, and the guarantee it buys
+
+The implementation slice this ADR anticipated (section "Consequences") landed on `claude/114-composer`
+as `composer-signals-v1` (migration 0019) and now `packages/core/src/composer.ts`. Rebasing it onto
+main after the semantic-worlds slice (#112) exposed a real defect, not a cosmetic one: `unreadBonus`
+makes every never-exposed candidate score identically, and the only tie-break was a hash of
+`assetId` — deterministic, but carrying no information about whether a *source*, as opposed to one
+asset, had ever been offered. In a library with more unread assets than slate slots, a source whose
+assets happen to hash unfavorably relative to an abundant, low-hashing source can lose every tie
+indefinitely; #113 observed twelve consecutive decisions offering no candidate from one specific
+source at all.
+
+This is a product law, not a scale worry (root AGENTS.md: "an emergent personal universe" built
+"from what its reader actually encounters"). A source that can never be offered is inventory a
+reader can never encounter, so per ADR-0028 it can never become a world, never join a system, and
+never appear in an explanation — the ranking would be quietly deciding that part of the library does
+not exist, a decision nothing recorded and nobody could see. What made the original tie-break
+indefensible specifically was that `assetId` is a random UUID: the ordering was perfectly
+deterministic and completely arbitrary, and there was no sense in which the losing source deserved
+to lose.
+
+**The fix.** Among candidates whose score is otherwise equal, prefer the source with the fewest
+recorded exposures in this universe (`SignalCandidate.sourceExposureCount`,
+`packages/db/src/composer-signals.ts`'s own bounded query over `exposure` joined to `asset`, scoped
+to the sourceKeys already present in the request's candidate set); fall back to the original
+hash-of-`assetId` tie-break only among candidates coverage cannot separate either (e.g. two
+candidates from the same, still-unread source, or two sources neither of which this universe has
+ever recorded an exposure for). `unreadBonus` still dominates the score outright and `max_per_source`
+still caps how much one source can take in a single slate — this tie-break only decides who wins
+when the existing signals have said nothing.
+
+**The guarantee.** Every source in the library is eventually offered: offering a source's candidates
+and a reader then encountering them is the one thing that raises that source's own recorded exposure
+count, which lowers its coverage-tie-break priority the next time ties must be broken. No source can
+sit behind another indefinitely purely because of an accident of id allocation — only because this
+universe's own recorded history says another source has been seen less. This does not claim every
+source is offered *quickly*, or on any particular reader's very first request (a source with no
+recorded history anywhere ties with every other untouched source and still falls back to the hash
+tie-break among them) — only that nothing about the ranking itself can leave a source permanently
+unreachable once other sources it was tied against start accumulating exposures.
+
+**Why a new policy version, not an edit to `composer-signals-v1`.** `packages/core/AGENTS.md`:
+"Changing ranking requires a new policy version ... never a code-constant edit to the scoring
+function." A tie-break rule is part of what a ranking computes — section 7 above rests the whole
+determinism property on `composer_policy` rows being "a fixed function forever." So this amendment
+does not touch migration 0019's `composer-signals-v1` row, which stays registered, immutable and
+exactly as seeded; migration 0021 instead registers `composer-signals-v2` (identical published
+weights, slate_size and max_per_source — the score formula is unchanged) and
+`packages/core/src/composer.ts` is updated so the shared ranking function always applies the coverage
+tie-break. `apps/api/src/app.ts` now loads `composer-signals-v2`; `composer-signals-v1`'s row remains
+present as an inert historical artifact, never loaded by any code path from here on. Migration 0021
+also extends `decision_signal.inputs`'s structural requirements (additive to migration 0018's own
+`?&` check, never relaxing it) to require the new `sourceExposureCount` fact, so the coverage signal
+a ranking actually used is recorded honestly with the decision, not merely implied by the code that
+produced it.
+
+**What remains unproved by this amendment specifically:** that `composer-signals-v2`'s bound on *how
+quickly* a source is reached is tight or well-characterized in general (only demonstrated for the
+specific library shapes this slice's own tests construct); no new user-facing journey evidence was
+authored for this amendment beyond what `composer-signals-v1`'s own implementation already deferred.
 
 ## Alternatives and why
 

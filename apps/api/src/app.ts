@@ -16,7 +16,7 @@ import {
   UnauthorizedSession,
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
-import { COMPOSER_SIGNALS_V1, rankSignalCandidates } from '../../../packages/core/src/composer.ts';
+import { COMPOSER_SIGNALS_V2, rankSignalCandidates } from '../../../packages/core/src/composer.ts';
 import { loadComposerExplanationTemplates, loadComposerPolicy, loadComposerSignalCandidates } from '../../../packages/db/src/composer-signals.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
@@ -223,8 +223,10 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     // (packages/core/AGENTS.md, ADR-0016). `policy_version` stays 'editorial-unkept-v1' (section 1:
     // retrieval itself is unchanged); `ranking_version` records the policy that actually ordered
     // and explained this slate, so migration 0017's own invariants apply to every decision from
-    // here on.
-    const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V1);
+    // here on. composer-signals-v2 (#113/ADR-0029 amendment, migration 0021): adds a coverage
+    // tie-break over v1's hash-only one so a source cannot sit behind another indefinitely;
+    // composer-signals-v1 stays registered but is never loaded by any code path from here on.
+    const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V2);
     const templates = await loadComposerExplanationTemplates(client);
     const { candidates, nowMs } = await loadComposerSignalCandidates(client, scope.universeId, assets);
     const ranked = rankSignalCandidates(candidates, account.kept_asset_ids, policy, templates, nowMs);
