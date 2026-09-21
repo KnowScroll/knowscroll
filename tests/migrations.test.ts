@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { readFile, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -141,4 +141,39 @@ test('migration integrity against disposable PostgreSQL', async (t) => {
       assert.equal((await pool.query("SELECT to_regclass('must_not_run') AS name")).rows[0]?.name, null);
     });
   });
+});
+
+/**
+ * #126. Privacy merged as `0020`; the composer's migrations then merged *behind* it as
+ * `0018`/`0019`, and every database already carrying `0020` became permanently unable to migrate
+ * forward -- `runMigrations` refuses, correctly, because the applied set is no longer an ordered
+ * prefix of the list on disk. Nothing caught it: `scripts/test.sh` builds a fresh
+ * `knowscroll_test_*` database per run, so everything rebuilt from scratch stayed green while
+ * every long-lived database was broken.
+ *
+ * A single commit cannot see this by itself -- the defect is a change *between* commits. So the
+ * released order is committed in `RELEASED.txt`, and this asserts the list on disk still begins
+ * with exactly that. A migration inserted behind an already-released one now fails here instead
+ * of in a real database.
+ */
+test('the released migration order is never inserted behind', async () => {
+  const directory = new URL('../packages/db/migrations/', import.meta.url);
+  const released = (await readFile(new URL('RELEASED.txt', directory), 'utf8'))
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0 && !line.startsWith('#'));
+  const onDisk = (await readdir(directory)).filter(name => name.endsWith('.sql')).sort();
+
+  assert.ok(released.length > 0, 'RELEASED.txt must list the migrations already released');
+  assert.deepEqual(
+    onDisk.slice(0, released.length),
+    released,
+    'the migrations on disk must still begin with the released order; a new migration that sorts ' +
+      'before an already-released one leaves every database carrying that one unable to migrate forward',
+  );
+  const added = onDisk.slice(released.length);
+  const last = released[released.length - 1]!;
+  for (const name of added) {
+    assert.ok(name > last, `${name} sorts before the last released migration ${last}; number it after`);
+  }
 });

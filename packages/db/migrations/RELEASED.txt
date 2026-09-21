@@ -1,0 +1,31 @@
+# Migrations that have been released, in the order they must stay in.
+#
+# A merge queue cannot be trusted to keep hand-picked numbers ordered: privacy merged as 0020 and
+# the composer's migrations then merged behind it as 0018/0019, which left every database already
+# at 0020 permanently unable to migrate forward (#126). Fresh `knowscroll_test_*` databases are
+# built per run, so CI could not see it.
+#
+# `tests/migrations.test.ts` asserts the on-disk list still begins with exactly these names, in
+# this order. A new migration is appended here in the same commit that adds it; a migration that
+# would sort *before* an entry already in this file fails the test instead of a real database.
+0001_bootstrap.sql
+0002_identity_epochs.sql
+0003_history_clear.sql
+0004_reasoning_storage.sql
+0005_reasoning_runtime.sql
+0006_reasoning_fairness.sql
+0007_sealed_reasoning_context.sql
+0008_reasoning_retirement.sql
+0009_explicit_asks.sql
+0010_ask_context_binding.sql
+0011_idle_direct_withdrawal.sql
+0012_terminal_private_retirement.sql
+0013_generated_reel_supply.sql
+0014_publication_gates.sql
+0015_reel_inventory.sql
+0016_owner_account_sign_in.sql
+0017_evidence_backed_worlds.sql
+0020_privacy_lifecycle.sql
+0022_composer_ranking_signals.sql
+0023_composer_signals_v1.sql
+0024_composer_coverage_tiebreak.sql
