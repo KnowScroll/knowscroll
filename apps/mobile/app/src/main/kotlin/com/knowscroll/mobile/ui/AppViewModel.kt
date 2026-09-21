@@ -28,6 +28,9 @@ sealed interface Screen {
     data object Universe: Screen
     data class Scroll(val assetId:String):Screen
     data class TraceRevisit(val eventId:String):Screen
+    /** docs/product/ui-system.md sec.5b's Keep destination: a read-only view over the already
+     * loaded universe's real Traces. No network fetch of its own -- see `openKeep()`. */
+    data object Keep: Screen
 }
 sealed interface UniverseState {
     data object Loading:UniverseState
@@ -346,6 +349,45 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
         reconcilePrivacy(restoreStoredScroll=false,queueIfBusy=true)
+    }
+
+    /** Opens the Keep destination (docs/product/ui-system.md sec.5b): a read-only list of real
+     * Traces. Deliberately does not call `reconcilePrivacy` -- that launches an async refetch
+     * which unconditionally resets `_screen` back to `Universe` once it completes (see
+     * `applyUniverse`'s final branch), which would race this navigation and silently bounce the
+     * reader back out of Keep. Instead it shows whatever `universe.traces` is already held
+     * immediately, then quietly refreshes it in place with `refreshUniverseInPlace` -- discovered
+     * necessary by actually running this: without it, keeping a Scroll from Cable and going
+     * straight to Keep (never passing back through Atlas) showed "nothing kept yet" for a Trace
+     * the server had already recorded. */
+    fun openKeep(){
+        navigationVersion++
+        if(_screen.value is Screen.TraceRevisit)discardRevisit()
+        _screen.value=Screen.Keep
+        refreshUniverseInPlace()
+    }
+
+    /** Refetches `GET /v1/universe` and updates only `_universe` -- never `_screen` -- so callers
+     * outside the Scroll/TraceRevisit navigation machinery (currently just `openKeep`) can pick up
+     * a Trace projected after their last load without inheriting `reconcilePrivacy`'s screen
+     * resets. Still honours the same privacy invariants as `applyUniverse`: a stale/superseded
+     * response is dropped, and an increased epoch still purges through the normal `purgeForScope`
+     * path (which does reset `_screen` -- an epoch bump is exactly the case where leaving Keep
+     * showing possibly-cleared Traces would be wrong). */
+    private fun refreshUniverseInPlace(){
+        val version=navigationVersion
+        viewModelScope.launch {
+            val actual=try{api.getUniverse()}catch(e:Exception){return@launch}
+            if(version!=navigationVersion)return@launch
+            if(observedUniverseId.isNotBlank() && actual.universeId!=observedUniverseId){
+                purgeForScope(actual.universeId,actual.privacyEpoch);return@launch
+            }
+            if(actual.privacyEpoch<observedPrivacyEpoch)return@launch
+            if(actual.privacyEpoch>observedPrivacyEpoch)purgeForScope(actual.universeId,actual.privacyEpoch)
+            observedUniverseId=actual.universeId
+            observedPrivacyEpoch=store.observePrivacyState(actual.universeId,actual.privacyEpoch)
+            _universe.value=UniverseState.Loaded(actual)
+        }
     }
 
     fun requestHistoryClearConfirmation(){

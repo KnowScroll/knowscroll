@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.knowscroll.mobile.ui.keep.KeepScreen
 import com.knowscroll.mobile.ui.scroll.ScrollScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import com.knowscroll.mobile.ui.universe.UniverseScreen
@@ -40,7 +41,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
             }
         }
 
-        BackHandler(enabled = screen is Screen.Scroll || screen is Screen.TraceRevisit) { viewModel.returnToUniverse() }
+        BackHandler(enabled = screen is Screen.Scroll || screen is Screen.TraceRevisit || screen is Screen.Keep) { viewModel.returnToUniverse() }
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         LaunchedEffect(lifecycle) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -75,7 +76,8 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 onRequestSignOut = viewModel::requestSignOutConfirmation,
                 onCancelSignOut = viewModel::cancelSignOutConfirmation,
                 onConfirmSignOut = viewModel::confirmSignOut,
-                onRetrySignOut = viewModel::retrySignOut
+                onRetrySignOut = viewModel::retrySignOut,
+                onOpenKeep = viewModel::openKeep
             )
             is Screen.Scroll, is Screen.TraceRevisit -> ScrollScreen(
                 state = scroll,
@@ -83,7 +85,14 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 onReturn = viewModel::returnToUniverse,
                 onNext = viewModel::nextScroll,
                 onRetry = viewModel::retryScrollLoad,
-                onReadingPosition = viewModel::updateReadingPosition
+                onReadingPosition = viewModel::updateReadingPosition,
+                onOpenKeep = viewModel::openKeep
+            )
+            is Screen.Keep -> KeepScreen(
+                state = universe,
+                onOpenTrace = viewModel::openTrace,
+                onSelectAtlas = viewModel::returnToUniverse,
+                onSelectCable = viewModel::enterScroll
             )
         }
         }

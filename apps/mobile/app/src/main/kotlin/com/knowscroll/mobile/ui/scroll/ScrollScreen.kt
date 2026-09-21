@@ -3,6 +3,9 @@ package com.knowscroll.mobile.ui.scroll
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ScrollState as FoundationScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,13 +16,17 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.ScrollItem
 import com.knowscroll.mobile.ui.DiscoveryState
@@ -31,7 +38,11 @@ import com.knowscroll.mobile.ui.explainOriginText
 import com.knowscroll.mobile.ui.explainReasonText
 import com.knowscroll.mobile.ui.explainShowsSourcesNote
 import com.knowscroll.mobile.ui.NO_REASON_RECORDED
+import com.knowscroll.mobile.ui.common.BottomCompass
+import com.knowscroll.mobile.ui.common.CompassTab
+import com.knowscroll.mobile.ui.common.rememberReducedMotion
 import com.knowscroll.mobile.ui.theme.Cosmos
+import com.knowscroll.mobile.ui.theme.TruthPill
 import com.knowscroll.mobile.ui.truthStateMeaning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -45,19 +56,27 @@ fun ScrollScreen(
     onNext: () -> Unit,
     onRetry: () -> Unit,
     onReadingPosition: (String, Int) -> Unit,
+    onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier.fillMaxSize().background(Cosmos.Dark)) {
-        when (state) {
-            is ScrollState.Reading -> key(state.item.assetId) {
-                ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition)
-            }
-            is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable)
-            is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry)
-            else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp)
+    Column(modifier.fillMaxSize().background(Cosmos.Dark)) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (state) {
+                is ScrollState.Reading -> key(state.item.assetId) {
+                    ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition)
+                }
+                is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable)
+                is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry)
+                else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp)
+                }
             }
         }
+        // docs/product/ui-system.md section 4b/5b / BottomCompassRedTest: the compass is the
+        // phone's primary navigation and is present on every screen, not just the universe --
+        // "Cable" is the current entry here; its own tap is a no-op since it is already the
+        // active screen. Tapping Keep leaves the reader for the real kept-Traces destination.
+        BottomCompass(selected = CompassTab.Cable, onSelectAtlas = onReturn, onSelectCable = {}, onSelectKeep = onOpenKeep)
     }
 }
 
@@ -115,14 +134,30 @@ private fun ReadingSheet(
     BackHandler(enabled = sourcesOpen || explainOpen) { sourcesOpen = false; explainOpen = false }
 
     Column(Modifier.fillMaxSize()) {
-        Text(
-            originLabel,
-            style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp)
-        )
+        // docs/product/ui-system.md section 5b: "origin chip (`● in Machine learning ›`)" -- a
+        // cream pill on the space ground, not a plain label.
+        Row(Modifier.padding(horizontal = 24.dp, vertical = 14.dp)) {
+            Surface(
+                color = Cosmos.Cream.copy(alpha = 0.94f), contentColor = Cosmos.InkOnCream,
+                shape = RoundedCornerShape(percent = 50)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(Modifier.size(6.dp).background(Cosmos.Teal, androidx.compose.foundation.shape.CircleShape))
+                    Text(originLabel, fontWeight = androidx.compose.ui.text.font.FontWeight(800), fontSize = 12.5.sp)
+                }
+            }
+        }
+        // docs/product/ui-system.md section 5b's "Reel / reader" level: a large rounded stage.
+        // Deviation: a Scroll is text, so the stage is typographic (section 5b's own table) rather
+        // than a video frame -- the real reading progress drives its progress bar.
+        Stage(item.title, readingScroll)
         Surface(
             color = Cosmos.Cream, contentColor = Cosmos.InkOnCream,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
             Column(Modifier.fillMaxSize()) {
@@ -134,10 +169,17 @@ private fun ReadingSheet(
                         }.padding(horizontal = 24.dp, vertical = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    Text(
-                        stringResource(R.string.reader_truth_label, item.truthState.uppercase()),
-                        style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream
-                    )
+                    // docs/product/ui-system.md section 5b: the reader's state pill carries the
+                    // real truth state and real source count -- `DOCUMENTED · 3 SOURCES`. This
+                    // client's ScrollItem carries exactly one source, so the count is always 1;
+                    // real, not a placeholder.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TruthPill(item.truthState, stringResource(R.string.reader_truth_label, item.truthState.uppercase()))
+                        Text(
+                            stringResource(R.string.reader_state_pill_sources, 1),
+                            style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream
+                        )
+                    }
                     Text(item.title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
                     if (item.reason.isNotBlank()) Text(item.reason, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
                     Text(item.summary, style = MaterialTheme.typography.titleMedium, color = Cosmos.MutedOnCream)
@@ -156,6 +198,47 @@ private fun ReadingSheet(
     }
     if (sourcesOpen) SourceSheet(item) { sourcesOpen = false }
     if (explainOpen) ExplainSheet(item, state.origin) { explainOpen = false }
+}
+
+/**
+ * docs/product/ui-system.md section 5b: "a large rounded stage... a thin progress bar". A Scroll
+ * is text, so this stage is typographic rather than video (section 5b's own table: "a Scroll is
+ * text, so the stage is typographic rather than video; a Reel uses the video stage once one is
+ * eligible" -- no eligible Reel exists yet, per docs/CHECKPOINT.md). The progress bar reflects the
+ * real reading position, not a decorative animation.
+ */
+@Composable
+private fun Stage(title: String, readingScroll: FoundationScrollState) {
+    val reducedMotion = rememberReducedMotion()
+    val maxValue = readingScroll.maxValue.coerceAtLeast(1)
+    val rawProgress = readingScroll.value.toFloat() / maxValue.toFloat()
+    val progress by animateFloatAsState(
+        targetValue = rawProgress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = if (reducedMotion) 0 else 300),
+        label = "reading-progress"
+    )
+    Box(
+        Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(Cosmos.Sea, Cosmos.Deep)))
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            color = Cosmos.Cream,
+            maxLines = 3,
+            modifier = Modifier.align(Alignment.TopStart).padding(18.dp)
+        )
+        LinearProgressIndicator(
+            progress = { progress },
+            color = Cosmos.Yellow,
+            trackColor = Cosmos.Cream.copy(alpha = 0.18f),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp)
+        )
+    }
 }
 
 @Composable
@@ -182,17 +265,21 @@ private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: (
                     Text(stringResource(R.string.reader_next_loading), style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            // docs/product/ui-system.md section 5b: "keep going →" (teal) -- the deliberate-next
+            // action pill. "Not so fast" (coral) is not drawn: section 5b's own table says no
+            // contract exists for it.
             Button(
                 onClick = onNext,
                 enabled = canRequestDiscovery(keep, state),
-                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Dark, contentColor = Cosmos.Cream),
+                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Teal, contentColor = Cosmos.Dark),
+                shape = RoundedCornerShape(percent = 50),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     .semantics { contentDescription = nextDescription }
             ) {
                 Text(stringResource(when (state) {
                     DiscoveryState.Failed -> R.string.reader_next_retry
                     DiscoveryState.Exhausted -> R.string.reader_check_library
-                    else -> R.string.action_next
+                    else -> R.string.action_next_pill
                 }))
             }
         }
@@ -230,11 +317,13 @@ private fun ReaderControls(
                 modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = homeDescription },
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
             ) { Text(stringResource(R.string.action_home)) }
+            // docs/product/ui-system.md section 5b: "Keep this" (yellow).
             Button(
                 onClick = onKeep,
                 enabled = keep !is KeepState.Saving && keep !is KeepState.Kept && discovery !is DiscoveryState.Loading,
                 modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = keepDescription },
-                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Teal, contentColor = Cosmos.Dark)
+                shape = RoundedCornerShape(percent = 50),
+                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Yellow, contentColor = Cosmos.InkOnCream)
             ) { Text(keepLabel) }
             TextButton(
                 onClick = onSources,

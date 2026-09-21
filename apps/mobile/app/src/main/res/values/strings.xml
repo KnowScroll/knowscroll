@@ -2,17 +2,67 @@
 <resources>
     <string name="app_label">KnowScroll</string>
 
+    <!-- Bottom compass (definition sec.9.5 Mobile / ui-system.md sec.4b/5b): ships with only what
+         has a contract today. Names match the web build's three real destinations: Atlas
+         (universe), Cable (read), Keep (Traces). -->
+    <string name="compass_atlas">Atlas</string>
+    <string name="compass_cable">Cable</string>
+    <string name="compass_keep">Keep</string>
+
     <!-- Universe (origin) screen -->
     <string name="universe_title">Your universe</string>
-    <string name="universe_empty">Your first path starts with a little curiosity.</string>
+    <string name="universe_kicker">KNOWSCROLL</string>
+
+    <!-- Universe narration (ui-system.md sec.5c): the frame never changes, the copy does. The
+         stage is chosen from what the reader has actually kept, never a date. Where a reference
+         line asserted something we cannot show honestly, it is rewritten here (recorded as a
+         deviation in the #111 evidence README) rather than fed invented data. -->
+    <string name="universe_heading_first">Somewhere new starts here.</string>
+    <string name="universe_subtitle_first">No topics to pick. Just something interesting.</string>
+    <string name="universe_heading_started">Your first little world.</string>
+    <string name="universe_subtitle_started">A few encounters are beginning to belong together.</string>
+    <!-- Deviation: the reference's yellow note carries a real why-this-appeared reason, which
+         lives on a Scroll (in the reader), not on a kept Trace (on this screen). Rather than
+         invent one, this note states the one real fact this screen has: how many are kept. -->
+    <string name="universe_kept_note">%1$d kept so far.</string>
+    <string name="universe_cta_first">Show me something ↗</string>
+    <string name="universe_cta_first_helper">Your world begins with what catches your curiosity.</string>
+    <string name="universe_cta_started">Keep exploring ↗</string>
+    <string name="universe_cta_started_helper">A familiar impulse. Somewhere new to go.</string>
+    <!-- Living Observatory's own scale label names which navigable depth the reader is at. On
+         this client exactly one level is built, so the label names that one and nothing else.
+         It read "SYSTEM VIEW" while being an inert Text: a claim to a depth the app could
+         neither draw nor reach. Corrected to the level that actually exists; #116 builds the
+         system level for real and turns this into a control that goes there. -->
+    <string name="universe_view_label">UNIVERSE VIEW</string>
+    <string name="universe_legend_kept">Your paths</string>
+    <string name="universe_legend_unread">Still unexplored</string>
+    <!-- Deviation: the reference hints "Tap a planet"; our bodies are kept Traces, not learned
+         topics, so the hint says what tapping one actually does. -->
+    <string name="universe_hint_started">Tap a kept Scroll to revisit it</string>
+    <string name="universe_hint_first">The button below opens your first Scroll</string>
+    <!-- First-visit placeholder bodies (ui-system.md sec.5c): generic, truthful names for
+         encounters not yet known, exactly as Living Observatory's own empty state draws them.
+         Not a topic, not fabricated content; no encounter is claimed to exist behind them. -->
+    <string name="universe_body_possibility">A first possibility</string>
+    <string name="universe_body_possibility_helper">See what catches your curiosity</string>
+    <string name="universe_body_angle">A different angle</string>
+    <string name="universe_body_surprise">A little surprise</string>
+    <string name="universe_dust_label">STILL UNEXPLORED</string>
+    <string name="universe_zoom_in">Zoom in</string>
+    <string name="universe_zoom_out">Zoom out</string>
+    <string name="universe_recenter">Recenter</string>
+    <string name="universe_canvas_description">Your universe</string>
     <string name="universe_loading">Opening the universe…</string>
     <string name="universe_unavailable">The universe is unreachable.</string>
     <string name="universe_unavailable_help">Reconnect before restoring saved Scroll state.</string>
     <string name="action_retry">Retry</string>
-    <string name="action_enter_scroll">Enter Scroll</string>
     <string name="traces_heading">Traces</string>
     <string name="trace_unknown_title">Untitled Scroll</string>
     <string name="trace_revisit_action">Reopen saved Scroll %1$s</string>
+    <string name="keep_kicker">KNOWSCROLL</string>
+    <string name="keep_title">Keep</string>
+    <string name="keep_empty">Nothing kept yet. Scrolls you keep from Cable show up here.</string>
     <string name="privacy_heading">Privacy controls</string>
     <string name="clear_history_action">Clear Scroll history</string>
     <string name="clear_history_title">Clear Scroll history?</string>
@@ -31,6 +81,11 @@
     <string name="action_open_source">Open source</string>
     <string name="keep_pending">Saving your keep…</string>
     <string name="keep_failed">Could not keep this Scroll.</string>
+    <!-- docs/product/ui-system.md section 5b: "keep going →" (teal action pill). -->
+    <string name="action_next_pill">keep going →</string>
+    <!-- docs/product/ui-system.md section 5b: the reader's state pill carries the real source
+         count. This client's ScrollItem always carries exactly one source. -->
+    <string name="reader_state_pill_sources">%1$d SOURCE</string>
 
     <!-- Capabilities: the slice does not promise them. -->
 

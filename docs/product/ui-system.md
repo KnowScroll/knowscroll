@@ -72,6 +72,54 @@ Living Observatory's `--muted` role maps to `--cream` at 70% for secondary text 
   refinement recorded here, not a new gesture: the two references disagreed and this is how they are
   reconciled.
 
+## 4b. Phone layout (definition §9.5 Mobile, structured as the references' own mobile modes)
+
+Section 4 is titled *Desktop layout* and means it. Nothing in this document extracted a phone
+treatment until now, so "match the agreed UI exactly" could not be obeyed literally on Android. This
+section closes that gap with the same discipline as the rest of the file: every value comes from
+definition §9.5 Mobile, or from the references' own mobile CSS, or it is named as a platform rule.
+
+**§9.5 Mobile states the surface in six lines**, and they govern: one-thumb Cable entry; vertical
+full-height Reel stages; full-width Scroll reading with protected embedded controls; a drag-and-pinch
+universe canvas; a bottom compass with Home, Cable, Scroll, Ask and Friends; sheets only for sources,
+controls and compact branches. "Mobile is not a compressed desktop universe."
+
+- **Full-width reading, one column.** No context rail, no two-column grid, no 66px head band, no
+  1050/700px breakpoints — those are desktop resize thresholds, not phone design values. The head
+  band's *job* survives even though its shape does not: back, where this came from, and the kind label
+  must still be present and still orient the reader (law 14), as a single leading row above the
+  reading surface rather than a fixed bar.
+- **The reading surface is a cream sheet on the space ground**, as the reader already is. Radius 22dp
+  on the corners that show. Body 15sp at 1.8; the 590px measure cap is a desktop constraint and does
+  not apply to a phone column, which is already narrower than that.
+- **Bottom compass**, taken from Living Observatory's own `.dock`: floating rather than docked to the
+  edge, centred, 25px from the bottom, 18px radius, 6px padding, 5px between entries, each entry
+  13px/18px padding at 12px type, with the current entry marked (`aria-current` in the reference, a
+  selected state here). It honours the safe-area inset. §4's "no permanent dashboard chrome" is a
+  desktop rule about sidebars and toolbars; the compass is the phone's primary navigation and §9.5
+  names it explicitly.
+- **The compass shows only what exists.** §9.5 lists Home, Cable, Scroll, Ask and Friends. Ask,
+  Friends and Cable have no contract and no data, and §6's rule is absolute: *not available, therefore
+  not drawn*. So the compass ships with **Home and Scroll**, and grows an entry when a contract does.
+  A compass of dead icons would be the map problem again, in a worse place.
+- **Touch targets are at least 48dp**, which is the Android platform minimum and overrides any
+  smaller value inherited from a CSS reference. Cosmos's pill stays a pill — 999dp radius, weight 800,
+  13sp — but its *height* is whatever satisfies 48dp, not 40px.
+- **Sheets only for sources, controls and compact branches** (§9.5). Cream, 22dp radius, one at a
+  time — opening one closes the other, as the desktop reader settled.
+- **Gesture is primary, and no gesture is invented.** The desktop keyboard contract (`↓` reads on then
+  advances, `→` unbound, `Esc` returns) has no phone equivalent to copy; the deliberate Next control
+  stays an explicit, visible control. A swipe that advances a discovery would spend one by accident,
+  which §3's deliberate-next law forbids.
+- **Reduced motion.** Android's `Settings.Global.ANIMATOR_DURATION_SCALE` of 0 is the platform's
+  version of `prefers-reduced-motion: reduce` and must suspend the same things: sheet motion, any
+  canvas drift, every transition. State still changes, instantly.
+
+**What is deliberately left open:** vertical full-height Reel stages and the drag-and-pinch universe
+canvas are both §9.5 requirements with no data behind them yet — there is no eligible Reel, and the
+universe has no semantic geography. They are not drawn, and this section will be extended when those
+contracts exist.
+
 ## 5. Truth states are visual language, not a footnote (§12)
 
 Each state has one pill, always adjacent to the claim it qualifies, never buried at the end:
@@ -80,20 +128,144 @@ A generated encounter additionally carries its generated label, and stand-in med
 **simulated** marker. A compelling presentation may never upgrade a weak claim, so the pill is drawn
 with equal weight regardless of state.
 
+## 5b. The product surfaces, as Cosmos actually draws them
+
+**This section exists because the earlier draft of this document was a reduction.** It extracted
+colours, type sizes and pill geometry, added a rule of its own ("not available, therefore not drawn"),
+and left out everything that makes the reference a product: the navigable universe, the dock, the
+labelled bodies, the chips and hints and back controls. The web surface was then built to that
+reduction and reviewed six times for correctness while nobody asked the only question that mattered —
+*does it read as the same product?* It did not. Fidelity from here means: **stand a screen beside the
+reference and it is recognisably the same thing.**
+
+Cosmos, driven from day 1 to day 30, shows five levels. Read it yourself before building:
+`docs/product/references/cosmos.html`, the stage chips (`day 1 · one planet` → `day 30 · a system`)
+and the flow chips (`universe`, `system`, `planet`, `interior`, `reel`).
+
+### The frame every level shares
+
+| Element | Cosmos's own values |
+|---|---|
+| **Dock** (`.nav`) | pinned `left/right:14px; bottom:16px`, height 62, `border-radius:22px`, `background:rgba(6,26,39,.78)`, `border:1px solid rgba(255,255,255,.12)`, `backdrop-filter:blur(12px)`, `box-shadow:0 10px 30px rgba(0,0,0,.4)`, `gap:4px`, `padding:6px` |
+| **Dock entry** (`.nav button`) | `flex:1`, icon over label, 20×20 icon, Bricolage 700 at 10.5px, `border-radius:16px`, `opacity:.7`; the current one `background:rgba(255,255,255,.14); opacity:1` |
+| **Context chip** (`.chip`, top-left) | cream `rgba(255,253,242,.94)` on ink, `radius:999px`, `padding:7px 12px 7px 9px`, weight 800, 12.5px, `box-shadow:0 8px 22px rgba(0,0,0,.35)` |
+| **Status pill** (`.pillbtn`, top-right — "Lately") | same recipe, `top:34px; right:14px`, with a state dot |
+| **Breadcrumb** (`.crumb`) | cream pill, `padding:7px 8px 7px 14px`, `max-width:250px`, truncating |
+| **Back** (`.back`) | cream pill, `left:12px; bottom:96px`, height 38, `padding:0 14px 0 10px` — reads "‹ universe", "‹ orbit" |
+| **Hint line** (`.hint`) | centred above the dock at `bottom:100px`, Instrument Sans 12.5px, `opacity:.75`, text-shadow — "Tap a planet · the ship flies there" |
+| **Action pill** (`.btn`) | height 40, `padding:0 16px`, `radius:999px`, weight 800, 13px, Bricolage |
+
+**The screen is a canvas with floating controls over it**, not a document with a header. Nothing is a
+bar across the top; every control is a shadowed cream pill or the translucent dock.
+
+### The levels
+
+1. **Universe** — star ground, one or more bodies with a name and a mono sub-label ("Technology",
+   `3 STOPS`), a dim nebula for what has not been explored (labelled `?????` or "LATER · A FRIEND"),
+   the `DAY n ▸` pill, the hint, the dock.
+2. **System** (day 30) — title and subtitle read "Technology" / "a system · 3 planets · a station";
+   a glowing sun, elliptical orbit rings, textured planets each with a name and some with a mono
+   status above them (`READY TO IGNITE`), a station, a tiny ship, a nebula; a `⊕ RECENTER` pill and a
+   `‹ universe` back pill.
+3. **Interior** — an illustrated map: coloured landmasses with uppercase names and mono sub-lists
+   (`MODELS · DATA · ALIGNMENT`), dashed routes between them, cloud cover, a compass rose, an
+   `UNCHARTED` chip, a `+ / 100% / −` zoom stack, `‹ orbit` back.
+4. **Reel / reader** — an origin chip ("● in Machine learning ›"), a large rounded stage, a caption
+   overlaid on it with a word highlighted in yellow, a mono position line (`SHOT 3 OF 6 · FOUNDATION
+   MODELS`) and a thin progress bar; **below the stage**: a green state pill (`CHECKED OUT · 3
+   SOURCES`), the title, a one-line summary, and a row of three coloured pills — **"Not so fast"
+   (coral), "Keep this" (yellow), "keep going →" (teal)**.
+5. **Planet** — between system and interior; same frame.
+
+### What we can honestly put in it today
+
+Drawing the interface is not the same as fabricating data. The rule against inventing stays exactly
+as strict; it governs the *content*, not whether the surface exists.
+
+| Cosmos element | What it carries for us now |
+|---|---|
+| Bodies in the universe | **Real kept Traces and encountered Scrolls** — one body each, its real title as the label. Never an invented topic. |
+| The unexplored nebula | **The real unread remainder** of the finite library, counted, not decorated |
+| `DAY n ▸` | the real age of the universe |
+| Status pill | a real recency or state, or omitted |
+| State pill on the reader | the real truth state plus the real source count — `DOCUMENTED · 3 SOURCES` |
+| Stage | a Scroll is text, so the stage is typographic rather than video; a Reel uses the video stage once one is eligible |
+| "Not so fast" | **no contract exists** — not drawn until one does |
+| Dock | **Cable** (read), **Atlas** (universe), **Keep** (Traces) are real. **Ask** has no contract on web, so the dock carries three entries, not four |
+| System, interior, planet levels | **no semantic geography exists**, so these levels are not built yet; the universe level is, and it must look like the reference's universe level |
+
+An empty universe still draws the frame: ground, dock, hint, and an honest line where the bodies
+would be. Emptiness is a state of the design, not an excuse to omit it.
+
+## 5c. How the experience progresses (Living Observatory)
+
+Cosmos gives the theme. **Living Observatory gives the experience**, and in places it is simply better
+— above all it solves the problem this document previously solved by deleting things. Drive it
+yourself: the stage chips run `First visit` → `Day 6` → `Day 30` → `Six months`.
+
+**The frame never changes; the narration does.** Every stage has the same parts — a kicker or
+breadcrumb, a large heading, a one-line subtitle, sometimes a yellow left-ruled note, bodies on a star
+ground, a yellow call to action with helper text beneath it, zoom controls with a view label, the
+dock, and a legend. What changes is the copy and how much is out there.
+
+| Stage | Heading | Subtitle | Note | View | Call to action |
+|---|---|---|---|---|---|
+| First visit | "Somewhere new starts here." | "No topics to pick. Just something interesting." | — | `SYSTEM VIEW` | "Show me something ↗" / "Your world begins with what catches your curiosity." |
+| Day 6 | "Your first little world." | "A few encounters are beginning to belong together." | "A trace of what you explored." | `SYSTEM VIEW` | "Watch something ↗" / "A familiar impulse. Somewhere new to go." |
+| Day 30 | "A world taking shape." | "You came for technology. You found yourself asking how things come together." | "Once one planet. Now three places to get lost in." | `SYSTEM VIEW` | "Watch something ↗" |
+| Six months | "Things begin to connect." | "Different worlds. A few questions running through all of them." | "Connections make the world richer." | `GALAXY VIEW` | "Watch something ↗" |
+
+### Why this matters more than the theme
+
+**The first-visit state is the honest empty state, drawn beautifully.** It has no topics, because the
+person has none yet. Its bodies are labelled "A first possibility · See what catches your curiosity",
+"A different angle", "A little surprise" — *generic, truthful names for things not yet known*, with the
+unexplored ones drawn as faint dust rather than omitted. That is exactly our position with a finite
+library and no inferred interests, and it needs **no invented data at all**. The earlier draft of this
+document reached for a prohibition where the reference had already solved it with copy.
+
+### The mapping to what we actually have
+
+- **Empty universe** → the first-visit stage verbatim in spirit: "Somewhere new starts here." / "No
+  topics to pick. Just something interesting.", one body for the encounter on offer, faint bodies for
+  the unread remainder, and "Show me something ↗" as the primary action.
+- **After some reading** → the day-6 stage: "Your first little world.", bodies for real kept Traces and
+  encountered Scrolls by their real titles, the yellow note carrying the **real why-this-appeared
+  reason** — which is what that line is for.
+- **The legend** ("● Your paths · ◌ Still unexplored") appears once there is something to distinguish,
+  and its second half is the real unread count.
+- **The view label** (`SYSTEM VIEW`) is honest about the level being shown; `GALAXY VIEW` waits for
+  data that does not exist.
+- **Zoom controls** are real controls over a real canvas, not decoration.
+- **The Idea Room card** needs rooms, which do not exist. Not drawn.
+- **Watch / Room** in the dock need Reels and social, which do not exist. The dock carries the
+  destinations that work.
+
+A stage is chosen by what the reader has actually done, never by a date. The copy above is the
+reference's; where a line would assert something untrue of this reader, it is rewritten to be true,
+and the rewrite is recorded as a deviation.
+
 ## 6. What the interface may show today
 
 Only these have data: the honest empty universe, saved Traces, entering a Scroll, reading with
 sources and truth state, why this appeared, deliberate next discovery, finite-library rest, Keep,
 Trace revisit, Clear History, sign out, magic-link sign-in, and Reel playback for an eligible Reel.
 
-**Not available, therefore not drawn**: semantic world geography, branches and continuations, Ask
-answers, rooms, inhabitants, friends and Blend. Cosmos's map and Living Observatory's room are
-references for a later contract, not licence to draw a pretty map that means nothing — the design
-direction is explicit that background specks carry no semantic identity. A decorative star ground is
-allowed and must be marked decorative in code; a node that implies meaning is not.
+**Not available, therefore not drawn** governs *content*, never whether a surface is built. No
+invented topic, no fabricated branch, no Ask answer, no room, no inhabitant, no friend, no Blend, and
+no node that implies a meaning nothing recorded. But a body whose label is a Scroll the reader really
+kept is real, and drawing it is required, not forbidden — see §5b. The mistake to avoid is a pretty map
+of nothing; the mistake just made was an honest page of nothing, and it is the worse of the two,
+because it fails the reader *and* the reference.
 
 ## 7. How fidelity is judged
 
-Screenshots at 1440×900 and 1024×768 sit beside the reference rendered at the same size. Palette,
+**First test, before any measurement:** render the reference and the build at the same size, put them
+side by side, and ask whether they read as the same product. A build that matches every token and
+still looks like a text page has failed. This test is first because it is the one that was skipped.
+
+Screenshots at 1440×900 and 1024×768 sit beside the reference rendered at the same size. On a phone,
+the comparable sizes are the emulator's own resolution at font scale 1.0 and 840×1680 at font scale 1.3,
+which are the two the Android journeys already exercise. Palette,
 type scale, pill geometry, rail proportions, head band and focus treatment must match. Differences
 are recorded with a reason, not discovered later.
