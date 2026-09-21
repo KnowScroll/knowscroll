@@ -1,5 +1,19 @@
 # Project state
 
+## 2026-09-22 refinement branch update — not full v1
+
+The #72 refinement branch adds coherent Cosmos typography/navigation, textured source-backed
+worlds with local detail/back, a real Web Keep collection, responsive Atlas layouts and improved
+native reader hierarchy. Android preserves inspection only across freshly confirmed authority.
+Runtime testing found and fixes the ADR-0028 stale private system after Clear; migration 0025 also
+applies this cleanup to Reset without erasing shared source catalog rows. This is branch delivery,
+not owner-runtime deployment. See the [audit and remaining gaps](design/2026-09-21-ui-audit.md)
+and [dated runtime evidence](journeys/evidence/ui-refinement-2026-09-21/README.md).
+
+The Living Observatory's semantic evolution and continuous scale experience are not implemented
+by decorative globes. Native privacy parity, production identity, real Reels, journeys A–I and
+owner acceptance remain release work. Earlier dated status below is retained for provenance.
+
 Updated: 2026-09-20 (Asia/Kolkata). **Reasoning, privacy and reliability primitives verified as before; September 20 adds a pinned local Cutroom service boundary (#89), the desktop web reader (#92), Android reader explanation and device sign-out (#91), and generated-Reel supply through verified media import (#94). No real provider, publication, serving or playback; owner runtime is still behind source. Next milestone: Owner Alpha.** Current owner/runtime/host decisions are summarized in [CHECKPOINT](CHECKPOINT.md). This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## v1 release scope

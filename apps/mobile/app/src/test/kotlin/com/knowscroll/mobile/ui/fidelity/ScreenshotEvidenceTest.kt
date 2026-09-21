@@ -119,4 +119,75 @@ class ScreenshotEvidenceTest {
         waitForIdle()
         save(onRoot().captureToImage().asAndroidBitmap(), "scroll-reader.png")
     }
+
+    // Audit A2 (#72): the duplicate 150dp typographic Stage was removed; the cream reading
+    // sheet now begins directly under the origin chip. This rasterized screenshot captures the
+    // new hierarchy so it can be compared with the reference at the same size.
+    @Test
+    fun `reader without the duplicate stage shows the title directly in the cream sheet`() = runComposeUiTest {
+        setContent {
+            KnowScrollTheme {
+                ScrollScreen(
+                    state = readingState(), onKeep = {}, onReturn = {}, onNext = {}, onRetry = {},
+                    onReadingPosition = { _, _ -> }, onOpenKeep = {}
+                )
+            }
+        }
+        waitForIdle()
+        save(onRoot().captureToImage().asAndroidBitmap(), "scroll-reader-no-stage.png")
+    }
+
+    // Audit A1 (#72): a universe with 3 Traces is the audit's specific reproduction shape. The
+    // previous fractional offset math collapsed two bodies to almost the same x and clipped the
+    // rightmost body's label past the canvas edge at 1080x2400. The new FlowRow layout keeps
+    // every title inside the canvas.
+    @Test
+    fun `universe with three traces keeps every body inside the canvas`() = runComposeUiTest {
+        val threeTraces = UniverseState.Loaded(Universe("u1", 1, 1, listOf(
+            Trace("event-1", "asset-1", "The bitter lesson", "2026-08-20T00:00:00Z"),
+            Trace("event-2", "asset-2", "General methods beat cleverness", "2026-08-21T00:00:00Z"),
+            Trace("event-3", "asset-3", "Computation is the lever", "2026-08-22T00:00:00Z")
+        ), Capabilities.AllFalse))
+        setContent {
+            KnowScrollTheme {
+                UniverseScreen(
+                    state = threeTraces, historyClear = HistoryClearState.Idle, signOut = SignOutState.Idle,
+                    onEnterScroll = {}, onOpenTrace = {}, onEnterSystem = {}, onRetry = {},
+                    onRequestHistoryClear = {}, onCancelHistoryClear = {}, onConfirmHistoryClear = {}, onRetryHistoryClear = {},
+                    onRequestSignOut = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
+                    onOpenKeep = {}
+                )
+            }
+        }
+        waitForIdle()
+        save(onRoot().captureToImage().asAndroidBitmap(), "universe-three-traces.png")
+    }
+
+    // Audit U1 / N2 (#72): the world detail is a local layout over the same system level --
+    // decorative cartographic globe, full source title, exact seen/total counts, plain
+    // shared-source explanation, external source link, local Back. This screenshot captures
+    // the detail so it can be compared with the reference's interior level at the same size.
+    @Test
+    fun `world detail over the system level with a single body`() = runComposeUiTest {
+        val orbits = com.knowscroll.mobile.data.WorldSummary(
+            worldId = "w-orbits", sourceTitle = "NASA \u00b7 Orbits and Kepler\u2019s Laws",
+            sourceUrl = "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
+            scrollCount = 2, seenCount = 2
+        )
+        setContent {
+            KnowScrollTheme {
+                com.knowscroll.mobile.ui.system.SystemScreen(
+                    state = com.knowscroll.mobile.ui.SystemState.Loaded(
+                        com.knowscroll.mobile.data.WorldSystemResponse(
+                            "shared_source_v1",
+                            com.knowscroll.mobile.data.WorldSystem("sys-1", listOf(orbits))
+                        )
+                    ),
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
+                )
+            }
+        }
+        waitForIdle()
+        save(onRoot().captureToImage().asAndroidBitmap(), "system-with-one-world.png")
+    }
 }

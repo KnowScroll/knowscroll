@@ -5,18 +5,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -30,19 +31,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.knowscroll.mobile.R
@@ -58,16 +54,7 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * docs/product/ui-system.md section 5b/5c: Cosmos supplies the frame (a canvas of floating pills
- * and bodies, never a document with a header); Living Observatory supplies the experience (the
- * stage is chosen by what the reader has actually done, and its honest first-visit state -- no
- * topics, generic truthful placeholder bodies, a yellow call to action -- needs no invented data).
- *
- * Only the **universe** level is built. System, planet and interior all need semantic geography
- * this client has no data for (section 5b's own table); building them would be exactly the
- * "pretty map of nothing" the spec warns against.
- */
+/** Atlas contains saved Traces; source-backed worlds are inspected inside System. */
 @Composable
 fun UniverseScreen(
     state: UniverseState,
@@ -193,15 +180,6 @@ private fun UniverseCanvasScreen(
             stringResource(if (hasRead) R.string.universe_subtitle_started else R.string.universe_subtitle_first),
             style = MaterialTheme.typography.bodyLarge, color = Cosmos.MutedOnDark
         )
-        if (hasRead) YellowNote(stringResource(R.string.universe_kept_note, universe.traces.size))
-
-        UniverseCanvas(traces = universe.traces, onOpenTrace = onOpenTrace, onEnterSystem = onEnterSystem)
-
-        Text(
-            stringResource(if (hasRead) R.string.universe_hint_started else R.string.universe_hint_first),
-            style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark
-        )
-
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(
                 onClick = onEnterScroll,
@@ -220,13 +198,34 @@ private fun UniverseCanvasScreen(
             )
         }
 
+
+        if (hasRead) YellowNote(stringResource(R.string.universe_kept_note, universe.traces.size))
+
+        UniverseCanvas(traces = universe.traces, onOpenTrace = onOpenTrace, onEnterSystem = onEnterSystem)
+
+        Text(
+            stringResource(if (hasRead) R.string.universe_hint_started else R.string.universe_hint_first),
+            style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark
+        )
+
         // docs/product/ui-system.md sec.5b: the dock's own Keep destination is the real Traces
         // list now (see KeepScreen.kt); the canvas above already draws one body per kept Trace,
         // so this screen no longer duplicates the list textually as well.
 
-        Spacer(Modifier.height(4.dp))
-        PrivacyControls(historyClear, onRequestHistoryClear, onRetryHistoryClear)
-        SignOutControls(signOut, onRequestSignOut, onRetrySignOut)
+        // Audit A3 (#72): the previous two stacked full-width controls ("Clear Scroll history"
+        // and "Sign out this device") pushed against the dock and buried the explanatory copy.
+        // Replaced with a compact disclosure block: a one-line explanation and two 48dp pills in
+        // a single row so both Clear and Sign-out remain reachable above the dock at every
+        // supported width. Confirmation semantics (modal dialogs, retry envelopes, purge on
+        // confirm) are preserved verbatim -- only the position of the buttons changed.
+        PrivacyDisclosure(
+            historyClear = historyClear,
+            signOut = signOut,
+            onRequestHistoryClear = onRequestHistoryClear,
+            onRetryHistoryClear = onRetryHistoryClear,
+            onRequestSignOut = onRequestSignOut,
+            onRetrySignOut = onRetrySignOut
+        )
     }
 }
 
@@ -242,62 +241,27 @@ private fun YellowNote(text: String) {
     }
 }
 
-/**
- * The universe canvas (ui-system.md section 5b "screen is a canvas", 5c "bodies on a star
- * ground"): one real body per kept Trace, labelled with its real title, plus an honest unexplored
- * region when there is nothing (or nothing more) recorded. Zoom is a real control over this real
- * canvas (section 5c: "Zoom controls are real controls over a real canvas, not decoration");
- * drag-to-pan is not implemented (deviation -- section 4b marks the full drag-and-pinch canvas as
- * requiring semantic geography this client does not have; a stepped zoom is the honest subset).
- */
+/** Flow layout shares the page scroll, so every Trace remains reachable at any collection size. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun UniverseCanvas(traces: List<Trace>, onOpenTrace: (Trace) -> Unit, onEnterSystem: () -> Unit) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    val canvasDescription = stringResource(R.string.universe_canvas_description)
-    BoxWithConstraints(
-        Modifier.fillMaxWidth().height(340.dp).clip(RoundedCornerShape(22.dp))
-            .background(Cosmos.SpaceRaised.copy(alpha = 0.55f))
-            .semantics { contentDescription = canvasDescription }
-    ) {
-        val w = maxWidth
-        val h = maxHeight
-        Box(Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp).padding(vertical = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
             if (traces.isEmpty()) {
-                DustBody(Modifier.offset(x = w * 0.16f, y = h * 0.24f), stringResource(R.string.universe_body_angle))
-                RealBody(
-                    Modifier.offset(x = w * 0.5f - 28.dp, y = h * 0.5f - 28.dp),
-                    title = stringResource(R.string.universe_body_possibility),
-                    subLabel = stringResource(R.string.universe_body_possibility_helper),
-                    onClick = null
-                )
-                DustBody(Modifier.offset(x = w * 0.6f, y = h * 0.26f), stringResource(R.string.universe_body_surprise))
-            } else {
-                traces.forEachIndexed { index, trace ->
-                    val fx = 0.14f + ((index * 0.61803398875f) % 0.62f)
-                    val fy = 0.16f + ((index * 0.38196601125f) % 0.54f)
-                    RealBody(
-                        Modifier.offset(x = w * fx, y = h * fy),
-                        title = trace.title.ifBlank { stringResource(R.string.trace_unknown_title) },
-                        subLabel = null,
-                        onClick = { onOpenTrace(trace) }
-                    )
-                }
-                DustCluster(Modifier.offset(x = w * 0.5f, y = h * 0.16f))
+                DustBody(stringResource(R.string.universe_body_angle))
+                RealBody(stringResource(R.string.universe_body_possibility),
+                    stringResource(R.string.universe_body_possibility_helper), null)
+                DustBody(stringResource(R.string.universe_body_surprise))
+            } else traces.forEach { trace ->
+                RealBody(trace.title.ifBlank { stringResource(R.string.trace_unknown_title) }, null,
+                    onClick = { onOpenTrace(trace) })
             }
         }
-        Row(
-            Modifier.align(Alignment.BottomStart).padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            val zoomOutDescription = stringResource(R.string.universe_zoom_out)
-            val zoomInDescription = stringResource(R.string.universe_zoom_in)
-            val recenterDescription = stringResource(R.string.universe_recenter)
-            ZoomButton("−", zoomOutDescription) { scale = max(0.7f, scale - 0.15f) }
-            ZoomButton("+", zoomInDescription) { scale = min(1.6f, scale + 0.15f) }
-            ZoomButton("⊙", recenterDescription) { scale = 1f }
-            SystemViewButton(onEnterSystem)
-        }
-        if (traces.isNotEmpty()) Legend(Modifier.align(Alignment.TopEnd).padding(10.dp))
+        SystemViewButton(onEnterSystem)
     }
 }
 
@@ -326,73 +290,123 @@ private fun SystemViewButton(onClick: () -> Unit) {
     }
 }
 
+/** Equal-size saved-Trace markers; a Keep is not evidence of world growth. */
 @Composable
-private fun ZoomButton(glyph: String, description: String, onClick: () -> Unit) {
-    Surface(
-        color = Cosmos.Cream.copy(alpha = 0.9f), contentColor = Cosmos.InkOnCream,
-        shape = CircleShape,
-        modifier = Modifier.size(32.dp).clickable(onClickLabel = description, onClick = onClick)
-            .semantics { contentDescription = description }
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(glyph, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        }
-    }
-}
-
-@Composable
-private fun Legend(modifier: Modifier = Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.End) {
-        LegendRow(Cosmos.Yellow, stringResource(R.string.universe_legend_kept))
-        LegendRow(Cosmos.MutedOnDark, stringResource(R.string.universe_legend_unread))
-    }
-}
-
-@Composable
-private fun LegendRow(dot: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(6.dp).background(dot, CircleShape))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-    }
-}
-
-/** A real body: a kept Trace, or (empty state only) a truthful generic placeholder -- never an
- * invented topic. Positioned by an explicit pixel offset computed once from the canvas size, so
- * it never jumps between recompositions. */
-@Composable
-private fun RealBody(modifier: Modifier = Modifier, title: String, subLabel: String?, onClick: (() -> Unit)?) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            var bodyModifier = Modifier.size(56.dp).background(Cosmos.Teal, CircleShape)
-            if (onClick != null) bodyModifier = bodyModifier.clickable(onClick = onClick)
+private fun RealBody(title: String, subLabel: String?, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+    Box(if (onClick != null) modifier.clickable(onClick = onClick) else modifier, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.widthIn(max = 128.dp)) {
+            val bodyModifier = Modifier.size(40.dp).background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Cosmos.Teal2, Cosmos.Teal, Cosmos.Deep)), CircleShape)
             Box(bodyModifier.semantics { contentDescription = title })
-            Text(title, style = MaterialTheme.typography.labelMedium, color = Cosmos.InkOnDark, fontWeight = FontWeight.Bold)
-            if (subLabel != null) Text(subLabel, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnDark, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            if (subLabel != null) Text(subLabel, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         }
     }
 }
 
 @Composable
-private fun DustBody(modifier: Modifier = Modifier, label: String) {
+private fun DustBody(label: String, modifier: Modifier = Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.size(30.dp).background(Cosmos.MutedOnDark.copy(alpha = 0.28f), CircleShape))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark.copy(alpha = 0.7f))
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(max = 120.dp)) {
+            Box(Modifier.size(28.dp).background(Cosmos.MutedOnDark.copy(alpha = 0.28f), CircleShape))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark.copy(alpha = 0.7f), maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         }
     }
 }
 
+/**
+ * Audit A3 (#72): compact privacy disclosure that keeps both Clear and Sign-out reachable
+ * above the dock at every supported width. The disclosure copy is one short paragraph that
+ * names both actions and what each one does, then two pills side by side. Each pill is its own
+ * modal-confirmation flow (privacy / sign-out confirmation semantics are unchanged); the
+ * progress and retry copy lives beneath the buttons so it does not push them off-screen on a
+ * shorter canvas. The full-width stacked layout the audit found pushing against the dock is
+ * gone.
+ */
 @Composable
-private fun DustCluster(modifier: Modifier = Modifier) {
-    val label = stringResource(R.string.universe_dust_label)
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.size(26.dp).background(Cosmos.MutedOnDark.copy(alpha = 0.22f), CircleShape))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark.copy(alpha = 0.6f))
+private fun PrivacyDisclosure(
+    historyClear: HistoryClearState,
+    signOut: SignOutState,
+    onRequestHistoryClear: () -> Unit,
+    onRetryHistoryClear: () -> Unit,
+    onRequestSignOut: () -> Unit,
+    onRetrySignOut: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.privacy_heading),
+            style = MaterialTheme.typography.labelMedium,
+            color = Cosmos.MutedOnDark
+        )
+        Text(
+            stringResource(R.string.privacy_disclosure),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Cosmos.MutedOnDark
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(
+                onClick = onRequestHistoryClear,
+                enabled = historyClear !is HistoryClearState.Clearing && historyClear !is HistoryClearState.Retryable && historyClear !is HistoryClearState.ReconcileUnavailable && historyClear !is HistoryClearState.SessionUnavailable,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "Clear Scroll history" }
+            ) {
+                Text(
+                    stringResource(R.string.clear_history_action),
+                    fontWeight = FontWeight(800),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+            OutlinedButton(
+                onClick = onRequestSignOut,
+                enabled = signOut is SignOutState.Idle,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "Sign out this device" }
+            ) {
+                Text(
+                    stringResource(R.string.sign_out_action),
+                    fontWeight = FontWeight(800),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+        when (historyClear) {
+            is HistoryClearState.Clearing -> Text(stringResource(R.string.clear_history_progress), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+            is HistoryClearState.Retryable -> {
+                Text(historyClear.message, style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
+                OutlinedButton(
+                    onClick = onRetryHistoryClear,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = "Retry the same history clear request" }
+                ) { Text(stringResource(R.string.clear_history_retry), fontWeight = FontWeight(800), style = MaterialTheme.typography.labelLarge) }
+            }
+            is HistoryClearState.ReconcileUnavailable -> {
+                Text(historyClear.message, style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
+                OutlinedButton(
+                    onClick = onRetryHistoryClear,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = "Retry privacy reconciliation" }
+                ) { Text(stringResource(R.string.action_retry), fontWeight = FontWeight(800), style = MaterialTheme.typography.labelLarge) }
+            }
+            is HistoryClearState.NeedsConfirmation -> Text(historyClear.message, style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
+            is HistoryClearState.SessionUnavailable -> Text(historyClear.message, style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
+            else -> Unit
+        }
+        when (signOut) {
+            is SignOutState.Revoking -> Text(stringResource(R.string.sign_out_progress), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+            is SignOutState.Retryable -> {
+                Text(signOut.message, style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
+                OutlinedButton(
+                    onClick = onRetrySignOut,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = "Retry sign out this device" }
+                ) { Text(stringResource(R.string.sign_out_retry), fontWeight = FontWeight(800), style = MaterialTheme.typography.labelLarge) }
+            }
+            else -> Unit
         }
     }
 }
-
 @Composable
 private fun PrivacyControls(
     state: HistoryClearState,

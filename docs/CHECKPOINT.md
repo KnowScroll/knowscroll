@@ -1,5 +1,26 @@
 # Shared delivery checkpoint
 
+## 2026-09-22 UI refinement successor — #72 / #4
+
+Current local branch: `codex/72-ui-experience-audit`, started from clean `c9c3e72` on the
+external SSD. The dated [audit](design/2026-09-21-ui-audit.md) supersedes earlier claims of visual
+completion below. Both actual clients were inspected before changes. Shared local typography,
+cartographic source-backed worlds, local world inspection, consistent navigation, real Web Keep,
+responsive layouts and native reader hierarchy are implemented. Final evidence lives in
+[journeys/evidence/ui-refinement-2026-09-21](journeys/evidence/ui-refinement-2026-09-21/README.md).
+
+Native foreground/recreation retains System/Keep only after same-universe, same-epoch reconciliation.
+The privacy journey reproduced the old stale-system-after-Clear defect; migration 0025 and both
+Clear/Reset now erase that private projection transactionally. Shared source catalog and exact-retry
+boundaries remain. Request privacy-lane review (#4) on the draft before merge. No owner migration,
+owner data reset or provider run occurred. Test data/app are separate and disposable.
+
+**Not full v1:** region/Star/galaxy evolution, relationships, world-scoped discovery, native
+pause/export/Reset parity, production identity recovery, real Reels and journeys A–I remain open.
+Do not render fictional growth to fill these gaps. Next action: review final captures and the draft
+against the canonical references, then specify the remaining evidence-backed evolution contracts.
+The older snapshot below is retained as historical evidence, not current branch/runtime truth.
+
 Updated 2026-09-20 (Claude Code coordinator). Coordinator-owned current steering object, not a
 transcript. Replace this snapshot when reality changes; preserve prior evidence and rationale through
 Git, issues and [delivery history](operations/delivery-history.md).

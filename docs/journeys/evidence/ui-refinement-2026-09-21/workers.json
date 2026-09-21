@@ -1,0 +1,24 @@
+{
+  "sourceAudit": {
+    "run": "20260921-235033-read-only-bounded-knowsc-defd",
+    "model": "MiniMax-M3",
+    "status": "done",
+    "exitCode": 0,
+    "tokensTotal": 164491,
+    "costUsd": 0.02017
+  },
+  "androidWorker": {
+    "run": "20260921-235639-implement-bounded-androi-ae99",
+    "model": "MiniMax-M3",
+    "status": "killed",
+    "exitCode": -15,
+    "estimatedTotal": 8929517,
+    "costUsd": null,
+    "disposition": "Coordinator stopped the worker, reviewed its partial patch, corrected layout, motion, privacy copy and tests, and performed integration/runtime verification."
+  },
+  "quotaAfter": {
+    "fiveHourRemainingPercent": 76,
+    "weeklyRemainingPercent": 97
+  },
+  "stats": "pio stats --json was collected under ignored artifacts/ui-audit/pio-stats.json; its account-wide totals are not task-specific usage."
+}

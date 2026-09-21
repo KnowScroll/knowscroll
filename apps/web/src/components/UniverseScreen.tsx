@@ -360,10 +360,10 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
 
       {(
         <div className="map-tools" aria-label="Map controls">
-          <button type="button" className="zoom-button" onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.15) * 100) / 100))} aria-label="Zoom out">
+          <button type="button" className="zoom-button" disabled={zoom <= 0.75} onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.15) * 100) / 100))} aria-label="Zoom out">
             −
           </button>
-          <button type="button" className="zoom-button" onClick={() => setZoom(z => Math.min(1.35, Math.round((z + 0.15) * 100) / 100))} aria-label="Zoom in">
+          <button type="button" className="zoom-button" disabled={zoom >= 1} onClick={() => setZoom(z => Math.min(1, Math.round((z + 0.15) * 100) / 100))} aria-label="Zoom in">
             +
           </button>
           <button type="button" className="zoom-button recenter" onClick={() => setZoom(1)} aria-label="Recenter the universe">

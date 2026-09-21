@@ -1375,7 +1375,7 @@ h1,h2,h3,.pill,.world-name,.dock-button { font-family: var(--font-display); }
 }
 /* At narrow/short sizes use document flow: map labels and controls stay reachable without
    scaling a desktop absolute-position grid underneath the dock. */
-@media (max-width: 700px), (max-height: 600px) {
+@media (max-width: 1023px), (max-height: 600px) {
   .universe-screen { height: auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 28px 24px 110px; overflow: clip; }
   .universe-title { position: relative; inset: auto; padding-right: 85px; }
   .universe-title h1 { max-width: 18ch; }
@@ -1400,3 +1400,5 @@ h1,h2,h3,.pill,.world-name,.dock-button { font-family: var(--font-display); }
 .observatory-content { flex: 1; min-height: 0; width: 100%; overflow-y: auto; padding-bottom: 30px; }
 .keep-content { flex: 1; min-height: 0; width: 100%; overflow-y: auto; padding-bottom: 30px; }
 .observatory .universe-dock, .keep-screen .universe-dock { position: relative; left: auto; bottom: auto; transform: none; flex-shrink: 0; align-self: center; margin: 12px auto 16px; }
+
+.zoom-button:disabled { opacity: .35; cursor: default; }

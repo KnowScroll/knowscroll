@@ -348,7 +348,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     // Tab through every control the Universe screen currently has (however
     // many saved Traces already exist by this point in the run, plus Enter
     // Scroll), confirming each Tab lands on a real, visibly focused control.
-    const universeControlCount = await page.getByRole('button').count();
+    const universeControlCount = await page.getByRole('button', { disabled: false }).count();
     for (let i = 0; i < universeControlCount; i++) {
       await page.keyboard.press('Tab');
       await expect(page.locator(':focus')).toBeVisible();

@@ -19,8 +19,8 @@
          deviation in the #111 evidence README) rather than fed invented data. -->
     <string name="universe_heading_first">Somewhere new starts here.</string>
     <string name="universe_subtitle_first">No topics to pick. Just something interesting.</string>
-    <string name="universe_heading_started">Your first little world.</string>
-    <string name="universe_subtitle_started">A few encounters are beginning to belong together.</string>
+    <string name="universe_heading_started">Your curiosity leaves a trace.</string>
+    <string name="universe_subtitle_started">Saved encounters below. Source-backed worlds in your system.</string>
     <!-- Deviation: the reference's yellow note carries a real why-this-appeared reason, which
          lives on a Scroll (in the reader), not on a kept Trace (on this screen). Rather than
          invent one, this note states the one real fact this screen has: how many are kept. -->
@@ -34,7 +34,7 @@
          It read "SYSTEM VIEW" while being an inert Text: a claim to a depth the app could
          neither draw nor reach. Corrected to the level that actually exists; #116 builds the
          system level for real and turns this into a control that goes there. -->
-    <string name="universe_view_label">UNIVERSE VIEW</string>
+    <string name="universe_view_label">Explore your system ↗</string>
     <string name="universe_legend_kept">Your paths</string>
     <string name="universe_legend_unread">Still unexplored</string>
     <!-- Deviation: the reference hints "Tap a planet"; our bodies are kept Traces, not learned
@@ -62,8 +62,12 @@
     <string name="trace_revisit_action">Reopen saved Scroll %1$s</string>
     <string name="keep_kicker">KNOWSCROLL</string>
     <string name="keep_title">Keep</string>
+    <string name="keep_subtitle">Saved Traces. Tap any to reopen the verified original.</string>
     <string name="keep_empty">Nothing kept yet. Scrolls you keep from Cable show up here.</string>
-    <string name="privacy_heading">Privacy controls</string>
+    <string name="keep_card_description">Reopen saved Scroll %1$s</string>
+    <string name="privacy_heading">Privacy</string>
+    <string name="privacy_disclosure">Clear removes this universe\'s recorded encounters and saved Traces; the shared library stays. Other devices are signed out. Sign out ends only this device.</string>
+    <string name="privacy_actions_label">Privacy actions</string>
     <string name="clear_history_action">Clear Scroll history</string>
     <string name="clear_history_title">Clear Scroll history?</string>
     <string name="clear_history_effects">This removes recorded Scroll encounters and saved Traces. The shared Scroll library stays available. Other devices will be signed out.</string>
@@ -147,7 +151,7 @@
          (docs/product/ui-system.md sec.5b/5c). -->
     <string name="system_view_description">Open the system view</string>
     <string name="system_kind_label">SYSTEM</string>
-    <string name="system_head_origin">Derived from recorded sources, never inferred</string>
+    <string name="system_head_origin">Your atlas</string>
     <string name="system_back_description">Return to Universe</string>
     <string name="system_loading">Deriving your system…</string>
     <string name="system_unavailable_title">The system is unavailable</string>
@@ -157,8 +161,28 @@
     <string name="system_empty_body">There is no system yet because nothing has been encountered. A system only ever names the worlds this universe\'s own reading has actually reached — nothing is arranged ahead of that.</string>
     <string name="system_eyebrow">System</string>
     <string name="system_title">Your system</string>
-    <string name="system_fully_explored">FULLY EXPLORED</string>
+    <!-- Audit U2 (#72): "FULLY EXPLORED" overstates the evidence - every catalog Scroll having
+         an exposure is not mastery of the subject. Renamed to the exact-seen-of-total phrasing
+         the audit records as the honest wording. -->
+    <string name="system_fully_explored">ALL SCROLLS ENCOUNTERED</string>
     <string name="system_more_to_explore">MORE TO EXPLORE</string>
     <string name="system_open_source_description">Open %1$s in browser</string>
     <string name="system_worlds_list_description">Worlds in your system</string>
+    <!-- When there are many worlds the orbit risks body/label collisions; a list fallback shows
+         the same real values stacked, never a new dataset. The list itself is the system; the
+         toggle is a layout decision, not a navigation one. (XML comments cannot contain the
+         double-hyphen sequence.) -->
+    <string name="system_layout_orbit">Orbit</string>
+    <string name="system_layout_list">List</string>
+    <string name="system_layout_orbit_description">Switch to orbit view</string>
+    <string name="system_layout_list_description">Switch to list view</string>
+    <!-- World detail (audit U1, sec.5b table): tapped from System, lives only on this client,
+         returns to the same system. No new domain entity. (XML comments cannot contain the
+         double-hyphen sequence.) -->
+    <string name="world_detail_title">World detail</string>
+    <string name="world_detail_back_description">Close world detail and return to the system</string>
+    <string name="world_detail_counts">%1$d of %2$d Scrolls encountered</string>
+    <string name="world_detail_explanation">This world gathers Scrolls from the same source. It appeared because your reading reached that source. Encounters record what was shown, not what you know.</string>
+    <string name="world_detail_decorative_label">Decorative cartographic globe</string>
+    <string name="world_detail_open_source_description">Open %1$s in browser</string>
 </resources>

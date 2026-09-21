@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -96,6 +97,41 @@ class PillGeometryRedTest {
                 "MaterialTheme.typography.labelLarge is currently $size.",
             13.sp,
             size
+        )
+    }
+
+    /** Audit D1 (#72): displayLarge is now weight 800 (spec section 2: 700-800). The previous
+     * Light weight is what the audit captured as the system reading like a different product. */
+    @Test
+    fun `displayLarge is weight 800 so headings read with the spec's Cosmos authority`() {
+        var weight by mutableStateOf<FontWeight?>(null)
+        composeRule.setContent {
+            KnowScrollTheme {
+                weight = MaterialTheme.typography.displayLarge.fontWeight
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(
+            "Audit D1 (#72): displayLarge must be weight 700-800 per docs/product/ui-system.md " +
+                "section 2. Current value: $weight.",
+            FontWeight(800), weight
+        )
+    }
+
+    /** Audit D1 (#72): headlineMedium is now weight 700. */
+    @Test
+    fun `headlineMedium is weight 700 so section and system headings read with the spec's authority`() {
+        var weight by mutableStateOf<FontWeight?>(null)
+        composeRule.setContent {
+            KnowScrollTheme {
+                weight = MaterialTheme.typography.headlineMedium.fontWeight
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(
+            "Audit D1 (#72): headlineMedium must be weight 700 per docs/product/ui-system.md " +
+                "section 2. Current value: $weight.",
+            FontWeight(700), weight
         )
     }
 
@@ -243,6 +279,7 @@ class PillGeometryRedTest {
                 )
             }
         }
+        composeRule.onNodeWithText("NASA . Stars").performClick()
         val bounds = composeRule.onNodeWithContentDescription("Open NASA . Stars in browser")
             .getUnclippedBoundsInRoot()
         val height = bounds.bottom - bounds.top

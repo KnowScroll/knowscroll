@@ -28,31 +28,8 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 /** Which section the bottom compass currently marks as active. */
 enum class CompassTab { Atlas, Cable, Keep }
 
-/**
- * docs/product/ui-system.md section 4b: "Bottom compass, taken from Living Observatory's own
- * `.dock`: floating rather than docked to the edge, centred, 25px from the bottom, 18px radius,
- * 6px padding, 5px between entries, each entry 13px/18px padding at 12px type, with the current
- * entry marked". Section 5b names the destinations that actually exist once a contract backs
- * them: "**Cable** (read), **Atlas** (universe), **Keep** (Traces) are real" -- the same three
- * the web build (#110) shipped. Android's own §4b draft shipped before the Keep contract
- * (`GET /v1/universe`'s `traces`, `GET /v1/traces/:eventId`) was wired up on this client, and
- * named its two placeholders "Home"/"Scroll"; now that Keep has real data this compass grows the
- * third entry exactly as that section said it would, and takes the same three names web did so
- * the two surfaces read as the same product rather than diverging on new labels of their own.
- *
- * "Floating" here means visually floating (rounded, shadowed, inset from the edge) rather than an
- * edge-to-edge bar — not that it is drawn as an absolutely-positioned overlay on top of screen
- * content. It is laid out as the last row of the screen's own column instead, so it can never cover
- * an interactive control underneath it — the exact failure mode #110's evidence README recorded
- * three times on the desktop surface (rails and sheets clipping or hiding reachable controls).
- * Recorded as a deviation from the literal word "floating", not from its intent.
- *
- * `selected` is nullable because a level can exist that is not one of the three. The system level
- * (#116) is reached from Atlas and returns to it, but it is not Atlas: marking Atlas current there
- * would tell the reader -- and, through `Role.Tab`'s selected state, a screen reader -- that they
- * are somewhere they are not. On that level nothing is marked, which is what the web surface does
- * for the same reason (#121). The dock is still drawn and still navigates.
- */
+/** Shared Cable / Atlas / Keep order. Nested System and World screens belong to Atlas.
+ * The dock reserves its own layout space so it never covers content or actions. */
 @Composable
 fun BottomCompass(
     selected: CompassTab?,
@@ -75,20 +52,23 @@ fun BottomCompass(
             shadowElevation = 10.dp
         ) {
             Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                // Audit D3 (#72): shared dock order is Cable / Atlas / Keep on every level --
+                // Cable (read) first, Atlas (universe) middle, Keep (Traces) last -- matching
+                // the brief's wording and the audit's reading.
                 CompassEntry(
-                    glyph = "◐",
-                    label = stringResource(R.string.compass_atlas),
-                    selected = selected == CompassTab.Atlas,
-                    onClick = onSelectAtlas
-                )
-                CompassEntry(
-                    glyph = "≡",
+                    glyph = "~",
                     label = stringResource(R.string.compass_cable),
                     selected = selected == CompassTab.Cable,
                     onClick = onSelectCable
                 )
                 CompassEntry(
-                    glyph = "✦",
+                    glyph = "◎",
+                    label = stringResource(R.string.compass_atlas),
+                    selected = selected == CompassTab.Atlas,
+                    onClick = onSelectAtlas
+                )
+                CompassEntry(
+                    glyph = "▱",
                     label = stringResource(R.string.compass_keep),
                     selected = selected == CompassTab.Keep,
                     onClick = onSelectKeep

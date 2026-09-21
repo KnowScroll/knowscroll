@@ -1,6 +1,6 @@
 import { expect, test } from './support/fixtures.ts';
 
-for (const size of [{width:1440,height:900},{width:390,height:844},{width:700,height:560}]) {
+for (const size of [{width:1440,height:900},{width:390,height:844},{width:700,height:560},{width:920,height:740}]) {
   test(`world approach, return and Keep at ${size.width}x${size.height}`, async ({page}) => {
     await page.setViewportSize(size);
     await page.goto('/');
@@ -34,6 +34,12 @@ for (const size of [{width:1440,height:900},{width:390,height:844},{width:700,he
     await expect(page.getByRole('main',{name:'Universe',exact:true})).toBeVisible();
     await expect.poll(() => page.locator('main').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
     await page.screenshot({path:`artifacts/ui-audit/atlas-${size.width}x${size.height}.png`,fullPage:true});
+    if (size.width >= 1024 && size.height > 600) {
+      await expect(page.getByRole('button',{name:'Zoom in',exact:true})).toBeDisabled();
+      await page.getByRole('button',{name:'Zoom out',exact:true}).click();
+      await page.getByRole('button',{name:'Zoom in',exact:true}).click();
+      await expect(page.getByRole('button',{name:'Zoom in',exact:true})).toBeDisabled();
+    }
     const clipped = await page.locator('.body-button').evaluateAll(nodes=>nodes.filter(node=>{const r=node.getBoundingClientRect();return r.x<0||r.right>innerWidth;}).map(node=>node.textContent));
     expect(clipped).toEqual([]);
   });
