@@ -29,7 +29,12 @@
     <string name="universe_cta_first_helper">Your world begins with what catches your curiosity.</string>
     <string name="universe_cta_started">Keep exploring ↗</string>
     <string name="universe_cta_started_helper">A familiar impulse. Somewhere new to go.</string>
-    <string name="universe_view_label">SYSTEM VIEW</string>
+    <!-- Living Observatory's own scale label names which navigable depth the reader is at. On
+         this client exactly one level is built, so the label names that one and nothing else.
+         It read "SYSTEM VIEW" while being an inert Text: a claim to a depth the app could
+         neither draw nor reach. Corrected to the level that actually exists; #116 builds the
+         system level for real and turns this into a control that goes there. -->
+    <string name="universe_view_label">UNIVERSE VIEW</string>
     <string name="universe_legend_kept">Your paths</string>
     <string name="universe_legend_unread">Still unexplored</string>
     <!-- Deviation: the reference hints "Tap a planet"; our bodies are kept Traces, not learned
