@@ -6,6 +6,7 @@ export interface PrivacyScreenProps {
   universe: UniverseView;
   privacy: PrivacyView;
   onReturn: () => void;
+  onOpenKeep?: () => void;
   onPause: () => void;
   onResume: () => void;
   onExport: () => void;
@@ -31,6 +32,7 @@ export function PrivacyScreen({
   universe,
   privacy,
   onReturn,
+  onOpenKeep = onReturn,
   onPause,
   onResume,
   onExport,
@@ -57,7 +59,7 @@ export function PrivacyScreen({
         <button type="button" className="pill cream" onClick={onReturn} aria-label="Return to Universe" aria-keyshortcuts="Escape">
           ‹ Universe
         </button>
-        <span className="head-band-origin">Your recorded history, read from the database itself</span>
+        <span className="head-band-origin">Your history, your control</span>
         <span className="head-band-kind">Privacy</span>
       </header>
       <div className="privacy-stage">
@@ -102,7 +104,7 @@ export function PrivacyScreen({
           </span>
           Atlas
         </button>
-        <button type="button" className="dock-button" onClick={onReturn} aria-label="Keep — your saved Traces">
+        <button type="button" className="dock-button" onClick={onOpenKeep} aria-label="Keep — your saved Traces">
           <span className="dock-icon" aria-hidden="true">
             ▱
           </span>

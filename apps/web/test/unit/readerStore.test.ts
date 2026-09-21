@@ -547,3 +547,21 @@ describe('ReaderStore', () => {
     expect(store.getState().privacy).toEqual({ status: 'idle' });
   });
 });
+
+describe('Keep navigation', () => {
+  it('loads a fresh authorized collection, then can enter discovery', async () => {
+    const api = new FakeApi();
+    const store = new ReaderStore(api, new ReaderStorage(new MemoryStorageBackend()));
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+    api.universeQueue.push(universeOf());
+    store.openKeep();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+    expect(store.getState().screen).toBe('keep');
+    api.feedQueue.push({ decisionId: 'd1', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0, items: [feedItem()] });
+    store.enterScroll();
+    await waitFor(() => store.getState().scroll.status === 'reading');
+    expect(store.getState().screen).toBe('scroll');
+  });
+});

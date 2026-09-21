@@ -123,7 +123,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
 
     await page.getByRole('button', { name: 'Return to Universe' }).click();
     // This is the run's first Keep: the real stage now has 1 kept Trace (ui-system.md sec.5c).
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     const trace = page.getByRole('button', { name: new RegExp(`Revisit the saved Trace: ${title}`) });
     await expect(trace).toBeVisible();
 
@@ -149,7 +149,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
   test('a saved-Trace revisit is read-only: verified origin, no new exposure, exact return', async ({ page }) => {
     await page.goto('/');
     // 1 Trace already kept by this point in the run.
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     const traceButton = page.getByRole('button', { name: /Revisit the saved Trace/ }).first();
     await expect(traceButton).toBeVisible();
 
@@ -165,7 +165,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(exposureRequests).toHaveLength(0);
 
     await page.getByRole('button', { name: 'Return to Universe' }).click();
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
   });
 
   test('reload restores the current Scroll and its retry envelope from storage', async ({ page }) => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { ApiClient } from './api/client.ts';
+import { KeepScreen } from './components/KeepScreen.tsx';
 import { PrivacyScreen } from './components/PrivacyScreen.tsx';
 import { ScrollScreen } from './components/ScrollScreen.tsx';
 import { SystemScreen } from './components/SystemScreen.tsx';
@@ -24,7 +25,7 @@ export function App() {
   }, [state.toast, store]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-screen={state.screen}>
       {state.toast && (
         <div className="toast" role="status" aria-live="polite">
           {state.toast}
@@ -41,16 +42,19 @@ export function App() {
           onOpenTrace={trace => store.openTrace(trace)}
           onEnterSystem={() => store.enterSystem()}
           onOpenPrivacy={() => store.openPrivacy()}
+          onOpenKeep={() => store.openKeep()}
           onRetry={() => store.retryUniverse()}
         />
       )}
       {state.screen === 'system' && (
-        <SystemScreen state={state.system} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} onEnterScroll={() => store.enterScroll()} />
+        <SystemScreen state={state.system} onOpenKeep={() => store.openKeep()} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} onEnterScroll={() => store.enterScroll()} />
       )}
+      {state.screen === 'keep' && <KeepScreen state={state.universe} onReturn={() => store.returnToUniverse()} onEnterScroll={() => store.enterScroll()} onOpenTrace={trace => store.openTrace(trace)} />}
       {state.screen === 'privacy' && (
         <PrivacyScreen
           universe={state.universe}
           privacy={state.privacy}
+          onOpenKeep={() => store.openKeep()}
           onReturn={() => store.closePrivacy()}
           onPause={() => store.pauseRecording()}
           onResume={() => store.resumeRecording()}
@@ -67,6 +71,7 @@ export function App() {
           state={state.scroll}
           onVisible={assetId => store.onVisible(assetId)}
           onKeep={() => store.keep()}
+          onOpenKeep={() => store.openKeep()}
           onNext={() => store.nextScroll()}
           onReturn={() => store.returnToUniverse()}
           onRetry={() => store.retryScrollLoad()}
