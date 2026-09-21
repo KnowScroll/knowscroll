@@ -24,6 +24,13 @@ function receiptFromRow(row: Record<string, unknown>): HistoryClearReceipt {
  };
 }
 
+/** Called only after exposure erasure, under the caller's existing authenticated universe lock.
+ * Shared world/asset evidence and other universes are deliberately outside this deletion. */
+async function eraseEncounterSystem(client:pg.PoolClient,universeId:string):Promise<void> {
+ await client.query('DELETE FROM world_system_member WHERE system_id IN (SELECT id FROM world_system WHERE universe_id=$1)',[universeId]);
+ await client.query('DELETE FROM world_system WHERE universe_id=$1',[universeId]);
+}
+
 export async function clearScrollHistory(
  client:pg.PoolClient,
  scope:AuthScope,
@@ -52,6 +59,7 @@ export async function clearScrollHistory(
  await client.query('DELETE FROM job WHERE universe_id=$1',[scope.universeId]);
  await client.query('DELETE FROM trace WHERE universe_id=$1',[scope.universeId]);
  await client.query('DELETE FROM exposure WHERE universe_id=$1',[scope.universeId]);
+ await eraseEncounterSystem(client,scope.universeId);
  await client.query('DELETE FROM ledger WHERE universe_id=$1',[scope.universeId]);
  await client.query('DELETE FROM decision WHERE universe_id=$1',[scope.universeId]);
  const accounts=await client.query(`UPDATE accounts SET kept_asset_ids='{}'::uuid[],revision=revision+1
@@ -263,6 +271,7 @@ export async function resetPersonalUniverse(client: pg.PoolClient, scope: AuthSc
  await client.query('DELETE FROM job WHERE universe_id=$1', [scope.universeId]);
  await client.query('DELETE FROM trace WHERE universe_id=$1', [scope.universeId]);
  await client.query('DELETE FROM exposure WHERE universe_id=$1', [scope.universeId]);
+ await eraseEncounterSystem(client,scope.universeId);
  await client.query('DELETE FROM ledger WHERE universe_id=$1', [scope.universeId]);
  await client.query('DELETE FROM decision WHERE universe_id=$1', [scope.universeId]);
  const accounts = await client.query(`UPDATE accounts SET kept_asset_ids='{}'::uuid[],revision=revision+1

@@ -22,6 +22,14 @@ Unknown, expired, revoked and old-epoch sessions return generic 401. Foreign dec
 
 Mobile reads title/summary/body/sources; Source opens the actual URL. Home begins as an honest empty universe and offers Enter Scroll. After keep, return restores origin and refreshes traces. Show visible connection error/retry. Do not add unavailable Ask/Friends/Reel buttons as fake working features.
 
+## Encounter-derived worlds after erasure (2026-09-22, #72 / #4)
+
+Clear and Reset remove the authenticated universe's private system and system memberships in their
+existing transaction. After Clear, `GET /v1/worlds` returns `system:null` until fresh encounters;
+Reset revokes the caller, so that session receives 401. Shared catalog worlds, source assets and
+other universes remain intact. An exact Clear receipt replay does not erase a system derived from
+later encounters. No response shape changes; ADR-0010/0030 and migration 0025 govern this cleanup.
+
 ## Saved Trace source revisit
 
 `GET /v1/traces/:eventId` follows the strict [source revisit contract](trace-revisit.md). It authorizes the current owner scope, validates the original Keep/exposure/decision lineage and unchanged shared source, and returns a no-store read receipt. It creates no new events. Universe Trace titles now derive from validated selection history; unavailable entries retain a neutral label.

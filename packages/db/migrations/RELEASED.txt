@@ -29,3 +29,4 @@
 0022_composer_ranking_signals.sql
 0023_composer_signals_v1.sql
 0024_composer_coverage_tiebreak.sql
+0025_world_system_privacy_erasure.sql

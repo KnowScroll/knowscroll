@@ -85,6 +85,67 @@ async function directDecision(universeId: string, privacyEpoch: number, candidat
   return decisionId;
 }
 
+// #72/#4: worlds must disappear with the encounters that justified this private system.
+// Shared catalog rows and another reader's system are deliberately part of the fixture.
+for (const operation of ['clear', 'reset'] as const) {
+  test(`${operation} erases only the caller's derived system and preserves shared source evidence`, async () => {
+    const owner = await provisionIdentity();
+    const neighbor = await provisionIdentity();
+    const asset = await insertScrollAsset(operation, 'Privacy fixture', `https://example.test/privacy-${randomUUID()}`);
+    for (const identity of [owner, neighbor]) {
+      await expose(identity.token, await directDecision(identity.scope.universeId, 0, [asset]), asset.assetId);
+    }
+    const before = await worlds(owner.token);
+    const neighborBefore = await worlds(neighbor.token);
+    const catalogBefore = (await pool.query(`SELECT
+      (SELECT count(*) FROM world) AS worlds,
+      (SELECT count(*) FROM world_member) AS members,
+      (SELECT count(*) FROM asset) AS assets`)).rows[0];
+    const body = { requestId: randomUUID(), expectedPrivacyEpoch: 0,
+      confirmation: operation === 'clear' ? 'clear-scroll-history' : 'reset-personal-universe' };
+    const request = () => app.inject({ method: 'POST',
+      url: operation === 'clear' ? '/v1/history/clear' : '/v1/privacy/reset',
+      headers: headers(owner.token), payload: body });
+    const result = await request();
+    assert.equal(result.statusCode, 200, result.body);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_system WHERE universe_id=$1', [owner.scope.universeId])).rows[0].n, 0);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_system_member WHERE system_id=$1', [before.system!.systemId])).rows[0].n, 0);
+    assert.deepEqual(await worlds(neighbor.token), neighborBefore);
+    assert.deepEqual((await pool.query(`SELECT
+      (SELECT count(*) FROM world) AS worlds,
+      (SELECT count(*) FROM world_member) AS members,
+      (SELECT count(*) FROM asset) AS assets`)).rows[0], catalogBefore);
+    if (operation === 'reset') {
+      assert.equal((await app.inject({ url: '/v1/worlds', headers: headers(owner.token) })).statusCode, 401);
+      return;
+    }
+    assert.equal((await worlds(owner.token)).system, null);
+    // An exact replay after new activity must return the old receipt before any deletion.
+    await expose(owner.token, await directDecision(owner.scope.universeId, 1, [asset]), asset.assetId);
+    const fresh = await worlds(owner.token);
+    assert.ok(fresh.system);
+    assert.notEqual(fresh.system.systemId, before.system!.systemId);
+    assert.deepEqual((await request()).json(), result.json());
+    assert.deepEqual(await worlds(owner.token), fresh);
+    const conflict = await app.inject({ method: 'POST', url: '/v1/history/clear', headers: headers(owner.token),
+      payload: { ...body, expectedPrivacyEpoch: 1 } });
+    assert.equal(conflict.statusCode, 409);
+    assert.deepEqual(await worlds(owner.token), fresh);
+  });
+}
+
+test('system deletion is refused while encounters remain, rolling back member deletion too', async () => {
+  const owner = await provisionIdentity();
+  const asset = await insertScrollAsset('guard', 'Guard fixture', `https://example.test/guard-${randomUUID()}`);
+  await expose(owner.token, await directDecision(owner.scope.universeId, 0, [asset]), asset.assetId);
+  const before = await worlds(owner.token);
+  await assert.rejects(transaction(async client => {
+    await client.query('DELETE FROM world_system_member WHERE system_id=$1', [before.system!.systemId]);
+    await client.query('DELETE FROM world_system WHERE id=$1', [before.system!.systemId]);
+  }), /only after its universe exposures are erased/);
+  assert.deepEqual(await worlds(owner.token), before);
+});
+
 // -----------------------------------------------------------------------------------------------
 // A universe with nothing derives nothing.
 // -----------------------------------------------------------------------------------------------
