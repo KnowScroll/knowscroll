@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiException } from '../../src/api/client.ts';
 import { ReaderStore } from '../../src/state/readerStore.ts';
 import { MemoryStorageBackend, ReaderStorage } from '../../src/state/storage.ts';
-import { FakeApi, feedItem, universeOf } from './fakeApi.ts';
+import { FakeApi, feedItem, universeOf, worldSystemOf } from './fakeApi.ts';
 
 function tick(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0));
@@ -293,6 +293,62 @@ describe('ReaderStore', () => {
     expect(scroll.item.assetId).toBe(feedItem().assetId);
     expect(scroll.exposureId).toBe('exp-1');
     expect(reloadedApi.feedCalls).toBe(0); // restored from storage, not re-fetched as a new discovery
+  });
+
+  it('enterSystem reads GET /v1/worlds and returnFromSystem goes back without touching any Scroll session', async () => {
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+
+    const response = worldSystemOf();
+    api.worldsQueue.push(response);
+    store.enterSystem();
+    expect(store.getState().screen).toBe('system');
+    await waitFor(() => store.getState().system.status === 'loaded');
+    const system = store.getState().system;
+    if (system.status !== 'loaded') throw new Error('expected loaded system state');
+    expect(system.response).toEqual(response);
+    expect(api.worldsCalls).toBe(1);
+
+    store.returnFromSystem();
+    expect(store.getState().screen).toBe('universe');
+    expect(store.getState().system).toEqual({ status: 'idle' });
+    // Returning from the system view is not a privacy reconciliation: it never re-fetches the universe.
+    expect(api.universeCalls).toBe(1);
+  });
+
+  it('enterSystem surfaces a real fetch failure as Unavailable with a working retry', async () => {
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+
+    api.worldsQueue.push(new ApiException({ kind: 'network', message: 'simulated dropped response' }));
+    store.enterSystem();
+    await waitFor(() => store.getState().system.status === 'unavailable');
+    const failed = store.getState().system;
+    if (failed.status !== 'unavailable') throw new Error('expected unavailable system state');
+    expect(failed.message).toBeTruthy();
+
+    const response = worldSystemOf();
+    api.worldsQueue.push(response);
+    store.retrySystem();
+    await waitFor(() => store.getState().system.status === 'loaded');
+    const recovered = store.getState().system;
+    if (recovered.status !== 'loaded') throw new Error('expected loaded system state after retry');
+    expect(recovered.response).toEqual(response);
+  });
+
+  it('a 401 while reading the system purges private state and fails closed to an honest Unavailable universe', async () => {
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+
+    api.worldsQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.enterSystem();
+    await waitFor(() => store.getState().universe.status === 'unavailable');
+
+    expect(store.getState().screen).toBe('universe');
+    expect(store.getState().system).toEqual({ status: 'idle' });
   });
 
   it('never restores a cached Scroll across a changed privacy epoch', async () => {
