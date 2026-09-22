@@ -50,6 +50,7 @@ sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 try:
     with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(('127.0.0.1', port))
     videos = [Path(os.environ[key]).resolve() for key in ('KS_NATIVE_VIDEO', 'KS_NATIVE_VIDEO2', 'KS_NATIVE_VIDEO3')]
     assert all(video.is_file() and video.suffix == '.mp4' for video in videos)
