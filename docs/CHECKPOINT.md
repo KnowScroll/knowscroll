@@ -1,5 +1,37 @@
 # Shared delivery checkpoint
 
+## 2026-09-22 Android spatial delivery — #72 / draft PR #129
+
+Owner sequencing decision: Android only (native canvas, Reel playback, branching seams, rich
+Scrolls, motion and performance). Do not improve Web in this phase; full v1 still requires both
+clients and journeys A–I. Continue the actual unmerged PR129 branch from `c9f699f`; no merge or
+issue closure authorized. See [native audit/checklist](design/2026-09-22-android-spatial.md).
+
+Live start: Git clean at the handoff revision, PR open/draft and historical CI green. PostgreSQL
+was down and emulator absent; restarted dedicated SSD cluster and API36 emulator. Owner schema
+read-only observation remains 0001–0009 with stale worker heartbeat; no owner migration/reset.
+Runtime checks use disposable databases and `.journey` only. User authorized local Google-Drive
+videos for playback tests. Physical phone availability remains unknown. Browser policy blocked
+local reference replay; inspect reference source/captures without claiming observed motion.
+
+Native implementation now includes a full available Atlas viewport with pan/pinch, cancellable
+inspection travel and scope-bound camera return; real Media3 playback with first-frame exposure,
+strict media URL/redirect handling and authority-aware paused state; and typed rich/branch seams.
+Runtime work repaired sheet Back, return during in-flight exposure, two-marker pinch cancellation
+and pause lost across authority refresh. Fixtures remain labelled tests and use actual authorized
+MP4 bytes. Live region/relationship hierarchy, world-filtered discovery, branch/rich transport,
+consumer generation status and saved-Reel revisit still need the contracts listed in the audit.
+
+Receipts, captures, commands and diagnostic before/after frame/memory measurements are in
+[Android spatial evidence](journeys/evidence/android-spatial-2026-09-22/README.md). All tests use
+`.journey` and disposable databases; only an API36 emulator is available. Debug/emulator metrics
+are not production-smoothness acceptance. Final checks: typecheck, assemble/lint, 86 units and
+11 emulator scenarios passed. The matched profile regressed: p95 64.34 → 83.95 ms and PSS
+113,660 → 126,570 KiB; investigate draw/queue costs on a physical profileable build. Review the draft and captures, then prioritize the
+listed shared-contract dependencies and physical-device profiling. Do not merge/close #72 or
+claim full v1 from this delivery. Web follow-up is recorded only; no Web edits were made.
+
+
 ## 2026-09-22 UI refinement successor — #72 / #4
 
 Draft delivery: [PR #129](https://github.com/KnowScroll/knowscroll/pull/129), implementation head

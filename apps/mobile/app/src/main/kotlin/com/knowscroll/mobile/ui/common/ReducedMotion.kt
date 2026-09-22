@@ -18,14 +18,10 @@ import androidx.compose.ui.platform.LocalContext
  * is the platform's version of `prefers-reduced-motion: reduce` and must suspend the same things:
  * sheet motion, any canvas drift, every transition. State still changes, instantly."
  *
- * Scope, stated plainly: this reads the real platform setting (there is no stand-in). ScrollScreen
- * .kt's `Stage` reads it to make the reading-progress bar's animation instant (duration 0) instead
- * of the usual 300ms tween. ModalBottomSheet's own entrance/exit motion (SourceSheet/ExplainSheet)
- * and the universe canvas's zoom are **not** suspended by it yet -- overriding Material3's sheet
- * animation spec was judged out of scope for this pass, and CosmosBackground draws its stars once
- * and never animates, so there is no drift there to suspend either. Recorded as the same honest,
- * narrower gap ReducedMotionRedTest itself documents, not silently widened by this file's own
- * comment.
+ * Native camera travel and reading progress observe this setting. The camera also cancels
+ * an active spring when a gesture takes ownership. Material sheet motion still needs separate
+ * device acceptance; no ambient drift loop is introduced. Device tests distinguish
+ * reduced-motion state changes from physical-device animation/performance acceptance.
  */
 private fun readAnimatorDurationScale(context: Context): Float =
     Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)

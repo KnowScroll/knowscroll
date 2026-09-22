@@ -1,5 +1,21 @@
 # Project state
 
+## 2026-09-22 Android spatial successor — branch delivery, not full v1
+
+The Android-only successor on draft PR #129 adds a native pan/pinch Atlas, camera-preserving world
+inspection, actual Media3 Reel playback through the eligible-media API, visible continuation
+affordances, and a typed native rich-Scroll renderer. Authority-aware pause/camera restoration,
+private UI cache removal and gesture arbitration are part of this change. Existing Web and shared
+privacy implementation remain unchanged in this phase. No owner database migration or provider
+run occurred.
+
+[Native evidence](journeys/evidence/android-spatial-2026-09-22/README.md) separates real API/media
+behavior from test-only rich/branch previews and debug-emulator profiling. Supplied MP4 playback
+is verified; live Cutroom generation, live branch/rich transport, source-scoped discovery, semantic
+region/galaxy evolution and production-device smoothness are not thereby implemented. The
+[Android audit](design/2026-09-22-android-spatial.md) lists the exact seams and next dependencies.
+Keep #72 and full v1 acceptance open. Earlier dated observations below are historical.
+
 ## 2026-09-22 refinement branch update — not full v1
 
 The #72 refinement branch adds coherent Cosmos typography/navigation, textured source-backed

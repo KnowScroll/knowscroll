@@ -2,6 +2,7 @@ package com.knowscroll.mobile.ui.fidelity
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -58,6 +59,7 @@ class UniverseClippingRedTest {
             Trace("event-3", "asset-3", "Computation is the lever", "2026-08-22T00:00:00Z")
         )
         render(loadedUniverse(traces))
+        composeRule.onNodeWithText("Saved Traces 3").performScrollTo().performClick()
         // Every kept Scroll's title is present -- a clipped title would have been culled by
         // measure/layout and the onNodeWithText lookup would fail.
         composeRule.onNodeWithText("The bitter lesson").assertExists()
@@ -71,6 +73,7 @@ class UniverseClippingRedTest {
             Trace("event-$i", "asset-$i", "Kept Scroll number $i with a longish title", "2026-08-2${i}T00:00:00Z")
         }
         render(loadedUniverse(traces))
+        composeRule.onNodeWithText("Saved Traces 12").performScrollTo().performClick()
         // Every body is rendered inside the canvas root, never past the screen edge.
         for (i in 1..12) {
             val title = "Kept Scroll number $i with a longish title"
@@ -91,6 +94,7 @@ class UniverseClippingRedTest {
             Trace("event-$i", "asset-$i", "Kept Scroll $i", "2026-09-0${i}T00:00:00Z")
         }
         render(loadedUniverse(traces))
+        composeRule.onNodeWithText("Saved Traces 12").performScrollTo().performClick()
         for (i in 1..12) {
             composeRule.onNodeWithText("Kept Scroll $i").performScrollTo().assertIsDisplayed()
         }

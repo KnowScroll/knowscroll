@@ -47,7 +47,7 @@ class WorldInspectionJourneyTest {
         val selector = compose.onAllNodes(world)[0]
         val label = selector.fetchSemanticsNode().config[SemanticsProperties.ContentDescription].first()
         screenshot("system-ui.png")
-        selector.performScrollTo().performClick()
+        selector.performClick()
         compose.onNodeWithText(label.removePrefix("Explore world: ")).assertExists()
         compose.onNodeWithContentDescription("Close world detail and return to the system").assertIsDisplayed()
         screenshot("world-ui.png")
@@ -62,7 +62,7 @@ class WorldInspectionJourneyTest {
         screenshot("world-source-ui.png")
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.waitUntil(10_000) { compose.onAllNodes(world).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithContentDescription(label).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription(label).assertIsDisplayed()
         compose.onNodeWithText("Keep").performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithText("Saved Traces. Tap any to reopen the verified original.").fetchSemanticsNodes().isNotEmpty() }
         screenshot("keep-ui.png")
@@ -77,7 +77,7 @@ class WorldInspectionJourneyTest {
         }
         compose.onNodeWithContentDescription("Open the system view").performScrollTo().performClick()
         compose.waitUntil(15_000) { compose.onAllNodes(world).fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodes(world)[0].performScrollTo().performClick()
+        compose.onAllNodes(world)[0].performClick()
         compose.onNodeWithText("Open source").assertExists()
         val api = ApiClient()
         val before = api.getUniverse()

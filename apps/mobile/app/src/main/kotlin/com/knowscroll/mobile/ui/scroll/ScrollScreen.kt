@@ -196,7 +196,11 @@ private fun ReadingSheet(
                     Text(item.title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
                     if (item.reason.isNotBlank()) Text(item.reason, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
                     Text(item.summary, style = MaterialTheme.typography.titleMedium, color = Cosmos.MutedOnCream)
-                    Text(item.body, style = MaterialTheme.typography.bodyLarge)
+                    val document = remember(item.assetId, item.revision, item.body) {
+                        com.knowscroll.mobile.ui.scroll.content.ScrollDocument.fromBody(item.body)
+                    }
+                    com.knowscroll.mobile.ui.scroll.content.ScrollBlocks(document)
+                    com.knowscroll.mobile.ui.BranchRail()
                     HorizontalDivider(color = Cosmos.CreamDim)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.reader_source_marker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
@@ -380,7 +384,7 @@ private fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, onDismiss: () -
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
+internal fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
     val openDescription = stringResource(R.string.reader_open_source_description, item.sourceTitle)
     val closeDescription = stringResource(R.string.reader_close_sources_description)
     val context = LocalContext.current
@@ -396,7 +400,7 @@ private fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
         ) {
             Text(stringResource(R.string.reader_source_sheet_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
             Text(item.title, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.reader_truth_label, item.truthState.uppercase()), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+            Text("${item.kind.uppercase()} · ${item.truthState.uppercase()}", style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
             Text(item.sourceTitle, style = MaterialTheme.typography.titleLarge)
             Text(item.sourceUrl, style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.reader_attribution_note), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)

@@ -46,6 +46,7 @@ object Cosmos {
 private val Scheme = darkColorScheme(
     primary = Cosmos.Teal, onPrimary = Cosmos.Dark,
     secondary = Cosmos.Yellow, onSecondary = Cosmos.Dark,
+    secondaryContainer = Cosmos.Cream, onSecondaryContainer = Cosmos.InkOnCream,
     tertiary = Cosmos.Coral, onTertiary = Cosmos.Cream,
     background = Cosmos.Dark, onBackground = Cosmos.InkOnDark,
     surface = Cosmos.Dark, onSurface = Cosmos.InkOnDark,

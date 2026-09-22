@@ -132,6 +132,31 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         else enterScroll()
     }
 
+    fun enterScrollFromSystem() {
+        if(busy || reconciling || !ready)return
+        savedState["readerFromSystem"] = true
+        enterScroll()
+    }
+
+    fun returnFromReader() {
+        if(savedState.get<Boolean>("readerFromSystem") == true) {
+            savedState["readerFromSystem"] = false
+            // Returning must work while an exposure is in flight. Invalidate only its UI
+            // callback; its persisted retry identity remains available for reconciliation.
+            navigationVersion++
+            _screen.value = Screen.System
+            _system.value = SystemState.Loading
+            savedState["screen"] = "universe"
+            store.writeScreen("universe")
+            reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
+        } else returnToUniverse()
+    }
+
+    fun onMediaAuthorityFailure() {
+        purgeForScope(observedUniverseId, observedPrivacyEpoch)
+        failClosed("This video is no longer available. Reconnect to check your session.")
+    }
+
     fun enterScroll(){
         if(busy || reconciling || !ready || store.readPendingClear()!=null)return
         val current=session
@@ -360,6 +385,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun returnToUniverse(){
+        savedState["readerFromSystem"] = false
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
         visited.clear();store.writeVisited(visited)
@@ -666,6 +692,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     private fun purgeForScope(universeId:String,epoch:Long){
+        savedState["readerFromSystem"] = false
         store.purgePrivateState(universeId,epoch)
         observedUniverseId=store.readObservedUniverseId()
         observedPrivacyEpoch=store.readObservedPrivacyEpoch()

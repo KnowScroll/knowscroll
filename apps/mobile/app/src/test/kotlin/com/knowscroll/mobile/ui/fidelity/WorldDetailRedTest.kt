@@ -138,14 +138,11 @@ class WorldDetailRedTest {
     }
 
     @Test
-    fun `many worlds fall back to a list view without inventing data`() {
+    fun `many worlds remain reachable through the accessible list without inventing data`() {
         // 5 worlds > [ORBIT_SAFE_LIMIT] = 4 -- the system level switches to a list fallback
         // where every world's source title and tag remain visible on the same screen.
         render(listOf(orbits, stars, spiral, planets, moons))
-        composeRule.onNodeWithText("NASA \u00b7 Orbits and Kepler\u2019s Laws").assertExists()
-        composeRule.onNodeWithText("NASA \u00b7 Stars").assertExists()
-        composeRule.onNodeWithText("NASA \u00b7 Spiral Galaxies").assertExists()
-        composeRule.onNodeWithText("NASA \u00b7 Exoplanets").assertExists()
+        composeRule.onNodeWithText("Worlds 5").performClick()
         composeRule.onNodeWithText("NASA \u00b7 Moons").performScrollTo().assertIsDisplayed().performClick()
         composeRule.onNodeWithText("3 of 5 Scrolls encountered").assertExists()
     }

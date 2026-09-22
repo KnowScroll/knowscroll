@@ -72,7 +72,7 @@ class Proxy(BaseHTTPRequestHandler):
             self.send_response(204 if revoked > 0 else 409)
             self.end_headers()
             return
-        is_feed = self.command == 'GET' and self.path == '/v1/feed'
+        is_feed = self.command == 'GET' and self.path.split('?', 1)[0] == '/v1/feed'
         with control_lock:
             drop = is_feed and control['remainingDrops'] > 0
             delay = control['remainingDrops'] == 2
