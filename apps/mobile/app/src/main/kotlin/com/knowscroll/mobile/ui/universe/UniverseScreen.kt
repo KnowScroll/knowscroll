@@ -315,7 +315,7 @@ private fun UniverseCanvas(traces: List<Trace>, onOpenTrace: (Trace) -> Unit, mo
         if (traces.isEmpty())
             Text(
                 "Your first kept discovery will appear here.",
-                modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 100.dp, bottom = 20.dp),
                 color = Cosmos.MutedOnDark,
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,

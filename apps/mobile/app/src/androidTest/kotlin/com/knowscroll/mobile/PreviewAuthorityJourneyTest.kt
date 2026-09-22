@@ -31,7 +31,7 @@ class PreviewAuthorityJourneyTest {
             StateStore(context).read()?.item?.kind == "Reel" &&
                 StateStore(context).read()?.exposureId?.isNotEmpty() == true
         }
-        compose.onNodeWithText("Open authored interaction preview →").performClick()
+        compose.onNodeWithContentDescription("Open authored interaction preview").performClick()
         compose.waitUntil(20_000) {
             compose
                 .onAllNodesWithContentDescription("Preview Scroll reading")

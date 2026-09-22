@@ -50,10 +50,14 @@ fun CableControls(mode: String, onMode: (String) -> Unit, onPreview: (() -> Unit
                 if (onPreview != null)
                     TextButton(
                         onClick = onPreview,
+                        modifier =
+                            Modifier.semantics {
+                                contentDescription = "Open authored interaction preview"
+                            },
                         contentPadding = PaddingValues(vertical = 0.dp),
                     ) {
                         Text(
-                            "Open authored interaction preview →",
+                            "Authored preview →",
                             style = MaterialTheme.typography.labelMedium,
                         )
                     }

@@ -98,7 +98,7 @@ class LivingCableJourneyTest {
             compose.activityRule.scenario.recreate()
             waitFor("Reel video")
             compose.onNodeWithContentDescription("Cable Reel").assertIsSelected()
-            compose.onNodeWithText("Open authored interaction preview →").performClick()
+            compose.onNodeWithContentDescription("Open authored interaction preview").performClick()
             waitFor("Preview Scroll reading")
             capture("living-scroll-top.png")
             val reading = compose.onNodeWithContentDescription("Preview Scroll reading")

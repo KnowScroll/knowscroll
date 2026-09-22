@@ -5,13 +5,16 @@ No raw media, credentials or personal captures belong in Git. Android runners ru
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
-import argparse, datetime, json, os, secrets, signal, socket, subprocess, time, urllib.request
+import argparse, datetime, json, os, re, secrets, signal, socket, subprocess, time, urllib.request
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--keep', action='store_true')
 parser.add_argument('--scenario', default='LivingCableJourneyTest')
 parser.add_argument('--record', action='store_true', help='Capture the non-personal LivingAtlasJourneyTest only')
+parser.add_argument('--compact', action='store_true', help='840x1680 display with 1.35 font scale')
 options = parser.parse_args()
+if not re.fullmatch('[A-Za-z][A-Za-z0-9]*Test', options.scenario): parser.error('Invalid scenario class')
+if options.compact and options.keep: parser.error('--compact is a verification configuration')
 if options.record and (options.keep or options.scenario != 'LivingAtlasJourneyTest'):
     parser.error('--record is restricted to LivingAtlasJourneyTest')
 root = Path.cwd()
@@ -21,6 +24,7 @@ assert source.hostname in ('localhost', '127.0.0.1')
 name = 'knowscroll_test_native_' + secrets.token_hex(8)
 port = int(os.environ.get('KS_NATIVE_PORT', '4322'))
 out = root / 'artifacts/android-living' / ('preview' if options.keep else 'verification')
+if not options.keep: out = out / (options.scenario + ('-compact' if options.compact else ''))
 out.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT',
            'ANDROID_AVD_HOME', 'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
@@ -41,6 +45,9 @@ def run(command, **kwargs):
 def adb(*command):
     return subprocess.check_output(['adb', *command], text=True).strip()
 
+font = adb('shell', 'settings', 'get', 'system', 'font_scale')
+sizes = adb('shell', 'wm', 'size').splitlines()
+original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 try:
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', port))
@@ -68,6 +75,9 @@ try:
     for apk in ('debug/app-debug.apk', 'androidTest/debug/app-debug-androidTest.apk'):
         run(['adb', 'install', '-r', str(root / 'apps/mobile/app/build/outputs/apk' / apk)])
     adb('shell', 'pm', 'clear', package)
+    if options.compact:
+        adb('shell', 'wm', 'size', '840x1680')
+        adb('shell', 'settings', 'put', 'system', 'font_scale', '1.35')
     if options.keep:
         result = subprocess.check_output(['adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', 'com.knowscroll.mobile.OwnerPreviewSetupTest', package + '.test/androidx.test.runner.AndroidJUnitRunner'], text=True, timeout=180)
         (out / 'visible-setup.txt').write_text(result)
@@ -83,9 +93,15 @@ try:
             recording.wait(timeout=45)
             run(['adb', 'pull', '/sdcard/knowscroll-living.mp4', str(out / 'living-motion.mp4')])
         for filename in ('living-cable.json', 'living-scroll-top.png', 'living-scroll.png', 'living-reel.png', 'living-worlds.png', 'living-failure.png',
-                         'living-atlas.json', 'living-system.png', 'living-continents.png', 'living-local.png', 'living-station.png', 'living-motion.mp4'):
+                         'living-atlas.json', 'living-system.png', 'living-continents.png', 'living-local.png', 'living-station.png'):
             capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
-            if capture.returncode == 0: (out / filename).write_bytes(capture.stdout)
+            # exec-out can return zero for remote cat failure. Validate before publishing receipts.
+            if capture.returncode != 0: continue
+            if filename.endswith('.png') and not capture.stdout.startswith(b'\x89PNG\r\n\x1a\n'): continue
+            if filename.endswith('.json'):
+                try: json.loads(capture.stdout)
+                except (ValueError, UnicodeError): continue
+            (out / filename).write_bytes(capture.stdout)
         if 'OK (' not in result or 'FAILURES' in result: raise RuntimeError('Android scenario failed')
         if options.scenario == 'LivingCableJourneyTest':
             counts = json.loads(subprocess.check_output(['psql', *args, '-d', name, '-Atqc',
@@ -94,10 +110,13 @@ try:
             (out / 'exposure-counts.json').write_text(json.dumps(counts, indent=2))
     receipt = {'database': name, 'apiPort': port, 'pids': [child.pid for child, _ in processes],
         'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-        'package': package, 'fixture': True, 'providerCalls': 0, 'createdAt': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        'package': package, 'fixture': True, 'compact': options.compact, 'providerCalls': 0, 'createdAt': datetime.datetime.now(datetime.timezone.utc).isoformat()}
     (out / 'runtime.json').write_text(json.dumps(receipt, indent=2))
     success = True
 finally:
+    if options.compact:
+        adb('shell', 'wm', 'size', original_override or 'reset')
+        adb('shell', 'settings', 'put', 'system', 'font_scale', font if font != 'null' else '1.0')
     if not (options.keep and success):
         for child, log in processes:
             if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)
