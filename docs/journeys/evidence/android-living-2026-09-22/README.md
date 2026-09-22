@@ -147,3 +147,9 @@ Native H.264 motion: ignored `artifacts/android-living/verification/LivingAtlasJ
 The earlier recording was decoded and sampled at system/geography phases as an
 additional check; the final exported recording is validated separately. Raw supplied
 Reel frames remain only in the matching ignored `LivingCableJourneyTest` directories.
+
+The final local-detail comparison is the unaltered frame at 24 seconds of that
+recording. The simultaneous automation screenshot omitted some surrounding labels;
+the recording shows them at 24 seconds, but also incomplete text in some transition
+frames. This remains an observed rendering/performance limitation on the host-GPU
+debug emulator, not a proven capture-only defect or visual acceptance.
