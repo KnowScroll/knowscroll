@@ -51,7 +51,7 @@ class NativeAtlasStressTest {
             .assertIsDisplayed()
             .performClick()
         assertEquals("world-100", selected)
-        compose.waitUntil(10_000) { compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("YOUR WORLDS").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithContentDescription("Spatial atlas").performTouchInput {
             val delta = androidx.compose.ui.geometry.Offset(50f, 0f)
             down(0, center - delta)

@@ -20,6 +20,8 @@ import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.scroll.SourceSheet
 import com.knowscroll.mobile.ui.theme.Cosmos
+import com.knowscroll.mobile.ui.theme.Poster
+import com.knowscroll.mobile.ui.theme.PosterTheme
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -32,6 +34,10 @@ fun ReelScreen(
     onVisible: () -> Unit,
     onAuthorityFailure: () -> Unit,
     onPosition: (String, Int) -> Unit,
+    branches: BranchAvailability = BranchAvailability.Unavailable,
+    onBranch: (EncounterBranch) -> Unit = {},
+    preview: Boolean = false,
+    onPrevious: (() -> Unit)? = null,
 ) {
     val media = requireNotNull(state.item.media)
     var sources by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
@@ -43,7 +49,7 @@ fun ReelScreen(
         sources = false
         branchHelp = false
     }
-    Column(Modifier.fillMaxSize().background(Cosmos.Dark)) {
+    PosterTheme { Column(Modifier.fillMaxSize().background(Poster.Paper)) {
         FlowRow(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -53,9 +59,9 @@ fun ReelScreen(
         }
         Text(
             if (media.simulated) "TEST MEDIA · NOT GENERATED EVIDENCE" else "GENERATED SYNTHESIS",
-            color = Cosmos.Teal,
+            color = Poster.Cobalt,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
         ReelPlayer(
             BuildConfig.KS_DEBUG_API_BASE.trimEnd('/') + media.path,
@@ -67,7 +73,7 @@ fun ReelScreen(
             state.readingPosition.toLong(),
             active = !sources && !branchHelp,
             gestureModifier =
-                Modifier.pointerInput(state.item.assetId, canNext) {
+                Modifier.pointerInput(state.item.assetId, canNext, branches) {
                     detectDragGestures(
                         onDragStart = { drag = Offset.Zero },
                         onDragCancel = { drag = Offset.Zero },
@@ -76,8 +82,13 @@ fun ReelScreen(
                                 kotlin.math.abs(drag.x) > threshold &&
                                     kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)
                             )
-                                branchHelp = true
+                                {
+                                    val choices = (branches as? BranchAvailability.Ready)?.branches.orEmpty()
+                                    if (choices.isEmpty()) branchHelp = true
+                                    else onBranch(if (drag.x < 0) choices.first() else choices.last())
+                                }
                             else if (drag.y < -threshold && canNext) onNext()
+                            else if (drag.y > threshold) onPrevious?.invoke()
                             drag = Offset.Zero
                         },
                     ) { change, amount ->
@@ -92,17 +103,17 @@ fun ReelScreen(
         ) {
             Text(
                 state.item.title,
-                color = Cosmos.Cream,
+                color = Poster.Ink,
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 2,
             )
             Text(
                 "↑ Another discovery   ↔ Continue this idea",
-                color = Cosmos.MutedOnDark,
+                color = Poster.Muted,
                 style = MaterialTheme.typography.labelSmall,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                if (!preview) Button(
                     onClick = onKeep,
                     enabled =
                         state.exposureId.isNotEmpty() &&
@@ -115,17 +126,18 @@ fun ReelScreen(
                     )
                 }
                 OutlinedButton(onClick = { branchHelp = true }) { Text("Continue →") }
+                if (onPrevious != null) TextButton(onClick = onPrevious) { Text("Previous ↓") }
                 TextButton(onClick = onNext, enabled = canNext) { Text("Next ↑") }
             }
             when (state.discovery) {
-                DiscoveryState.Loading -> Text("Finding the next discovery…", color = Cosmos.Cream)
+                DiscoveryState.Loading -> Text("Finding the next discovery…", color = Poster.Ink)
                 DiscoveryState.Failed ->
                     Text(
                         "Could not load the next discovery. Tap Next to retry.",
                         color = Cosmos.Coral,
                     )
                 DiscoveryState.Exhausted ->
-                    Text("You have reached the end of this library.", color = Cosmos.Cream)
+                    Text("You have reached the end of this library.", color = Poster.Ink)
                 else -> Unit
             }
             if (state.keep is KeepState.Failed || state.keep is KeepState.Conflict)
@@ -134,16 +146,20 @@ fun ReelScreen(
                     color = Cosmos.Coral,
                 )
         }
-        BottomCompass(CompassTab.Cable, onReturn, {}, onOpenKeep)
+        BottomCompass(CompassTab.Cable, onReturn, {}, onOpenKeep, poster = true)
     }
     if (sources) SourceSheet(state.item) { sources = false }
     if (branchHelp)
         AlertDialog(
+            containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
+            titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
+            textContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
             onDismissRequest = { branchHelp = false },
             title = { Text("Continue this idea") },
-            text = { BranchRail() },
+            text = { BranchRail(branches, { branchHelp = false; onBranch(it) }) },
             confirmButton = {
                 TextButton(onClick = { branchHelp = false }) { Text("Back to Reel") }
             },
         )
+}
 }

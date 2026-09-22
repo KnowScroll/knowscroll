@@ -41,8 +41,9 @@ class ApiClient(
         }
     }
 
-    suspend fun getFeed(): FeedResponse = io {
-        get("/v1/feed?kinds=Scroll,Reel") { obj ->
+    suspend fun getFeed(kind: String = "Scroll"): FeedResponse = io {
+        require(kind in setOf("Scroll", "Reel"))
+        get("/v1/feed?kinds=$kind") { obj ->
             FeedResponse(
                 decisionId = obj.getString("decisionId"),
                 universeId = obj.getString("universeId"),
@@ -207,7 +208,7 @@ class ApiClient(
 
     private fun isTransient(code: Int): Boolean = code == 429 || (code in 500..599)
 
-    private fun rawRequest(method: String, path: String, body: String?, requiresAuth: Boolean): Pair<Int, String> {
+    private suspend fun rawRequest(method: String, path: String, body: String?, requiresAuth: Boolean): Pair<Int, String> {
         if (requiresAuth) {
             if (token.isBlank()) throw ApiException.MissingToken
             if (baseUrl.isBlank()) throw ApiException.Network("API base URL is not configured")
@@ -226,13 +227,22 @@ class ApiClient(
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
             }
         }
-        return try {
-            if (body != null) conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val code = conn.responseCode
-            val stream = if (code in 200..299) conn.inputStream else (conn.errorStream ?: conn.inputStream)
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-            code to text
-        } finally { conn.disconnect() }
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { conn.disconnect() }
+            Dispatchers.IO.dispatch(kotlin.coroutines.EmptyCoroutineContext, Runnable {
+                if (!continuation.isActive) { conn.disconnect(); return@Runnable }
+                val result = runCatching {
+                    try {
+                        if (body != null) conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                        val code = conn.responseCode
+                        val stream = if (code in 200..299) conn.inputStream else (conn.errorStream ?: conn.inputStream)
+                        val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                        code to text
+                    } finally { conn.disconnect() }
+                }
+                continuation.resumeWith(result)
+            })
+        }
     }
 
     private fun parseTraces(arr: JSONArray?): List<Trace> {

@@ -89,6 +89,9 @@ sealed interface SystemState {
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
     private val api=ApiClient()
     private val store=StateStore(application)
+    private var feedJob: kotlinx.coroutines.Job? = null
+    private var pendingCableMode: String? = null
+    private val _cableMode = MutableStateFlow(store.readCableMode()); val cableMode = _cableMode.asStateFlow()
     private var session:ScrollSession?=null
     private var revisit:TraceRevisitSession?=null
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
@@ -97,7 +100,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private var signOutBusy=false
     private var reconciling=false
     private var reconcileAfterCurrent:Boolean?=null
+    private val _authorityReady=MutableStateFlow(false); val authorityReady=_authorityReady.asStateFlow()
     private var ready=false
+        set(value) { field=value; _authorityReady.value=value }
     private var navigationVersion=0L
     private val visited=store.readVisited().toMutableSet()
     private val _screen=MutableStateFlow<Screen>(Screen.Universe); val screen=_screen.asStateFlow()
@@ -139,6 +144,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun returnFromReader() {
+        pendingCableMode=null
         if(savedState.get<Boolean>("readerFromSystem") == true) {
             savedState["readerFromSystem"] = false
             // Returning must work while an exposure is in flight. Invalidate only its UI
@@ -155,6 +161,31 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     fun onMediaAuthorityFailure() {
         purgeForScope(observedUniverseId, observedPrivacyEpoch)
         failClosed("This video is no longer available. Reconnect to check your session.")
+    }
+
+    /** GET cancellation invalidates UI delivery. In-flight writes finish with their original envelope. */
+    fun selectCableMode(kind: String) {
+        require(kind in setOf("Scroll", "Reel"))
+        if (kind == _cableMode.value) { pendingCableMode = null; return }
+        if (!ready || reconciling || (busy && feedJob?.isActive != true)) { pendingCableMode = kind; return }
+        navigationVersion++
+        feedJob?.cancel(); feedJob = null
+        busy = false
+        session?.let(store::write)
+        discardRevisit()
+        _cableMode.value = kind; store.writeCableMode(kind)
+        session = runCatching { store.readCableSession(kind) }.getOrNull()?.takeIf {
+            it.universeId == observedUniverseId && it.privacyEpoch == observedPrivacyEpoch
+        }
+        val retained = session
+        if (retained != null) { store.write(retained); show(retained) } else loadNext()
+    }
+
+    private fun drainCableMode() {
+        val next = pendingCableMode ?: return
+        if (busy || reconciling || !ready) return
+        pendingCableMode = null
+        if (_screen.value is Screen.Scroll) selectCableMode(next)
     }
 
     fun enterScroll(){
@@ -244,9 +275,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             store.writeScreen("scroll")
             _scroll.value=ScrollState.Loading
         }
-        viewModelScope.launch {
+        feedJob = viewModelScope.launch {
             try {
-                val feed=api.getFeed()
+                val feed=api.getFeed(_cableMode.value)
                 if(!operationIsCurrent(version,epoch))return@launch
                 when(val selected=selectDiscovery(feed,universeId,epoch,visited,reading?.item?.assetId ?: session?.item?.assetId)){
                     DiscoverySelection.InvalidScope -> {
@@ -275,12 +306,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 } else if(reading!=null){
                     (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Failed)}
                 } else _scroll.value=ScrollState.Unavailable(message(e))
-            } finally{if(version==navigationVersion)busy=false}
+            } finally{if(version==navigationVersion){busy=false;feedJob=null;drainCableMode()}}
         }
     }
 
     private fun show(value:ScrollSession){
         if(value.privacyEpoch!=observedPrivacyEpoch || value.universeId!=observedUniverseId || store.readPendingClear()!=null)return
+        _cableMode.value=value.item.kind;store.writeCableMode(value.item.kind)
         _screen.value=Screen.Scroll(value.item.assetId)
         savedState["screen"]="scroll"
         store.writeScreen("scroll")
@@ -310,7 +342,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     else _toast.value=message(e)
                 }
             }
-            finally{if(version==navigationVersion)busy=false}
+            finally{if(version==navigationVersion){busy=false;drainCableMode()}}
         }
     }
 
@@ -360,7 +392,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     if(invalidatesReader(e)){purgeForScope(currentSession.universeId,epoch);failClosed(message(e))}
                     else (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(keep=KeepState.Failed(message(e)))}
                 }
-            } finally{if(version==navigationVersion)busy=false}
+            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
         }
     }
 
@@ -375,6 +407,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             return
         }
         val current=session ?: return
+        if (current.item.assetId != assetId && position >= 0 && ready && store.readPendingClear() == null) {
+            val parked = listOf("Scroll", "Reel").mapNotNull { store.readCableSession(it) }.firstOrNull {
+                it.item.assetId == assetId && it.universeId == observedUniverseId && it.privacyEpoch == observedPrivacyEpoch
+            }
+            if (parked != null) store.writeReadingPosition(assetId, position)
+            return
+        }
         if(current.item.assetId!=assetId || current.readingPosition==position || current.privacyEpoch!=observedPrivacyEpoch || store.readPendingClear()!=null)return
         val updated=current.copy(readingPosition=position)
         store.writeReadingPosition(assetId,position)
@@ -385,6 +424,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun returnToUniverse(){
+        pendingCableMode=null
         savedState["readerFromSystem"] = false
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
@@ -398,6 +438,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
      * when the server confirms the same universe and privacy epoch. */
     fun openKeep(){
         if(reconciling || !ready)return
+        pendingCableMode=null
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
         store.writeScreen("universe")
@@ -659,7 +700,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 reconciling=false
                 val next=reconcileAfterCurrent
                 reconcileAfterCurrent=null
-                if(next!=null)reconcilePrivacy(next)
+                if(next!=null)reconcilePrivacy(next) else drainCableMode()
             }
         }
     }
@@ -678,13 +719,19 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _universe.value=UniverseState.Loaded(actual)
         _historyClear.value=HistoryClearState.Idle
         ready=true
-        val cached=if(restoreStoredScroll && store.readScreen()=="scroll")runCatching{store.read()}.getOrNull() else null
+        val restoringCable=restoreStoredScroll && store.readScreen()=="scroll"
+        val cached=if(restoringCable)runCatching{store.readSelectedCableSession()}.getOrNull() else null
         val cachedRevisit=if(restoreStoredScroll && store.readScreen()=="revisit")store.readRevisit() else null
         if(cached!=null && cached.privacyEpoch==observedPrivacyEpoch && cached.universeId==observedUniverseId && store.readPendingClear()==null){
             session=cached;show(cached)
         } else if(cachedRevisit!=null && cachedRevisit.privacyEpoch==observedPrivacyEpoch && cachedRevisit.universeId==observedUniverseId && store.readPendingClear()==null){
             revisit=cachedRevisit
             loadTraceRevisit(cachedRevisit,restoring=true)
+        } else if(restoringCable && cached==null && store.readPendingClear()==null){
+            session=null
+            _cableMode.value=store.readCableMode()
+            _screen.value=Screen.Scroll("")
+            _scroll.value=ScrollState.Unavailable("Opening ${_cableMode.value} was interrupted. Try again.")
         } else {
             if(cached!=null || cachedRevisit!=null || (restoreStoredScroll && store.readScreen()=="revisit"))purgeForScope(observedUniverseId,observedPrivacyEpoch)
             _screen.value=destination;savedState["screen"]="universe";store.writeScreen("universe")
@@ -692,6 +739,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     private fun purgeForScope(universeId:String,epoch:Long){
+        pendingCableMode=null;feedJob?.cancel();feedJob=null
         savedState["readerFromSystem"] = false
         store.purgePrivateState(universeId,epoch)
         observedUniverseId=store.readObservedUniverseId()

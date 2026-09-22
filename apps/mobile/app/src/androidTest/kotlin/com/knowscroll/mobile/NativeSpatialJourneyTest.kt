@@ -109,15 +109,8 @@ class NativeSpatialJourneyTest {
             capture("spatial-world.png")
             compose.onNodeWithText("Open discovery").performScrollTo().performClick()
             waitDescription("Scroll reading content")
-            var attempts = 0
-            while (store().read()?.item?.kind != "Reel" && attempts++ < 8) {
-                val previous = store().read()!!.item.assetId
-                compose
-                    .onNodeWithContentDescription("Scroll reading content")
-                    .performScrollToNode(hasContentDescription("Get the next Scroll"))
-                compose.onNodeWithContentDescription("Get the next Scroll").performClick()
-                compose.waitUntil(20_000) { store().read()?.item?.assetId != previous }
-            }
+            compose.onNodeWithContentDescription("Cable Reel").performClick()
+            compose.waitUntil(20_000) { store().read()?.item?.kind == "Reel" }
             assertEquals("Reel", store().read()!!.item.kind)
             waitDescription("Reel video")
             compose.waitUntil(20_000) { store().read()?.exposureId?.isNotBlank() == true }
@@ -140,23 +133,16 @@ class NativeSpatialJourneyTest {
             compose.onNodeWithText("Continue →").performClick()
             compose.onNodeWithText("Back to Reel").performClick()
             waitDescription("Reel video")
-            // Actual vertical discovery leaves video; it never creates a horizontal branch.
-            compose.onNodeWithContentDescription("Reel video").performTouchInput {
-                swipeUp(durationMillis = 300)
-            }
+            // Vertical discovery stays in the explicitly selected Reel mode.
+            val priorReel = store().read()!!.item.assetId
+            compose.onNodeWithContentDescription("Reel video").performTouchInput { swipeUp(durationMillis = 300) }
             compose.waitUntil(20_000) {
-                store().read()?.item?.kind == "Scroll" ||
-                    compose
-                        .onAllNodesWithText("You have reached the end of this library.")
-                        .fetchSemanticsNodes()
-                        .isNotEmpty()
+                store().read()?.item?.assetId != priorReel ||
+                    compose.onAllNodesWithText("You have reached the end of this library.").fetchSemanticsNodes().isNotEmpty()
             }
-            val verticalOutcome =
-                if (store().read()?.item?.kind == "Scroll") "next-scroll" else "library-exhausted"
-            if (verticalOutcome == "next-scroll") {
-                waitDescription("Scroll reading content")
-                compose.onNodeWithContentDescription("Return to the universe").performClick()
-            } else compose.onNodeWithText("‹ Return to origin").performClick()
+            val verticalOutcome = if(store().read()?.item?.assetId != priorReel) "next-reel" else "library-exhausted"
+            assertEquals("Reel", store().read()!!.item.kind)
+            compose.onNodeWithText("‹ Return to origin").performClick()
             waitDescription("Close world detail and return to the system")
             compose
                 .onNodeWithContentDescription("Close world detail and return to the system")
@@ -169,24 +155,6 @@ class NativeSpatialJourneyTest {
                     .config[SemanticsProperties.StateDescription] == camera
             }
             capture("spatial-return.png")
-            // Exhaustion is real. Starting another voyage clears only the local visited set,
-            // after which a vertical swipe must reach a different real Scroll.
-            if (verticalOutcome == "library-exhausted") {
-                compose.onNodeWithContentDescription("Return to Universe").performClick()
-                waitDescription("Enter Scroll")
-                compose.onNodeWithContentDescription("Enter Scroll").performClick()
-                waitDescription("Reel video")
-                compose.onNodeWithText("‹ Return to origin").performClick()
-                waitDescription("Enter Scroll")
-                compose.onNodeWithContentDescription("Enter Scroll").performClick()
-                waitDescription("Reel video")
-                compose.onNodeWithContentDescription("Reel video").performTouchInput {
-                    swipeUp(durationMillis = 300)
-                }
-                compose.waitUntil(20_000) { store().read()?.item?.kind == "Scroll" }
-                waitDescription("Scroll reading content")
-            }
-
             val memory = android.os.Debug.MemoryInfo().also { android.os.Debug.getMemoryInfo(it) }
             val samples = synchronized(frames) { frames.toList().sorted() }
             File(instrumentation.targetContext.filesDir, "native-journey.json")
@@ -194,7 +162,7 @@ class NativeSpatialJourneyTest {
                     JSONObject()
                         .put("totalPssKb", memory.totalPss)
                         .put("result", "passed")
-                        .put("nextScrollVerified", true)
+                        .put("explicitReelDiscoveryVerified", true)
                         .put("verticalDiscoveryOutcome", verticalOutcome)
                         .put("pausedAcrossAuthorityRecheck", true)
                         .put("realVideoRendered", true)

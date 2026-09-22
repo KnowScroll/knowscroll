@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 
 /** Integration seam: only a server-authorized relationship may populate live continuations. */
 data class EncounterBranch(
@@ -66,7 +68,7 @@ fun BranchRail(
     Column(modifier) {
         Text("Continue this idea →", style = MaterialTheme.typography.labelLarge)
         Row(
-            Modifier.fillMaxWidth().pointerInput(choices, threshold) {
+            Modifier.fillMaxWidth().semantics { contentDescription = "Branch gesture rail" }.pointerInput(choices, threshold) {
                 detectHorizontalDragGestures(
                     onDragStart = { drag = 0f },
                     onDragCancel = { drag = 0f },
@@ -89,10 +91,12 @@ fun BranchRail(
                 BranchAvailability.Loading -> Text("Finding a continuation…")
                 BranchAvailability.Failed -> Text("Continuations are unavailable right now.")
                 is BranchAvailability.Ready ->
-                    FlowRow {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         choices.forEach { branch ->
                             OutlinedButton(
                                 onClick = { onBranch(branch) },
+                                border = androidx.compose.foundation.BorderStroke(2.dp, LocalContentColor.current),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                                 colors =
                                     ButtonDefaults.outlinedButtonColors(
                                         contentColor = LocalContentColor.current
@@ -118,6 +122,9 @@ fun BranchRail(
     BackHandler(enabled = explanation) { explanation = false }
     if (explanation)
         AlertDialog(
+            containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
+            titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
+            textContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
             onDismissRequest = { explanation = false },
             title = { Text("Continue this idea") },
             text = {

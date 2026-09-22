@@ -40,6 +40,8 @@ import com.knowscroll.mobile.ui.NO_REASON_RECORDED
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.rememberReducedMotion
+import com.knowscroll.mobile.ui.theme.Poster
+import com.knowscroll.mobile.ui.theme.PosterTheme
 import com.knowscroll.mobile.ui.theme.Cosmos
 import com.knowscroll.mobile.ui.theme.TruthPill
 import com.knowscroll.mobile.ui.truthStateMeaning
@@ -56,16 +58,17 @@ fun ScrollScreen(
     onRetry: () -> Unit,
     onReadingPosition: (String, Int) -> Unit,
     onOpenKeep: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    mode: String = "Scroll"
 ) {
-    Column(modifier.fillMaxSize().background(Cosmos.Dark)) {
+    PosterTheme { Column(modifier.fillMaxSize().background(Poster.Paper)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (state) {
                 is ScrollState.Reading -> key(state.item.assetId) {
                     ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition)
                 }
-                is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable)
-                is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry)
+                is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable, mode)
+                is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry, mode = mode)
                 else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp)
                 }
@@ -75,24 +78,25 @@ fun ScrollScreen(
         // phone's primary navigation and is present on every screen, not just the universe --
         // "Cable" is the current entry here; its own tap is a no-op since it is already the
         // active screen. Tapping Keep leaves the reader for the real kept-Traces destination.
-        BottomCompass(selected = CompassTab.Cable, onSelectAtlas = onReturn, onSelectCable = {}, onSelectKeep = onOpenKeep)
+        BottomCompass(selected = CompassTab.Cable, onSelectAtlas = onReturn, onSelectCable = {}, onSelectKeep = onOpenKeep, poster = true)
+    }
     }
 }
 
 @Composable
-private fun RestScreen(exhausted: Boolean, message: String?, onReturn: () -> Unit, onRetry: () -> Unit, retryable:Boolean=true) {
+private fun RestScreen(exhausted: Boolean, message: String?, onReturn: () -> Unit, onRetry: () -> Unit, retryable:Boolean=true, mode: String = "Scroll") {
     val homeDescription = stringResource(R.string.reader_home_description)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text(stringResource(R.string.reader_origin), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+        Text(stringResource(R.string.reader_origin), style = MaterialTheme.typography.labelMedium, color = Poster.Muted)
         Spacer(Modifier.height(24.dp))
         Text(
-            stringResource(if (exhausted) R.string.reader_library_end else R.string.scroll_unavailable),
-            style = MaterialTheme.typography.headlineMedium, color = if (exhausted) Cosmos.Cream else Cosmos.Coral
+            if (exhausted) "A quiet place to stop" else "This $mode is unavailable.",
+            style = MaterialTheme.typography.headlineLarge, color = Poster.Ink
         )
-        Text(message ?: stringResource(R.string.reader_library_end_detail), color = Cosmos.MutedOnDark)
+        Text(message ?: "No more $mode encounters are available in this library. Switch mode, return to the Atlas, or check again later.", color = Poster.Muted)
         OutlinedButton(onClick = onRetry, enabled=retryable, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(if (exhausted) R.string.reader_check_library else R.string.action_retry))
         }
@@ -136,7 +140,7 @@ private fun ReadingSheet(
         // docs/product/ui-system.md section 5b: "origin chip (`● in Machine learning ›`)" -- a
         // cream pill on the space ground, not a plain label.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -169,7 +173,7 @@ private fun ReadingSheet(
         // sheets, kept reading position (readingScroll, the LaunchedEffect/DisposableEffect that
         // debounce it), and exposure recording (AppViewModel.onVisible) all continue to mount.
         Surface(
-            color = Cosmos.Cream, contentColor = Cosmos.InkOnCream,
+            color = Poster.Paper, contentColor = Poster.Ink,
             shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
@@ -269,7 +273,7 @@ private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: (
             Button(
                 onClick = onNext,
                 enabled = canRequestDiscovery(keep, state),
-                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Teal, contentColor = Cosmos.Dark),
+                colors = ButtonDefaults.buttonColors(containerColor = Poster.Cobalt, contentColor = Cosmos.Dark),
                 shape = RoundedCornerShape(percent = 50),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     .semantics { contentDescription = nextDescription }
@@ -321,7 +325,7 @@ private fun ReaderControls(
                 enabled = keep !is KeepState.Saving && keep !is KeepState.Kept && discovery !is DiscoveryState.Loading,
                 modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = keepDescription },
                 shape = RoundedCornerShape(percent = 50),
-                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Yellow, contentColor = Cosmos.InkOnCream)
+                colors = ButtonDefaults.buttonColors(containerColor = Poster.Yellow, contentColor = Cosmos.InkOnCream)
             ) { Text(keepLabel) }
             TextButton(
                 onClick = onSources,

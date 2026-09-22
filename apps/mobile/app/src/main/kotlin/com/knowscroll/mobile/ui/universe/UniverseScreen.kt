@@ -69,6 +69,7 @@ fun UniverseScreen(
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val viewStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(modifier = Modifier.fillMaxSize()) {
@@ -139,7 +140,7 @@ fun UniverseScreen(
                                 Text(stringResource(R.string.action_retry))
                             }
                         }
-                    is UniverseState.Loaded ->
+                    is UniverseState.Loaded -> viewStates.SaveableStateProvider("canvas") {
                         UniverseCanvasScreen(
                             universe = state.universe,
                             historyClear = historyClear,
@@ -152,6 +153,7 @@ fun UniverseScreen(
                             onRequestSignOut = onRequestSignOut,
                             onRetrySignOut = onRetrySignOut,
                         )
+                    }
                 }
             }
             BottomCompass(
@@ -649,8 +651,11 @@ private fun SignOutControls(
 }
 
 @Composable
-private fun SignOutConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) {
+private fun SignOutConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) = com.knowscroll.mobile.ui.theme.PosterTheme {
     AlertDialog(
+            containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
+            titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
+            textContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.sign_out_title)) },
         text = { Text(stringResource(R.string.sign_out_effects)) },
@@ -685,8 +690,11 @@ private fun SignOutConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) {
 }
 
 @Composable
-private fun ClearHistoryConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) {
+private fun ClearHistoryConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) = com.knowscroll.mobile.ui.theme.PosterTheme {
     AlertDialog(
+            containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
+            titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
+            textContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.clear_history_title)) },
         text = { Text(stringResource(R.string.clear_history_effects)) },

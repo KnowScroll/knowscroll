@@ -61,6 +61,8 @@ fun SystemScreen(
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    var detailLevel by rememberSaveable { mutableStateOf(false) }
     var selectedWorldId by rememberSaveable { mutableStateOf<String?>(null) }
     val worlds = (state as? SystemState.Loaded)?.response?.system?.worlds.orEmpty()
     val selected = worlds.firstOrNull { it.worldId == selectedWorldId }
@@ -87,7 +89,8 @@ fun SystemScreen(
                                 color = Cosmos.MutedOnDark,
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
-                            SpatialAtlas(
+                            Text("Orbits & moons are illustrative", style = MaterialTheme.typography.labelSmall, color = Cosmos.MutedOnDark, modifier = Modifier.padding(horizontal = 20.dp))
+                            cameraStates.SaveableStateProvider("camera") { SpatialAtlas(
                                 loadedWorlds.map { world ->
                                     AtlasMarker(
                                         world.worldId,
@@ -100,22 +103,23 @@ fun SystemScreen(
                                 selectedWorldId,
                                 { selectedWorldId = it },
                                 Modifier.weight(1f).fillMaxWidth(),
-                            )
+                                onDetailLevelChanged = { detailLevel = it },
+                            ) }
                         }
-                        if (selected != null)
+                        if (selected != null && !detailLevel)
                             Surface(
                                 modifier =
                                     Modifier.align(Alignment.BottomCenter)
                                         .fillMaxWidth()
                                         .heightIn(max = 340.dp),
-                                color = Cosmos.Deep,
+                                color = Cosmos.Cream,
                                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                             ) {
-                                WorldDetail(
+                                com.knowscroll.mobile.ui.theme.PosterTheme { WorldDetail(
                                     selected,
                                     onClose = { selectedWorldId = null },
                                     onDiscover = onEnterScroll,
-                                )
+                                ) }
                             }
                     }
                 } else
@@ -278,7 +282,7 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
     var browserUnavailable by remember(world.worldId) { mutableStateOf(false) }
     Surface(
         color = androidx.compose.ui.graphics.Color.Transparent,
-        contentColor = Cosmos.InkOnDark,
+        contentColor = Cosmos.InkOnCream,
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -313,7 +317,7 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
                 Text(
                     stringResource(R.string.world_detail_title),
                     style = MaterialTheme.typography.labelLarge,
-                    color = Cosmos.MutedOnDark,
+                    color = Cosmos.MutedOnCream,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -321,13 +325,13 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
             Text(
                 world.sourceTitle,
                 style = MaterialTheme.typography.headlineLarge,
-                color = Cosmos.InkOnDark,
+                color = Cosmos.InkOnCream,
                 modifier = Modifier.fillMaxWidth().semantics { heading() },
             )
             Text(
                 countsText,
                 style = MaterialTheme.typography.labelLarge,
-                color = Cosmos.MutedOnDark,
+                color = Cosmos.MutedOnCream,
             )
             OutlinedButton(onClick = onDiscover, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text("Open discovery")
@@ -335,12 +339,12 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
             Text(
                 "Explore the library, then return to this world.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Cosmos.MutedOnDark,
+                color = Cosmos.MutedOnCream,
             )
             Text(
                 stringResource(R.string.world_detail_explanation),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Cosmos.MutedOnDark,
+                color = Cosmos.MutedOnCream,
             )
             Button(
                 onClick = {

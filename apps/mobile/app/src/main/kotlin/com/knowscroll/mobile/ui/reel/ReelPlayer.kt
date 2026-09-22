@@ -1,5 +1,7 @@
 package com.knowscroll.mobile.ui.reel
 
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -68,7 +70,7 @@ fun ReelPlayer(
             onPosition(it)
         }
     else
-        Box(modifier, contentAlignment = Alignment.Center) {
+        Box(modifier.background(Cosmos.Dark), contentAlignment = Alignment.Center) {
             Text("Playback paused", color = Cosmos.Cream)
         }
 }
@@ -201,6 +203,8 @@ private fun ActiveReelPlayer(
             }
         else
             FilledTonalButton(
+                colors = ButtonDefaults.filledTonalButtonColors(containerColor = com.knowscroll.mobile.ui.theme.Poster.Yellow, contentColor = com.knowscroll.mobile.ui.theme.Poster.Ink),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                 onClick = {
                     if (state == Player.STATE_ENDED) {
                         player.seekTo(0)

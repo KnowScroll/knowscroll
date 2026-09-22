@@ -18,12 +18,20 @@ class AtlasCameraTest {
         assertEquals(-50f, moved.x, .001f)
         assertEquals(40f, moved.y, .001f)
         val limited = AtlasCamera(100000f, -100000f, 90f).bounded(atlasLayout(listOf("one")))
-        assertEquals(180f, limited.x, .001f)
-        assertEquals(-180f, limited.y, .001f)
-        assertEquals(3.2f, limited.zoom, .001f)
+        assertEquals(atlasLayout(listOf("one")).single().x+180f, limited.x, .001f)
+        assertEquals(atlasLayout(listOf("one")).single().y-180f, limited.y, .001f)
+        assertEquals(12f, limited.zoom, .001f)
         assertEquals(moved, moved.transform(Float.NaN, 0f, 0f, 0f, 1f))
     }
 
+    @Test
+    fun insertionRemovalAndSingletonGrowthPreserveExactBodyCoordinates() {
+        val before=atlasLayout(listOf("b", "e"))
+        val after=atlasLayout(listOf("a", "b", "c", "e", "f"))
+        before.forEach { point -> assertEquals(point, after.single { it.id==point.id }) }
+        assertEquals(before.first(), atlasLayout(listOf("b")).single())
+        assertEquals(1,atlasLayout(listOf("b", "b")).size)
+    }
     @Test
     fun layoutDoesNotDependOnResponseOrdering() {
         assertEquals(atlasLayout(listOf("a", "b", "c")), atlasLayout(listOf("c", "a", "b")))
