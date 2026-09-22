@@ -41,6 +41,7 @@ class StateStore(context: Context) {
             put("title", s.item.title); put("summary", s.item.summary); put("body", s.item.body)
             put("sourceTitle", s.item.sourceTitle); put("sourceUrl", s.item.sourceUrl)
             put("truthState", s.item.truthState); put("reason", s.item.reason)
+            s.item.media?.let { put("media",it.toJson()) }
         }
         val json = JSONObject().apply {
             put("decisionId", s.decisionId); put("item", item)
@@ -60,7 +61,7 @@ class StateStore(context: Context) {
     fun read(): ScrollSession? {
         val raw = prefs.getString("session", null) ?: return null
         val o = JSONObject(raw); val i = o.getJSONObject("item")
-        val item = ScrollItem(i.getString("assetId"),i.getInt("revision"),i.getString("kind"),i.getString("title"),i.getString("summary"),i.getString("body"),i.getString("sourceTitle"),i.getString("sourceUrl"),i.getString("truthState"),i.getString("reason"))
+        val item = ScrollItem(i.getString("assetId"),i.getInt("revision"),i.getString("kind"),i.getString("title"),i.getString("summary"),i.getString("body"),i.getString("sourceTitle"),i.getString("sourceUrl"),i.getString("truthState"),i.getString("reason"),i.optJSONObject("media")?.let { ReelMedia.parse(it) })
         val position=if(prefs.getString("readingAssetId",null)==item.assetId) prefs.getInt("readingPosition",0) else o.optInt("readingPosition",0)
         return ScrollSession(o.getString("decisionId"),item,o.optLong("privacyEpoch",0),o.optString("universeId",""),o.getString("clientExposureId"),o.getString("clientEventId"),o.getString("exposureId"),o.getString("exposureEventId"),o.getString("keepJobId"),o.getString("keepEventId"),position)
     }

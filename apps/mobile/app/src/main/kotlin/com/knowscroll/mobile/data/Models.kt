@@ -32,8 +32,15 @@ data class ScrollItem(
     val sourceTitle: String,
     val sourceUrl: String,
     val truthState: String,
-    val reason: String
-)
+    val reason: String,
+    val media: ReelMedia? = null
+) {
+    val content: EncounterContent get() = when (kind) {
+        "Scroll" -> EncounterContent.Document(body)
+        "Reel" -> EncounterContent.Video(requireNotNull(media))
+        else -> error("Unsupported encounter kind")
+    }
+}
 
 /** A source-verified read of a projected Keep Trace. It is not a discovery candidate. */
 data class TraceRevisit(

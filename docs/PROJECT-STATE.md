@@ -1,5 +1,43 @@
 # Project state
 
+## 2026-09-22 merge authorization / owner preview
+
+The owner authorized merging PR #129 and viewing the latest Android build. The API36 `.journey`
+preview is running with isolated API/worker on4320, two kept encounters and labelled supplied test
+video; no owner database changes. See the checkpoint for its ignored lifecycle receipt and live
+PR/issue for merge completion. Earlier draft/no-merge statements below are historical. Full-v1,
+physical-device performance and the missing native/backend integration gates remain open.
+
+## 2026-09-22 Android spatial successor — branch delivery, not full v1
+
+The Android-only successor on draft PR #129 adds a native pan/pinch Atlas, camera-preserving world
+inspection, actual Media3 Reel playback through the eligible-media API, visible continuation
+affordances, and a typed native rich-Scroll renderer. Authority-aware pause/camera restoration,
+private UI cache removal and gesture arbitration are part of this change. Existing Web and shared
+privacy implementation remain unchanged in this phase. No owner database migration or provider
+run occurred.
+
+[Native evidence](journeys/evidence/android-spatial-2026-09-22/README.md) separates real API/media
+behavior from test-only rich/branch previews and debug-emulator profiling. Supplied MP4 playback
+is verified; live Cutroom generation, live branch/rich transport, source-scoped discovery, semantic
+region/galaxy evolution and production-device smoothness are not thereby implemented. The
+[Android audit](design/2026-09-22-android-spatial.md) lists the exact seams and next dependencies.
+Keep #72 and full v1 acceptance open. Earlier dated observations below are historical.
+
+## 2026-09-22 refinement branch update — not full v1
+
+The #72 refinement branch adds coherent Cosmos typography/navigation, textured source-backed
+worlds with local detail/back, a real Web Keep collection, responsive Atlas layouts and improved
+native reader hierarchy. Android preserves inspection only across freshly confirmed authority.
+Runtime testing found and fixes the ADR-0028 stale private system after Clear; migration 0025 also
+applies this cleanup to Reset without erasing shared source catalog rows. This is branch delivery,
+not owner-runtime deployment. See the [audit and remaining gaps](design/2026-09-21-ui-audit.md)
+and [dated runtime evidence](journeys/evidence/ui-refinement-2026-09-21/README.md).
+
+The Living Observatory's semantic evolution and continuous scale experience are not implemented
+by decorative globes. Native privacy parity, production identity, real Reels, journeys A–I and
+owner acceptance remain release work. Earlier dated status below is retained for provenance.
+
 Updated: 2026-09-20 (Asia/Kolkata). **Reasoning, privacy and reliability primitives verified as before; September 20 adds a pinned local Cutroom service boundary (#89), the desktop web reader (#92), Android reader explanation and device sign-out (#91), and generated-Reel supply through verified media import (#94). No real provider, publication, serving or playback; owner runtime is still behind source. Next milestone: Owner Alpha.** Current owner/runtime/host decisions are summarized in [CHECKPOINT](CHECKPOINT.md). This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## v1 release scope

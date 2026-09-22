@@ -31,6 +31,11 @@ import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 /**
  * docs/product/ui-system.md section 5b: the dock's real destinations are "**Cable** (read),
@@ -38,6 +43,11 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * is that third destination: the real kept Traces (`GET /v1/universe`'s `traces`), the only
  * content this client is honestly able to put here (section 6). No invented history, no count
  * that is not the real list's own size.
+ *
+ * #72 audit refinement (A4): cards now show a human-readable date and a title-based accessibility
+ * label rather than the raw ISO timestamp and the underlying event id. The persisted Trace id
+ * (the contract's primary key for the saved event) is unchanged -- only what is drawn above it
+ * changed.
  */
 @Composable
 fun KeepScreen(
@@ -57,6 +67,7 @@ fun KeepScreen(
                 ) {
                     Text(stringResource(R.string.keep_kicker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
                     Text(stringResource(R.string.keep_title), style = MaterialTheme.typography.displayLarge, color = Cosmos.InkOnDark)
+                    Text(stringResource(R.string.keep_subtitle), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
                     when (state) {
                         is UniverseState.Loading -> Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -73,7 +84,11 @@ fun KeepScreen(
                             } else {
                                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     traces.forEach { trace ->
-                                        val traceDescription = stringResource(R.string.trace_revisit_action, trace.eventId)
+                                        val title = trace.title.ifBlank { stringResource(R.string.trace_unknown_title) }
+                                        // Audit A4 (#72): title-based accessibility text replaces
+                                        // the event id; the contract's event id is unchanged and
+                                        // stays the persisted primary key.
+                                        val traceDescription = stringResource(R.string.keep_card_description, title)
                                         Surface(
                                             color = Cosmos.SpaceRaised,
                                             contentColor = Cosmos.InkOnDark,
@@ -90,10 +105,13 @@ fun KeepScreen(
                                                 Box(modifier = Modifier.size(8.dp).background(Cosmos.Yellow, CircleShape))
                                                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                                     Text(
-                                                        trace.title.ifBlank { stringResource(R.string.trace_unknown_title) },
+                                                        title,
                                                         style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnDark
                                                     )
-                                                    Text(trace.createdAt, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+                                                    Text(
+                                                        humanDate(trace.createdAt),
+                                                        style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark
+                                                    )
                                                 }
                                             }
                                         }
@@ -113,3 +131,9 @@ fun KeepScreen(
         }
     }
 }
+
+/** Strict ISO parsing preserves the original value if a server timestamp is malformed. */
+internal fun humanDate(raw: String): String = runCatching {
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        .withLocale(Locale.getDefault()).withZone(ZoneId.systemDefault()).format(Instant.parse(raw))
+}.getOrDefault(raw)

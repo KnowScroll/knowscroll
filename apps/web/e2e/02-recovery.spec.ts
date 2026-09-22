@@ -4,7 +4,7 @@ test.describe('failure and recovery (real disposable API behind a fault-injectin
   test('API unavailable shows a visible retry state that preserves the current page, then recovers', async ({ page, setOutage }) => {
     await page.goto('/');
     // 1 Trace already kept by 01-reader-journey.spec.ts, which runs first in this single-worker suite.
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
 
     await setOutage(true);
     try {

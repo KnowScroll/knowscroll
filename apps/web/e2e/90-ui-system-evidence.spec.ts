@@ -46,7 +46,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     test(`reader, sources, why-this and Traces at ${viewport.name}`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
 
       // Universe with saved Traces: at least one already exists by this point in the run.
       await page.screenshot({ path: join(screenshotsDir, `universe-traces-${viewport.name}.png`), fullPage: true });
@@ -276,7 +276,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       // previous iteration's Scroll instead of a fresh Universe.
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible({ timeout: 15000 });
       await page.getByRole('button', { name: 'Enter Scroll' }).click();
       const exhaustedHeading = page.getByRole('heading', { name: /reached the end of the current library/ }).first();
       // Either immediately exhausted (if earlier specs already kept every asset) or reading with
@@ -300,7 +300,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     test(`unavailable at ${viewport.name}`, async ({ page, setOutage }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
       await setOutage(true);
       try {
         await page.reload();
@@ -315,7 +315,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
   test('axe scan: Universe and Scroll reader carry no serious/critical violations', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     const universeResults = await new AxeBuilder({ page }).include('main').analyze();
     writeEvidence('axe-universe.json', universeResults);
     const universeSerious = universeResults.violations.filter(v => v.impact === 'serious' || v.impact === 'critical');
@@ -334,7 +334,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     await page.screenshot({ path: join(screenshotsDir, 'universe-reduced-motion-1440x900.png'), fullPage: true });
 
     await openSavedTrace(page);
@@ -344,11 +344,11 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
   test('keyboard-only pass: tab through every control, focus visible', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     // Tab through every control the Universe screen currently has (however
     // many saved Traces already exist by this point in the run, plus Enter
     // Scroll), confirming each Tab lands on a real, visibly focused control.
-    const universeControlCount = await page.getByRole('button').count();
+    const universeControlCount = await page.getByRole('button', { disabled: false }).count();
     for (let i = 0; i < universeControlCount; i++) {
       await page.keyboard.press('Tab');
       await expect(page.locator(':focus')).toBeVisible();

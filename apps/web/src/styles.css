@@ -1290,3 +1290,115 @@ a:focus-visible,
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
   transition: opacity 0.25s, transform 0.25s;
 }
+
+/* #72 audit refinement. Local OFL fonts; no network font dependency. */
+@font-face { font-family: 'Bricolage Grotesque'; src: url('/fonts/bricolage.ttf') format('truetype'); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url('/fonts/instrument.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }
+:root { --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --font-display: 'Bricolage Grotesque', var(--font-sans); }
+h1,h2,h3,.pill,.world-name,.dock-button { font-family: var(--font-display); }
+.app-shell > main:not(.scroll-screen) { animation: surface-arrive .34s cubic-bezier(.2,.8,.2,1); }
+@keyframes surface-arrive { from { opacity: .35; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.cosmic-context { position: relative; z-index: 2; display: flex; align-items: center; gap: 18px; padding: 28px 4vw 0; }
+.observatory { height: auto; overflow-y: visible; display: block; position: relative; min-height: 100dvh; overflow-x: clip; background: radial-gradient(ellipse at 57% 50%, #0b2b3380, transparent 60%), var(--space); }
+.observatory-content { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 48px 6vw 140px; }
+.observatory-intro { max-width: 390px; }
+.observatory-intro h1 { font-size: clamp(38px,4vw,60px); line-height: 1.02; margin: 12px 0 20px; }
+.observatory-intro > p:not(.eyebrow) { color: var(--muted); line-height: 1.7; }
+.observatory-intro .growth-caption { color: var(--yellow) !important; }
+.world-map { position: relative; display: flex; align-items: center; justify-content: center; gap: clamp(24px,8vw,140px); min-height: 300px; margin: -60px 0 0 240px; padding: 24px 0; }
+.orbit-lines { position: absolute; inset: 8% -6%; pointer-events: none; transform: rotate(-14deg); }
+.orbit-lines i { position: absolute; inset: 5%; border: 1px solid #8fe9e418; border-radius: 50%; }
+.orbit-lines i:nth-child(2) { inset: 18% -7%; }
+.orbit-lines i:nth-child(3) { inset: -10% 16%; }
+.world-stop { position: relative; flex: 1 1 0; min-width: 0; max-width: 210px; }
+.world-select { display: flex; flex-direction: column; align-items: center; width: 100%; padding: 0; border: 0; background: none; color: var(--cream); cursor: pointer; border-radius: 24px; }
+.world-globe { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 0 24px #33c4b416); transition: transform .5s cubic-bezier(.2,.8,.2,1), filter .5s; }
+.world-select:hover .world-globe { transform: translateY(-5px) scale(1.04); filter: drop-shadow(0 0 28px #33c4b435); }
+.world-select .world-name { display: block; max-width: 100%; font-size: 17px; line-height: 1.3; margin-top: 8px; overflow-wrap: anywhere; }
+.world-select .world-status { font-family: var(--font-sans); text-transform: none; letter-spacing: 0; font-size: 12px; line-height: 1.5; margin-top: 8px; }
+.map-invitation { color: var(--muted); font-size: 13px; text-align: center; margin: 26px 0 0 240px; }
+.world-map-many { flex-wrap: wrap; margin: 30px 0 0; }
+.world-map-many .world-stop { flex: 0 1 200px; }
+.world-map-many .orbit-lines { display: none; }
+.world-detail { display: grid; grid-template-columns: minmax(200px,1fr) minmax(250px,1fr); align-items: center; gap: 60px; min-height: 470px; animation: world-approach .5s cubic-bezier(.2,.8,.2,1); }
+@keyframes world-approach { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+.world-portrait { max-width: 470px; }
+.world-story h1 { font-size: clamp(30px,3vw,44px); line-height: 1.07; margin: 16px 0 26px; overflow-wrap: anywhere; }
+.world-story p { color: var(--muted); margin-bottom: 20px; line-height: 1.75; }
+.world-story .world-encounter-count { color: var(--teal-2); }
+.world-encounter-count strong { font: 800 40px var(--font-display); }
+.world-story .detail-explanation { font-size: 14px; }
+.world-story .world-source-address { font-size: 12px; margin-top: 14px; overflow-wrap: anywhere; }
+.system-empty { padding: 70px 0; max-width: 540px; display: grid; gap: 22px; }
+.system-empty h2 { font-size: 38px; line-height: 1.1; }
+.system-empty .pill { justify-self: start; }
+.keep-screen { position: relative; min-height: 100dvh; overflow-x: clip; }
+.keep-content { position: relative; max-width: 800px; margin: 48px auto 0; padding: 0 30px 150px; }
+.keep-content h1 { font-size: clamp(34px,4vw,52px); line-height: 1.08; margin: 14px 0; }
+.keep-intro { color: var(--muted); margin-bottom: 36px; }
+.keep-list { list-style: none; margin: 0; padding: 0; }
+.keep-list li + li { border-top: 1px solid #fffdf21a; }
+.keep-list button { width: 100%; display: flex; align-items: center; gap: 24px; text-align: left; color: var(--cream); background: transparent; border: 0; padding: 24px 10px; border-radius: 12px; cursor: pointer; }
+.keep-list button:hover { background: #fffdf208; }
+.keep-list strong { display: block; font: 700 20px var(--font-display); }
+.keep-list time { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.keep-list button > span:last-child { margin-left: auto; }
+.trace-mark { color: var(--yellow); font-size: 26px; }
+.keep-empty { display: grid; gap: 24px; justify-items: start; }
+.universe-title h1 { font-size: clamp(30px,3.5vw,48px); line-height: 1.04; max-width: 17ch; }
+.body-button.trace { border-radius: 18px; box-shadow: none !important; background: transparent; }
+.body-button.trace .body-surface { opacity: .85; transform: scale(.68); }
+.body-button.trace .body-label { max-width: min(190px,24vw); }
+.map-scale-label { font-family: var(--font-display); text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--cream); padding: 10px 16px; }
+@media (max-width: 900px) {
+  .world-map { margin: 20px 0 0; gap: 24px; }
+  .map-invitation { margin-left: 0; }
+  .world-detail { gap: 28px; }
+}
+@media (max-width: 600px) {
+  .cosmic-context { padding: 20px 20px 0; gap: 12px; }
+  .observatory-content { padding: 32px 24px 130px; }
+  .world-map { min-height: 240px; padding: 28px 0; align-items: flex-start; }
+  .world-select .world-name { font-size: 14px; }
+  .world-select .world-status { font-size: 11px; }
+  .world-detail { grid-template-columns: 1fr; gap: 12px; }
+  .world-portrait { width: min(64vw,260px); margin: auto; }
+  .world-story h1 { font-size: 30px; }
+  .keep-content { margin-top: 32px; padding-inline: 24px; }
+  .keep-list button { gap: 14px; }
+  .keep-list strong { font-size: 18px; }
+  .universe-title { right: 100px; left: 24px; }
+  .universe-title h1 { font-size: 28px; }
+  .universe-title .universe-subtitle { font-size: 12px; }
+  .privacy-entry { right: 18px; }
+  .map-tools { left: 20px; bottom: 112px; }
+}
+/* At narrow/short sizes use document flow: map labels and controls stay reachable without
+   scaling a desktop absolute-position grid underneath the dock. */
+@media (max-width: 1023px), (max-height: 600px) {
+  .universe-screen { height: auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 28px 24px 110px; overflow: clip; }
+  .universe-title { position: relative; inset: auto; padding-right: 85px; }
+  .universe-title h1 { max-width: 18ch; }
+  .privacy-entry { top: 28px; right: 20px; }
+  .universe-bodies { position: relative; inset: auto; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 30px 20px; margin: 36px 0 20px; min-height: 250px; transform: none !important; align-items: start; }
+  .universe-bodies .body-button { position: relative; left: auto !important; top: auto !important; transform: none; width: 100% !important; height: auto !important; min-height: 118px; display: flex; flex-direction: column; justify-content: flex-start; background: transparent; box-shadow: none; }
+  .universe-bodies .body-label { position: static; transform: none; width: 100%; max-width: 100%; margin-top: 8px; }
+  .universe-bodies .body-name { white-space: normal; overflow-wrap: anywhere; text-align: center; max-width: 100%; font-size: 13px; }
+  .universe-bodies .body-button.seed { grid-column: 1 / -1; min-height: 140px; padding-top: 42px; background: radial-gradient(ellipse at 50% 30%,#33c4b425,transparent 55%); }
+  .universe-bodies .body-button.dust { opacity: .7; min-height: 60px; }
+  .universe-bodies .body-button.nebula { padding: 20px 8px; border: 1px dashed #8fe9e44a; border-radius: 22px; min-height: 110px; }
+  .universe-legend { position: relative; inset: auto; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+  .map-tools { position: relative; inset: auto; justify-content: center; margin: 12px 0; }
+  .map-tools .zoom-button { display: none; }
+  .universe-hint { position: relative; inset: auto; margin: 10px 0; }
+  .universe-cta-block { position: relative; inset: auto; max-width: none; text-align: center; margin: 16px 0; }
+  .universe-screen .universe-dock { position: fixed; }
+}
+.observatory .universe-dock, .keep-screen .universe-dock { position: fixed; }
+/* Reserve space for the shared compass instead of covering world/source controls with it. */
+.observatory, .keep-screen { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.observatory-content { flex: 1; min-height: 0; width: 100%; overflow-y: auto; padding-bottom: 30px; }
+.keep-content { flex: 1; min-height: 0; width: 100%; overflow-y: auto; padding-bottom: 30px; }
+.observatory .universe-dock, .keep-screen .universe-dock { position: relative; left: auto; bottom: auto; transform: none; flex-shrink: 0; align-self: center; margin: 12px auto 16px; }
+
+.zoom-button:disabled { opacity: .35; cursor: default; }

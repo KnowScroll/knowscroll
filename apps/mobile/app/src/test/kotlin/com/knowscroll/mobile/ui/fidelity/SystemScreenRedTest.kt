@@ -39,7 +39,7 @@ class SystemScreenRedTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `the dock marks no entry current on a level that is not one of its destinations`() {
+    fun `the dock marks Atlas current because the system level is reached from Atlas and returns to it`() {
         composeRule.setContent {
             KnowScrollTheme {
                 SystemScreen(
@@ -62,13 +62,18 @@ class SystemScreenRedTest {
         composeRule.onNodeWithText("Cable").assertExists()
         composeRule.onNodeWithText("Keep").assertExists()
 
-        // But none of them is marked current. System is reached from Atlas and returns to it, and
-        // is still not Atlas: `Role.Tab`'s selected state is what a screen reader announces as
-        // "selected", so marking Atlas here would tell the reader they are somewhere they are not.
+        // Audit D3 / N2 (#72): Atlas is now marked selected on the system level because the
+        // level is reached from Atlas and returns to it. The previous "no selected tab" rule
+        // read the opposite of the audit's #121/#122 reading (a screen reader on System heard
+        // "no tab current" -- which is exactly the wrong message for a level nested under
+        // Atlas). The single atlas tab is now the only one marked `Selected == true`.
         val selected = composeRule
             .onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
             .fetchSemanticsNodes()
-        assertEquals("no dock entry may be marked current on the system level", 0, selected.size)
+        assertEquals(
+            "audit D3/N2: the system level must mark Atlas current, not nothing",
+            1, selected.size
+        )
     }
 
     @Test
@@ -110,14 +115,14 @@ class SystemScreenRedTest {
         // The real per-world counts, exactly as the fixture response carries them.
         composeRule.onNodeWithText("2 SCROLLS · 1 SEEN").assertExists()
         composeRule.onNodeWithText("1 SCROLL · 1 SEEN").assertExists()
-        // scrollCount(1)==seenCount(1) and >0 -> fully explored; scrollCount(2)>seenCount(1) -> more to explore.
-        composeRule.onNodeWithText("FULLY EXPLORED").assertExists()
+        // scrollCount(1)==seenCount(1) and >0 -> all encountered; scrollCount(2)>seenCount(1) -> more to explore.
+        composeRule.onNodeWithText("ALL SCROLLS ENCOUNTERED").assertExists()
         composeRule.onNodeWithText("MORE TO EXPLORE").assertExists()
         // The subtitle line is a straight sum of the two real worlds' own counts: 2 worlds,
         // 2+1=3 scrolls recorded, 1+1=2 seen -- never a number this client derived independently.
         composeRule.onNodeWithText("2 WORLDS · 3 SCROLLS RECORDED · 2 SEEN").assertExists()
         // Methodology copy, not a data value -- present, but never claims a ranking or inference.
-        composeRule.onNodeWithText("Derived from recorded sources, never inferred").assertExists()
+        composeRule.onNodeWithText("Your atlas").assertExists()
         // No invented "DAY n" pill, ranking, or progress bar exists anywhere on this level.
         composeRule.onAllNodesWithText("DAY", substring = true).assertCountEquals(0)
     }

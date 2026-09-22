@@ -1,0 +1,17 @@
+{
+  "at": "2026-09-22T15:59:11.700153+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_native_586892ebd69a90c7",
+  "counts": {
+    "exposures": 6,
+    "reelExposures": 1
+  },
+  "mediaSha256": "6e58561019e3aefca5dc3e77be7778ddd980b80d95d523c5adcd9d6013e38047",
+  "mediaBytes": 1811581,
+  "providerCalls": 0,
+  "limits": [
+    "Synthetic test-only generation lineage. Supplied video proves playback only.",
+    "Debug API36 emulator, not physical-device performance.",
+    "Live branch/rich block transport is unavailable."
+  ]
+}

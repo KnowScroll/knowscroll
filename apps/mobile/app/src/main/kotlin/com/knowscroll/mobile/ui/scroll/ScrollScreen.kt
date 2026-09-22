@@ -17,7 +17,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -136,7 +135,11 @@ private fun ReadingSheet(
     Column(Modifier.fillMaxSize()) {
         // docs/product/ui-system.md section 5b: "origin chip (`● in Machine learning ›`)" -- a
         // cream pill on the space ground, not a plain label.
-        Row(Modifier.padding(horizontal = 24.dp, vertical = 14.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Surface(
                 color = Cosmos.Cream.copy(alpha = 0.94f), contentColor = Cosmos.InkOnCream,
                 shape = RoundedCornerShape(percent = 50)
@@ -150,11 +153,21 @@ private fun ReadingSheet(
                     Text(originLabel, fontWeight = androidx.compose.ui.text.font.FontWeight(800), fontSize = 12.5.sp)
                 }
             }
+            // Audit A2 (#72): the 150dp gradient placeholder that used to repeat the title is
+            // gone. The cream reading sheet below now begins directly under the origin chip, so
+            // the *thin* progress bar the spec asks for has been moved up here as a sliver at
+            // the top of the column, hugging the canvas edge -- it still reflects the real
+            // reading position via the same readingScroll state, never a clock-driven animation,
+            // and it does not duplicate the title.
+            ReadingProgressSliver(readingScroll, modifier = Modifier.weight(1f))
         }
-        // docs/product/ui-system.md section 5b's "Reel / reader" level: a large rounded stage.
-        // Deviation: a Scroll is text, so the stage is typographic (section 5b's own table) rather
-        // than a video frame -- the real reading progress drives its progress bar.
-        Stage(item.title, readingScroll)
+        // Audit A2 (#72): the previous typographic `Stage` block was a 150dp gradient placeholder
+        // repeating the title above the cream reading sheet. Removed: the Scroll's stage *is* its
+        // reading content (audit D2 / ui-system.md section 5b table). The cream sheet below now
+        // begins directly under the origin chip, with the title, truth pill and progress visible
+        // there -- the same reading surface, never a duplicated heading row. Source / Explain
+        // sheets, kept reading position (readingScroll, the LaunchedEffect/DisposableEffect that
+        // debounce it), and exposure recording (AppViewModel.onVisible) all continue to mount.
         Surface(
             color = Cosmos.Cream, contentColor = Cosmos.InkOnCream,
             shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
@@ -183,7 +196,11 @@ private fun ReadingSheet(
                     Text(item.title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
                     if (item.reason.isNotBlank()) Text(item.reason, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
                     Text(item.summary, style = MaterialTheme.typography.titleMedium, color = Cosmos.MutedOnCream)
-                    Text(item.body, style = MaterialTheme.typography.bodyLarge)
+                    val document = remember(item.assetId, item.revision, item.body) {
+                        com.knowscroll.mobile.ui.scroll.content.ScrollDocument.fromBody(item.body)
+                    }
+                    com.knowscroll.mobile.ui.scroll.content.ScrollBlocks(document)
+                    com.knowscroll.mobile.ui.BranchRail()
                     HorizontalDivider(color = Cosmos.CreamDim)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.reader_source_marker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
@@ -201,14 +218,12 @@ private fun ReadingSheet(
 }
 
 /**
- * docs/product/ui-system.md section 5b: "a large rounded stage... a thin progress bar". A Scroll
- * is text, so this stage is typographic rather than video (section 5b's own table: "a Scroll is
- * text, so the stage is typographic rather than video; a Reel uses the video stage once one is
- * eligible" -- no eligible Reel exists yet, per docs/CHECKPOINT.md). The progress bar reflects the
- * real reading position, not a decorative animation.
+ * Audit A2 (#72): the previous 150dp `Stage` block carried a thin progress bar. Removed along
+ * with the rest of that stage; the bar is now a sliver beside the origin chip, driven by the same
+ * real reading position. Reduced motion collapses the tween to a single frame.
  */
 @Composable
-private fun Stage(title: String, readingScroll: FoundationScrollState) {
+private fun ReadingProgressSliver(readingScroll: FoundationScrollState, modifier: Modifier = Modifier) {
     val reducedMotion = rememberReducedMotion()
     val maxValue = readingScroll.maxValue.coerceAtLeast(1)
     val rawProgress = readingScroll.value.toFloat() / maxValue.toFloat()
@@ -217,30 +232,13 @@ private fun Stage(title: String, readingScroll: FoundationScrollState) {
         animationSpec = tween(durationMillis = if (reducedMotion) 0 else 300),
         label = "reading-progress"
     )
-    Box(
-        Modifier
-            .padding(horizontal = 24.dp)
-            .fillMaxWidth()
-            .height(150.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(Brush.linearGradient(listOf(Cosmos.Sea, Cosmos.Deep)))
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleLarge,
-            color = Cosmos.Cream,
-            maxLines = 3,
-            modifier = Modifier.align(Alignment.TopStart).padding(18.dp)
-        )
-        LinearProgressIndicator(
-            progress = { progress },
-            color = Cosmos.Yellow,
-            trackColor = Cosmos.Cream.copy(alpha = 0.18f),
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp)
-        )
-    }
+    LinearProgressIndicator(
+        progress = { progress },
+        color = Cosmos.Yellow,
+        trackColor = Cosmos.Cream.copy(alpha = 0.18f),
+        modifier = modifier.heightIn(min = 3.dp)
+    )
 }
-
 @Composable
 private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: () -> Unit) {
     val nextDescription = stringResource(R.string.reader_next_description)
@@ -386,7 +384,7 @@ private fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, onDismiss: () -
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
+internal fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
     val openDescription = stringResource(R.string.reader_open_source_description, item.sourceTitle)
     val closeDescription = stringResource(R.string.reader_close_sources_description)
     val context = LocalContext.current
@@ -402,7 +400,7 @@ private fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
         ) {
             Text(stringResource(R.string.reader_source_sheet_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
             Text(item.title, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.reader_truth_label, item.truthState.uppercase()), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+            Text("${item.kind.uppercase()} · ${item.truthState.uppercase()}", style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
             Text(item.sourceTitle, style = MaterialTheme.typography.titleLarge)
             Text(item.sourceUrl, style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.reader_attribution_note), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)

@@ -132,6 +132,31 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         else enterScroll()
     }
 
+    fun enterScrollFromSystem() {
+        if(busy || reconciling || !ready)return
+        savedState["readerFromSystem"] = true
+        enterScroll()
+    }
+
+    fun returnFromReader() {
+        if(savedState.get<Boolean>("readerFromSystem") == true) {
+            savedState["readerFromSystem"] = false
+            // Returning must work while an exposure is in flight. Invalidate only its UI
+            // callback; its persisted retry identity remains available for reconciliation.
+            navigationVersion++
+            _screen.value = Screen.System
+            _system.value = SystemState.Loading
+            savedState["screen"] = "universe"
+            store.writeScreen("universe")
+            reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
+        } else returnToUniverse()
+    }
+
+    fun onMediaAuthorityFailure() {
+        purgeForScope(observedUniverseId, observedPrivacyEpoch)
+        failClosed("This video is no longer available. Reconnect to check your session.")
+    }
+
     fun enterScroll(){
         if(busy || reconciling || !ready || store.readPendingClear()!=null)return
         val current=session
@@ -360,6 +385,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun returnToUniverse(){
+        savedState["readerFromSystem"] = false
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
         visited.clear();store.writeVisited(visited)
@@ -368,43 +394,15 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         reconcilePrivacy(restoreStoredScroll=false,queueIfBusy=true)
     }
 
-    /** Opens the Keep destination (docs/product/ui-system.md sec.5b): a read-only list of real
-     * Traces. Deliberately does not call `reconcilePrivacy` -- that launches an async refetch
-     * which unconditionally resets `_screen` back to `Universe` once it completes (see
-     * `applyUniverse`'s final branch), which would race this navigation and silently bounce the
-     * reader back out of Keep. Instead it shows whatever `universe.traces` is already held
-     * immediately, then quietly refreshes it in place with `refreshUniverseInPlace` -- discovered
-     * necessary by actually running this: without it, keeping a Scroll from Cable and going
-     * straight to Keep (never passing back through Atlas) showed "nothing kept yet" for a Trace
-     * the server had already recorded. */
+    /** Reconcile authority before showing a fresh collection, retaining its destination only
+     * when the server confirms the same universe and privacy epoch. */
     fun openKeep(){
+        if(reconciling || !ready)return
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
+        store.writeScreen("universe")
         _screen.value=Screen.Keep
-        refreshUniverseInPlace()
-    }
-
-    /** Refetches `GET /v1/universe` and updates only `_universe` -- never `_screen` -- so callers
-     * outside the Scroll/TraceRevisit navigation machinery (currently just `openKeep`) can pick up
-     * a Trace projected after their last load without inheriting `reconcilePrivacy`'s screen
-     * resets. Still honours the same privacy invariants as `applyUniverse`: a stale/superseded
-     * response is dropped, and an increased epoch still purges through the normal `purgeForScope`
-     * path (which does reset `_screen` -- an epoch bump is exactly the case where leaving Keep
-     * showing possibly-cleared Traces would be wrong). */
-    private fun refreshUniverseInPlace(){
-        val version=navigationVersion
-        viewModelScope.launch {
-            val actual=try{api.getUniverse()}catch(e:Exception){return@launch}
-            if(version!=navigationVersion)return@launch
-            if(observedUniverseId.isNotBlank() && actual.universeId!=observedUniverseId){
-                purgeForScope(actual.universeId,actual.privacyEpoch);return@launch
-            }
-            if(actual.privacyEpoch<observedPrivacyEpoch)return@launch
-            if(actual.privacyEpoch>observedPrivacyEpoch)purgeForScope(actual.universeId,actual.privacyEpoch)
-            observedUniverseId=actual.universeId
-            observedPrivacyEpoch=store.observePrivacyState(actual.universeId,actual.privacyEpoch)
-            _universe.value=UniverseState.Loaded(actual)
-        }
+        reconcilePrivacy(restoreStoredScroll=true)
     }
 
     /** The system level (#116, ADR-0028/#113): reads the real, derived worlds/system geography.
@@ -446,6 +444,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     fun returnFromSystem(){
         if(_screen.value !is Screen.System)return
         navigationVersion++ // invalidates any in-flight getWorldSystem() so a stale response cannot land
+        busy=false
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
         _system.value=SystemState.Idle
@@ -600,11 +599,16 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         reconciling=true;ready=false;busy=false
         if(retrySignOutFirst){signOutBusy=true;_signOut.value=SignOutState.Revoking}
         val version=++navigationVersion
+        val retainedDestination = if(restoreStoredScroll && (_screen.value is Screen.System || _screen.value is Screen.Keep)) _screen.value else null
+        val retainedUniverse=observedUniverseId
+        val retainedEpoch=observedPrivacyEpoch
         val storedScreen=store.readScreen()
-        val wantedScroll=restoreStoredScroll && storedScreen=="scroll"
-        val wantedRevisit=restoreStoredScroll && storedScreen=="revisit"
+        val wantedScroll=retainedDestination==null && restoreStoredScroll && storedScreen=="scroll"
+        val wantedRevisit=retainedDestination==null && restoreStoredScroll && storedScreen=="revisit"
         if(wantedScroll){_screen.value=Screen.Scroll("");_scroll.value=ScrollState.Loading}
         else if(wantedRevisit){_screen.value=Screen.TraceRevisit("");_scroll.value=ScrollState.Loading}
+        else if(retainedDestination is Screen.System){_system.value=SystemState.Loading;_universe.value=UniverseState.Loading}
+        else if(retainedDestination is Screen.Keep){_universe.value=UniverseState.Loading}
         else{_screen.value=Screen.Universe;_universe.value=UniverseState.Loading}
         viewModelScope.launch {
             try {
@@ -628,7 +632,15 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     _historyClear.value=HistoryClearState.Clearing
                     completeHistoryClear(api.clearScrollHistory(pending),pending,version)
                 } else {
-                    applyUniverse(actual,wantedScroll || wantedRevisit,version)
+                    val sameScope=actual.universeId==retainedUniverse && actual.privacyEpoch==retainedEpoch
+                    val destination=if(sameScope)retainedDestination ?: Screen.Universe else Screen.Universe
+                    applyUniverse(actual,wantedScroll || wantedRevisit,version,destination)
+                    if(destination is Screen.System && version==navigationVersion && ready){
+                        val response=api.getWorldSystem()
+                        if(version==navigationVersion && observedUniverseId==retainedUniverse && observedPrivacyEpoch==retainedEpoch){
+                            _system.value=SystemState.Loaded(response)
+                        }
+                    }
                 }
             } catch(e:Exception){
                 if(store.readPendingClear()!=null)handleHistoryClearFailure(e,version)
@@ -652,7 +664,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
     }
 
-    private fun applyUniverse(actual:Universe,restoreStoredScroll:Boolean,version:Long){
+    private fun applyUniverse(actual:Universe,restoreStoredScroll:Boolean,version:Long,destination:Screen=Screen.Universe){
         if(version!=navigationVersion)return
         if(observedUniverseId.isNotBlank() && actual.universeId!=observedUniverseId){
             purgeForScope(actual.universeId,actual.privacyEpoch)
@@ -675,23 +687,26 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             loadTraceRevisit(cachedRevisit,restoring=true)
         } else {
             if(cached!=null || cachedRevisit!=null || (restoreStoredScroll && store.readScreen()=="revisit"))purgeForScope(observedUniverseId,observedPrivacyEpoch)
-            _screen.value=Screen.Universe;savedState["screen"]="universe";store.writeScreen("universe")
+            _screen.value=destination;savedState["screen"]="universe";store.writeScreen("universe")
         }
     }
 
     private fun purgeForScope(universeId:String,epoch:Long){
+        savedState["readerFromSystem"] = false
         store.purgePrivateState(universeId,epoch)
         observedUniverseId=store.readObservedUniverseId()
         observedPrivacyEpoch=store.readObservedPrivacyEpoch()
         session=null;visited.clear()
         revisit=null
         _scroll.value=ScrollState.Idle
+        _system.value=SystemState.Idle
         _screen.value=Screen.Universe
         savedState["screen"]="universe"
     }
 
     private fun failClosed(reason:String){
         ready=false;session=null
+        _system.value=SystemState.Idle
         _screen.value=Screen.Universe
         _scroll.value=ScrollState.Idle
         _universe.value=UniverseState.Unavailable(reason)

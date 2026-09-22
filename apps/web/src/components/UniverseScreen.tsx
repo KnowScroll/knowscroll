@@ -11,25 +11,13 @@ export interface UniverseScreenProps {
   onOpenTrace: (trace: Trace) => void;
   onEnterSystem: () => void;
   onOpenPrivacy: () => void;
+  onOpenKeep?: () => void;
   onRetry: () => void;
 }
 
-/**
- * Universe level, rebuilt against docs/product/ui-system.md sec.5b/5c
- * (#112): a star ground with labelled bodies, a title HUD, a hint line,
- * a yellow-then-teal call to action with a helper line, a legend, map
- * tools, and the three-entry dock -- not a heading, a sentence, a button
- * and scattered dots.
- *
- * Every body is real: a kept Trace by its real title, or (only while the
- * library is genuinely untouched) Living Observatory's own literal
- * first-visit invitation copy, which names no topic and asserts nothing
- * about this reader. See docs/journeys/evidence/web-cosmos/README.md for
- * the deviations this honesty requires from the two references' literal
- * frames (no system/interior/planet levels: no semantic geography exists
- * yet -- sec.5b's own table).
- */
-export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy, onRetry }: UniverseScreenProps) {
+/** Atlas keeps saved Traces distinct from the source-backed worlds inside System.
+ * Neither a save nor its age establishes semantic growth. */
+export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetry }: UniverseScreenProps) {
   return (
     <main className="universe-screen" aria-label="Universe">
       <CosmosBackground />
@@ -64,19 +52,14 @@ export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onE
           onOpenTrace={onOpenTrace}
           onEnterSystem={onEnterSystem}
           onOpenPrivacy={onOpenPrivacy}
+          onOpenKeep={onOpenKeep}
         />
       )}
     </main>
   );
 }
 
-/**
- * Three real stages, chosen only from what this reader has actually kept --
- * never from a date (ui-system.md sec.5c: "the stage is chosen from what this
- * reader has actually done, never from a date"). `grown` starts at a round,
- * unfitted threshold (double digits) rather than any number tuned to a
- * particular run.
- */
+/** Copy varies with collection size; these are not world-evolution stages. */
 type Stage = 'first' | 'few' | 'grown';
 const GROWN_THRESHOLD = 10;
 
@@ -86,14 +69,14 @@ function stageFor(keptCount: number): Stage {
   return 'grown';
 }
 
-/** Verbatim from living-observatory.html's own `renderMap()` (sec.5c). */
+/** Invitation copy uses only facts this client can support. */
 const STAGE_HEADING: Record<Stage, string> = {
   first: 'Somewhere new starts here.',
-  few: 'Your first little world.',
-  grown: 'A world taking shape.',
+  few: 'Your curiosity leaves a trace.',
+  grown: 'Places worth returning to.',
 };
 const STAGE_SUBTITLE_FIRST = 'No topics to pick. Just something interesting.';
-const STAGE_SUBTITLE_FEW = 'A few encounters are beginning to belong together.';
+const STAGE_SUBTITLE_FEW = 'Saved encounters below. Source-backed worlds in your system.';
 
 /* ---------- Body layout: a deterministic grid, never a continuous spiral ----------
  * The reference's own spiral placement let two bodies land close enough in
@@ -173,15 +156,7 @@ function layoutBodies(total: number): BodySlot[] {
   return slots;
 }
 
-/* ---------- Body surface: real, deterministic variety, never random ----------
- * Size and surface detail are both derived from the Trace's own real
- * `createdAt` age; colour cycles across Cosmos's own approved accent
- * palette by the body's real position in the (oldest-first) kept order.
- * None of it implies a meaning nothing records -- it is the same "how long
- * has this been kept" fact already shown as text in `body-sub`, just also
- * carried into the body's appearance instead of drawing one identical flat
- * sphere for every Trace (the defect this replaces).
- */
+/* Equal-size saved-Trace markers. Colour is decorative, never a growth signal. */
 const BODY_PALETTE = [
   { core: '#fff6cf', mid: '#ffd058', edge: '#a9791f', glow: 'rgba(255,208,88,.45)' }, // yellow
   { core: '#e8fffb', mid: '#33c4b4', edge: '#0f5f57', glow: 'rgba(51,196,180,.45)' }, // teal
@@ -194,33 +169,7 @@ function paletteFor(index: number) {
   return BODY_PALETTE[index % BODY_PALETTE.length]!;
 }
 
-function ageDays(createdAt: string): number {
-  const parsed = Date.parse(createdAt);
-  if (Number.isNaN(parsed)) return 0;
-  return Math.max(0, (Date.now() - parsed) / 86_400_000);
-}
-
-function sizeForAge(days: number): number {
-  const clamped = Math.min(days, 30);
-  return 56 + (clamped / 30) * 34; // 56..90
-}
-
-function craterCountForAge(days: number): 0 | 1 | 2 {
-  if (days < 2) return 0;
-  if (days < 14) return 1;
-  return 2;
-}
-
-const CRATER_LAYOUTS: Record<number, Array<{ cx: number; cy: number; r: number }>> = {
-  0: [],
-  1: [{ cx: 62, cy: 66, r: 8 }],
-  2: [
-    { cx: 62, cy: 66, r: 8 },
-    { cx: 34, cy: 40, r: 5 },
-  ],
-};
-
-function BodySurface({ sizePx, paletteIndex, craterCount, idSeed }: { sizePx: number; paletteIndex: number; craterCount: number; idSeed: string }) {
+function BodySurface({ sizePx, paletteIndex, idSeed }: { sizePx: number; paletteIndex: number; idSeed: string }) {
   const palette = paletteFor(paletteIndex);
   const gradientId = `body-grad-${idSeed}`;
   return (
@@ -235,9 +184,7 @@ function BodySurface({ sizePx, paletteIndex, craterCount, idSeed }: { sizePx: nu
       <circle cx="50" cy="50" r="48" fill={`url(#${gradientId})`} />
       {/* A soft terminator crescent, giving the sphere volume instead of a flat disc. */}
       <path d="M 66 6 A 48 48 0 0 1 66 94 A 58 58 0 0 0 66 6 Z" fill={palette.edge} opacity="0.32" />
-      {(CRATER_LAYOUTS[craterCount] ?? []).map((c, i) => (
-        <ellipse key={i} cx={c.cx} cy={c.cy} rx={c.r} ry={c.r * 0.7} fill={palette.edge} opacity="0.28" />
-      ))}
+
     </svg>
   );
 }
@@ -253,9 +200,10 @@ interface LoadedUniverseProps {
   onOpenTrace: (trace: Trace) => void;
   onEnterSystem: () => void;
   onOpenPrivacy: () => void;
+  onOpenKeep?: () => void;
 }
 
-function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy }: LoadedUniverseProps) {
+function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep }: LoadedUniverseProps) {
   const traces = universe.traces;
   const empty = traces.length === 0;
   const stage = stageFor(traces.length);
@@ -356,8 +304,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
                   // Defensive fallback only: layoutBodies(traces.length + 1) always produces at
                   // least one slot per Trace, so this never actually falls through in practice.
                   const slot = slots[i] ?? { left: 50, top: 50, labelCh: DEFAULT_LABEL_CH };
-                  const days = ageDays(trace.createdAt);
-                  const sizePx = sizeForAge(days);
+                  const sizePx = 56;
                   const palette = paletteFor(i);
                   return (
                     <li key={trace.eventId}>
@@ -369,7 +316,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
                         aria-label={`Revisit the saved Trace: ${trace.title || 'Saved Scroll unavailable'}`}
                         ref={i === 0 ? firstBodyRef : undefined}
                       >
-                        <BodySurface sizePx={sizePx} paletteIndex={i} craterCount={craterCountForAge(days)} idSeed={trace.eventId} />
+                        <BodySurface sizePx={sizePx} paletteIndex={i} idSeed={trace.eventId} />
                         <span className="body-label" style={labelWidthStyle(slot.labelCh)}>
                           <span className="body-name">{trace.title || 'Saved Scroll unavailable'}</span>
                           <span className="body-sub">{formatTraceDate(trace.createdAt)}</span>
@@ -411,12 +358,12 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
         </div>
       )}
 
-      {!empty && (
+      {(
         <div className="map-tools" aria-label="Map controls">
-          <button type="button" className="zoom-button" onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.15) * 100) / 100))} aria-label="Zoom out">
+          <button type="button" className="zoom-button" disabled={zoom <= 0.75} onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.15) * 100) / 100))} aria-label="Zoom out">
             −
           </button>
-          <button type="button" className="zoom-button" onClick={() => setZoom(z => Math.min(1.35, Math.round((z + 0.15) * 100) / 100))} aria-label="Zoom in">
+          <button type="button" className="zoom-button" disabled={zoom >= 1} onClick={() => setZoom(z => Math.min(1, Math.round((z + 0.15) * 100) / 100))} aria-label="Zoom in">
             +
           </button>
           <button type="button" className="zoom-button recenter" onClick={() => setZoom(1)} aria-label="Recenter the universe">
@@ -435,7 +382,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
               names only the worlds this reader's own reading has actually reached, and says so
               plainly when that set is empty. */}
           <button type="button" className="map-scale-label" onClick={onEnterSystem} aria-label="Open the system view">
-            SYSTEM VIEW
+            Explore your system ↗
           </button>
         </div>
       )}
@@ -470,7 +417,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
           </span>
           Atlas
         </button>
-        <button type="button" className="dock-button" onClick={focusKeep} aria-label="Keep — your saved Traces">
+        <button type="button" className="dock-button" onClick={onOpenKeep ?? focusKeep} aria-label="Keep — your saved Traces">
           <span className="dock-icon" aria-hidden="true">
             ▱
           </span>

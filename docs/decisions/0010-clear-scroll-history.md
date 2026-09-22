@@ -57,6 +57,22 @@ Online bootstrap encounter data is removed in the successful transaction. Minima
 
 Advancing an epoch without erasing rows does not clear history. Erasing without advancing the epoch permits stale work to reattach. Rolling no session forward prevents lost-response recovery; rolling all sessions forward weakens the stale-device boundary. Retaining full deleted-event audit copies defeats erasure. Per-universe serialization remains a deliberate development tradeoff. Receipt retention and backup erasure remain visible limitations.
 
+## 2026-09-22 successor: erase encounter-derived systems (#72 / #4)
+
+The UI audit reproduced the ADR-0028 integration gap: deleting exposures left the universe's
+`world_system` and `world_system_member` rows readable. Extend step 4 to remove those private
+projections after exposures are erased, in the same authenticated transaction. This is erasure of
+derived encounter history, not deletion of the shared `world` / `world_member` / asset catalog.
+Reset inherits the same cleanup. Exact receipt replay still returns before any erasure, preserving
+new encounters and a newly derived system after an earlier clear.
+
+Append migration `0025_world_system_privacy_erasure.sql`; do not edit migration 0017. Its replacement
+system-delete guard permits removal only after that universe has no exposures. Identity and
+evidence guards remain. The migration changes the guard, not existing rows; owner data is not
+automatically cleared or migrated by this UI verification. The draft delivery requests privacy-lane
+review of this narrow contract extension before merge. Verify both HTTP operations, replay after
+new activity, rollback, shared catalog/neighbor preservation and Android foreground erasure.
+
 ## Sources / verification
 
 Product law 12, ADR-0004/0009, and target `04-EVENT-ARCHITECTURE.md` §§9/11 inform the boundary. Required evidence: actual nonempty two-universe PostgreSQL/HTTP/worker history clear, exact retry after withheld response, concurrent keys/expected epochs, blocked admission/worker ordering, forced rollback, caller/other-device behavior, no private row or cache resurrection, shared-library preservation and Android confirmation/process-restoration checks. Run destructive cases only against disposable data; never clear owner history to demonstrate success.

@@ -2,26 +2,30 @@ package com.knowscroll.mobile.ui
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.runtime.withFrameNanos
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.awaitCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.knowscroll.mobile.ui.keep.KeepScreen
 import com.knowscroll.mobile.ui.scroll.ScrollScreen
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import com.knowscroll.mobile.ui.universe.UniverseScreen
+import kotlinx.coroutines.awaitCancellation
 
 @Composable
 fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
@@ -34,6 +38,31 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val system by viewModel.system.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val context = LocalContext.current
+        val atlasStates = rememberSaveableStateHolder()
+        var scopeKey by rememberSaveable { mutableStateOf("") }
+        var savedReelKey by rememberSaveable { mutableStateOf<String?>(null) }
+        val confirmed = (universe as? UniverseState.Loaded)?.universe
+        LaunchedEffect(confirmed?.universeId, confirmed?.privacyEpoch) {
+            if (confirmed != null) {
+                val next = "${confirmed.universeId}:${confirmed.privacyEpoch}"
+                if (scopeKey != next) {
+                    atlasStates.removeState("system:$scopeKey")
+                    atlasStates.removeState("universe:$scopeKey")
+                    savedReelKey?.let(atlasStates::removeState)
+                    savedReelKey = null
+                    scopeKey = next
+                }
+            }
+        }
+
+        LaunchedEffect(signOut is SignOutState.SignedOut, universe is UniverseState.Unavailable) {
+            if (signOut is SignOutState.SignedOut || universe is UniverseState.Unavailable) {
+                atlasStates.removeState("system:$scopeKey")
+                atlasStates.removeState("universe:$scopeKey")
+                savedReelKey?.let(atlasStates::removeState)
+                savedReelKey = null
+            }
+        }
 
         LaunchedEffect(toast) {
             val t = toast
@@ -43,7 +72,12 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
             }
         }
 
-        BackHandler(enabled = screen is Screen.Scroll || screen is Screen.TraceRevisit || screen is Screen.Keep) { viewModel.returnToUniverse() }
+        BackHandler(
+            enabled =
+                screen is Screen.Scroll || screen is Screen.TraceRevisit || screen is Screen.Keep
+        ) {
+            viewModel.returnFromReader()
+        }
         BackHandler(enabled = screen is Screen.System) { viewModel.returnFromSystem() }
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         LaunchedEffect(lifecycle) {
@@ -53,59 +87,98 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
             }
         }
         val reading = scroll as? ScrollState.Reading
-        LaunchedEffect(screen, reading?.item?.assetId, lifecycle) {
-            val assetId = reading?.item?.assetId
-            if ((screen is Screen.Scroll || screen is Screen.TraceRevisit) && assetId != null) lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                withFrameNanos { }; withFrameNanos { }
-                viewModel.onVisible(assetId)
-                awaitCancellation()
+        val activeReelKey =
+            reading?.takeIf { it.item.kind == "Reel" }?.let { "reel:$scopeKey:${it.item.assetId}" }
+        LaunchedEffect(activeReelKey) {
+            if (activeReelKey != null && activeReelKey != savedReelKey) {
+                savedReelKey?.let(atlasStates::removeState)
+                savedReelKey = activeReelKey
             }
         }
-        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-        if (signOut is SignOutState.SignedOut) {
-            SignedOutScreen()
-        } else when (screen) {
-            is Screen.Universe -> UniverseScreen(
-                state = universe,
-                historyClear = historyClear,
-                signOut = signOut,
-                onEnterScroll = viewModel::enterScroll,
-                onOpenTrace = viewModel::openTrace,
-                onEnterSystem = viewModel::enterSystem,
-                onRetry = viewModel::retryUniverse,
-                onRequestHistoryClear = viewModel::requestHistoryClearConfirmation,
-                onCancelHistoryClear = viewModel::cancelHistoryClear,
-                onConfirmHistoryClear = viewModel::confirmHistoryClear,
-                onRetryHistoryClear = viewModel::retryHistoryClear,
-                onRequestSignOut = viewModel::requestSignOutConfirmation,
-                onCancelSignOut = viewModel::cancelSignOutConfirmation,
-                onConfirmSignOut = viewModel::confirmSignOut,
-                onRetrySignOut = viewModel::retrySignOut,
-                onOpenKeep = viewModel::openKeep
+
+        LaunchedEffect(screen, reading?.item?.assetId, lifecycle) {
+            val assetId = reading?.item?.assetId
+            if (
+                (screen is Screen.Scroll || screen is Screen.TraceRevisit) &&
+                    assetId != null &&
+                    reading.item.kind == "Scroll"
             )
-            is Screen.Scroll, is Screen.TraceRevisit -> ScrollScreen(
-                state = scroll,
-                onKeep = viewModel::keep,
-                onReturn = viewModel::returnToUniverse,
-                onNext = viewModel::nextScroll,
-                onRetry = viewModel::retryScrollLoad,
-                onReadingPosition = viewModel::updateReadingPosition,
-                onOpenKeep = viewModel::openKeep
-            )
-            is Screen.Keep -> KeepScreen(
-                state = universe,
-                onOpenTrace = viewModel::openTrace,
-                onSelectAtlas = viewModel::returnToUniverse,
-                onSelectCable = viewModel::enterScroll
-            )
-            is Screen.System -> SystemScreen(
-                state = system,
-                onReturn = viewModel::returnFromSystem,
-                onRetry = viewModel::retrySystem,
-                onEnterScroll = viewModel::enterScroll,
-                onOpenKeep = viewModel::openKeep
-            )
+                lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    withFrameNanos {}
+                    withFrameNanos {}
+                    viewModel.onVisible(assetId)
+                    awaitCancellation()
+                }
         }
+        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+            if (signOut is SignOutState.SignedOut) {
+                SignedOutScreen()
+            } else
+                when (screen) {
+                    is Screen.Universe ->
+                        atlasStates.SaveableStateProvider("universe:$scopeKey") {
+                            UniverseScreen(
+                                state = universe,
+                                historyClear = historyClear,
+                                signOut = signOut,
+                                onEnterScroll = viewModel::enterScroll,
+                                onOpenTrace = viewModel::openTrace,
+                                onEnterSystem = viewModel::enterSystem,
+                                onRetry = viewModel::retryUniverse,
+                                onRequestHistoryClear = viewModel::requestHistoryClearConfirmation,
+                                onCancelHistoryClear = viewModel::cancelHistoryClear,
+                                onConfirmHistoryClear = viewModel::confirmHistoryClear,
+                                onRetryHistoryClear = viewModel::retryHistoryClear,
+                                onRequestSignOut = viewModel::requestSignOutConfirmation,
+                                onCancelSignOut = viewModel::cancelSignOutConfirmation,
+                                onConfirmSignOut = viewModel::confirmSignOut,
+                                onRetrySignOut = viewModel::retrySignOut,
+                                onOpenKeep = viewModel::openKeep,
+                            )
+                        }
+                    is Screen.Scroll,
+                    is Screen.TraceRevisit ->
+                        if (reading?.item?.kind == "Reel") {
+                            atlasStates.SaveableStateProvider(requireNotNull(activeReelKey)) {
+                                com.knowscroll.mobile.ui.reel.ReelScreen(
+                                    reading,
+                                    viewModel::keep,
+                                    viewModel::returnFromReader,
+                                    viewModel::nextScroll,
+                                    viewModel::openKeep,
+                                    { viewModel.onVisible(reading.item.assetId) },
+                                    viewModel::onMediaAuthorityFailure,
+                                    viewModel::updateReadingPosition,
+                                )
+                            }
+                        } else
+                            ScrollScreen(
+                                state = scroll,
+                                onKeep = viewModel::keep,
+                                onReturn = viewModel::returnFromReader,
+                                onNext = viewModel::nextScroll,
+                                onRetry = viewModel::retryScrollLoad,
+                                onReadingPosition = viewModel::updateReadingPosition,
+                                onOpenKeep = viewModel::openKeep,
+                            )
+                    is Screen.Keep ->
+                        KeepScreen(
+                            state = universe,
+                            onOpenTrace = viewModel::openTrace,
+                            onSelectAtlas = viewModel::returnToUniverse,
+                            onSelectCable = viewModel::enterScroll,
+                        )
+                    is Screen.System ->
+                        atlasStates.SaveableStateProvider("system:$scopeKey") {
+                            SystemScreen(
+                                state = system,
+                                onReturn = viewModel::returnFromSystem,
+                                onRetry = viewModel::retrySystem,
+                                onEnterScroll = viewModel::enterScrollFromSystem,
+                                onOpenKeep = viewModel::openKeep,
+                            )
+                        }
+                }
         }
     }
 }

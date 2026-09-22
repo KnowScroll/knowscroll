@@ -1,5 +1,84 @@
 # Shared delivery checkpoint
 
+## 2026-09-22 owner-authorized merge and interactive preview
+
+The owner explicitly requested restarting the emulator and merging the delivered code. This
+supersedes the earlier no-merge instruction for PR #129 only; #72/full-v1 acceptance remains open.
+Implementation revision is `b14fd38`. Merge completion is recorded on PR129 and #72; verify their
+live Git state rather than treating the older draft snapshots below as current.
+
+The visible API36 emulator now runs the latest separate `.journey` app against a fresh disposable
+`knowscroll_test_native_*` database on API port4320. The preview has two kept editorial encounters
+admitted through real exposure/Keep routes, plus the explicitly labelled supplied TEST MEDIA Reel.
+API/worker are intentionally left running for owner inspection. Ignored local lifecycle receipt:
+`artifacts/android-spatial/preview/runtime.json` (process IDs/database); startup log:
+`artifacts/android-spatial/preview-start.log`. Owner app/data/schema were not cleared or migrated.
+
+Merge review rechecked migration0025 and Clear/Reset: deletion remains inside the authenticated
+transaction, after exposure erasure, scoped to the caller; exact replay precedes deletion; shared
+catalog and other universes are preserved. This was coordinator self-review, not an independent
+privacy-lane sign-off. Both Android CI runs and the PR backend run passed at `b14fd38`; the other
+backend run hit a random test-fixture origin collision in `publication-http.test.ts` and was rerun.
+Check final-head CI before merging. The rendering regression and missing live integration contracts
+remain as documented below; merging is not production performance or full-v1 acceptance.
+
+## 2026-09-22 Android spatial delivery — #72 / draft PR #129
+
+Owner sequencing decision: Android only (native canvas, Reel playback, branching seams, rich
+Scrolls, motion and performance). Do not improve Web in this phase; full v1 still requires both
+clients and journeys A–I. Continue the actual unmerged PR129 branch from `c9f699f`; no merge or
+issue closure authorized. See [native audit/checklist](design/2026-09-22-android-spatial.md).
+
+Live start: Git clean at the handoff revision, PR open/draft and historical CI green. PostgreSQL
+was down and emulator absent; restarted dedicated SSD cluster and API36 emulator. Owner schema
+read-only observation remains 0001–0009 with stale worker heartbeat; no owner migration/reset.
+Runtime checks use disposable databases and `.journey` only. User authorized local Google-Drive
+videos for playback tests. Physical phone availability remains unknown. Browser policy blocked
+local reference replay; inspect reference source/captures without claiming observed motion.
+
+Native implementation now includes a full available Atlas viewport with pan/pinch, cancellable
+inspection travel and scope-bound camera return; real Media3 playback with first-frame exposure,
+strict media URL/redirect handling and authority-aware paused state; and typed rich/branch seams.
+Runtime work repaired sheet Back, return during in-flight exposure, two-marker pinch cancellation
+and pause lost across authority refresh. Fixtures remain labelled tests and use actual authorized
+MP4 bytes. Live region/relationship hierarchy, world-filtered discovery, branch/rich transport,
+consumer generation status and saved-Reel revisit still need the contracts listed in the audit.
+
+Receipts, captures, commands and diagnostic before/after frame/memory measurements are in
+[Android spatial evidence](journeys/evidence/android-spatial-2026-09-22/README.md). All tests use
+`.journey` and disposable databases; only an API36 emulator is available. Debug/emulator metrics
+are not production-smoothness acceptance. Final checks: typecheck, assemble/lint, 86 units and
+11 emulator scenarios passed. The matched profile regressed: p95 64.34 → 83.95 ms and PSS
+113,660 → 126,570 KiB; investigate draw/queue costs on a physical profileable build. Review the draft and captures, then prioritize the
+listed shared-contract dependencies and physical-device profiling. Do not merge/close #72 or
+claim full v1 from this delivery. Web follow-up is recorded only; no Web edits were made.
+
+
+## 2026-09-22 UI refinement successor — #72 / #4
+
+Draft delivery: [PR #129](https://github.com/KnowScroll/knowscroll/pull/129), implementation head
+`e6782b6` (plus this delivery-link update), not merged. Local verification passed: 714 backend,
+76 Web units / 50 browser journeys, 82 Android units / 7 emulator scenarios.
+
+Current local branch: `codex/72-ui-experience-audit`, started from clean `c9c3e72` on the
+external SSD. The dated [audit](design/2026-09-21-ui-audit.md) supersedes earlier claims of visual
+completion below. Both actual clients were inspected before changes. Shared local typography,
+cartographic source-backed worlds, local world inspection, consistent navigation, real Web Keep,
+responsive layouts and native reader hierarchy are implemented. Final evidence lives in
+[journeys/evidence/ui-refinement-2026-09-21](journeys/evidence/ui-refinement-2026-09-21/README.md).
+
+Native foreground/recreation retains System/Keep only after same-universe, same-epoch reconciliation.
+The privacy journey reproduced the old stale-system-after-Clear defect; migration 0025 and both
+Clear/Reset now erase that private projection transactionally. Shared source catalog and exact-retry
+boundaries remain. Request privacy-lane review (#4) on the draft before merge. No owner migration,
+owner data reset or provider run occurred. Test data/app are separate and disposable.
+
+**Not full v1:** region/Star/galaxy evolution, relationships, world-scoped discovery, native
+pause/export/Reset parity, production identity recovery, real Reels and journeys A–I remain open.
+Do not render fictional growth to fill these gaps. Next action: review final captures and the draft
+against the canonical references, then specify the remaining evidence-backed evolution contracts.
+The older snapshot below is retained as historical evidence, not current branch/runtime truth.
+
 Updated 2026-09-20 (Claude Code coordinator). Coordinator-owned current steering object, not a
 transcript. Replace this snapshot when reality changes; preserve prior evidence and rationale through
 Git, issues and [delivery history](operations/delivery-history.md).

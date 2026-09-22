@@ -65,7 +65,7 @@ export type SystemView =
   | { status: 'loaded'; response: WorldSystemResponse }
   | { status: 'unavailable'; message: string };
 
-export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy';
+export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy' | 'keep';
 
 /** ADR-0030/#119: pause, export and reset. Every mutating action carries the `kind` it is acting
  * on and, once sent, the one `requestId` that intent keeps across any retry (server-side replay
@@ -206,6 +206,7 @@ export class ReaderStore {
   returnFromSystem(): void {
     if (this.state.screen !== 'system') return;
     this.navigationVersion++; // invalidates any in-flight getWorlds() so a stale response cannot land
+    this.busy = false;
     this.set({ screen: 'universe', system: { status: 'idle' } });
   }
 
@@ -700,17 +701,22 @@ export class ReaderStore {
     if (reading?.item.assetId === assetId) this.set({ scroll: { ...reading, readingPosition: position } });
   }
 
-  returnToUniverse(): void {
+  openKeep(): void {
+    if (this.reconciling || !this.ready) return;
+    this.returnToUniverse('keep');
+  }
+
+  returnToUniverse(destination: 'universe' | 'keep' = 'universe'): void {
     this.navigationVersion++;
     if (this.state.screen === 'revisit') this.discardRevisit();
     this.visited.clear();
     this.storage.writeVisited(this.visited);
     this.storage.writeScreen('universe');
-    this.set({ screen: 'universe', scroll: { status: 'idle' } });
-    this.reconcilePrivacy(false);
+    this.set({ screen: destination, scroll: { status: 'idle' } });
+    this.reconcilePrivacy(false, destination);
   }
 
-  private reconcilePrivacy(restoreStoredScroll: boolean): void {
+  private reconcilePrivacy(restoreStoredScroll: boolean, destination: 'universe' | 'keep' = 'universe'): void {
     if (this.reconciling) return;
     this.reconciling = true;
     this.ready = false;
@@ -721,7 +727,7 @@ export class ReaderStore {
     const wantedRevisit = restoreStoredScroll && storedScreen === 'revisit';
     if (wantedScroll) this.set({ screen: 'scroll', scroll: { status: 'loading' } });
     else if (wantedRevisit) this.set({ screen: 'revisit', scroll: { status: 'loading' } });
-    else this.set({ screen: 'universe', universe: { status: 'loading' } });
+    else this.set({ screen: destination, universe: { status: 'loading' } });
     this.api
       .getUniverse()
       .then(actual => {
@@ -730,9 +736,9 @@ export class ReaderStore {
         const bindingChanged = localUniverse !== '' && localUniverse !== actual.universeId;
         if (bindingUnknown || bindingChanged) {
           this.purgeForScope(actual.universeId, actual.privacyEpoch);
-          this.applyUniverse(actual, false, version);
+          this.applyUniverse(actual, false, version, destination);
         } else {
-          this.applyUniverse(actual, wantedScroll || wantedRevisit, version);
+          this.applyUniverse(actual, wantedScroll || wantedRevisit, version, destination);
         }
       })
       .catch((error: unknown) => {
@@ -747,7 +753,7 @@ export class ReaderStore {
       });
   }
 
-  private applyUniverse(actual: Universe, restoreStoredScroll: boolean, version: number): void {
+  private applyUniverse(actual: Universe, restoreStoredScroll: boolean, version: number, destination: 'universe' | 'keep' = 'universe'): void {
     if (version !== this.navigationVersion) return;
     if (this.observedUniverseId !== '' && actual.universeId !== this.observedUniverseId) {
       this.purgeForScope(actual.universeId, actual.privacyEpoch);
@@ -772,7 +778,7 @@ export class ReaderStore {
     } else {
       if (cached || cachedRevisit || (restoreStoredScroll && this.storage.readScreen() === 'revisit')) this.purgeForScope(this.observedUniverseId, this.observedPrivacyEpoch);
       this.storage.writeScreen('universe');
-      this.set({ screen: 'universe' });
+      this.set({ screen: destination });
     }
   }
 

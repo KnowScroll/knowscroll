@@ -42,7 +42,7 @@ class ApiClient(
     }
 
     suspend fun getFeed(): FeedResponse = io {
-        get("/v1/feed") { obj ->
+        get("/v1/feed?kinds=Scroll,Reel") { obj ->
             FeedResponse(
                 decisionId = obj.getString("decisionId"),
                 universeId = obj.getString("universeId"),
@@ -252,9 +252,17 @@ class ApiClient(
         ScrollItem(
             assetId = o.getString("assetId"), revision = o.getInt("revision"),
             kind = o.getString("kind"), title = o.getString("title"),
-            summary = o.getString("summary"), body = o.getString("body"),
+            summary = o.getString("summary"), body = if(o.getString("kind")=="Scroll") o.getString("body") else "",
             sourceTitle = o.getString("sourceTitle"), sourceUrl = o.getString("sourceUrl"),
-            truthState = o.getString("truthState"), reason = o.optString("reason", "")
+            truthState = o.getString("truthState"), reason = o.optString("reason", ""),
+            media = when(o.getString("kind")) {
+                "Scroll" -> null
+                "Reel" -> try {
+                    protocol(o.getString("truthState")=="synthesis") { "Invalid Reel truth state" }
+                    ReelMedia.parse(o)
+                } catch (_: IllegalArgumentException) { throw ApiException.Protocol("Invalid Reel media") }
+                else -> throw ApiException.Protocol("Unsupported encounter kind")
+            }
         )
     }
 

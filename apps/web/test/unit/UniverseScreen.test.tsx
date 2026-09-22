@@ -40,7 +40,7 @@ describe('UniverseScreen', () => {
     expect(onEnterSystem).toHaveBeenCalledTimes(1);
   });
 
-  it('does not offer the system level before anything has been encountered', () => {
+  it('offers system inspection even when no Traces have been kept', () => {
     render(
       <UniverseScreen
         state={loaded(0)}
@@ -53,9 +53,8 @@ describe('UniverseScreen', () => {
       />,
     );
 
-    // `GET /v1/worlds` can only return worlds this universe has actually encountered, so on an
-    // untouched library there is no system to open and the product does not pretend there is.
-    expect(screen.queryByRole('button', { name: 'Open the system view' })).toBeNull();
+    // No Keep does not imply no encounters. The API, not this collection count, owns the empty system.
+    expect(screen.getByRole('button', { name: 'Open the system view' })).toBeInTheDocument();
   });
 
   it('offers a real way into the privacy panel regardless of whether anything has been kept (#119)', () => {
