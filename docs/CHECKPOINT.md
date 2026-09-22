@@ -1,5 +1,53 @@
 # Shared delivery checkpoint
 
+## 2026-09-22 Android living universe / Cable — #72 review branch
+
+Started from verified merged PR129, `origin/main` at `91e5b72`, in SSD worktree
+`/Volumes/Mrigesh SSD/knowscroll-worktrees/72-android-living-universe`, branch
+`codex/72-android-living-universe`. Implementation is `9e38146`, with verification
+and compact-layout/export/socket fixes `38bf753` / `cd00057` / `518c0c3`. No merge or #72 closure is
+authorized. Original checkout and the pre-existing port 4320 preview are preserved.
+
+Read the [implementation/visual audit](design/2026-09-22-android-living-universe.md)
+and [current evidence](journeys/evidence/android-living-2026-09-22/README.md). The
+owner's new durable priority is dark spatial Cosmos/Living Atlas + first four
+images, poster/Kiosk Hybrid Set for content, and explicit rejection of image 5's
+grey Worlds dialog. All five images and actual HTML source/styles were inspected;
+local browser replay was denied and not bypassed.
+
+Native work now includes orbiting moons with lifecycle/reduced-motion pause, stable
+ID-derived map positions, pan/pinch camera travel into labelled authored continents
+and local detail, integrated cream Worlds/Station selectors, an explicit filtered
+Scroll/Reel Cable toggle, and an owner-accessible authored preview. The preview has
+three supplied playable videos and three rich Scrolls with actual authored branches.
+Camera, asset/revision origin, reading position, retry envelopes and privacy scope
+are retained or purged as appropriate. Compact video layout reserves playback space.
+No preview exposure/Keep/generation is posted; API/database counts verify that limit.
+
+Final checks: typecheck, Android assemble/lint, 92 unit tests and 16 emulator
+scenario/configuration runs passed, plus the visible owner preview setup.
+All functional evidence uses `.journey` and disposable databases. The owner confirmed
+**emulator only for now; physical phone later**. Read-only recheck of owner `knowscroll`
+still finds only migrations 0001–0009; no owner migration/reset occurred. No raw video,
+personal Reel capture, token or provider call is committed or represented as generation.
+The new owner preview uses port 4322; its ignored lifecycle receipt is
+`artifacts/android-living/preview/runtime.json` in the new worktree. Verify its health
+and PIDs before reuse/cleanup, as with the older 4320 receipt in the original checkout.
+
+The fresh matched debug profile baseline was p95 **67.81 ms**. Three spatial runs
+measured **67.37, 67.45, 71.34 ms**, draw p95 **10.66–12.59 ms** versus 18.22, and PSS
+**129,164–131,685 KiB** versus 131,278. Draw cost improved; total frame performance and
+memory are not accepted improvements. Median worsened. Keep the historical previous
+regression evidence, and profile on a physical device before smoothness acceptance.
+
+Two implementation worker attempts stalled and their drafts were not integrated.
+A bounded MiniMax-M3 source review completed; confirmed restoration findings and
+runtime-discovered defects were fixed and tested centrally. Review/usage receipts
+are in the evidence directory. Live branch/rich transport, semantic hierarchy,
+source-scoped discovery, actual social presence, real Cutroom generation and full-v1
+acceptance remain open. No Web or shared contract changes were made.
+
+
 ## 2026-09-22 owner-authorized merge and interactive preview
 
 The owner explicitly requested restarting the emulator and merging the delivered code. This
@@ -8,7 +56,7 @@ Implementation revision is `b14fd38`. Merge completion is recorded on PR129 and 
 live Git state rather than treating the older draft snapshots below as current.
 
 The visible API36 emulator now runs the latest separate `.journey` app against a fresh disposable
-`knowscroll_test_native_*` database on API port4320. The preview has two kept editorial encounters
+`knowscroll_test_native_*` database on API port 4320. The preview has two kept editorial encounters
 admitted through real exposure/Keep routes, plus the explicitly labelled supplied TEST MEDIA Reel.
 API/worker are intentionally left running for owner inspection. Ignored local lifecycle receipt:
 `artifacts/android-spatial/preview/runtime.json` (process IDs/database); startup log:
