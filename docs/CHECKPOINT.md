@@ -1,5 +1,27 @@
 # Shared delivery checkpoint
 
+## 2026-09-22 owner-authorized merge and interactive preview
+
+The owner explicitly requested restarting the emulator and merging the delivered code. This
+supersedes the earlier no-merge instruction for PR #129 only; #72/full-v1 acceptance remains open.
+Implementation revision is `b14fd38`. Merge completion is recorded on PR129 and #72; verify their
+live Git state rather than treating the older draft snapshots below as current.
+
+The visible API36 emulator now runs the latest separate `.journey` app against a fresh disposable
+`knowscroll_test_native_*` database on API port4320. The preview has two kept editorial encounters
+admitted through real exposure/Keep routes, plus the explicitly labelled supplied TEST MEDIA Reel.
+API/worker are intentionally left running for owner inspection. Ignored local lifecycle receipt:
+`artifacts/android-spatial/preview/runtime.json` (process IDs/database); startup log:
+`artifacts/android-spatial/preview-start.log`. Owner app/data/schema were not cleared or migrated.
+
+Merge review rechecked migration0025 and Clear/Reset: deletion remains inside the authenticated
+transaction, after exposure erasure, scoped to the caller; exact replay precedes deletion; shared
+catalog and other universes are preserved. This was coordinator self-review, not an independent
+privacy-lane sign-off. Both Android CI runs and the PR backend run passed at `b14fd38`; the other
+backend run hit a random test-fixture origin collision in `publication-http.test.ts` and was rerun.
+Check final-head CI before merging. The rendering regression and missing live integration contracts
+remain as documented below; merging is not production performance or full-v1 acceptance.
+
 ## 2026-09-22 Android spatial delivery — #72 / draft PR #129
 
 Owner sequencing decision: Android only (native canvas, Reel playback, branching seams, rich

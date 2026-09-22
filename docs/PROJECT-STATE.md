@@ -1,5 +1,13 @@
 # Project state
 
+## 2026-09-22 merge authorization / owner preview
+
+The owner authorized merging PR #129 and viewing the latest Android build. The API36 `.journey`
+preview is running with isolated API/worker on4320, two kept encounters and labelled supplied test
+video; no owner database changes. See the checkpoint for its ignored lifecycle receipt and live
+PR/issue for merge completion. Earlier draft/no-merge statements below are historical. Full-v1,
+physical-device performance and the missing native/backend integration gates remain open.
+
 ## 2026-09-22 Android spatial successor — branch delivery, not full v1
 
 The Android-only successor on draft PR #129 adds a native pan/pinch Atlas, camera-preserving world
