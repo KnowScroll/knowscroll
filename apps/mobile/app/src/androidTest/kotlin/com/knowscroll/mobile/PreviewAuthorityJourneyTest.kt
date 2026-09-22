@@ -15,7 +15,7 @@ class PreviewAuthorityJourneyTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun previewAndBothBanksDisappearAfterEpochChange() = runBlocking {
+    fun previewAndBothBanksDisappearAfterEpochChange() = runBlocking<Unit> {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".journey"))
         compose.waitUntil(20_000) {
