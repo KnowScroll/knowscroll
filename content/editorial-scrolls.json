@@ -22,5 +22,165 @@
     "body": "Two planets orbit the same star. One travels on a much larger orbit. Which takes longer to complete a year?\n\nKepler’s third law connects orbital period to the size of an orbit: the square of the period is proportional to the cube of the semi-major axis. A larger orbit means a longer period.\n\nThe comparison assumes bodies orbiting the same central mass. Notice how specifying that condition makes the statement more useful.",
     "sourceTitle": "NASA · Orbits and Kepler’s Laws",
     "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000001",
+    "title": "The pull you can't see",
+    "summary": "An invisible force ties every mass in the universe to every other mass.",
+    "body": "You jump, and a moment later you're back on the ground. What is actually pulling you down?\n\nGravity is the force by which a planet or other body draws objects toward its center. Earth's gravity is what keeps you on the ground and what makes things fall when you drop them.\n\nNotice that this same pull is at work whether you're holding an apple or watching a planet cross the night sky. Where else might you expect an invisible pull like this to be quietly at work?",
+    "sourceTitle": "NASA · What Is Gravity?",
+    "sourceUrl": "https://spaceplace.nasa.gov/what-is-gravity/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000002",
+    "title": "One force, many jobs",
+    "summary": "The same pull that holds you to Earth also holds planets in their paths.",
+    "body": "What do a falling apple and a planet's yearly path around the Sun have in common?\n\nGravity is what holds the planets in orbit around the sun and what keeps the moon in orbit around Earth. The same force that pulls you toward Earth's center also keeps the Sun's family of worlds circling it.\n\nTry listing three things gravity might be responsible for that you hadn't considered before. Which one surprises you most?",
+    "sourceTitle": "NASA · What Is Gravity?",
+    "sourceUrl": "https://spaceplace.nasa.gov/what-is-gravity/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000003",
+    "title": "A pull with a range",
+    "summary": "Gravity's strength depends on how much mass is involved and how far apart it is.",
+    "body": "Would a nearby object and a distant one pull on you with the same gravitational force?\n\nAnything that has mass also has gravity, and objects with more mass have more gravity. Gravity also gets weaker with distance, so the closer two objects are, the stronger their pull on each other.\n\nPicture moving an object twice as far away from you. What do you expect happens to the pull between it and you?",
+    "sourceTitle": "NASA · What Is Gravity?",
+    "sourceUrl": "https://spaceplace.nasa.gov/what-is-gravity/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000004",
+    "title": "A rhythm the ocean keeps",
+    "summary": "Tides rise and fall on a schedule driven by the Moon and Sun's pull.",
+    "body": "How would you describe the ocean's edge to someone who had never seen the tide come in?\n\nTides are caused by the gravitational pull of the moon and the sun, moving through the ocean as very long-period waves. When the crest of that wave reaches the coast, high tide occurs; the trough brings low tide. Tides are one of the most reliable phenomena in the world.\n\nWhat else in nature repeats with this kind of dependability? Would you trust a clock built around it?",
+    "sourceTitle": "NOAA · What Are Tides?",
+    "sourceUrl": "https://oceanservice.noaa.gov/facts/tides.html"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000005",
+    "title": "The Moon tugs at the sea",
+    "summary": "The Moon's gravity pulls the ocean toward it, producing the tides.",
+    "body": "The Moon looks distant and small in the sky. Could it really move an entire ocean?\n\nThe gravitational pull of the moon pulls the seas towards it, causing the ocean tides. It is the same invisible force that holds you to the ground, reaching across space to tug at the water on Earth's surface.\n\nCompare that with the pull you feel standing on the ground. Which do you find harder to believe: that gravity holds you down, or that it moves an ocean?",
+    "sourceTitle": "NASA · What Is Gravity?",
+    "sourceUrl": "https://spaceplace.nasa.gov/what-is-gravity/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000006",
+    "title": "It isn't about distance",
+    "summary": "Many assume nearness to the Sun explains summer, but that isn't what causes it.",
+    "body": "Why do you think it gets hot in summer and cold in winter? Take a guess before reading on.\n\nMany people believe Earth is closer to the Sun in summer, but in the Northern Hemisphere winter actually happens when Earth is closest to the Sun, and summer when it is farthest away. Compared with how far away the Sun is, this change in distance over the year does not make much difference to the weather.\n\nDoes that match the guess you made? If distance isn't the reason, what do you now suspect is?",
+    "sourceTitle": "NASA · What Causes the Seasons?",
+    "sourceUrl": "https://spaceplace.nasa.gov/seasons/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000007",
+    "title": "A tilt that doesn't change",
+    "summary": "Earth's tilted axis, always pointing the same way, decides which pole faces summer.",
+    "body": "If Earth's distance from the Sun barely changes the seasons, what does?\n\nEarth's tilted axis causes the seasons. As Earth orbits the Sun, that tilted axis always points in the same direction, so when the North Pole tilts toward the Sun it is summer in the Northern Hemisphere, and when the South Pole tilts toward the Sun it is winter there.\n\nPicture Earth's axis as an arrow that never turns to follow the Sun. Why might that fixed direction matter more than distance?",
+    "sourceTitle": "NASA · What Causes the Seasons?",
+    "sourceUrl": "https://spaceplace.nasa.gov/seasons/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000008",
+    "title": "Closest to the Sun in January",
+    "summary": "Earth's nearest approach to the Sun falls during Northern winter, not summer.",
+    "body": "When during the year do you think Earth is nearest the Sun: January or July?\n\nEarth's orbit is not a perfect circle, so its distance from the Sun changes slightly over the year. Aphelion, when Earth is farthest from the Sun, occurs in July, and perihelion, when Earth is closest, occurs in January.\n\nDoes this timing fit with what you already believe about what causes the seasons? What would you tell someone still convinced it's about distance?",
+    "sourceTitle": "NASA · What Causes the Seasons?",
+    "sourceUrl": "https://spaceplace.nasa.gov/seasons/en/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000009",
+    "title": "A star is born from a cloud",
+    "summary": "Stars form when gravity collapses dense pockets of gas and dust.",
+    "body": "Where do you think a brand-new star comes from? Picture the darkest, emptiest-looking patch of night sky you can.\n\nStars form in large clouds of gas and dust called molecular clouds. Within these clouds some clumps grow denser, and eventually gravity causes some of these clumps to collapse, beginning the process that forms a star.\n\nTry picturing gravity slowly gathering scattered material into a single dense point. What do you imagine happens to that material next, once enough of it has piled up in one place?",
+    "sourceTitle": "NASA · Stars",
+    "sourceUrl": "https://science.nasa.gov/universe/stars/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000010",
+    "title": "Burn hot, live fast",
+    "summary": "A star's mass decides how quickly it burns through its fuel and how long it lives.",
+    "body": "Would you expect the biggest, brightest stars to live the longest, or the shortest?\n\nA star's mass determines how rapidly it runs through its fuel supply, with lower-mass stars burning longer, dimmer, and cooler than very massive stars. Some low-mass stars can shine for trillions of years, while some massive stars live for only a few million years.\n\nHow does that compare with your guess? What would you predict about a star exactly midway in mass between the two extremes?",
+    "sourceTitle": "NASA · Stars",
+    "sourceUrl": "https://science.nasa.gov/universe/stars/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000011",
+    "title": "When the fuel runs out",
+    "summary": "A star's core begins to collapse once it exhausts the hydrogen it fuses.",
+    "body": "What do you think happens inside a star once it runs low on fuel?\n\nUntil then, energy from fusion had been creating the outward pressure that keeps a star from collapsing under gravity. At the beginning of the end of a star's life, its core runs out of hydrogen to convert into helium, and the core starts to collapse.\n\nIf fusion had been holding the star's shape steady, what would you expect the moment that support weakens?",
+    "sourceTitle": "NASA · Stars",
+    "sourceUrl": "https://science.nasa.gov/universe/stars/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000012",
+    "title": "An ordinary star with a big job",
+    "summary": "The Sun is only average in size, yet its gravity holds the whole solar system together.",
+    "body": "Do you picture the Sun as an unusually huge star, or a fairly typical one?\n\nEven though the Sun is the center of our solar system and essential to our survival, it's only an average star in size — stars up to 100 times larger have been found. Still, it is the center of our solar system, and its gravity holds the solar system together.\n\nDoes 'ordinary' feel like the right word for something that holds an entire solar system in place? What would you call it instead?",
+    "sourceTitle": "NASA · Our Sun: Facts",
+    "sourceUrl": "https://science.nasa.gov/sun/facts/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000013",
+    "title": "The pressure that holds the Sun up",
+    "summary": "Fusion in the Sun's core creates outward pressure that keeps it from collapsing.",
+    "body": "What keeps a star from simply crushing itself under its own weight? Take a guess at what's happening deep inside.\n\nThe temperature in the Sun's core is about 27 million degrees Fahrenheit — hot enough to sustain nuclear fusion. This creates outward pressure that supports the star's gigantic mass, keeping it from collapsing.\n\nThink of two forces in a standoff, neither one winning for now. Where else have you seen a balance like that hold something steady, for a while at least?",
+    "sourceTitle": "NASA · Our Sun: Facts",
+    "sourceUrl": "https://science.nasa.gov/sun/facts/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000014",
+    "title": "Halfway through a long life",
+    "summary": "The Sun is roughly midway through its multi-billion-year lifetime.",
+    "body": "How long do you think a star like the Sun lives, start to finish?\n\nScientists predict the Sun is a little less than halfway through its lifetime and will last another 5 billion years or so before it becomes a white dwarf. Without the Sun's energy, life as we know it could not exist on our home planet.\n\nFive billion years is hard to picture. What's something you'd compare it to, to make that span feel real?",
+    "sourceTitle": "NASA · Our Sun: Facts",
+    "sourceUrl": "https://science.nasa.gov/sun/facts/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000015",
+    "title": "Earth's energy has to balance",
+    "summary": "Earth's temperature stays steady only when incoming and outgoing energy match.",
+    "body": "What do you think keeps Earth's average temperature from drifting wildly from year to year?\n\nThe energy that Earth receives from sunlight is balanced by an equal amount of energy radiating into space. When the flow of incoming solar energy is balanced by an equal flow of heat to space, Earth is in radiative equilibrium, and global temperature is relatively stable.\n\nPicture a ledger where deposits must match withdrawals to stay level. Where else might you look for a balance like that?",
+    "sourceTitle": "NASA · Climate and Earth's Energy Budget",
+    "sourceUrl": "https://science.nasa.gov/earth/earth-observatory/climate-and-earths-energy-budget/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000016",
+    "title": "Tip the balance, shift the climate",
+    "summary": "Any change to Earth's incoming or outgoing energy nudges its temperature up or down.",
+    "body": "If Earth's energy budget is normally balanced, what would happen if something tipped it?\n\nAnything that increases or decreases the amount of incoming or outgoing energy disturbs Earth's radiative equilibrium; global temperatures rise or fall in response. Any changes to the Earth's climate system that affect how much energy enters or leaves the system can force temperatures to shift.\n\nWhat kinds of changes can you imagine tipping that balance in either direction? Which feels more within human control?",
+    "sourceTitle": "NASA · Climate and Earth's Energy Budget",
+    "sourceUrl": "https://science.nasa.gov/earth/earth-observatory/climate-and-earths-energy-budget/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000017",
+    "title": "A blanket made of gas",
+    "summary": "Greenhouse gases trap heat near Earth's surface, keeping the planet warmer than it would otherwise be.",
+    "body": "Why isn't Earth as cold as the vacuum of space that surrounds it?\n\nThe greenhouse effect is the process through which heat is trapped near Earth's surface by substances known as 'greenhouse gases.' If carbon dioxide were removed, the greenhouse effect would collapse, and Earth's surface temperature would drop significantly, by approximately 33°C.\n\nA blanket keeps warmth in rather than creating it. Does that comparison change how you think about what's warming Earth?",
+    "sourceTitle": "NASA · What Is the Greenhouse Effect?",
+    "sourceUrl": "https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000018",
+    "title": "The Goldilocks temperature",
+    "summary": "Earth's natural greenhouse effect keeps the planet's average temperature within a habitable range.",
+    "body": "What would you guess Earth's average temperature is, and why does it land in that range rather than another?\n\nEarth is often called the 'Goldilocks' planet, its conditions just right, not too hot or too cold, allowing life to thrive. Part of what makes it so amenable is its natural greenhouse effect, which maintains an average temperature of 15°C.\n\n'Just right' assumes there's a range on either side that wouldn't work. What do you imagine Earth would be like outside that range?",
+    "sourceTitle": "NASA · What Is the Greenhouse Effect?",
+    "sourceUrl": "https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000019",
+    "title": "Your body has a thermostat",
+    "summary": "A sensor, a control center, and an effector work together to keep body conditions steady.",
+    "body": "How does your body know when a condition has drifted off track, and what does it do about it?\n\nMaintaining homeostasis requires that the body continuously monitor its internal conditions, comparing them to a set point. A sensor monitors a physiological value, the control center compares that value to the normal range, and an effector causes a change that returns the value to the normal range.\n\nThink of a thermostat that senses, compares, and corrects. Where in your own daily life have you built something that works the same way?",
+    "sourceTitle": "OpenStax · Homeostasis",
+    "sourceUrl": "https://openstax.org/books/anatomy-and-physiology-2e/pages/1-5-homeostasis"
+  },
+  {
+    "assetId": "20000000-0000-4000-8000-000000000020",
+    "title": "When more becomes more",
+    "summary": "Positive feedback amplifies change instead of reversing it, and is normal only with a clear endpoint.",
+    "body": "Is every feedback loop in the body designed to restore balance? What might an exception look like?\n\nPositive feedback intensifies a change in the body's physiological condition rather than reversing it: a deviation from the normal range results in more change, and the system moves farther away from the normal range. Positive feedback in the body is normal only when there is a definite end point.\n\nTry naming a moment — in your body or anywhere else — where more change was the right response, not a correction back to normal.",
+    "sourceTitle": "OpenStax · Homeostasis",
+    "sourceUrl": "https://openstax.org/books/anatomy-and-physiology-2e/pages/1-5-homeostasis"
   }
 ]

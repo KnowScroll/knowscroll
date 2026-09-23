@@ -1,0 +1,2385 @@
+{
+  "version": "editorial-substrate-2026-09-24",
+  "families": [
+    {
+      "key": "fam.nasa",
+      "kind": "publisher",
+      "description": "NASA public-domain science education pages (science.nasa.gov, spaceplace.nasa.gov)."
+    },
+    {
+      "key": "fam.noaa",
+      "kind": "publisher",
+      "description": "NOAA National Ocean Service public-domain fact pages (oceanservice.noaa.gov)."
+    },
+    {
+      "key": "fam.openstax",
+      "kind": "publisher",
+      "description": "OpenStax CC-BY open textbooks (openstax.org)."
+    }
+  ],
+  "sources": [
+    {
+      "key": "nasa.gravity",
+      "url": "https://spaceplace.nasa.gov/what-is-gravity/en/",
+      "title": "What Is Gravity?",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "6a1aff97efab168c9d401f23cf3249c911f4a4b0fb73760013adfd3f9947ad52"
+    },
+    {
+      "key": "nasa.orbits",
+      "url": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
+      "title": "Orbits and Kepler's Laws",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "da562032dbddfc01b15df79c60f0991dbc56652ef04d3091533b945529d17e59"
+    },
+    {
+      "key": "nasa.stars",
+      "url": "https://science.nasa.gov/universe/stars/",
+      "title": "Stars",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "2148497c91a96318f72b63c3bc03447505e12e85c6285e70d06eaddee59de32c"
+    },
+    {
+      "key": "nasa.sun",
+      "url": "https://science.nasa.gov/sun/facts/",
+      "title": "Our Sun: Facts",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "8354e9a5e4ac638388744e98f2789286ca8a9ac44595418e25d46bd526442da2"
+    },
+    {
+      "key": "nasa.seasons",
+      "url": "https://spaceplace.nasa.gov/seasons/en/",
+      "title": "What Causes the Seasons?",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "6fa553f7a9b76a77518a58bb5794d4ea8658672f2c0e82d121d36742e491a31d"
+    },
+    {
+      "key": "nasa.greenhouse",
+      "url": "https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/",
+      "title": "What Is the Greenhouse Effect?",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "c82c50f11ede3b633c3047bcdf1bec66434fa388f6fae9fcd97c87e085d640b4"
+    },
+    {
+      "key": "nasa.energy_budget",
+      "url": "https://science.nasa.gov/earth/earth-observatory/climate-and-earths-energy-budget/",
+      "title": "Climate and Earth's Energy Budget",
+      "publisher": "NASA",
+      "familyKey": "fam.nasa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "0f54435281cad40397d2888cd79bd7f3ed0b481eaabeb90ee861c985f8bb53ab"
+    },
+    {
+      "key": "noaa.tides",
+      "url": "https://oceanservice.noaa.gov/facts/tides.html",
+      "title": "What are tides?",
+      "publisher": "NOAA",
+      "familyKey": "fam.noaa",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "5a461ada00ed4f4bfd4b2dd6ed588d0af68a1186982496f02aeda24e1f022480"
+    },
+    {
+      "key": "openstax.bio.homeostasis",
+      "url": "https://openstax.org/books/anatomy-and-physiology-2e/pages/1-5-homeostasis",
+      "title": "1.5 Homeostasis — Anatomy and Physiology 2e",
+      "publisher": "OpenStax",
+      "familyKey": "fam.openstax",
+      "retrievedAt": "2026-09-24",
+      "contentSha256": "8d04e3565db884bcd5436e1ff33faf49c601d53e4764feac6ce4d8bad9096206"
+    }
+  ],
+  "concepts": [
+    {
+      "code": "physics.gravity",
+      "name": "Gravity",
+      "description": "The attractive force between any two objects that have mass.",
+      "kind": "mechanism",
+      "parentCode": null
+    },
+    {
+      "code": "physics.gravity.mass_dependence",
+      "name": "Gravity's mass and distance dependence",
+      "description": "Gravitational pull strengthens with more mass and weakens with distance.",
+      "kind": "quantity",
+      "parentCode": "physics.gravity"
+    },
+    {
+      "code": "physics.gravity.weight",
+      "name": "Weight",
+      "description": "The force a body's gravity exerts on the mass of an object at its surface.",
+      "kind": "quantity",
+      "parentCode": "physics.gravity"
+    },
+    {
+      "code": "astro.orbit",
+      "name": "Orbit",
+      "description": "The path a smaller body follows around a more massive body under gravity.",
+      "kind": "phenomenon",
+      "parentCode": null
+    },
+    {
+      "code": "astro.orbit.ellipse",
+      "name": "Elliptical orbit",
+      "description": "The elongated, non-circular shape of a planet's orbital path, with the Sun at one focus.",
+      "kind": "object",
+      "parentCode": "astro.orbit"
+    },
+    {
+      "code": "astro.orbit.equal_area",
+      "name": "Equal-area law",
+      "description": "Kepler's second law: the Sun-to-planet line sweeps equal areas in equal times, so orbital speed varies.",
+      "kind": "law",
+      "parentCode": "astro.orbit"
+    },
+    {
+      "code": "astro.orbit.period_distance",
+      "name": "Period-distance law",
+      "description": "Kepler's third law: a planet's orbital period squared is proportional to its orbital distance cubed.",
+      "kind": "law",
+      "parentCode": "astro.orbit"
+    },
+    {
+      "code": "astro.orbit.distance",
+      "name": "Orbital distance from the Sun",
+      "description": "How far a planet is from the Sun at a given point in its elliptical orbit.",
+      "kind": "quantity",
+      "parentCode": "astro.orbit"
+    },
+    {
+      "code": "astro.star",
+      "name": "Star",
+      "description": "A giant ball of hot gas that generates energy through nuclear fusion.",
+      "kind": "object",
+      "parentCode": null
+    },
+    {
+      "code": "astro.star.birth",
+      "name": "Star formation",
+      "description": "The process by which a star forms from a collapsing clump within a molecular cloud.",
+      "kind": "process",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.star.fusion",
+      "name": "Nuclear fusion in a star",
+      "description": "The fusing of hydrogen nuclei into helium in a star's core, releasing energy.",
+      "kind": "process",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.star.equilibrium",
+      "name": "Stellar equilibrium",
+      "description": "The balance between inward gravity and outward fusion pressure that stabilizes a star.",
+      "kind": "mechanism",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.star.lifetime_mass",
+      "name": "Star lifetime-mass relationship",
+      "description": "The relationship between a star's mass and how quickly it burns through its fuel and dies.",
+      "kind": "law",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.star.mass",
+      "name": "Star mass",
+      "description": "The total mass of a star, which sets its fuel supply and burn rate.",
+      "kind": "quantity",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.star.death",
+      "name": "Star death",
+      "description": "The stage of a star's life when its core runs out of fusible hydrogen and begins to collapse.",
+      "kind": "process",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.sun",
+      "name": "The Sun",
+      "description": "The star at the center of our solar system.",
+      "kind": "object",
+      "parentCode": "astro.star"
+    },
+    {
+      "code": "astro.sun.energy_output",
+      "name": "The Sun's energy output",
+      "description": "The light and heat energy the Sun radiates outward, sustaining life on Earth.",
+      "kind": "quantity",
+      "parentCode": "astro.sun"
+    },
+    {
+      "code": "astro.moon",
+      "name": "The Moon",
+      "description": "Earth's natural satellite, whose gravity pulls on Earth's oceans.",
+      "kind": "object",
+      "parentCode": null
+    },
+    {
+      "code": "earth",
+      "name": "Earth",
+      "description": "The planet Earth.",
+      "kind": "object",
+      "parentCode": null
+    },
+    {
+      "code": "earth.tides",
+      "name": "Tides",
+      "description": "The regular rise and fall of sea level driven by the Moon and Sun's gravitational pull.",
+      "kind": "phenomenon",
+      "parentCode": null
+    },
+    {
+      "code": "earth.seasons",
+      "name": "Seasons",
+      "description": "The yearly cycle of changing temperature and daylight on Earth.",
+      "kind": "phenomenon",
+      "parentCode": null
+    },
+    {
+      "code": "earth.seasons.axial_tilt",
+      "name": "Earth's axial tilt",
+      "description": "The tilt of Earth's rotation axis relative to its orbital plane, which causes the seasons.",
+      "kind": "mechanism",
+      "parentCode": "earth.seasons"
+    },
+    {
+      "code": "earth.climate.energy_budget",
+      "name": "Earth's energy budget",
+      "description": "The balance between incoming sunlight and outgoing heat that sets Earth's temperature.",
+      "kind": "process",
+      "parentCode": null
+    },
+    {
+      "code": "earth.climate.energy_budget.equilibrium",
+      "name": "Radiative equilibrium",
+      "description": "The stable state where Earth's incoming and outgoing energy match and temperature holds steady.",
+      "kind": "mechanism",
+      "parentCode": "earth.climate.energy_budget"
+    },
+    {
+      "code": "earth.climate.greenhouse_effect",
+      "name": "Greenhouse effect",
+      "description": "The trapping of outgoing heat by atmospheric gases, which warms Earth's surface.",
+      "kind": "mechanism",
+      "parentCode": "earth.climate.energy_budget"
+    },
+    {
+      "code": "earth.climate.surface_temperature",
+      "name": "Earth's average surface temperature",
+      "description": "The planet's average surface temperature, set largely by the greenhouse effect.",
+      "kind": "quantity",
+      "parentCode": "earth.climate.energy_budget"
+    },
+    {
+      "code": "bio.homeostasis",
+      "name": "Homeostasis",
+      "description": "The maintenance of stable internal conditions in a living body.",
+      "kind": "process",
+      "parentCode": null
+    },
+    {
+      "code": "bio.homeostasis.negative_feedback",
+      "name": "Negative feedback",
+      "description": "A feedback loop that reverses a deviation from a set point, maintaining the normal range.",
+      "kind": "mechanism",
+      "parentCode": "bio.homeostasis"
+    },
+    {
+      "code": "bio.homeostasis.positive_feedback",
+      "name": "Positive feedback",
+      "description": "A feedback loop that intensifies a deviation rather than reversing it, normal only with a defined endpoint.",
+      "kind": "mechanism",
+      "parentCode": "bio.homeostasis"
+    },
+    {
+      "code": "bio.homeostasis.set_point",
+      "name": "Physiological set point",
+      "description": "The target value a physiological system is regulated around.",
+      "kind": "quantity",
+      "parentCode": "bio.homeostasis"
+    },
+    {
+      "code": "bio.blood_glucose",
+      "name": "Blood glucose level",
+      "description": "The concentration of glucose in the bloodstream, regulated by negative feedback.",
+      "kind": "quantity",
+      "parentCode": "bio.homeostasis"
+    },
+    {
+      "code": "idea.equilibrium",
+      "name": "Equilibrium (cross-domain idea)",
+      "description": "A steady state maintained by two opposing effects continuously balancing each other.",
+      "kind": "idea",
+      "parentCode": null
+    }
+  ],
+  "claims": [
+    {
+      "key": "clm.gravity.definition",
+      "statement": "Gravity is the force by which a planet or other body draws objects toward its center.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "Gravity is the force by which a planet or other body draws objects toward its center.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.earth_pull",
+      "statement": "Earth's gravity is what keeps objects on the ground and makes things fall when dropped.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "subject"
+        },
+        {
+          "code": "earth",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "Earth's gravity is what keeps you on the ground and what makes things fall.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.mass_distance",
+      "statement": "A gravitational pull grows stronger with more mass and grows weaker as distance between objects increases.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity.mass_dependence",
+          "role": "subject"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "Anything that has mass also has gravity. Objects with more mass have more gravity. Gravity also gets weaker with distance.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.weight",
+      "statement": "Weight comes from the combined gravitational pull of all of a planet's mass acting on an object's mass.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity.weight",
+          "role": "subject"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        },
+        {
+          "code": "earth",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "All its mass makes a combined gravitational pull on all the mass in your body. That's what gives you weight.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.orbit",
+      "statement": "Gravity is what keeps the planets in orbit around the Sun and the Moon in orbit around Earth.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.orbit",
+          "role": "subject"
+        },
+        {
+          "code": "astro.moon",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "Gravity is what holds the planets in orbit around the sun and what keeps the moon in orbit around Earth.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.tides",
+      "statement": "The Moon's gravitational pull draws the seas toward it, causing the ocean tides.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        },
+        {
+          "code": "earth.tides",
+          "role": "subject"
+        },
+        {
+          "code": "astro.moon",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "The gravitational pull of the moon pulls the seas towards it, causing the ocean tides.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.star_formation",
+      "statement": "Gravity creates stars and planets by pulling together the material they are made from.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.star.birth",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "Gravity creates stars and planets by pulling together the material from which they are made.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.gravity.sun_holds_earth",
+      "statement": "The Sun's gravity keeps Earth in orbit around it, at a distance that lets us receive its light and warmth.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.sun",
+          "role": "subject"
+        },
+        {
+          "code": "earth",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.gravity",
+          "quote": "The sun's gravity keeps Earth in orbit around it, keeping us at a comfortable distance to enjoy the sun's light and warmth.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.tides.cause",
+      "statement": "Tides are caused by the gravitational pull of the Moon and the Sun on the ocean.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.tides",
+          "role": "subject"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "noaa.tides",
+          "quote": "Tides are caused by gravitational pull of the moon and the sun.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.tides.waves",
+      "statement": "Tides are long-period waves moving through the ocean, appearing at the coast as the regular rise and fall of the sea surface.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.tides",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "noaa.tides",
+          "quote": "Tides are very long-period waves that move through the ocean in response to the forces exerted by the moon and sun.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.tides.crest_trough",
+      "statement": "High tide occurs when a tidal wave's crest reaches a location, and low tide occurs at its trough.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.tides",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "noaa.tides",
+          "quote": "When the highest part, or crest, of the wave reaches a particular location, high tide occurs; low tide corresponds to the lowest part of the wave, or its trough.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.tides.reliable",
+      "statement": "Tides are one of the most reliable, regularly repeating phenomena in the world.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.tides",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "noaa.tides",
+          "quote": "Tides are one of the most reliable phenomena in the world.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.axial_tilt_cause",
+      "statement": "Earth's tilted axis is the cause of the seasons.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.seasons.axial_tilt",
+          "role": "mechanism"
+        },
+        {
+          "code": "earth.seasons",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "Earth's tilted axis causes the seasons.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.hemisphere_opposite",
+      "statement": "When the North Pole tilts toward the Sun it is summer in the Northern Hemisphere, and when the South Pole tilts toward the Sun it is winter there.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.seasons.axial_tilt",
+          "role": "mechanism"
+        },
+        {
+          "code": "earth.seasons",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "So, when the North Pole tilts toward the Sun, it's summer in the Northern Hemisphere. And when the South Pole tilts toward the Sun, it's winter in the Northern Hemisphere.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.distance_not_cause",
+      "statement": "Seasons are not caused by Earth's changing distance from the Sun: in the Northern Hemisphere, winter occurs when Earth is closest to the Sun and summer when it is farthest away, which shows distance is not the cause of the seasons.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.distance",
+          "role": "subject"
+        },
+        {
+          "code": "earth.seasons",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "in the Northern Hemisphere, we are having winter when Earth is closest to the Sun and summer when it is farthest away!",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "That just goes to prove that Earth's distance from the Sun is not the cause of the seasons.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.distance_small_effect",
+      "statement": "The change in Earth's distance from the Sun over the year is small compared to the Sun's overall distance and does not make much difference to the weather.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.distance",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "Compared with how far away the Sun is, this change in Earth's distance throughout the year does not make much difference to our weather.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.axis_not_straight",
+      "statement": "Earth has seasons because its axis does not stand up straight relative to its orbit.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.seasons.axial_tilt",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "Earth has seasons because its axis doesn't stand up straight.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.tilt_fixed_direction",
+      "statement": "As Earth orbits the Sun, its tilted axis keeps pointing in the same direction throughout the year.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.seasons.axial_tilt",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.orbit",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "As Earth orbits the Sun, its tilted axis always points in the same direction.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.seasons.perihelion_january",
+      "statement": "Earth is closest to the Sun (perihelion) in January and farthest from the Sun (aphelion) in July.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.distance",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.seasons",
+          "quote": "aphelion (when Earth is farthest from the Sun) occurs in July, and perihelion (when we are closest) occurs in January.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.composition",
+      "statement": "A star is a giant ball of hot gas, made mostly of hydrogen with some helium.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "Stars are giant balls of hot gas – mostly hydrogen, with some helium and small amounts of other elements.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.birth_cloud",
+      "statement": "Stars form from large clouds of gas and dust called molecular clouds.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.birth",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "Stars form in large clouds of gas and dust called molecular clouds.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.birth_gravity",
+      "statement": "Gravity causes dense clumps within a molecular cloud to collapse, beginning the formation of a star.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.birth",
+          "role": "subject"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "Eventually, gravity causes some of these clumps to collapse.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.fusion_process",
+      "statement": "Deep in a star's core, immense pressure and temperature fuse hydrogen nuclei into helium, a process called nuclear fusion.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.fusion",
+          "role": "subject"
+        },
+        {
+          "code": "astro.star",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "immense pressures and temperatures in the star’s core squeeze the nuclei of hydrogen atoms together to form helium, a process called nuclear fusion.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.fusion_supports_star",
+      "statement": "Nuclear fusion releases energy that heats a star and keeps it from collapsing under its own gravity, balancing gravity's inward pull with outward pressure.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.fusion",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.star.equilibrium",
+          "role": "subject"
+        },
+        {
+          "code": "idea.equilibrium",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "Nuclear fusion releases energy, which heats the star and prevents it from further collapsing under the force of gravity.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.mass_lifetime",
+      "statement": "A star's mass determines how quickly it burns through its fuel: lower-mass stars burn longer, dimmer, and cooler, while more massive stars burn hotter and faster.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.lifetime_mass",
+          "role": "subject"
+        },
+        {
+          "code": "astro.star.mass",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "A star’s gas provides its fuel, and its mass determines how rapidly it runs through its supply, with lower-mass stars burning longer, dimmer, and cooler than very massive stars.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.massive_short_lived",
+      "statement": "Some low-mass stars can shine for trillions of years, while some massive stars live for only a few million years.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.lifetime_mass",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "Some low-mass stars will shine for trillions of years – longer than the universe has currently existed – while some massive stars will live for only a few million years.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.star.death_collapse",
+      "statement": "When a star's core runs out of hydrogen to fuse into helium, the core begins to collapse.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.star.death",
+          "role": "subject"
+        },
+        {
+          "code": "astro.star.fusion",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "At the beginning of the end of a star’s life, its core runs out of hydrogen to convert into helium.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "nasa.stars",
+          "quote": "so the core starts to collapse.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.sun.identity",
+      "statement": "The Sun is a 4.5-billion-year-old star made of hydrogen and helium at the center of our solar system.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.sun",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "Our Sun is a 4.5 billion-year-old yellow dwarf star – a hot glowing ball of hydrogen and helium – at the center of our solar system.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.sun.life_dependency",
+      "statement": "Life on Earth as we know it depends on the Sun's energy; without it, life could not exist here.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.sun.energy_output",
+          "role": "subject"
+        },
+        {
+          "code": "earth",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "Without the Sun’s energy, life as we know it could not exist on our home planet.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.sun.gravity_holds_system",
+      "statement": "The Sun is the center of the solar system, and its gravity holds the system together, with everything in it revolving around it.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.sun",
+          "role": "subject"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.orbit",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "It is the center of our solar system, and its gravity holds the solar system together.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "Everything in our solar system revolves around it – the planets, asteroids, comets, and tiny bits of space debris.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.sun.core_fusion_pressure",
+      "statement": "The Sun's core is hot enough to sustain nuclear fusion, which creates outward pressure that supports the Sun's mass and keeps it from collapsing.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.sun.energy_output",
+          "role": "subject"
+        },
+        {
+          "code": "astro.star.fusion",
+          "role": "mechanism"
+        },
+        {
+          "code": "astro.star.equilibrium",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "The temperature in the Sun's core is about 27 million degrees Fahrenheit (15 million degrees Celsius) – hot enough to sustain nuclear fusion. This creates outward pressure that supports the star's gigantic mass, keeping it from collapsing.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.sun.average_star",
+      "statement": "Although essential to us, the Sun is only an average-sized star; some stars are up to 100 times larger.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.sun",
+          "role": "subject"
+        },
+        {
+          "code": "astro.star",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "Even though the Sun is the center of our solar system and essential to our survival, it’s only an average star in terms of its size. Stars up to 100 times larger have been found.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.sun.lifetime",
+      "statement": "The Sun is a little less than halfway through its lifetime and will last roughly another 5 billion years before becoming a white dwarf.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.sun",
+          "role": "subject"
+        },
+        {
+          "code": "astro.star.lifetime_mass",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.sun",
+          "quote": "Scientists predict the Sun is a little less than halfway through its lifetime and will last another 5 billion years or so before it becomes a white dwarf.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.greenhouse.definition",
+      "statement": "The greenhouse effect is the process by which certain atmospheric gases trap heat near Earth's surface.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.greenhouse",
+          "quote": "The greenhouse effect is the process through which heat is trapped near Earth's surface by substances known as 'greenhouse gases.'",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.greenhouse.co2_removed",
+      "statement": "If carbon dioxide were removed from the atmosphere, the greenhouse effect would collapse and Earth's surface temperature would drop by about 33 degrees Celsius.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "subject"
+        },
+        {
+          "code": "earth.climate.surface_temperature",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.greenhouse",
+          "quote": "If carbon dioxide were removed, the terrestrial greenhouse effect would collapse, and Earth's surface temperature would drop significantly, by approximately 33°C (59°F).",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.greenhouse.average_temp",
+      "statement": "Earth's natural greenhouse effect maintains an average surface temperature of about 15 degrees Celsius.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "subject"
+        },
+        {
+          "code": "earth.climate.surface_temperature",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.greenhouse",
+          "quote": "Part of what makes Earth so amenable is its natural greenhouse effect, which maintains an average temperature of 15 ° C (59 ° F) .",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.greenhouse.human_disruption",
+      "statement": "Human activities, mainly the burning of fossil fuels, have released extra greenhouse gases and disrupted Earth's energy balance.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "mechanism"
+        },
+        {
+          "code": "earth.climate.energy_budget",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.greenhouse",
+          "quote": "However, in the last century, human activities, primarily from burning fossil fuels that have led to the release of carbon dioxide and other greenhouse gases into the atmosphere, have disrupted Earth's energy balance.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.greenhouse.goldilocks",
+      "statement": "Earth is often called the 'Goldilocks' planet because its conditions are just right, neither too hot nor too cold, for life to thrive.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth",
+          "role": "subject"
+        },
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.greenhouse",
+          "quote": "Earth is often called the 'Goldilocks' planet – its conditions are just right, not too hot or too cold, allowing life to thrive.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.energy_budget.balance",
+      "statement": "The energy Earth receives from sunlight is balanced by an equal amount of energy radiating back into space.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget",
+          "role": "subject"
+        },
+        {
+          "code": "astro.sun.energy_output",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "The energy that Earth receives from sunlight is balanced by an equal amount of energy radiating into space.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.energy_budget.equilibrium",
+      "statement": "When incoming solar energy is balanced by an equal outgoing flow of heat, Earth is in radiative equilibrium and its global temperature stays relatively stable.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "subject"
+        },
+        {
+          "code": "idea.equilibrium",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "When the flow of incoming solar energy is balanced by an equal flow of heat to space, Earth is in radiative equilibrium, and global temperature is relatively stable.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.energy_budget.disturbance",
+      "statement": "Anything that increases or decreases the amount of incoming or outgoing energy disturbs Earth's radiative equilibrium, and global temperatures rise or fall in response.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "Anything that increases or decreases the amount of incoming or outgoing energy disturbs Earth’s radiative equilibrium; global temperatures rise or fall in response.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.energy_budget.greenhouse_raises_temp",
+      "statement": "The natural greenhouse effect raises Earth's average surface temperature to about 15 degrees Celsius, more than 30 degrees warmer than it would be without an atmosphere.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "subject"
+        },
+        {
+          "code": "earth.climate.surface_temperature",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "The natural greenhouse effect raises the Earth’s surface temperature to about 15 degrees Celsius on average—more than 30 degrees warmer than it would be if it didn’t have an atmosphere.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.energy_budget.greenhouse_no_runaway",
+      "statement": "The natural greenhouse effect does not cause a runaway increase in Earth's surface temperature, because outgoing radiation keeps rising until it again matches incoming solar energy.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "subject"
+        },
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "the natural greenhouse effect does not cause a runaway increase in surface temperature on Earth.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "until the energy leaving the top of the atmosphere matches the amount of incoming solar energy.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.energy_budget.forcing_alters_equilibrium",
+      "statement": "Any change to how much energy enters or leaves Earth's climate system alters its radiative equilibrium and can force temperatures to rise or fall.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "Any changes to the Earth’s climate system that affect how much energy enters or leaves the system alters Earth’s radiative equilibrium and can force temperatures to rise or fall.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.orbits.ellipse_law",
+      "statement": "Each planet's orbit about the Sun is an ellipse with the Sun at one focus, so a planet's distance from the Sun constantly changes as it orbits.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.ellipse",
+          "role": "subject"
+        },
+        {
+          "code": "astro.sun",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "Each planet's orbit about the Sun is an ellipse. The Sun's center is always located at one focus of the ellipse. The planet follows the ellipse in its orbit, meaning that the planet-to-Sun distance is constantly changing as the planet goes around its orbit.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.orbits.equal_area_law",
+      "statement": "A planet does not move at constant speed; the line joining a planet and the Sun sweeps out equal areas of space in equal time intervals.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.equal_area",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "The imaginary line joining a planet and the Sun sweeps out – or covers – equal areas of space during equal time intervals as the planet orbits. Basically, the planets do not move with constant speed along their orbits. Instead, their speed varies so that the line joining the centers of the Sun and the planet covers an equal area in equal amounts of time.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.orbits.perihelion_speed",
+      "statement": "A planet moves fastest at perihelion, its closest approach to the Sun, and slowest at aphelion, its farthest point.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.equal_area",
+          "role": "subject"
+        },
+        {
+          "code": "astro.orbit.ellipse",
+          "role": "context"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "The point of nearest approach of the planet to the Sun is called perihelion. The point of greatest separation is aphelion, hence by Kepler's second law, a planet is moving fastest when it is at perihelion and slowest at aphelion.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.orbits.period_distance_law",
+      "statement": "A planet's orbital period squared is proportional to its orbital distance cubed — a relationship that, in this original form, applies only to bodies orbiting the Sun within our own solar system.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.period_distance",
+          "role": "subject"
+        },
+        {
+          "code": "astro.sun",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "The orbital period of a planet, squared, is directly proportional to the semi-major axes of its orbit, cubed.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "third law implies that the period for a planet to orbit the Sun increases rapidly with the radius of its orbit.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "However, his third law only applies to objects in our own solar system.",
+          "supportKind": "qualifies"
+        }
+      ]
+    },
+    {
+      "key": "clm.orbits.period_examples",
+      "statement": "Mercury, the innermost planet, takes only 88 days to orbit the Sun; Earth takes 365 days; and distant Saturn takes 10,759 days.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit.period_distance",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "Mercury, the innermost planet, takes only 88 days to orbit the Sun. Earth takes 365 days, while distant Saturn requires 10,759 days to do the same.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.orbits.gravity_unknown_to_kepler",
+      "statement": "Kepler formulated his laws of planetary motion without knowing about gravity, the force that holds planets in their orbits.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "astro.orbit",
+          "role": "subject"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.orbits",
+          "quote": "Kepler didn’t know about gravity, which is responsible for holding the planets in their orbits around the Sun, when he came up with his three laws.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.monitor_setpoint",
+      "statement": "Maintaining homeostasis requires the body to continuously monitor its internal conditions and keep them near a set point.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.homeostasis",
+          "role": "subject"
+        },
+        {
+          "code": "bio.homeostasis.set_point",
+          "role": "object"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "Maintaining homeostasis requires that the body continuously monitor its internal conditions.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "A set point is the physiological value around which the normal range fluctuates.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.neg_feedback",
+      "statement": "Negative feedback is a mechanism that reverses a deviation from the set point, maintaining body parameters within their normal range.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.homeostasis.negative_feedback",
+          "role": "subject"
+        },
+        {
+          "code": "bio.homeostasis.set_point",
+          "role": "object"
+        },
+        {
+          "code": "idea.equilibrium",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "Negative feedback is a mechanism that reverses a deviation from the set point.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "Therefore, negative feedback maintains body parameters within their normal range.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.components",
+      "statement": "A negative feedback system has three basic components: a sensor that monitors a physiological value, a control center that compares it to the normal range, and an effector that acts to return the value to that range.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.homeostasis.negative_feedback",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "is a component of a feedback system that monitors a physiological value.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "The control center is the component in a feedback system that compares the value to the normal range.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "An effector is the component in a feedback system that causes a change to reverse the situation and return the value to the normal range.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.glucose_detect",
+      "statement": "When blood glucose rises, pancreatic cells detect the excess and respond by releasing insulin into the bloodstream.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.blood_glucose",
+          "role": "subject"
+        },
+        {
+          "code": "bio.homeostasis.negative_feedback",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "specific endocrine cells in the pancreas detect excess glucose (the stimulus) in the bloodstream. These pancreatic beta cells respond to the increased level of blood glucose by releasing the hormone insulin into the bloodstream.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.glucose_uptake",
+      "statement": "Insulin signals muscle, fat, and liver cells to take up the excess glucose, removing it from the bloodstream.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.blood_glucose",
+          "role": "subject"
+        },
+        {
+          "code": "bio.homeostasis.negative_feedback",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "The insulin signals skeletal muscle fibers, fat cells (adipocytes), and liver cells to take up the excess glucose, removing it from the bloodstream.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.glucose_stops",
+      "statement": "As blood glucose concentration drops back down, pancreatic cells detect the decrease and insulin release stops.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.blood_glucose",
+          "role": "subject"
+        },
+        {
+          "code": "bio.homeostasis.negative_feedback",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "As glucose concentration in the bloodstream drops, the decrease in concentration—the actual negative feedback—is detected by pancreatic alpha cells, and insulin release stops.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.pos_feedback",
+      "statement": "Positive feedback intensifies a change in the body's condition rather than reversing it, driving the system farther from its normal range instead of back toward it.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.homeostasis.positive_feedback",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "Positive feedback intensifies a change in the body’s physiological condition rather than reversing it.",
+          "supportKind": "supports"
+        },
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "A deviation from the normal range results in more change, and the system moves farther away from the normal range.",
+          "supportKind": "supports"
+        }
+      ]
+    },
+    {
+      "key": "clm.homeo.pos_feedback_endpoint",
+      "statement": "Positive feedback is normal in the body only when it has a definite end point.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "bio.homeostasis.positive_feedback",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "openstax.bio.homeostasis",
+          "quote": "Positive feedback in the body is normal only when there is a definite end point.",
+          "supportKind": "supports"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "from": "physics.gravity",
+      "to": "earth.tides",
+      "kind": "explains",
+      "claimKey": "clm.tides.cause"
+    },
+    {
+      "from": "physics.gravity",
+      "to": "astro.orbit",
+      "kind": "explains",
+      "claimKey": "clm.gravity.orbit"
+    },
+    {
+      "from": "physics.gravity",
+      "to": "astro.star.birth",
+      "kind": "explains",
+      "claimKey": "clm.gravity.star_formation"
+    },
+    {
+      "from": "astro.star.fusion",
+      "to": "astro.star.equilibrium",
+      "kind": "explains",
+      "claimKey": "clm.star.fusion_supports_star"
+    },
+    {
+      "from": "astro.sun.energy_output",
+      "to": "earth.climate.energy_budget",
+      "kind": "explains",
+      "claimKey": "clm.energy_budget.balance"
+    },
+    {
+      "from": "earth.climate.greenhouse_effect",
+      "to": "earth.climate.surface_temperature",
+      "kind": "explains",
+      "claimKey": "clm.energy_budget.greenhouse_raises_temp"
+    },
+    {
+      "from": "astro.orbit.distance",
+      "to": "earth.seasons",
+      "kind": "contradicts",
+      "claimKey": "clm.seasons.distance_not_cause"
+    },
+    {
+      "from": "astro.star.fusion",
+      "to": "astro.star.lifetime_mass",
+      "kind": "prerequisite_for",
+      "claimKey": "clm.star.mass_lifetime"
+    },
+    {
+      "from": "astro.orbit.period_distance",
+      "to": "astro.sun",
+      "kind": "applies_to",
+      "claimKey": "clm.orbits.period_distance_law"
+    }
+  ],
+  "assets": [
+    {
+      "assetId": "10000000-0000-4000-8000-000000000001",
+      "concepts": [
+        {
+          "code": "astro.orbit.ellipse",
+          "role": "primary"
+        },
+        {
+          "code": "astro.orbit.equal_area",
+          "role": "secondary"
+        },
+        {
+          "code": "astro.sun",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.orbits.ellipse_law",
+        "clm.orbits.equal_area_law",
+        "clm.orbits.perihelion_speed"
+      ]
+    },
+    {
+      "assetId": "10000000-0000-4000-8000-000000000002",
+      "concepts": [
+        {
+          "code": "astro.star.equilibrium",
+          "role": "primary"
+        },
+        {
+          "code": "astro.star.fusion",
+          "role": "secondary"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.star.composition",
+        "clm.star.fusion_supports_star",
+        "clm.star.death_collapse"
+      ]
+    },
+    {
+      "assetId": "10000000-0000-4000-8000-000000000003",
+      "concepts": [
+        {
+          "code": "astro.orbit.period_distance",
+          "role": "primary"
+        },
+        {
+          "code": "astro.sun",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.orbits.period_distance_law",
+        "clm.orbits.period_examples"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000001",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "primary"
+        },
+        {
+          "code": "earth",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.gravity.definition",
+        "clm.gravity.earth_pull"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000002",
+      "concepts": [
+        {
+          "code": "physics.gravity",
+          "role": "primary"
+        },
+        {
+          "code": "astro.orbit",
+          "role": "secondary"
+        },
+        {
+          "code": "astro.moon",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.gravity.orbit"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000003",
+      "concepts": [
+        {
+          "code": "physics.gravity.mass_dependence",
+          "role": "primary"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.gravity.mass_distance"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000004",
+      "concepts": [
+        {
+          "code": "earth.tides",
+          "role": "primary"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.tides.cause",
+        "clm.tides.waves",
+        "clm.tides.crest_trough",
+        "clm.tides.reliable"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000005",
+      "concepts": [
+        {
+          "code": "earth.tides",
+          "role": "primary"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "secondary"
+        },
+        {
+          "code": "astro.moon",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.gravity.tides"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000006",
+      "concepts": [
+        {
+          "code": "astro.orbit.distance",
+          "role": "primary"
+        },
+        {
+          "code": "earth.seasons",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.seasons.distance_not_cause",
+        "clm.seasons.distance_small_effect"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000007",
+      "concepts": [
+        {
+          "code": "earth.seasons.axial_tilt",
+          "role": "primary"
+        },
+        {
+          "code": "earth.seasons",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.seasons.axial_tilt_cause",
+        "clm.seasons.tilt_fixed_direction",
+        "clm.seasons.hemisphere_opposite"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000008",
+      "concepts": [
+        {
+          "code": "astro.orbit.distance",
+          "role": "primary"
+        },
+        {
+          "code": "earth.seasons",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.seasons.perihelion_january"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000009",
+      "concepts": [
+        {
+          "code": "astro.star.birth",
+          "role": "primary"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.star.birth_cloud",
+        "clm.star.birth_gravity"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000010",
+      "concepts": [
+        {
+          "code": "astro.star.lifetime_mass",
+          "role": "primary"
+        },
+        {
+          "code": "astro.star.mass",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.star.mass_lifetime",
+        "clm.star.massive_short_lived"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000011",
+      "concepts": [
+        {
+          "code": "astro.star.death",
+          "role": "primary"
+        },
+        {
+          "code": "astro.star.fusion",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.star.death_collapse",
+        "clm.star.fusion_supports_star"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000012",
+      "concepts": [
+        {
+          "code": "astro.sun",
+          "role": "primary"
+        },
+        {
+          "code": "physics.gravity",
+          "role": "secondary"
+        },
+        {
+          "code": "astro.star",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.sun.average_star",
+        "clm.sun.gravity_holds_system"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000013",
+      "concepts": [
+        {
+          "code": "astro.sun.energy_output",
+          "role": "primary"
+        },
+        {
+          "code": "astro.star.equilibrium",
+          "role": "secondary"
+        },
+        {
+          "code": "astro.star.fusion",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.sun.core_fusion_pressure"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000014",
+      "concepts": [
+        {
+          "code": "astro.sun",
+          "role": "primary"
+        },
+        {
+          "code": "astro.star.lifetime_mass",
+          "role": "secondary"
+        },
+        {
+          "code": "earth",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.sun.lifetime",
+        "clm.sun.life_dependency"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000015",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "primary"
+        },
+        {
+          "code": "earth.climate.energy_budget",
+          "role": "secondary"
+        },
+        {
+          "code": "idea.equilibrium",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.energy_budget.balance",
+        "clm.energy_budget.equilibrium"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000016",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "primary"
+        },
+        {
+          "code": "earth.climate.energy_budget",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.energy_budget.disturbance",
+        "clm.energy_budget.forcing_alters_equilibrium"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000017",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "primary"
+        },
+        {
+          "code": "earth.climate.surface_temperature",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.greenhouse.definition",
+        "clm.greenhouse.co2_removed"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000018",
+      "concepts": [
+        {
+          "code": "earth.climate.greenhouse_effect",
+          "role": "primary"
+        },
+        {
+          "code": "earth.climate.surface_temperature",
+          "role": "secondary"
+        },
+        {
+          "code": "earth",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.greenhouse.goldilocks",
+        "clm.greenhouse.average_temp"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000019",
+      "concepts": [
+        {
+          "code": "bio.homeostasis.negative_feedback",
+          "role": "primary"
+        },
+        {
+          "code": "bio.homeostasis.set_point",
+          "role": "secondary"
+        },
+        {
+          "code": "bio.homeostasis",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.homeo.monitor_setpoint",
+        "clm.homeo.components"
+      ]
+    },
+    {
+      "assetId": "20000000-0000-4000-8000-000000000020",
+      "concepts": [
+        {
+          "code": "bio.homeostasis.positive_feedback",
+          "role": "primary"
+        },
+        {
+          "code": "bio.homeostasis",
+          "role": "secondary"
+        }
+      ],
+      "claims": [
+        "clm.homeo.pos_feedback",
+        "clm.homeo.pos_feedback_endpoint"
+      ]
+    }
+  ],
+  "bridgeProposals": [
+    {
+      "key": "brg.gravity_explains_tides",
+      "payload": {
+        "fromConcept": "physics.gravity",
+        "toConcept": "earth.tides",
+        "relationType": "explains",
+        "mechanism": "Gravity is a pull between any two masses that weakens with distance. The Moon (and, more weakly, the Sun) exert that pull on Earth's oceans, drawing the water on the near side toward them; as Earth rotates beneath that bulge, a given coastline passes through the raised and lowered water, producing the regular rise and fall we call tides.",
+        "prerequisites": [
+          {
+            "statement": "The reader understands gravity as a pull between any two masses that weakens with distance."
+          },
+          {
+            "statement": "The reader knows tides are the regular rise and fall of the ocean surface at the coast."
+          }
+        ],
+        "limitations": [
+          {
+            "kind": "scope_limit",
+            "statement": "This explains the basic tidal bulge but not tidal range, resonance, or local coastline effects, which the cited sources do not cover."
+          }
+        ],
+        "evidence": [
+          {
+            "claimKey": "clm.gravity.tides",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.tides.cause",
+            "supports": "to"
+          },
+          {
+            "claimKey": "clm.gravity.tides",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.tides.waves",
+            "supports": "to"
+          }
+        ],
+        "counterevidence": {
+          "disposition": "searched_none_found",
+          "searchedScope": "editorial substrate 2026-09-24",
+          "claimKeys": []
+        }
+      }
+    },
+    {
+      "key": "brg.gravity_explains_orbits",
+      "payload": {
+        "fromConcept": "physics.gravity",
+        "toConcept": "astro.orbit",
+        "relationType": "explains",
+        "mechanism": "Gravity pulls any two masses toward each other, growing weaker with distance. Applied to a planet moving through space, that continuous pull bends what would otherwise be a straight-line path into a closed curve around the Sun, which is what keeps the planet in orbit instead of flying off in a straight line.",
+        "prerequisites": [
+          {
+            "statement": "The reader understands gravity as a pull that weakens with distance."
+          },
+          {
+            "statement": "The reader knows an orbit is the closed path a body follows around a more massive one."
+          }
+        ],
+        "limitations": [
+          {
+            "kind": "scope_limit",
+            "statement": "This gives the qualitative reason an orbit stays closed, not the quantitative shape (ellipse) or the equal-area timing, which the orbit-specific source covers separately."
+          }
+        ],
+        "evidence": [
+          {
+            "claimKey": "clm.gravity.orbit",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.gravity.orbit",
+            "supports": "to"
+          },
+          {
+            "claimKey": "clm.gravity.orbit",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.orbits.gravity_unknown_to_kepler",
+            "supports": "to"
+          }
+        ],
+        "counterevidence": {
+          "disposition": "searched_none_found",
+          "searchedScope": "editorial substrate 2026-09-24",
+          "claimKeys": []
+        }
+      }
+    },
+    {
+      "key": "brg.gravity_explains_star_birth",
+      "payload": {
+        "fromConcept": "physics.gravity",
+        "toConcept": "astro.star.birth",
+        "relationType": "explains",
+        "mechanism": "Gravity pulls together the gas and dust within a molecular cloud. As clumps within the cloud grow denser, their own gravity strengthens, and eventually gravity causes them to collapse into a protostar, so the same attractive force that holds planets in orbit is what first assembles a star out of diffuse material.",
+        "prerequisites": [
+          {
+            "statement": "The reader understands gravity as a pull that strengthens as mass concentrates."
+          },
+          {
+            "statement": "The reader knows a molecular cloud is a large cloud of gas and dust in space."
+          }
+        ],
+        "limitations": [
+          {
+            "kind": "scope_limit",
+            "statement": "This describes only the gravitational collapse stage; it does not cover what first triggers a cloud to begin collapsing, which the cited source does not address."
+          }
+        ],
+        "evidence": [
+          {
+            "claimKey": "clm.gravity.star_formation",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.gravity.star_formation",
+            "supports": "to"
+          },
+          {
+            "claimKey": "clm.gravity.star_formation",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.star.birth_gravity",
+            "supports": "to"
+          }
+        ],
+        "counterevidence": {
+          "disposition": "searched_none_found",
+          "searchedScope": "editorial substrate 2026-09-24",
+          "claimKeys": []
+        }
+      }
+    },
+    {
+      "key": "brg.sun_energy_explains_earth_energy_budget",
+      "payload": {
+        "fromConcept": "astro.sun.energy_output",
+        "toConcept": "earth.climate.energy_budget",
+        "relationType": "explains",
+        "mechanism": "The Sun continuously radiates light and heat outward as energy. The portion of that output Earth intercepts arrives as sunlight, and Earth's energy budget is the accounting of that incoming solar energy against the thermal infrared energy Earth radiates back to space; the Sun's steady output is what the incoming side of that budget consists of.",
+        "prerequisites": [
+          {
+            "statement": "The reader understands that the Sun radiates energy outward as light and heat."
+          },
+          {
+            "statement": "The reader knows Earth's energy budget compares incoming sunlight to outgoing radiated heat."
+          }
+        ],
+        "limitations": [
+          {
+            "kind": "scope_limit",
+            "statement": "This covers only the incoming side of the budget; it does not explain how that energy is distributed by latitude, season, or absorbed versus reflected, which the energy-budget source covers separately."
+          }
+        ],
+        "evidence": [
+          {
+            "claimKey": "clm.energy_budget.balance",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.energy_budget.balance",
+            "supports": "to"
+          },
+          {
+            "claimKey": "clm.energy_budget.balance",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.sun.life_dependency",
+            "supports": "from"
+          }
+        ],
+        "counterevidence": {
+          "disposition": "searched_none_found",
+          "searchedScope": "editorial substrate 2026-09-24",
+          "claimKeys": []
+        }
+      }
+    },
+    {
+      "key": "brg.star_equilibrium_analogous_homeostasis",
+      "payload": {
+        "fromConcept": "astro.star.equilibrium",
+        "toConcept": "bio.homeostasis.negative_feedback",
+        "relationType": "analogous_in",
+        "mechanism": "Both a star and a regulated body maintain a stable state through two opposing effects continuously counterbalancing each other: in a star, outward fusion pressure offsets inward gravity, while in the body, an effector's corrective action offsets a sensed deviation from a set point. In both cases the steady state persists only as long as the opposing effects keep roughly matching.",
+        "prerequisites": [
+          {
+            "statement": "The reader understands a star's equilibrium as a balance between fusion pressure and gravity."
+          },
+          {
+            "statement": "The reader understands negative feedback as a loop that reverses a deviation from a set point."
+          }
+        ],
+        "limitations": [
+          {
+            "kind": "analogy_limit",
+            "statement": "A star has no sensor, control center, or set point; its balance is a passive physical equilibrium, not a regulated feedback loop with sensing and comparison like the body's."
+          }
+        ],
+        "evidence": [
+          {
+            "claimKey": "clm.star.fusion_supports_star",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.homeo.neg_feedback",
+            "supports": "to"
+          },
+          {
+            "claimKey": "clm.star.fusion_supports_star",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.homeo.neg_feedback",
+            "supports": "mechanism"
+          }
+        ],
+        "counterevidence": {
+          "disposition": "searched_none_found",
+          "searchedScope": "editorial substrate 2026-09-24",
+          "claimKeys": []
+        }
+      }
+    },
+    {
+      "key": "brg.energy_budget_analogous_homeostasis",
+      "payload": {
+        "fromConcept": "earth.climate.energy_budget.equilibrium",
+        "toConcept": "bio.homeostasis.negative_feedback",
+        "relationType": "analogous_in",
+        "mechanism": "Earth's climate holds a stable average temperature because outgoing heat radiation increases faster than temperature rises, so any warming quickly increases the outgoing flow until it again matches incoming sunlight. That self-correcting pattern echoes the way the body's negative feedback loops sense a deviation from a set point and drive a correction back toward it, even though the physical means differ entirely.",
+        "prerequisites": [
+          {
+            "statement": "The reader understands radiative equilibrium as incoming and outgoing energy being balanced."
+          },
+          {
+            "statement": "The reader understands negative feedback as a loop that reverses a deviation from a set point."
+          }
+        ],
+        "limitations": [
+          {
+            "kind": "analogy_limit",
+            "statement": "Earth's radiative balance has no sensor, control center, or set point comparing a measured value to a target; it self-corrects purely through how radiated energy scales with temperature, unlike the body's regulated feedback loops."
+          }
+        ],
+        "evidence": [
+          {
+            "claimKey": "clm.energy_budget.equilibrium",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.homeo.neg_feedback",
+            "supports": "to"
+          },
+          {
+            "claimKey": "clm.energy_budget.equilibrium",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.homeo.neg_feedback",
+            "supports": "mechanism"
+          }
+        ],
+        "counterevidence": {
+          "disposition": "searched_none_found",
+          "searchedScope": "editorial substrate 2026-09-24",
+          "claimKeys": []
+        }
+      }
+    }
+  ]
+}
