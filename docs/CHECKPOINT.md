@@ -1,5 +1,28 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 six-phase personal delivery and tracker cleanup
+
+Owner asks for all six remaining phases to be implemented with continuous verification and
+maintainable code, prioritizing recommendation/reasoning/world formation connected to Android.
+The complete [next-session implementation handoff](handoffs/2026-09-24-core-to-android.md) is authoritative for this wave.
+Execution issues: #131 semantic foundations, #132 product reasoning, #133 full Composer, #134 living
+worlds/inventory/Android, #135 owner access/privacy/release clients, #136 verification, performance and acceptance.
+Phase6 starts with phase1; every slice needs runtime and visible-result evidence. This update
+records scope and tracking only, not completion of any phase.
+
+PR130 is merged as `f89e6257c8120b3b2e6aad3397dbd7be9c52530b`; the owner says the Android
+result looks great. Preserve it; visual approval does not accept the documented frame regression.
+Cutroom #9 remains owner-led and last. Social/Blend is a separate deferred future epic #137
+under single-user ADR-0026, superseding #11's older planning entry. #57 is consolidated into
+#123/#136 without claiming the original missing acknowledgement was explained. #97, #115 and
+#123 remain open. Component epics retain unfinished acceptance and updated phase links.
+
+Project1's README/statuses and #72 now carry this sequence. Future sessions must update issues,
+Project1, checkpoint and PROJECT-STATE as they implement and verify, not only at the end.
+#72 remains open for applicable personal, required Android/desktop and final real-video gates.
+The handoff docs worktree is `72-core-delivery-handoff`; implementation starts from freshly
+verified main in named SSD worktrees. Preserve existing previews and owner data.
+
 ## 2026-09-23 direct Android Atlas — #72 / PR130 continuation
 
 Continue the SSD worktree `72-android-living-universe`, branch
