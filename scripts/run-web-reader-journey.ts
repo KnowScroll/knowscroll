@@ -82,7 +82,9 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv, cwd = root
       // under this child's own "exited 143(SIGTERM)" noise.
       if (fatalTriggered) return reject(fatalError ?? new Error(`${command} ${args.join(' ')} exited ${code} during an aborted run`));
       if (interrupted) return reject(new Error(`${command} ${args.join(' ')} exited ${code}: web-reader journey runner interrupted`));
-      reject(new Error(`${command} ${args.join(' ')} exited ${code}: ${stderr || stdout}`));
+      // Output that was streamed live (quiet=false: Playwright) is not repeated in the error, which is
+      // printed again and recorded in the tracked receipt with absolute stack paths.
+      reject(new Error(quiet ? `${command} ${args.join(' ')} exited ${code}: ${stderr || stdout}` : `${command} ${args.join(' ')} exited ${code} (output above)`));
     });
   });
 }
@@ -322,10 +324,14 @@ async function cleanup(): Promise<{ databaseDropped: boolean }> {
 }
 
 function throwIfInterrupted(): void {
-  if (interrupted) throw new Error('web-reader journey runner interrupted');
+  if (interrupted) throw fatalError ?? new Error('web-reader journey runner interrupted');
 }
 
 const receipt: Record<string, unknown> = { journey: 'web-reader-92', startedAt: new Date().toISOString() };
+/** The receipt is tracked evidence: strip the checkout's absolute path and bound its length. */
+function forReceipt(error: unknown): string {
+  return String(error).replaceAll(root, '<repo>').replaceAll(process.env.HOME ?? '\u0000', '<home>').slice(0, 2000);
+}
 let primaryError: unknown;
 
 try {
@@ -351,8 +357,10 @@ try {
   await guarded(admin.connect());
   throwIfInterrupted();
   notePhase('creating the disposable database');
-  await guarded(admin.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`));
+  // Set before CREATE: if a stalled CREATE is abandoned by the watchdog it may still commit on the
+  // server, and cleanup must then drop it (the drop tolerates a database that never appeared).
   databaseCreated = true;
+  await guarded(admin.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`));
   throwIfInterrupted();
 
   const disposableUrl = databaseUrl(sourceUrl, databaseName);
@@ -464,14 +472,14 @@ try {
   receipt.faultProxyPort = faultProxyPort;
   receipt.webPort = webPort;
   receipt.devAuthProxySmokeCheck = 'passed (unauthenticated /v1/session via proxy returned 200)';
-  receipt.playwright = playwrightError ? { result: 'failed', message: String(playwrightError) } : { result: 'passed' };
+  receipt.playwright = playwrightError ? { result: 'failed', message: forReceipt(playwrightError) } : { result: 'passed' };
   receipt.finishedAt = new Date().toISOString();
 
   if (playwrightError) throw playwrightError;
   console.log(JSON.stringify({ journey: 'web-reader-92', result: 'passed', ...receipt }));
 } catch (error) {
   primaryError = error;
-  receipt.error = String(error);
+  receipt.error = forReceipt(error);
   if (fatalTriggered) receipt.fatal = { phase: currentPhase, watchdogMs: WATCHDOG_MS };
   throw error;
 } finally {

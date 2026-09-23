@@ -77,8 +77,10 @@ jobs:
     # can break the web surface silently while every other check stays green. This job runs
     # scripts/run-web-reader-journey.ts -- the real Vite dev server, a real API/worker and a
     # real Chromium via Playwright, against the same kind of disposable PostgreSQL the backend
-    # job provisions below (same pinned action SHAs, Node and pnpm versions).
+    # job above provisions (same pinned action SHAs, Node and pnpm versions).
     runs-on: ubuntu-latest
+    # Bounds a hang in cleanup, which the runner's own watchdog no longer covers once it is stopping.
+    timeout-minutes: 30
     env:
       KS_DEV_ROOT: /tmp/knowscroll-dev
       DATABASE_URL: postgresql://knowscroll:test-only-ci-password@127.0.0.1:5432/postgres

@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-23T20:28:35.182Z",
-  "url": "http://127.0.0.1:58187/",
+  "timestamp": "2026-09-23T20:44:42.893Z",
+  "url": "http://127.0.0.1:62451/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -4264,16 +4264,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#f8f6ec",
+                "fgColor": "#fdfbf1",
                 "bgColor": "#061a27",
-                "contrastRatio": 16.36,
+                "contrastRatio": 17.08,
                 "fontSize": "10.5pt (14px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 16.36"
+              "message": "Element has sufficient color contrast of 17.08"
             }
           ],
           "all": [],
@@ -4289,16 +4289,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#152f2a",
-                "bgColor": "#32bfb0",
-                "contrastRatio": 6.26,
+                "fgColor": "#15302a",
+                "bgColor": "#33c3b3",
+                "contrastRatio": 6.44,
                 "fontSize": "9.8pt (13px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 6.26"
+              "message": "Element has sufficient color contrast of 6.44"
             }
           ],
           "all": [],
