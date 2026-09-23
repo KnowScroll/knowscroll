@@ -142,11 +142,17 @@ test('every current display field and revision is guarded while historical title
 test('session authority expires during the real source wait and the read makes no writes',async()=>{
  await withTraceRevisitSchema('session_wait',async pool=>{
   const graph=await seedTraceRevisitGraph(pool);
-  await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1",[graph.scope.sessionId]);
-  const restore=await rejectRevisitWrites(pool),blocker=await pool.connect();
+  // #123: the 500 ms authority window used to start before installing a write guard on every
+  // table. On a loaded runner that setup outlasted the window, the read failed authentication
+  // before it ever waited, and the barrier below timed out ("asset lock wait") -- reproduced
+  // deterministically by delaying the setup 600 ms. The window now opens after the slow setup and
+  // covers only one trigger and the read's start.
+  const restore=await rejectRevisitWrites(pool,['device_session']),blocker=await pool.connect();
   try {
    await blocker.query('BEGIN');await blocker.query('SELECT id FROM asset WHERE id=$1 FOR UPDATE',[graph.assetId]);
    const pid=Number((await blocker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);
+   await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1",[graph.scope.sessionId]);
+   await restore.guard('device_session');
    const pending=revisit(pool,graph);void pending.catch(()=>{});
    await waitForRevisitPredicate(async()=>Boolean((await pool.query('SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))',[pid])).rowCount),'asset lock wait');
    await waitForRevisitPredicate(async()=>(await pool.query('SELECT expires_at<=clock_timestamp() AS elapsed FROM device_session WHERE id=$1',[graph.scope.sessionId])).rows[0].elapsed,'database session expiry');

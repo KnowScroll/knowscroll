@@ -63,13 +63,21 @@ export async function waitForRevisitPredicate(check:()=>Promise<boolean>,label:s
  throw new Error(`Trace revisit barrier timed out: ${label}`);
 }
 
-/** Statement triggers also catch same-value writes and zero-row write queries. */
-export async function rejectRevisitWrites(pool:pg.Pool):Promise<()=>Promise<void>> {
- const tables=(await pool.query<{tablename:string}>('SELECT tablename FROM pg_tables WHERE schemaname=current_schema()')).rows.map(row=>row.tablename);
+/** Statement triggers also catch same-value writes and zero-row write queries. Tables named in
+ * `deferred` are left unguarded until `guard(table)` is called, so a test can make its own setup
+ * write (e.g. starting an authority clock) after the slow guard installation, not before it (#123). */
+export async function rejectRevisitWrites(pool:pg.Pool,deferred:readonly string[]=[]):Promise<(()=>Promise<void>)&{guard:(table:string)=>Promise<void>}> {
+ const tables=(await pool.query<{tablename:string}>('SELECT tablename FROM pg_tables WHERE schemaname=current_schema()')).rows.map(row=>row.tablename).filter(table=>!deferred.includes(table));
  await pool.query(`CREATE FUNCTION reject_revisit_write() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'revisit attempted domain write'; END $$`);
- for(const table of tables) await pool.query(`CREATE TRIGGER reject_revisit_write BEFORE INSERT OR UPDATE OR DELETE ON "${table}" FOR EACH STATEMENT EXECUTE FUNCTION reject_revisit_write()`);
- return async()=>{
-  for(const table of tables) await pool.query(`DROP TRIGGER reject_revisit_write ON "${table}"`);
+ const guarded:string[]=[];
+ const guard=async(table:string)=>{
+  await pool.query(`CREATE TRIGGER reject_revisit_write BEFORE INSERT OR UPDATE OR DELETE ON "${table}" FOR EACH STATEMENT EXECUTE FUNCTION reject_revisit_write()`);
+  guarded.push(table);
+ };
+ for(const table of tables) await guard(table);
+ const restore=async()=>{
+  for(const table of guarded) await pool.query(`DROP TRIGGER reject_revisit_write ON "${table}"`);
   await pool.query('DROP FUNCTION reject_revisit_write()');
  };
+ return Object.assign(restore,{guard});
 }
