@@ -136,6 +136,26 @@ class DirectAtlasJourneyTest {
             back()
             back()
             assertEquals(system, pose())
+            if (
+                android.provider.Settings.Global.getFloat(
+                    instrumentation.targetContext.contentResolver,
+                    android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                    1f,
+                ) > 0f
+            ) {
+                compose.mainClock.autoAdvance = false
+                try {
+                    node("Explore world: Orbits").performTouchInput { click() }
+                    compose.mainClock.advanceTimeBy(96)
+                    node("Explore world: Models").performTouchInput { click() }
+                } finally {
+                    compose.mainClock.autoAdvance = true
+                }
+                settle()
+                waitNode("Enter continents on Models")
+                back()
+                assertEquals(system, pose())
+            }
             // Retarget and interrupt through the accessible equivalent, without awaiting a flight.
             node("Explore world: Models").performClick()
             back()

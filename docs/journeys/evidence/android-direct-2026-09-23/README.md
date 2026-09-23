@@ -126,3 +126,11 @@ final database check: owner nine migrations, preserved disposable preview22; two
 Traces. `final-last-anr.txt` reports no ANR since the recovered emulator boot.
 The prior failed owner-route attempt expected a fresh Universe instead of the
 preserved reader; it did not report an app crash or ANR.
+
+
+Final input follow-up: planets that remain visible during ship travel now retain
+48dp hit targets, allowing a direct tap to retarget the flight. The direct route
+pauses its animation clock 96ms into travel, taps a different planet, then verifies
+arrival and the original return camera. This passed; actual wall-clock motion is
+covered separately. Profile/rendering receipts precede this hit-routing change.
+The restored-preview receipt and final CI identify the completed head.

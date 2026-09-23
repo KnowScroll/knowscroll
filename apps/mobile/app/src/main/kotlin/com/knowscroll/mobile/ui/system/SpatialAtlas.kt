@@ -308,14 +308,14 @@ fun SpatialAtlas(
                 Box(Modifier.fillMaxSize().graphicsLayer { alpha = geographyAlpha.value }) {
                     AuthoredGeography(::camera, point, region, Modifier.fillMaxSize())
                 }
-            if (!land && selectedId == null) {
+            if (!land && (selectedId == null || travelling)) {
                 // Hit areas use the same deterministic collision policy as the renderer.
                 visiblePoints.forEach { p ->
                     val marker = markers.first { it.id == p.id }
                     Box(
                         position(p.x, p.y)
                             .size(48.dp)
-                            .clickable { onSelect(p.id) }
+                            .clickable { if (p.id == selectedId) continents() else onSelect(p.id) }
                             .semantics {
                                 contentDescription = "$actionLabel${marker.title}"
                                 this[SemanticsProperties.Text] =

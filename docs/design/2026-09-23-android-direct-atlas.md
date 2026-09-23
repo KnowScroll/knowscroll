@@ -47,7 +47,8 @@ the current view, while the continent level offers an explicit region chooser.
 
 Ship coordinates survive content/recreation with the camera. Selection moves it
 along a short curved path while the camera approaches; input remains enabled.
-Pan, Back and retarget cancel the active flight. Reduced motion snaps state and
+Pan, Back and retarget cancel the active flight. Visible planets retain their hit
+targets during travel, so direct retargeting does not require the secondary List. Reduced motion snaps state and
 pauses the ambient sky clock. The orbital ship and globe crossfade together into
 the surface map; Back restores the ship in orbital space. The flight and moon clock update draw/placement reads;
 star positions, globe paths and text measurements are cached.
