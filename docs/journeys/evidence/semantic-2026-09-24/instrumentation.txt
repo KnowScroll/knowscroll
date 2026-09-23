@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.SemanticBranchJourneyTest:.
+
+Time: 9.95
+
+OK (1 test)
+
+

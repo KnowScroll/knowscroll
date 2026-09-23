@@ -1,0 +1,41 @@
+{
+  "at": "2026-09-23T20:53:40.219334+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_51a5cd93fc85d75d",
+  "apiPort": 4333,
+  "source": "5dd71a59f0907a6b24cbbd9c898281730edb116a",
+  "package": "com.knowscroll.mobile.journey",
+  "journey": {
+    "originAssetId": "10000000-0000-4000-8000-000000000001",
+    "originTitle": "An orbit is not a perfect circle",
+    "originExposureId": "39e11a52-f326-4727-a40a-be8cee2f1fb3",
+    "originPosition": 1293,
+    "targetAssetId": "20000000-0000-4000-8000-000000000002",
+    "targetTitle": "One force, many jobs",
+    "branchDecisionId": "d0fa1acf-2aff-4859-b7f6-c79205fb96fc",
+    "targetExposureId": "fc9dc695-9175-4742-b0c7-ec6b95c2a5cf",
+    "bridgeId": "03da64f5-26a4-49f9-8ea1-d3aff34372dc",
+    "recorded": true,
+    "relationSentence": "Orbit is explained by Gravity",
+    "sheetHeading": "An orbit is not a perfect circle",
+    "skippedBeforeConnected": 0,
+    "offeredAtObjection": 1,
+    "offeredAfterObjection": 0,
+    "offeredBefore": 0
+  },
+  "lineage": {
+    "branchEvents": 1,
+    "branchCausedByOriginExposure": 1,
+    "branchOpenDecision": 1,
+    "targetExposedThroughBranchDecision": 1,
+    "seemsWrong": 1,
+    "sharedBridgesStillAdmitted": 6,
+    "personalProposals": 0
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Editorial substrate and bridges; no model-proposed bridge.",
+    "Debug API36 emulator, not a physical device.",
+    "Continuations are Scroll-only; Reels carry no concept annotations yet."
+  ]
+}
