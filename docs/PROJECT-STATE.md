@@ -1,5 +1,23 @@
 # Project state
 
+## 2026-09-24 current delivery scope
+
+PR130 is merged at `f89e625`; its Android visual direction has owner approval. Algorithm
+completion is not implied: Composer is still the recorded-signal v2 engine, Ask recorded-only,
+ordinary product reasoning disabled, worlds source-derived, and detailed topic/branch preview
+authored. The existing frame regression remains unaccepted.
+
+The owner requests completion of [six verified implementation phases](handoffs/2026-09-24-core-to-android.md) under #72:
+#131 semantic foundations, #132 product reasoning, #133 full Composer,
+#134 living worlds/inventory/Android, #135 owner access/privacy/release clients,
+#136 continuous verification/performance/acceptance. All are initially Todo; this documentation
+implements no new capability. Continuous verification begins immediately with implementation.
+
+Cutroom #9 is owner-led and last; Social/Blend #137 is a deferred future epic under ADR-0026.
+Old #11 and #57 are closed as superseded, not completed; #57's unresolved cause transfers to
+#123/#136. #97/#115/#123 remain open. Component epics stay open with current phase links.
+Project1 and #72 carry the same scope, and the next session must maintain them throughout work.
+
 ## 2026-09-23 direct native Atlas — PR130 continuation
 
 The Android continuation preserves PR130 and replaces cluttered, sheet-first entry

@@ -13,9 +13,18 @@ KnowScroll is an emergent personal universe: Reel and Scroll encounters lead to 
 
 The full [product definition](docs/product/definition.md) remains the target. This repository begins with one executable slice; it does not claim the full recommendation engine is built.
 
+## Current delivery sequence
+
+The owner requests [six implementation phases with continuous verification](docs/handoffs/2026-09-24-core-to-android.md)
+under #72: semantics, reasoning, full Composer, living-world/Android integration, owner access/privacy,
+and performance/acceptance. Cutroom stays last and owner-led; Social/Blend is deferred in #137
+under the accepted single-user scope. PR130 is merged; these six phases are not yet delivered.
+Older verified-slice descriptions below are historical bounded evidence, not current coverage of
+every later capability. Start with the checkpoint and source.
+
 ## Verified slice
 
-The Android app reads sourced Scrolls, records visible exposures and explicit keeps, and restores reading position after process death and Activity recreation. It offers source access while reading and deliberate end-of-content discovery with retained-page retry and finite-library rest. A real API and separate worker persist scoped events and saved Traces in PostgreSQL. Saved Traces reopen their verified original Scroll/source with read-only origin and fresh authority checks after restoration. Operator-issued device sessions expire and can be revoked; privacy epochs prevent obsolete work from changing state. Public login, generated Reels and semantic world evolution remain future work.
+The Android app reads sourced Scrolls, records visible exposures and explicit keeps, and restores reading position after process death and Activity recreation. It offers source access while reading and deliberate end-of-content discovery with retained-page retry and finite-library rest. A real API and separate worker persist scoped events and saved Traces in PostgreSQL. Saved Traces reopen their verified original Scroll/source with read-only origin and fresh authority checks after restoration. Operator-issued device sessions expire and can be revoked; privacy epochs prevent obsolete work from changing state. Backend single-owner magic-link sign-in and AgentMail delivery exist; release-client sign-in, real generated Reels and semantic world evolution remain incomplete.
 
 Clear Scroll history removes recorded encounters and saved Traces, preserves the shared library, and signs out other devices. Its retry and local-restoration boundaries are defined in [ADR-0010](docs/decisions/0010-clear-scroll-history.md). [Project state](docs/PROJECT-STATE.md) distinguishes implementation from the broader target and links runtime evidence.
 
@@ -23,7 +32,7 @@ A separate [MiniMax development certification](docs/journeys/evidence/wave4-cert
 
 The accepted [reasoning admission protocol](docs/decisions/0012-reasoning-admission-and-reconciliation.md) defines the next implementation boundary: durable attempts, reservations, privacy fences and late usage. Its metadata schemas and [storage/privacy helpers](docs/operations/reasoning-storage.md) are implemented. [Atomic admission and cumulative reconciliation primitives](docs/operations/reasoning-runtime.md) now exist, with an unwired one-invocation worker boundary. [J004](docs/journeys/J004.md) verifies separate-process crash and late-usage boundaries with local fixtures; product dispatch remains disabled. [The accepted fairness policy/model](docs/operations/reasoning-fairness.md) validates bounded class and universe turns with deterministic traces. [Durable SQL fairness](docs/operations/reasoning-sql-fairness.md) now combines bounded service turns, claim and reservation, with retained corrections and privacy-safe debt. [Authorized frozen Scroll contexts](docs/operations/reasoning-context.md) now bind literal Keep evidence to the original session, exact source snapshot and typed reads. [Separate reasoning maintenance](docs/operations/reasoning-retirement.md) retires safely withdrawn cancelled/expired and safely completed/failed private context after seven days while preserving unresolved accounting. [Literal Ask recording](docs/operations/explicit-asks.md) now preserves exposure-anchored person-written questions with a recorded-only receipt. It creates no queue, answer or mobile control. [Sealed literal Ask contexts](docs/operations/reasoning-ask-context.md) now bind a separately supplied direct Job to the original Ask/session and exact source dependencies. Proposal, intent-execution lifecycle and broader privacy gates still precede product reasoning.
 
-The [pinned Cutroom HTTP client](docs/operations/cutroom-http-client.md) now has strict wire/identity checks and local restart/reconciliation evidence. It remains unwired; real generation, host import, publication and playback are separate release gates.
+The [pinned Cutroom HTTP client](docs/operations/cutroom-http-client.md), bounded generation/import, publication gates, eligible inventory and authenticated media-serving foundations exist. Supplied test media has actual Android playback evidence. Real provider generation and the Visual Witness gate remain unproved; owner-led Cutroom integration is deferred until after the six personal delivery phases.
 
 ## Chosen stack
 
@@ -33,7 +42,7 @@ The [pinned Cutroom HTTP client](docs/operations/cutroom-http-client.md) now has
 | API / deterministic core | TypeScript, Node 22, Fastify |
 | History, state and jobs | PostgreSQL 16; separate API and worker processes |
 | Reasoning | AI SDK behind a provider port; bounded MiniMax development certification passed |
-| Video generation | [Cutroom](https://github.com/KnowScroll/Cutroom), separate service; unwired HTTP client |
+| Video generation | [Cutroom](https://github.com/KnowScroll/Cutroom), separate service; client/import/publication foundations, real-provider integration deferred |
 
 See the [ADRs](docs/decisions/README.md) for alternatives and consequences. One repository lets contracts evolve together; deployments remain independent.
 
