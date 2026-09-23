@@ -51,8 +51,8 @@ async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha2
   // source, matching what a real distinct generation would be.
   await pool.query(
     `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
-     VALUES($1,1,'Scroll','Library title','Library summary','Library body text.',$2,$3,'documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
-    [sourceAssetId, `Library source ${tag}`, `https://example.test/library-${tag}`],
+     VALUES($1,1,'Scroll','Inside the supplied demo library','A labelled test encounter for exploring native playback.','This authored test note accompanies a supplied product demonstration. Open Cable Reel to play the original video, or open the authored interaction preview to compare three demos. The video is supplied media, not a Cutroom generation or evidence of source alignment. Keep records only this explicit encounter. The associated source address is a fixture, not a published reference.',$2,$3,'documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
+    [sourceAssetId, `Supplied demo library · TEST ${tag}`, `https://example.test/library-${tag}`],
   );
 
   const briefJson = brief(sourceAssetId, tag);
@@ -134,4 +134,6 @@ async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha2
   return { assetId: minted.assetId, mediaSha256, sourceAssetId, generatedReelId };
 }
 
-try { console.log(JSON.stringify(await seedMintedReel('native'))); } finally { await pool.end(); }
+const tag = process.env.KS_NATIVE_TAG ?? 'native';
+if (!/^[a-z0-9-]{1,40}$/.test(tag)) throw Error('Invalid test media tag');
+try { console.log(JSON.stringify(await seedMintedReel(tag))); } finally { await pool.end(); }

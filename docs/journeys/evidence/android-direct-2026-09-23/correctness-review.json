@@ -1,0 +1,39 @@
+{
+  "id": "20260923-205032-read-only-correctness-re-9f88",
+  "provider": "minimax",
+  "model": "MiniMax-M3",
+  "status": "done",
+  "exit_code": 0,
+  "tokens": {
+    "estimated_total": 90225,
+    "input": 287,
+    "output": 5330,
+    "cache_read": 84608,
+    "total": 90225,
+    "cost_usd": 0.011559
+  },
+  "started_at": "2026-09-23T15:20:32+00:00",
+  "ended_at": "2026-09-23T15:31:31+00:00",
+  "dispositions": [
+    {
+      "finding": "Return flight may overwrite home on retarget",
+      "action": "Fixed: returning-home ownership retained until completion; cancelled old jobs cannot clear replacement state. Expanded direct return test."
+    },
+    {
+      "finding": "Reopening a topic resumes its prior branch",
+      "action": "Intentional: owner explicitly requires reading/playback position and branch-origin preservation. Per-target state begins at mapped revision on first entry and resumes the reader afterward."
+    },
+    {
+      "finding": "Level key cancels an ongoing pinch",
+      "action": "Fixed: level is no longer a pointerInput key, gesture transitions preserve current camera instead of starting a competing flight. Test checks scale beyond the boundary in one gesture."
+    },
+    {
+      "finding": "Ship fades out on local map",
+      "action": "Intentional orbital location: the globe and its parked ship crossfade together into the surface map; Back restores orbital location. No ship teleports onto the continent."
+    },
+    {
+      "finding": "Inspection allows pointer input beneath it",
+      "action": "Fixed: full-area dismiss target consumes outside taps before they reach the atlas."
+    }
+  ]
+}

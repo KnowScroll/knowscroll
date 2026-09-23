@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -61,10 +62,13 @@ fun SystemScreen(
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    var inspection by rememberSaveable { mutableStateOf(false) }
     var selectedWorldId by rememberSaveable { mutableStateOf<String?>(null) }
     val worlds = (state as? SystemState.Loaded)?.response?.system?.worlds.orEmpty()
     val selected = worlds.firstOrNull { it.worldId == selectedWorldId }
-    BackHandler(enabled = selected != null) { selectedWorldId = null }
+    BackHandler { if (selectedWorldId != null) selectedWorldId = null else onReturn() }
+
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(Modifier.fillMaxSize()) {
@@ -74,7 +78,12 @@ fun SystemScreen(
                     val loadedWorlds = state.response.system?.worlds.orEmpty()
                     if (loadedWorlds.isEmpty()) EmptySystem(onEnterScroll)
                     else {
-                        Column(Modifier.fillMaxSize()) {
+                        Column(
+                            Modifier.fillMaxSize()
+                                .then(
+                                    if (inspection) Modifier.clearAndSetSemantics {} else Modifier
+                                )
+                        ) {
                             Text(
                                 "Your system",
                                 style = MaterialTheme.typography.titleLarge,
@@ -87,36 +96,60 @@ fun SystemScreen(
                                 color = Cosmos.MutedOnDark,
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
-                            SpatialAtlas(
-                                loadedWorlds.map { world ->
-                                    AtlasMarker(
-                                        world.worldId,
-                                        world.sourceTitle,
-                                        "${world.scrollCount} ${if(world.scrollCount==1) "SCROLL" else "SCROLLS"} · ${world.seenCount} SEEN",
-                                        if (isWorldFullyExplored(world)) "ALL SCROLLS ENCOUNTERED"
-                                        else "MORE TO EXPLORE",
-                                    )
-                                },
-                                selectedWorldId,
-                                { selectedWorldId = it },
-                                Modifier.weight(1f).fillMaxWidth(),
+                            Text(
+                                "Orbits & moons are illustrative",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Cosmos.MutedOnDark,
+                                modifier = Modifier.padding(horizontal = 20.dp),
                             )
+                            cameraStates.SaveableStateProvider("camera") {
+                                SpatialAtlas(
+                                    loadedWorlds.map { world ->
+                                        AtlasMarker(
+                                            world.worldId,
+                                            world.sourceTitle,
+                                            "${world.scrollCount} ${if(world.scrollCount==1) "SCROLL" else "SCROLLS"} · ${world.seenCount} SEEN",
+                                            if (isWorldFullyExplored(world))
+                                                "ALL SCROLLS ENCOUNTERED"
+                                            else "MORE TO EXPLORE",
+                                        )
+                                    },
+                                    selectedWorldId,
+                                    { selectedWorldId = it },
+                                    Modifier.weight(1f).fillMaxWidth(),
+                                    onDeselect = {
+                                        selectedWorldId = null
+                                        inspection = false
+                                    },
+                                    onInspect = { inspection = true },
+                                )
+                            }
                         }
-                        if (selected != null)
+                        if (selected != null && inspection) {
+                            // Consume taps above inspection as a dismissal, never through to the
+                            // map.
+                            Box(
+                                Modifier.fillMaxSize()
+                                    .clickable { inspection = false }
+                                    .semantics { contentDescription = "Dismiss world inspection" }
+                            )
                             Surface(
                                 modifier =
                                     Modifier.align(Alignment.BottomCenter)
                                         .fillMaxWidth()
                                         .heightIn(max = 340.dp),
-                                color = Cosmos.Deep,
+                                color = Cosmos.Cream,
                                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                             ) {
-                                WorldDetail(
-                                    selected,
-                                    onClose = { selectedWorldId = null },
-                                    onDiscover = onEnterScroll,
-                                )
+                                com.knowscroll.mobile.ui.theme.PosterTheme {
+                                    WorldDetail(
+                                        selected,
+                                        onClose = { inspection = false },
+                                        onDiscover = onEnterScroll,
+                                    )
+                                }
                             }
+                        }
                     }
                 } else
                     when (state) {
@@ -149,6 +182,7 @@ fun SystemScreen(
             BottomCompass(CompassTab.Atlas, onReturn, onEnterScroll, onOpenKeep)
         }
     }
+    BackHandler(enabled = inspection) { inspection = false }
 }
 
 @Composable
@@ -278,7 +312,7 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
     var browserUnavailable by remember(world.worldId) { mutableStateOf(false) }
     Surface(
         color = androidx.compose.ui.graphics.Color.Transparent,
-        contentColor = Cosmos.InkOnDark,
+        contentColor = Cosmos.InkOnCream,
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -313,7 +347,7 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
                 Text(
                     stringResource(R.string.world_detail_title),
                     style = MaterialTheme.typography.labelLarge,
-                    color = Cosmos.MutedOnDark,
+                    color = Cosmos.MutedOnCream,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -321,26 +355,18 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
             Text(
                 world.sourceTitle,
                 style = MaterialTheme.typography.headlineLarge,
-                color = Cosmos.InkOnDark,
+                color = Cosmos.InkOnCream,
                 modifier = Modifier.fillMaxWidth().semantics { heading() },
             )
             Text(
                 countsText,
                 style = MaterialTheme.typography.labelLarge,
-                color = Cosmos.MutedOnDark,
-            )
-            OutlinedButton(onClick = onDiscover, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Open discovery")
-            }
-            Text(
-                "Explore the library, then return to this world.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Cosmos.MutedOnDark,
+                color = Cosmos.MutedOnCream,
             )
             Text(
                 stringResource(R.string.world_detail_explanation),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Cosmos.MutedOnDark,
+                color = Cosmos.MutedOnCream,
             )
             Button(
                 onClick = {

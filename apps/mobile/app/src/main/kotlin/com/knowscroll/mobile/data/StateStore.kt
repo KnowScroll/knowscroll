@@ -28,7 +28,16 @@ data class TraceRevisitSession(
 class StateStore(context: Context) {
     private val prefs = context.getSharedPreferences("ks_session_v1", Context.MODE_PRIVATE)
     fun writeScreen(screen: String) {
+        if (readScreen() == screen) return
         check(prefs.edit().putString("screen", screen).commit()) { "Could not save navigation" }
+    }
+    fun readCableMode(): String = (prefs.getString("cableMode", null)
+        ?: runCatching { read()?.item?.kind }.getOrNull()).takeIf { it in setOf("Scroll", "Reel") } ?: "Scroll"
+    fun writeCableMode(kind: String) { require(kind in setOf("Scroll", "Reel")); if (readCableMode() == kind) return; check(prefs.edit().putString("cableMode",kind).commit()) }
+    fun readCableSession(kind: String): ScrollSession? = read("session_$kind")
+    fun readSelectedCableSession(): ScrollSession? {
+        val kind = readCableMode()
+        return readCableSession(kind) ?: read()?.takeIf { it.item.kind == kind }
     }
     fun readScreen(): String = prefs.getString("screen", "universe") ?: "universe"
     fun writeVisited(assetIds: Set<String>) {
@@ -52,14 +61,23 @@ class StateStore(context: Context) {
             put("keepJobId", s.keepJobId); put("keepEventId", s.keepEventId)
             put("readingPosition", s.readingPosition)
         }
-        check(prefs.edit().putString("session", json.toString())
+        check(prefs.edit().putString("session", json.toString()).putString("session_${s.item.kind}", json.toString())
             .putString("readingAssetId",s.item.assetId).putInt("readingPosition",s.readingPosition).commit()) { "Could not save the retry envelope" }
     }
+    /** Position is not a retry envelope. Apply in memory now and serialize disk work off-main. */
     fun writeReadingPosition(assetId: String, position: Int) {
-        check(prefs.edit().putString("readingAssetId",assetId).putInt("readingPosition",position).commit()) { "Could not save reading position" }
+        val edit = prefs.edit().putString("readingAssetId",assetId).putInt("readingPosition",position)
+        for (key in listOf("session", "session_Scroll", "session_Reel")) {
+            val raw = prefs.getString(key, null) ?: continue
+            val json = JSONObject(raw)
+            if (json.getJSONObject("item").getString("assetId") == assetId) {
+                json.put("readingPosition",position); edit.putString(key,json.toString())
+            }
+        }
+        edit.apply()
     }
-    fun read(): ScrollSession? {
-        val raw = prefs.getString("session", null) ?: return null
+    fun read(key: String = "session"): ScrollSession? {
+        val raw = prefs.getString(key, null) ?: return null
         val o = JSONObject(raw); val i = o.getJSONObject("item")
         val item = ScrollItem(i.getString("assetId"),i.getInt("revision"),i.getString("kind"),i.getString("title"),i.getString("summary"),i.getString("body"),i.getString("sourceTitle"),i.getString("sourceUrl"),i.getString("truthState"),i.getString("reason"),i.optJSONObject("media")?.let { ReelMedia.parse(it) })
         val position=if(prefs.getString("readingAssetId",null)==item.assetId) prefs.getInt("readingPosition",0) else o.optInt("readingPosition",0)
@@ -150,7 +168,7 @@ class StateStore(context: Context) {
     @Synchronized fun purgePrivateState(universeId: String, epoch: Long) {
         val observed = if(readObservedUniverseId()==universeId)maxOf(readObservedPrivacyEpoch(),epoch) else epoch
         check(prefs.edit()
-            .remove("session").remove("readingAssetId").remove("readingPosition")
+            .remove("session").remove("session_Scroll").remove("session_Reel").remove("readingAssetId").remove("readingPosition")
             .remove("revisit")
             .remove("visited").remove("pendingHistoryClear")
             .putString("screen", "universe").putString("privacyUniverseId",universeId)

@@ -6,3 +6,5 @@ Instrument Sans: https://github.com/google/fonts/tree/main/ofl/instrumentsans
 
 The adjacent OFL files retain each family's copyright and license. Served from the local
 application origin; the reader never requests Google Fonts. Android bundles the same files.
+
+DM Mono Medium: https://github.com/google/fonts/tree/main/ofl/dmmono (unmodified TTF, 2026-09-22); dm-mono-OFL.txt. Bundled for Hybrid Set labels; Bricolage 400-800 remains the content family.

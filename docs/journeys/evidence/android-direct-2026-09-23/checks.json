@@ -1,0 +1,102 @@
+{
+  "result": "passed",
+  "at": "2026-09-23T17:16:43.352456+00:00",
+  "baseRevision": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f",
+  "mainSourceSha256": "504a66eee550678c2d9af7e4c854018385dd9a585ffb3722f3d32f5be65733b2",
+  "androidUnits": 94,
+  "androidAssemble": true,
+  "androidTestAssemble": true,
+  "androidLint": true,
+  "typescriptTypecheck": true,
+  "scenarioConfigurationCount": 22,
+  "checks": [
+    {
+      "name": "worlds-final",
+      "passed": 3,
+      "logSha256": "a95122c329ad81b190fe14bfe510fe9115b4f1088bf395a48ffbfa328e0067f3"
+    },
+    {
+      "name": "reader-regressions",
+      "passed": 4,
+      "logSha256": "7b8b10f0476ffdda04e0e0317ecb7c6d3910ba25d8b49d2affdce20908e99080"
+    },
+    {
+      "name": "native-regressions",
+      "passed": 4,
+      "logSha256": "de8bfecd927fc7da44685320ae06ab56cf0d4b6e54aa21e8b152ec787cac1205"
+    },
+    {
+      "name": "cable",
+      "passed": 1,
+      "logSha256": "b912e14ec1cac5ce1efb4ee57788fcb93f8b030a8e88d434bd447bf7ce33b74e"
+    },
+    {
+      "name": "cable-compact",
+      "passed": 1,
+      "logSha256": "ab4ab4c2e5077360370fd99c81639582bdd50066931a64b38665b9480785ca33"
+    },
+    {
+      "name": "preview-privacy",
+      "passed": 1,
+      "logSha256": "d7623c2ab6b7784ba1d3fa18080392e00cf5136e2acd5822b237085e182c52dd"
+    },
+    {
+      "name": "live-atlas-final",
+      "passed": 1,
+      "logSha256": "997dbca568ed1a164bd8cfa506465117d2240d0353dc307afd2386113adf021a"
+    },
+    {
+      "name": "dense-final",
+      "passed": 1,
+      "logSha256": "cbe80186018d1448236402cdbb4b66be41c8b9d7739ec59919db54a5ef4741f4"
+    },
+    {
+      "name": "clock",
+      "passed": 1,
+      "logSha256": "fa15a88ce90b511cd3792f9cadca737cb2543d1ba8c76051b7cabf0c27d9abf5"
+    },
+    {
+      "name": "direct-final",
+      "passed": 1,
+      "logSha256": "cce85cfe6d4a42fdc926706141817abc1542a225627164b6fd72693a0c23f4d1"
+    },
+    {
+      "name": "direct-reduced",
+      "passed": 1,
+      "logSha256": "e0a953f10e6273418f2266e1518db351828c652746e22a0283ad729b7880d932"
+    },
+    {
+      "name": "direct-compact-final",
+      "passed": 1,
+      "logSha256": "5531561d9524f79a9e4ffffd7dd22c28ff9b8324f7838f18b29dcff40a2f1e12"
+    },
+    {
+      "name": "direct-media-final",
+      "passed": 1,
+      "logSha256": "bd709210c7606da363d85c55c940554d13fcf19249ad86cc8ef754de7a21e71d"
+    },
+    {
+      "name": "wall-motion",
+      "passed": 1,
+      "logSha256": "0a330d1c30cf3494eae15b91383cf80732a47498bf3a4957396cb22d0dbf968c"
+    }
+  ],
+  "providerCalls": 0,
+  "ownerDatabaseChanged": false,
+  "sourceBoundaries": "Receipts retain their actual pre-commit hashes. Reader/Cable checks preceded later visual refinements; final direct/dense/world/profile runs cover the completed Atlas. Motion precedes an invisible globe-rim hit-area expansion.",
+  "knownVerificationFailure": "One later Robolectric/Espresso Saved Traces idling timeout; isolated class and entire suite rerun passed without increasing timeouts or weakening assertions. Not a native app ANR.",
+  "limits": [
+    "Debug emulator performance regresses: final p95 52.29 and 66.56 ms vs matched baseline47.40ms. Smoothness unaccepted.",
+    "macOS Command-drag bridge documented but not manually driven by the available computer-use tool. Android two-pointer gestures verified.",
+    "No physical-device/full-v1/live semantic emergence/provider acceptance."
+  ],
+  "ownerVisibleRoutePassed": true,
+  "ownerSessionPreserved": true,
+  "noAnrObserved": true,
+  "nativeAnrEvidence": "final-last-anr.txt",
+  "finalFollowUp": {
+    "change": "Keep visible planet targets tappable during flight; direct touch retarget verified with animation paused mid-flight",
+    "nativeRoute": "passed",
+    "unitValidation": "Local 94-unit pass preceded this small follow-up; final-head CI validates the complete head."
+  }
+}

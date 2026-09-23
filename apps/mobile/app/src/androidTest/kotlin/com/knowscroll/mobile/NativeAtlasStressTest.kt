@@ -51,7 +51,9 @@ class NativeAtlasStressTest {
             .assertIsDisplayed()
             .performClick()
         assertEquals("world-100", selected)
-        compose.waitUntil(10_000) { compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("YOUR WORLDS").fetchSemanticsNodes().isEmpty()
+        }
         compose.onNodeWithContentDescription("Spatial atlas").performTouchInput {
             val delta = androidx.compose.ui.geometry.Offset(50f, 0f)
             down(0, center - delta)
@@ -66,17 +68,18 @@ class NativeAtlasStressTest {
                 .onNodeWithContentDescription("Spatial atlas")
                 .fetchSemanticsNode()
                 .config[SemanticsProperties.StateDescription]
-        assertFalse("Pinch must change scale", pinched.startsWith("Zoom 100 percent"))
+        assertFalse("Pinch must change scale", pinched.contains("Zoom 86 percent"))
         repeat(6) {
             compose.onNodeWithContentDescription("Zoom in").performClick()
             compose.onNodeWithContentDescription("Zoom out").performClick()
         }
-        compose.onNodeWithText("Recenter").performClick()
+        compose.onNodeWithContentDescription("Zoom out").performClick()
         compose.waitUntil(10_000) {
             compose
                 .onNodeWithContentDescription("Spatial atlas")
                 .fetchSemanticsNode()
-                .config[SemanticsProperties.StateDescription] == "Zoom 100 percent; camera 0, 0"
+                .config[SemanticsProperties.StateDescription]
+                .endsWith("Zoom 100 percent; camera 0, 0")
         }
         File(context.filesDir, "atlas-stress.json")
             .writeText(

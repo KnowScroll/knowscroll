@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.theme.Cosmos
+import com.knowscroll.mobile.ui.theme.Poster
 
 /** Which section the bottom compass currently marks as active. */
 enum class CompassTab { Atlas, Cable, Keep }
@@ -36,20 +37,21 @@ fun BottomCompass(
     onSelectAtlas: () -> Unit,
     onSelectCable: () -> Unit,
     onSelectKeep: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    poster: Boolean = false
 ) {
-    Box(modifier.fillMaxWidth().padding(bottom = 25.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().padding(bottom = if (poster) 10.dp else 25.dp), contentAlignment = Alignment.Center) {
         // docs/product/ui-system.md section 5b's dock recipe: `rgba(6,26,39,.78)` translucent fill,
         // a hairline `rgba(255,255,255,.12)` border. Deviation: the reference's own
         // `backdrop-filter: blur(12px)` (blurring whatever sits behind the dock) is not
         // implemented -- that needs API 31+ RenderEffect plumbing this app does not have -- so
         // only the translucency, border and shadow are real; nothing here fakes the blur.
         Surface(
-            color = Cosmos.SpaceRaised.copy(alpha = 0.78f),
-            contentColor = Cosmos.InkOnDark,
+            color = if (poster) Poster.Paper else Cosmos.SpaceRaised.copy(alpha = 0.78f),
+            contentColor = if (poster) Poster.Ink else Cosmos.InkOnDark,
             shape = RoundedCornerShape(22.dp),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-            shadowElevation = 10.dp
+            border = if (poster) BorderStroke(2.dp, Poster.Ink) else BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+            shadowElevation = if (poster) 0.dp else 10.dp
         ) {
             Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 // Audit D3 (#72): shared dock order is Cable / Atlas / Keep on every level --
@@ -59,19 +61,19 @@ fun BottomCompass(
                     glyph = "~",
                     label = stringResource(R.string.compass_cable),
                     selected = selected == CompassTab.Cable,
-                    onClick = onSelectCable
+                    poster = poster, onClick = onSelectCable
                 )
                 CompassEntry(
                     glyph = "◎",
                     label = stringResource(R.string.compass_atlas),
                     selected = selected == CompassTab.Atlas,
-                    onClick = onSelectAtlas
+                    poster = poster, onClick = onSelectAtlas
                 )
                 CompassEntry(
                     glyph = "▱",
                     label = stringResource(R.string.compass_keep),
                     selected = selected == CompassTab.Keep,
-                    onClick = onSelectKeep
+                    poster = poster, onClick = onSelectKeep
                 )
             }
         }
@@ -79,10 +81,10 @@ fun BottomCompass(
 }
 
 @Composable
-private fun CompassEntry(glyph: String, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CompassEntry(glyph: String, label: String, selected: Boolean, onClick: () -> Unit, poster: Boolean) {
     Surface(
-        color = if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent,
-        contentColor = if (selected) Cosmos.InkOnDark else Cosmos.InkOnDark.copy(alpha = 0.7f),
+        color = if (poster && selected) Poster.Cobalt else if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent,
+        contentColor = if (poster) { if (selected) Poster.Paper else Poster.Ink } else if (selected) Cosmos.InkOnDark else Cosmos.InkOnDark.copy(alpha = 0.7f),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .heightIn(min = 48.dp)
@@ -93,7 +95,7 @@ private fun CompassEntry(glyph: String, label: String, selected: Boolean, onClic
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(glyph, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(label, fontSize = 10.5.sp, fontWeight = FontWeight(700))
+            Text(label, fontSize = if (poster) 13.sp else 10.5.sp, fontWeight = FontWeight(700))
         }
     }
 }

@@ -1,5 +1,16 @@
 # The agreed interface, written down
 
+> September23 refinement: direct native exploration and compact topic cards take
+> precedence over the old sheet-first flow. See [direct Atlas](../design/2026-09-23-android-direct-atlas.md).
+
+> **Android reference precedence — 2026-09-22:** Spatial screens follow the first four
+> owner images and Living Atlas/Cosmos; content follows Hybrid Set poster/Kiosk.
+> The fifth image's generic grey Worlds dialog is rejected. See
+> [design direction](design-direction.md#which-reference-wins-owner-direction-2026-09-22)
+> and the [native audit](../design/2026-09-22-android-living-universe.md).
+> The older single-register specifications below remain provenance, not an override.
+
+
 Status: extraction, not invention. Every value below is taken from the two references the owner
 already chose in [design direction](design-direction.md): [Cosmos](references/cosmos.html) for the
 visual language and [Living Observatory](references/living-observatory.html) for journey behaviour

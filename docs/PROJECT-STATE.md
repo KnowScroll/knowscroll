@@ -1,5 +1,42 @@
 # Project state
 
+## 2026-09-23 direct native Atlas — PR130 continuation
+
+The Android continuation preserves PR130 and replaces cluttered, sheet-first entry
+with a compact Universe system, visible ship flight, isolated planet/moon, related
+continent geometry and directly tappable topics. An explicitly authored graph opens
+the existing rich Scroll and actual supplied Reel, preserving exact camera/topic and
+reading/playback/branch origins. Source worlds retain secondary source inspection.
+
+[Current evidence](journeys/evidence/android-direct-2026-09-23/README.md) records
+94 units and 22 native scenario/configuration passes, two bounded MiniMax-M3 reviews,
+real-time motion and matched profiles. The final p95 range **52.29–66.56 ms** regresses
+against **47.40 ms** baseline; smoothness is unaccepted. The original preview runtime
+on4322 and owner history are preserved; owner `knowscroll` was not migrated or reset.
+The owner authorizes PR130 merge; consult the PR for exact final CI/merge status.
+#72, full-v1, manual visual/input acceptance, physical-device performance and live
+semantic/provider gates remain open. Earlier dated state below is historical.
+
+## 2026-09-22 Android living universe and explicit Cable — review branch
+
+The Android-only #72 successor from merged PR129 adds a moving native orbital map,
+stable identities and continuous camera into explicitly authored continent/local
+geography; integrated cream selectors; poster content; an actual Scroll/Reel feed
+filter; and a visible debug journey preview with three rich Scrolls, three supplied
+videos and authored branches. Scope-bound restoration, cancellable feed reads,
+compact video layout and privacy purge have runtime evidence. See the
+[audit](design/2026-09-22-android-living-universe.md) and
+[evidence](journeys/evidence/android-living-2026-09-22/README.md).
+
+This is branch delivery for review, not a merge, owner-runtime migration, live
+semantic/branch transport, generated-media proof or full-v1 acceptance. The owner
+has only an emulator available now. Fresh frame p95 is 67.37–71.34 ms versus 67.81 ms
+baseline despite lower draw cost; performance remains unaccepted. The owner database
+remains at 0001–0009, observed read-only. New preview lifecycle is recorded on 4322;
+the old 4320 runtime is preserved. Verify current processes rather than treating this
+file as a guarantee that a runtime is still alive. #72 remains open.
+
+
 ## 2026-09-22 merge authorization / owner preview
 
 The owner authorized merging PR #129 and viewing the latest Android build. The API36 `.journey`

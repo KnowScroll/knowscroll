@@ -98,6 +98,7 @@ class WorldDetailRedTest {
         composeRule.onAllNodesWithText("NASA \u00b7 Stars").assertCountEquals(1)
         composeRule.onAllNodesWithText("1 of 1 Scrolls encountered").assertCountEquals(0)
         composeRule.onNodeWithText("NASA \u00b7 Stars").performClick()
+        composeRule.onNodeWithText("Info").performClick()
         // After the transition only the selected world remains in the semantics tree.
         composeRule.onAllNodesWithText("NASA \u00b7 Stars").assertCountEquals(1)
         composeRule.onNodeWithText("1 of 1 Scrolls encountered").assertExists()
@@ -112,6 +113,7 @@ class WorldDetailRedTest {
     fun `the world detail closes via its local back control and the system level returns`() {
         render(listOf(orbits, stars))
         composeRule.onNodeWithText("NASA \u00b7 Stars").performClick()
+        composeRule.onNodeWithText("Info").performClick()
         composeRule.onNodeWithText("‹ System").assertExists()
         composeRule.onNodeWithText("‹ System").performClick()
         // After closing, the detail's exact-counts sentence is gone but the system level
@@ -144,6 +146,7 @@ class WorldDetailRedTest {
         render(listOf(orbits, stars, spiral, planets, moons))
         composeRule.onNodeWithText("Worlds 5").performClick()
         composeRule.onNodeWithText("NASA \u00b7 Moons").performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Info").performClick()
         composeRule.onNodeWithText("3 of 5 Scrolls encountered").assertExists()
     }
 
@@ -151,6 +154,7 @@ class WorldDetailRedTest {
     fun `the world detail exposes the external source link with a description that names the source`() {
         render(listOf(stars))
         composeRule.onNodeWithText("NASA \u00b7 Stars").performClick()
+        composeRule.onNodeWithText("Info").performClick()
         // The orbit body's source link is still on the screen (under the detail), and the
         // detail adds its own copy of the same source link. Only the selected world exposes a source action.
         composeRule.onAllNodesWithText("Open source").assertCountEquals(1)

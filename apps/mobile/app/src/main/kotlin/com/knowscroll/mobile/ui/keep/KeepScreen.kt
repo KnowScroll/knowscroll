@@ -31,6 +31,8 @@ import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
+import com.knowscroll.mobile.ui.theme.Poster
+import com.knowscroll.mobile.ui.theme.PosterTheme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -57,30 +59,29 @@ fun KeepScreen(
     onSelectCable: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        CosmosBackground()
+    PosterTheme { Box(modifier = modifier.fillMaxSize().background(Poster.Paper)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(stringResource(R.string.keep_kicker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-                    Text(stringResource(R.string.keep_title), style = MaterialTheme.typography.displayLarge, color = Cosmos.InkOnDark)
-                    Text(stringResource(R.string.keep_subtitle), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+                    Text(stringResource(R.string.keep_kicker), style = MaterialTheme.typography.labelMedium, color = Poster.Muted)
+                    Text(stringResource(R.string.keep_title), style = MaterialTheme.typography.displayLarge, color = Poster.Ink)
+                    Text(stringResource(R.string.keep_subtitle), style = MaterialTheme.typography.bodyMedium, color = Poster.Muted)
                     when (state) {
                         is UniverseState.Loading -> Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                            Text(stringResource(R.string.universe_loading), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+                            Text(stringResource(R.string.universe_loading), style = MaterialTheme.typography.bodyMedium, color = Poster.Muted)
                         }
                         is UniverseState.Unavailable -> Text(state.message, style = MaterialTheme.typography.bodyMedium, color = Cosmos.Coral)
                         is UniverseState.Loaded -> {
                             val traces = state.universe.traces
                             if (traces.isEmpty()) {
-                                Text(stringResource(R.string.keep_empty), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+                                Text(stringResource(R.string.keep_empty), style = MaterialTheme.typography.bodyMedium, color = Poster.Muted)
                             } else {
                                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     traces.forEach { trace ->
@@ -90,8 +91,9 @@ fun KeepScreen(
                                         // stays the persisted primary key.
                                         val traceDescription = stringResource(R.string.keep_card_description, title)
                                         Surface(
-                                            color = Cosmos.SpaceRaised,
-                                            contentColor = Cosmos.InkOnDark,
+                                            color = Poster.Paper,
+                                            border = androidx.compose.foundation.BorderStroke(2.dp, Poster.Ink),
+                                            contentColor = Poster.Ink,
                                             shape = MaterialTheme.shapes.medium,
                                             modifier = Modifier.fillMaxWidth()
                                                 .clickable { onOpenTrace(trace) }
@@ -106,11 +108,11 @@ fun KeepScreen(
                                                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                                     Text(
                                                         title,
-                                                        style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnDark
+                                                        style = MaterialTheme.typography.titleMedium, color = Poster.Ink
                                                     )
                                                     Text(
                                                         humanDate(trace.createdAt),
-                                                        style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark
+                                                        style = MaterialTheme.typography.labelMedium, color = Poster.Muted
                                                     )
                                                 }
                                             }
@@ -126,9 +128,10 @@ fun KeepScreen(
                 selected = CompassTab.Keep,
                 onSelectAtlas = onSelectAtlas,
                 onSelectCable = onSelectCable,
-                onSelectKeep = {}
+                onSelectKeep = {}, poster = true
             )
         }
+    }
     }
 }
 

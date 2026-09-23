@@ -1,5 +1,98 @@
 # Shared delivery checkpoint
 
+## 2026-09-23 direct Android Atlas — #72 / PR130 continuation
+
+Continue the SSD worktree `72-android-living-universe`, branch
+`codex/72-android-living-universe`. PR130's `81431cc` implementation was preserved;
+this continuation adds direct ship/planet/continent/topic/content navigation,
+collision-free square touch targets, readable compact labels, secondary source
+inspection, and exact content/origin restoration in an explicit authored Atlas.
+The owner now authorizes merging PR130; older no-merge text below is historical.
+Check PR130 for final-head CI and merge status. **#72/full-v1 remains open.**
+
+All six current reference images and four original spatial images were inspected;
+Cosmos/Living Atlas source read, denied browser replay not bypassed. Poster Scroll,
+Cable mode banks, actual Media3 playback and existing privacy contracts are preserved.
+See [design decisions](design/2026-09-23-android-direct-atlas.md) and
+[verification, motion and captures](journeys/evidence/android-direct-2026-09-23/README.md).
+
+Local checks: TypeScript typecheck; Android debug/test assemble, lint and **94 units**;
+**22 scenario/configuration runs**, including direct/compact/reduced-motion input,
+continuous two-pointer pinch, globe-rim tap, branch/read return, recreation, supplied
+Reel playback/background/epoch purge, source-world privacy, reader retry/revocation,
+Cable exposures, dense worlds and sky-clock lifecycle. One Robolectric Saved Traces
+idling timeout was retained; isolated tests and the complete rerun passed unchanged.
+This was not a native app ANR. No provider or owner-database changes.
+
+Matched untouched `81431cc` baseline: p50 **26.30 ms**, p95 **47.40 ms**. After runs:
+p50 **29.76 / 30.94 ms**, p95 **52.29 / 66.56 ms** on the same API36 host-GPU,
+4096MiB/4-core emulator. **Frame timing regresses; smoothness is not accepted.**
+No ANR observed during this run does not explain or resolve every prior ANR cause.
+
+The existing API4322/worker and disposable
+`knowscroll_test_native_76cf2b52091ca64c` are preserved. Original `.journey` state was
+saved before the test wave; restoration with the final APK and the additional owner-route check passed. Receipts are under
+ignored `artifacts/android-direct` and summarized in the dated evidence. Recheck
+runtime health before use. Owner DB `knowscroll` remains at nine migrations, read-only.
+
+Owner route: **Universe → Authored Atlas → Orbit laboratory → Orbits → tap globe →
+North coast → topic → Open**. Supplied demos uses the same route to actual test MP4s.
+Mac emulator's documented pinch method is Command + primary-button drag; Android
+two-pointer input is verified, but the available computer-use tool could not manually
+drive that desktop modifier bridge. Native trackpad pinch is not assumed.
+
+Next: owner visual/manual-input review and performance work; separately scope live
+semantic/rich/branch transport and the remaining #72/full-v1 gates. No social,
+mastery, provider-generation or semantic-emergence proof is claimed.
+
+## 2026-09-22 Android living universe / Cable — #72 review branch
+
+Started from verified merged PR129, `origin/main` at `91e5b72`, in SSD worktree
+`/Volumes/Mrigesh SSD/knowscroll-worktrees/72-android-living-universe`, branch
+`codex/72-android-living-universe`. Implementation is `9e38146`, with verification
+and compact-layout/export/socket fixes `38bf753` / `cd00057` / `518c0c3`. No merge or #72 closure is
+authorized. Original checkout and the pre-existing port 4320 preview are preserved.
+
+Read the [implementation/visual audit](design/2026-09-22-android-living-universe.md)
+and [current evidence](journeys/evidence/android-living-2026-09-22/README.md). The
+owner's new durable priority is dark spatial Cosmos/Living Atlas + first four
+images, poster/Kiosk Hybrid Set for content, and explicit rejection of image 5's
+grey Worlds dialog. All five images and actual HTML source/styles were inspected;
+local browser replay was denied and not bypassed.
+
+Native work now includes orbiting moons with lifecycle/reduced-motion pause, stable
+ID-derived map positions, pan/pinch camera travel into labelled authored continents
+and local detail, integrated cream Worlds/Station selectors, an explicit filtered
+Scroll/Reel Cable toggle, and an owner-accessible authored preview. The preview has
+three supplied playable videos and three rich Scrolls with actual authored branches.
+Camera, asset/revision origin, reading position, retry envelopes and privacy scope
+are retained or purged as appropriate. Compact video layout reserves playback space.
+No preview exposure/Keep/generation is posted; API/database counts verify that limit.
+
+Final checks: typecheck, Android assemble/lint, 92 unit tests and 16 emulator
+scenario/configuration runs passed, plus the visible owner preview setup.
+All functional evidence uses `.journey` and disposable databases. The owner confirmed
+**emulator only for now; physical phone later**. Read-only recheck of owner `knowscroll`
+still finds only migrations 0001–0009; no owner migration/reset occurred. No raw video,
+personal Reel capture, token or provider call is committed or represented as generation.
+The new owner preview uses port 4322; its ignored lifecycle receipt is
+`artifacts/android-living/preview/runtime.json` in the new worktree. Verify its health
+and PIDs before reuse/cleanup, as with the older 4320 receipt in the original checkout.
+
+The fresh matched debug profile baseline was p95 **67.81 ms**. Three spatial runs
+measured **67.37, 67.45, 71.34 ms**, draw p95 **10.66–12.59 ms** versus 18.22, and PSS
+**129,164–131,685 KiB** versus 131,278. Draw cost improved; total frame performance and
+memory are not accepted improvements. Median worsened. Keep the historical previous
+regression evidence, and profile on a physical device before smoothness acceptance.
+
+Two implementation worker attempts stalled and their drafts were not integrated.
+A bounded MiniMax-M3 source review completed; confirmed restoration findings and
+runtime-discovered defects were fixed and tested centrally. Review/usage receipts
+are in the evidence directory. Live branch/rich transport, semantic hierarchy,
+source-scoped discovery, actual social presence, real Cutroom generation and full-v1
+acceptance remain open. No Web or shared contract changes were made.
+
+
 ## 2026-09-22 owner-authorized merge and interactive preview
 
 The owner explicitly requested restarting the emulator and merging the delivered code. This
@@ -8,7 +101,7 @@ Implementation revision is `b14fd38`. Merge completion is recorded on PR129 and 
 live Git state rather than treating the older draft snapshots below as current.
 
 The visible API36 emulator now runs the latest separate `.journey` app against a fresh disposable
-`knowscroll_test_native_*` database on API port4320. The preview has two kept editorial encounters
+`knowscroll_test_native_*` database on API port 4320. The preview has two kept editorial encounters
 admitted through real exposure/Keep routes, plus the explicitly labelled supplied TEST MEDIA Reel.
 API/worker are intentionally left running for owner inspection. Ignored local lifecycle receipt:
 `artifacts/android-spatial/preview/runtime.json` (process IDs/database); startup log:

@@ -50,7 +50,19 @@ fun ScrollBlocks(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 block.nodes.forEach { node ->
-                                    OutlinedCard(Modifier.width(160.dp)) {
+                                    OutlinedCard(
+                                        Modifier.width(160.dp),
+                                        border =
+                                            androidx.compose.foundation.BorderStroke(
+                                                2.dp,
+                                                LocalContentColor.current,
+                                            ),
+                                        colors =
+                                            CardDefaults.outlinedCardColors(
+                                                containerColor =
+                                                    com.knowscroll.mobile.ui.theme.Poster.Paper
+                                            ),
+                                    ) {
                                         Text(node, Modifier.padding(16.dp))
                                     }
                                 }
@@ -95,6 +107,8 @@ private fun Comparison(block: ScrollBlock.ComparisonSlider) {
                 SliderDefaults.colors(
                     thumbColor = LocalContentColor.current,
                     activeTrackColor = LocalContentColor.current,
+                    inactiveTrackColor = com.knowscroll.mobile.ui.theme.Cosmos.CreamDim,
+                    inactiveTickColor = com.knowscroll.mobile.ui.theme.Poster.Ink,
                 ),
             modifier = Modifier.semantics { contentDescription = block.label },
         )
@@ -118,15 +132,23 @@ private fun DocumentImage(
         produceState<ImageState>(ImageState.Loading, block.url) {
             value = loader(block.url)?.let(ImageState::Ready) ?: ImageState.Failed
         }
-    when (val current = state) {
-        ImageState.Loading -> Text("Loading image: ${block.alt}")
-        ImageState.Failed -> Text("Image unavailable: ${block.alt}")
-        is ImageState.Ready ->
-            Image(
-                current.bitmap.asImageBitmap(),
-                block.alt,
-                Modifier.fillMaxWidth().heightIn(max = 360.dp),
-            )
+    // Reserve the same native frame while loading, failed and ready. A short placeholder
+    // otherwise clamps a restored document offset before the bitmap arrives on branch return.
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(2f),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        when (val current = state) {
+            ImageState.Loading -> Text("Loading image: ${block.alt}")
+            ImageState.Failed -> Text("Image unavailable: ${block.alt}")
+            is ImageState.Ready ->
+                Image(
+                    current.bitmap.asImageBitmap(),
+                    block.alt,
+                    Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                )
+        }
     }
     if (block.caption.isNotBlank()) Text(block.caption, style = MaterialTheme.typography.bodySmall)
 }
@@ -137,43 +159,43 @@ private fun DocumentImage(
 internal suspend fun loadDocumentImage(address: String): android.graphics.Bitmap? =
     withContext(Dispatchers.IO) {
         runCatching {
-                val url = URL(address)
-                require(url.protocol == "https")
-                val connection = url.openConnection() as HttpURLConnection
-                try {
-                    connection.instanceFollowRedirects = false
-                    connection.connectTimeout = 4000
-                    connection.readTimeout = 4000
-                    require(connection.responseCode == 200)
-                    require(connection.contentLengthLong <= 4 * 1024 * 1024)
-                    val output = java.io.ByteArrayOutputStream()
-                    connection.inputStream.use { input ->
-                        val buffer = ByteArray(8192)
-                        while (true) {
-                            ensureActive()
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            require(output.size() + count <= 4 * 1024 * 1024)
-                            output.write(buffer, 0, count)
-                        }
+            val url = URL(address)
+            require(url.protocol == "https")
+            val connection = url.openConnection() as HttpURLConnection
+            try {
+                connection.instanceFollowRedirects = false
+                connection.connectTimeout = 4000
+                connection.readTimeout = 4000
+                require(connection.responseCode == 200)
+                require(connection.contentLengthLong <= 4 * 1024 * 1024)
+                val output = java.io.ByteArrayOutputStream()
+                connection.inputStream.use { input ->
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        ensureActive()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        require(output.size() + count <= 4 * 1024 * 1024)
+                        output.write(buffer, 0, count)
                     }
-                    val bytes = output.toByteArray()
-                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                    require(bounds.outWidth > 0 && bounds.outHeight > 0)
-                    var sample = 1
-                    while (
-                        bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600
-                    ) sample *= 2
-                    BitmapFactory.decodeByteArray(
-                        bytes,
-                        0,
-                        bytes.size,
-                        BitmapFactory.Options().apply { inSampleSize = sample },
-                    )
-                } finally {
-                    connection.disconnect()
                 }
+                val bytes = output.toByteArray()
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                require(bounds.outWidth > 0 && bounds.outHeight > 0)
+                var sample = 1
+                while (
+                    bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600
+                ) sample *= 2
+                BitmapFactory.decodeByteArray(
+                    bytes,
+                    0,
+                    bytes.size,
+                    BitmapFactory.Options().apply { inSampleSize = sample },
+                )
+            } finally {
+                connection.disconnect()
             }
+        }
             .getOrNull()
     }

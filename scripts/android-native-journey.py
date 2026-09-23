@@ -10,6 +10,7 @@ source=urlparse(config['DATABASE_URL'])
 assert source.hostname in ('127.0.0.1','localhost')
 video=Path(os.environ['KS_NATIVE_VIDEO']).resolve()
 assert video.is_file()
+port=int(os.environ.get('KS_NATIVE_PORT', '4320'))
 name='knowscroll_test_native_'+secrets.token_hex(8)
 out=root/'artifacts/android-spatial/native'
 out.mkdir(parents=True,exist_ok=True)
@@ -18,7 +19,7 @@ for prior in ('receipt.json','native-journey.json','rich-preview.json','media-fa
 allowed=('PATH','HOME','LANG','LC_ALL','KS_DEV_ROOT','ANDROID_HOME','ANDROID_SDK_ROOT','ANDROID_AVD_HOME','ANDROID_USER_HOME','GRADLE_USER_HOME','JAVA_HOME','npm_config_cache','COREPACK_HOME','TMPDIR')
 env={key:os.environ[key] for key in allowed if key in os.environ}
 env.update({key:'' for key in config})
-env.update(DATABASE_URL=urlunparse(source._replace(path='/'+name)),KS_DEV_TOKEN=secrets.token_hex(32),NODE_ENV='test',PORT='4320',KS_JOURNEY_API_URL='http://10.0.2.2:4320',KS_MEDIA_ROOT=str(out/'media'),KS_NATIVE_VIDEO=str(video))
+env.update(DATABASE_URL=urlunparse(source._replace(path='/'+name)),KS_DEV_TOKEN=secrets.token_hex(32),NODE_ENV='test',PORT=str(port),KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}',KS_MEDIA_ROOT=str(out/'media'),KS_NATIVE_VIDEO=str(video))
 args=['-h',source.hostname,'-p',str(source.port or 5432),'-U',source.username]
 admin={**env,'PGPASSWORD':source.password or ''}
 processes=[]
@@ -29,7 +30,7 @@ def adb(*command): return subprocess.check_output(['adb',*command],text=True).st
 font=adb('shell','settings','get','system','font_scale')
 motion=adb('shell','settings','get','global','animator_duration_scale')
 try:
-    with socket.socket() as probe: probe.bind(('127.0.0.1',4320))
+    with socket.socket() as probe: probe.bind(('127.0.0.1',port))
     run(['createdb',*args,name],env=admin);created=True
     run(['pnpm','db:migrate'],env=env);run(['pnpm','db:seed'],env=env)
     with (out/'seed.json').open('w') as log:
@@ -40,7 +41,7 @@ try:
         processes.append((child,log))
     for attempt in range(100):
         try:
-            with urllib.request.urlopen('http://127.0.0.1:4320/health',timeout=1): break
+            with urllib.request.urlopen(f'http://127.0.0.1:{port}/health',timeout=1): break
         except Exception:
             if attempt==99: raise
             time.sleep(.1)
