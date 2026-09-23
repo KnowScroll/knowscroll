@@ -107,7 +107,7 @@ class NativeSpatialJourneyTest {
             compose.onNodeWithText(originTitle).performClick()
             waitDescription("Close world detail and return to the system")
             capture("spatial-world.png")
-            compose.onNodeWithText("Open discovery").performScrollTo().performClick()
+            compose.onNodeWithText("Cable").performClick()
             waitDescription("Scroll reading content")
             compose.onNodeWithContentDescription("Cable Reel").performClick()
             compose.waitUntil(20_000) { store().read()?.item?.kind == "Reel" }

@@ -31,12 +31,19 @@ import com.knowscroll.mobile.ui.theme.*
  * graph is authored here over exact selected revisions, not inferred from feed adjacency.
  */
 @Composable
-fun AuthoredPreview(authority: Universe, onClose: () -> Unit, onAuthorityFailure: () -> Unit) {
+fun AuthoredPreview(
+    authority: Universe,
+    onClose: () -> Unit,
+    onAuthorityFailure: () -> Unit,
+    initialScroll: Int = 0,
+    initialReel: String? = null,
+    atlasOrigin: Boolean = false,
+) {
     val context = LocalContext.current
     if (!BuildConfig.DEBUG || !context.packageName.endsWith(".journey")) return
-    var mode by rememberSaveable { mutableStateOf("Scroll") }
-    var scrollId by rememberSaveable { mutableIntStateOf(0) }
-    var reelId by rememberSaveable { mutableStateOf<String?>(null) }
+    var mode by rememberSaveable { mutableStateOf(if (initialReel == null) "Scroll" else "Reel") }
+    var scrollId by rememberSaveable { mutableIntStateOf(initialScroll) }
+    var reelId by rememberSaveable { mutableStateOf<String?>(initialReel) }
     var trail by rememberSaveable { mutableStateOf(listOf<String>()) }
     var reels by remember { mutableStateOf<List<ScrollItem>?>(null) }
     var failure by remember { mutableStateOf(false) }
@@ -92,7 +99,11 @@ fun AuthoredPreview(authority: Universe, onClose: () -> Unit, onAuthorityFailure
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 TextButton(onClick = ::back) {
-                    Text(if (trail.isEmpty()) "‹ Exit preview" else "‹ Branch origin")
+                    Text(
+                        if (trail.isEmpty())
+                            (if (atlasOrigin) "‹ Topic origin" else "‹ Exit preview")
+                        else "‹ Branch origin"
+                    )
                 }
                 TextButton(onClick = onClose) { Text("Close preview") }
             }
@@ -195,7 +206,7 @@ fun AuthoredPreview(authority: Universe, onClose: () -> Unit, onAuthorityFailure
     }
 }
 
-private val titles =
+internal val previewTitles =
     listOf(
         "Why does an orbit keep falling?",
         "What changes when speed changes?",
@@ -311,7 +322,7 @@ private fun PreviewDocument(index: Int, onBranch: (Int) -> Unit, onNext: () -> U
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             Text(
-                titles[index],
+                previewTitles[index],
                 style = MaterialTheme.typography.headlineLarge,
                 modifier = Modifier.semantics { heading() },
             )

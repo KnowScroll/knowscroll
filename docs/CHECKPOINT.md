@@ -1,5 +1,50 @@
 # Shared delivery checkpoint
 
+## 2026-09-23 direct Android Atlas — #72 / PR130 continuation
+
+Continue the SSD worktree `72-android-living-universe`, branch
+`codex/72-android-living-universe`. PR130's `81431cc` implementation was preserved;
+this continuation adds direct ship/planet/continent/topic/content navigation,
+collision-free square touch targets, readable compact labels, secondary source
+inspection, and exact content/origin restoration in an explicit authored Atlas.
+The owner now authorizes merging PR130; older no-merge text below is historical.
+Check PR130 for final-head CI and merge status. **#72/full-v1 remains open.**
+
+All six current reference images and four original spatial images were inspected;
+Cosmos/Living Atlas source read, denied browser replay not bypassed. Poster Scroll,
+Cable mode banks, actual Media3 playback and existing privacy contracts are preserved.
+See [design decisions](design/2026-09-23-android-direct-atlas.md) and
+[verification, motion and captures](journeys/evidence/android-direct-2026-09-23/README.md).
+
+Local checks: TypeScript typecheck; Android debug/test assemble, lint and **94 units**;
+**22 scenario/configuration runs**, including direct/compact/reduced-motion input,
+continuous two-pointer pinch, globe-rim tap, branch/read return, recreation, supplied
+Reel playback/background/epoch purge, source-world privacy, reader retry/revocation,
+Cable exposures, dense worlds and sky-clock lifecycle. One Robolectric Saved Traces
+idling timeout was retained; isolated tests and the complete rerun passed unchanged.
+This was not a native app ANR. No provider or owner-database changes.
+
+Matched untouched `81431cc` baseline: p50 **26.30 ms**, p95 **47.40 ms**. After runs:
+p50 **29.76 / 30.94 ms**, p95 **52.29 / 66.56 ms** on the same API36 host-GPU,
+4096MiB/4-core emulator. **Frame timing regresses; smoothness is not accepted.**
+No ANR observed during this run does not explain or resolve every prior ANR cause.
+
+The existing API4322/worker and disposable
+`knowscroll_test_native_76cf2b52091ca64c` are preserved. Original `.journey` state was
+saved before the test wave; restoration with the final APK and the additional owner-route check passed. Receipts are under
+ignored `artifacts/android-direct` and summarized in the dated evidence. Recheck
+runtime health before use. Owner DB `knowscroll` remains at nine migrations, read-only.
+
+Owner route: **Universe → Authored Atlas → Orbit laboratory → Orbits → tap globe →
+North coast → topic → Open**. Supplied demos uses the same route to actual test MP4s.
+Mac emulator's documented pinch method is Command + primary-button drag; Android
+two-pointer input is verified, but the available computer-use tool could not manually
+drive that desktop modifier bridge. Native trackpad pinch is not assumed.
+
+Next: owner visual/manual-input review and performance work; separately scope live
+semantic/rich/branch transport and the remaining #72/full-v1 gates. No social,
+mastery, provider-generation or semantic-emergence proof is claimed.
+
 ## 2026-09-22 Android living universe / Cable — #72 review branch
 
 Started from verified merged PR129, `origin/main` at `91e5b72`, in SSD worktree

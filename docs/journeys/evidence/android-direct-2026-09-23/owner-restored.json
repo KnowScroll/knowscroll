@@ -1,0 +1,12 @@
+{
+  "restoredAt": "2026-09-23T17:19:14.747737+00:00",
+  "apiPort": 4322,
+  "database": "knowscroll_test_native_76cf2b52091ca64c",
+  "package": "com.knowscroll.mobile.journey",
+  "sessionPreserved": true,
+  "visibleAuthoredRoutePassed": true,
+  "privacyEpoch": 0,
+  "apkSha256": "1e429553ca6e06d04e34cbf784a5b47fa8ac5cb510dfbfc04ef8fa32b39abd62",
+  "mainSourceSha256": "c30be2fd44233ac773e78c6cf77586f2e56cecd65af9559558565b7ba757236c",
+  "ownerDatabaseChanged": false
+}

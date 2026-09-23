@@ -48,6 +48,7 @@ class WorldInspectionJourneyTest {
         val label = selector.fetchSemanticsNode().config[SemanticsProperties.ContentDescription].first()
         screenshot("system-ui.png")
         selector.performClick()
+        compose.onNodeWithText("Info").performClick()
         compose.onNodeWithText(label.removePrefix("Explore world: ")).assertExists()
         compose.onNodeWithContentDescription("Close world detail and return to the system").assertIsDisplayed()
         screenshot("world-ui.png")
@@ -60,6 +61,7 @@ class WorldInspectionJourneyTest {
         val dock = compose.onNodeWithText("Atlas").getUnclippedBoundsInRoot()
         assertTrue("Source action must remain above the dock", source.bottom <= dock.top)
         screenshot("world-source-ui.png")
+        compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.waitUntil(10_000) { compose.onAllNodes(world).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription(label).assertIsDisplayed()
@@ -78,6 +80,7 @@ class WorldInspectionJourneyTest {
         compose.onNodeWithContentDescription("Open the system view").performScrollTo().performClick()
         compose.waitUntil(15_000) { compose.onAllNodes(world).fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodes(world)[0].performClick()
+        compose.onNodeWithText("Info").performClick()
         compose.onNodeWithText("Open source").assertExists()
         val api = ApiClient()
         val before = api.getUniverse()

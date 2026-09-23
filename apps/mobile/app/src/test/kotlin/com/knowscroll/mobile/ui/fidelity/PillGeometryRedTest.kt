@@ -280,6 +280,7 @@ class PillGeometryRedTest {
             }
         }
         composeRule.onNodeWithText("NASA . Stars").performClick()
+        composeRule.onNodeWithText("Info").performClick()
         val bounds = composeRule.onNodeWithContentDescription("Open NASA . Stars in browser")
             .getUnclippedBoundsInRoot()
         val height = bounds.bottom - bounds.top

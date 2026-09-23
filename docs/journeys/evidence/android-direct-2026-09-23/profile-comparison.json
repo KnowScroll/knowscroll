@@ -1,0 +1,84 @@
+{
+  "baseline": {
+    "totalPssKb": 129497,
+    "nativePssKb": 12988,
+    "dalvikPssKb": 9364,
+    "phaseP95Ms": {
+      "layout": 0.139459,
+      "draw": 10.867583,
+      "sync": 0.141042,
+      "gpu": 23.394542,
+      "queue": 19.952396
+    },
+    "iterations": 12,
+    "frames": 437,
+    "p50Ms": 26.295303,
+    "p95Ms": 47.399037,
+    "maxMs": 84.06845,
+    "over16_67ms": 437,
+    "droppedMetricReports": 0,
+    "clock": "real time; accessibility input; no Compose test animation clock",
+    "device": "API36 emulator debug, 1080x2400, font1.0, motion1.0"
+  },
+  "after": {
+    "totalPssKb": 125534,
+    "nativePssKb": 11786,
+    "dalvikPssKb": 6990,
+    "phaseP95Ms": {
+      "layout": 0.324208,
+      "draw": 11.238667,
+      "sync": 0.281542,
+      "gpu": 23.884167,
+      "queue": 20.324019
+    },
+    "iterations": 12,
+    "frames": 477,
+    "p50Ms": 29.760084,
+    "p95Ms": 52.292897,
+    "maxMs": 115.028266,
+    "over16_67ms": 475,
+    "droppedMetricReports": 0,
+    "clock": "real time; accessibility input; no Compose test animation clock",
+    "device": "API36 emulator debug, 1080x2400, font1.0, motion1.0"
+  },
+  "changePercent": {
+    "p50Ms": 13.18,
+    "p95Ms": 10.32,
+    "maxMs": 36.83,
+    "totalPssKb": -3.06
+  },
+  "acceptedSmoothness": false,
+  "matchedConfiguration": "same API36 emulator, host GPU, 4096 MiB, 4 cores, 1080x2400, font1, motion1",
+  "limits": [
+    "Debug emulator; no physical-device or owner smoothness acceptance",
+    "Same 12-cycle touch scenario, with a richer planet/ship transition",
+    "Host load is not held constant by a hardware benchmark harness"
+  ],
+  "repeatAfter": {
+    "totalPssKb": 126277,
+    "nativePssKb": 11758,
+    "dalvikPssKb": 7746,
+    "phaseP95Ms": {
+      "layout": 0.315459,
+      "draw": 11.384,
+      "sync": 0.202916,
+      "gpu": 23.677417,
+      "queue": 21.067126
+    },
+    "iterations": 12,
+    "frames": 446,
+    "p50Ms": 30.940034,
+    "p95Ms": 66.561598,
+    "maxMs": 101.670305,
+    "over16_67ms": 444,
+    "droppedMetricReports": 0,
+    "clock": "real time; accessibility input; no Compose test animation clock",
+    "device": "API36 emulator debug, 1080x2400, font1.0, motion1.0"
+  },
+  "repeatChangePercent": {
+    "p50Ms": 17.66,
+    "p95Ms": 40.43,
+    "maxMs": 20.94,
+    "totalPssKb": -2.49
+  }
+}

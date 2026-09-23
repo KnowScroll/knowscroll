@@ -29,6 +29,49 @@ internal val authoredRegions =
 internal fun authoredRegionId(worldId: String, region: AuthoredRegion) =
     "$worldId:authored-v1:${region.suffix}"
 
+internal fun continentPaths(): List<Path> =
+    listOf(
+        Path().apply {
+            moveTo(-93f, -25f)
+            lineTo(-76f, -46f)
+            lineTo(-58f, -44f)
+            lineTo(-46f, -62f)
+            lineTo(-21f, -51f)
+            lineTo(-4f, -31f)
+            lineTo(-12f, -15f)
+            lineTo(-7f, 13f)
+            lineTo(-29f, 24f)
+            lineTo(-43f, 9f)
+            lineTo(-68f, 20f)
+            lineTo(-80f, 1f)
+            close()
+        },
+        Path().apply {
+            moveTo(4f, 44f)
+            lineTo(13f, 18f)
+            lineTo(36f, 12f)
+            lineTo(45f, 27f)
+            lineTo(67f, 22f)
+            lineTo(78f, 46f)
+            lineTo(63f, 57f)
+            lineTo(56f, 80f)
+            lineTo(29f, 88f)
+            lineTo(11f, 69f)
+            close()
+        },
+        Path().apply {
+            moveTo(23f, -71f)
+            lineTo(52f, -89f)
+            lineTo(65f, -72f)
+            lineTo(85f, -66f)
+            lineTo(96f, -41f)
+            lineTo(78f, -22f)
+            lineTo(46f, -25f)
+            lineTo(26f, -43f)
+            close()
+        },
+    )
+
 /** Cached paths in the selected world's coordinate space. Camera is read only in draw phase. */
 @Composable
 internal fun AuthoredGeography(
@@ -37,49 +80,7 @@ internal fun AuthoredGeography(
     selectedRegion: String?,
     modifier: Modifier = Modifier,
 ) {
-    val coasts = remember {
-        listOf(
-            Path().apply {
-                moveTo(-93f, -25f)
-                lineTo(-76f, -46f)
-                lineTo(-58f, -44f)
-                lineTo(-46f, -62f)
-                lineTo(-21f, -51f)
-                lineTo(-4f, -31f)
-                lineTo(-12f, -15f)
-                lineTo(-7f, 13f)
-                lineTo(-29f, 24f)
-                lineTo(-43f, 9f)
-                lineTo(-68f, 20f)
-                lineTo(-80f, 1f)
-                close()
-            },
-            Path().apply {
-                moveTo(4f, 44f)
-                lineTo(13f, 18f)
-                lineTo(36f, 12f)
-                lineTo(45f, 27f)
-                lineTo(67f, 22f)
-                lineTo(78f, 46f)
-                lineTo(63f, 57f)
-                lineTo(56f, 80f)
-                lineTo(29f, 88f)
-                lineTo(11f, 69f)
-                close()
-            },
-            Path().apply {
-                moveTo(23f, -71f)
-                lineTo(52f, -89f)
-                lineTo(65f, -72f)
-                lineTo(85f, -66f)
-                lineTo(96f, -41f)
-                lineTo(78f, -22f)
-                lineTo(46f, -25f)
-                lineTo(26f, -43f)
-                close()
-            },
-        )
-    }
+    val coasts = remember { continentPaths() }
     val ocean = remember {
         Brush.radialGradient(listOf(Color(0xFF227E93), Color(0xFF0D465D)), Offset(0f, 0f), 300f)
     }

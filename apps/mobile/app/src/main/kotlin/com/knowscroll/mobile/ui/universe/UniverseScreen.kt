@@ -24,18 +24,23 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.Trace
@@ -68,6 +73,7 @@ fun UniverseScreen(
     onRetrySignOut: () -> Unit,
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
+    onAuthoredAtlas: (() -> Unit)? = null,
 ) {
     val viewStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     Box(modifier = modifier.fillMaxSize()) {
@@ -140,20 +146,22 @@ fun UniverseScreen(
                                 Text(stringResource(R.string.action_retry))
                             }
                         }
-                    is UniverseState.Loaded -> viewStates.SaveableStateProvider("canvas") {
-                        UniverseCanvasScreen(
-                            universe = state.universe,
-                            historyClear = historyClear,
-                            signOut = signOut,
-                            onEnterScroll = onEnterScroll,
-                            onOpenTrace = onOpenTrace,
-                            onEnterSystem = onEnterSystem,
-                            onRequestHistoryClear = onRequestHistoryClear,
-                            onRetryHistoryClear = onRetryHistoryClear,
-                            onRequestSignOut = onRequestSignOut,
-                            onRetrySignOut = onRetrySignOut,
-                        )
-                    }
+                    is UniverseState.Loaded ->
+                        viewStates.SaveableStateProvider("canvas") {
+                            UniverseCanvasScreen(
+                                universe = state.universe,
+                                historyClear = historyClear,
+                                signOut = signOut,
+                                onEnterScroll = onEnterScroll,
+                                onOpenTrace = onOpenTrace,
+                                onEnterSystem = onEnterSystem,
+                                onRequestHistoryClear = onRequestHistoryClear,
+                                onRetryHistoryClear = onRetryHistoryClear,
+                                onRequestSignOut = onRequestSignOut,
+                                onRetrySignOut = onRetrySignOut,
+                                onAuthoredAtlas = onAuthoredAtlas,
+                            )
+                        }
                 }
             }
             BottomCompass(
@@ -199,6 +207,7 @@ private fun UniverseCanvasScreen(
     onRetryHistoryClear: () -> Unit,
     onRequestSignOut: () -> Unit,
     onRetrySignOut: () -> Unit,
+    onAuthoredAtlas: (() -> Unit)?,
 ) {
     val hasRead = universe.traces.isNotEmpty()
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -227,7 +236,7 @@ private fun UniverseCanvasScreen(
                             if (hasRead) R.string.universe_heading_started
                             else R.string.universe_heading_first
                         ),
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         color = Cosmos.Cream,
                     )
                     if (hasRead)
@@ -256,12 +265,16 @@ private fun UniverseCanvasScreen(
                                 )
                             )
                         }
-                        SystemViewButton(onEnterSystem)
+                        if (onAuthoredAtlas != null)
+                            OutlinedButton(onClick = onAuthoredAtlas) {
+                                Text("Authored Atlas", color = Cosmos.Cream)
+                            }
                     }
                 }
                 UniverseCanvas(
                     universe.traces,
                     onOpenTrace,
+                    onEnterSystem,
                     if (compact) Modifier.fillMaxWidth().height(360.dp)
                     else Modifier.weight(1f).fillMaxWidth(),
                 )
@@ -300,27 +313,60 @@ private fun YellowNote(text: String) {
 }
 
 /** Spatial placement is presentation only; a saved Trace is not evidence of a relationship. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UniverseCanvas(traces: List<Trace>, onOpenTrace: (Trace) -> Unit, modifier: Modifier) {
-    Box(modifier) {
-        com.knowscroll.mobile.ui.system.SpatialAtlas(
-            markers =
-                traces.map { com.knowscroll.mobile.ui.system.AtlasMarker(it.eventId, it.title) },
-            selectedId = null,
-            onSelect = { id -> traces.firstOrNull { it.eventId == id }?.let(onOpenTrace) },
-            modifier = Modifier.fillMaxSize(),
-            collectionLabel = "Saved Traces",
-            actionLabel = "Open saved encounter: ",
+private fun UniverseCanvas(
+    traces: List<Trace>,
+    onOpenTrace: (Trace) -> Unit,
+    onEnterSystem: () -> Unit,
+    modifier: Modifier,
+) {
+    var savedOpen by rememberSaveable { mutableStateOf(false) }
+    Box(modifier.then(if (savedOpen) Modifier.clearAndSetSemantics {} else Modifier)) {
+        com.knowscroll.mobile.ui.preview.MiniSystem(
+            "Your system",
+            "SOURCE-BACKED WORLDS",
+            onEnterSystem,
+            Modifier.align(Alignment.Center).size(210.dp),
         )
-        if (traces.isEmpty())
-            Text(
-                "Your first kept discovery will appear here.",
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 100.dp, bottom = 20.dp),
-                color = Cosmos.MutedOnDark,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-            )
+        if (traces.isNotEmpty())
+            TextButton(
+                onClick = { savedOpen = true },
+                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+            ) {
+                Text("Saved Traces ${traces.size}", color = Cosmos.Cream)
+            }
     }
+    if (savedOpen)
+        com.knowscroll.mobile.ui.theme.PosterTheme {
+            ModalBottomSheet(
+                onDismissRequest = { savedOpen = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = Cosmos.Cream,
+            ) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Saved Traces", style = MaterialTheme.typography.headlineMedium)
+                    traces.forEach { trace ->
+                        OutlinedButton(
+                            onClick = {
+                                savedOpen = false
+                                onOpenTrace(trace)
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Text(trace.title)
+                        }
+                    }
+                    TextButton(onClick = { savedOpen = false }) { Text("Close") }
+                }
+            }
+        }
 }
 
 /**
@@ -651,74 +697,77 @@ private fun SignOutControls(
 }
 
 @Composable
-private fun SignOutConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) = com.knowscroll.mobile.ui.theme.PosterTheme {
-    AlertDialog(
+private fun SignOutConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) =
+    com.knowscroll.mobile.ui.theme.PosterTheme {
+        AlertDialog(
             containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
             titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
             textContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
-        onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.sign_out_title)) },
-        text = { Text(stringResource(R.string.sign_out_effects)) },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = Cosmos.Coral,
-                        contentColor = Cosmos.Dark,
-                    ),
-                modifier =
-                    Modifier.heightIn(min = 48.dp).semantics {
-                        contentDescription = "Confirm sign out this device"
-                    },
-            ) {
-                Text(stringResource(R.string.sign_out_confirm))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier =
-                    Modifier.heightIn(min = 48.dp).semantics {
-                        contentDescription = "Cancel sign out this device"
-                    },
-            ) {
-                Text(stringResource(R.string.sign_out_cancel))
-            }
-        },
-    )
-}
+            onDismissRequest = onCancel,
+            title = { Text(stringResource(R.string.sign_out_title)) },
+            text = { Text(stringResource(R.string.sign_out_effects)) },
+            confirmButton = {
+                Button(
+                    onClick = onConfirm,
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = Cosmos.Coral,
+                            contentColor = Cosmos.Dark,
+                        ),
+                    modifier =
+                        Modifier.heightIn(min = 48.dp).semantics {
+                            contentDescription = "Confirm sign out this device"
+                        },
+                ) {
+                    Text(stringResource(R.string.sign_out_confirm))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier =
+                        Modifier.heightIn(min = 48.dp).semantics {
+                            contentDescription = "Cancel sign out this device"
+                        },
+                ) {
+                    Text(stringResource(R.string.sign_out_cancel))
+                }
+            },
+        )
+    }
 
 @Composable
-private fun ClearHistoryConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) = com.knowscroll.mobile.ui.theme.PosterTheme {
-    AlertDialog(
+private fun ClearHistoryConfirmation(onCancel: () -> Unit, onConfirm: () -> Unit) =
+    com.knowscroll.mobile.ui.theme.PosterTheme {
+        AlertDialog(
             containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
             titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
             textContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
-        onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.clear_history_title)) },
-        text = { Text(stringResource(R.string.clear_history_effects)) },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = Cosmos.Coral,
-                        contentColor = Cosmos.Dark,
-                    ),
-                modifier =
-                    Modifier.semantics { contentDescription = "Confirm clear Scroll history" },
-            ) {
-                Text(stringResource(R.string.clear_history_confirm))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.semantics { contentDescription = "Cancel clear Scroll history" },
-            ) {
-                Text(stringResource(R.string.clear_history_cancel))
-            }
-        },
-    )
-}
+            onDismissRequest = onCancel,
+            title = { Text(stringResource(R.string.clear_history_title)) },
+            text = { Text(stringResource(R.string.clear_history_effects)) },
+            confirmButton = {
+                Button(
+                    onClick = onConfirm,
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = Cosmos.Coral,
+                            contentColor = Cosmos.Dark,
+                        ),
+                    modifier =
+                        Modifier.semantics { contentDescription = "Confirm clear Scroll history" },
+                ) {
+                    Text(stringResource(R.string.clear_history_confirm))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier =
+                        Modifier.semantics { contentDescription = "Cancel clear Scroll history" },
+                ) {
+                    Text(stringResource(R.string.clear_history_cancel))
+                }
+            },
+        )
+    }

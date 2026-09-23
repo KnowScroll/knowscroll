@@ -1,5 +1,16 @@
 # Product behavior and visual direction
 
+## September23 direct exploration refinement
+
+The six references in `artifacts/android-living/next-session` supersede the prior
+spatial implementation: compact contextual topic cards, spacious Universe/system,
+and direct ship → planet → continent → topic → content navigation. Preserve the
+approved poster Scroll. Oversized colliding globes/labels and sheet-first planet
+entry are rejected. Source/truth inspection remains secondary. See the
+[direct Atlas audit](../design/2026-09-23-android-direct-atlas.md). Authored preview
+links are explicit examples; no inference, Keep-moon semantics or social state is
+accepted by importing a prototype.
+
 ## Which reference wins? (owner direction, 2026-09-22)
 
 Android has two intentional registers. The first four owner images (planet/moon,

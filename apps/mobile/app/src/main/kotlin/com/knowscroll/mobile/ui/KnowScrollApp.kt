@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,9 +13,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,6 +33,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
     KnowScrollTheme {
         val authorityReady by viewModel.authorityReady.collectAsStateWithLifecycle()
         val cableMode by viewModel.cableMode.collectAsStateWithLifecycle()
+        var atlasPreview by rememberSaveable { mutableStateOf(false) }
         var previewOpen by rememberSaveable { mutableStateOf(false) }
         val screen by viewModel.screen.collectAsStateWithLifecycle()
         val universe by viewModel.universe.collectAsStateWithLifecycle()
@@ -52,11 +52,13 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 val next = "${confirmed.universeId}:${confirmed.privacyEpoch}"
                 if (scopeKey != next) {
                     atlasStates.removeState("preview:$scopeKey")
+                    atlasStates.removeState("atlas-preview:$scopeKey")
                     atlasStates.removeState("system:$scopeKey")
                     atlasStates.removeState("universe:$scopeKey")
                     savedReelKey?.let(atlasStates::removeState)
                     savedReelKey = null
                     previewOpen = false
+                    atlasPreview = false
                     scopeKey = next
                 }
             }
@@ -65,7 +67,9 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         LaunchedEffect(signOut is SignOutState.SignedOut, universe is UniverseState.Unavailable) {
             if (signOut is SignOutState.SignedOut || universe is UniverseState.Unavailable) {
                 previewOpen = false
+                atlasPreview = false
                 atlasStates.removeState("preview:$scopeKey")
+                atlasStates.removeState("atlas-preview:$scopeKey")
                 atlasStates.removeState("system:$scopeKey")
                 atlasStates.removeState("universe:$scopeKey")
                 savedReelKey?.let(atlasStates::removeState)
@@ -97,7 +101,9 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         }
         val reading = scroll as? ScrollState.Reading
         val activeReelKey =
-            reading?.takeIf { it.item.kind == "Reel" }?.let { "reel:$scopeKey:${it.item.assetId}@${it.item.revision}" }
+            reading
+                ?.takeIf { it.item.kind == "Reel" }
+                ?.let { "reel:$scopeKey:${it.item.assetId}@${it.item.revision}" }
         LaunchedEffect(activeReelKey) {
             if (activeReelKey != null && activeReelKey != savedReelKey) {
                 savedReelKey?.let(atlasStates::removeState)
@@ -108,7 +114,8 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         LaunchedEffect(screen, reading?.item?.assetId, lifecycle, previewOpen) {
             val assetId = reading?.item?.assetId
             if (
-                !previewOpen && (screen is Screen.Scroll || screen is Screen.TraceRevisit) &&
+                !previewOpen &&
+                    (screen is Screen.Scroll || screen is Screen.TraceRevisit) &&
                     assetId != null &&
                     reading.item.kind == "Scroll"
             )
@@ -143,38 +150,61 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                 onConfirmSignOut = viewModel::confirmSignOut,
                                 onRetrySignOut = viewModel::retrySignOut,
                                 onOpenKeep = viewModel::openKeep,
+                                onAuthoredAtlas =
+                                    if (
+                                        com.knowscroll.mobile.BuildConfig.DEBUG &&
+                                            context.packageName.endsWith(".journey")
+                                    )
+                                        ({
+                                            atlasPreview = true
+                                            previewOpen = true
+                                        })
+                                    else null,
                             )
                         }
                     is Screen.Scroll,
-                    is Screen.TraceRevisit -> Column(Modifier.fillMaxSize()) {
-                        if (screen is Screen.Scroll) CableControls(cableMode, viewModel::selectCableMode,
-                            if (com.knowscroll.mobile.BuildConfig.DEBUG && context.packageName.endsWith(".journey")) ({ previewOpen = true }) else null)
-                        Box(Modifier.weight(1f)) { if (reading?.item?.kind == "Reel") {
-                            atlasStates.SaveableStateProvider(requireNotNull(activeReelKey)) {
-                                com.knowscroll.mobile.ui.reel.ReelScreen(
-                                    reading,
-                                    viewModel::keep,
-                                    viewModel::returnFromReader,
-                                    viewModel::nextScroll,
-                                    viewModel::openKeep,
-                                    { viewModel.onVisible(reading.item.assetId) },
-                                    viewModel::onMediaAuthorityFailure,
-                                    viewModel::updateReadingPosition,
+                    is Screen.TraceRevisit ->
+                        Column(Modifier.fillMaxSize()) {
+                            if (screen is Screen.Scroll)
+                                CableControls(
+                                    cableMode,
+                                    viewModel::selectCableMode,
+                                    if (
+                                        com.knowscroll.mobile.BuildConfig.DEBUG &&
+                                            context.packageName.endsWith(".journey")
+                                    )
+                                        ({ previewOpen = true })
+                                    else null,
                                 )
+                            Box(Modifier.weight(1f)) {
+                                if (reading?.item?.kind == "Reel") {
+                                    atlasStates.SaveableStateProvider(
+                                        requireNotNull(activeReelKey)
+                                    ) {
+                                        com.knowscroll.mobile.ui.reel.ReelScreen(
+                                            reading,
+                                            viewModel::keep,
+                                            viewModel::returnFromReader,
+                                            viewModel::nextScroll,
+                                            viewModel::openKeep,
+                                            { viewModel.onVisible(reading.item.assetId) },
+                                            viewModel::onMediaAuthorityFailure,
+                                            viewModel::updateReadingPosition,
+                                        )
+                                    }
+                                } else
+                                    ScrollScreen(
+                                        state = scroll,
+                                        onKeep = viewModel::keep,
+                                        onReturn = viewModel::returnFromReader,
+                                        onNext = viewModel::nextScroll,
+                                        onRetry = viewModel::retryScrollLoad,
+                                        mode = cableMode,
+                                        onReadingPosition = viewModel::updateReadingPosition,
+                                        onOpenKeep = viewModel::openKeep,
+                                    )
                             }
-                        } else
-                            ScrollScreen(
-                                state = scroll,
-                                onKeep = viewModel::keep,
-                                onReturn = viewModel::returnFromReader,
-                                onNext = viewModel::nextScroll,
-                                onRetry = viewModel::retryScrollLoad,
-                                mode = cableMode,
-                                onReadingPosition = viewModel::updateReadingPosition,
-                                onOpenKeep = viewModel::openKeep,
-                            )
                         }
-                    }
                     is Screen.Keep ->
                         KeepScreen(
                             state = universe,
@@ -193,11 +223,38 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                             )
                         }
                 }
-            if (previewOpen && confirmed != null && authorityReady && signOut !is SignOutState.SignedOut) {
-                atlasStates.SaveableStateProvider("preview:$scopeKey") { com.knowscroll.mobile.ui.preview.AuthoredPreview(confirmed, { previewOpen = false }, viewModel::onMediaAuthorityFailure) }
+            if (
+                previewOpen &&
+                    confirmed != null &&
+                    scopeKey == "${confirmed.universeId}:${confirmed.privacyEpoch}" &&
+                    authorityReady &&
+                    signOut !is SignOutState.SignedOut
+            ) {
+                atlasStates.SaveableStateProvider(
+                    if (atlasPreview) "atlas-preview:$scopeKey" else "preview:$scopeKey"
+                ) {
+                    if (atlasPreview)
+                        com.knowscroll.mobile.ui.preview.AuthoredAtlas(
+                            confirmed,
+                            {
+                                previewOpen = false
+                                atlasPreview = false
+                            },
+                            viewModel::onMediaAuthorityFailure,
+                        )
+                    else
+                        com.knowscroll.mobile.ui.preview.AuthoredPreview(
+                            confirmed,
+                            { previewOpen = false },
+                            viewModel::onMediaAuthorityFailure,
+                        )
+                }
             } else if (previewOpen && !authorityReady) {
                 androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize()) {
-                    androidx.compose.material3.Text("Checking your session…", Modifier.padding(24.dp))
+                    androidx.compose.material3.Text(
+                        "Checking your session…",
+                        Modifier.padding(24.dp),
+                    )
                 }
             }
         }

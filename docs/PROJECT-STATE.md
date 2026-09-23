@@ -1,5 +1,22 @@
 # Project state
 
+## 2026-09-23 direct native Atlas — PR130 continuation
+
+The Android continuation preserves PR130 and replaces cluttered, sheet-first entry
+with a compact Universe system, visible ship flight, isolated planet/moon, related
+continent geometry and directly tappable topics. An explicitly authored graph opens
+the existing rich Scroll and actual supplied Reel, preserving exact camera/topic and
+reading/playback/branch origins. Source worlds retain secondary source inspection.
+
+[Current evidence](journeys/evidence/android-direct-2026-09-23/README.md) records
+94 units and 22 native scenario/configuration passes, two bounded MiniMax-M3 reviews,
+real-time motion and matched profiles. The final p95 range **52.29–66.56 ms** regresses
+against **47.40 ms** baseline; smoothness is unaccepted. The original preview runtime
+on4322 and owner history are preserved; owner `knowscroll` was not migrated or reset.
+The owner authorizes PR130 merge; consult the PR for exact final CI/merge status.
+#72, full-v1, manual visual/input acceptance, physical-device performance and live
+semantic/provider gates remain open. Earlier dated state below is historical.
+
 ## 2026-09-22 Android living universe and explicit Cable — review branch
 
 The Android-only #72 successor from merged PR129 adds a moving native orbital map,
