@@ -6,6 +6,7 @@ import type {
 } from '../../contracts/src/index.ts';
 import type { AuthScope } from './identity.ts';
 import {eraseReasoningForHistoryClear} from './reasoning-storage.ts';
+import {eraseSemanticHistory, exportSemanticHistory} from './semantic/branches.ts';
 
 export class HistoryClearConflict extends Error {
  readonly statusCode = 409;
@@ -29,6 +30,23 @@ function receiptFromRow(row: Record<string, unknown>): HistoryClearReceipt {
 async function eraseEncounterSystem(client:pg.PoolClient,universeId:string):Promise<void> {
  await client.query('DELETE FROM world_system_member WHERE system_id IN (SELECT id FROM world_system WHERE universe_id=$1)',[universeId]);
  await client.query('DELETE FROM world_system WHERE universe_id=$1',[universeId]);
+}
+
+/** The personal history both Clear (ADR-0010) and Reset (ADR-0030) erase, in FK-safe order, under
+ * the caller's universe lock and after its epoch has advanced. Semantic rows (#131) go before the
+ * exposures/decisions/ledger events they reference. Shared knowledge and other universes survive. */
+async function erasePersonalHistory(client:pg.PoolClient,universeId:string,epochBefore:number,epochAfter:number):Promise<void> {
+ await eraseReasoningForHistoryClear(client,{universeId,epochBefore,epochAfter});
+ await client.query('DELETE FROM job WHERE universe_id=$1',[universeId]);
+ await client.query('DELETE FROM trace WHERE universe_id=$1',[universeId]);
+ await eraseSemanticHistory(client,universeId);
+ await client.query('DELETE FROM exposure WHERE universe_id=$1',[universeId]);
+ await eraseEncounterSystem(client,universeId);
+ await client.query('DELETE FROM ledger WHERE universe_id=$1',[universeId]);
+ await client.query('DELETE FROM decision WHERE universe_id=$1',[universeId]);
+ const accounts=await client.query(`UPDATE accounts SET kept_asset_ids='{}'::uuid[],revision=revision+1
+  WHERE universe_id=$1`,[universeId]);
+ if(accounts.rowCount!==1) throw new Error('Universe accounts state is missing');
 }
 
 export async function clearScrollHistory(
@@ -55,16 +73,7 @@ export async function clearScrollHistory(
   [scope.sessionId,scope.universeId,nextEpoch,scope.privacyEpoch]);
  if(session.rowCount!==1) throw new Error('Authenticated session could not advance with history clear');
 
- await eraseReasoningForHistoryClear(client,{universeId:scope.universeId,epochBefore:scope.privacyEpoch,epochAfter:nextEpoch});
- await client.query('DELETE FROM job WHERE universe_id=$1',[scope.universeId]);
- await client.query('DELETE FROM trace WHERE universe_id=$1',[scope.universeId]);
- await client.query('DELETE FROM exposure WHERE universe_id=$1',[scope.universeId]);
- await eraseEncounterSystem(client,scope.universeId);
- await client.query('DELETE FROM ledger WHERE universe_id=$1',[scope.universeId]);
- await client.query('DELETE FROM decision WHERE universe_id=$1',[scope.universeId]);
- const accounts=await client.query(`UPDATE accounts SET kept_asset_ids='{}'::uuid[],revision=revision+1
-  WHERE universe_id=$1`,[scope.universeId]);
- if(accounts.rowCount!==1) throw new Error('Universe accounts state is missing');
+ await erasePersonalHistory(client,scope.universeId,scope.privacyEpoch,nextEpoch);
 
  const receipt=(await client.query(`INSERT INTO history_clear_receipt
   (id,universe_id,request_id,epoch_before,epoch_after,cleared_at)
@@ -204,11 +213,15 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
    FROM reasoning_accounting WHERE universe_id=$1 ORDER BY created_at`, [scope.universeId],
  )).rows;
 
+ const semantic = await exportSemanticHistory(client, scope.universeId);
+
  const rowCounts = {
   decisions: decisions.length, ledger: ledger.length, exposures: exposures.length,
   traces: traces.length, jobs: jobs.length, deviceSessions: deviceSessions.length,
   reasoningJobs: reasoningJobs.length, reasoningSteps: reasoningSteps.length,
   reasoningReceipts: reasoningReceipts.length, reasoningAccounting: reasoningAccounting.length,
+  branchOpens: semantic.branchOpens.length, connectionFeedback: semantic.connectionFeedback.length,
+  semanticProposals: semantic.proposals.length,
  };
 
  const existing = (await client.query(
@@ -234,6 +247,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   accounts: { keptAssetIds: (accountsRow.kept_asset_ids as string[]) ?? [], revision: Number(accountsRow.revision) },
   decisions, ledger, exposures, traces, jobs, deviceSessions,
   reasoning: { jobs: reasoningJobs, steps: reasoningSteps, receipts: reasoningReceipts, accounting: reasoningAccounting },
+  semantic,
  };
 }
 
@@ -267,16 +281,7 @@ export async function resetPersonalUniverse(client: pg.PoolClient, scope: AuthSc
   WHERE id=$1 AND privacy_epoch=$2 RETURNING privacy_epoch`, [scope.universeId, scope.privacyEpoch, nextEpoch]);
  if (!universe.rowCount) throw new PrivacyLifecycleConflict();
 
- await eraseReasoningForHistoryClear(client, {universeId: scope.universeId, epochBefore: scope.privacyEpoch, epochAfter: nextEpoch});
- await client.query('DELETE FROM job WHERE universe_id=$1', [scope.universeId]);
- await client.query('DELETE FROM trace WHERE universe_id=$1', [scope.universeId]);
- await client.query('DELETE FROM exposure WHERE universe_id=$1', [scope.universeId]);
- await eraseEncounterSystem(client,scope.universeId);
- await client.query('DELETE FROM ledger WHERE universe_id=$1', [scope.universeId]);
- await client.query('DELETE FROM decision WHERE universe_id=$1', [scope.universeId]);
- const accounts = await client.query(`UPDATE accounts SET kept_asset_ids='{}'::uuid[],revision=revision+1
-  WHERE universe_id=$1`, [scope.universeId]);
- if (accounts.rowCount !== 1) throw new Error('Universe accounts state is missing');
+ await erasePersonalHistory(client, scope.universeId, scope.privacyEpoch, nextEpoch);
 
  // Beyond Clear: end every session for this universe, including the caller's own.
  const revoked = await client.query(

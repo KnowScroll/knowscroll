@@ -87,6 +87,7 @@ export const bridgeRejectionReason = z.enum([
   'to_side_unsupported',
   'mechanism_unsupported',
   'direction_unsupported',
+  'contradicted_by_substrate',
   'analogy_limit_missing',
   'counterevidence_unresolved',
   'counterevidence_ignored',
@@ -183,7 +184,12 @@ export interface EncounterBranchWire {
   branchId: string;
   bridgeId: string;
   relationType: BridgeRelationType;
-  /** The direction the reader travels: from this encounter's concept to the target's. */
+  /** `forward` travels the bridge as validated (from → to); `reverse` walks it back (e.g. from
+   * an explained phenomenon to what explains it). Symmetric types are always `forward` from the
+   * reader's side. `fromConcept`/`toConcept` are always in the reader's travel order. */
+  direction: 'forward' | 'reverse';
+  /** Plain-language relation in travel order, e.g. "explains" or "is explained by". */
+  relationPhrase: string;
   fromConcept: { code: string; name: string };
   toConcept: { code: string; name: string };
   mechanism: string;
@@ -213,3 +219,22 @@ export const branchOpenInput = z.object({
   expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
 }).strict();
 export type BranchOpenInput = z.infer<typeof branchOpenInput>;
+
+/** `POST /v1/branches`: the same shape as a feed decision, plus what was (or was not) recorded. */
+export interface BranchOpenResponse {
+  decisionId: string;
+  universeId: string;
+  accountRevision: number;
+  privacyEpoch: number;
+  items: unknown[];
+  branch: {
+    branchOpenId: string | null;
+    /** False while recording is paused: the continuation is served, nothing personal is kept. */
+    recorded: boolean;
+    bridgeId: string;
+    relationType: BridgeRelationType;
+    direction: 'forward' | 'reverse';
+  };
+}
+
+export interface ConnectionFeedbackReceipt { feedbackId: string; bridgeId: string; objection: z.infer<typeof connectionObjection>; suppressed: true }

@@ -49,6 +49,7 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0028 — Evidence-backed semantic worlds](0028-evidence-backed-worlds.md): a world is the set of assets sharing one recorded source, a system is the worlds one universe's reader has actually encountered, both recompute from `asset`/`exposure` alone, and the database refuses a world or system that names no evidence. Contract only; no consumer yet.
 - [ADR-0029 — A real Composer contract](0029-composer-signal-ranking.md): versioned SQL-primitive ranking policy, per-candidate signals recorded with the decision, diversity and rank/score consistency enforced at commit, and explanations built only from a registered template and the same recorded signals.
 - [ADR-0030 — Privacy lifecycle: pause, export and reset](0030-privacy-lifecycle-pause-export-reset.md): contract only; extends ADR-0009/0010 with a database-enforced recording pause, a live non-destructive export, and a reset that erases like Clear plus ends every session; no route or client yet.
+- [ADR-0031 — Semantic substrate and validated bridges](0031-semantic-substrate-and-validated-bridges.md): source-backed immutable claims, bridges admitted only by a deterministic validator with replayable read sets, correction by revalidation, private branch/feedback history.
 
 ## Process
 

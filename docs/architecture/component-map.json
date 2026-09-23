@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-09-20",
+  "updated": "2026-09-24",
   "note": "Paths are ownership roots, not proof every target module exists. No separate service is implied.",
   "components": [
     {
@@ -48,9 +48,9 @@
     {
       "component": "Substrate",
       "responsibility": "Sources, claims, concepts and semantic bridges",
-      "path": "content",
-      "status": "source-fields-only",
-      "issue": "https://github.com/KnowScroll/knowscroll/issues/6"
+      "path": "packages/db/src/semantic",
+      "status": "semantic-v1-sources-claims-validated-bridges-corrections-adr-0031",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/131"
     },
     {
       "component": "Cartographer / Chart",
