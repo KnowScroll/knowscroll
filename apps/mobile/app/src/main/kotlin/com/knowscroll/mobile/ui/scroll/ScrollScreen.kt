@@ -48,6 +48,7 @@ import com.knowscroll.mobile.ui.truthStateMeaning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun ScrollScreen(
@@ -136,18 +137,38 @@ private fun ReadingSheet(
         }
     )
     val readingScroll = rememberScrollState(state.readingPosition)
+    // #131: content below the body (live continuations) arrives after first layout, so the
+    // document can be briefly shorter than the saved position. ScrollState clamps to that shorter
+    // maximum; without this guard the clamped value was written back as the reading position and
+    // exact return/restoration silently lost the reader's place. Hold the saved position until the
+    // document can contain it (bounded), and give way at once if the reader scrolls first.
+    val savedPosition = state.readingPosition
+    var restoringPosition by remember(item.assetId) { mutableStateOf(savedPosition > 0) }
+    LaunchedEffect(item.assetId, savedPosition) {
+        if (!restoringPosition) return@LaunchedEffect
+        kotlinx.coroutines.withTimeoutOrNull(3_000) {
+            snapshotFlow { readingScroll.isScrollInProgress to readingScroll.maxValue }
+                .first { (scrolling, max) -> scrolling || max >= savedPosition }
+        }
+        if (!readingScroll.isScrollInProgress && readingScroll.value != savedPosition && readingScroll.maxValue >= savedPosition) {
+            readingScroll.scrollTo(savedPosition)
+        }
+        restoringPosition = false
+    }
     val positionDescription = stringResource(R.string.reader_position_description, readingScroll.value)
     var sourcesOpen by rememberSaveable { mutableStateOf(false) }
     var explainOpen by rememberSaveable { mutableStateOf(false) }
     var connectionsOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(item.assetId, readingScroll) {
-        snapshotFlow { readingScroll.value }.distinctUntilChanged().collectLatest {
+        snapshotFlow { readingScroll.value to restoringPosition }.distinctUntilChanged().collectLatest { (value, restoring) ->
+            if (restoring) return@collectLatest
             delay(200)
-            onReadingPosition(item.assetId, it)
+            onReadingPosition(item.assetId, value)
         }
     }
+    val latestRestoring = rememberUpdatedState(restoringPosition)
     DisposableEffect(item.assetId, readingScroll) {
-        onDispose { onReadingPosition(item.assetId, readingScroll.value) }
+        onDispose { onReadingPosition(item.assetId, if (latestRestoring.value) savedPosition else readingScroll.value) }
     }
     BackHandler(enabled = sourcesOpen || explainOpen || connectionsOpen) { sourcesOpen = false; explainOpen = false; connectionsOpen = false }
 
@@ -178,7 +199,7 @@ private fun ReadingSheet(
                 val backLabel = stringResource(R.string.reader_branch_back, origin.fromTitle)
                 TextButton(
                     onClick = onBack,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.Cream),
+                    colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream),
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = backLabel },
                 ) { Text("← ${origin.fromTitle}", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, fontSize = 12.5.sp) }
             }
@@ -247,7 +268,7 @@ private fun ReadingSheet(
     if (connectionsOpen) {
         val live = branches?.branches.orEmpty()
         if (live.isEmpty()) connectionsOpen = false
-        else ConnectionSheet(live, { connectionsOpen = false; onOpenBranch(it) }, onObjectConnection) { connectionsOpen = false }
+        else ConnectionSheet(live, { connectionsOpen = false; onOpenBranch(it) }, { bridge, objection -> connectionsOpen = false; onObjectConnection(bridge, objection) }) { connectionsOpen = false }
     }
 }
 

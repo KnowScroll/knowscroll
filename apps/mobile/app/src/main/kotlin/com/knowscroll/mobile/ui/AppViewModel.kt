@@ -352,7 +352,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(item.kind!="Scroll"){_branches.value=null;return}
         val epoch=observedPrivacyEpoch
         val universeId=observedUniverseId
-        _branches.value=BranchPanel(item.assetId,BranchAvailability.Loading)
+        // A refresh of the same encounter keeps the current list until the answer arrives: flashing
+        // the shorter Loading rail under a reader moves the document they are reading.
+        if(_branches.value?.assetId!=item.assetId || _branches.value?.availability is BranchAvailability.Failed)
+            _branches.value=BranchPanel(item.assetId,BranchAvailability.Loading)
         branchJob=viewModelScope.launch {
             try {
                 val result=api.getBranches(item.assetId)

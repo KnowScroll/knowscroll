@@ -84,7 +84,11 @@ export async function listEncounterBranches(client: pg.PoolClient, scope: AuthSc
   if (own.length === 0) return { ...base, branches: [], emptyReason: 'no_semantic_annotation' };
 
   const tree = await conceptTree(client);
-  const touches = (side: string) => own.some(o => isWithin(tree, o.code, side) || isWithin(tree, side, o.code));
+  // A bridge applies to this encounter only when the encounter is about that side or a narrower
+  // part of it. A broader concept (a Scroll that merely involves the Sun) does not make a bridge
+  // about one specific aspect (the Sun's energy output) a continuation of it — that was the
+  // tenuous leap the first emulator journey surfaced.
+  const touches = (side: string) => own.some(o => isWithin(tree, o.code, side));
   const bridges = (await client.query<BridgeRow>(
     `SELECT b.id, b.relation_type, b.mechanism, b.limitations, b.prerequisites,
             f.code AS from_code, f.name AS from_name, t.code AS to_code, t.name AS to_name

@@ -101,7 +101,8 @@ private fun ConnectionCard(branch: LiveBranch, onOpenBranch: (String) -> Unit, o
                 branch.limitations.forEach { Text("· ${it.statement}", style = MaterialTheme.typography.bodyMedium) }
             }
             Labeled(stringResource(R.string.connection_evidence_heading)) {
-                branch.evidence.forEach { e ->
+                // One claim can support several roles (from, to, mechanism); show each claim once.
+                branch.evidence.distinctBy { it.statement }.forEach { e ->
                     Text(e.statement, style = MaterialTheme.typography.bodyMedium)
                     Text(e.sourceTitle, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
                 }
