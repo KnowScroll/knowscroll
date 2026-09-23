@@ -1,0 +1,400 @@
+{
+  "checkedAt": "2026-09-23T20:36:14.973Z",
+  "seedVersion": "editorial-substrate-2026-09-24",
+  "counts": {
+    "verified": 70,
+    "unverified": 0,
+    "missing": 0
+  },
+  "sources": [
+    {
+      "key": "nasa.gravity",
+      "status": "hash_match"
+    },
+    {
+      "key": "nasa.orbits",
+      "status": "hash_match"
+    },
+    {
+      "key": "nasa.stars",
+      "status": "hash_match"
+    },
+    {
+      "key": "nasa.sun",
+      "status": "hash_match"
+    },
+    {
+      "key": "nasa.seasons",
+      "status": "hash_match"
+    },
+    {
+      "key": "nasa.greenhouse",
+      "status": "hash_match"
+    },
+    {
+      "key": "nasa.energy_budget",
+      "status": "hash_match"
+    },
+    {
+      "key": "noaa.tides",
+      "status": "hash_match"
+    },
+    {
+      "key": "openstax.bio.homeostasis",
+      "status": "hash_match"
+    }
+  ],
+  "errors": [],
+  "quotes": [
+    {
+      "claimKey": "clm.gravity.definition",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.earth_pull",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.mass_distance",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.weight",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.orbit",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.tides",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.star_formation",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.gravity.sun_holds_earth",
+      "sourceKey": "nasa.gravity",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.tides.cause",
+      "sourceKey": "noaa.tides",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.tides.waves",
+      "sourceKey": "noaa.tides",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.tides.crest_trough",
+      "sourceKey": "noaa.tides",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.tides.reliable",
+      "sourceKey": "noaa.tides",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.axial_tilt_cause",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.hemisphere_opposite",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.distance_not_cause",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.distance_not_cause",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.distance_small_effect",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.axis_not_straight",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.tilt_fixed_direction",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.seasons.perihelion_january",
+      "sourceKey": "nasa.seasons",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.composition",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.birth_cloud",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.birth_gravity",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.fusion_process",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.fusion_supports_star",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.mass_lifetime",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.massive_short_lived",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.death_collapse",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.star.death_collapse",
+      "sourceKey": "nasa.stars",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.identity",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.life_dependency",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.gravity_holds_system",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.gravity_holds_system",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.core_fusion_pressure",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.average_star",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.sun.lifetime",
+      "sourceKey": "nasa.sun",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.greenhouse.definition",
+      "sourceKey": "nasa.greenhouse",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.greenhouse.co2_removed",
+      "sourceKey": "nasa.greenhouse",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.greenhouse.average_temp",
+      "sourceKey": "nasa.greenhouse",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.greenhouse.human_disruption",
+      "sourceKey": "nasa.greenhouse",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.greenhouse.goldilocks",
+      "sourceKey": "nasa.greenhouse",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.balance",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.equilibrium",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.disturbance",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.greenhouse_raises_temp",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.greenhouse_no_runaway",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.greenhouse_no_runaway",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.forcing_alters_equilibrium",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.ellipse_law",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.equal_area_law",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.perihelion_speed",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.period_distance_law",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.period_distance_law",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.period_distance_law",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.period_examples",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.orbits.gravity_unknown_to_kepler",
+      "sourceKey": "nasa.orbits",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.monitor_setpoint",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.monitor_setpoint",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.neg_feedback",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.neg_feedback",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.components",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.components",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.components",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.glucose_detect",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.glucose_uptake",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.glucose_stops",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.pos_feedback",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.pos_feedback",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.homeo.pos_feedback_endpoint",
+      "sourceKey": "openstax.bio.homeostasis",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.radiative_cooling",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    }
+  ]
+}

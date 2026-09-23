@@ -1613,6 +1613,28 @@
           "supportKind": "supports"
         }
       ]
+    },
+    {
+      "key": "clm.energy_budget.radiative_cooling",
+      "statement": "Because the heat a surface radiates rises much faster than its temperature, a small warming causes a large increase in heat loss, which keeps Earth from heating without limit.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget.equilibrium",
+          "role": "subject"
+        },
+        {
+          "code": "idea.equilibrium",
+          "role": "mechanism"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "This large increase in heat loss in response to a relatively smaller increase in temperature—referred to as radiative cooling—is the primary mechanism that prevents runaway heating on Earth.",
+          "supportKind": "supports"
+        }
+      ]
     }
   ],
   "relations": [
@@ -2371,6 +2393,10 @@
           },
           {
             "claimKey": "clm.homeo.neg_feedback",
+            "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.energy_budget.radiative_cooling",
             "supports": "mechanism"
           }
         ],

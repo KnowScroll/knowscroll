@@ -146,10 +146,9 @@
   {
     "key": "tmp.sun_gravity_explains_greenhouse_effect",
     "whyTempting": "Both ideas involve 'the Sun' and 'keeping something stable,' and both evidence claims are real, well-supported claims about the Sun and about the greenhouse effect, so a heuristic skimming for shared entities and a plausible-sounding stability theme would accept the pairing without checking whether either claim actually connects gravity to trapped heat.",
-    "whyUnsupported": "Gravitational binding of the solar system and the atmospheric trapping of infrared radiation are physically unrelated mechanisms. No claim in the substrate ties astro.sun or physics.gravity to earth.climate.greenhouse_effect; the two evidence claims cited each describe only one side and never mention the other.",
+    "whyUnsupported": "Gravitational binding of the solar system and the atmospheric trapping of infrared radiation are physically unrelated mechanisms. No claim in the substrate ties astro.sun or physics.gravity to earth.climate.greenhouse_effect; the two evidence claims cited each describe only one side and never mention the other. (No cited claim connects the Sun's gravity to the greenhouse effect at all, so the validator reports the missing mechanism; direction is only judged when a connecting claim exists.)",
     "expectedReasons": [
-      "mechanism_unsupported",
-      "direction_unsupported"
+      "mechanism_unsupported"
     ],
     "payload": {
       "fromConcept": "astro.sun",

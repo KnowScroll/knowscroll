@@ -18,6 +18,12 @@ import com.knowscroll.mobile.data.TraceRevisit
 import com.knowscroll.mobile.data.TraceRevisitSession
 import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.data.WorldSystemResponse
+import com.knowscroll.mobile.data.BranchFrom
+import com.knowscroll.mobile.data.BranchOpenRequest
+import com.knowscroll.mobile.ui.branch.BranchOpenConflict
+import com.knowscroll.mobile.ui.branch.BranchPanel
+import com.knowscroll.mobile.ui.branch.branchAvailabilityOf
+import com.knowscroll.mobile.ui.branch.branchOpenConflict
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -57,6 +63,8 @@ sealed interface ReaderOrigin {
     data object Discovery:ReaderOrigin
     /** keptAt is the original Keep Ledger's created_at, verbatim from the Trace revisit receipt. */
     data class SavedTrace(val eventId:String,val keptAt:String):ReaderOrigin
+    /** #131: opened by taking a sourced connection from [fromTitle]; Back returns there exactly. */
+    data class Branch(val fromTitle:String,val relationSentence:String,val recorded:Boolean):ReaderOrigin
 }
 sealed interface KeepState {
     data object Idle:KeepState
@@ -112,6 +120,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val _signOut=MutableStateFlow<SignOutState>(SignOutState.Idle); val signOut=_signOut.asStateFlow()
     private val _system=MutableStateFlow<SystemState>(SystemState.Idle); val system=_system.asStateFlow()
     private val _toast=MutableStateFlow<String?>(null); val toast=_toast.asStateFlow()
+    /** #131: live continuations for the Scroll being read (null when none apply). */
+    private val _branches=MutableStateFlow<BranchPanel?>(null); val branches=_branches.asStateFlow()
+    private var branchJob:kotlinx.coroutines.Job?=null
+    /** Origins a reader branched away from, newest last; validated against scope before use. */
+    private val branchTrail=store.readBranchTrail().toMutableList()
+    /** Same key and payload after an ambiguous objection (in-memory; objections are idempotent). */
+    private val pendingFeedback=mutableMapOf<String,String>()
 
     init {
         val restored=signOutRestoreState(store.readPendingSignOut(),store.readSignedOut())
@@ -145,6 +160,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     fun returnFromReader() {
         pendingCableMode=null
+        if(returnAlongBranch())return
+        branchTrail.clear();store.writeBranchTrail(branchTrail)
+        _branches.value=null
         if(savedState.get<Boolean>("readerFromSystem") == true) {
             savedState["readerFromSystem"] = false
             // Returning must work while an exposure is in flight. Invalidate only its UI
@@ -294,6 +312,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         if(!operationIsCurrent(version,epoch))return@launch
                         session?.let{visited.add(it.item.assetId);store.writeVisited(visited)}
                         discardRevisit()
+                        // A newly discovered encounter starts a fresh line of travel.
+                        branchTrail.clear();store.writeBranchTrail(branchTrail)
                         store.write(next);session=next;show(next)
                     }
                 }
@@ -319,8 +339,134 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _scroll.value=ScrollState.Reading(
             value.item,value.exposureId,value.exposureEventId,
             if(value.keepJobId.isEmpty())KeepState.Idle else KeepState.Kept(value.keepJobId),
-            value.readingPosition
+            value.readingPosition,
+            origin=value.branchFrom?.let{ReaderOrigin.Branch(it.fromTitle,it.relationSentence,it.recorded)} ?: ReaderOrigin.Discovery
         )
+        val panel=_branches.value
+        if(panel==null || panel.assetId!=value.item.assetId || panel.availability is BranchAvailability.Failed)refreshBranches(value.item)
+    }
+
+    /** #131: a read of the live continuations; never blocks reading, never retried blindly. */
+    private fun refreshBranches(item:ScrollItem){
+        branchJob?.cancel()
+        if(item.kind!="Scroll"){_branches.value=null;return}
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _branches.value=BranchPanel(item.assetId,BranchAvailability.Loading)
+        branchJob=viewModelScope.launch {
+            try {
+                val result=api.getBranches(item.assetId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_scroll.value as? ScrollState.Reading)?.item?.assetId!=item.assetId)return@launch
+                if(result.privacyEpoch!=epoch){reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true);return@launch}
+                _branches.value=BranchPanel(item.assetId,branchAvailabilityOf(result,item),result.branches)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if((_scroll.value as? ScrollState.Reading)?.item?.assetId!=item.assetId)return@launch
+                if(e is ApiException.MissingToken || e is ApiException.Server && e.statusCode==401){purgeForScope(universeId,epoch);failClosed(message(e))}
+                else _branches.value=BranchPanel(item.assetId,BranchAvailability.Failed)
+            }
+        }
+    }
+
+    fun retryBranches(){(_scroll.value as? ScrollState.Reading)?.item?.let(::refreshBranches)}
+
+    /** #131: take a live continuation. The origin is exposed first (a branch starts from a real
+     * encounter), the request envelope is persisted before dispatch, and the origin — with its
+     * exact reading position — is pushed onto the return trail only once the target is served. */
+    fun openBranch(branchId:String){
+        if(busy || reconciling || !ready || store.readPendingClear()!=null)return
+        val panel=_branches.value ?: return
+        val branch=panel.branches.firstOrNull{it.branchId==branchId} ?: return
+        val current=session ?: return
+        if(current.item.assetId!=panel.assetId || panel.opening!=null)return
+        busy=true
+        val version=++navigationVersion
+        val epoch=observedPrivacyEpoch
+        _branches.value=panel.copy(opening=branchId,message=null)
+        viewModelScope.launch {
+            try {
+                val exposed=recordExposure(current,version,epoch)
+                if(!operationIsCurrent(version,epoch,current))return@launch
+                session=exposed
+                val request=store.readPendingBranch()?.takeIf{
+                    it.fromExposureId==exposed.exposureId && it.bridgeId==branch.bridgeId && it.targetAssetId==branch.targetAssetId &&
+                        it.expectedPrivacyEpoch==epoch && it.universeId==observedUniverseId
+                } ?: BranchOpenRequest(UUID.randomUUID().toString(),exposed.exposureId,branch.bridgeId,branch.targetAssetId,epoch,observedUniverseId)
+                    .also(store::writePendingBranch)
+                val receipt=api.openBranch(request)
+                if(!operationIsCurrent(version,epoch,exposed))return@launch
+                if(receipt.feed.universeId!=observedUniverseId || receipt.feed.privacyEpoch!=epoch){
+                    purgeForScope(receipt.feed.universeId,receipt.feed.privacyEpoch)
+                    failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
+                    return@launch
+                }
+                val next=ScrollSession(
+                    receipt.feed.decisionId,receipt.feed.items.single(),receipt.feed.privacyEpoch,receipt.feed.universeId,
+                    branchFrom=BranchFrom(exposed.item.assetId,exposed.item.title,branch.relationSentence,branch.bridgeId,receipt.recorded)
+                )
+                branchTrail.add(session ?: exposed);store.writeBranchTrail(branchTrail)
+                store.clearPendingBranch()
+                store.write(next);session=next;show(next)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion)return@launch
+                val conflict=(e as? ApiException.Server)?.let(::branchOpenConflict)
+                when {
+                    conflict==BranchOpenConflict.StaleEpoch -> {store.clearPendingBranch();reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                    conflict==BranchOpenConflict.Unavailable -> {
+                        store.clearPendingBranch()
+                        refreshBranches(current.item)
+                        _branches.value=_branches.value?.copy(message="That connection is no longer available.")
+                    }
+                    invalidatesReader(e) -> {purgeForScope(current.universeId,epoch);failClosed(message(e))}
+                    else -> _branches.value=panel.copy(opening=null,message=message(e))
+                }
+            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+        }
+    }
+
+    /** #131: "not useful" / "seems wrong" hides a connection for this reader only. */
+    fun objectToConnection(bridgeId:String,objection:String){
+        if(!ready || reconciling)return
+        val item=(_scroll.value as? ScrollState.Reading)?.item ?: return
+        val epoch=observedPrivacyEpoch
+        val key=pendingFeedback.getOrPut("$bridgeId:$objection"){UUID.randomUUID().toString()}
+        viewModelScope.launch {
+            try {
+                api.postConnectionFeedback(key,bridgeId,epoch,objection)
+                pendingFeedback.remove("$bridgeId:$objection")
+                if(epoch!=observedPrivacyEpoch)return@launch
+                _toast.value=getApplication<Application>().getString(com.knowscroll.mobile.R.string.connection_hidden)
+                if((_scroll.value as? ScrollState.Reading)?.item?.assetId==item.assetId)refreshBranches(item)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(e is ApiException.Server && e.statusCode==409){pendingFeedback.remove("$bridgeId:$objection");reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                else _toast.value=message(e)
+            }
+        }
+    }
+
+    /** System Back from a Scroll opened by a connection returns to where the reader branched from,
+     * at their exact reading position. A trail from another scope is discarded, never shown. */
+    private fun returnAlongBranch():Boolean{
+        if(_screen.value !is Screen.Scroll || session?.branchFrom==null || branchTrail.isEmpty())return false
+        val origin=branchTrail.removeAt(branchTrail.lastIndex)
+        store.writeBranchTrail(branchTrail)
+        if(origin.universeId!=observedUniverseId || origin.privacyEpoch!=observedPrivacyEpoch || store.readPendingClear()!=null){
+            branchTrail.clear();store.writeBranchTrail(branchTrail);return false
+        }
+        // An exposure for the branch target may still be in flight: invalidate only its UI
+        // callback. Its persisted retry identity remains on the stored session.
+        navigationVersion++
+        busy=false
+        store.write(origin);session=origin;show(origin)
+        return true
+    }
+
+    /** Home and the Atlas compass leave the reader entirely; the branch trail ends with it. */
+    fun leaveReader(){
+        branchTrail.clear();store.writeBranchTrail(branchTrail)
+        returnFromReader()
     }
 
     /** Called by the resumed Compose screen after display frames, never by candidate retrieval. */
@@ -429,6 +575,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
         visited.clear();store.writeVisited(visited)
+        branchTrail.clear();store.writeBranchTrail(branchTrail)
+        _branches.value=null
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
         reconcilePrivacy(restoreStoredScroll=false,queueIfBusy=true)
@@ -746,6 +894,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         observedPrivacyEpoch=store.readObservedPrivacyEpoch()
         session=null;visited.clear()
         revisit=null
+        branchJob?.cancel();branchTrail.clear();_branches.value=null;pendingFeedback.clear()
         _scroll.value=ScrollState.Idle
         _system.value=SystemState.Idle
         _screen.value=Screen.Universe

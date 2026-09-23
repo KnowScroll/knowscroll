@@ -13,6 +13,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { substrateSeed, type SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
 
 export type QuoteCheck = { claimKey: string; sourceKey: string; status: 'verified' | 'missing_in_snapshot' | 'unverified_no_snapshot' };
@@ -109,7 +110,9 @@ export function loadEditorialAssetIds(): Set<string> {
   return new Set(scrolls.map(s => s.assetId));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL, not string concatenation: the SSD path contains a space, which import.meta.url
+// percent-encodes. A naive comparison made the CLI silently exit 0 without checking anything.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const requireSnapshots = process.argv.includes('--require-snapshots');
   const receiptIndex = process.argv.indexOf('--receipt');
   const seed = JSON.parse(readFileSync('content/substrate.json', 'utf8'));

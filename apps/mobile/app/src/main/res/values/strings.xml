@@ -185,4 +185,20 @@
     <string name="world_detail_explanation">This world gathers Scrolls from the same source. It appeared because your reading reached that source. Encounters record what was shown, not what you know.</string>
     <string name="world_detail_decorative_label">Decorative cartographic globe</string>
     <string name="world_detail_open_source_description">Open %1$s in browser</string>
+    <string name="reader_branch_origin">FOLLOWED A CONNECTION</string>
+    <string name="reader_branch_back">Back to %1$s</string>
+    <string name="branch_why_action">Why these connections?</string>
+    <string name="branch_retry">Try continuations again</string>
+    <string name="branch_opening">Opening the connection…</string>
+    <string name="connection_sheet_title">How these connect</string>
+    <string name="connection_mechanism_heading">The connection</string>
+    <string name="connection_prerequisites_heading">Helps to know first</string>
+    <string name="connection_limits_heading">Where it stops</string>
+    <string name="connection_evidence_heading">Evidence</string>
+    <string name="connection_open">Follow this connection</string>
+    <string name="connection_not_useful">Not useful to me</string>
+    <string name="connection_seems_wrong">Seems wrong</string>
+    <string name="connection_feedback_note">Hiding a connection affects only your universe. The cited sources are not changed.</string>
+    <string name="connection_hidden">Hidden for you. The sources are unchanged.</string>
+    <string name="connection_close">Back to reading</string>
 </resources>

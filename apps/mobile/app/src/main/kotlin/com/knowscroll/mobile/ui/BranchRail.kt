@@ -25,6 +25,9 @@ data class EncounterBranch(
 sealed interface BranchAvailability {
     data object Unavailable : BranchAvailability
 
+    /** #131: the server answered honestly that nothing leads on from here, and why. */
+    data class Empty(val reason: String) : BranchAvailability
+
     data object Loading : BranchAvailability
 
     data class Ready(val branches: List<EncounterBranch>) : BranchAvailability
@@ -60,6 +63,8 @@ fun BranchRail(
     availability: BranchAvailability = BranchAvailability.Unavailable,
     onBranch: (EncounterBranch) -> Unit = {},
     modifier: Modifier = Modifier,
+    /** False while a chosen continuation is opening, so a second tap cannot race it. */
+    enabled: Boolean = true,
 ) {
     var explanation by remember { mutableStateOf(false) }
     val threshold = with(LocalDensity.current) { 64.dp.toPx() }
@@ -73,7 +78,7 @@ fun BranchRail(
                     onDragStart = { drag = 0f },
                     onDragCancel = { drag = 0f },
                     onDragEnd = {
-                        if (kotlin.math.abs(drag) > threshold) {
+                        if (enabled && kotlin.math.abs(drag) > threshold) {
                             if (choices.isNotEmpty())
                                 onBranch(if (drag < 0) choices.first() else choices.last())
                             else explanation = true
@@ -90,11 +95,13 @@ fun BranchRail(
             when (availability) {
                 BranchAvailability.Loading -> Text("Finding a continuation…")
                 BranchAvailability.Failed -> Text("Continuations are unavailable right now.")
+                is BranchAvailability.Empty -> Text(availability.reason, style = MaterialTheme.typography.bodyMedium)
                 is BranchAvailability.Ready ->
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         choices.forEach { branch ->
                             OutlinedButton(
                                 onClick = { onBranch(branch) },
+                                enabled = enabled,
                                 border = androidx.compose.foundation.BorderStroke(2.dp, LocalContentColor.current),
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                                 colors =
