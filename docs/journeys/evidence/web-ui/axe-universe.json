@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-21T12:27:39.567Z",
-  "url": "http://127.0.0.1:57779/",
+  "timestamp": "2026-09-23T20:28:58.668Z",
+  "url": "http://127.0.0.1:58187/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -1341,7 +1341,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your first little world.</h1><p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p></div>",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your curiosity leaves a trace.</h1><p class=\"universe-subtitle\">Saved encounters below. Source-backed worlds in your system.</p></div>",
           "target": [
             ".universe-title"
           ]
@@ -1461,7 +1461,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -1501,7 +1501,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -1661,7 +1661,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -1741,7 +1741,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -1995,7 +1995,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your first little world.</h1><p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p></div>",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your curiosity leaves a trace.</h1><p class=\"universe-subtitle\">Saved encounters below. Source-backed worlds in your system.</p></div>",
           "target": [
             ".universe-title"
           ]
@@ -2049,7 +2049,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -2067,7 +2067,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -2139,7 +2139,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -2175,7 +2175,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -2349,9 +2349,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.000448453703704\" height=\"56.000448453703704\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56\" height=\"56\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.000448453703704\"]"
+            "li:nth-child(1) > .trace.body-button > svg"
           ]
         },
         {
@@ -2381,9 +2381,9 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<svg viewBox=\"0 0 100 100\" width=\"56.00034884104938\" height=\"56.00034884104938\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
+          "html": "<svg viewBox=\"0 0 100 100\" width=\"56\" height=\"56\" aria-hidden=\"true\" focusable=\"false\" class=\"body-surface\">",
           "target": [
-            "svg[width=\"56.00034884104938\"]"
+            "li:nth-child(2) > .trace.body-button > svg"
           ]
         },
         {
@@ -2563,7 +2563,7 @@
             }
           ],
           "impact": null,
-          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your first little world.</h1><p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p></div>",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your curiosity leaves a trace.</h1><p class=\"universe-subtitle\">Saved encounters below. Source-backed worlds in your system.</p></div>",
           "target": [
             ".universe-title"
           ]
@@ -2617,7 +2617,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -2635,7 +2635,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -2689,7 +2689,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -2725,7 +2725,7 @@
             }
           ],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -2897,7 +2897,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your first little world.</h1><p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p></div>",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your curiosity leaves a trace.</h1><p class=\"universe-subtitle\">Saved encounters below. Source-backed worlds in your system.</p></div>",
           "target": [
             ".universe-title"
           ]
@@ -2993,7 +2993,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -3025,7 +3025,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -3153,7 +3153,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -3217,7 +3217,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -3431,7 +3431,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your first little world.</h1><p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p></div>",
+          "html": "<div class=\"universe-title\" aria-hidden=\"false\"><p class=\"eyebrow\">KNOWSCROLL</p><h1>Your curiosity leaves a trace.</h1><p class=\"universe-subtitle\">Saved encounters below. Source-backed worlds in your system.</p></div>",
           "target": [
             ".universe-title"
           ]
@@ -3485,7 +3485,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -3503,7 +3503,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -3575,7 +3575,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -3611,7 +3611,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -3750,7 +3750,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -3782,7 +3782,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<span class=\"body-label\" style=\"--label-max: 26ch;\"><span class=\"body-name\">An orbit is not a perfect circle</span><span class=\"body-sub\">SEP 21</span></span>",
+          "html": "<span class=\"body-label\" style=\"--label-max: 26ch;\"><span class=\"body-name\">Farther out, a longer year</span><span class=\"body-sub\">SEP 24</span></span>",
           "target": [
             "li:nth-child(1) > .trace.body-button > .body-label"
           ]
@@ -3814,7 +3814,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -3846,7 +3846,7 @@
           ],
           "none": [],
           "impact": null,
-          "html": "<span class=\"body-label\" style=\"--label-max: 26ch;\"><span class=\"body-name\">A star is a balancing act</span><span class=\"body-sub\">SEP 21</span></span>",
+          "html": "<span class=\"body-label\" style=\"--label-max: 26ch;\"><span class=\"body-name\">A star is a balancing act</span><span class=\"body-sub\">SEP 24</span></span>",
           "target": [
             "li:nth-child(2) > .trace.body-button > .body-label"
           ]
@@ -3983,7 +3983,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -4008,7 +4008,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -4083,7 +4083,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -4133,7 +4133,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -4264,22 +4264,22 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#b4b9b5",
+                "fgColor": "#f8f6ec",
                 "bgColor": "#061a27",
-                "contrastRatio": 8.9,
-                "fontSize": "7.5pt (10px)",
+                "contrastRatio": 16.36,
+                "fontSize": "10.5pt (14px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 8.9"
+              "message": "Element has sufficient color contrast of 16.36"
             }
           ],
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -4289,16 +4289,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#15302a",
-                "bgColor": "#33c4b4",
-                "contrastRatio": 6.51,
+                "fgColor": "#152f2a",
+                "bgColor": "#32bfb0",
+                "contrastRatio": 6.26,
                 "fontSize": "9.8pt (13px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 6.51"
+              "message": "Element has sufficient color contrast of 6.26"
             }
           ],
           "all": [],
@@ -4335,7 +4335,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h1>Your first little world.</h1>",
+          "html": "<h1>Your curiosity leaves a trace.</h1>",
           "target": [
             "h1"
           ]
@@ -4375,7 +4375,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<h1>Your first little world.</h1>",
+          "html": "<h1>Your curiosity leaves a trace.</h1>",
           "target": [
             "h1"
           ]
@@ -4661,7 +4661,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: An orbit is not a perfect circle\" style=\"left: 12%; top: 43%; width: 56.0004px; height: 56.0004px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: Farther out, a longer year\" style=\"left: 12%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(255, 208, 88, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(1) > .trace.body-button"
           ]
@@ -4679,7 +4679,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56.0003px; height: 56.0003px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
+          "html": "<button type=\"button\" class=\"body-button trace\" aria-label=\"Revisit the saved Trace: A star is a balancing act\" style=\"left: 50%; top: 43%; width: 56px; height: 56px; box-shadow: rgba(51, 196, 180, 0.45) 0px 0px 26px, rgba(255, 255, 255, 0.18) 0px 0px 0px 1px inset;\">",
           "target": [
             "li:nth-child(2) > .trace.body-button"
           ]
@@ -4733,7 +4733,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"zoom-button\" aria-label=\"Zoom in\">+</button>",
+          "html": "<button type=\"button\" class=\"zoom-button\" disabled=\"\" aria-label=\"Zoom in\">+</button>",
           "target": [
             "button[aria-label=\"Zoom in\"]"
           ]
@@ -4769,7 +4769,7 @@
           "all": [],
           "none": [],
           "impact": null,
-          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">SYSTEM VIEW</button>",
+          "html": "<button type=\"button\" class=\"map-scale-label\" aria-label=\"Open the system view\">Explore your system ↗</button>",
           "target": [
             ".map-scale-label"
           ]
@@ -4951,7 +4951,7 @@
               "id": "color-contrast",
               "data": {
                 "contrastRatio": 0,
-                "fontSize": "22.5pt (30px)",
+                "fontSize": "36.0pt (48px)",
                 "fontWeight": "bold",
                 "messageKey": "imgNode",
                 "expectedContrastRatio": "3:1"
@@ -4971,7 +4971,7 @@
           "all": [],
           "none": [],
           "impact": "serious",
-          "html": "<h1>Your first little world.</h1>",
+          "html": "<h1>Your curiosity leaves a trace.</h1>",
           "target": [
             "h1"
           ],
@@ -5003,7 +5003,7 @@
           "all": [],
           "none": [],
           "impact": "serious",
-          "html": "<p class=\"universe-subtitle\">A few encounters are beginning to belong together.</p>",
+          "html": "<p class=\"universe-subtitle\">Saved encounters below. Source-backed worlds in your system.</p>",
           "target": [
             ".universe-subtitle"
           ],
@@ -5060,7 +5060,7 @@
               },
               "relatedNodes": [
                 {
-                  "html": "<span class=\"body-name\">An orbit is not a perfect circle</span>",
+                  "html": "<span class=\"body-name\">Farther out, a longer year</span>",
                   "target": [
                     "li:nth-child(1) > .trace.body-button > .body-label > .body-name"
                   ]
@@ -5079,7 +5079,7 @@
           "all": [],
           "none": [],
           "impact": "serious",
-          "html": "<span class=\"body-name\">An orbit is not a perfect circle</span>",
+          "html": "<span class=\"body-name\">Farther out, a longer year</span>",
           "target": [
             "li:nth-child(1) > .trace.body-button > .body-label > .body-name"
           ],
@@ -5111,7 +5111,7 @@
           "all": [],
           "none": [],
           "impact": "serious",
-          "html": "<span class=\"body-sub\">SEP 21</span>",
+          "html": "<span class=\"body-sub\">SEP 24</span>",
           "target": [
             "li:nth-child(1) > .trace.body-button > .body-label > .body-sub"
           ],
@@ -5181,7 +5181,7 @@
           "all": [],
           "none": [],
           "impact": "serious",
-          "html": "<span class=\"body-sub\">SEP 21</span>",
+          "html": "<span class=\"body-sub\">SEP 24</span>",
           "target": [
             "li:nth-child(2) > .trace.body-button > .body-label > .body-sub"
           ],
