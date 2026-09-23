@@ -6,67 +6,52 @@
  * Android client validate against; we reuse those schemas here (read-only
  * import, no edits to packages/**) instead of re-typing the rules and
  * risking drift. This file only adds the response-side shapes the contracts
- * package does not itself export (Universe/Trace/Feed/Event), mirroring
+ * package does not itself export (Event), mirroring
  * apps/mobile/.../data/Models.kt field-for-field.
+ *
+ * Universe/Trace/Capabilities/Feed/Worlds are the bootstrap reads this client parses on load
+ * (GET /v1/universe, GET /v1/feed, GET /v1/worlds); their schemas live once in
+ * packages/contracts/src/web-bootstrap.ts and are imported, not re-typed, so a field added there
+ * is felt here at compile time instead of silently drifting (#115; ADR-0030's recordingPausedAt
+ * gap in #120/#121 is exactly the failure mode this closes).
  */
 import { z } from 'zod';
 import { traceRevisitReceipt, traceRevisitScroll } from '../../../../packages/contracts/src/trace-revisit.ts';
 import { privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
+import {
+  capabilitiesSchema,
+  traceSchema,
+  universeSchema,
+  feedItemSchema as sharedFeedItemSchema,
+  feedResponseSchema as sharedFeedResponseSchema,
+  worldSummarySchema as sharedWorldSummarySchema,
+  worldSystemResponseSchema as sharedWorldSystemResponseSchema,
+  type Capabilities,
+  type Trace,
+  type Universe,
+  type FeedItem,
+  type FeedResponse,
+  type WorldSummary,
+  type WorldSystemResponse,
+} from '../../../../packages/contracts/src/web-bootstrap.ts';
 
 export type ScrollAsset = z.infer<typeof traceRevisitScroll>;
 
-export const capabilities = z
-  .object({ reasoning: z.boolean(), reels: z.boolean(), worldEvolution: z.boolean() })
-  .strict();
-export type Capabilities = z.infer<typeof capabilities>;
+export const capabilities = capabilitiesSchema;
+export type { Capabilities };
 
-export const trace = z
-  .object({ eventId: z.string(), assetId: z.string(), title: z.string(), createdAt: z.string() })
-  .strict();
-export type Trace = z.infer<typeof trace>;
+export const trace = traceSchema;
+export type { Trace };
 
-export const universe = z
-  .object({
-    universeId: z.string(),
-    revision: z.number(),
-    privacyEpoch: z.number().int(),
-    // ADR-0030 added this to the bootstrap response. The schema is strict, so omitting a field the
-    // server now sends fails every universe load and the reader sees an honest-looking "unavailable"
-    // for a server that is perfectly healthy. Null means recording is running.
-    recordingPausedAt: z.string().nullable(),
-    traces: z.array(trace),
-    capabilities,
-  })
-  .strict();
-export type Universe = z.infer<typeof universe>;
+export const universe = universeSchema;
+export type { Universe };
 
 /** The feed item extends the documented Scroll shape with a non-authoritative recommendation reason. */
-export const feedItemSchema = z
-  .object({
-    assetId: z.string().uuid(),
-    revision: z.number().int().positive(),
-    kind: z.literal('Scroll'),
-    title: z.string(),
-    summary: z.string(),
-    body: z.string(),
-    sourceTitle: z.string(),
-    sourceUrl: z.string().url(),
-    truthState: z.string().min(1),
-    reason: z.string(),
-  })
-  .strict();
-export type FeedItem = z.infer<typeof feedItemSchema>;
+export const feedItemSchema = sharedFeedItemSchema;
+export type { FeedItem };
 
-export const feedResponse = z
-  .object({
-    decisionId: z.string(),
-    universeId: z.string(),
-    accountRevision: z.number(),
-    privacyEpoch: z.number().int(),
-    items: z.array(feedItemSchema),
-  })
-  .strict();
-export type FeedResponse = z.infer<typeof feedResponse>;
+export const feedResponse = sharedFeedResponseSchema;
+export type { FeedResponse };
 
 export const exposureResponse = z.object({ exposureId: z.string(), eventId: z.string() }).strict();
 export type ExposureResponse = z.infer<typeof exposureResponse>;
@@ -93,35 +78,17 @@ export const traceRevisit = traceRevisitReceipt;
 export type TraceRevisit = z.infer<typeof traceRevisit>;
 
 /**
- * `GET /v1/worlds` (docs/contracts/bootstrap-http.md, ADR-0028/#113). `packages/contracts/src/worlds.ts`
- * names this shape as plain TypeScript interfaces (no zod schema exists there to reuse, unlike
- * trace-revisit above), so the strict runtime shape is written directly here, matching that file
- * field-for-field: `WorldSummary` (worldId, sourceTitle, sourceUrl, scrollCount, seenCount) and
- * `WorldSystemResponse` (derivationMethod, system: null | { systemId, worlds }).
+ * `GET /v1/worlds` (docs/contracts/bootstrap-http.md, ADR-0028/#113). The strict runtime shape
+ * (`WorldSummary`/`WorldSystemResponse`) lives once in packages/contracts/src/web-bootstrap.ts,
+ * alongside universe/feed above, and is imported rather than re-typed (#115). Note
+ * `packages/contracts/src/worlds.ts` separately names the same shape as plain TypeScript
+ * interfaces for other, non-web consumers; that file is untouched by this change.
  */
-export const worldSummarySchema = z
-  .object({
-    worldId: z.string(),
-    sourceTitle: z.string(),
-    sourceUrl: z.string(),
-    scrollCount: z.number().int().nonnegative(),
-    seenCount: z.number().int().nonnegative(),
-  })
-  .strict();
-export type WorldSummary = z.infer<typeof worldSummarySchema>;
+export const worldSummarySchema = sharedWorldSummarySchema;
+export type { WorldSummary };
 
-export const worldSystemResponseSchema = z
-  .object({
-    derivationMethod: z.string(),
-    // `null` for a universe whose own exposures have not yet reached any recorded source's
-    // evidence -- never an empty object standing in for "nothing yet" (ADR-0028).
-    system: z
-      .object({ systemId: z.string(), worlds: z.array(worldSummarySchema) })
-      .strict()
-      .nullable(),
-  })
-  .strict();
-export type WorldSystemResponse = z.infer<typeof worldSystemResponseSchema>;
+export const worldSystemResponseSchema = sharedWorldSystemResponseSchema;
+export type { WorldSystemResponse };
 
 /**
  * ADR-0030 / #119: pause, export and reset. Request bodies reuse the contracts package's own
@@ -129,8 +96,8 @@ export type WorldSystemResponse = z.infer<typeof worldSystemResponseSchema>;
  * validation, exactly like every other request this file builds against a shared contract.
  * Response shapes are written here field-for-field against `packages/contracts/src/index.ts`'s
  * plain TypeScript types (`PrivacyRecordingReceipt`/`PrivacyExportResult`/`PrivacyResetReceipt`),
- * the same pattern `worldSystemResponseSchema` above already uses because no zod schema exists
- * there to reuse.
+ * the same pattern this file used for worlds/universe/feed before those moved to
+ * web-bootstrap.ts -- no zod schema for these three exists in the contracts package to reuse.
  */
 export type PrivacyLifecycleRequest = z.infer<typeof privacyLifecycleInput>;
 export type PrivacyResetRequest = z.infer<typeof privacyResetInput>;
