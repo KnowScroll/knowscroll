@@ -160,13 +160,19 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       return n.scrollTop / (n.scrollHeight - n.clientHeight);
     });
     expect(depth).toBeGreaterThan(0.5);
+    // Let the scroll event dispatch before resizing. A programmatic scrollTop followed by an
+    // immediate viewport change can land in one frame, where resize handlers run before scroll
+    // handlers, so the app has not yet seen the depth it must carry over. A reader cannot scroll
+    // and cross the breakpoint in the same frame; the race belonged to this test (#115 review).
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
     await page.setViewportSize({ width: 650, height: 420 });
     await expect.poll(() => stage.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
     const afterNarrow = await stage.evaluate(n => n.scrollTop / (n.scrollHeight - n.clientHeight));
     expect(afterNarrow, 'depth is preserved going narrow').toBeCloseTo(depth, 1);
 
-    // And back the other way.
+    // And back the other way (after the stage's own scroll event has dispatched, as above).
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.setViewportSize({ width: 1440, height: 420 });
     await expect.poll(() => article.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
     const afterWide = await article.evaluate(n => n.scrollTop / (n.scrollHeight - n.clientHeight));
