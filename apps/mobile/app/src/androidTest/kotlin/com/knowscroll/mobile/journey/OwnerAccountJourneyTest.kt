@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -124,17 +125,17 @@ class OwnerAccountJourneyTest {
         compose.onNodeWithContentDescription("Open Privacy & account").performClick()
         waitText("Recording is on")
         screenshot("owner-05-privacy.png")
-        compose.onNodeWithContentDescription("Pause recording").performClick()
+        compose.onNodeWithContentDescription("Pause recording").performScrollTo().performClick()
         waitText("Recording is paused since")
         screenshot("owner-06-paused.png")
-        compose.onNodeWithContentDescription("Resume recording").performClick()
+        compose.onNodeWithContentDescription("Resume recording").performScrollTo().performClick()
         waitText("Recording is on")
         screenshot("owner-07-resumed.png")
 
         // 6. Export: the journey build writes straight to the app cache instead of driving the
         // system Storage Access Framework picker (a separate process/activity) -- see
         // PrivacyScreen's `isJourneyBuild` gate.
-        compose.onNodeWithContentDescription("Export my data").performClick()
+        compose.onNodeWithContentDescription("Export my data").performScrollTo().performClick()
         waitDescription("Save the export file", timeoutMs = 20_000)
         compose.onNodeWithContentDescription("Save the export file").performClick()
         compose.waitUntil(15_000) {
@@ -146,7 +147,8 @@ class OwnerAccountJourneyTest {
         screenshot("owner-08-exported.png")
 
         // 7. Delete account: its own deliberate confirmation and its own literal (ADR-0035).
-        compose.onNodeWithContentDescription("Delete my account").performClick()
+        // Below the fold on a phone: scroll to it, as a reader would.
+        compose.onNodeWithContentDescription("Delete my account").performScrollTo().performClick()
         waitText("Delete your account and history?")
         screenshot("owner-09-delete-confirm.png")
         compose.onNodeWithContentDescription("Confirm delete my account").performClick()
