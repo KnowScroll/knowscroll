@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RESET_CONFIRMATION, type PrivacyExportResult, type PrivacyResetReceipt, type Universe } from '../api/types.ts';
+import { ACCOUNT_DELETE_TYPED_WORD, RESET_CONFIRMATION, type PrivacyExportResult, type PrivacyResetReceipt, type Universe } from '../api/types.ts';
 import type { PrivacyActionState, PrivacyView, UniverseView } from '../state/readerStore.ts';
 
 export interface PrivacyScreenProps {
@@ -15,6 +15,14 @@ export interface PrivacyScreenProps {
   onConfirmReset: (typed: string) => void;
   onAcknowledgeReset: () => void;
   onEnterScroll: () => void;
+  /** #135, ADR-0034/ADR-0035: ends the session, or removes the account and everything it
+   * recorded. Neither shows a completion screen inside this panel the way Reset's
+   * `onAcknowledgeReset` does -- both hand off to the app's own sign-in screen instead
+   * (`ReaderStore`'s `onSignedOut`), so there is nothing left here to acknowledge. */
+  onSignOut: () => void;
+  onBeginDeleteAccount: () => void;
+  onCancelDeleteAccount: () => void;
+  onConfirmDeleteAccount: (typed: string) => void;
 }
 
 /**
@@ -41,6 +49,10 @@ export function PrivacyScreen({
   onConfirmReset,
   onAcknowledgeReset,
   onEnterScroll,
+  onSignOut,
+  onBeginDeleteAccount,
+  onCancelDeleteAccount,
+  onConfirmDeleteAccount,
 }: PrivacyScreenProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -83,6 +95,10 @@ export function PrivacyScreen({
             onCancelReset={onCancelReset}
             onConfirmReset={onConfirmReset}
             onAcknowledgeReset={onAcknowledgeReset}
+            onSignOut={onSignOut}
+            onBeginDeleteAccount={onBeginDeleteAccount}
+            onCancelDeleteAccount={onCancelDeleteAccount}
+            onConfirmDeleteAccount={onConfirmDeleteAccount}
           />
         )}
       </div>
@@ -125,9 +141,27 @@ interface PrivacyPanelProps {
   onCancelReset: () => void;
   onConfirmReset: (typed: string) => void;
   onAcknowledgeReset: () => void;
+  onSignOut: () => void;
+  onBeginDeleteAccount: () => void;
+  onCancelDeleteAccount: () => void;
+  onConfirmDeleteAccount: (typed: string) => void;
 }
 
-function PrivacyPanel({ universe, action, onPause, onResume, onExport, onBeginReset, onCancelReset, onConfirmReset, onAcknowledgeReset }: PrivacyPanelProps) {
+function PrivacyPanel({
+  universe,
+  action,
+  onPause,
+  onResume,
+  onExport,
+  onBeginReset,
+  onCancelReset,
+  onConfirmReset,
+  onAcknowledgeReset,
+  onSignOut,
+  onBeginDeleteAccount,
+  onCancelDeleteAccount,
+  onConfirmDeleteAccount,
+}: PrivacyPanelProps) {
   if (action.status === 'reset-complete') {
     return <ResetComplete receipt={action.receipt} onAcknowledgeReset={onAcknowledgeReset} />;
   }
@@ -136,6 +170,13 @@ function PrivacyPanel({ universe, action, onPause, onResume, onExport, onBeginRe
       <RecordingSection universe={universe} action={action} onPause={onPause} onResume={onResume} />
       <ExportSection action={action} onExport={onExport} />
       <ResetSection action={action} onBeginReset={onBeginReset} onCancelReset={onCancelReset} onConfirmReset={onConfirmReset} />
+      <SignOutSection action={action} onSignOut={onSignOut} />
+      <DeleteAccountSection
+        action={action}
+        onBeginDeleteAccount={onBeginDeleteAccount}
+        onCancelDeleteAccount={onCancelDeleteAccount}
+        onConfirmDeleteAccount={onConfirmDeleteAccount}
+      />
     </div>
   );
 }
@@ -318,6 +359,106 @@ function ResetSection({
           aria-label="Confirm reset"
         >
           {pending ? 'Resetting…' : 'Confirm reset'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** #135, ADR-0034: no confirmation step (unlike Reset/Delete account below) -- ending this session
+ * destroys nothing recorded, so it follows RecordingSection's pattern rather than ResetSection's. */
+function SignOutSection({ action, onSignOut }: { action: PrivacyActionState; onSignOut: () => void }) {
+  const pending = action.status === 'pending' && action.kind === 'sign-out';
+  const failed = action.status === 'failed' && action.kind === 'sign-out' ? action : null;
+
+  return (
+    <section className="privacy-section">
+      <p className="eyebrow">Sign out</p>
+      <h2>Sign out of this browser</h2>
+      <p>Ends this browser's session. Your account and recorded history are untouched -- sign back in any time.</p>
+      {failed && (
+        <p className="privacy-error" role="alert">
+          {failed.message}
+        </p>
+      )}
+      <button type="button" className="pill cream" aria-label={failed ? 'Retry sign out' : 'Sign out'} disabled={pending} onClick={onSignOut}>
+        {failed ? 'Retry' : pending ? 'Signing out…' : 'Sign out'}
+      </button>
+    </section>
+  );
+}
+
+/**
+ * #135, ADR-0035: the one truly irreversible action here (more than Reset: the account, its
+ * sessions, sign-in tokens and dated privacy receipts are gone too, not merely the recorded
+ * history). Mirrors ResetSection's typed-confirmation shape, but the word the reader types
+ * (`ACCOUNT_DELETE_TYPED_WORD`, short and legible) deliberately differs from the longer wire
+ * literal `confirmDeleteAccount` actually sends -- the reader is never asked to type that verbatim.
+ */
+function DeleteAccountSection({
+  action,
+  onBeginDeleteAccount,
+  onCancelDeleteAccount,
+  onConfirmDeleteAccount,
+}: {
+  action: PrivacyActionState;
+  onBeginDeleteAccount: () => void;
+  onCancelDeleteAccount: () => void;
+  onConfirmDeleteAccount: (typed: string) => void;
+}) {
+  const [typed, setTyped] = useState('');
+  const confirming = action.status === 'confirming-delete';
+  const pending = action.status === 'pending' && action.kind === 'delete-account';
+  const failed = action.status === 'failed' && action.kind === 'delete-account' ? action : null;
+
+  if (!confirming && !pending && !failed) {
+    return (
+      <section className="privacy-section">
+        <p className="eyebrow">Delete account</p>
+        <h2>Delete your account</h2>
+        <p>Removes your account, all recorded history, your sessions, sign-in links and privacy receipts. The universe starts empty the next time you sign in. This is permanent.</p>
+        <button type="button" className="pill orange" onClick={onBeginDeleteAccount} aria-label="Delete account">
+          Delete account
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="privacy-section privacy-reset-confirm">
+      <p className="eyebrow">Delete account</p>
+      <h2>Delete your account</h2>
+      <p>Removes your account, all recorded history, your sessions, sign-in links and privacy receipts. The universe starts empty the next time you sign in. This is permanent.</p>
+      {failed && (
+        <p className="privacy-error" role="alert">
+          {failed.message}
+        </p>
+      )}
+      <label className="privacy-confirm-label" htmlFor="privacy-delete-account-confirm-input">
+        Type {ACCOUNT_DELETE_TYPED_WORD} to confirm
+      </label>
+      <input
+        id="privacy-delete-account-confirm-input"
+        className="privacy-confirm-input"
+        type="text"
+        value={typed}
+        onChange={event => setTyped(event.target.value)}
+        disabled={pending}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <div className="privacy-reset-actions">
+        <button type="button" className="pill cream" onClick={onCancelDeleteAccount} disabled={pending} aria-label="Cancel delete account">
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="pill orange"
+          disabled={pending || typed !== ACCOUNT_DELETE_TYPED_WORD}
+          onClick={() => onConfirmDeleteAccount(typed)}
+          aria-label="Delete my account"
+        >
+          {pending ? 'Deleting…' : 'Delete my account'}
         </button>
       </div>
     </section>

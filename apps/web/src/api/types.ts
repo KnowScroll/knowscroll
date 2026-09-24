@@ -17,7 +17,7 @@
  */
 import { z } from 'zod';
 import { traceRevisitReceipt, traceRevisitScroll } from '../../../../packages/contracts/src/trace-revisit.ts';
-import { privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
+import { accountDeletionInput, privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
 import {
   capabilitiesSchema,
   traceSchema,
@@ -223,6 +223,54 @@ export const privacyResetReceiptSchema = z
   })
   .strict();
 export type PrivacyResetReceipt = z.infer<typeof privacyResetReceiptSchema>;
+
+/**
+ * ADR-0035: deleting the account and all personal history. `AccountDeletionRequest` reuses the
+ * contracts package's own strict shape and confirmation literal exactly like `PrivacyResetRequest`
+ * does for Reset above; its literal deliberately differs from Reset's because it removes more.
+ */
+export type AccountDeletionRequest = z.infer<typeof accountDeletionInput>;
+export const ACCOUNT_DELETE_CONFIRMATION = 'delete-my-account-and-history' as const;
+/** The word the privacy panel asks the reader to type (short and legible), distinct from the wire
+ * literal above (which is always what is actually sent) -- the panel's own deliberate-confirmation
+ * gate, not a second copy of the server's contract. */
+export const ACCOUNT_DELETE_TYPED_WORD = 'delete' as const;
+
+export const accountDeletionReceiptSchema = z
+  .object({
+    receiptId: z.string(),
+    epochBefore: z.number().int(),
+    epochAfter: z.number().int(),
+    sessionsDeleted: z.number().int().nonnegative(),
+    deletedAt: z.string(),
+  })
+  .strict();
+export type AccountDeletionReceipt = z.infer<typeof accountDeletionReceiptSchema>;
+
+/**
+ * ADR-0034: the desktop session cookie. `POST /v1/auth/magic-link` always answers the same fixed
+ * shape regardless of whether the address has an account (no leak); `POST /v1/auth/web-session`
+ * consumes a magic-link token and hands back the session's metadata and its CSRF token, never the
+ * session token itself (that is set as an HttpOnly cookie the page cannot read); `GET
+ * /v1/session/csrf` re-derives the same token for an already-cookie-authenticated page.
+ */
+export const magicLinkRequestedSchema = z.object({ status: z.literal('requested') }).strict();
+
+export const webSessionResponseSchema = z
+  .object({
+    sessionId: z.string(),
+    deviceId: z.string(),
+    universeId: z.string(),
+    privacyEpoch: z.number().int(),
+    expiresAt: z.string(),
+    accountId: z.string(),
+    origin: z.string(),
+    csrfToken: z.string(),
+  })
+  .strict();
+export type WebSessionResponse = z.infer<typeof webSessionResponseSchema>;
+
+export const sessionCsrfSchema = z.object({ csrfToken: z.string() }).strict();
 
 /** Documented truth states and their required presentation (definition.md section 12). */
 export const TRUTH_STATE_MEANING: Record<string, string> = {

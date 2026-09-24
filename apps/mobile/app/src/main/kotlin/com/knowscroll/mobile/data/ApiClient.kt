@@ -14,19 +14,38 @@ import java.net.SocketTimeoutException
 import java.net.URL
 
 sealed class ApiException(message: String) : Exception(message) {
-    class Network(message: String) : ApiException(message)
-    class Server(val statusCode: Int, body: String) : ApiException("HTTP $statusCode: $body")
-    class Protocol(message: String) : ApiException(message)
+    /** #135 review: whether the call that failed may nonetheless have been applied by the server --
+     * a response that never arrived (timeout, dropped connection), a 5xx (a proxy can answer one
+     * after the API committed), an unreadable answer to an expected status, or an *earlier*
+     * attempt of the same call (this client retries once) that was any of those. A self-ending
+     * request (Reset, account deletion) needs it to read a final 401 honestly. */
+    open val mayHaveLanded: Boolean get() = false
+    class Network(message: String, override val mayHaveLanded: Boolean = false) : ApiException(message)
+    class Server(val statusCode: Int, body: String, override val mayHaveLanded: Boolean = statusCode >= 500) :
+        ApiException("HTTP $statusCode: $body")
+    class Protocol(message: String) : ApiException(message) {
+        override val mayHaveLanded: Boolean get() = true
+    }
     object MissingToken : ApiException("KS_DEV_TOKEN is not configured")
     class InteractionConflict(message: String) : ApiException(message)
 }
 
 class ApiClient(
     private val baseUrl: String = BuildConfig.KS_DEBUG_API_BASE,
-    private val token: String = BuildConfig.KS_DEV_TOKEN,
+    token: String = BuildConfig.KS_DEV_TOKEN,
     private val connectTimeoutMs: Int = 5_000,
     private val readTimeoutMs: Int = 8_000,
-    private val maxAttempts: Int = 2
+    private val maxAttempts: Int = 2,
+    /** #135: the signed-in token if present; otherwise, only in a debug build, [token] (the
+     * development session) if non-blank; otherwise no credential. The default closes over
+     * [token] so every existing call site (fixture tests, the debug/journey preview sandboxes)
+     * keeps its exact previous behaviour unchanged; production call sites pass a
+     * [VaultCredentialProvider] explicitly instead. */
+    private val credential: CredentialProvider = CredentialProvider { token },
+    /** #135: reported once per genuine 401 on an authenticated request. Defaults to the
+     * process-wide [SessionInvalidation] signal; a test may inject its own to observe it without
+     * a real vault. */
+    private val onUnauthorized: () -> Unit = SessionInvalidation::reportUnauthorized,
 ) {
 
     suspend fun getUniverse(): Universe = io {
@@ -36,7 +55,8 @@ class ApiClient(
                 revision = obj.getLong("revision"),
                 privacyEpoch = obj.getLong("privacyEpoch"),
                 traces = parseTraces(obj.optJSONArray("traces")),
-                capabilities = parseCaps(obj.optJSONObject("capabilities"))
+                capabilities = parseCaps(obj.optJSONObject("capabilities")),
+                recordingPausedAt = obj.optStringOrNull("recordingPausedAt"),
             )
         }
     }
@@ -311,6 +331,82 @@ class ApiClient(
         }
     }
 
+    // -------------------------------------------------------------------------------------------
+    // #135 (ADR-0026/0034/0035): owner identity and privacy parity.
+    // -------------------------------------------------------------------------------------------
+
+    /** `POST /v1/auth/magic-link {email}` -> always 202; never distinguishes an unknown address
+     * from the owner's own (ADR-0026 section 2). No credential is sent -- this route needs none. */
+    suspend fun requestMagicLink(email: String): Unit = io {
+        post("/v1/auth/magic-link", jsonObj("email" to email).toString(), setOf(202), false, requiresAuth = false) { }
+    }
+
+    /** `POST /v1/auth/session {token}` -> the minted bearer session, or [ApiException.Server]
+     * with status 401 for every failure mode alike (expired/consumed/unknown/malformed). */
+    suspend fun consumeSignInToken(token: String): SignInSessionReceipt = io {
+        post("/v1/auth/session", jsonObj("token" to token).toString(), setOf(200), false, requiresAuth = false) { obj ->
+            SignInSessionReceipt(
+                sessionToken = obj.getString("sessionToken"), sessionId = obj.getString("sessionId"),
+                deviceId = obj.getString("deviceId"), universeId = obj.getString("universeId"),
+                privacyEpoch = obj.getLong("privacyEpoch"), expiresAt = obj.getString("expiresAt"),
+                accountId = obj.getString("accountId"), origin = obj.getString("origin"),
+            )
+        }
+    }
+
+    suspend fun pauseRecording(req: PrivacyLifecycleRequest): PrivacyRecordingReceipt = io {
+        post("/v1/privacy/pause", lifecycleBody(req), setOf(200), false) { parseRecordingReceipt(it) }
+    }
+
+    suspend fun resumeRecording(req: PrivacyLifecycleRequest): PrivacyRecordingReceipt = io {
+        post("/v1/privacy/resume", lifecycleBody(req), setOf(200), false) { parseRecordingReceipt(it) }
+    }
+
+    /** The full export payload, exactly as the server returned it (pretty-printed), for the
+     * caller to persist verbatim. Never parsed field-by-field: the contract is large and this
+     * client makes no claim about any one field, only that it is handing over what the server
+     * sent for this request. */
+    suspend fun exportUniverse(req: PrivacyLifecycleRequest): String = io {
+        post("/v1/privacy/export", lifecycleBody(req), setOf(200), false) { it.toString(2) }
+    }
+
+    suspend fun resetPersonalUniverse(req: PrivacyResetRequest): PrivacyResetReceipt = io {
+        val body = jsonObj(
+            "requestId" to req.requestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
+            "confirmation" to req.confirmation,
+        ).toString()
+        post("/v1/privacy/reset", body, setOf(200), false) { obj ->
+            PrivacyResetReceipt(
+                receiptId = obj.getString("receiptId"), epochBefore = obj.getLong("epochBefore"),
+                epochAfter = obj.getLong("epochAfter"), sessionsRevoked = obj.getLong("sessionsRevoked"),
+                resetAt = obj.getString("resetAt"),
+            )
+        }
+    }
+
+    suspend fun deleteAccount(req: AccountDeletionRequest): AccountDeletionReceipt = io {
+        val body = jsonObj(
+            "requestId" to req.requestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
+            "confirmation" to req.confirmation,
+        ).toString()
+        post("/v1/account/delete", body, setOf(200), false) { obj ->
+            AccountDeletionReceipt(
+                receiptId = obj.getString("receiptId"), epochBefore = obj.getLong("epochBefore"),
+                epochAfter = obj.getLong("epochAfter"), sessionsDeleted = obj.getLong("sessionsDeleted"),
+                deletedAt = obj.getString("deletedAt"),
+            )
+        }
+    }
+
+    private fun lifecycleBody(req: PrivacyLifecycleRequest): String =
+        jsonObj("requestId" to req.requestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch).toString()
+
+    private fun parseRecordingReceipt(obj: JSONObject): PrivacyRecordingReceipt = PrivacyRecordingReceipt(
+        receiptId = obj.getString("receiptId"), action = obj.getString("action"),
+        privacyEpoch = obj.getLong("privacyEpoch"), recordingPausedAt = obj.optStringOrNull("recordingPausedAt"),
+        appliedAt = obj.getString("appliedAt"),
+    )
+
     // ---- internal ----
 
     private suspend inline fun <T> io(crossinline block: suspend () -> T): T =
@@ -321,8 +417,8 @@ class ApiClient(
 
     private suspend inline fun <T> post(
         path: String, body: String, expected: Set<Int>,
-        treat409AsConflict: Boolean, crossinline parse: (JSONObject) -> T
-    ): T = request("POST", path, body, true, expected, treat409AsConflict, parse)
+        treat409AsConflict: Boolean, requiresAuth: Boolean = true, crossinline parse: (JSONObject) -> T
+    ): T = request("POST", path, body, requiresAuth, expected, treat409AsConflict, parse)
 
     private suspend inline fun <T> request(
         method: String, path: String, body: String?, requiresAuth: Boolean,
@@ -331,10 +427,16 @@ class ApiClient(
     ): T {
         var lastError: ApiException? = null
         var attempt = 0
+        // True once any attempt of this call may have been applied without its answer (see
+        // [ApiException.mayHaveLanded]); every error thrown after that carries it.
+        var uncertain = false
         while (attempt < maxAttempts) {
             attempt++
             try {
                 val (code, responseBody) = rawRequest(method, path, body, requiresAuth)
+                // #135: a real, previously-usable credential just proved dead. Reported before
+                // any expected/transient handling below -- 401 is never an expected response.
+                if (code == 401 && requiresAuth) onUnauthorized()
                 if (code == 409 && treat409AsConflict) {
                     throw ApiException.InteractionConflict(
                         "Interaction key reused with different content"
@@ -343,24 +445,29 @@ class ApiClient(
                 // A 204 (e.g. session revoke) has no body; every other expected response is JSON.
                 if (code in expected) return parse(JSONObject(responseBody.ifBlank { "{}" }))
                 if (isTransient(code)) {
-                    lastError = ApiException.Server(code, responseBody)
+                    // A 429 was refused outright; a 5xx may follow a commit behind a proxy.
+                    if (code >= 500) uncertain = true
+                    lastError = ApiException.Server(code, responseBody, uncertain)
                     if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
                     continue
                 }
-                throw ApiException.Server(code, responseBody)
+                throw ApiException.Server(code, responseBody, uncertain)
             } catch (e: ApiException) {
                 if (e is ApiException.MissingToken || e is ApiException.InteractionConflict) throw e
                 lastError = e
                 if (attempt >= maxAttempts || e !is ApiException.Network) throw e
                 delay(if (attempt == 1) 400L else 1_200L)
             } catch (e: ConnectException) {
-                lastError = ApiException.Network("Could not connect to bootstrap service")
+                // Refused before anything was sent: only an earlier attempt could have landed.
+                lastError = ApiException.Network("Could not connect to bootstrap service", uncertain)
                 if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
             } catch (e: SocketTimeoutException) {
-                lastError = ApiException.Network("Bootstrap service timed out")
+                uncertain = true
+                lastError = ApiException.Network("Bootstrap service timed out", true)
                 if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
             } catch (e: IOException) {
-                lastError = ApiException.Network(e.message ?: "Network failure")
+                uncertain = true
+                lastError = ApiException.Network(e.message ?: "Network failure", true)
                 if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
             }
         }
@@ -370,8 +477,9 @@ class ApiClient(
     private fun isTransient(code: Int): Boolean = code == 429 || (code in 500..599)
 
     private suspend fun rawRequest(method: String, path: String, body: String?, requiresAuth: Boolean): Pair<Int, String> {
+        val resolvedToken = if (requiresAuth) credential.currentToken()?.takeIf { it.isNotBlank() } else null
         if (requiresAuth) {
-            if (token.isBlank()) throw ApiException.MissingToken
+            if (resolvedToken == null) throw ApiException.MissingToken
             if (baseUrl.isBlank()) throw ApiException.Network("API base URL is not configured")
         }
         val url = URL(baseUrl.trimEnd('/') + path)
@@ -381,7 +489,7 @@ class ApiClient(
             readTimeout = readTimeoutMs
             doInput = true
             instanceFollowRedirects = false
-            if (requiresAuth) setRequestProperty("Authorization", "Bearer $token")
+            if (requiresAuth) setRequestProperty("Authorization", "Bearer $resolvedToken")
             setRequestProperty("Accept", "application/json")
             if (body != null) {
                 doOutput = true

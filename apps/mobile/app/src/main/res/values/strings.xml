@@ -143,14 +143,14 @@
     <!-- Sign out this device (#91) -->
     <string name="sign_out_action">Sign out this device</string>
     <string name="sign_out_title">Sign out this device?</string>
-    <string name="sign_out_effects">This device\'s session ends now. Your Scroll history is not erased — Clear History does that separately. Other devices are not affected. Using KnowScroll on this device again needs a new device session from the operator.</string>
+    <string name="sign_out_effects">This device\'s session ends now. Your Scroll history is not erased — Clear History does that separately. Other devices are not affected. You can sign in on this device again with a new sign-in link.</string>
     <string name="sign_out_confirm">Sign out</string>
     <string name="sign_out_cancel">Cancel</string>
     <string name="sign_out_progress">Signing out this device…</string>
     <string name="sign_out_retry">Retry sign out</string>
     <string name="sign_out_heading">Signed out</string>
     <string name="sign_out_done_title">This device is signed out</string>
-    <string name="sign_out_done_body">This device\'s session has ended. Your Scroll history was not erased. Other devices are not affected. Using KnowScroll on this device again needs a new device session from the operator.</string>
+    <string name="sign_out_done_body">This device\'s session has ended. Your Scroll history was not erased. Other devices are not affected. You can sign in on this device again with a new sign-in link.</string>
 
     <!-- System level (#116, ADR-0028/#113): the real, derived worlds/system geography
          (docs/product/ui-system.md sec.5b/5c). -->
@@ -236,4 +236,52 @@
     <string name="ask_answer_not_found">The answer request could not be found.</string>
     <string name="ask_close">Back to reading</string>
     <string name="ask_close_description">Close ask</string>
+    <!-- #135: owner identity (ADR-0026) and the Privacy screen (ADR-0028/0030/0034/0035). -->
+    <string name="sign_in_kicker">KNOWSCROLL</string>
+    <string name="sign_in_heading">Sign in</string>
+    <string name="sign_in_subtitle">One account, one owner, no password. A link is emailed to you.</string>
+    <string name="sign_in_email_label">Your email</string>
+    <string name="sign_in_send_link">Send sign-in link</string>
+    <string name="sign_in_sending">Sending…</string>
+    <string name="sign_in_link_sent">Check your email. If that address can sign in, a link is on its way. It works once and expires soon.</string>
+    <string name="sign_in_paste_heading">Have a link already?</string>
+    <string name="sign_in_paste_label">Paste your sign-in link</string>
+    <string name="sign_in_paste_action">Sign in with this link</string>
+    <string name="sign_in_submitting">Signing in…</string>
+    <string name="sign_in_reason_session_expired">Your session ended. Sign in again to continue.</string>
+    <string name="sign_in_reason_reset">Your personal history was reset. Sign in again to continue.</string>
+    <string name="sign_in_reason_account_deleted">Your account and history were deleted.</string>
+    <string name="sign_in_reason_ended_before_delete">Your session ended before the deletion was sent. Sign in and try again.</string>
+    <string name="sign_in_reason_ended_before_reset">Your session ended before the reset was sent. Sign in and try again.</string>
+
+    <string name="privacy_screen_title">Privacy &amp; account</string>
+    <string name="privacy_screen_open_description">Open Privacy &amp; account</string>
+    <string name="privacy_screen_back_description">Close Privacy &amp; account</string>
+    <string name="privacy_recording_heading">Recording</string>
+    <string name="privacy_recording_active">Recording is on. Reading is written to your history as usual.</string>
+    <string name="privacy_recording_paused">Recording is paused since %1$s. Nothing new is written to your history.</string>
+    <string name="privacy_pause_action">Pause recording</string>
+    <string name="privacy_resume_action">Resume recording</string>
+    <string name="privacy_export_heading">Export</string>
+    <string name="privacy_export_body">Save a copy of everything recorded about your reading, as one file you choose where to keep.</string>
+    <string name="privacy_export_action">Export my data</string>
+    <string name="privacy_export_working">Preparing your export…</string>
+    <string name="privacy_export_save_action">Save the export file</string>
+    <string name="privacy_export_saved">Export saved.</string>
+    <string name="privacy_reset_heading">Reset</string>
+    <string name="privacy_reset_body">Erases every recorded encounter and saved Trace and signs out every device, including this one. The shared Scroll library is not affected.</string>
+    <string name="privacy_reset_action">Reset my personal history</string>
+    <string name="privacy_reset_title">Reset your personal history?</string>
+    <string name="privacy_reset_effects">This erases recorded encounters and saved Traces and ends every device\'s session, including this one. You will need to sign in again. The shared Scroll library stays available.</string>
+    <string name="privacy_reset_confirm">Reset history</string>
+    <string name="privacy_delete_heading">Delete account</string>
+    <string name="privacy_delete_body">Removes everything Reset removes, plus your account, its sign-in history and every dated privacy receipt. Nothing personal is left behind.</string>
+    <string name="privacy_delete_action">Delete my account</string>
+    <string name="privacy_delete_title">Delete your account and history?</string>
+    <string name="privacy_delete_effects">This deletes your account, every recorded encounter, saved Trace, sign-in record and privacy receipt, and ends every device\'s session, including this one. This cannot be undone. The shared Scroll library is not affected.</string>
+    <string name="privacy_delete_confirm">Delete account</string>
+    <string name="privacy_sign_out_heading">Sign out</string>
+    <string name="privacy_sign_out_action">Sign out this device</string>
+    <string name="privacy_working">Working…</string>
+    <string name="action_cancel">Cancel</string>
 </resources>
