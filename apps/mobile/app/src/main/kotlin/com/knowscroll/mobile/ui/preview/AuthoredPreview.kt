@@ -38,6 +38,8 @@ fun AuthoredPreview(
     initialScroll: Int = 0,
     initialReel: String? = null,
     atlasOrigin: Boolean = false,
+    /** #135 verification N4: see [AuthoredAtlas]'s `credential`. */
+    credential: CredentialProvider,
 ) {
     val context = LocalContext.current
     if (!BuildConfig.DEBUG || !context.packageName.endsWith(".journey")) return
@@ -51,7 +53,7 @@ fun AuthoredPreview(
     val places = rememberSaveableStateHolder()
     LaunchedEffect(authority.universeId, authority.privacyEpoch, reload) {
         try {
-            val feed = ApiClient().getFeed("Reel")
+            val feed = ApiClient(credential = credential).getFeed("Reel")
             if (
                 feed.universeId != authority.universeId ||
                     feed.privacyEpoch != authority.privacyEpoch
@@ -191,6 +193,7 @@ fun AuthoredPreview(
                                 branch(media.indexOfFirst { it.assetId == link.targetAssetId })
                             },
                             preview = true,
+                            mediaToken = credential.currentToken(),
                             onPrevious = {
                                 reelId =
                                     media[(index - 1 + media.size) % media.size].let {

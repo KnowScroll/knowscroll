@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
-  CARTOGRAPHER_V1, planPlaces, planRejection,
+  CARTOGRAPHER_POLICY, planFoundations, planPlaces, planRejection, relationKey,
   type ConceptNode, type PlaceAccount, type PlaceDelta, type PlaceView, type RelationKind, type TypedRelation,
 } from '../../core/src/atlas/cartographer.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
@@ -47,12 +47,15 @@ async function loadSubstrate(client: pg.PoolClient): Promise<Substrate> {
 
 type PlaceRow = PlaceView & { anchorId: string; parentPlaceId: string | null };
 async function loadPlaces(client: pg.PoolClient, universeId: string): Promise<PlaceRow[]> {
-  return (await client.query<{ id: string; anchor: string; anchor_id: string; kind: PlaceView['kind']; parent_anchor: string | null; parent_place_id: string | null; state: PlaceView['state']; basis: TypedRelation | null }>(
-    `SELECT p.id, c.code AS anchor, c.id AS anchor_id, p.kind, pc.code AS parent_anchor, p.parent_place_id, p.state, p.basis FROM atlas_place p
+  return (await client.query<{ id: string; anchor: string; anchor_id: string; kind: PlaceView['kind']; parent_anchor: string | null; parent_place_id: string | null; state: PlaceView['state']; basis: TypedRelation | null; load_bearing: boolean; foundation_basis: TypedRelation[] | null }>(
+    `SELECT p.id, c.code AS anchor, c.id AS anchor_id, p.kind, pc.code AS parent_anchor, p.parent_place_id, p.state, p.basis, p.load_bearing,
+       (SELECT d.evidence->'relations' FROM atlas_delta d WHERE d.place_id = p.id AND d.kind = 'foundation_recognised' ORDER BY d.created_at DESC, d.id LIMIT 1) AS foundation_basis
+     FROM atlas_place p
      JOIN concept c ON c.id = p.anchor_concept_id
      LEFT JOIN atlas_place pp ON pp.id = p.parent_place_id LEFT JOIN concept pc ON pc.id = pp.anchor_concept_id
      WHERE p.universe_id = $1 ORDER BY p.created_at, p.id`, [universeId],
-  )).rows.map(r => ({ placeId: r.id, anchor: r.anchor, anchorId: r.anchor_id, kind: r.kind, parentAnchor: r.parent_anchor, parentPlaceId: r.parent_place_id, state: r.state, basis: r.basis }));
+  )).rows.map(r => ({ placeId: r.id, anchor: r.anchor, anchorId: r.anchor_id, kind: r.kind, parentAnchor: r.parent_anchor, parentPlaceId: r.parent_place_id, state: r.state, basis: r.basis,
+    loadBearing: r.load_bearing, foundationBasis: r.load_bearing ? r.foundation_basis : null }));
 }
 
 const snapshot = (p: { kind: string; state: string; parentPlaceId: string | null }) => ({ kind: p.kind, state: p.state, parentPlaceId: p.parentPlaceId });
@@ -99,6 +102,16 @@ async function applyDeltas(client: pg.PoolClient, universeId: string, substrate:
       liveByAnchor.set(d.anchor, row); byId.set(id, row);
       continue;
     }
+    if (d.kind === 'foundation_recognised' || d.kind === 'foundation_withdrawn') {
+      const place = liveByAnchor.get(d.anchor)!;
+      const bearing = d.kind === 'foundation_recognised';
+      await client.query('UPDATE atlas_place SET load_bearing=$2 WHERE id=$1 AND state=\'live\'', [place.placeId, bearing]);
+      // A re-recognition (the connections changed while it stood) keeps the flag: true -> true.
+      await insertDelta(client, universeId, place.placeId, d, { loadBearing: place.loadBearing ?? false }, { loadBearing: bearing });
+      place.loadBearing = bearing;
+      place.foundationBasis = d.kind === 'foundation_recognised' ? d.evidence.relations : null;
+      continue;
+    }
     const place = byId.get(d.placeId)!;
     const parent = place.parentPlaceId;
     const before = snapshot({ kind: place.kind, state: 'live', parentPlaceId: parent });
@@ -135,8 +148,15 @@ export async function rejectPlace(client: pg.PoolClient, universeId: string, pla
   if (!target) throw new AtlasNotFound();
   if (target.state === 'rejected') return { deltas: 0 };
   if (target.state !== 'live' || target.kind === 'sighting') throw new AtlasConflict('Only a live planet or region can be set aside');
-  return { deltas: await applyDeltas(client, universeId, await loadSubstrate(client), places, planRejection(places, placeId)) };
+  const substrate = await loadSubstrate(client);
+  const rejected = await applyDeltas(client, universeId, substrate, places, planRejection(places, placeId));
+  // Foundations, and only foundations, are re-evaluated at once (ADR-0037); every other change
+  // waits for the reader's next refresh, exactly as in ADR-0036.
+  const after = await loadPlaces(client, universeId);
+  const followUp = planFoundations({ relations: substrate.relations, places: after });
+  return { deltas: rejected + await applyDeltas(client, universeId, substrate, after, followUp) };
 }
+
 
 export interface AtlasView {
   policyVersion: string;
@@ -147,6 +167,8 @@ export interface AtlasView {
     attention: { state: string; episodes: number; daysActive: number; sourceFamilies: number } | null;
     scrolls: { total: number; seen: number };
     formedAt: string; formedBy: string;
+    /** ADR-0037: the places this one holds up, and the sourced connections that say so. */
+    foundation: { holdsUp: string[]; relations: { kind: RelationKind; from: string; to: string; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[] } | null;
   }[];
   relations: { fromPlaceId: string; toPlaceId: string; kind: RelationKind; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[];
   chronicle: { deltaId: string; placeId: string; parentPlaceId: string | null; kind: string; causalClass: string; at: string; line: string }[];
@@ -207,7 +229,7 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
 
   const between = substrate.relations.filter(r => liveAnchor.has(r.from) && liveAnchor.has(r.to)
     && liveAnchor.get(r.from)!.kind !== 'sighting' && liveAnchor.get(r.to)!.kind !== 'sighting');
-  const refs = await describeRefs(client, [...between, ...places.flatMap(p => (p.basis ? [p.basis] : []))]);
+  const refs = await describeRefs(client, [...between, ...places.flatMap(p => [...(p.basis ? [p.basis] : []), ...(p.loadBearing ? p.foundationBasis ?? [] : [])])]);
 
   const deltas = (await client.query<{ id: string; place_id: string; kind: string; causal_class: string; created_at: Date; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null; parent_place_id: string | null }>(
     `SELECT d.id, d.place_id, d.kind, d.causal_class, d.created_at, d.evidence, c.code AS anchor, pc.code AS parent_anchor, pp.id AS parent_place_id
@@ -216,9 +238,21 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
      WHERE d.universe_id = $1 AND d.kind <> 'sighting_promoted' ORDER BY d.created_at DESC, d.id LIMIT 20`, [universeId],
   )).rows;
   const nameOf = (code: string | null) => (code === null ? null : names.get(code)?.name ?? code);
+  // What a foundation holds up is always among the reader's live planets and regions, by active
+  // connections: one whose place has gone or whose source was revoked is not shown, and a
+  // foundation left holding nothing up shows as none until the next plan records it.
+  const active = new Set(substrate.relations.map(relationKey));
+  const foundationOf = (p: PlaceRow): AtlasView['places'][number]['foundation'] => {
+    if (!p.loadBearing || !p.foundationBasis) return null;
+    // A connection revoked since the last refresh (a source correction) is not shown either.
+    const standing = p.foundationBasis.filter(r => { const t = liveAnchor.get(r.to); return !!t && t.kind !== 'sighting' && active.has(relationKey(r)); });
+    const holdsUp = [...new Set(standing.map(r => liveAnchor.get(r.to)!.placeId))];
+    if (holdsUp.length === 0) return null;
+    return { holdsUp, relations: standing.map(r => ({ kind: r.kind, from: nameOf(r.from)!, to: nameOf(r.to)!, ...refs(r) })) };
+  };
 
   return {
-    policyVersion: CARTOGRAPHER_V1,
+    policyVersion: CARTOGRAPHER_POLICY,
     places: places.map(p => {
       const anchor = names.get(p.anchor)!;
       const f = formed.get(p.placeId);
@@ -230,13 +264,15 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
         attention: p.kind === 'sighting' ? null : accounts.get(p.anchor) ?? null,
         scrolls: counts.get(p.placeId) ?? { total: 0, seen: 0 },
         formedAt: f ? iso(f.created_at) : iso(new Date()), formedBy: f?.kind ?? 'place_formed',
+        foundation: foundationOf(p),
       };
     }),
     relations: between.map(r => ({ fromPlaceId: liveAnchor.get(r.from)!.placeId, toPlaceId: liveAnchor.get(r.to)!.placeId, kind: r.kind, ...refs(r) })),
     chronicle: deltas.map(d => ({
       deltaId: d.id, placeId: d.place_id, parentPlaceId: d.parent_place_id, kind: d.kind, causalClass: d.causal_class, at: iso(d.created_at),
       line: chronicleLine({ kind: d.kind, causalClass: d.causal_class, name: nameOf(d.anchor)!, parentName: nameOf(d.parent_anchor),
-        relation: (d.evidence.relation as TypedRelation | undefined) ? { ...(d.evidence.relation as TypedRelation), fromName: nameOf((d.evidence.relation as TypedRelation).from)!, toName: nameOf((d.evidence.relation as TypedRelation).to)! } : null }),
+        relation: (d.evidence.relation as TypedRelation | undefined) ? { ...(d.evidence.relation as TypedRelation), fromName: nameOf((d.evidence.relation as TypedRelation).from)!, toName: nameOf((d.evidence.relation as TypedRelation).to)! } : null,
+        holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map(code => nameOf(code)!) }),
     })),
   };
 }
@@ -265,7 +301,7 @@ export async function eraseAtlas(client: pg.PoolClient, universeId: string): Pro
 export async function exportAtlas(client: pg.PoolClient, universeId: string) {
   const q = async (sql: string) => (await client.query(sql, [universeId])).rows;
   return {
-    atlasPlaces: await q(`SELECT p.id, c.code AS anchor, p.kind, p.parent_place_id, p.state, p.basis, p.policy_version, p.created_at, p.changed_at
+    atlasPlaces: await q(`SELECT p.id, c.code AS anchor, p.kind, p.parent_place_id, p.state, p.basis, p.load_bearing, p.policy_version, p.created_at, p.changed_at
       FROM atlas_place p JOIN concept c ON c.id = p.anchor_concept_id WHERE p.universe_id=$1 ORDER BY p.created_at, p.id`),
     atlasDeltas: await q(`SELECT id, place_id, kind, causal_class, policy_version, evidence, before, after, created_at
       FROM atlas_delta WHERE universe_id=$1 ORDER BY created_at, id`),

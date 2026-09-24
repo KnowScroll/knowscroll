@@ -22,6 +22,10 @@ const noop = {
   onConfirmReset: (_typed: string) => {},
   onAcknowledgeReset: () => {},
   onEnterScroll: () => {},
+  onSignOut: () => {},
+  onBeginDeleteAccount: () => {},
+  onCancelDeleteAccount: () => {},
+  onConfirmDeleteAccount: (_typed: string) => {},
 };
 
 describe('PrivacyScreen', () => {
@@ -149,6 +153,90 @@ describe('PrivacyScreen', () => {
     expect(screen.getByText(/session/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(onAcknowledgeReset).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers Sign out and calls onSignOut', () => {
+    const onSignOut = vi.fn();
+    render(<PrivacyScreen universe={loadedUniverse()} privacy={open({ status: 'idle' })} {...noop} onSignOut={onSignOut} />);
+    fireEvent.click(screen.getByRole('button', { name: /^sign out$/i }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Sign out while pending and shows a real failure with a working retry', () => {
+    const onSignOut = vi.fn();
+    const { rerender } = render(
+      <PrivacyScreen universe={loadedUniverse()} privacy={open({ status: 'pending', kind: 'sign-out', requestId: '' })} {...noop} onSignOut={onSignOut} />,
+    );
+    expect(screen.getByRole('button', { name: /^sign out$|signing out/i })).toBeDisabled();
+
+    rerender(
+      <PrivacyScreen
+        universe={loadedUniverse()}
+        privacy={open({ status: 'failed', kind: 'sign-out', requestId: '', message: 'Connection interrupted.' })}
+        {...noop}
+        onSignOut={onSignOut}
+      />,
+    );
+    expect(screen.getAllByText('Connection interrupted.').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('gates account deletion behind a typed word (never the longer wire literal) and states what is removed', () => {
+    const onBeginDeleteAccount = vi.fn();
+    const onConfirmDeleteAccount = vi.fn();
+    const { rerender } = render(
+      <PrivacyScreen universe={loadedUniverse()} privacy={open({ status: 'idle' })} {...noop} onBeginDeleteAccount={onBeginDeleteAccount} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+    expect(onBeginDeleteAccount).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <PrivacyScreen universe={loadedUniverse()} privacy={open({ status: 'confirming-delete' })} {...noop} onConfirmDeleteAccount={onConfirmDeleteAccount} />,
+    );
+    // ADR-0035: states plainly what is removed and that the universe starts empty next time.
+    expect(screen.getByText(/your account, all recorded history/i)).toBeInTheDocument();
+    expect(screen.getByText(/starts empty/i)).toBeInTheDocument();
+
+    const confirmButton = screen.getByRole('button', { name: /^confirm delete$|^delete my account$/i });
+    expect(confirmButton).toBeDisabled();
+
+    const input = screen.getByLabelText(/type.*delete/i);
+    fireEvent.change(input, { target: { value: 'delete-my-account-and-history' } });
+    expect(confirmButton).toBeDisabled(); // the wire literal is not the typed word
+
+    fireEvent.change(input, { target: { value: 'delete' } });
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
+    expect(onConfirmDeleteAccount).toHaveBeenCalledWith('delete');
+  });
+
+  it('cancelling account deletion confirmation calls onCancelDeleteAccount', () => {
+    const onCancelDeleteAccount = vi.fn();
+    render(
+      <PrivacyScreen universe={loadedUniverse()} privacy={open({ status: 'confirming-delete' })} {...noop} onCancelDeleteAccount={onCancelDeleteAccount} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onCancelDeleteAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a real deletion failure and keeps the typed-word gate on the same Confirm control (no separate Retry, matching Reset)', () => {
+    const onConfirmDeleteAccount = vi.fn();
+    render(
+      <PrivacyScreen
+        universe={loadedUniverse()}
+        privacy={open({ status: 'failed', kind: 'delete-account', requestId: 'r1', message: 'Connection interrupted.' })}
+        {...noop}
+        onConfirmDeleteAccount={onConfirmDeleteAccount}
+      />,
+    );
+    expect(screen.getByText('Connection interrupted.')).toBeInTheDocument();
+    const confirmButton = screen.getByRole('button', { name: /^confirm delete$|^delete my account$/i });
+    expect(confirmButton).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/type.*delete/i), { target: { value: 'delete' } });
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
+    expect(onConfirmDeleteAccount).toHaveBeenCalledWith('delete');
   });
 
   it('returns to Universe on Escape, Home and the back pill, and carries the shared dock', () => {

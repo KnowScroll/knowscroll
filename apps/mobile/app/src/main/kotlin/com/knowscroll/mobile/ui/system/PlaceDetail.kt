@@ -54,7 +54,7 @@ internal fun PlaceDetail(
     onCloseEvidence: () -> Unit,
 ) {
     val sightings = atlas.places.filter { it.kind == "sighting" && it.parentPlaceId == place.placeId }
-    val relations = atlas.relations.filter { it.fromPlaceId == place.placeId || it.toPlaceId == place.placeId }
+    val connections = placeConnections(place, atlas)
     val chronicle = chronicleFor(atlas, place.placeId)
     val attention = place.attention
     Surface(
@@ -116,6 +116,20 @@ internal fun PlaceDetail(
                 )
             Text(placeMarkerDetail(place), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
 
+            val holdsUp = holdsUpLine(place, atlas.places)
+            val foundation = place.foundation
+            if (holdsUp != null && foundation != null) {
+                Text("Foundation", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
+                Text(holdsUp, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+                foundation.relations.forEach { relation ->
+                    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(basisSentence(relation), style = MaterialTheme.typography.bodyMedium)
+                        val support = relation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: relation.bridge?.mechanism
+                        if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                    }
+                }
+            }
+
             if (sightings.isNotEmpty()) {
                 Text("Sightings", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
                 sightings.forEach { sighting ->
@@ -131,16 +145,13 @@ internal fun PlaceDetail(
                 }
             }
 
-            if (relations.isNotEmpty()) {
+            if (connections.isNotEmpty()) {
                 Text("Connections", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
-                relations.forEach { relation ->
-                    val sentence = placeRelationSentence(relation, place.placeId, atlas.places)
-                    if (sentence != null) {
-                        Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(sentence, style = MaterialTheme.typography.bodyMedium)
-                            val support = relation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: relation.bridge?.mechanism
-                            if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
-                        }
+                connections.forEach { (sentence, relation) ->
+                    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(sentence, style = MaterialTheme.typography.bodyMedium)
+                        val support = relation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: relation.bridge?.mechanism
+                        if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
                     }
                 }
             }

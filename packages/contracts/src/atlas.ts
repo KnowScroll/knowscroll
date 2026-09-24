@@ -22,7 +22,11 @@ export const atlasPlaceSchema = z.object({
   scrolls: z.object({ total: z.number().int().min(0), seen: z.number().int().min(0) }).strict(),
   formedAt: z.string().datetime(),
   formedBy: z.string().min(1),
-}).strict().refine(p => p.kind !== 'sighting' || p.attention === null, { message: 'A sighting is not yet met: it carries no attention' });
+  foundation: z.object({
+    holdsUp: z.array(id).min(1),
+    relations: z.array(z.object({ kind: relationKind, from: z.string().min(1), to: z.string().min(1), ...support }).strict()).min(1),
+  }).strict().nullable(),
+}).strict().refine(p => p.kind !== 'sighting' || (p.attention === null && p.foundation === null), { message: 'A sighting is not yet met: it carries no attention and holds nothing up' });
 
 export const atlasResponseSchema = z.object({
   policyVersion: z.string().min(1),
@@ -30,7 +34,7 @@ export const atlasResponseSchema = z.object({
   relations: z.array(z.object({ fromPlaceId: id, toPlaceId: id, kind: relationKind, ...support }).strict()),
   chronicle: z.array(z.object({
     deltaId: id, placeId: id, parentPlaceId: id.nullable(),
-    kind: z.enum(['place_formed', 'sighting_appeared', 'sighting_retired', 'place_rejected', 'place_released']),
+    kind: z.enum(['place_formed', 'sighting_appeared', 'sighting_retired', 'place_rejected', 'place_released', 'foundation_recognised', 'foundation_withdrawn']),
     causalClass: z.enum(['personal_exploration', 'substrate_neighbourhood', 'source_correction', 'reader_correction']),
     at: z.string().datetime(), line: z.string().min(1),
   }).strict()).max(20),

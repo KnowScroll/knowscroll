@@ -25,6 +25,14 @@ export const privacyResetInput = z.object({
  confirmation: z.literal('reset-personal-universe'),
 }).strict();
 export type PrivacyResetInput = z.infer<typeof privacyResetInput>;
+// ADR-0035: deleting the account is Reset plus the account, its sessions, sign-in tokens and dated
+// privacy receipts; it has its own literal because it removes more than Reset does.
+export const accountDeletionInput = z.object({
+ requestId: uuid,
+ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+ confirmation: z.literal('delete-my-account-and-history'),
+}).strict();
+export type AccountDeletionInput = z.infer<typeof accountDeletionInput>;
 
 export type PrivacyRecordingReceipt = {
  receiptId:string; action:'pause'|'resume'; privacyEpoch:number;
@@ -59,6 +67,9 @@ export type PrivacyExportResult = {
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;
+};
+export type AccountDeletionReceipt = {
+ receiptId:string; epochBefore:number; epochAfter:number; sessionsDeleted:number; deletedAt:string;
 };
 export type Lineage = {
   eventId?: string; causationId?: string; exposureId?: string; decisionId?: string;

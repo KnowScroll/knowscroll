@@ -34,4 +34,6 @@
 0027_attention_hypotheses_composer_v3.sql
 0028_ask_answers.sql
 0029_atlas_places.sql
+0030_account_deletion.sql
+0031_atlas_foundations.sql
 0032_background_inquiries.sql

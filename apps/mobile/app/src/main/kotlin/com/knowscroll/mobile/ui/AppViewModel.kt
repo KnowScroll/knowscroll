@@ -4,10 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.knowscroll.mobile.BuildConfig
+import com.knowscroll.mobile.data.AndroidKeyStoreSessionVault
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.AtlasDelta
 import com.knowscroll.mobile.data.AtlasResponse
+import com.knowscroll.mobile.data.CredentialProvider
+import com.knowscroll.mobile.data.VaultCredentialProvider
 import com.knowscroll.mobile.data.ExposureRequest
 import com.knowscroll.mobile.data.HistoryClearRequest
 import com.knowscroll.mobile.data.HistoryClearReceipt
@@ -140,7 +144,15 @@ sealed interface AtlasEvidenceState {
 }
 
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
-    private val api=ApiClient()
+    // #135: the signed-in session if one exists; otherwise, only in a debug build, the baked-in
+    // development token; otherwise no credential at all (release builds have none, matching the
+    // existing MissingToken refusal). Exposed so the reader can hand the exact same resolved
+    // token to the media route (ReelScreen's `mediaToken`), which is authenticated outside
+    // ApiClient's own request path.
+    private val vault = AndroidKeyStoreSessionVault(application)
+    val credentialProvider: CredentialProvider =
+        VaultCredentialProvider(vault, BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG)
+    private val api=ApiClient(credential=credentialProvider)
     private val store=StateStore(application)
     private var feedJob: kotlinx.coroutines.Job? = null
     private var pendingCableMode: String? = null
@@ -205,7 +217,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun consumeToast(){_toast.value=null}
-    fun onForeground(){if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)}
+    fun onForeground(){
+        // #135: this instance can outlive its own sign-out; a new sign-in cleared the mark.
+        _signOut.value=signOutStateOnForeground(_signOut.value,store.readSignedOut())
+        if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)
+    }
     fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen() in setOf("scroll","revisit"),queueIfBusy=true)
     fun retryScrollLoad(){
         val pending=revisit
@@ -1139,8 +1155,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
      * navigation and pending-clear state is removed, and no control here will ever
      * reuse the now-dead token. */
     private fun completeSignOut(){
-        store.clearPendingSignOut()
-        store.writeSignedOut()
+        // #135: also clears the vault, so the account gate hands the app to the sign-in screen.
+        recordDeviceSignedOut(store,vault)
         purgeForScope(observedUniverseId,observedPrivacyEpoch)
         ready=false
         _signOut.value=SignOutState.SignedOut

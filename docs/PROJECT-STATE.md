@@ -1,5 +1,23 @@
 # Project state
 
+## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
+
+When one of the reader's places explains several of their other places, and sources say so, it
+becomes a foundation. On Android it is drawn brighter, and its sheet lists what it holds up and the
+claims behind each connection. It stops being one, with the reason recorded, when a source is
+corrected or the reader sets one of those places aside. Reading alone never makes a foundation. With
+today's small library this happens only around Gravity, and only if Orbits and Star formation become
+places, which needs more Scrolls from a second source.
+
+## 2026-09-24 Owner sign-in, privacy and account deletion on both clients (#135)
+
+The Android app no longer needs a baked-in development token: the owner signs in with an emailed
+link, and the session is encrypted on the device. The desktop web app signs in the same way with a
+cookie its page never sees. Both clients can pause and resume recording, export, reset, and delete
+the account and its history in one step. Upgrading a copy of the owner's real database was
+rehearsed and verified without touching the original. Not built: tapping the emailed link straight
+into the app (it is pasted), and a production mail provider.
+
 ## 2026-09-24 The reader's places (#134, first slice)
 
 Reading about a subject on different days, from more than one source, now forms a place in the
