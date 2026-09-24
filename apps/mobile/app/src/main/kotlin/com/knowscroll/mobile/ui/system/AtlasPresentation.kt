@@ -32,7 +32,7 @@ fun placeMarkerStatus(place: AtlasPlace): String = place.attention?.state?.upper
 /** The system-level markers for live planets, in `SpatialAtlas`'s existing marker shape. */
 fun planetMarkersOf(places: List<AtlasPlace>): List<AtlasMarker> =
     places.filter { it.kind == "planet" }
-        .map { AtlasMarker(it.placeId, it.anchor.name, placeMarkerDetail(it), placeMarkerStatus(it)) }
+        .map { AtlasMarker(it.placeId, it.anchor.name, placeMarkerDetail(it), placeMarkerStatus(it), foundation = it.foundation != null) }
 
 /** Faint markers next to their parent: `SpatialAtlas` positions each near its parent's own point
  * via [sightingOffset], never through the independent [atlasLayout] orbit. */
@@ -113,6 +113,16 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
     }
     "place_rejected" -> "You set this place aside."
     "place_released" -> "Its planet was set aside, so this region now stands on its own."
+    "foundation_recognised" -> {
+        val relations = (delta.evidence["relations"] as? List<*>)?.size
+        val holdsUp = (delta.evidence["holdsUp"] as? List<*>)?.size
+        if (relations != null && holdsUp != null)
+            "Recognised from $relations sourced connection${if (relations == 1) "" else "s"} to $holdsUp of your places."
+        else "Recognised from sourced connections to your places."
+    }
+    "foundation_withdrawn" ->
+        if (delta.causalClass == "source_correction") "A source behind one of its connections changed."
+        else "After you set a place aside, it no longer has enough sourced connections to your places."
     else -> "This place changed."
 }
 
@@ -150,7 +160,12 @@ fun placeListRows(places: List<AtlasPlace>): List<PlaceListRow> {
     val rows = mutableListOf<PlaceListRow>()
     fun walk(parentId: String?, depth: Int) {
         byParent[parentId].orEmpty().sortedBy { it.anchor.name }.forEach { p ->
-            rows += PlaceListRow(p.placeId, p.kind, p.anchor.name, depth, if (p.kind == "sighting") "Sighting" else placeMarkerDetail(p))
+            val detail = when {
+                p.kind == "sighting" -> "Sighting"
+                p.foundation != null -> "${placeMarkerDetail(p)} · Foundation"
+                else -> placeMarkerDetail(p)
+            }
+            rows += PlaceListRow(p.placeId, p.kind, p.anchor.name, depth, detail)
             if (p.kind != "sighting") walk(p.placeId, depth + 1)
         }
     }
@@ -174,4 +189,28 @@ fun placesSubtitle(places: List<AtlasPlace>): String {
     val placeWord = if (liveCount == 1) "PLACE" else "PLACES"
     val sightingWord = if (sightingCount == 1) "SIGHTING" else "SIGHTINGS"
     return "$liveCount $placeWord · $sightingCount $sightingWord"
+}
+
+/** "Holds up Orbits, Star formation and Tides" -- a foundation's held-up places that are still
+ * live in this response, in the server's order; `null` when it is not a foundation (or holds up
+ * nothing that is still live, which the next refresh will record as withdrawn). */
+fun holdsUpLine(place: AtlasPlace, places: List<AtlasPlace>): String? {
+    val names = place.foundation?.holdsUp?.mapNotNull { id -> places.firstOrNull { it.placeId == id && it.kind != "sighting" }?.anchor?.name }
+    if (names.isNullOrEmpty()) return null
+    return "Holds up ${listNames(names)}"
+}
+
+/** "A", "A and B", "A, B and C" -- the Cartographer's own list wording (`chronicle.ts`). */
+private fun listNames(names: List<String>): String =
+    if (names.size <= 1) names.joinToString() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+
+/** A place's typed relations to other live places, each with its sentence from this place's side,
+ * leaving out any its foundation section already lists (the same sentence would otherwise appear
+ * twice on one sheet). */
+fun placeConnections(place: AtlasPlace, atlas: AtlasResponse): List<Pair<String, AtlasRelation>> {
+    val listed = place.foundation?.relations?.map(::basisSentence)?.toSet().orEmpty()
+    return atlas.relations
+        .filter { it.fromPlaceId == place.placeId || it.toPlaceId == place.placeId }
+        .mapNotNull { relation -> placeRelationSentence(relation, place.placeId, atlas.places)?.let { it to relation } }
+        .filter { (sentence, _) -> sentence !in listed }
 }
