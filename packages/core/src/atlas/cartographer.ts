@@ -43,12 +43,14 @@ export type PlaceDelta =
   | Common & { kind: 'place_formed'; placeKind: 'planet' | 'region'; parentAnchor: string | null; promotesPlaceId?: string;
       evidence: { account: Omit<PlaceAccount, 'concept' | 'evidence'> & PlaceAccount['evidence'] } }
   | Common & { kind: 'sighting_appeared'; parentAnchor: string; evidence: { relation: TypedRelation } }
-  | Common & { kind: 'sighting_retired'; placeId: string; evidence: { relation: TypedRelation } | { rejectedPlaceId: string } }
+  | Common & { kind: 'sighting_retired'; placeId: string; evidence: { relation: TypedRelation } | { rejectedPlaceId: string } | { met: { state: PlaceAccount['state']; episodes: number } } }
   | Common & { kind: 'place_rejected'; placeId: string; evidence: Record<string, never> }
   | Common & { kind: 'place_released'; placeId: string; evidence: { rejectedPlaceId: string } };
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const relationKey = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `c:${r.ref.claimId}` : `b:${r.ref.bridgeId}`}`;
+// A sourced claim is the preferred basis for a sighting; an admitted bridge is the fallback.
+const basisOrder = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `0:${r.ref.claimId}` : `1:${r.ref.bridgeId}`}`;
 
 export function planPlaces(input: CartographerInput): PlaceDelta[] {
   const parentOf = new Map(input.concepts.map(c => [c.code, c.parent]));
@@ -63,11 +65,19 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
   const live = new Map<string, PlaceView>();
   for (const p of input.places) if (p.state === 'live') live.set(p.anchor, p);
 
-  // 1. Sightings whose basis is gone retire first, so a revoked relation cannot keep offering.
+  // 1. Sightings retire first: one whose basis is gone (a revoked relation cannot keep offering),
+  // and one the reader has now been shown (a sighting is only ever something not yet met; if its
+  // concept is already anchored it is promoted below instead).
   for (const p of [...live.values()].sort((a, b) => byCode(a.anchor, b.anchor))) {
-    if (p.kind !== 'sighting' || (p.basis && active.has(relationKey(p.basis)))) continue;
-    deltas.push({ ...common(p.anchor, 'source_correction'), kind: 'sighting_retired', placeId: p.placeId, evidence: { relation: p.basis! } });
-    live.delete(p.anchor);
+    if (p.kind !== 'sighting') continue;
+    const met = accounts.get(p.anchor);
+    if (p.basis && !active.has(relationKey(p.basis))) {
+      deltas.push({ ...common(p.anchor, 'source_correction'), kind: 'sighting_retired', placeId: p.placeId, evidence: { relation: p.basis } });
+      live.delete(p.anchor);
+    } else if (met && met.state !== 'anchored') {
+      deltas.push({ ...common(p.anchor, 'personal_exploration'), kind: 'sighting_retired', placeId: p.placeId, evidence: { met: { state: met.state, episodes: met.episodes } } });
+      live.delete(p.anchor);
+    }
   }
 
   // 2. Anchored concepts become planets or regions, shallowest first.
@@ -94,9 +104,14 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
   }
 
   // 3. Each planet/region offers sightings one typed relation away, never shown, never rejected.
-  const relations = [...input.relations].sort((a, b) => byCode(relationKey(a), relationKey(b)));
-  const degree = new Map<string, number>();
-  for (const r of relations) { degree.set(r.from, (degree.get(r.from) ?? 0) + 1); degree.set(r.to, (degree.get(r.to) ?? 0) + 1); }
+  const relations = [...input.relations].sort((a, b) => byCode(basisOrder(a), basisOrder(b)));
+  // Degree counts distinct neighbours: a claim and a bridge for the same pair are one connection.
+  const neighbours = new Map<string, Set<string>>();
+  for (const r of relations) {
+    neighbours.set(r.from, (neighbours.get(r.from) ?? new Set()).add(r.to));
+    neighbours.set(r.to, (neighbours.get(r.to) ?? new Set()).add(r.from));
+  }
+  const degree = new Map([...neighbours].map(([code, set]) => [code, set.size]));
   const anchorsOffering = [...live.values()].filter(p => p.kind === 'planet' || p.kind === 'region').map(p => p.anchor).sort(byCode);
   for (const anchor of anchorsOffering) {
     const offered = new Map<string, TypedRelation>();
@@ -106,9 +121,11 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
       if (live.has(other) || rejected.has(other) || accounts.has(other)) continue;
       offered.set(other, r);
     }
+    // The cap is per place: sightings it already has count against it.
+    const already = [...live.values()].filter(p => p.kind === 'sighting' && p.parentAnchor === anchor).length;
     const chosen = [...offered.entries()]
       .sort(([a], [b]) => (degree.get(b) ?? 0) - (degree.get(a) ?? 0) || byCode(a, b))
-      .slice(0, MAX_SIGHTINGS_PER_PLACE);
+      .slice(0, Math.max(0, MAX_SIGHTINGS_PER_PLACE - already));
     for (const [other, relation] of chosen) {
       deltas.push({ ...common(other, 'substrate_neighbourhood'), kind: 'sighting_appeared', parentAnchor: anchor, evidence: { relation } });
       live.set(other, { placeId: '', anchor: other, kind: 'sighting', parentAnchor: anchor, state: 'live', basis: relation });

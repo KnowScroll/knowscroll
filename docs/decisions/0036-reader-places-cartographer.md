@@ -36,7 +36,11 @@ evidence. Nothing turns that into places, and nothing records why a place exists
      shown, ranked by substrate degree (`sighting_appeared`, `substrate_neighbourhood`, evidence: the
      relation and its claim or bridge).
    - A live sighting whose relation or bridge is no longer active is **retired**
-     (`sighting_retired`, `source_correction`).
+     (`sighting_retired`, `source_correction`). A sighting the reader has now been shown is
+     retired as their own exploration (`personal_exploration`, "You reached …"); a sighting is only
+     ever something not yet met, so it never carries attention. If it is already anchored it is
+     promoted instead. The five-sighting cap counts the sightings a place already has; a sourced
+     claim is preferred over a bridge as a basis, and degree counts distinct neighbours.
    - Places are never removed for fading attention in v1; `dormant` is shown, not acted on.
 4. **The reader corrects.** `POST /v1/atlas/places/:placeId/reject` records `place_rejected`
    (`reader_correction`); its sightings retire and its regions are released as free planets
@@ -58,7 +62,7 @@ values carried by `cartographer-v1`.
 
 ## Consequences
 
-Migration 0030 (`atlas_place`, `atlas_delta`, guards); `packages/core/src/atlas/cartographer.ts`;
+Migration 0029 (`atlas_place`, `atlas_delta`, guards); `packages/core/src/atlas/cartographer.ts`;
 `packages/db/src/atlas.ts`; the refresh hook in `packages/db/src/semantic/personal-model.ts`; API
 routes and contracts; Clear/Reset/export; Android's live Atlas reads places instead of authored
 regions (authored geography stays for the labelled preview only).

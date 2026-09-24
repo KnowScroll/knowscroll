@@ -22,14 +22,14 @@ export const atlasPlaceSchema = z.object({
   scrolls: z.object({ total: z.number().int().min(0), seen: z.number().int().min(0) }).strict(),
   formedAt: z.string().datetime(),
   formedBy: z.string().min(1),
-}).strict();
+}).strict().refine(p => p.kind !== 'sighting' || p.attention === null, { message: 'A sighting is not yet met: it carries no attention' });
 
 export const atlasResponseSchema = z.object({
   policyVersion: z.string().min(1),
   places: z.array(atlasPlaceSchema),
   relations: z.array(z.object({ fromPlaceId: id, toPlaceId: id, kind: relationKind, ...support }).strict()),
   chronicle: z.array(z.object({
-    deltaId: id, placeId: id,
+    deltaId: id, placeId: id, parentPlaceId: id.nullable(),
     kind: z.enum(['place_formed', 'sighting_appeared', 'sighting_retired', 'place_rejected', 'place_released']),
     causalClass: z.enum(['personal_exploration', 'substrate_neighbourhood', 'source_correction', 'reader_correction']),
     at: z.string().datetime(), line: z.string().min(1),

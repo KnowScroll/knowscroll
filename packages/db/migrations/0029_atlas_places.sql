@@ -54,6 +54,9 @@ BEGIN
  IF NEW.kind IS DISTINCT FROM OLD.kind AND NOT (OLD.kind = 'region' AND NEW.kind = 'planet' AND NEW.state = 'live') THEN
   RAISE EXCEPTION 'Only a region can be released as a planet';
  END IF;
+ IF NEW.parent_place_id IS DISTINCT FROM OLD.parent_place_id AND NOT (OLD.kind = 'region' AND NEW.kind = 'planet' AND NEW.parent_place_id IS NULL) THEN
+  RAISE EXCEPTION 'A place keeps its parent unless it is released';
+ END IF;
  NEW.changed_at := clock_timestamp();
  RETURN NEW;
 END $$;
@@ -64,7 +67,7 @@ CREATE TRIGGER atlas_place_guard BEFORE UPDATE ON atlas_place FOR EACH ROW EXECU
 CREATE FUNCTION atlas_place_has_delta() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF NOT EXISTS (SELECT 1 FROM atlas_place WHERE id = NEW.id) THEN RETURN NULL; END IF; -- erased in this transaction
- IF NOT EXISTS (SELECT 1 FROM atlas_delta WHERE place_id = NEW.id AND txid = pg_current_xact_id()) THEN
+ IF NOT EXISTS (SELECT 1 FROM atlas_delta WHERE place_id = NEW.id AND universe_id = NEW.universe_id AND txid = pg_current_xact_id()) THEN
   RAISE EXCEPTION 'A place changes only with a delta that says why';
  END IF;
  RETURN NULL;

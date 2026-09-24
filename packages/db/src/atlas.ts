@@ -143,19 +143,20 @@ export interface AtlasView {
     formedAt: string; formedBy: string;
   }[];
   relations: { fromPlaceId: string; toPlaceId: string; kind: RelationKind; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[];
-  chronicle: { deltaId: string; placeId: string; kind: string; causalClass: string; at: string; line: string }[];
+  chronicle: { deltaId: string; placeId: string; parentPlaceId: string | null; kind: string; causalClass: string; at: string; line: string }[];
 }
 
 const iso = (v: unknown) => (v instanceof Date ? v : new Date(String(v))).toISOString();
 
-async function describeRefs(client: pg.PoolClient, relations: TypedRelation[]) {
+/** `anySnapshot`: a change's own evidence keeps naming the claim even after its source was corrected. */
+async function describeRefs(client: pg.PoolClient, relations: TypedRelation[], anySnapshot = false) {
   const claimIds = relations.flatMap(r => ('claimId' in r.ref ? [r.ref.claimId] : []));
   const bridgeIds = relations.flatMap(r => ('bridgeId' in r.ref ? [r.ref.bridgeId] : []));
   const claims = new Map((await client.query<{ id: string; text: string; source_title: string }>(
     `SELECT DISTINCT ON (cl.id) cl.id, cl.statement AS text, src.title AS source_title FROM claim cl
      JOIN claim_support cs ON cs.claim_id = cl.id AND cs.support_kind = 'supports'
-     JOIN source_snapshot ss ON ss.id = cs.snapshot_id AND ss.status = 'current' JOIN semantic_source src ON src.id = ss.source_id
-     WHERE cl.id = ANY($1::uuid[]) ORDER BY cl.id, src.title`, [claimIds],
+     JOIN source_snapshot ss ON ss.id = cs.snapshot_id AND ($2 OR ss.status = 'current') JOIN semantic_source src ON src.id = ss.source_id
+     WHERE cl.id = ANY($1::uuid[]) ORDER BY cl.id, (ss.status = 'current') DESC, src.title`, [claimIds, anySnapshot],
   )).rows.map(r => [r.id, { text: r.text, sourceTitle: r.source_title }]));
   const bridges = new Map((await client.query<{ id: string; mechanism: string }>('SELECT id, mechanism FROM bridge WHERE id = ANY($1::uuid[])', [bridgeIds])).rows.map(r => [r.id, { mechanism: r.mechanism }]));
   return (r: TypedRelation) => ({
@@ -184,9 +185,10 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
   )).rows;
   const counts = new Map<string, { total: number; seen: number }>();
   const add = (placeId: string, seen: boolean) => { const c = counts.get(placeId) ?? { total: 0, seen: 0 }; c.total += 1; if (seen) c.seen += 1; counts.set(placeId, c); };
+  // A Scroll counts once: toward the sighting its primary concept is, or else toward its home place.
   for (const r of primaries) {
     const sighting = liveAnchor.get(r.code);
-    if (sighting?.kind === 'sighting') add(sighting.placeId, r.seen);
+    if (sighting?.kind === 'sighting') { add(sighting.placeId, r.seen); continue; }
     const h = home(r.code);
     if (h) add(h, r.seen);
   }
@@ -201,8 +203,8 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
     && liveAnchor.get(r.from)!.kind !== 'sighting' && liveAnchor.get(r.to)!.kind !== 'sighting');
   const refs = await describeRefs(client, [...between, ...places.flatMap(p => (p.basis ? [p.basis] : []))]);
 
-  const deltas = (await client.query<{ id: string; place_id: string; kind: string; causal_class: string; created_at: Date; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null }>(
-    `SELECT d.id, d.place_id, d.kind, d.causal_class, d.created_at, d.evidence, c.code AS anchor, pc.code AS parent_anchor
+  const deltas = (await client.query<{ id: string; place_id: string; kind: string; causal_class: string; created_at: Date; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null; parent_place_id: string | null }>(
+    `SELECT d.id, d.place_id, d.kind, d.causal_class, d.created_at, d.evidence, c.code AS anchor, pc.code AS parent_anchor, pp.id AS parent_place_id
      FROM atlas_delta d JOIN atlas_place p ON p.id = d.place_id JOIN concept c ON c.id = p.anchor_concept_id
      LEFT JOIN atlas_place pp ON pp.id = COALESCE((d.after->>'parentPlaceId')::uuid, (d.before->>'parentPlaceId')::uuid) LEFT JOIN concept pc ON pc.id = pp.anchor_concept_id
      WHERE d.universe_id = $1 AND d.kind <> 'sighting_promoted' ORDER BY d.created_at DESC, d.id LIMIT 20`, [universeId],
@@ -218,14 +220,15 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
         placeId: p.placeId, kind: p.kind, parentPlaceId: p.parentAnchor ? liveAnchor.get(p.parentAnchor)?.placeId ?? null : null,
         anchor: { code: p.anchor, name: anchor.name, description: anchor.description },
         basis: p.basis ? { kind: p.basis.kind, from: nameOf(p.basis.from)!, to: nameOf(p.basis.to)!, ...refs(p.basis) } : null,
-        attention: accounts.get(p.anchor) ?? null,
+        // A sighting is by definition not yet met: it never carries the reader's attention.
+        attention: p.kind === 'sighting' ? null : accounts.get(p.anchor) ?? null,
         scrolls: counts.get(p.placeId) ?? { total: 0, seen: 0 },
         formedAt: f ? iso(f.created_at) : iso(new Date()), formedBy: f?.kind ?? 'place_formed',
       };
     }),
     relations: between.map(r => ({ fromPlaceId: liveAnchor.get(r.from)!.placeId, toPlaceId: liveAnchor.get(r.to)!.placeId, kind: r.kind, ...refs(r) })),
     chronicle: deltas.map(d => ({
-      deltaId: d.id, placeId: d.place_id, kind: d.kind, causalClass: d.causal_class, at: iso(d.created_at),
+      deltaId: d.id, placeId: d.place_id, parentPlaceId: d.parent_place_id, kind: d.kind, causalClass: d.causal_class, at: iso(d.created_at),
       line: chronicleLine({ kind: d.kind, causalClass: d.causal_class, name: nameOf(d.anchor)!, parentName: nameOf(d.parent_anchor),
         relation: (d.evidence.relation as TypedRelation | undefined) ? { ...(d.evidence.relation as TypedRelation), fromName: nameOf((d.evidence.relation as TypedRelation).from)!, toName: nameOf((d.evidence.relation as TypedRelation).to)! } : null }),
     })),
@@ -240,7 +243,7 @@ export async function readAtlasDelta(client: pg.PoolClient, universeId: string, 
   )).rows[0];
   if (!d) throw new AtlasNotFound();
   const relation = d.evidence.relation as TypedRelation | undefined;
-  const described = relation ? (await describeRefs(client, [relation]))(relation) : null;
+  const described = relation ? (await describeRefs(client, [relation], true))(relation) : null;
   return {
     deltaId: d.id, placeId: d.place_id, kind: d.kind, causalClass: d.causal_class, policyVersion: d.policy_version, at: iso(d.created_at),
     anchor: { code: d.anchor, name: d.name }, before: d.before, after: d.after,

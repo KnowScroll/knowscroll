@@ -200,11 +200,15 @@ try:
       'rejectionDeltaReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{rejected_id}' AND place_id='{p}'
           AND kind='place_rejected' AND causal_class='reader_correction'),
       'placeStateRejected', (SELECT count(*) FROM atlas_place WHERE id='{p}' AND state='rejected'),
-      'sharedBridgesStillAdmitted', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status='admitted'))"""))
-        expected = {'placeFormedPersonalExploration': 1, 'rejectionDeltaReaderCorrection': 1, 'placeStateRejected': 1, 'sharedBridgesStillAdmitted': 6}
-        assert lineage == expected, lineage
+      'formedEpisodes', (SELECT jsonb_array_length(evidence->'account'->'episodeIds') FROM atlas_delta WHERE id='{formed_id}'),
+      'formedMarks', (SELECT jsonb_array_length(evidence->'account'->'markIds') FROM atlas_delta WHERE id='{formed_id}'),
+      'formedDaysActive', (SELECT (evidence->'account'->>'daysActive')::int FROM atlas_delta WHERE id='{formed_id}'))"""))
+        ok = (lineage['placeFormedPersonalExploration'] == 1 and lineage['rejectionDeltaReaderCorrection'] == 1 and lineage['placeStateRejected'] == 1
+              and lineage['formedEpisodes'] >= 3 and lineage['formedMarks'] >= 2 and lineage['formedDaysActive'] >= 2)
+        assert ok, lineage
         limits = ['Editorial substrate; cartographer-v1 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
-                  'One live planet inspected end to end; further sightings/regions not separately exercised by this journey.']
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
+                  'One live planet inspected end to end; sightings appear only for neighbours this walk has not shown.']
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),

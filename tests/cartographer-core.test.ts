@@ -141,3 +141,44 @@ test('rejecting a planet retires its sightings and releases its regions as free 
   ]);
   assert.throws(() => planRejection(places, 'nope'), /not a live place/);
 });
+
+test('review B1: a sighting the reader has now been shown retires as their own exploration; an anchored one is promoted instead', () => {
+  const places: PlaceView[] = [
+    { placeId: 'p1', anchor: 'earth.ocean.tides', kind: 'planet', parentAnchor: null, state: 'live', basis: null },
+    { placeId: 's1', anchor: 'astro.moon', kind: 'sighting', parentAnchor: 'earth.ocean.tides', state: 'live', basis: relations[1]! },
+  ];
+  const met = planPlaces(input({ accounts: [anchored('earth.ocean.tides'), seen('astro.moon')], places }));
+  const retired = met.filter(d => d.kind === 'sighting_retired');
+  assert.deepEqual(retired.map(d => [d.anchor, d.causalClass, d.kind === 'sighting_retired' && d.placeId]), [['astro.moon', 'personal_exploration', 's1']]);
+  assert.ok(!met.some(d => d.kind === 'sighting_appeared' && d.anchor === 'astro.moon'), 'not offered again: it has been shown');
+  const promoted = planPlaces(input({ accounts: [anchored('earth.ocean.tides'), anchored('astro.moon')], places }));
+  assert.ok(!promoted.some(d => d.kind === 'sighting_retired'));
+  assert.equal(promoted.find(d => d.anchor === 'astro.moon')?.kind, 'place_formed');
+});
+
+test('review I1: the five-sighting cap counts the sightings a place already has', () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ code: `idea.n${String(i).padStart(2, '0')}`, parent: null, name: `N${i}` }));
+  const hub = { concepts: [...concepts, ...many], relations: many.map(n => ({ from: n.code, to: 'earth.ocean.tides', kind: 'applies_to' as const, ref: { claimId: `c-${n.code}` } })),
+    accounts: [anchored('earth.ocean.tides')], rejectedAnchors: [] as string[] };
+  const first = planPlaces({ ...hub, places: [] });
+  const live: PlaceView[] = [{ placeId: 'p1', anchor: 'earth.ocean.tides', kind: 'planet', parentAnchor: null, state: 'live', basis: null },
+    ...first.filter(d => d.kind === 'sighting_appeared').map((d, i) => ({ placeId: `s${i}`, anchor: d.anchor, kind: 'sighting' as const, parentAnchor: 'earth.ocean.tides', state: 'live' as const,
+      basis: d.kind === 'sighting_appeared' ? d.evidence.relation : null }))];
+  assert.equal(live.length, 6);
+  assert.deepEqual(planPlaces({ ...hub, places: live }), [], 'a second refresh adds nothing');
+  assert.equal(planPlaces({ ...hub, places: live.slice(0, 4) }).filter(d => d.kind === 'sighting_appeared').length, 2, 'three live → two more');
+});
+
+test('review M1: a claim is preferred over a bridge as a sighting\'s basis, and a pair counts once towards degree', () => {
+  const both: TypedRelation[] = [
+    { from: 'physics.gravity', to: 'earth.ocean.tides', kind: 'explains', ref: { bridgeId: 'bridge-g-t' } },
+    { from: 'physics.gravity', to: 'earth.ocean.tides', kind: 'explains', ref: { claimId: 'claim-g-t' } },
+    { from: 'physics.resonance', to: 'earth.ocean.tides', kind: 'analogous_in', ref: { claimId: 'claim-r-t' } },
+    { from: 'physics.resonance', to: 'astro.moon', kind: 'analogous_in', ref: { claimId: 'claim-r-m' } },
+  ];
+  const plan = planPlaces(input({ relations: both, accounts: [anchored('earth.ocean.tides')] }));
+  const gravity = plan.find(d => d.kind === 'sighting_appeared' && d.anchor === 'physics.gravity');
+  assert.deepEqual(gravity?.kind === 'sighting_appeared' && gravity.evidence.relation.ref, { claimId: 'claim-g-t' });
+  // Gravity's duplicate pair is one connection: resonance (two distinct neighbours) ranks first.
+  assert.deepEqual(plan.filter(d => d.kind === 'sighting_appeared').map(d => d.anchor), ['physics.resonance', 'physics.gravity']);
+});

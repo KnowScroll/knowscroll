@@ -28,6 +28,7 @@ const idOf = (title: string) => library.find(s => s.title.startsWith(title))!.as
 const ONE_FORCE = idOf('One force, many jobs');
 const UNSEEN_PULL = idOf("The pull you can't see");
 const OCEAN_RHYTHM = idOf('A rhythm the ocean keeps');
+const STAR_BORN = idOf('A star is born from a cloud');
 
 type Identity = Awaited<ReturnType<typeof provisionIdentity>>;
 const h = (i: Identity) => ({ authorization: `Bearer ${i.token}` });
@@ -190,4 +191,25 @@ test('the schema refuses a place without a delta, an edited delta, and a change 
   await refuse(`UPDATE atlas_delta SET causal_class='reader_correction' WHERE universe_id=$1`, [i.scope.universeId], /immutable/);
   const planet = (await pool.query<{ id: string }>(`SELECT p.id FROM atlas_place p JOIN concept c ON c.id=p.anchor_concept_id WHERE p.universe_id=$1 AND c.code='physics.gravity'`, [i.scope.universeId])).rows[0]!.id;
   await refuse(`UPDATE atlas_place SET kind='region' WHERE id=$1`, [planet], /Only a region|delta that says why/);
+});
+
+test('review B1/I2/M3: reading a sighting\'s subject retires it as the reader\'s own exploration, and the atlas stays valid', async () => {
+  const i = await anchorGravity();
+  const before = await atlasOf(i);
+  const planet = before.places.find((p: { anchor: { code: string } }) => p.anchor.code === 'physics.gravity');
+  const sighting = before.places.find((p: { kind: string; anchor: { code: string } }) => p.kind === 'sighting' && p.anchor.code === 'astro.star.birth');
+  assert.ok(sighting, 'Star formation is on Gravity\'s horizon before it is read');
+  for (const p of before.places) if (p.kind === 'sighting') assert.equal(p.attention, null);
+  const appeared = before.chronicle.find((c: { kind: string; placeId: string }) => c.kind === 'sighting_appeared' && c.placeId === sighting.placeId);
+  assert.equal(appeared.parentPlaceId, planet.placeId, 'a sighting\'s line names the place it belongs to');
+
+  await read(i, STAR_BORN, false);
+  const after = await atlasOf(i); // parses under the strict contract
+  assert.ok(!after.places.some((p: { anchor: { code: string } }) => p.anchor.code === 'astro.star.birth'), 'no longer a sighting once met');
+  const reached = after.chronicle.find((c: { kind: string; placeId: string }) => c.kind === 'sighting_retired' && c.placeId === sighting.placeId);
+  assert.equal(reached.causalClass, 'personal_exploration');
+  assert.equal(reached.line, 'You reached Star formation.');
+  assert.equal(reached.parentPlaceId, planet.placeId);
+  const evidence = atlasDeltaSchema.parse((await app.inject({ url: `/v1/atlas/deltas/${reached.deltaId}`, headers: h(i) })).json()) as any;
+  assert.equal(evidence.evidence.met.state, 'seen');
 });
