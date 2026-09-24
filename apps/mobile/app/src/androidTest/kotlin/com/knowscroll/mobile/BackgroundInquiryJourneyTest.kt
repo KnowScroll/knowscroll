@@ -133,9 +133,9 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
         openPrivacy()
         compose.onNodeWithContentDescription("Refresh what KnowScroll looked for").performScrollTo().performClick()
         compose.waitUntil(20_000) { shown("Found a connection.") }
-        compose.onNodeWithText("Found a connection.").performScrollTo()
-        compose.onNodeWithText("The Sun and Gravity", substring = true).performScrollTo().assertExists()
-        compose.onNodeWithText(found.sentence).performScrollTo().assertExists()
+        compose.onAllNodesWithText("Found a connection.").onFirst().performScrollTo()
+        compose.onAllNodesWithText("The Sun and Gravity", substring = true).onFirst().performScrollTo().assertExists()
+        compose.onAllNodesWithText(found.sentence).onFirst().performScrollTo().assertExists()
         compose.onAllNodesWithText(found.evidence.first().sourceTitle).onFirst().performScrollTo().assertExists()
         compose.onNodeWithText("Up to 3 a day · 1 used today").performScrollTo()
         screenshot("inquiry-found.png")
