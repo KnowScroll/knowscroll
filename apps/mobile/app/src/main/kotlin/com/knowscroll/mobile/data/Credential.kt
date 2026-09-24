@@ -1,7 +1,7 @@
 package com.knowscroll.mobile.data
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 
 /** Resolves the bearer token to send with an authenticated request, or `null` for none. */
 fun interface CredentialProvider {
@@ -35,12 +35,19 @@ class VaultCredentialProvider(
  * screen is the only listener, and it only acts when its own vault still holds a token -- a 401
  * against a development token (no vault entry) is a no-op, so existing debug/journey sign-out
  * behaviour (#91) is unaffected. Not persisted: process death always re-derives auth state from
- * the vault, never from this counter.
+ * the vault, never from this signal.
+ *
+ * A [SharedFlow] with `replay = 0`, deliberately not a [kotlinx.coroutines.flow.StateFlow]: a
+ * `StateFlow` replays its latest value to every *new* collector, so a listener created after an
+ * earlier, already-handled 401 (e.g. a view model recreated later in the same process, or -- the
+ * way this bit a first version of this signal -- a fresh instance in a later test in the same JVM)
+ * would immediately replay that stale event and sign a perfectly valid new session out. A `replay
+ * = 0` `SharedFlow` only ever delivers events emitted *after* a collector subscribes.
  */
 object SessionInvalidation {
-    private val _events = MutableStateFlow(0L)
-    val events: StateFlow<Long> = _events
+    private val _events = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 8)
+    val events: SharedFlow<Unit> = _events
     fun reportUnauthorized() {
-        _events.value += 1
+        _events.tryEmit(Unit)
     }
 }

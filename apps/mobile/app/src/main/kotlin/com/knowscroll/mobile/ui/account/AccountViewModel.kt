@@ -8,7 +8,6 @@ import com.knowscroll.mobile.data.AccountDeletionRequest
 import com.knowscroll.mobile.data.AndroidKeyStoreSessionVault
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
-import com.knowscroll.mobile.data.CredentialProvider
 import com.knowscroll.mobile.data.PrivacyLifecycleRequest
 import com.knowscroll.mobile.data.PrivacyResetRequest
 import com.knowscroll.mobile.data.SessionInvalidation
@@ -38,15 +37,21 @@ internal const val PRIVACY_RETRY_MESSAGE =
  * reader's very next call with no extra wiring, and [SessionInvalidation] carries the one signal
  * that must cross between them (the reader's session died).
  */
-class AccountViewModel(application: Application) : AndroidViewModel(application) {
-    private val vault: SessionVault = AndroidKeyStoreSessionVault(application)
-    private val credential: CredentialProvider =
-        VaultCredentialProvider(vault, BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG)
-    // This screen's own 401s are handled explicitly and completely below (each one decides its
-    // own SignedOutReason), so the process-wide signal is disabled here -- it would otherwise
-    // race this view model's own handling for the exact same event.
-    private val api = ApiClient(credential = credential, onUnauthorized = {})
-    private val store = StateStore(application)
+class AccountViewModel(
+    application: Application,
+    /** Test seam: a JVM test passes a [com.knowscroll.mobile.data.FakeSessionVault]. */
+    private val vault: SessionVault = AndroidKeyStoreSessionVault(application),
+    /** Test seam: a JVM test passes an `ApiClient` pointed at a fixture server. This screen's own
+     * 401s are handled explicitly and completely below (each one decides its own
+     * [SignedOutReason]), so the process-wide [SessionInvalidation] signal is disabled by default
+     * here -- it would otherwise race this view model's own handling of the exact same event. */
+    private val api: ApiClient = ApiClient(
+        credential = VaultCredentialProvider(vault, BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG),
+        onUnauthorized = {},
+    ),
+    /** Test seam: a JVM test passes its own [StateStore] over a disposable context. */
+    private val store: StateStore = StateStore(application),
+) : AndroidViewModel(application) {
 
     private val _authState = MutableStateFlow(deriveAuthState())
     val authState = _authState.asStateFlow()
