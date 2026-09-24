@@ -94,7 +94,10 @@ def wait_for_health(port):
 def up(options):
     if current.exists(): sys.exit(f'A hands-on stack is already running here ({current.resolve().name}); run `down` first.')
     if options.port in OWNER_PORTS: sys.exit(f'Port {options.port} belongs to the owner; choose another.')
-    with socket.socket() as probe: probe.bind(('127.0.0.1', options.port))
+    with socket.socket() as probe:
+        # A port the last stack just released sits in TIME_WAIT; only a live listener should refuse.
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind(('127.0.0.1', options.port))
     config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
     source = urlparse(config['DATABASE_URL'])
     assert source.hostname in ('127.0.0.1', 'localhost')

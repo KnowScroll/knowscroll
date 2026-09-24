@@ -8,8 +8,10 @@ import {execFileSync} from 'node:child_process';
 import {generationBrief} from '../../packages/contracts/src/generation.ts';
 import {CUTROOM_CONTRACT_REVISION as REVISION} from '../../apps/worker/src/generation/storage.ts';
 import {mintReelAsset} from '../../apps/worker/src/publication/mint.ts';
+import {insertFakeEngine} from '../../tests/helpers/generation-fixture.ts';
 const db = new URL(process.env.DATABASE_URL!);
-if(!/^knowscroll_test_native_[a-f0-9]+$/.test(db.pathname.slice(1)) || !['localhost','127.0.0.1'].includes(db.hostname)) throw Error('Disposable native database required');
+// The native preview's and the hands-on stack's disposable databases (scripts/android-hands-on.py).
+if(!/^knowscroll_test_(native|hands)_[a-f0-9]+$/.test(db.pathname.slice(1)) || !['localhost','127.0.0.1'].includes(db.hostname)) throw Error('Disposable native database required');
 const {pool}=await import('../../packages/db/src/index.ts');
 const mediaRoot=process.env.KS_MEDIA_ROOT!;
 if(!mediaRoot.startsWith('/Volumes/'))throw Error('SSD media directory required');
@@ -65,12 +67,7 @@ async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha2
   );
 
   const engineId = randomUUID();
-  const port = 20000 + Math.floor(Math.random() * 30000);
-  await pool.query(
-    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
-     VALUES($1,$2,$3,'/Volumes/Mrigesh SSD/knowscroll-dev/tmp/native-fixtures','standin','test')`,
-    [engineId, `http://127.0.0.1:${port}`, REVISION],
-  );
+  await insertFakeEngine(pool, {id: engineId, artifactRoot: '/Volumes/Mrigesh SSD/knowscroll-dev/tmp/native-fixtures', providerMode: 'standin'});
   const grantId = randomUUID();
   await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`, [grantId]);
   await pool.query('UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1', [grantId]);
