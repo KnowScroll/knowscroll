@@ -1,6 +1,8 @@
 package com.knowscroll.mobile.ui
 
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.SessionVault
+import com.knowscroll.mobile.data.StateStore
 
 /** Sign out this device (#91, Journey I partial). Local-only state machine around the
  * existing `POST /v1/session/revoke` contract. No new auth flow, no token entry UI. */
@@ -33,3 +35,26 @@ internal fun signOutRestoreState(pendingSignOut: Boolean, signedOut: Boolean): S
     pendingSignOut -> SignOutState.Retryable(SIGN_OUT_AMBIGUOUS_MESSAGE)
     else -> SignOutState.Idle
 }
+
+/**
+ * #135: what the reader's confirmed sign-out records on this device. The revoked token leaves the
+ * vault -- otherwise the account gate still counts it as signed in and the reader shows #91's
+ * dead-end [SignedOutScreen] for good -- and the device is marked signed out, which also keeps a
+ * debug build's development token (which this revoke may just have ended) from reopening the
+ * reader; only a new sign-in clears the mark (`AccountViewModel.submitPastedLink`).
+ *
+ * The vault goes first: a crash between the two writes leaves no session and no mark (the sign-in
+ * screen), never a dead session still in the vault.
+ */
+internal fun recordDeviceSignedOut(store: StateStore, vault: SessionVault) {
+    vault.clear()
+    store.clearPendingSignOut()
+    store.writeSignedOut()
+}
+
+/** #135: the reader's view model lives in the activity's store, so it can outlive its own sign-out
+ * while the sign-in screen is up. Once a new sign-in has cleared the persisted mark, coming back to
+ * the foreground revives it instead of keeping [SignOutState.SignedOut]'s dead end; while the mark
+ * stands, SignedOut stays terminal. Nothing else is changed. */
+internal fun signOutStateOnForeground(current: SignOutState, persistedSignedOut: Boolean): SignOutState =
+    if (current is SignOutState.SignedOut && !persistedSignedOut) SignOutState.Idle else current

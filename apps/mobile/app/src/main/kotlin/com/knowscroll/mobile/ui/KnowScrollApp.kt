@@ -21,6 +21,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.knowscroll.mobile.ui.account.AccountViewModel
+import com.knowscroll.mobile.ui.account.AuthState
+import com.knowscroll.mobile.ui.account.PrivacyActions
+import com.knowscroll.mobile.ui.account.PrivacyScreen
+import com.knowscroll.mobile.ui.account.SignInScreen
 import com.knowscroll.mobile.ui.keep.KeepScreen
 import com.knowscroll.mobile.ui.scroll.ScrollScreen
 import com.knowscroll.mobile.ui.system.SystemScreen
@@ -28,8 +33,90 @@ import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import com.knowscroll.mobile.ui.universe.UniverseScreen
 import kotlinx.coroutines.awaitCancellation
 
+/**
+ * #135: the app's outermost gate. A device with no usable credential (never signed in, or its
+ * session just died) sees only [SignInScreen]; the Privacy screen and the reader are mutually
+ * exclusive top-level destinations sharing the one [AccountViewModel], parallel to how the old
+ * dev-token-era `SignOutState.SignedOut` already replaced this whole tree in place (see the
+ * `authState`/`privacyOpen` branches below).
+ */
 @Composable
-fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
+fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
+    val authState by accountViewModel.authState.collectAsStateWithLifecycle()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            // A sign-in/out from any screen, or the reader's own session dying, becomes visible
+            // here on the next foreground -- see AccountViewModel.refresh().
+            accountViewModel.refresh()
+            awaitCancellation()
+        }
+    }
+    if (authState is AuthState.SignedOut) {
+        KnowScrollTheme {
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                val linkRequest by accountViewModel.linkRequest.collectAsStateWithLifecycle()
+                val tokenSubmit by accountViewModel.tokenSubmit.collectAsStateWithLifecycle()
+                val reason by accountViewModel.signedOutReason.collectAsStateWithLifecycle()
+                SignInScreen(
+                    linkRequest = linkRequest,
+                    tokenSubmit = tokenSubmit,
+                    reason = reason,
+                    onRequestLink = accountViewModel::requestLink,
+                    onSubmitLink = accountViewModel::submitPastedLink,
+                )
+            }
+        }
+        return
+    }
+    var privacyOpen by rememberSaveable { mutableStateOf(false) }
+    if (privacyOpen) {
+        KnowScrollTheme {
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                LaunchedEffect(Unit) { accountViewModel.openPrivacy() }
+                val privacy by accountViewModel.privacy.collectAsStateWithLifecycle()
+                val pause by accountViewModel.pause.collectAsStateWithLifecycle()
+                val resume by accountViewModel.resume.collectAsStateWithLifecycle()
+                val export by accountViewModel.export.collectAsStateWithLifecycle()
+                val reset by accountViewModel.reset.collectAsStateWithLifecycle()
+                val delete by accountViewModel.delete.collectAsStateWithLifecycle()
+                val accountSignOut by accountViewModel.accountSignOut.collectAsStateWithLifecycle()
+                PrivacyScreen(
+                    privacy = privacy, pause = pause, resume = resume, export = export,
+                    reset = reset, delete = delete, signOut = accountSignOut,
+                    actions = PrivacyActions(
+                        onBack = { privacyOpen = false },
+                        onRetryLoad = accountViewModel::retryPrivacyLoad,
+                        onRequestPause = accountViewModel::requestPause,
+                        onRetryPause = accountViewModel::retryPause,
+                        onRequestResume = accountViewModel::requestResume,
+                        onRetryResume = accountViewModel::retryResume,
+                        onRequestExport = accountViewModel::requestExport,
+                        onRetryExport = accountViewModel::retryExport,
+                        onExportSaved = accountViewModel::consumeExport,
+                        onRequestResetConfirmation = accountViewModel::requestResetConfirmation,
+                        onCancelReset = accountViewModel::cancelReset,
+                        onConfirmReset = accountViewModel::confirmReset,
+                        onRetryReset = accountViewModel::retryReset,
+                        onRequestDeleteConfirmation = accountViewModel::requestDeleteConfirmation,
+                        onCancelDelete = accountViewModel::cancelDelete,
+                        onConfirmDelete = accountViewModel::confirmDelete,
+                        onRetryDelete = accountViewModel::retryDelete,
+                        onRequestSignOutConfirmation = accountViewModel::requestSignOutConfirmation,
+                        onCancelSignOut = accountViewModel::cancelAccountSignOut,
+                        onConfirmSignOut = accountViewModel::confirmAccountSignOut,
+                        onRetrySignOut = accountViewModel::retryAccountSignOut,
+                    ),
+                )
+            }
+        }
+        return
+    }
+    AuthenticatedApp(onOpenPrivacy = { privacyOpen = true }, onSignedOut = accountViewModel::onReaderSignedOut)
+}
+
+@Composable
+private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivacy: () -> Unit, onSignedOut: () -> Unit) {
     KnowScrollTheme {
         val authorityReady by viewModel.authorityReady.collectAsStateWithLifecycle()
         val cableMode by viewModel.cableMode.collectAsStateWithLifecycle()
@@ -81,6 +168,12 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                 savedReelKey?.let(atlasStates::removeState)
                 savedReelKey = null
             }
+        }
+
+        // #135: the reader's own "Sign out this device" ended the session and cleared the vault;
+        // the sign-in screen, not SignedOutScreen's dead end, is where this device goes now.
+        LaunchedEffect(signOut is SignOutState.SignedOut) {
+            if (signOut is SignOutState.SignedOut) onSignedOut()
         }
 
         LaunchedEffect(toast) {
@@ -156,6 +249,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                 onConfirmSignOut = viewModel::confirmSignOut,
                                 onRetrySignOut = viewModel::retrySignOut,
                                 onOpenKeep = viewModel::openKeep,
+                                onOpenPrivacy = onOpenPrivacy,
                                 onAuthoredAtlas =
                                     if (
                                         com.knowscroll.mobile.BuildConfig.DEBUG &&
@@ -196,6 +290,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                             { viewModel.onVisible(reading.item.assetId) },
                                             viewModel::onMediaAuthorityFailure,
                                             viewModel::updateReadingPosition,
+                                            mediaToken = viewModel.credentialProvider.currentToken(),
                                         )
                                     }
                                 } else
@@ -265,12 +360,14 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                 atlasPreview = false
                             },
                             viewModel::onMediaAuthorityFailure,
+                            viewModel.credentialProvider,
                         )
                     else
                         com.knowscroll.mobile.ui.preview.AuthoredPreview(
                             confirmed,
                             { previewOpen = false },
                             viewModel::onMediaAuthorityFailure,
+                            credential = viewModel.credentialProvider,
                         )
                 }
             } else if (previewOpen && !authorityReady) {

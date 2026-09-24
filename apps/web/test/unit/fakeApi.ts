@@ -1,5 +1,7 @@
 import type { ReaderApi } from '../../src/api/client.ts';
 import type {
+  AccountDeletionReceipt,
+  AccountDeletionRequest,
   EventStatus,
   ExposureResponse,
   FeedResponse,
@@ -28,6 +30,10 @@ export class FakeApi implements ReaderApi {
   resumeQueue: Array<PrivacyRecordingReceipt | Error> = [];
   privacyExportQueue: Array<PrivacyExportResult | Error> = [];
   resetQueue: Array<PrivacyResetReceipt | Error> = [];
+  // `take()` treats a plain `undefined` element as "queue empty" (`next === undefined` above), so
+  // a void success is queued as the sentinel `'ok'` here rather than `undefined` itself.
+  sessionRevokeQueue: Array<'ok' | Error> = [];
+  accountDeleteQueue: Array<AccountDeletionReceipt | Error> = [];
 
   exposureCalls: Array<{ decisionId: string; assetId: string; clientExposureId: string }> = [];
   interactionCalls: Array<{ clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }> = [];
@@ -35,6 +41,8 @@ export class FakeApi implements ReaderApi {
   resumeCalls: PrivacyLifecycleRequest[] = [];
   privacyExportCalls: PrivacyLifecycleRequest[] = [];
   resetCalls: PrivacyResetRequest[] = [];
+  sessionRevokeCalls = 0;
+  accountDeleteCalls: AccountDeletionRequest[] = [];
   feedCalls = 0;
   universeCalls = 0;
   worldsCalls = 0;
@@ -92,6 +100,14 @@ export class FakeApi implements ReaderApi {
   async postPrivacyReset(body: PrivacyResetRequest): Promise<PrivacyResetReceipt> {
     this.resetCalls.push(body);
     return this.take(this.resetQueue, 'postPrivacyReset');
+  }
+  async postSessionRevoke(): Promise<void> {
+    this.sessionRevokeCalls++;
+    await this.take(this.sessionRevokeQueue, 'postSessionRevoke');
+  }
+  async postAccountDelete(body: AccountDeletionRequest): Promise<AccountDeletionReceipt> {
+    this.accountDeleteCalls.push(body);
+    return this.take(this.accountDeleteQueue, 'postAccountDelete');
   }
 }
 

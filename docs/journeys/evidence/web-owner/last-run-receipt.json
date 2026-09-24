@@ -1,0 +1,18 @@
+{
+  "journey": "web-owner-135",
+  "startedAt": "2026-09-24T08:39:54.842Z",
+  "database": "knowscroll_test_700676f2434c72ea",
+  "apiPort": 63216,
+  "webPort": 63217,
+  "cookieModeSmokeCheck": "passed (unauthenticated /v1/session via the cookie-mode proxy returned 401)",
+  "playwright": {
+    "result": "passed"
+  },
+  "databaseFootprintAfterDeletion": {
+    "accounts": 0,
+    "receipts": 1,
+    "sessions": 0
+  },
+  "finishedAt": "2026-09-24T08:40:01.538Z",
+  "databaseDropped": true
+}

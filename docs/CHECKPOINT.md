@@ -1,5 +1,24 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #135 owner access, privacy and release clients (lane `135-owner-access`)
+
+ADR-0034, ADR-0035, migration 0030. Server: a desktop session cookie (HttpOnly, Secure,
+SameSite=Strict) minted from a magic link, whose page never sees a token. Every change needs an
+HMAC CSRF token and a same origin, and there is one credential per request. The emailed link is
+`<origin>/sign-in#token=…`. Account deletion erases, in one transaction, what Reset erases plus
+sessions, sign-in tokens, dated privacy receipts and the account, leaving an address-free
+tombstone; schema guards allow those deletions only inside it. A read-only snapshot of the owner
+database was restored into a disposable clone, and only the clone was migrated and verified (re-run after the review with 0029 and 0030: 9 → 27 migrations, every row and checksum kept). Web:
+a signed-out screen, the `/sign-in` page, CSRF in the client, sign-out and deletion, and a
+cookie-mode proxy. Android: magic-link sign-in with a Keystore-encrypted session, and a Privacy &
+account screen (pause/resume, export, Reset, delete, sign out) at parity with web.
+
+Verification (after the review fixes): web-session 6, account-deletion 6 (3 mutants), backend suite, web units, Android
+units + lint, the web owner journey (Playwright, cookie mode) and the emulator owner journey with
+SQL checks; see the [evidence](journeys/evidence/owner-access-2026-09-24/README.md). Four initial
+device failures are recorded there, including a launch crash that the JVM tests had missed.
+Preview restored; the owner database was only read.
+
 ## 2026-09-24 #134 first slice — the reader's places (lane `134-living-worlds`)
 
 ADR-0036; migration 0029 (`atlas_place`/`atlas_delta`). A pure
