@@ -2,12 +2,18 @@
 
 ## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
 
-`AtlasProfileTest` now records every frame phase and one row per frame. Two device runners
-(`android-native-profile.py`, `android-reader-explain-journey.py`) now preserve and restore the
-owner's `.journey` preview, verified, through `scripts/android_preview.py`; the semantic runner
-already did. Matched profiles on a quiet host, baseline `81431cc` against main, interleaved (see the
-[profile evidence](journeys/evidence/frame-profile-2026-09-24/README.md)): p95 is equal (67.6 vs
-67.4 ms) and p50 improved (33.8 → 29.5 ms). The earlier 47.40 ms baseline does not reproduce.
+`AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
+installs the `.journey` app (the semantic, profile and #91 explain runners, and the six older
+ones) now goes through `scripts/android_preview.py`:
+- it refuses, touching nothing, if the preview cannot be backed up or holds a keystore-sealed
+  signed-in session;
+- it restores only if the run actually replaced the preview;
+- it verifies every file by hash.
+
+Matched profiles on a quiet host, baseline `81431cc` against main at `a9b5e1c`, interleaved (see the
+[profile evidence](journeys/evidence/frame-profile-2026-09-24/README.md)): equal p95 (67.6 vs
+67.4 ms) and better p50 (33.8 → 29.5 ms). One early baseline run under a different host state
+matched the old 47.40 ms, so host state moves absolute numbers by about 50%.
 Recomposition p95 roughly doubled (10.1 → 19.7 ms), with more draw and swap; that is the next
 target. Smoothness is not accepted: almost every emulator frame is over 16.67 ms.
 

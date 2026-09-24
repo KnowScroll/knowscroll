@@ -19,6 +19,11 @@ import threading
 import time
 import urllib.request
 import uuid
+import sys as _sys
+from pathlib import Path as _Path
+_sys.dont_write_bytecode = True
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -123,7 +128,10 @@ def scalar(sql):
                                    env=adminenv, text=True).strip()
 
 
+_preview_error = None
+_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
+    _guard.preserve()
     # Fail before side effects if another lane owns the service port.
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 4316))
@@ -215,6 +223,9 @@ try:
     }
     (out / 'environment.json').write_text(json.dumps(receipt, indent=2) + '\n')
 finally:
+    # Restore the owner's preview first (only if this run replaced it), so no later cleanup can hide it.
+    try: _guard.restore()
+    except Exception as _error: _preview_error = _error; print(f'PREVIEW RESTORE FAILED: {_error}', flush=True)
     subprocess.run(['adb', 'shell', 'wm', 'size', 'reset'], check=False)
     if proxy:
         proxy.shutdown()
@@ -230,3 +241,4 @@ finally:
         log.close()
     if created:
         run(['dropdb', *args, '--if-exists', name], env=adminenv)
+if _preview_error is not None: raise _preview_error

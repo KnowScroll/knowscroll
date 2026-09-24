@@ -1,9 +1,9 @@
 {
   "check": "android-reader-explain-91",
   "result": "passed",
-  "observedAt": "2026-09-24T09:05:25.476067+00:00",
+  "observedAt": "2026-09-24T09:20:05.116603+00:00",
   "source": {
-    "revision": "e1a38e00a4272ec56e61747d6261d6ce7576ab07",
+    "revision": "f22d9ca87478c569c38c695a12d7771bf5201aaf",
     "dirty": true,
     "files": [
       {
@@ -32,7 +32,7 @@
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/AtlasProfileTest.kt",
-        "sha256": "91d1c45bc82b2fdf5b83303a231c47824b9d037ba2eb0852968cad80a4c4f87d"
+        "sha256": "31f2f17d20af7fa5307c76bc5d8c8612ab5a0c427e032772e771581c514861ab"
       },
       {
         "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/DirectAtlasJourneyTest.kt",
@@ -644,7 +644,7 @@
       },
       {
         "path": "scripts/android-reader-explain-journey.py",
-        "sha256": "33c0ed01812494d1e531cc23b9c001f07b3bb531f411b500adbb57f07ee7aae1"
+        "sha256": "e811a88447ca5cb82146753f7e52e70e4d1d832d38b7712b8cb99a18219c1e05"
       }
     ]
   },
@@ -658,8 +658,8 @@
     "apiPort": "4326",
     "proxyPort": 4321,
     "coldRestart": {
-      "beforePid": "11395",
-      "afterPid": "11441"
+      "beforePid": "12645",
+      "afterPid": "12689"
     }
   },
   "phases": {
@@ -679,15 +679,15 @@
     },
     "savedTrace": {
       "scenario": "explainSheetShowsSavedTraceOriginWithKeptDateAndNoReason",
-      "traceEventId": "26960fac-77e5-481c-a7fb-94ca6d550f7d",
-      "keptAt": "2026-09-24T09:03:14.655Z",
+      "traceEventId": "749c13ea-a6e4-45a1-a57a-d39c3bf2d15a",
+      "keptAt": "2026-09-24T09:18:00.210Z",
       "reasonAbsentAsExpected": true,
       "originStatesKeptDate": true
     },
     "prepare": {
       "scenario": "explainSheetPrepareForRotationAndProcessDeath",
       "assetId": "20000000-0000-4000-8000-000000000006",
-      "exposureId": "5a6bbb86-a46e-433f-bdd2-c52389b531ba",
+      "exposureId": "6bf653a9-8265-4318-bf27-82ef073afe7f",
       "readingPosition": 0,
       "sheetRestoredAfterRecreation": true,
       "readingSessionPreservedAfterRecreation": true,
@@ -696,7 +696,7 @@
     "processDeath": {
       "scenario": "explainSheetRestoresReadingAfterProcessDeath",
       "assetId": "20000000-0000-4000-8000-000000000006",
-      "exposureId": "5a6bbb86-a46e-433f-bdd2-c52389b531ba",
+      "exposureId": "6bf653a9-8265-4318-bf27-82ef073afe7f",
       "readingSessionRestored": true,
       "sheetOpenAfterProcessDeath": false
     },
@@ -772,7 +772,7 @@
     "installedPathAfter": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
     "untouched": true
   },
-  "journeyPackagePath": "package:/data/app/~~_yn6S8FvkRA2DfLXisqDKQ==/com.knowscroll.mobile.journey-9_S5lYPXwjRxGxs8KOGYMw==/base.apk",
+  "journeyPackagePath": "package:/data/app/~~zwPYymiJ7L-tUM4jCdsI8A==/com.knowscroll.mobile.journey-RHexhYlGOAF6acm2_4Aa6A==/base.apk",
   "limits": [
     "Transport loss and session revocation are explicitly injected fixtures; every successful response and every terminal signed-out state comes from the real API/session logic",
     "No owner visual acceptance or manual TalkBack traversal recorded here",

@@ -19,6 +19,11 @@ import threading
 import time
 import urllib.request
 import uuid
+import sys as _sys
+from pathlib import Path as _Path
+_sys.dont_write_bytecode = True
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -221,7 +226,10 @@ def private_snapshot():
 
 receipt = None
 original_font = subprocess.check_output(['adb', 'shell', 'settings', 'get', 'system', 'font_scale'], text=True).strip()
+_preview_error = None
+_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
+    _guard.preserve()
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 4316))
     proxy = ThreadingHTTPServer(('127.0.0.1', 4311), Proxy)
@@ -334,6 +342,9 @@ try:
                           'No owner visual acceptance or manual TalkBack traversal', 'No historical source-version viewer, desktop, Reel or live provider proof']}
 
 finally:
+    # Restore the owner's preview first (only if this run replaced it), so no later cleanup can hide it.
+    try: _guard.restore()
+    except Exception as _error: _preview_error = _error; print(f'PREVIEW RESTORE FAILED: {_error}', flush=True)
     cleanup_errors = []
     def clean(action):
         try:
@@ -383,3 +394,4 @@ finally:
         receipt['cleanup'] = {'databaseDropped': True, 'childrenExited': True, 'fontRestored': True, 'displaySizeReset': True}
         (out / 'release.json').write_text(json.dumps(receipt, indent=2) + '\n')
         print(json.dumps({'check': 'android-trace-revisit-78', 'result': 'passed', 'receipt': str(out / 'release.json')}))
+if _preview_error is not None: raise _preview_error

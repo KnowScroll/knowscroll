@@ -91,9 +91,10 @@ class AtlasProfileTest {
                     "sync" to FrameMetrics.SYNC_DURATION,
                     "gpu" to FrameMetrics.GPU_DURATION,
                     "queue" to FrameMetrics.UNKNOWN_DELAY_DURATION,
-                    // #136: the phases the first profiles did not record, where most of the
-                    // regression turned out to sit (input, animation/recomposition, RenderThread
-                    // command issue, buffer swap).
+                    // #136: the phases the first profiles did not record: animation/recomposition,
+                    // RenderThread command issue and buffer swap, where the matched difference sits.
+                    // Input is recorded too, but accessibility actions skip the input stage, so it
+                    // is always zero in this harness.
                     "input" to FrameMetrics.INPUT_HANDLING_DURATION,
                     "animation" to FrameMetrics.ANIMATION_DURATION,
                     "commandIssue" to FrameMetrics.COMMAND_ISSUE_DURATION,

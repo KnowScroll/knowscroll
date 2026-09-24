@@ -14,7 +14,8 @@ issue, swap, GPU, queue) and one row per frame.
   branch's `AtlasProfileTest`, runner and preview guard copied in. The test differs from the
   baseline's own only by the 17 lines that record the added phases, so both sides drive the same
   interactions. Its `source.json` is therefore `81431cc…-dirty`.
-- **After:** this branch at `6cfbbad`, which is main `a9b5e1c` plus the profiling tooling.
+- **After:** this branch at `6cfbbad`, which is main `a9b5e1c` plus the profiling tooling. Main has
+  since changed the Atlas (#148: `LivingSky`, `SpatialAtlas`); the next pair measures from there.
 - **Host:** the same API36 host-GPU emulator and nothing else running (no Gradle, tests or
   workers). Two baseline runs came first; then after/baseline were interleaved three times.
 - Every number is in `summary.json`; per-frame rows stay in ignored `artifacts/`.
@@ -26,14 +27,21 @@ issue, swap, GPU, queue) and one row per frame.
 | Baseline (median of runs 2–5) | 33.83 | 67.61 | 10.07 | 10.77 | 11.67 | 21.20 | 26.11 |
 | After (median of runs 3–5) | 29.53 | 67.35 | 19.66 | 13.61 | 15.39 | 23.52 | 24.17 |
 
-All values are in ms. Baseline run 1 was an outlier (p95 44.15 ms, p50 25.89 ms); it is kept in
-`summary.json` but not in the medians. On this host the baseline's p95 is about 67 ms, so the
-recorded 47.40 ms is not reproducible today.
+All values are in ms. The medians use the four baseline runs 2–5 (runs 3–5 interleaved with the
+after runs, run 2 just before them) and the three after runs. Baseline run 1 is kept in
+`summary.json` and not in the medians, and that choice matters. Run 1 came first, before the
+series, and why the host behaved differently then is not known. It is the one run near the recorded 47.40 ms (p95 44.15,
+p50 25.89) and it drew noticeably fewer frames (446 against 605–666). No after run was made in
+that host state. So host state alone moved the p95 by about 50% within the hour, and the evidence
+here is the interleaved runs. Dropping run 2 as well changes nothing (baseline p95 67.74, animation
+10.48).
 
 ## What this says
 
-- **The matched p95 regression does not reproduce.** Both sides sit at about 67 ms at p95, and the
-  current code is faster at p50.
+- **In the interleaved runs there is no p95 regression.** Both sides sit at about 67 ms, and the
+  current code is faster at p50. The earlier 47.40 ms baseline matches a different host state (run 1)
+  that was not measured for the after side, so it neither confirms nor refutes the old gap. It does
+  show that absolute numbers on this host move by tens of milliseconds between states.
 - **The current code does spend more per frame on recomposition and drawing.** At p95, animation
   (recomposition) takes about twice as long, draw about +3 ms and swap about +4 ms. The total
   stays level because the frames are dominated by GPU and queue time on the emulator. These phases

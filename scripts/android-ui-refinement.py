@@ -13,6 +13,11 @@ import signal
 import subprocess
 import time
 import urllib.request
+import sys as _sys
+from pathlib import Path as _Path
+_sys.dont_write_bytecode = True
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines()
@@ -54,7 +59,10 @@ motion = adb('shell', 'settings', 'get', 'global', 'animator_duration_scale')
 sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
+_preview_error = None
+_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
+    _guard.preserve()
     import socket
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -116,6 +124,9 @@ try:
                           'No semantic evolution, provider, browser-content, or frame-time proof.']}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
 finally:
+    # Restore the owner's preview first (only if this run replaced it), so no later cleanup can hide it.
+    try: _guard.restore()
+    except Exception as _error: _preview_error = _error; print(f'PREVIEW RESTORE FAILED: {_error}', flush=True)
     for process, log in processes:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGTERM)
@@ -127,3 +138,4 @@ finally:
     admin = {**os.environ, 'PGPASSWORD': source.password or ''}
     run(['dropdb', '--if-exists', '-h', source.hostname, '-p', str(source.port or 5432),
          '-U', source.username, name], env=admin)
+if _preview_error is not None: raise _preview_error

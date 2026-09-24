@@ -19,6 +19,7 @@ import time
 import urllib.request
 import sys
 
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from android_preview import PreviewGuard  # noqa: E402
 
@@ -105,7 +106,7 @@ try:
 finally:
     restore_error = None
     try: guard.restore()
-    except Exception as error: restore_error = error
+    except Exception as error: restore_error = error; print(f'PREVIEW RESTORE FAILED: {error}', flush=True)
     for process, log in processes:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGTERM)
