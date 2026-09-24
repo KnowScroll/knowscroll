@@ -55,14 +55,21 @@ class PlacesJourneyTest {
         waitReading()
     }
 
-    /** Ordinary deliberate discovery, bounded, exactly like `SemanticBranchJourneyTest` -- until
-     * the shown Scroll's real title (never an asset id the UI does not expose) starts with
-     * [titlePrefix] (the editorial library's titles may run on past the prefix named in the
-     * brief, same convention `tests/atlas-places.test.ts`'s `idOf` uses). Keeps it, then waits for
-     * the real keep job to project before returning. */
-    private fun reachAndKeep(titlePrefix: String) {
+    /** Ordinary deliberate discovery, bounded, exactly like `SemanticBranchJourneyTest`: each target
+     * Scroll (by the start of its real title) is kept whenever the feed offers it, in whatever order
+     * the Composer chooses -- a trip never re-offers what it has already shown, so walking past one
+     * target while looking for another would lose it. Each keep waits for its real job to project. */
+    private fun keepWhenOffered(vararg titlePrefixes: String) {
+        val remaining = titlePrefixes.toMutableList()
         var tries = 0
-        while (!store().read()!!.item.title.startsWith(titlePrefix) && tries < 30) {
+        while (remaining.isNotEmpty() && tries < 30) {
+            val title = store().read()!!.item.title
+            val target = remaining.firstOrNull { title.startsWith(it) }
+            if (target != null) {
+                keepCurrent(target)
+                remaining.remove(target)
+                if (remaining.isEmpty()) break
+            }
             val current = store().read()!!.item.assetId
             compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasContentDescription("Get the next Scroll"))
             compose.onNodeWithContentDescription("Get the next Scroll").performClick()
@@ -70,7 +77,10 @@ class PlacesJourneyTest {
             waitReading()
             tries++
         }
-        assertTrue("the feed never offered \"$titlePrefix\" within a bounded trip", store().read()!!.item.title.startsWith(titlePrefix))
+        assertTrue("the feed never offered $remaining within a bounded trip", remaining.isEmpty())
+    }
+
+    private fun keepCurrent(titlePrefix: String) {
         // Keep lives in the fixed reader toolbar, outside the scrolling content (as in SemanticWhyJourneyTest).
         compose.onNodeWithContentDescription("Keep this Scroll").performClick()
         compose.waitUntil(15_000) { store().read()?.keepJobId?.isNotEmpty() == true }
@@ -100,8 +110,7 @@ class PlacesJourneyTest {
 
     private fun journey() {
         openReader()
-        reachAndKeep("The pull you can't see")
-        reachAndKeep("A rhythm the ocean keeps")
+        keepWhenOffered("The pull you can't see", "A rhythm the ocean keeps")
         openSystem()
 
         // Places is the default the moment a planet exists -- no manual toggle needed.
