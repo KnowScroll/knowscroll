@@ -39,7 +39,7 @@ class ExplainWhyTest {
         val sent = mutableListOf<String>()
         val panel = mutableStateOf(WhyPanel("d1", "a2", WhyAvailability.Ready(recorded)))
         setContent { KnowScrollTheme { ExplainSheet(item, ReaderOrigin.Discovery, panel.value, { sent += it }) {} } }
-        onNodeWithText("What led here").performScrollTo()
+        onNodeWithText("WHAT LED HERE").performScrollTo()
         onNodeWithText("· You kept “Gravity pulls”").performScrollTo()
         onNodeWithText("· Gravity explains Tides").performScrollTo()
         onNodeWithText("Less like this").performScrollTo().performClick()

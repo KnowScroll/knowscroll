@@ -15,8 +15,8 @@ import java.io.File
 
 /**
  * #133 — journey G on a real emulator against a disposable API, worker and PostgreSQL loaded with
- * the editorial substrate, served by `composer-semantic-v3` (scripts/android-semantic-journey.py
- * --journey why). A reader keeps a Scroll and deliberately asks for the next one; its "why" shows
+ * the editorial substrate, served by `composer-semantic-v3` (KS_SEMANTIC_JOURNEY=why
+ * scripts/android-semantic-journey.py). A reader keeps a Scroll and deliberately asks for the next one; its "why" shows
  * the recorded path that names that keep; "Less like this" corrects the route. The runner then
  * checks the decision, the cited keep and the correction in the database.
  */
@@ -54,8 +54,11 @@ class SemanticWhyJourneyTest {
 
         var citedTitle: String? = null
         var keeps = 0
+        val keptTitles = mutableListOf<String>()
+        val seen = mutableListOf<String>()
         while (citedTitle == null && keeps < 8) {
             val kept = store().read()!!
+            keptTitles += kept.item.title
             compose.onNodeWithContentDescription("Keep this Scroll").performClick()
             compose.waitUntil(20_000) { store().read()?.keepJobId?.isNotEmpty() == true }
             keeps += 1
@@ -65,16 +68,19 @@ class SemanticWhyJourneyTest {
             waitReadingExposed()
 
             compose.onNodeWithContentDescription("Why this Scroll appeared").performClick()
-            compose.waitUntil(10_000) { textShown("What led here") }
+            compose.waitUntil(10_000) { textShown("WHAT LED HERE") }
             compose.waitUntil(10_000) { !textShown("Reading what was recorded…") }
-            if (textShown("You kept “${kept.item.title}”")) citedTitle = kept.item.title
-            else {
+            // A deepen or bridge may grow from any earlier keep, not only the latest one.
+            citedTitle = keptTitles.firstOrNull { textShown("· You kept “$it”") }
+            seen += store().read()!!.item.title + " — " + listOf("not chosen by the Composer", "could not be read", "Nothing you did led here", "Somewhere you have not been shown")
+                .filter { textShown(it, substring = true) }.ifEmpty { listOf("path shown") }.joinToString()
+            if (citedTitle == null) {
                 compose.onNodeWithText("Back to reading").performScrollTo().performClick()
-                compose.waitUntil(10_000) { !textShown("What led here") }
+                compose.waitUntil(10_000) { !textShown("WHAT LED HERE") }
             }
         }
-        assertNotNull("no encounter's recorded path named the keep that led to it", citedTitle)
-        compose.onNodeWithText("What led here").performScrollTo()
+        assertNotNull("no encounter's recorded path named a keep that led to it: $seen", citedTitle)
+        compose.onNodeWithText("WHAT LED HERE").performScrollTo()
         screenshot("why-path.png")
 
         compose.onNodeWithText("Less like this").performScrollTo().performClick()

@@ -133,7 +133,7 @@
     <string name="reader_explain_origin_heading">ORIGIN</string>
     <string name="reader_explain_documented_sources_note">Sources below show this evidence.</string>
     <string name="reader_explain_close">Back to reading</string>
-    <string name="reader_why_path_heading">What led here</string>
+    <string name="reader_why_path_heading">WHAT LED HERE</string>
     <string name="reader_why_loading">Reading what was recorded…</string>
     <string name="reader_why_unrecorded">This step was not chosen by the Composer, so there is no recorded path to show.</string>
     <string name="reader_why_failed">The recorded path could not be read. Close and open this again to retry.</string>
