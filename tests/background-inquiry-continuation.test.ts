@@ -194,30 +194,6 @@ test('a lost acknowledgement on the continuation is held as unknown and never re
   assert.equal((await newestInquiry(r.universeId)).dispatched, 2, 'never resent');
 });
 
-test('competing workers send each continuation exactly once', async () => {
-  mode = 'refused_then_valid';
-  await quiesce();
-  const readers = [await reader(), await reader(), await reader()];
-  const seen: string[] = [];
-  const open = async () => (await pool.query(`SELECT 1 FROM background_inquiry WHERE status IN ('pending','queued')`)).rowCount;
-  // Two schedulers on one policy mostly find each other's cursor moved and yield: they contend for a
-  // while, then one finishes what is left. How far the pair gets depends on timing; what is asserted
-  // below never does: each Step was sent exactly once, whichever worker sent it.
-  for (let i = 0; i < 40 && await open(); i += 1) {
-    for (const done of await Promise.all([pass(fixture, 'worker-a'), pass(fixture, 'worker-b')])) {
-      seen.push(done.kind === 'idle' ? done.reason : done.kind === 'done' ? done.outcome.kind : done.kind);
-    }
-    await sweep();
-  }
-  for (let i = 0; i < 40 && await open(); i += 1) { await pass(fixture, 'worker-a'); await sweep(); }
-  for (const r of readers) {
-    const inquiry = await newestInquiry(r.universeId);
-    assert.deepEqual([inquiry.status, inquiry.dispatched], ['admitted', 2], JSON.stringify(seen));
-    const perStep = (await pool.query('SELECT step_id, count(*)::int AS n FROM reasoning_attempt WHERE job_id=$1 GROUP BY step_id', [inquiry.job_id])).rows;
-    assert.deepEqual(perStep.map(s => s.n), [1, 1], 'one Attempt per Step');
-  }
-});
-
 /** A transport that answers the first request at once and holds the continuation open until released. */
 function gatedContinuation() {
   let release!: () => void;
@@ -227,8 +203,52 @@ function gatedContinuation() {
     if (decode(input.body).messages.length > 1) { started = true; await gate; }
     return fixture.send(input);
   } };
-  return { transport, release, started: () => started };
+  /** Whether the continuation is in flight, waiting up to ten seconds for it. */
+  const inFlight = async () => {
+    for (let i = 0; i < 500 && !started; i += 1) await new Promise(resolve => setTimeout(resolve, 20));
+    return started;
+  };
+  return { transport, release, inFlight };
 }
+
+test('competing workers: a continuation in flight on one worker is never admitted or sent by another (#182)', async () => {
+  mode = 'refused_then_valid';
+  await quiesce();
+  const first = await reader();
+  const g = gatedContinuation();
+  // Worker A sends the first reader's request, then holds its continuation in flight.
+  const refused = await pass(g.transport, 'worker-a');
+  assert.ok(refused.kind === 'done' && refused.outcome.kind === 'continued', JSON.stringify(refused));
+  const running = pass(g.transport, 'worker-a');
+  assert.ok(await g.inFlight(), 'the continuation is in flight');
+  const held = await newestInquiry(first.universeId);
+  const job = async () => (await pool.query(`SELECT j.status, j.lease_owner, (SELECT count(*)::int FROM reasoning_fairness_ready r WHERE r.job_id = j.id) AS ready
+    FROM reasoning_job j WHERE j.id=$1`, [held.job_id])).rows[0];
+  assert.deepEqual(await job(), { status: 'running', lease_owner: 'worker-a', ready: 0 });
+
+  // Meanwhile worker B, alone at the scheduler, runs another reader's inquiry through both of its
+  // requests, with its sweeps, and never admits the Step worker A holds.
+  const second = await reader();
+  const seen: string[] = [];
+  for (let i = 0; i < 12 && ['pending', 'queued'].includes((await newestInquiry(second.universeId)).status); i += 1) {
+    const b = await pass(fixture, 'worker-b');
+    seen.push(b.kind === 'done' ? `${b.inquiryId === held.id ? 'held' : 'other'}:${b.outcome.kind}` : b.kind === 'idle' ? b.reason : b.kind);
+    await sweep();
+  }
+  assert.deepEqual(seen, ['other:continued', 'other:applied']);
+  assert.deepEqual(await job(), { status: 'running', lease_owner: 'worker-a', ready: 0 });
+
+  g.release();
+  const done = await running;
+  assert.ok(done.kind === 'done' && done.inquiryId === held.id, JSON.stringify(done));
+  assert.deepEqual(done.outcome, { kind: 'applied', status: 'admitted' });
+  for (const r of [first, second]) {
+    const inquiry = await newestInquiry(r.universeId);
+    assert.deepEqual([inquiry.status, inquiry.dispatched], ['admitted', 2]);
+    const perStep = (await pool.query('SELECT count(*)::int AS n FROM reasoning_attempt a JOIN reasoning_step s ON s.id = a.step_id WHERE a.job_id=$1 GROUP BY s.ordinal ORDER BY s.ordinal', [inquiry.job_id])).rows;
+    assert.deepEqual(perStep.map(s => s.n), [1, 1], 'one Attempt per Step');
+  }
+});
 
 for (const stop of ['consent_off', 'clear'] as const) {
   test(`${stop.replace('_', ' ')} during the continuation call discards its reply: nothing is admitted`, async () => {
@@ -238,8 +258,7 @@ for (const stop of ['consent_off', 'clear'] as const) {
     const g = gatedContinuation();
     assert.equal((await pass(g.transport)).kind, 'done');
     const running = pass(g.transport);
-    for (let i = 0; i < 500 && !g.started(); i += 1) await new Promise(resolve => setTimeout(resolve, 20));
-    assert.ok(g.started(), 'the continuation is in flight');
+    assert.ok(await g.inFlight(), 'the continuation is in flight');
     if (stop === 'consent_off') {
       const off = await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers: r.headers, payload: { enabled: false, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
       assert.equal(off.statusCode, 200, off.body);
