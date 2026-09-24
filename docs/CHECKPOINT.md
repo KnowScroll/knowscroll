@@ -8,7 +8,7 @@ HMAC CSRF token and a same origin, and there is one credential per request. The 
 `<origin>/sign-in#token=…`. Account deletion erases, in one transaction, what Reset erases plus
 sessions, sign-in tokens, dated privacy receipts and the account, leaving an address-free
 tombstone; schema guards allow those deletions only inside it. A read-only snapshot of the owner
-database was restored into a disposable clone, and only the clone was migrated and verified. Web:
+database was restored into a disposable clone, and only the clone was migrated and verified (re-run after the review with 0029 and 0030: 9 → 27 migrations, every row and checksum kept). Web:
 a signed-out screen, the `/sign-in` page, CSRF in the client, sign-out and deletion, and a
 cookie-mode proxy. Android: magic-link sign-in with a Keystore-encrypted session, and a Privacy &
 account screen (pause/resume, export, Reset, delete, sign out) at parity with web.
