@@ -1,5 +1,14 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #97 reader sheets survive recreation (lane `97-reader-sheet-restore`)
+
+The Sources, Why and Connections sheet flags are hoisted to `ScrollScreen`, above the state `when`
+that briefly unmounted them while `onForeground()` restored the stored Scroll after recreation (a
+second mount cannot consume a Bundle-restored value). Verified on the real stack with the emulator:
+`OK (3 tests)`, all three sheets restored; Android 112 units and lint. The first device run failed
+2 of 3 on test isolation (recorded in the [evidence](journeys/evidence/reader-sheets-2026-09-24/README.md)).
+Preview restored and verified.
+
 ## 2026-09-24 #133 Composer v3 + #131 attention accounts and hypotheses (lane `133-semantic-composer`)
 
 Branch `claude/133-semantic-composer` on main `b0281db`. ADR-0032; migration 0027 appended to
