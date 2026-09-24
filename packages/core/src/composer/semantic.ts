@@ -55,6 +55,12 @@ export interface V3Asset {
 }
 export interface V3Bridge { id: string; from: string; to: string; symmetric: boolean; phraseForward: string; phraseReverse: string; fromName: string; toName: string }
 export interface V3Mark { eventId: string; assetId: string; kind: MarkKind; atMs: number }
+/** ADR-0046 §2: a Scroll bound to a need this reader's own reading recorded, not yet shown to them. */
+export interface V3Bound {
+  assetId: string; demandId: string; bindingId: string; concept: string; placeId: string | null;
+  /** A continuation's gap: the bridge and the exposure it was opened from. */
+  origin: { bridgeId: string; exposureId: string } | null;
+}
 export interface V3Served { assetId: string; family: Family | null; atMs: number }
 
 export interface V3State {
@@ -83,6 +89,7 @@ export interface V3State {
   /** Scrolls the client has on screen or already opened in this discovery trip. The server cannot
    * know them otherwise, and a client skips them, so offering them could end a trip falsely. */
   excluded: ReadonlySet<string>;
+  bound: readonly V3Bound[];
 }
 
 export type Facts = Record<string, string | number | null>;
@@ -90,7 +97,8 @@ export type EvidenceStep =
   | { kind: 'mark'; markKind: MarkKind; assetId: string; title: string; at: string; eventId: string }
   | { kind: 'bridge'; bridgeId: string; sentence: string }
   | { kind: 'question'; concept: string }
-  | { kind: 'outside'; domain: string };
+  | { kind: 'outside'; domain: string }
+  | ({ kind: 'demand' } & Omit<V3Bound, 'assetId'>);
 
 export interface V3Candidate {
   assetId: string;
@@ -190,6 +198,13 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   const recentMarks = marks.filter(m => state.nowMs - m.atMs <= policy.continuityWindowHours * HOUR);
 
   // --- Families -------------------------------------------------------------------------------
+  // continue (demand): a Scroll bound to this reader's own need (ADR-0046 §2). Offered before any
+  // other family, so it is the record kept for its (asset, family): another continuation of the
+  // same Scroll scores the same or less.
+  for (const { assetId, ...binding } of state.bound) {
+    const asset = assetById.get(assetId);
+    if (asset) offer(asset, 'continue', binding.concept, 'v3_demand_bound', { conceptName: name(binding.concept) }, [{ kind: 'demand', ...binding }]);
+  }
   // continue: the same idea as something the reader acted on recently.
   for (const mark of recentMarks) {
     for (const code of markedConcepts(mark)) {
@@ -349,8 +364,10 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     return !selected.some(s => s.assetId === c.assetId);
   };
 
-  let head: V3Candidate | undefined;
-  if (explorationDue) {
+  // A Scroll bound to the reader's own need comes first (ADR-0046 §2), before the exploration floor.
+  let head = eligible.find(c => c.explanationKey === 'v3_demand_bound');
+  if (head) quotas.push('demand_bound');
+  if (!head && explorationDue) {
     // Families are ordered by exploration value before score, so a fallback item is chosen only
     // when no bridge, frontier, challenge or revisit is eligible; an unseen encounter still comes
     // before a seen one, as everywhere else.

@@ -44,3 +44,4 @@
 0037_composer_semantic_v4.sql
 0038_idea_rooms.sql
 0039_typed_relics.sql
+0040_content_inventory.sql

@@ -21,7 +21,9 @@ export type EvidenceStepWire =
   | { kind: 'mark'; markKind: 'keep' | 'branch' | 'ask'; assetId: string; title: string; at: string; eventId: string }
   | { kind: 'bridge'; bridgeId: string; sentence: string }
   | { kind: 'question'; concept: string }
-  | { kind: 'outside'; domain: string };
+  | { kind: 'outside'; domain: string }
+  /** ADR-0046: the reader's own recorded need this Scroll was bound to. */
+  | { kind: 'demand'; demandId: string; bindingId: string; concept: string; placeId: string | null; origin: { bridgeId: string; exposureId: string } | null };
 
 /** `GET /v1/decisions/:decisionId/why?assetId=` */
 export interface WhyResponseWire {
