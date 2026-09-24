@@ -1,5 +1,18 @@
 # Project state
 
+## 2026-09-24 KnowScroll tells you what changed while you were away, and you can keep a connection as a Relic (#134)
+
+When you come back to the Atlas, a short "While you were away" section lists only what happened
+without you:
+- a connection KnowScroll found between two of your places, or one it looked for that did not hold up;
+- a place that changed because a source was corrected;
+- a connection you had seen or kept that a correction withdrew.
+
+A found connection opens with its sentence and sources. You can keep it as a Relic or say it seems
+wrong. Relics sit at the top of Keep, and each one says whether it still stands, was corrected by a
+later source change, or was marked by you as seeming wrong. The kept wording stays readable either
+way. "Mark as seen" clears the section. Rooms and other kinds of Relic are not built yet.
+
 ## 2026-09-24 KnowScroll can look for connections between your places in the background (#132)
 
 The phone's Privacy & account screen now has a switch, "Look for connections between my places",

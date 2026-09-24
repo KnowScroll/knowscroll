@@ -20,7 +20,13 @@ fixture inquiry route (or, with KS_INQUIRY_TRANSPORT=minimax, one bounded live M
 counted against the session ledger) with a short coalescing delay (KS_INQUIRY_COALESCING_SECONDS,
 default 3) and places The Sun from a supplied account before consent; the device turns consent on in Privacy & account, reads its way to
 Gravity as in `places`, sees the inquiry found and the new continuation; SQL verifies the Job,
-attempt, model proposal, admitted universe bridge and the mail's place_formed cause) and `owner`
+attempt, model proposal, admitted universe bridge and the mail's place_formed cause), `return`
+(#134 ADR-0039: as `inquiry`, but the app is in the background while the worker finds the
+connection; on return the Atlas's "While you were away" shows it, the reader inspects its evidence,
+keeps it as a Relic, marks it "seems wrong" and marks what changed as seen, then leaves again while
+the runner applies a real operator source correction; on return the Relic shows it corrected; SQL
+verifies the inquiry closed while away, the Relic's provenance, the doubt, the revoked bridge and the
+forward marker) and `owner`
 (#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own section 3
 below).
 """
@@ -62,6 +68,11 @@ JOURNEYS = {
     # #132 (ADR-0038): consent, a place formation that mails an inquiry, a fixture-found bridge, its continuation.
     'inquiry': {'test': 'com.knowscroll.mobile.BackgroundInquiryJourneyTest', 'receipt': 'inquiry-journey.json',
                 'captures': ('inquiry-consent-off.png', 'inquiry-consent-on.png', 'inquiry-found.png', 'inquiry-continuation.png', 'inquiry-outcome.png', 'inquiry-failure.png')},
+    # #134 (ADR-0039): real background work while the app is away, the return, a kept Relic, the reader's
+    # doubt, and a source correction applied while away again that the Relic then shows.
+    'return': {'test': 'com.knowscroll.mobile.ReturnJourneyTest', 'receipt': 'return-journey.json',
+               'captures': ('return-away.png', 'return-evidence.png', 'return-relic.png', 'return-doubted.png',
+                            'return-corrected-away.png', 'return-corrected-relic.png', 'return-failure.png')},
     # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
     'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
               'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
@@ -79,7 +90,7 @@ live_ledger_path = Path(os.environ['KS_DEV_ROOT']) / 'minimax-answer-session-led
 # bounded live request (the route caps it at one), counted against the same session ledger.
 inquiry_transport = os.environ.get('KS_INQUIRY_TRANSPORT', 'fixture')
 if inquiry_transport not in ('fixture', 'minimax'): sys.exit('KS_INQUIRY_TRANSPORT is fixture or minimax')
-live_run = (journey_name == 'ask' and ask_transport == 'minimax') or (journey_name == 'inquiry' and inquiry_transport == 'minimax')
+live_run = (journey_name == 'ask' and ask_transport == 'minimax') or (journey_name in ('inquiry', 'return') and inquiry_transport == 'minimax')
 if live_run:
     live_ledger = json.loads(live_ledger_path.read_text()) if live_ledger_path.exists() else {'sessionCap': 40, 'used': 0, 'runs': []}
     if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live allowance is spent')
@@ -139,7 +150,7 @@ try:
             key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
             if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
             worker_env['MINIMAX_API_KEY'] = key
-    if journey_name == 'inquiry':
+    if journey_name in ('inquiry', 'return'):
         # ADR-0038 section 2: the labelled fixture unless KS_INQUIRY_TRANSPORT=minimax (one live request; the
         # key reaches the worker's environment only). The route itself is installed by
         # scripts/inquiries/seed-journey.ts once the API is up (it needs the reader's universe).
@@ -168,11 +179,12 @@ try:
     # see scripts/atlas/seed-held-up-places.ts), then takes the same day-old keep.
     # `inquiry` first installs the fixture inquiry route and places The Sun from a supplied account,
     # BEFORE the device turns consent on (so it mails nothing), then takes the same day-old keep.
-    if journey_name in ('places', 'foundation', 'inquiry'):
+    if journey_name in ('places', 'foundation', 'inquiry', 'return'):
         seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}',
-                    'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3'),
+                    'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '20' if journey_name == 'return' else '3'),
                     'KS_INQUIRY_TRANSPORT': inquiry_transport}
-        seeds = ({'foundation': ['scripts/atlas/seed-held-up-places.ts'], 'inquiry': ['scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
+        seeds = ({'foundation': ['scripts/atlas/seed-held-up-places.ts'], 'inquiry': ['scripts/inquiries/seed-journey.ts'],
+                  'return': ['scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
                  + ['scripts/atlas/seed-day-old-history.ts'])
         for seed in seeds:
             seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', seed], env=seed_env, text=True, cwd=root)
@@ -188,6 +200,32 @@ try:
         # A live model may honestly find nothing or propose what the validator refuses: any validated outcome.
         instrument_args += ['-e', 'inquiryExpect', 'any']
     watcher = None
+    correction = {}
+    if journey_name == 'return':
+        # ADR-0039: the second time away, the publisher of the kept connection's mechanism source withdraws
+        # it -- an operator correction through the real tool, applied only once the device has kept the
+        # connection, doubted it, marked what changed as seen and then written, from the background, that it
+        # left. Shared knowledge in this disposable database only.
+        def correct_when_away(deadline=time.time() + 300):
+            while time.time() < deadline:
+                ready = sql("""SELECT (SELECT count(*) FROM relic) > 0 AND (SELECT count(*) FROM connection_feedback WHERE objection='seems_wrong') > 0
+                              AND (SELECT count(*) FROM away_acknowledgement) > 0""")
+                left = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/return-left-again.txt'], capture_output=True).stdout == b'left'
+                if ready == 't' and left:
+                    key = sql("""SELECT s.key FROM relic r JOIN bridge_evidence e ON e.bridge_id=r.bridge_id
+                        JOIN claim_support cs ON cs.claim_id=e.claim_id AND cs.support_kind='supports'
+                        JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='current' JOIN semantic_source s ON s.id=ss.source_id
+                        ORDER BY (e.supports='mechanism') DESC, s.key LIMIT 1""")
+                    applied = subprocess.run(['pnpm', 'exec', 'tsx', 'scripts/substrate/correct-source.ts', '--source', key, '--action', 'revoked',
+                                              '--reason', 'Journey: the publisher withdrew this page while the reader was away', '--apply'],
+                                             env=env, cwd=root, capture_output=True, text=True)
+                    correction.update(sourceKey=key, applied=applied.returncode == 0, at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                    if applied.returncode != 0: correction['error'] = applied.stderr.strip()[-300:]
+                    return
+                time.sleep(0.5)
+            correction.update(applied=False, error='the device never both finished its first return and left again')
+        watcher = threading.Thread(target=correct_when_away, daemon=True)
+        watcher.start()
     if journey_name == 'owner':
         instrument_args += ['-e', 'ownerEmail', owner_email]
         # A background thread polls this run's own scratch development sink (never the real
@@ -216,13 +254,14 @@ try:
                                       package + '.test/androidx.test.runner.AndroidJUnitRunner'], text=True, timeout=420)
     if watcher is not None:
         watcher.join(timeout=5)
-        if not push_done.is_set(): print('warning: the magic-link watcher never found a link to push', flush=True)
+        if journey_name == 'owner' and not push_done.is_set(): print('warning: the magic-link watcher never found a link to push', flush=True)
     (out / 'instrumentation.txt').write_text(result); print(result, flush=True)
     for filename in (spec['receipt'], *spec['captures']):
         capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
         if capture.returncode == 0 and (filename.endswith('.json') or capture.stdout.startswith(b'\x89PNG')): (out / filename).write_bytes(capture.stdout)
     expected = 'OK (1 test)' if spec.get('tests', 1) == 1 else f"OK ({spec['tests']} tests)"
-    if expected not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
+    if expected not in result:
+        raise RuntimeError(f'Semantic {journey_name} journey failed' + (f'; correction watcher: {correction or "not yet fired"}' if journey_name == 'return' else ''))
 
     # 4. Verify the causal lineage the UI claimed, in the database itself.
     journey = json.loads((out / spec['receipt']).read_text())
@@ -385,6 +424,40 @@ try:
                   'cannot anchor it from reading (one source family); Gravity formed from this run\'s reading after consent.',
                   'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
                   f"Coalescing delay shortened to {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3')} s for the journey route."]
+    elif journey_name == 'return':
+        i, b, rid = journey['inquiryId'], journey['bridgeId'], journey['relicId']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'inquiryAdmitted', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND status='admitted'),
+      'inquiryFoundTheBridge', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}' AND br.id='{b}'),
+      'jobBackgroundDirtyCompleted', (SELECT count(*) FROM background_inquiry q JOIN reasoning_job j ON j.id=q.job_id WHERE q.id='{i}'
+          AND j.class='background_inquiry' AND j.wake_kind='dirty' AND j.status='completed'),
+      'relicKeptWithProvenance', (SELECT count(*) FROM relic WHERE id='{rid}' AND kind='connection' AND bridge_id='{b}' AND inquiry_id='{i}'
+          AND validator_version='bridge-validator-v1' AND jsonb_array_length(cited_claim_keys) >= 3),
+      'relics', (SELECT count(*) FROM relic),
+      'seemsWrong', (SELECT count(*) FROM connection_feedback WHERE bridge_id='{b}' AND objection='seems_wrong'),
+      'bridgeRevokedByCorrection', (SELECT count(*) FROM bridge WHERE id='{b}' AND status='revoked'),
+      'markers', (SELECT count(*) FROM away_acknowledgement),
+      'markerAfterFound', (SELECT count(*) FROM away_acknowledgement a JOIN background_inquiry q ON q.id='{i}'
+          WHERE a.through >= date_trunc('milliseconds', q.closed_at)),
+      'sharedBridgesStillAdmittedOrRevoked', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status IN ('admitted','revoked')))"""))
+        found = journey['inquiryStatus'] == 'found'
+        # The device saw the inquiry still open when it left, and found when it came back: the work
+        # happened while it was away (the device's clock is never compared with the database's).
+        away_work = journey['statusWhenLeft'] == 'waiting'
+        assert found and away_work and correction.get('applied') is True, (journey['inquiryStatus'], journey['statusWhenLeft'], correction)
+        expected = {'inquiryAdmitted': 1, 'inquiryFoundTheBridge': 1, 'jobBackgroundDirtyCompleted': 1,
+                    'relicKeptWithProvenance': 1, 'relics': 1, 'seemsWrong': 1, 'bridgeRevokedByCorrection': 1}
+        assert {k: lineage[k] for k in expected} == expected and lineage['markers'] == 1 and lineage['markerAfterFound'] == 1, lineage
+        assert journey['relicStates'] == ['current', 'doubted', 'corrected'], journey['relicStates']
+        lineage['correction'] = {'sourceKey': correction['sourceKey'], 'applied': correction['applied']}
+        limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
+                   'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else
+                  'Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
+                  '"Away" is the app in the background (Home) while the worker and the operator correction run; not days away.',
+                  'The source correction is an operator action through scripts/substrate/correct-source.ts in the disposable database.',
+                  'The Sun was formed from a supplied account (labelled), as in the inquiry journey.',
+                  f"Coalescing delay {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '20')} s, so the inquiry runs after the app has left.",
+                  'Debug API36 emulator, not a physical device.']
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),

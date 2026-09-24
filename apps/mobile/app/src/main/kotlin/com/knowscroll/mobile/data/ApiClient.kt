@@ -336,6 +336,76 @@ class ApiClient(
         catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid inquiries response") }
         catch (e: JSONException) { throw ApiException.Protocol("Inquiries returned malformed JSON") }
 
+    // -------------------------------------------------------------------------------------------
+    // #134 (ADR-0039): the return and Relics. Every write is one explicit request the server
+    // replays when re-sent unchanged; a 409 (stale epoch, a reused key, or recording paused) or a
+    // 422 (a connection that is unknown, withdrawn or marked "seems wrong") is definitive and
+    // surfaced to the caller, never re-sent. A shape the contract does not describe, or a receipt
+    // for another epoch or another thing, is a protocol error (`data/Away.kt`, `data/Relics.kt`).
+    // -------------------------------------------------------------------------------------------
+
+    /** What changed while the reader was away that they did not cause, newest first. */
+    suspend fun getAway(): AwayResponse = io {
+        get("/v1/away") { obj -> returnProtocol { parseAwayResponse(obj) } }
+    }
+
+    /** Move the return marker to [AwayAcknowledgeRequest.through]. Markers only move forward, so
+     * the receipt's marker is never before it. */
+    suspend fun acknowledgeAway(req: AwayAcknowledgeRequest): AwayAcknowledgeResponse = io {
+        val body = jsonObj(
+            "clientRequestId" to req.clientRequestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch, "through" to req.through,
+        ).toString()
+        post("/v1/away/acknowledge", body, setOf(200), false) { obj ->
+            returnProtocol { parseAwayAcknowledgeResponse(obj) }.also {
+                protocol(it.privacyEpoch == req.expectedPrivacyEpoch) { "Acknowledgement names another privacy epoch" }
+                protocol(runCatching { !java.time.Instant.parse(it.since).isBefore(java.time.Instant.parse(req.through)) }.getOrDefault(false)) {
+                    "Acknowledgement left the marker before what was seen"
+                }
+            }
+        }
+    }
+
+    /** This epoch's Relics, newest first, each with the truth state derived when read. */
+    suspend fun getRelics(): RelicsResponse = io {
+        get("/v1/relics") { obj -> returnProtocol { parseRelicsResponse(obj) } }
+    }
+
+    /** Keep one connection as a Relic: 201 when new, 200 when it was already kept (this request
+     * replayed, or the same connection kept before). */
+    suspend fun keepRelic(req: RelicKeepRequest): RelicKeepResponse = io {
+        val body = jsonObj(
+            "clientRequestId" to req.clientRequestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
+            "kind" to "connection", "bridgeId" to req.bridgeId,
+        ).toString()
+        post("/v1/relics", body, setOf(200, 201), false) { obj ->
+            returnProtocol { parseRelicKeepResponse(obj) }.also {
+                protocol(it.privacyEpoch == req.expectedPrivacyEpoch) { "Relic receipt names another privacy epoch" }
+                protocol(it.relic.connection.bridgeId == req.bridgeId) { "Relic receipt names another connection" }
+            }
+        }
+    }
+
+    /** "Let go": the row is removed, not hidden. Releasing one already gone answers the same. */
+    suspend fun releaseRelic(relicId: String, expectedPrivacyEpoch: Long): RelicReleaseResponse = io {
+        require(UUID_PATTERN.matches(relicId))
+        val body = jsonObj("expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
+        post("/v1/relics/$relicId/release", body, setOf(200), false) { obj ->
+            returnProtocol { parseRelicReleaseResponse(obj) }.also {
+                protocol(it.privacyEpoch == expectedPrivacyEpoch) { "Release receipt names another privacy epoch" }
+                protocol(it.relicId == relicId) { "Release receipt names another Relic" }
+            }
+        }
+    }
+
+    /** "Seems wrong" on a found or kept connection -- the #131 route, as one replayable request. */
+    suspend fun postConnectionFeedback(req: ConnectionFeedbackRequest): Unit =
+        postConnectionFeedback(req.clientFeedbackId, req.bridgeId, req.expectedPrivacyEpoch, req.objection)
+
+    private inline fun <T> returnProtocol(parse: () -> T): T =
+        try { parse() }
+        catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid return response") }
+        catch (e: JSONException) { throw ApiException.Protocol("The return returned malformed JSON") }
+
     /** POST /v1/session/revoke {} -> 204. Revokes only the authenticated session; the
      * caller decides what "ambiguous vs confirmed" means for its own retry policy. */
     suspend fun revokeSession(): Unit = io {

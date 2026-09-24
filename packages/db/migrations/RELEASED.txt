@@ -37,3 +37,4 @@
 0030_account_deletion.sql
 0031_atlas_foundations.sql
 0032_background_inquiries.sql
+0033_return_and_relics.sql

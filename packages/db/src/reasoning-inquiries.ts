@@ -351,9 +351,18 @@ const READER_STATUS: Record<string, InquiryWire['status']> = {
 };
 
 async function foundBridge(client: pg.PoolClient, proposalId: string): Promise<InquiryWire['found']> {
+  return connectionView(client, 'b.proposal_id', proposalId);
+}
+
+/** ADR-0039: the same view of any bridge by id (a Relic's connection, a correction on return). */
+export async function bridgeConnection(client: pg.PoolClient, bridgeId: string): Promise<InquiryWire['found']> {
+  return connectionView(client, 'b.id', bridgeId);
+}
+
+async function connectionView(client: pg.PoolClient, column: 'b.id' | 'b.proposal_id', value: string): Promise<InquiryWire['found']> {
   const b = (await client.query<{ id: string; status: 'admitted' | 'revoked' | 'superseded'; relation_type: string; mechanism: string; from_code: string; from_name: string; to_code: string; to_name: string }>(
     `SELECT b.id, b.status, b.relation_type, b.mechanism, f.code AS from_code, f.name AS from_name, t.code AS to_code, t.name AS to_name
-     FROM bridge b JOIN concept f ON f.id = b.from_concept_id JOIN concept t ON t.id = b.to_concept_id WHERE b.proposal_id=$1`, [proposalId])).rows[0];
+     FROM bridge b JOIN concept f ON f.id = b.from_concept_id JOIN concept t ON t.id = b.to_concept_id WHERE ${column}=$1`, [value])).rows[0];
   if (!b) return null;
   // The evidence it was admitted on, even if a source was corrected since (current snapshots first).
   const evidence = (await client.query<{ key: string; statement: string; supports: 'from' | 'to' | 'mechanism' | 'limitation'; source_title: string; source_url: string }>(
