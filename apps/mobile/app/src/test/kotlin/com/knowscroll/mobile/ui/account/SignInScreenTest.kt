@@ -33,10 +33,11 @@ class SignInScreenTest {
         onRequestLink: (String) -> Unit = {},
         onSubmitLink: (String) -> Unit = {},
         receivedLink: String? = null,
+        onReceivedLinkShown: () -> Unit = {},
     ) {
         composeRule.setContent {
             KnowScrollTheme {
-                SignInScreen(linkRequest, tokenSubmit, reason, onRequestLink, onSubmitLink, receivedLink)
+                SignInScreen(linkRequest, tokenSubmit, reason, onRequestLink, onSubmitLink, receivedLink, onReceivedLinkShown)
             }
         }
     }
@@ -45,8 +46,11 @@ class SignInScreenTest {
     @Test
     fun anOpenedLinkFillsTheFieldAndSignsInOnlyOnTheReadersTap() {
         var submitted: String? = null
-        render(onSubmitLink = { submitted = it }, receivedLink = "https://links.knowscroll.example/sign-in#token=abc")
+        var shown = 0
+        render(onSubmitLink = { submitted = it }, receivedLink = "https://links.knowscroll.example/sign-in#token=abc", onReceivedLinkShown = { shown++ })
         composeRule.onAllNodesWithText("https://links.knowscroll.example/sign-in#token=abc").assertCountEquals(1)
+        // Used once: a later composition (a rotation) never puts it back over what the reader typed.
+        assertEquals(1, shown)
         assertEquals(null, submitted)
         composeRule.onNodeWithContentDescription("Sign in with this link").performClick()
         assertEquals("https://links.knowscroll.example/sign-in#token=abc", submitted)

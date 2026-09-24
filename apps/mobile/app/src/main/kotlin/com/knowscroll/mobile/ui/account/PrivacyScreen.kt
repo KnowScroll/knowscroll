@@ -22,11 +22,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -96,13 +91,14 @@ fun PrivacyScreen(
     inquiries: (@Composable (recordingPaused: Boolean) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var pendingExportJson by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(export) { pendingExportJson = (export as? ExportState.Ready)?.json }
+    // Read when the file is chosen, not copied earlier: the picker's result can arrive on the very
+    // first composition of a recreated activity (a rotation while it was open).
+    val exportJson = (export as? ExportState.Ready)?.json
     val reportSaved = { saved: Boolean -> if (saved) actions.onExportSaved() else actions.onExportNotSaved() }
     val saveExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         // No file chosen: the reader cancelled, and the export is set aside.
         if (uri == null) actions.onExportSaved()
-        else reportSaved(writeExport(pendingExportJson) { context.contentResolver.openOutputStream(uri) })
+        else reportSaved(writeExport(exportJson) { context.contentResolver.openOutputStream(uri) })
     }
     // The disposable journey app (`scripts/android-semantic-journey.py`'s `owner` mode) cannot
     // drive the system's own Storage Access Framework picker -- a separate process/activity --
@@ -112,7 +108,7 @@ fun PrivacyScreen(
     val isJourneyBuild = com.knowscroll.mobile.BuildConfig.DEBUG && com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)
     val onSaveExport: () -> Unit = {
         if (isJourneyBuild) {
-            reportSaved(writeExport(pendingExportJson) { java.io.File(context.cacheDir, "owner-journey-export.json").outputStream() })
+            reportSaved(writeExport(exportJson) { java.io.File(context.cacheDir, "owner-journey-export.json").outputStream() })
         } else {
             saveExport.launch(exportFileName())
         }

@@ -46,13 +46,14 @@ fun SignInScreen(
     reason: SignedOutReason?,
     onRequestLink: (String) -> Unit,
     onSubmitLink: (String) -> Unit,
-    /** #168: a link an App Link opened. It fills the field; the reader still signs in. */
+    /** #168: a link an App Link opened. It fills the field once ([onReceivedLinkShown]); the reader still signs in. */
     receivedLink: String?,
+    onReceivedLinkShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var pasted by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(receivedLink) { receivedLink?.let { pasted = it } }
+    LaunchedEffect(receivedLink) { receivedLink?.let { pasted = it; onReceivedLinkShown() } }
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(

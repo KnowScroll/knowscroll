@@ -77,7 +77,7 @@ owner address are configuration.
 
 1. In the API's environment (the ignored `.env` at the main checkout root, mode 0600, or the
    shell): `KS_MAIL_SENDER=agentmail`, `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` (an inbox that key
-   can see; on 2026-09-20 the owner's key could not see `knowscroll@agentmail.to`) and
+   lists in `GET /v0/inboxes`) and
    `KS_OWNER_EMAIL`. Leave `AGENTMAIL_BASE_URL` and `AGENTMAIL_TIMEOUT_MS` unset.
 2. Restart the API ([deployment.md](deployment.md)). With the key or inbox missing, every send
    fails and is logged (`"reason":"unknown"`); it never falls back to the file sink.
@@ -94,8 +94,9 @@ Verify:
 
 ## 3. Release keystore
 
-1. Use the owner's keystore, or create one outside this repository (it prompts for both passwords,
-   so none is on the command line or in the shell history):
+1. Use the owner's keystore, or create one outside this repository. `keytool` prompts for the
+   keystore password, so it is never on the command line or in the shell history; in a PKCS12
+   keystore made this way the key's password is the same one:
    ```sh
    mkdir -m 700 -p "$KS_DEV_ROOT/release-signing"
    keytool -genkeypair -keystore "$KS_DEV_ROOT/release-signing/knowscroll-release.jks" -storetype PKCS12 \
@@ -104,7 +105,8 @@ Verify:
    Keep a copy offline. Every update must be signed by the same key, or with Play App Signing, the
    same upload key.
 2. Set `KS_RELEASE_STORE_FILE` (an absolute path), `KS_RELEASE_STORE_PASSWORD`,
-   `KS_RELEASE_KEY_ALIAS`, `KS_RELEASE_KEY_PASSWORD` and `KS_RELEASE_API_BASE` in
+   `KS_RELEASE_KEY_ALIAS`, `KS_RELEASE_KEY_PASSWORD` (for the keystore above, the store password)
+   and `KS_RELEASE_API_BASE` in
    `apps/mobile/release.properties` or the environment, then build:
    ```sh
    . ./scripts/env.sh

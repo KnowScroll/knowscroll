@@ -170,6 +170,9 @@ class AccountViewModel @JvmOverloads constructor(
         _receivedLink.value = link
     }
 
+    /** The field holds the received link now, and the reader may change it: it is not put back. */
+    fun receivedLinkShown() { _receivedLink.value = null }
+
     /** [raw] is whatever the reader pasted -- the whole emailed link, ideally. [parseSignInToken]
      * rejects anything that is not a recognisable KnowScroll sign-in link before this ever
      * touches the network. */

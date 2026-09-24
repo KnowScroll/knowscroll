@@ -20,10 +20,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         // #168: an App Link's sign-in link (release builds declare the filter; ADR-0047). A recreated
         // activity handed its link over already, and the view model kept it.
-        if (savedInstanceState == null) {
-            val fromRecents = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
-            receivedSignInLink(intent.dataString, BuildConfig.KS_APP_LINKS_HOST, fromRecents)?.let(account::receiveSignInLink)
-        }
+        if (savedInstanceState == null) receiveLink(intent)
         setContent { KnowScrollApp(account) }
+    }
+
+    /** The activity is single-top: a link opened while the app runs comes here, never as a second copy of the app. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        receiveLink(intent)
+    }
+
+    private fun receiveLink(intent: Intent) {
+        val fromRecents = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+        receivedSignInLink(intent.dataString, BuildConfig.KS_APP_LINKS_HOST, fromRecents)?.let(account::receiveSignInLink)
     }
 }

@@ -74,6 +74,7 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
                     onRequestLink = accountViewModel::requestLink,
                     onSubmitLink = accountViewModel::submitPastedLink,
                     receivedLink = receivedLink,
+                    onReceivedLinkShown = accountViewModel::receivedLinkShown,
                 )
             }
         }
