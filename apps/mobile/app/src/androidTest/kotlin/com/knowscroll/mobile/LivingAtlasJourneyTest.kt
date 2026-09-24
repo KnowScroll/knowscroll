@@ -58,7 +58,7 @@ class LivingAtlasJourneyTest {
 
     @Test
     fun continuousHierarchyAndReturnOrigin() {
-        check(instrumentation.targetContext.packageName.endsWith(".journey"))
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName))
         try {
             val store = StateStore(instrumentation.targetContext)
             waitFor("Enter Scroll")

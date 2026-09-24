@@ -108,7 +108,7 @@ fun PrivacyScreen(
     // so it writes the export straight to the app's own cache dir instead and skips the picker
     // entirely, the same `.journey`-package gate `AuthoredPreview`/`AuthoredAtlas` already use for
     // their own owner-testable-only behaviour. Real builds always go through the SAF picker.
-    val isJourneyBuild = com.knowscroll.mobile.BuildConfig.DEBUG && context.packageName.endsWith(".journey")
+    val isJourneyBuild = com.knowscroll.mobile.BuildConfig.DEBUG && com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)
     val onSaveExport: () -> Unit = {
         if (isJourneyBuild) {
             val json = pendingExportJson

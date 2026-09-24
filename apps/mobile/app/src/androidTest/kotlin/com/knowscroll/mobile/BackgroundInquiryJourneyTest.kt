@@ -81,7 +81,7 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
     }
 
     private fun journey() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") { "The inquiry journey requires the separate journey app" }
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName)) { "The inquiry journey requires the separate journey app" }
         val api = ApiClient()
 
         // 1. Before consent: a route is available, nothing was looked for, and the supplied Sun is a place.

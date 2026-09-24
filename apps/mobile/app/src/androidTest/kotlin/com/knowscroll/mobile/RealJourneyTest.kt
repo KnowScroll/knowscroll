@@ -167,7 +167,7 @@ class RealJourneyTest {
         capture("j001-recovered")
     }
     @Test fun sourcedScrollKeepAndReturn() = runBlocking {
-        if (BuildConfig.APPLICATION_ID.endsWith(".journey")) {
+        if (com.knowscroll.mobile.JourneyBuild.isJourney(BuildConfig.APPLICATION_ID)) {
             InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("ks_session_v1", android.content.Context.MODE_PRIVATE).edit().clear().commit()
             compose.activityRule.scenario.recreate()
         }

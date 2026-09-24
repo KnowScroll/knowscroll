@@ -1,7 +1,7 @@
 """Issue91: "Why this appeared" explain sheet and "Sign out this device", joined
 against a real disposable HTTP/worker/PostgreSQL stack and a real API36 emulator.
 
-Only disposable data and the separate .journey Android package are mutated. The
+Only disposable data and the separate .journeytest Android package are mutated. The
 loopback proxy rewrites only the /v1/feed response's `reason` field for one
 fixture phase, drops /v1/session/revoke sockets to model genuine network loss,
 and directly revokes/restores the disposable device_session row as an explicit
@@ -28,7 +28,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402
+from android_preview import PreviewWatch  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -50,10 +50,10 @@ ACTUAL_PORT = '4326'
 PROXY_PORT = 4321
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=config['KS_DEV_TOKEN'], PORT=ACTUAL_PORT, NODE_ENV='test',
-           KS_JOURNEY_API_URL='http://10.0.2.2:%d' % PROXY_PORT)
+           KS_JOURNEY_API_URL='http://10.0.2.2:%d' % PROXY_PORT, KS_APP_ID_SUFFIX='.journeytest')
 out = root / 'artifacts/android-reader-explain-journey'
 out.mkdir(parents=True, exist_ok=True)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 owner_package = 'com.knowscroll.mobile'
 processes = []
 created = False
@@ -243,9 +243,9 @@ def restore_session():
 receipt = None
 original_font = subprocess.check_output(['adb', 'shell', 'settings', 'get', 'system', 'font_scale'], text=True).strip()
 owner_before = subprocess.run(['adb', 'shell', 'pm', 'path', owner_package], capture_output=True, text=True).stdout.strip()
-# The `.journey` app is also the owner's running preview: preserved before anything replaces it and
-# restored (verified) first in `finally` (#136, scripts/android_preview.py).
-guard = PreviewGuard(package, out)
+# The owner's running preview is the separate `.journey` app: never installed by this runner, its
+# APKs verified unchanged first in `finally` (#136, scripts/android_preview.py).
+guard = PreviewWatch('com.knowscroll.mobile.journey', out)
 try:
     guard.preserve()
     with socket.socket() as probe:

@@ -97,7 +97,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
     }
 
     private fun journey() {
-        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) { "The return journey requires the separate journey app" }
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName)) { "The return journey requires the separate journey app" }
         val api = ApiClient()
 
         // 1. Consent from this live session, then the reading that forms Gravity after it.

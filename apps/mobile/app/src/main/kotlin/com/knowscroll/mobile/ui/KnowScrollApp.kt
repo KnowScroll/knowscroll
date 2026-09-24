@@ -297,7 +297,7 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                 onAuthoredAtlas =
                                     if (
                                         com.knowscroll.mobile.BuildConfig.DEBUG &&
-                                            context.packageName.endsWith(".journey")
+                                            com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)
                                     )
                                         ({
                                             atlasPreview = true
@@ -315,7 +315,7 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                     viewModel::selectCableMode,
                                     if (
                                         com.knowscroll.mobile.BuildConfig.DEBUG &&
-                                            context.packageName.endsWith(".journey")
+                                            com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)
                                     )
                                         ({ previewOpen = true })
                                     else null,

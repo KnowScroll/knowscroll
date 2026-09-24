@@ -1,9 +1,9 @@
 """#131/#134 live semantic Android journey: disposable API/worker/PostgreSQL with the editorial
-substrate, the separate .journey app, no provider call and no owner-database access.
+substrate, its own .journeytest app, no provider call and no owner-database access.
 
-Source scripts/env.sh first. The .journey app is also the owner's running preview (its APK carries
-that preview's API address and token); `scripts/android_preview.py` preserves it before anything
-replaces it and restores it, verified, first in `finally` -- only if this run replaced it.
+Source scripts/env.sh first. The owner's running preview is the separate .journey app (#136): this
+runner never installs it, and `scripts/android_preview.py`'s PreviewWatch fails the run if the
+preview's APKs changed meanwhile.
 Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
 
 Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
@@ -36,7 +36,7 @@ import datetime, hashlib, io, json, os, secrets, signal, socket, subprocess, sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402
+from android_preview import PreviewWatch  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
@@ -45,7 +45,7 @@ assert source.hostname in ('127.0.0.1', 'localhost')
 port = int(os.environ.get('KS_SEMANTIC_PORT', '4333'))
 assert port not in (4310, 4320, 4322), 'never reuse an owner/preview port'
 name = 'knowscroll_test_semantic_' + secrets.token_hex(8)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 journey_name = os.environ.get('KS_SEMANTIC_JOURNEY', 'branch')
 JOURNEYS = {
     'branch': {'test': 'com.knowscroll.mobile.SemanticBranchJourneyTest', 'receipt': 'semantic-branch.json',
@@ -96,14 +96,14 @@ if live_run:
     if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live allowance is spent')
 out = root / 'artifacts/semantic-journey' / journey_name
 out.mkdir(parents=True, exist_ok=True)
-# The owner's preview: preserved before anything replaces it, restored first in `finally` (#136).
-guard = PreviewGuard(package, out)
+# The owner's preview is never installed here; its APKs are checked unchanged at the end (#136).
+guard = PreviewWatch('com.knowscroll.mobile.journey', out)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
            'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
 env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)), KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test',
-           PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_MEDIA_ROOT=str(out / 'media'))
+           PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_APP_ID_SUFFIX='.journeytest', KS_MEDIA_ROOT=str(out / 'media'))
 owner_email = 'owner-journey@knowscroll.test'
 if journey_name == 'owner':
     # ADR-0026 section 2 / ADR-0034 section 6: the API needs an owner address to accept a
@@ -132,7 +132,7 @@ def sql(query):
     return subprocess.check_output(['psql', *args, '-d', name, '-Atqc', query], env=admin, text=True).strip()
 
 try:
-    # 1. Preserve the owner's preview exactly as it is (refuses, touching nothing, if it cannot).
+    # 1. Record the owner's preview APKs (this run never installs it).
     guard.preserve()
 
     # 2. Disposable stack with the editorial substrate.
@@ -485,7 +485,7 @@ finally:
     def attempt(label, step):
         try: step()
         except Exception as error: cleanup_errors.append(f'{label}: {error}')
-    # 5. Restore the owner's preview first, so no later cleanup failure can leave it replaced
+    # 5. Verify the owner's preview first, so no later cleanup failure can hide a change to it
     # (and only if this run replaced it at all).
     attempt('restore preview', guard.restore)
     for child, log in processes:

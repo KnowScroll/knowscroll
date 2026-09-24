@@ -25,6 +25,19 @@ Proven by:
 See the [evidence](journeys/evidence/return-relics-2026-09-24/README.md). Not in this slice: rooms,
 inhabitants, other kinds of Relic, and the web client.
 
+## 2026-09-24 #136 device test runs no longer install over the owner's preview (lane `136-test-app-id`)
+
+The nine device test runners now build and install their own app, `com.knowscroll.mobile.journeytest`
+(`KS_APP_ID_SUFFIX=.journeytest`). The owner's preview, `com.knowscroll.mobile.journey`, is built and
+installed only by `scripts/android-living-preview.py`, which sets no suffix. Its verification mode
+(without `--keep`) still replaces the preview, under the full preserve/restore guard. The debug-only
+journey behaviour (authored previews, the export written to the app's cache) is enabled by one
+helper, `JourneyBuild.isJourney`, for both packages. Instrumented tests use the same helper. The test
+runners use `PreviewWatch`: it records the preview's APK hashes and fails the run if they changed.
+It never pulls data, never refuses a signed-in preview, and never reinstalls or clears anything.
+Proven by the emulator `places` journey passing as `journeytest` with the preview's APK hash
+unchanged.
+
 ## 2026-09-24 #135 web Reset retry after a failure (lane `135-web-reset-retry`)
 
 A failed Reset's own Confirm is the retry (same request id) and Cancel closes it. Before, both did

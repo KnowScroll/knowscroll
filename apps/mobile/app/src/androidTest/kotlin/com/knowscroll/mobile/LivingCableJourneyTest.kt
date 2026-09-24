@@ -53,7 +53,7 @@ class LivingCableJourneyTest {
 
     @Test
     fun explicitModesAndOwnerAccessibleBranches() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey")
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName))
         try {
             waitFor("Enter Scroll")
             compose.onNodeWithContentDescription("Enter Scroll").performClick()
