@@ -2,9 +2,9 @@
 
 ## 2026-09-24 #131 decorative Places art labelled (lane `131-illustrative-art`)
 
-The Places layer's line now reads "Positions, moons and land shapes are illustrative — what's
-mapped and how it connects is real.", so no decorative moon or land shape implies verified
-knowledge. This is #131's last open item. `PlacesScreenTest` was updated first; Android units, lint
+The Places layer's line now reads "Positions, orbits, moons and land art are illustrative — what's
+mapped and how it connects is real.", so no decorative orbit ring, moon, continent, current or cloud
+implies verified knowledge. This is #131's last open item. `PlacesScreenTest` was updated first; Android units, lint
 and the emulator `places` journey pass. See the
 [evidence](journeys/evidence/illustrative-art-2026-09-24/README.md).
 
