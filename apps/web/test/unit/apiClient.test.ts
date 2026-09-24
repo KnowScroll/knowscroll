@@ -3,8 +3,9 @@
  * but a cookie session's mutating requests must carry `X-CSRF-Token`. This client keeps the token
  * in memory only (never localStorage/sessionStorage, never read back from anywhere but a real
  * `GET /v1/session/csrf` response), sends it on every non-GET request once known, and otherwise
- * discovers it lazily: a non-GET that comes back 403 with no token yet known triggers exactly one
- * `GET /v1/session/csrf` and exactly one retry of the original request.
+ * discovers it lazily: a non-GET that comes back 403 triggers exactly one `GET /v1/session/csrf` and
+ * at most one retry of the original request -- when no token was known yet, or the known one was
+ * stale; never when the page's current token itself was refused.
  */
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../../src/api/client.ts';
@@ -99,6 +100,34 @@ describe('ApiClient CSRF (ADR-0034)', () => {
     await expect(client.postSessionRevoke()).rejects.toMatchObject({ error: { kind: 'server', statusCode: 403 } });
     // attempt 1 (403), csrf fetch, attempt 2 (403 again) -- never a third original attempt.
     expect(calls).toHaveLength(3);
+  });
+
+  it('a 403 with a stale known token (e.g. from a session that since ended) fetches the current token once and retries once with it', async () => {
+    const { calls, fetchImpl } = fakeFetch((call, index) => {
+      if (index === 0) return jsonResponse(403, { error: 'stale token' });
+      if (index === 1) {
+        expect(String(call.input)).toBe('/v1/session/csrf');
+        return jsonResponse(200, { csrfToken: 'd'.repeat(64) });
+      }
+      return emptyResponse(204);
+    });
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0] });
+    client.setCsrfToken('stale-token');
+    await client.postSessionRevoke();
+    expect(calls).toHaveLength(3);
+    expect(headerValue(calls[0]!, 'X-CSRF-Token')).toBe('stale-token');
+    expect(headerValue(calls[2]!, 'X-CSRF-Token')).toBe('d'.repeat(64));
+  });
+
+  it('a 403 whose refreshed token is unchanged is a real refusal: no retry of the same doomed request', async () => {
+    const { calls, fetchImpl } = fakeFetch((_call, index) => {
+      if (index === 1) return jsonResponse(200, { csrfToken: 'known-token' });
+      return jsonResponse(403, { error: 'cross-origin' });
+    });
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0] });
+    client.setCsrfToken('known-token');
+    await expect(client.postSessionRevoke()).rejects.toMatchObject({ error: { kind: 'server', statusCode: 403 } });
+    expect(calls).toHaveLength(2); // the refused request and the one token check, nothing more
   });
 
   it('the same body (and requestId inside it) is sent on both the pre-CSRF and post-CSRF attempts', async () => {

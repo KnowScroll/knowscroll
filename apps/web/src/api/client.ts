@@ -259,9 +259,11 @@ export class ApiClient implements ReaderApi {
 
   /**
    * CSRF retry wrapper (ADR-0034): every non-GET call goes through `attempt()` first. If it comes
-   * back 403 and no token is known yet, this fetches the page's own token exactly once
-   * (`GET /v1/session/csrf` -- a 400 there means a bearer/dev-proxy session, which never needed one)
-   * and retries the *same* call exactly once more. This wraps `attempt()` rather than sitting inside
+   * back 403, this fetches the page's own token exactly once (`GET /v1/session/csrf` -- a 400 there
+   * means a bearer/dev-proxy session, which never needed one) and retries the *same* call exactly
+   * once more -- when no token was known yet, or when the one it sent turns out to be stale (a
+   * session that ended and a new sign-in since, in the same page). A 403 for the page's *current*
+   * token is a real refusal (cross-origin, say) and is not retried. This wraps `attempt()` rather than sitting inside
    * its per-attempt loop, so the existing transient-failure retry/backoff and requestId reuse
    * (the caller's own `body`, re-sent unchanged) are untouched -- a 403 is not itself a transient
    * status, so `attempt()` already throws immediately on it without consuming that loop's budget.
@@ -277,8 +279,10 @@ export class ApiClient implements ReaderApi {
     try {
       return await this.attempt(method, path, body, expected, treat409AsConflict, schema);
     } catch (error) {
-      if (method === 'GET' || this.csrfToken !== null || !isCsrfRefusal(error)) throw error;
+      if (method === 'GET' || !isCsrfRefusal(error)) throw error;
+      const sent = this.csrfToken;
       await this.refreshCsrfToken();
+      if (sent !== null && this.csrfToken === sent) throw error;
       return this.attempt(method, path, body, expected, treat409AsConflict, schema);
     }
   }
