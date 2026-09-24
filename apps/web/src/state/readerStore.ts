@@ -185,15 +185,18 @@ export class ReaderStore {
    * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
    * working unchanged. It fires whenever this store learns the reader is no longer authenticated --
    * a 401 from any authenticated call (alongside the existing fail-closed Unavailable universe,
-   * never in place of it), a real `signOut()`, or a real `confirmDeleteAccount()` -- carrying a
-   * deletion-specific message on the last of those ("deleted" only when a deletion was, or may have
-   * been, applied; otherwise that the session ended before it was sent) and `null` otherwise.
+   * never in place of it), a real `signOut()`, a real `confirmDeleteAccount()`, or a `confirmReset()`
+   * whose 401 follows an attempt that may have landed -- carrying a deletion-specific message for
+   * deletion ("deleted" only when a deletion was, or may have been, applied; otherwise that the
+   * session ended before it was sent), a "may have completed" message for that Reset, and `null`
+   * otherwise.
    *
    * Its second argument, `verify`, tells the caller whether this needs confirming before it acts
    * on it: `true` for an *ambient* 401 hit during ordinary reads (this store has no way to know
    * whether the deployment even has a sign-in surface -- a bearer/dev-proxy session has none, and
    * for that shape an ambient 401 is exactly the existing fail-closed-and-retry flow, not a reason
-   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`,
+   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`
+   * and that `confirmReset()` case,
    * which the reader asked for directly and which always deserve a real answer regardless of
    * deployment shape. The app uses `ApiClient.isBearerSession()` to settle a `true` case; this
    * class itself has no notion of screens outside its own five and makes no such deployment
@@ -478,7 +481,7 @@ export class ReaderStore {
           // universe is the same one, and a fence ahead of the server would refuse it if the
           // Reset did not in fact land). The next sign-in observes the real epoch.
           this.storage.purgePrivateState(universeId, epoch);
-          this.onSignedOut?.('Your session ended. The Reset may have completed before its answer was lost; sign in to see your universe.', false);
+          this.onSignedOut?.('Your session ended. The Reset may have completed, but the connection dropped before it was confirmed. Sign in to see your universe.', false);
           return;
         }
         if (invalidatesReader(error)) {

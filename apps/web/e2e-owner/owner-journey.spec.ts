@@ -7,8 +7,8 @@
  *
  * Before deleting, it resets twice with a network failure injected into the browser (from #119's
  * dead retry buttons): once where no attempt reaches the API, so the panel's own Confirm is the
- * retry and the real receipt follows; once where the Reset lands but its response is lost, so the
- * retry meets the revoked session and the page says only that the Reset may have completed.
+ * retry and the real receipt follows; once where the Reset lands (200) but its answer is dropped, so
+ * the client's own retry meets the revoked session and the page says only that it may have completed.
  *
  * The final DB assertions (0 account rows, 1 account_deletion_receipt row, 0 device_session rows)
  * are made by the runner script after this spec exits, not here -- apps/web has no `pg` dependency
@@ -29,13 +29,22 @@ const ownerEmail = requiredEnv('KS_OWNER_EMAIL');
 const ARTIFACTS_DIR = 'artifacts/web-owner-journey';
 const RESET_ROUTE = '**/v1/privacy/reset';
 
+let lastLink = '';
+async function readLink(): Promise<string> {
+  const link = (await readFile(`${devRoot}/sign-in/magic-link.txt`, 'utf8')).trim();
+  // A rate-limited or failed send also answers 202 without writing a link: never reuse an old one.
+  expect(link).not.toBe(lastLink);
+  lastLink = link;
+  return link;
+}
+
 /** Request a link, read it from the dev sink and use it: steps 2-5 below, for the later sign-ins. */
 async function signInAgain(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 8000 });
   await page.getByLabel(/email/i).fill(ownerEmail);
   await page.getByRole('button', { name: 'Send sign-in link' }).click();
   await expect(page.getByText('Check your email for a sign-in link')).toBeVisible();
-  await page.goto((await readFile(`${devRoot}/sign-in/magic-link.txt`, 'utf8')).trim());
+  await page.goto(await readLink());
   await page.getByRole('button', { name: 'Sign in on this browser' }).click();
   await expect(page.getByRole('button', { name: 'Enter Scroll' })).toBeVisible({ timeout: 8000 });
 }
@@ -62,7 +71,7 @@ test.describe.serial('web owner journey (magic link, cookie sign-in, account del
     await expect(page.getByText('Check your email for a sign-in link')).toBeVisible();
 
     // 3. The harness reads the real emailed link from the dev sink -- never typed or guessed.
-    const link = (await readFile(`${devRoot}/sign-in/magic-link.txt`, 'utf8')).trim();
+    const link = await readLink();
     const linkUrl = new URL(link);
     const pageOrigin = new URL(page.url()).origin;
     expect(`${linkUrl.origin}${linkUrl.pathname}`).toBe(`${pageOrigin}/sign-in`);
@@ -105,18 +114,18 @@ test.describe.serial('web owner journey (magic link, cookie sign-in, account del
     await page.getByRole('button', { name: 'Continue' }).click();
     await signInAgain(page);
 
-    // 7b. Reset again, and this time it lands but its response is lost on the way back. The retry
-    // (same request) meets the session that Reset ended, so the page says only that it may have
-    // completed -- and signs out.
-    let landed = 0;
+    // 7b. Reset again, and this time it lands (the API answers 200) but that answer is dropped on
+    // the way back. The client's own automatic retry of the same request meets the session that
+    // Reset ended, so the page says only that it may have completed -- and signs out.
+    const landed: number[] = [];
     await page.route(RESET_ROUTE, async route => {
-      if (landed === 0) { landed += 1; await route.fetch(); return route.abort('failed'); }
+      if (landed.length === 0) { landed.push((await route.fetch()).status()); return route.abort('failed'); }
       return route.continue();
     });
     await openReset(page);
     await page.getByRole('button', { name: 'Confirm reset' }).click();
-    await expect(page.getByText('The Reset may have completed before its answer was lost')).toBeVisible({ timeout: 8000 });
-    expect(landed).toBe(1);
+    await expect(page.getByText('The Reset may have completed, but the connection dropped before it was confirmed.')).toBeVisible({ timeout: 8000 });
+    expect(landed).toEqual([200]);
     await page.unroute(RESET_ROUTE);
     await page.screenshot({ path: `${ARTIFACTS_DIR}/04-reset-may-have-completed.png` });
     await signInAgain(page);
