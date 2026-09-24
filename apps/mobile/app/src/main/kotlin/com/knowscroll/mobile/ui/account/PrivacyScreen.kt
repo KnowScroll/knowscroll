@@ -100,6 +100,23 @@ fun PrivacyScreen(
         }
         actions.onExportSaved()
     }
+    // The disposable journey app (`scripts/android-semantic-journey.py`'s `owner` mode) cannot
+    // drive the system's own Storage Access Framework picker -- a separate process/activity --
+    // so it writes the export straight to the app's own cache dir instead and skips the picker
+    // entirely, the same `.journey`-package gate `AuthoredPreview`/`AuthoredAtlas` already use for
+    // their own owner-testable-only behaviour. Real builds always go through the SAF picker.
+    val isJourneyBuild = com.knowscroll.mobile.BuildConfig.DEBUG && context.packageName.endsWith(".journey")
+    val onSaveExport: () -> Unit = {
+        if (isJourneyBuild) {
+            val json = pendingExportJson
+            if (json != null) {
+                runCatching { java.io.File(context.cacheDir, "owner-journey-export.json").writeText(json, Charsets.UTF_8) }
+            }
+            actions.onExportSaved()
+        } else {
+            saveExport.launch(exportFileName())
+        }
+    }
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(
@@ -131,7 +148,7 @@ fun PrivacyScreen(
                 is PrivacyState.Loaded -> Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     RecordingSection(privacy.recordingPausedAt, pause, resume, actions)
                     HorizontalDivider(color = Cosmos.Sea2)
-                    ExportSection(export, actions, saveExport::launch)
+                    ExportSection(export, actions, onSaveExport)
                     HorizontalDivider(color = Cosmos.Sea2)
                     ResetSection(reset, actions)
                     HorizontalDivider(color = Cosmos.Sea2)
@@ -172,13 +189,13 @@ private fun RecordingSection(recordingPausedAt: String?, pause: PrivacyOperation
 }
 
 @Composable
-private fun ExportSection(export: ExportState, actions: PrivacyActions, launchSave: (String) -> Unit) {
+private fun ExportSection(export: ExportState, actions: PrivacyActions, onSave: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.privacy_export_heading), style = MaterialTheme.typography.titleLarge, color = Cosmos.Cream)
         Text(stringResource(R.string.privacy_export_body), color = Cosmos.MutedOnDark)
         when (export) {
             is ExportState.Ready -> Button(
-                onClick = { launchSave(exportFileName()) },
+                onClick = onSave,
                 colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Yellow, contentColor = Cosmos.InkOnCream),
                 modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Save the export file" },
             ) { Text(stringResource(R.string.privacy_export_save_action)) }
