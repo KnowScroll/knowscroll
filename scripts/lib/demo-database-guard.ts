@@ -11,6 +11,7 @@
  * Tested directly (as a pure function, no database, no process) and via a subprocess smoke test in
  * `tests/demo-populate-guard.test.ts`.
  */
+import { existsSync, readFileSync } from 'node:fs';
 
 const REQUIRED_PREFIX = 'knowscroll_demo_';
 
@@ -64,4 +65,20 @@ export function assertDisposableDatabaseName(databaseName: string): string {
   }
   assertSafeIdentifier(databaseName);
   return databaseName;
+}
+
+/**
+ * For the same tools: the local DATABASE_URL (environment, else `.env`) pointed at that disposable
+ * database. Local PostgreSQL only. A refusal's message names no part of the URL (it carries a password).
+ */
+export function localDisposableDatabaseUrl(databaseName: string): string {
+  assertDisposableDatabaseName(databaseName);
+  const dotEnv = Object.fromEntries((existsSync('.env') ? readFileSync('.env', 'utf8') : '').split('\n').filter(l => l.includes('=') && !l.startsWith('#'))
+    .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+  const base = process.env.DATABASE_URL ?? dotEnv.DATABASE_URL;
+  if (!base || !URL.canParse(base)) throw new Error('no DATABASE_URL in the environment or .env.');
+  const url = new URL(base);
+  if (!['127.0.0.1', 'localhost'].includes(url.hostname)) throw new Error('local PostgreSQL only.');
+  url.pathname = `/${databaseName}`;
+  return url.toString();
 }

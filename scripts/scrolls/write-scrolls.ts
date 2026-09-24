@@ -21,7 +21,7 @@
  * statuses, reason codes, hashes, input bytes and token usage: never a prompt, a reply or a key.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -31,7 +31,7 @@ import { createFixtureScrollTransport, SCROLL_FIXTURE_MODES, type ScrollFixtureM
 import type { ScrollItemResult, ScrollTransport, WriteScrollDeps } from '../../apps/worker/src/scrolls/write-scroll.ts';
 import { MATERIAL_POLICY_VERSION } from '../../packages/core/src/scrolls/material.ts';
 import { SCROLL_WRITING_VERSIONS, scrollPlanItem, type ScrollPlanItem } from '../../packages/core/src/scrolls/writing.ts';
-import { assertDisposableDatabaseName } from '../lib/demo-database-guard.ts';
+import { assertDisposableDatabaseName, localDisposableDatabaseUrl } from '../lib/demo-database-guard.ts';
 import { countLedgerRequest } from '../lib/session-ledger.ts';
 
 type Gate = WriteScrollDeps['beforeSend'];
@@ -138,14 +138,7 @@ async function main(argv: string[]): Promise<number> {
     gate = { beforeSend: async () => ({ ok: true }), ledger: () => null };
   }
 
-  const env = Object.fromEntries((existsSync('.env') ? readFileSync('.env', 'utf8') : '').split('\n').filter(l => l.includes('=') && !l.startsWith('#'))
-    .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
-  const base = process.env.DATABASE_URL ?? env.DATABASE_URL;
-  if (!base || !URL.canParse(base)) return refuse('no DATABASE_URL in the environment or .env.');
-  const url = new URL(base);
-  if (!['127.0.0.1', 'localhost'].includes(url.hostname)) return refuse('local PostgreSQL only.');
-  url.pathname = `/${database}`;
-  process.env.DATABASE_URL = url.toString();
+  try { process.env.DATABASE_URL = localDisposableDatabaseUrl(database); } catch (error) { return refuse((error as Error).message); }
 
   const stop = new AbortController();
   process.once('SIGINT', () => stop.abort());
