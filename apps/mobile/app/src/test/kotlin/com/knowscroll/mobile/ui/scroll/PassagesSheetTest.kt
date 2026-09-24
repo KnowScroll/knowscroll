@@ -3,6 +3,7 @@ package com.knowscroll.mobile.ui.scroll
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -89,8 +90,10 @@ class PassagesSheetTest {
 
     @Test
     fun whileRecordingIsPausedNothingIsKeptOrObjectedTo() = runComposeUiTest {
-        setContent { KnowScrollTheme { PassagesSheet(item, PassagesControls(loaded(fall), KeepControls(paused = true))) {} } }
-        onNodeWithText("Recording is paused, so nothing new is kept.").performScrollTo()
+        val orbit = fall.copy(claimKey = "clm.orbit.sideways", statement = "Sideways speed keeps it from landing.")
+        setContent { KnowScrollTheme { PassagesSheet(item, PassagesControls(loaded(fall, orbit), KeepControls(paused = true))) {} } }
+        // Said once for the sheet, not under every passage (nor read once per passage by TalkBack).
+        assertEquals(1, onAllNodesWithText("Recording is paused, so nothing new is kept.").fetchSemanticsNodes().size)
         assertEquals(0, onAllNodesWithContentDescription("Keep this passage").fetchSemanticsNodes().size)
         assertEquals(0, onAllNodesWithContentDescription("This passage seems wrong").fetchSemanticsNodes().size)
     }

@@ -206,6 +206,13 @@ test('a real source correction marks each kind corrected, and the kept forms sta
   assert.equal((await keep(k.r, { ...k.passage })).statusCode, 200, 'the kept one is still answered');
 });
 
+test('an answer whose Scroll already lost a claim is not kept, like a passage of that claim', async () => {
+  const k = await prepared();
+  await transaction(client => correctSourceSnapshot(client, { sourceKey: k.r.f.sources.physics, action: 'revoked', reason: 'Fixture: withdrawn before it was kept' }, 'editorial'));
+  for (const target of [k.passage, k.answer]) assert.equal((await keep(k.r, target)).statusCode, 422, target.kind);
+  assert.deepEqual((await relics(k.r)).relics, []);
+});
+
 test('a newer revision of the Scroll corrects a passage and an answer, and leaves a place alone', async () => {
   const k = await prepared();
   await kept(k.r, k.place); await kept(k.r, k.passage); await kept(k.r, k.answer);
@@ -290,7 +297,14 @@ test('SQL guards: a typed Relic keeps only what it names, and an objection is hi
   await assert.rejects(pool.query(`INSERT INTO relic(id, universe_id, privacy_epoch, client_request_id, kind, place_id, place_kind, formation_delta_id, cited_claim_keys)
     VALUES (gen_random_uuid(), $1, 0, gen_random_uuid(), 'place', $2, 'sighting', gen_random_uuid(), '[]')`, [k.r.universeId, k.place.kind === 'place' && k.place.placeId]), /formation_delta_id|formed it/);
   await assert.rejects(pool.query(`INSERT INTO relic(id, universe_id, privacy_epoch, client_request_id, kind, ask_id, asset_id, asset_revision, scroll_title, cited_claim_keys, place_kind)
-    VALUES (gen_random_uuid(), $1, 0, gen_random_uuid(), 'answer', $2, $3, 1, 'A title', '[]', 'planet')`, [k.r.universeId, k.askId, k.r.f.assets.gravity]), /relic_kind_shape/);
+    VALUES (gen_random_uuid(), $1, 0, gen_random_uuid(), 'answer', $2, $3, 1, 'A title', $4, 'planet')`,
+    [k.r.universeId, k.askId, k.r.f.assets.gravity, JSON.stringify([k.r.f.claims.gravity])]), /relic_kind_shape/);
+  // An answer Relic keeps the Scroll its Ask was about, and every claim that Scroll presents.
+  const insertAnswer = (assetId: string, cited: string[]) => pool.query(
+    `INSERT INTO relic(id, universe_id, privacy_epoch, client_request_id, kind, ask_id, asset_id, asset_revision, scroll_title, cited_claim_keys)
+     VALUES (gen_random_uuid(), $1, 0, gen_random_uuid(), 'answer', $2, $3, 1, 'A title', $4)`, [k.r.universeId, k.askId, assetId, JSON.stringify(cited)]);
+  await assert.rejects(insertAnswer(k.r.f.assets.sun, [k.r.f.claims.sun]), /Scroll its Ask was about/);
+  await assert.rejects(insertAnswer(k.r.f.assets.gravity, []), /every claim its Scroll presents/);
   await insertPassage(k.r.f.claims.gravity);
   await assert.rejects(pool.query(`UPDATE relic SET kept_at = kept_at WHERE universe_id=$1`, [k.r.universeId]), /immutable/);
   const objection = () => pool.query(`INSERT INTO reader_objection(id, universe_id, privacy_epoch, client_request_id, kind, ask_id) VALUES (gen_random_uuid(), $1, 0, gen_random_uuid(), 'answer', $2)`, [k.r.universeId, k.askId]);

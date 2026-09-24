@@ -85,10 +85,17 @@ internal fun ReturnSheet(onDismiss: () -> Unit, bordered: Boolean = false, conte
  * says more (the Ask answer's `kept` and `seemsWrong`) passes it in.
  */
 @Composable
-internal fun KeepChoices(target: RelicTarget, keeps: KeepControls, offered: Boolean = true, state: KeepableState = keeps.stateOf(target)) {
+internal fun KeepChoices(
+    target: RelicTarget,
+    keeps: KeepControls,
+    offered: Boolean = true,
+    state: KeepableState = keeps.stateOf(target),
+    /** False where a list of choices says it once for all of them ([com.knowscroll.mobile.ui.scroll.PassagesSheet]). */
+    sayPaused: Boolean = true,
+) {
     if (state.kept) Text(stringResource(R.string.connection_kept), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
     if (state.markedWrong) Text(stringResource(R.string.relic_state_doubted), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
-    if (offered && keeps.paused && !state.kept && !state.markedWrong)
+    if (sayPaused && offered && keeps.paused && !state.kept && !state.markedWrong)
         Text(stringResource(R.string.connection_paused), style = MaterialTheme.typography.bodyMedium)
     val (keepWords, retryKeepWords) = keepDescriptions(target)
     if (offered && !keeps.paused && !state.kept && !state.markedWrong && !state.keep.retryable()) {

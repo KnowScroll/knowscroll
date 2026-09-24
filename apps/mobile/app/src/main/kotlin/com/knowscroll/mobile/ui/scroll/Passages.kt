@@ -84,12 +84,13 @@ internal fun PassagesSheet(item: ScrollItem, controls: PassagesControls, onDismi
                     val asRead = response.revision == item.revision
                     if (!asRead) Text(stringResource(R.string.passages_changed), style = MaterialTheme.typography.bodyMedium)
                     if (response.passages.isEmpty()) Text(stringResource(R.string.passages_empty), style = MaterialTheme.typography.bodyMedium)
+                    if (asRead && controls.keeps.paused) Text(stringResource(R.string.connection_paused), style = MaterialTheme.typography.bodyMedium)
                     response.passages.forEach { passage ->
                         HorizontalDivider(color = Cosmos.CreamDim)
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(passage.statement, style = MaterialTheme.typography.bodyLarge)
                             if (passage.withdrawn) Withdrawn()
-                            KeepChoices(RelicTarget.Passage(item.assetId, item.revision, passage.claimKey), controls.keeps, offered = asRead && !passage.withdrawn)
+                            KeepChoices(RelicTarget.Passage(item.assetId, item.revision, passage.claimKey), controls.keeps, offered = asRead && !passage.withdrawn, sayPaused = false)
                         }
                     }
                 }

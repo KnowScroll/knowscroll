@@ -172,10 +172,12 @@ async function provenanceOf(client: pg.PoolClient, scope: AuthScope, input: Reli
       if (!answered) throw new ReturnError(422, 'Unknown or unanswered Ask');
       if (await currentRevision(client, answered.asset_id) !== answered.revision) throw new ReturnError(409, 'This Scroll has changed since it was answered');
       if (await objected(client, scope, `kind='answer' AND ask_id=$3`, [input.askId])) throw new ReturnError(422, 'You marked this answer as seeming wrong');
-      // What the answer rests on: the claims its Scroll presents with current support.
-      const cited = (await client.query<{ key: string }>(
-        'SELECT c.key FROM asset_claim ac JOIN claim c ON c.id = ac.claim_id WHERE ac.asset_id=$1 AND claim_is_supported(c.id) ORDER BY c.key',
-        [answered.asset_id])).rows.map(r => r.key);
+      // What the answer rests on: every claim its Scroll presents, each still supported.
+      const claims = (await client.query<{ key: string; supported: boolean }>(
+        'SELECT c.key, claim_is_supported(c.id) AS supported FROM asset_claim ac JOIN claim c ON c.id = ac.claim_id WHERE ac.asset_id=$1 ORDER BY c.key',
+        [answered.asset_id])).rows;
+      if (claims.some(c => !c.supported)) throw new ReturnError(422, 'What this answer rests on was withdrawn');
+      const cited = claims.map(c => c.key);
       return { columns: { ask_id: input.askId, asset_id: answered.asset_id, asset_revision: answered.revision, scroll_title: answered.title }, cited };
     }
   }

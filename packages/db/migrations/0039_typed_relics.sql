@@ -40,6 +40,9 @@ CREATE UNIQUE INDEX relic_one_passage ON relic(universe_id, privacy_epoch, asset
 CREATE UNIQUE INDEX relic_one_answer ON relic(universe_id, privacy_epoch, ask_id) WHERE kind = 'answer';
 CREATE INDEX relic_place ON relic(place_id) WHERE place_id IS NOT NULL;
 CREATE INDEX relic_exposure ON relic(exposure_id) WHERE exposure_id IS NOT NULL;
+-- So Clear, Reset and deletion check these foreign keys without scanning every universe's Relics.
+CREATE INDEX relic_formation_delta ON relic(formation_delta_id) WHERE formation_delta_id IS NOT NULL;
+CREATE INDEX relic_ask ON relic(ask_id) WHERE ask_id IS NOT NULL;
 
 -- The reader's "seems wrong" on one claim of a Scroll they read, or on an answer to their own Ask.
 -- Personal, never a retraction of shared knowledge; erased only with its epoch (Clear/Reset/deletion).
@@ -58,6 +61,7 @@ CREATE TABLE reader_objection (
   ELSE ask_id IS NOT NULL AND num_nonnulls(asset_id, claim_id) = 0 END)
 );
 CREATE UNIQUE INDEX reader_objection_one_passage ON reader_objection(universe_id, privacy_epoch, asset_id, claim_id) WHERE kind = 'passage';
+CREATE INDEX reader_objection_ask ON reader_objection(ask_id) WHERE ask_id IS NOT NULL;
 CREATE UNIQUE INDEX reader_objection_one_answer ON reader_objection(universe_id, privacy_epoch, ask_id) WHERE kind = 'answer';
 
 -- An objection names a claim of a Scroll this universe read in this epoch, or an answer of its own.
@@ -122,8 +126,15 @@ BEGIN
     AND a.privacy_epoch = NEW.privacy_epoch AND a.status = 'answered') THEN
    RAISE EXCEPTION 'An answer Relic keeps an answered Ask of its own universe and epoch';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM asset a WHERE a.id = NEW.asset_id AND a.kind = 'Scroll' AND a.revision = NEW.asset_revision) THEN
-   RAISE EXCEPTION 'An answer Relic keeps an answer from the Scroll''s current revision';
+  IF NOT EXISTS (SELECT 1 FROM explicit_ask q JOIN exposure e ON e.id = q.exposure_id AND e.universe_id = q.universe_id
+    JOIN asset a ON a.id = e.asset_id
+    WHERE q.id = NEW.ask_id AND a.id = NEW.asset_id AND a.kind = 'Scroll' AND a.revision = NEW.asset_revision) THEN
+   RAISE EXCEPTION 'An answer Relic keeps the current revision of the Scroll its Ask was about';
+  END IF;
+  IF NEW.cited_claim_keys IS DISTINCT FROM (SELECT coalesce(jsonb_agg(c.key ORDER BY c.key), '[]') FROM asset_claim ac JOIN claim c ON c.id = ac.claim_id
+      WHERE ac.asset_id = NEW.asset_id)
+    OR EXISTS (SELECT 1 FROM asset_claim ac WHERE ac.asset_id = NEW.asset_id AND NOT claim_is_supported(ac.claim_id)) THEN
+   RAISE EXCEPTION 'An answer Relic rests on every claim its Scroll presents, each supported';
   END IF;
   IF EXISTS (SELECT 1 FROM reader_objection o WHERE o.universe_id = NEW.universe_id AND o.privacy_epoch = NEW.privacy_epoch
     AND o.kind = 'answer' AND o.ask_id = NEW.ask_id) THEN
