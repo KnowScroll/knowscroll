@@ -356,6 +356,7 @@
     <string name="away_nothing_found">Looked for a connection between %1$s; none was found.</string>
     <string name="away_corrected_revoked">What it was based on changed, so the connection between %1$s and %2$s was withdrawn.</string>
     <string name="away_corrected_superseded">What it was based on changed, so the connection between %1$s and %2$s was replaced.</string>
+    <string name="away_scroll_withdrawn">A Scroll about %1$s you were waiting for was withdrawn: what it was based on changed.</string>
     <string name="away_pairs_separator">", or "</string>
     <string name="connection_kicker">Connection</string>
     <string name="connection_back_atlas">‹ Atlas</string>

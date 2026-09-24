@@ -91,6 +91,7 @@ class ReturnSectionsTest {
         "foundation_withdrawn", "source_correction", "Gravity no longer holds up the places around it.")
     private val revokedItem = AwayItem.ConnectionCorrected(at(5), bridgeId, "revoked", sun, gravity, seemsWrong = false)
     private val supersededItem = AwayItem.ConnectionCorrected(at(4), bridgeId, "superseded", sun, gravity, seemsWrong = false)
+    private val withdrawnItem = AwayItem.ScrollWithdrawn(at(3), "55555555-5555-4555-8555-555555555555", InquiryConcept("earth.tides", "Tides"))
 
     private fun away(vararg items: AwayItem, more: Long = 0, paused: Boolean = false) = AwayState.Loaded(
         AwayResponse(4, null, items.toList(), more, if (more > 0) "2026-09-24T09:00:00.000Z|nothing_found|$inquiryId" else null, paused),
@@ -129,6 +130,14 @@ class ReturnSectionsTest {
         shown("Gravity no longer holds up the places around it.")
         shown("What it was based on changed, so the connection between The Sun and Gravity was withdrawn.")
         shown("What it was based on changed, so the connection between The Sun and Gravity was replaced.")
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    /** #164 (ADR-0046 §5): a withdrawn Scroll is said by its concept, never its source. */
+    @Test
+    fun aWithdrawnScrollIsSaidPlainly() {
+        renderAway(controls(away(withdrawnItem)))
+        shown("A Scroll about Tides you were waiting for was withdrawn: what it was based on changed.")
         composeRule.assertNoSourceShown(*sources)
     }
 

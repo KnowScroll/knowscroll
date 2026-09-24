@@ -13,6 +13,8 @@ sealed interface WhyStep {
     data class Bridge(val bridgeId: String, val sentence: String) : WhyStep
     data class Question(val concept: String) : WhyStep
     data class Outside(val domain: String) : WhyStep
+    /** #164 (ADR-0046 §2): a Scroll bound to a need the reader's own reading recorded about [concept]. */
+    data class Demand(val demandId: String, val bindingId: String, val concept: String) : WhyStep
 }
 
 data class EncounterWhy(
@@ -46,6 +48,9 @@ internal fun parseWhy(o: JSONObject): EncounterWhy {
             "bridge" -> WhyStep.Bridge(s.getString("bridgeId"), s.getString("sentence"))
             "question" -> WhyStep.Question(s.getString("concept"))
             "outside" -> WhyStep.Outside(s.getString("domain"))
+            "demand" -> WhyStep.Demand(s.getString("demandId"), s.getString("bindingId"), s.getString("concept")).also {
+                require(it.demandId.isNotBlank() && it.bindingId.isNotBlank()) { "A bound Scroll must name the need it was bound to" }
+            }
             else -> throw IllegalArgumentException("Unknown evidence step")
         }
     }

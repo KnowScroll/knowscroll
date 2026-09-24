@@ -32,6 +32,20 @@ class WhyTest {
         assertEquals("Gravity explains Tides", whyStepText(parsed.steps[1]))
     }
 
+    /** #164 (ADR-0046 §2): a Scroll bound to the reader's own need for more says so, and nothing else. */
+    @Test
+    fun aScrollBoundToTheReadersOwnNeedSaysSo() {
+        val bound = """[{"kind":"demand","demandId":"d1","bindingId":"b1","concept":"earth.tides","placeId":"p1","origin":null}]"""
+        val parsed = parseWhy(why(family = "continue", corrections = "[\"less_like_this\"]", evidence = bound))
+        val step = parsed.steps.single() as WhyStep.Demand
+        assertEquals("earth.tides", step.concept)
+        assertEquals("You had already seen everything here", whyStepText(step))
+        val continuation = """[{"kind":"demand","demandId":"d1","bindingId":"b1","concept":"earth.tides","placeId":null,"origin":{"bridgeId":"br1","exposureId":"e1"}}]"""
+        assertTrue(parseWhy(why(family = "continue", corrections = "[\"less_like_this\"]", evidence = continuation)).steps.single() is WhyStep.Demand)
+        val unnamed = """[{"kind":"demand","demandId":"","bindingId":"b1","concept":"earth.tides","placeId":null,"origin":null}]"""
+        assertThrows(IllegalArgumentException::class.java) { parseWhy(why(family = "continue", corrections = "[]", evidence = unnamed)) }
+    }
+
     @Test
     fun aCorrectionAlreadyMadeIsCarriedSoItIsNotOfferedAgain() {
         val made = why().put("corrected", org.json.JSONArray(listOf("less_like_this")))

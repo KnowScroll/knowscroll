@@ -13,6 +13,7 @@ internal fun whyStepText(step: WhyStep): String = when (step) {
     is WhyStep.Bridge -> step.sentence
     is WhyStep.Question -> "A question you asked that has no answer yet"
     is WhyStep.Outside -> "Somewhere you have not been shown before"
+    is WhyStep.Demand -> "You had already seen everything here"
 }
 
 /** The why panel for the encounter on screen. `Unrecorded` is honest absence, not a failure. */

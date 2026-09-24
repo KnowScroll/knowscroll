@@ -51,6 +51,10 @@ sealed interface AwayItem {
         override val at: String, val bridgeId: String, val status: String,
         val fromConcept: InquiryConcept, val toConcept: InquiryConcept, val seemsWrong: Boolean,
     ) : AwayItem
+
+    /** #164 (ADR-0046 §5): a Scroll about [concept], bound to the reader's need, was withdrawn
+     * because what it was based on changed. Named by its concept alone. */
+    data class ScrollWithdrawn(override val at: String, val bindingId: String, val concept: InquiryConcept) : AwayItem
 }
 
 data class AwayResponse(
@@ -140,6 +144,10 @@ internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
             o.datetime("at"), o.uuid("bridgeId"), status,
             parseInquiryConcept(o.obj("fromConcept")), parseInquiryConcept(o.obj("toConcept")), o.bool("seemsWrong"),
         )
+    }
+    "scroll_withdrawn" -> {
+        o.requireKeys("kind", "at", "bindingId", "concept")
+        AwayItem.ScrollWithdrawn(o.datetime("at"), o.uuid("bindingId"), parseInquiryConcept(o.obj("concept")))
     }
     else -> throw IllegalArgumentException("Unknown away item kind")
 }

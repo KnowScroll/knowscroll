@@ -8,7 +8,8 @@ import org.json.JSONObject
  * mirroring `packages/contracts/src/atlas.ts`: every kind and enum is checked against the wire
  * contract and a missing required field throws, exactly like [parseEncounterBranches]/[parseWhy].
  * The client invents no place, no relation and no chronicle line -- only what the Cartographer
- * actually formed and recorded a delta for.
+ * actually formed and recorded a delta for. #164: each place carries the reader's live need for more
+ * about it ([PlaceDemand]), strict like `packages/contracts/src/inventory.ts`.
  */
 data class AtlasAnchor(val code: String, val name: String, val description: String)
 
@@ -32,6 +33,17 @@ data class AtlasScrollCounts(val total: Int, val seen: Int)
  * are about -- [holdsUp] are those places' ids, [relations] the sourced connections that say so. */
 data class AtlasFoundation(val holdsUp: List<String>, val relations: List<AtlasBasis>)
 
+/** #164 (ADR-0046 §6): a Scroll bound to the reader's need, ready for them. */
+data class BoundScroll(val assetId: String, val title: String)
+
+/**
+ * #164 (ADR-0046 §6): the reader's live need for more about a place's anchor. [status] is `waiting`
+ * (a Scroll is being written), `bound` ([scroll] is ready) or `cannot_meet` ([reason] says why: one of
+ * [CANNOT_MEET_REASONS]). [withdrawn]: the last Scroll bound to this need was withdrawn because what it
+ * was based on changed. It names a concept's place and, once bound, a Scroll: never a source.
+ */
+data class PlaceDemand(val demandId: String, val status: String, val reason: String?, val scroll: BoundScroll?, val withdrawn: Boolean)
+
 data class AtlasPlace(
     val placeId: String,
     /** `planet` | `region` | `sighting`. */
@@ -47,6 +59,8 @@ data class AtlasPlace(
     val foundation: AtlasFoundation? = null,
     /** #163 (ADR-0045): the reader's live Idea Rooms here, oldest first; never on a sighting. */
     val rooms: List<AtlasRoom> = emptyList(),
+    /** `null` unless the reader's reading recorded a need for more about this place's anchor. */
+    val demand: PlaceDemand? = null,
 )
 
 data class AtlasRelation(
@@ -103,6 +117,9 @@ internal val ATLAS_CHRONICLE_KINDS =
     )
 internal val ATLAS_CAUSAL_CLASSES =
     setOf("personal_exploration", "substrate_neighbourhood", "source_correction", "reader_correction")
+internal val PLACE_DEMAND_STATUSES = setOf("waiting", "bound", "cannot_meet")
+/** `packages/contracts/src/inventory.ts`'s `cannotMeetReason`. */
+internal val CANNOT_MEET_REASONS = setOf("no_route", "no_budget", "no_material", "checks_failed", "request_failed")
 
 internal fun parseAtlasResponse(o: JSONObject): AtlasResponse {
     val places = o.getJSONArray("places").objects().map(::parseAtlasPlace)
@@ -134,6 +151,9 @@ internal fun parseAtlasPlace(o: JSONObject): AtlasPlace {
     require(o.has("rooms")) { "A place must say which rooms it holds" }
     val rooms = o.getJSONArray("rooms").strictObjects().map(::parseAtlasRoom)
     require(rooms.size <= 3 && (kind != "sighting" || rooms.isEmpty())) { "A place holds at most three live rooms, and a sighting none" }
+    // Nullable, not optional: every place says whether the reader needs more about it (ADR-0046).
+    require(o.has("demand")) { "A place must say whether there is a need for more about it" }
+    val demand = if (o.isNull("demand")) null else parsePlaceDemand(o.getJSONObject("demand"))
     val scrollsObj = o.getJSONObject("scrolls")
     val scrolls = AtlasScrollCounts(scrollsObj.getInt("total"), scrollsObj.getInt("seen"))
     return AtlasPlace(
@@ -144,7 +164,24 @@ internal fun parseAtlasPlace(o: JSONObject): AtlasPlace {
         formedBy = o.getString("formedBy").also { require(it.isNotBlank()) { "A place must carry why it formed" } },
         foundation = foundation,
         rooms = rooms,
+        demand = demand,
     )
+}
+
+/** Strict, like the contract's `placeDemand`: exactly its keys, and only a bound need names a Scroll
+ * and only one that cannot be met a reason. */
+internal fun parsePlaceDemand(o: JSONObject): PlaceDemand {
+    o.requireKeys("demandId", "status", "reason", "scroll", "withdrawn")
+    val status = o.string("status")
+    require(status in PLACE_DEMAND_STATUSES) { "Unknown demand status" }
+    val reason = if (o.isNull("reason")) null else o.string("reason")
+    require((status == "cannot_meet") == (reason != null) && (reason == null || reason in CANNOT_MEET_REASONS)) { "Only a need that cannot be met says why" }
+    val scroll = if (o.isNull("scroll")) null else o.obj("scroll").let {
+        it.requireKeys("assetId", "title")
+        BoundScroll(it.uuid("assetId"), it.nonEmpty("title"))
+    }
+    require((status == "bound") == (scroll != null)) { "Only a bound need names a Scroll" }
+    return PlaceDemand(o.uuid("demandId"), status, reason, scroll, o.bool("withdrawn"))
 }
 
 internal fun parseAtlasFoundation(o: JSONObject): AtlasFoundation {
