@@ -5,3 +5,5 @@ Own admission, authorization, idempotent events and response contracts. No model
 ADR-0016/migration0009 add source-only explicit Ask facts. Read `docs/operations/explicit-asks.md` before consuming them. Authenticate on the same transaction, hold the universe lock, require the expected epoch before replay, preserve literal question bytes and original-session provenance, and let only Clear History erase the pair after epoch advance. The recorded_only receipt grants no queue/provider or V1 Keep-context authority.
 
 ADR-0031: semantic routes live in `semantic-routes.ts` and run inside the authenticated transaction. Corrections to shared knowledge are an operator CLI, never an HTTP route; a reader's objection only suppresses a connection in their own universe.
+
+ADR-0038: background inquiry routes live in `inquiry-routes.ts` (`PUT /v1/inquiries/consent`, `GET /v1/inquiries`) inside the authenticated transaction. The API records consent and reads outcomes; it never creates an inquiry Job or calls a provider.

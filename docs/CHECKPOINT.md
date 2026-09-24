@@ -9,6 +9,40 @@ failures: one Reset where nothing reached the API, then the retry and its receip
 that landed with its response lost. The journey fails without the change. See the
 [evidence](journeys/evidence/web-reset-retry-2026-09-24/README.md).
 
+## 2026-09-24 #132 background bridge inquiries (lane `132-background-inquiries`)
+
+ADR-0038 with a same-day amendment, migration 0032. This is the first consumer of the reasoning
+runtime's `background_inquiry` class and `dirty` wake. The reader's standing consent (with a daily
+limit) is the authority. A place the Cartographer forms mails one coalesced inquiry. The worker
+opens it with fresh authority and seals a small context: unconnected pairs of the reader's places
+and their supported claims. It sends one request, never replayed. The model picks an admissible
+relation and cites offered claims; the system composes the typed proposal; `bridge-validator-v1`,
+unchanged, decides. An admitted bridge is the reader's own continuation. Android's Privacy &
+account has the switch, the limit, and the list of what was looked for.
+
+Verification: pure 14, DB/API/worker 35 (fixture: coalescing, limit, consent/pause/Clear queued and
+in flight, off-then-on and pause-then-resume during a call, a reply after the deadline, stale
+context, crash without replay, fairness against a direct Ask), backend suite, Android 347 + lint. The emulator `inquiry` journey passed with the fixture: consent, reading forms
+Gravity, the inquiry is found, the continuation appears, and SQL lineage matches. Live MiniMax-M3
+(owner authorisation, subscription route, preflight, ledger): 7 requests, 29 → 35/40. The first
+four were refused by the validator, which led to the structured reply. Then one admitted bridge
+("Gravity explains The Sun", visible from 3 Scrolls), one honest "none", and one refusal on the
+device, whose journey now accepts any validated live outcome and checks the screen for it. See the
+[evidence](journeys/evidence/background-inquiries-2026-09-24/README.md). No prompt or reply text
+is in Git.
+
+The fresh review's fix pass: pairs are offered only when each side has a claim of its own, the
+since-sealing guards are proven by mutants, a late reply fails as `expired` at once (found while
+testing), and the Android wording is fixed. The deferred items are in #153.
+
+## 2026-09-24 #131 decorative Places art labelled (lane `131-illustrative-art`)
+
+The Places layer's line now reads "Positions, orbits, moons and land art are illustrative — what's
+mapped and how it connects is real.", so no decorative orbit ring, moon, continent, current or cloud
+implies verified knowledge. This is #131's last open item. `PlacesScreenTest` was updated first; Android units, lint
+and the emulator `places` journey pass. See the
+[evidence](journeys/evidence/illustrative-art-2026-09-24/README.md).
+
 ## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
 
 `AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
@@ -307,7 +341,6 @@ are in the evidence directory. Live branch/rich transport, semantic hierarchy,
 source-scoped discovery, actual social presence, real Cutroom generation and full-v1
 acceptance remain open. No Web or shared contract changes were made.
 
-
 ## 2026-09-22 owner-authorized merge and interactive preview
 
 The owner explicitly requested restarting the emulator and merging the delivered code. This
@@ -360,7 +393,6 @@ are not production-smoothness acceptance. Final checks: typecheck, assemble/lint
 113,660 → 126,570 KiB; investigate draw/queue costs on a physical profileable build. Review the draft and captures, then prioritize the
 listed shared-contract dependencies and physical-device profiling. Do not merge/close #72 or
 claim full v1 from this delivery. Web follow-up is recorded only; no Web edits were made.
-
 
 ## 2026-09-22 UI refinement successor — #72 / #4
 
