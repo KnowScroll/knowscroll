@@ -62,6 +62,24 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
    own Scroll are served back to back or in one slate. A policy change is made only for a defect the
    comparison shows, as a new registered, immutable policy version compared in shadow against
    `composer-semantic-v3` by the same script; v3 is never edited (ADR-0032 §4).
+7. **The comparison found one defect, in the tie-break, and `composer-semantic-v4` fixes only that.**
+   Everything else held under v3 with Reels in the library: no Reel was served right after its own
+   Scroll or the reverse, no slate paired them, and the Reel-heavy reader's encounters were grounded in
+   their own acts (0.85). But the first slate of 40 new readers held 1.95 Reels of 3 on average and was
+   all Reels for 20 of them, where Reels are 12 of 35 encounters (fair ties give about 1.03 in three).
+   Cause: v3 breaks score ties with FNV-1a over `seed:assetId`, and the editorial
+   Scrolls' ids are sequential (`20000000-0000-4000-8000-0000000000NN`). FNV-1a barely mixes the last
+   characters, so the whole library's keys cluster and, per universe, fall before or after the Reels'
+   random ids together: over 4,000 simulated cold starts, 42% of first slates were all Reels (3% if
+   ties were fair). Every tie (cold start, the fallback tier, equal families) carries the same kind
+   bias. `composer-semantic-v4` is v3's row with one added field, `tieBreak: "fnv1a-fmix32"`: the FNV-1a
+   key passed through murmur3's 32-bit finalizer, so every input bit reaches every output bit (the same
+   simulation: 1.03 Reels in the first three and 3.4% all-Reel slates; through the API, 1.27 and 2 of
+   40, with every other measure unchanged within the spread of three walks). v3's row is
+   untouched and still breaks ties with plain FNV-1a (a row without the field predates it). Migration
+   0037 registers v4. It is a configured alternative, compared in shadow by the comparison script; v3
+   stays the feed's default, because no Reel can be eligible outside a disposable database yet and the
+   journeys and verifiers name v3. Switching the default is a coordinator decision.
 
 ## Alternatives and why
 
@@ -76,9 +94,11 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
 ## Consequences
 
 `apps/worker/src/publication/mint.ts` (transactional mint with annotations); `packages/db/src/atlas.ts`
-(Scroll-only counts); a shared test fixture that mints a gated test Reel over a given Scroll
+(Scroll-only counts); `V3State.history` and `V3Policy.tieBreak` in `packages/core/src/composer/semantic.ts`
+and their loader; migration 0037 (`composer-semantic-v4`), selectable through `buildApp`'s
+`composerPolicy`; a shared test fixture that mints a gated test Reel over a given Scroll
 (`scripts/fixtures/gated-reel.ts`, also used by `scripts/fixtures/native-reel.ts`, which can now mint
 over a library Scroll for a hands-on stack); Android `ui/reel/ReelScreen.kt`, the why sheet's wording
 and the live reader's wiring; `scripts/composer-compare.ts`. Tests: pure Composer golden, adversarial
-and replay cases with Reels; DB/API: a minted Reel's concepts, its why and path, a continuation from
+and replay cases with Reels (and v4's fair tie-break); DB/API: a minted Reel's concepts, its why and path, a continuation from
 it, the atlas count; Android: the Reel why sheet and that it renders no source text.

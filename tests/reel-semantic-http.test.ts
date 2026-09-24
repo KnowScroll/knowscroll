@@ -158,3 +158,21 @@ test('a kept Reel grounds what comes next, from its primary concept, and its own
   const ledger = (await pool.query(`SELECT l.causation_id FROM ledger l WHERE l.universe_id=$1 AND l.kind='branch'`, [r.universeId])).rows;
   assert.deepEqual(ledger.map(x => x.causation_id), [exposure.eventId], 'the branch is caused by the Reel\'s exposure');
 });
+
+test('composer-semantic-v4 (ADR-0043 §7) is a configured alternative: it records its own version and explains like v3', async () => {
+  const v4 = buildApp(randomBytes(32).toString('hex'), { composerPolicy: 'composer-semantic-v4' });
+  try {
+    const r = await reader();
+    const f = await substrate();
+    const reel = await reelOver(f.assets.tides, 'v4');
+    await keep(r, (await exposeDirect(r, f.assets.gravity)).exposureId, f.assets.gravity);
+    const response = await v4.inject({ url: '/v1/feed?kinds=Reel', headers: headers(r.token) });
+    assert.equal(response.statusCode, 200, response.body);
+    const served = response.json() as Feed;
+    assert.deepEqual(served.items.map(i => i.assetId), [reel.assetId]);
+    const recorded = (await pool.query('SELECT d.ranking_version, c.policy_version FROM decision d JOIN decision_context c ON c.decision_id=d.id WHERE d.id=$1', [served.decisionId])).rows[0];
+    assert.deepEqual([recorded.ranking_version, recorded.policy_version], ['composer-semantic-v4', 'composer-semantic-v4']);
+    const explained = await why(r, served.decisionId, reel.assetId);
+    assert.deepEqual([explained.policyVersion, explained.family, explained.reason], ['composer-semantic-v4', 'bridge', served.items[0]!.reason]);
+  } finally { await v4.close(); }
+});

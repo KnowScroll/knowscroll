@@ -152,7 +152,7 @@ them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `sema
 ### Composer v3: why and correction (#133, ADR-0032)
 
 `GET /v1/feed?kinds=…&exclude=<id,…>` is ranked by `composer-semantic-v3` by default
-(`composer-signals-v2` stays a configured alternative). `exclude` (optional, at most 256 UUIDs) names
+(`composer-signals-v2` and `composer-semantic-v4`, ADR-0043 §7, stay configured alternatives). `exclude` (optional, at most 256 UUIDs) names
 what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`.
 A client skips exactly the ids it sent (the current Scroll last, at most 256), so the trip ends only
 when every unkept Scroll it has not opened is used up; past 256 an older opened Scroll may return.

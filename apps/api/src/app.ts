@@ -18,7 +18,7 @@ import {
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
 import { COMPOSER_SIGNALS_V2 } from '../../../packages/core/src/composer.ts';
-import { COMPOSER_SEMANTIC_V3 } from '../../../packages/core/src/composer/semantic.ts';
+import { COMPOSER_SEMANTIC_V3, COMPOSER_SEMANTIC_V4 } from '../../../packages/core/src/composer/semantic.ts';
 import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts';
 import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
@@ -109,7 +109,7 @@ export function parseFeedExclude(value: unknown): Set<string> | null {
   return new Set(ids.map(id => id.toLowerCase()));
 }
 
-export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits; composerPolicy?: typeof COMPOSER_SIGNALS_V2 | typeof COMPOSER_SEMANTIC_V3 } = {}) {
+export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits; composerPolicy?: typeof COMPOSER_SIGNALS_V2 | typeof COMPOSER_SEMANTIC_V3 | typeof COMPOSER_SEMANTIC_V4 } = {}) {
   const composerPolicy = options.composerPolicy ?? COMPOSER_SEMANTIC_V3;
   if (developmentToken.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
   // Resolved once at build time (deployment configuration, never per-request data), but only
@@ -282,11 +282,12 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     const assets = await feedCandidates(client, kinds);
 
     // The ranking policy is deployment configuration recorded on every decision: composer-semantic-v3
-    // (ADR-0032) by default; composer-signals-v2 (ADR-0028/0029) remains selectable and immutable.
+    // (ADR-0032) by default; composer-signals-v2 (ADR-0028/0029) and composer-semantic-v4 (v3 with a
+    // fair tie-break, ADR-0043 §7) remain selectable and immutable.
     const { decisionId, items } = composerPolicy === COMPOSER_SIGNALS_V2
       ? await composeAndRecordV2(client, scope, assets, account)
       // v3 gates kept encounters itself and records them, so "why not that" has an answer.
-      : await composeAndRecordV3(client, scope, assets, account.revision, exclude);
+      : await composeAndRecordV3(client, scope, assets, account.revision, exclude, composerPolicy);
     return { decisionId, universeId: scope.universeId, accountRevision: account.revision, privacyEpoch: scope.privacyEpoch, items };
   }));
 

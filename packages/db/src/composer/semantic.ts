@@ -9,6 +9,7 @@ import type pg from 'pg';
 import type { FeedAsset } from '../../../contracts/src/inventory.ts';
 import {
   COMPOSER_SEMANTIC_V3,
+  COMPOSER_SEMANTIC_V4,
   composeSemantic,
   renderReason,
   type Family,
@@ -28,11 +29,14 @@ const PHRASES: Record<BridgeRelationType, [string, string]> = {
   applies_to: ['applies to', 'is an application of'], compares_mechanism: ['works like', 'works like'], analogous_in: ['is like', 'is like'],
 };
 
-export async function loadV3Policy(client: pg.PoolClient): Promise<V3Policy> {
-  const row = (await client.query('SELECT version, weights, slate_size, max_per_source FROM composer_policy WHERE version=$1', [COMPOSER_SEMANTIC_V3])).rows[0];
-  if (!row) throw new Error(`composer_policy '${COMPOSER_SEMANTIC_V3}' is not registered`);
-  const w = row.weights as Omit<V3Policy, 'version' | 'slateSize' | 'maxPerSource'>;
-  return { version: row.version, slateSize: row.slate_size, maxPerSource: row.max_per_source, ...w };
+export type SemanticPolicyVersion = typeof COMPOSER_SEMANTIC_V3 | typeof COMPOSER_SEMANTIC_V4;
+
+export async function loadV3Policy(client: pg.PoolClient, version: SemanticPolicyVersion = COMPOSER_SEMANTIC_V3): Promise<V3Policy> {
+  const row = (await client.query('SELECT version, weights, slate_size, max_per_source FROM composer_policy WHERE version=$1', [version])).rows[0];
+  if (!row) throw new Error(`composer_policy '${version}' is not registered`);
+  // A row registered before composer-semantic-v4 (ADR-0043 §7) has no `tieBreak`: it used FNV-1a.
+  const { tieBreak = 'fnv1a', ...w } = row.weights as Omit<V3Policy, 'version' | 'slateSize' | 'maxPerSource' | 'tieBreak'> & Partial<Pick<V3Policy, 'tieBreak'>>;
+  return { version: row.version, slateSize: row.slate_size, maxPerSource: row.max_per_source, ...w, tieBreak };
 }
 
 export async function loadReasonTemplates(client: pg.PoolClient): Promise<Map<string, string>> {
@@ -146,10 +150,12 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
 
 export type ComposedFeed = { decisionId: string; items: (FeedAsset & { reason: string })[]; policyVersion: string };
 
-/** Compose and record one v3 decision. The caller holds the universe lock (authenticateAndLock). */
-export async function composeAndRecordV3(client: pg.PoolClient, scope: AuthScope, eligible: readonly FeedAsset[], accountRevision: number, excluded: ReadonlySet<string> = new Set()): Promise<ComposedFeed> {
+/** Compose and record one semantic decision (v3, or v4 when configured). The caller holds the
+ * universe lock (authenticateAndLock). */
+export async function composeAndRecordV3(client: pg.PoolClient, scope: AuthScope, eligible: readonly FeedAsset[], accountRevision: number,
+  excluded: ReadonlySet<string> = new Set(), version: SemanticPolicyVersion = COMPOSER_SEMANTIC_V3): Promise<ComposedFeed> {
   const nowMs = ((await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!.now).getTime();
-  const policy = await loadV3Policy(client);
+  const policy = await loadV3Policy(client, version);
   const templates = await loadReasonTemplates(client);
   const state = await loadV3State(client, scope.universeId, eligible, nowMs, excluded);
   const result = composeSemantic(state, policy);

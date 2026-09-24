@@ -16,7 +16,8 @@
  * who reads in Reel mode three steps of four) and adversarial readers (the watcher, a reader who
  * only skips through Scrolls and Reels, a reader with one narrow interest, and a cold start) walk it.
  * Reel measures: how many Reels were reached, "echoes" (a Reel served right after its own Scroll,
- * or the reverse) and slates that offer a Reel beside its own Scroll.
+ * or the reverse) and slates that offer a Reel beside its own Scroll. `composer-semantic-v4` (v3 with
+ * a tie-break that mixes every character of the key, ADR-0043 §7) runs in shadow beside them.
  * No provider call. Writes artifacts/composer-compare/report.{json,md}.
  */
 import { after, test } from 'node:test';
@@ -33,8 +34,14 @@ const STEPS = 20;
 // v3 breaks score ties with a hash salted by the universe id, so one walk per reader can mislead:
 // each reader walks REPEATS times with fresh universes and the table reports mean (min–max).
 const REPEATS = 3;
+// A tie-break's bias flips direction from one universe to the next, so the cold start asks many.
+const COLD_STARTS = 40;
 const token = randomBytes(32).toString('hex');
-const apps = { 'composer-signals-v2': buildApp(token, { composerPolicy: 'composer-signals-v2' }), 'composer-semantic-v3': buildApp(token) } as const;
+const apps = {
+  'composer-signals-v2': buildApp(token, { composerPolicy: 'composer-signals-v2' }),
+  'composer-semantic-v3': buildApp(token),
+  'composer-semantic-v4': buildApp(token, { composerPolicy: 'composer-semantic-v4' }),
+} as const;
 after(async () => { for (const app of Object.values(apps)) await app.close(); await pool.end(); });
 
 type Kinds = 'Scroll' | 'Reel' | 'Scroll,Reel';
@@ -160,7 +167,7 @@ async function coldStart(policy: keyof typeof apps, library: Library) {
   };
 }
 
-test('compare composer-signals-v2 and composer-semantic-v3 on the real editorial library, with Reels', async () => {
+test('compare composer-signals-v2, composer-semantic-v3 and (shadow) composer-semantic-v4 on the real editorial library, with Reels', async () => {
   const reels = await mintReels();
   const library = await describeLibrary();
   const scrolls = Number((await pool.query("SELECT count(*) FROM asset WHERE kind='Scroll'")).rows[0].count);
@@ -182,7 +189,7 @@ test('compare composer-signals-v2 and composer-semantic-v3 on the real editorial
   const cold: Record<string, Awaited<ReturnType<typeof coldStart>>[]> = {};
   for (const policy of Object.keys(apps) as (keyof typeof apps)[]) {
     cold[policy] = [];
-    for (let r = 0; r < REPEATS; r += 1) cold[policy]!.push(await coldStart(policy, library));
+    for (let r = 0; r < COLD_STARTS; r += 1) cold[policy]!.push(await coldStart(policy, library));
   }
   const stat = <T>(runs: T[], f: (m: T) => number | null) => {
     const xs = runs.map(f).filter((x): x is number => x !== null);
@@ -191,20 +198,21 @@ test('compare composer-signals-v2 and composer-semantic-v3 on the real editorial
     const lo = Math.min(...xs), hi = Math.max(...xs);
     return lo === hi ? `${mean}${xs.length < runs.length ? ` (${xs.length}/${runs.length} runs)` : ''}` : `${mean} (${lo}–${hi})${xs.length < runs.length ? ` in ${xs.length}/${runs.length}` : ''}`;
   };
-  const report = { at: new Date().toISOString(), steps: STEPS, repeats: REPEATS, library: { scrolls, reels }, providerCalls: 0,
+  const report = { at: new Date().toISOString(), steps: STEPS, repeats: REPEATS, coldStarts: COLD_STARTS, library: { scrolls, reels }, providerCalls: 0,
     personas: PERSONAS.map(p => ({ name: p.name, set: p.set, interest: p.interest })), results, coldStart: cold };
   const rows = PERSONAS.flatMap(persona => Object.entries(results[persona.name]!).map(([policy, runs]) =>
     `| ${persona.set} | ${persona.name} | ${policy} | ${stat(runs, m => m.keeps)} | ${stat(runs, m => m.keepsInFirst10)} | ${stat(runs, m => m.stepAllInterestKept)} | ${stat(runs, m => m.groundedInOwnActs)} | ${stat(runs, m => m.distinctDomains)} | ${stat(runs, m => m.adjacentSameIdea)} | ${stat(runs, m => m.reelsServed)} | ${stat(runs, m => m.echoes)} | ${stat(runs, m => m.slatesSharingMaterial)} | ${stat(runs, m => m.exhaustedAtStep)} |`));
   const coldRows = Object.entries(cold).map(([policy, runs]) =>
-    `| ${policy} | ${stat(runs, m => m.slate)} | ${stat(runs, m => m.domains)} | ${stat(runs, m => m.reels)} | ${runs.filter(m => m.sharesMaterial).length}/${runs.length} |`);
+    `| ${policy} | ${stat(runs, m => m.slate)} | ${stat(runs, m => m.domains)} | ${stat(runs, m => m.reels)} | ${runs.filter(m => m.reels === m.slate).length}/${runs.length} | ${runs.filter(m => m.sharesMaterial).length}/${runs.length} |`);
   const md = [`# Composer comparison (${report.at})`, '', `Library: ${scrolls} Scrolls and ${reels} test Reels (one over every other Scroll); ${STEPS} deliberate steps per reader, ${REPEATS} walks each; no provider call.`, '',
     '| Set | Reader | Policy | Keeps in 20 | Keeps in first 10 | All interest kept by step | Grounded in own acts | Domains touched | Adjacent same idea | Reels served | Echoes | Slates pairing a Reel with its Scroll | Exhausted at step |',
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|', ...rows, '',
-    '## Cold start (first slate, Scrolls and Reels)', '', '| Policy | Slate size | Domains in slate | Reels in slate | Slates pairing a Reel with its Scroll |', '|---|---|---|---|---|', ...coldRows, '',
+    `## Cold start (first slate of ${COLD_STARTS} new readers, Scrolls and Reels; fair ties give about ${(3 * reels / (scrolls + reels)).toFixed(2)} Reels in three)`, '',
+    '| Policy | Slate size | Domains in slate | Reels in slate | All-Reel slates | Slates pairing a Reel with its Scroll |', '|---|---|---|---|---|---|', ...coldRows, '',
     ...PERSONAS.flatMap(persona => Object.entries(results[persona.name]!).flatMap(([policy, runs]) => [`## ${persona.name} — ${policy} (first run)`, '', ...runs[0]!.sequence.map((x, i) => `${i + 1}. ${x}`), ''])),
   ].join('\n');
   mkdirSync('artifacts/composer-compare', { recursive: true });
   writeFileSync('artifacts/composer-compare/report.json', JSON.stringify(report, null, 2) + '\n');
   writeFileSync('artifacts/composer-compare/report.md', md + '\n');
-  console.log(md.split('\n').slice(0, 25).join('\n'));
+  console.log(md.split('\n').slice(0, 30).join('\n'));
 });

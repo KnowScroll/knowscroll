@@ -7,13 +7,16 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 import {
   COMPOSER_V3_POLICY,
+  COMPOSER_V4_POLICY,
   composeSemantic,
   renderReason,
   type V3Asset,
   type V3Candidate,
+  type V3Policy,
   type V3State,
 } from '../packages/core/src/composer/semantic.ts';
 
@@ -341,17 +344,37 @@ test('a reader who only skips is never served a Reel right after its own Scroll,
   }
 });
 
-test('replay with Reels: the same recorded state and seed give the same slate, records and explanation facts', () => {
+test('replay with Reels, under v3 and v4: the same recorded state and seed give the same slate, records and explanation facts', () => {
   const reel = reelOver('tides-1');
   const s = state({ assets: [...library, ...reels.filter(r => r.assetId !== reel.assetId)], history: [reel],
     exposures: exposed('gravity-1', reel.assetId), served: served([reel.assetId, 'bridge'], ['gravity-1', 'seed']),
     marks: [{ eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR }, { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - 2 * HOUR }] });
-  const a = composeSemantic(s, COMPOSER_V3_POLICY);
   const wire = JSON.parse(JSON.stringify({ ...s, concepts: [...s.concepts], kept: [...s.kept], excluded: [...s.excluded], exposures: [...s.exposures], sourceExposures: [...s.sourceExposures], accounts: [...s.accounts] }));
   const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), excluded: new Set(wire.excluded), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
-  const b = composeSemantic(restored, COMPOSER_V3_POLICY);
-  assert.deepEqual(b, a);
   const template = '{{fromName}} {{relationPhrase}} {{toName}} / {{conceptName}} / {{markVerb}} {{markTitle}} / {{domainName}}';
-  assert.deepEqual(b.selected.map(c => renderReason(template, c.facts)), a.selected.map(c => renderReason(template, c.facts)));
-  assert.ok(a.selected.some(c => cites(c, reel.assetId)), 'the replayed slate still names the kept Reel');
+  for (const policy of [COMPOSER_V3_POLICY, COMPOSER_V4_POLICY]) {
+    const a = composeSemantic(s, policy);
+    const b = composeSemantic(restored, policy);
+    assert.deepEqual(b, a, policy.version);
+    assert.deepEqual(b.selected.map(c => renderReason(template, c.facts)), a.selected.map(c => renderReason(template, c.facts)));
+    assert.ok(a.selected.some(c => cites(c, reel.assetId)), `${policy.version}: the replayed slate still names the kept Reel`);
+  }
+});
+
+test('composer-semantic-v4 (ADR-0043 §7): a tie never favours one kind because of how its ids are spelled', () => {
+  // The editorial Scrolls' ids are sequential; a Reel's is random. Everything here ties at cold
+  // start (one door per unshown domain, equal terms), so only the tie-break orders the slate.
+  const uuid = (text: string) => { const h = createHash('sha256').update(text).digest('hex'); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`; };
+  const scrolls: V3Asset[] = Array.from({ length: 23 }, (_, i) => ({ assetId: `20000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, title: `S${i}`, kind: 'Scroll',
+    sourceKey: `src${i}`, editorialOrder: i, primary: `k${i}`, concepts: [{ code: `k${i}`, role: 'primary' }], claimKeys: [] }));
+  const reelIds = new Set<string>();
+  const minted = scrolls.slice(0, 12).map((s, i) => { const r: V3Asset = { ...s, assetId: uuid(`reel-${i}`), title: `R${i}`, kind: 'Reel' }; reelIds.add(r.assetId); return r; });
+  const flat = state({ concepts: new Map(scrolls.map(s => [s.primary!, { code: s.primary!, name: s.primary!, parentCode: null }])), assets: [...scrolls, ...minted], bridges: [], contradictions: [] });
+  const seeds = Array.from({ length: 400 }, (_, i) => `${uuid(`universe-${i}`)}:0`);
+  const reelHeads = (policy: V3Policy) => seeds.filter(seed => reelIds.has(composeSemantic({ ...flat, seed }, policy).selected[0]!.assetId)).length / seeds.length;
+  const fair = minted.length / (scrolls.length + minted.length);
+  const v4 = reelHeads(COMPOSER_V4_POLICY);
+  assert.ok(Math.abs(v4 - fair) < 0.07, `v4 heads a cold start with a Reel ${v4} of the time; fair is ${fair.toFixed(3)}`);
+  assert.ok(reelHeads(COMPOSER_V3_POLICY) > 0.6, 'the defect v4 exists to fix: v3 heads most cold starts with a Reel');
+  assert.deepEqual({ ...COMPOSER_V4_POLICY, version: COMPOSER_V3_POLICY.version, tieBreak: COMPOSER_V3_POLICY.tieBreak }, COMPOSER_V3_POLICY, 'v4 changes the tie-break and nothing else');
 });
