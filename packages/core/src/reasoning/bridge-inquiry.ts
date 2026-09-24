@@ -14,7 +14,7 @@
  */
 import { bridgeProposalPayload, type BridgeProposalPayload } from '../../../contracts/src/semantic.ts';
 
-export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v1', prompt: 'bridge-inquiry-prompt-v2', reply: 'bridge-inquiry-reply-v1' });
+export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v1', prompt: 'bridge-inquiry-prompt-v3', reply: 'bridge-inquiry-reply-v1' });
 export const BRIDGE_INQUIRY_LIMITS = Object.freeze({ maxPairs: 3, claimsPerAnchor: 8, claimsBoth: 8 });
 
 export interface InquiryPlace { placeId: string; code: string; name: string }
@@ -38,7 +38,9 @@ export interface InquiryCandidateInput {
 }
 /** `roles` (claims naming both sides only): each side's role in the claim, in the validator's terms. */
 export interface OfferedClaim { key: string; statement: string; sourceTitle: string; roles?: Record<string, string> }
-export interface InquiryPair { a: InquiryPlace; b: InquiryPlace; claimsA: OfferedClaim[]; claimsB: OfferedClaim[]; both: OfferedClaim[] }
+/** A relation, with its direction, that the pair's own claims could carry (bridge-validator-v1). */
+export interface AdmissibleRelation { relationType: 'explains' | 'compares_mechanism' | 'analogous_in'; fromConcept: string; toConcept: string }
+export interface InquiryPair { a: InquiryPlace; b: InquiryPlace; claimsA: OfferedClaim[]; claimsB: OfferedClaim[]; both: OfferedClaim[]; admissible: AdmissibleRelation[] }
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const pairKey = (x: string, y: string) => (x < y ? `${x}\0${y}` : `${y}\0${x}`);
@@ -112,7 +114,19 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
         .map(c => ({ ...offered(c), roles: { [a.code]: roleOn(c, chainA) ?? 'subject', [b.code]: roleOn(c, chainB) ?? 'subject' } }));
       // Each side needs a supported claim of its own, or no proposal could ever be admitted.
       if (claimsA.length + named.length === 0 || claimsB.length + named.length === 0) continue;
-      pairs.push({ a, b, claimsA, claimsB, both: named, named: named.length > 0 });
+      // What the validator could admit for this pair (prompt v3): "explains" only in a direction a
+      // claim naming both carries (the explaining side has the mechanism role, the other does not);
+      // the symmetric comparisons either way. "applies_to"/"prerequisite_for" need a recorded
+      // relation, which an unconnected pair never has.
+      const explains = new Map<string, AdmissibleRelation>();
+      for (const c of named) {
+        const ra = c.roles![a.code], rb = c.roles![b.code];
+        if (ra === 'mechanism' && rb !== 'mechanism') explains.set(`${a.code}>${b.code}`, { relationType: 'explains', fromConcept: a.code, toConcept: b.code });
+        if (rb === 'mechanism' && ra !== 'mechanism') explains.set(`${b.code}>${a.code}`, { relationType: 'explains', fromConcept: b.code, toConcept: a.code });
+      }
+      const admissible: AdmissibleRelation[] = [...[...explains.values()].sort((x, y) => byCode(x.fromConcept, y.fromConcept)),
+        { relationType: 'compares_mechanism', fromConcept: a.code, toConcept: b.code }, { relationType: 'analogous_in', fromConcept: a.code, toConcept: b.code }];
+      pairs.push({ a, b, claimsA, claimsB, both: named, admissible, named: named.length > 0 });
     }
   }
   return pairs
@@ -134,7 +148,7 @@ const SYSTEM = [
   ' "counterevidence": {"disposition": "listed" | "searched_none_found", "searchedScope": 4 to 200 characters, "claimKeys": [key]}}.',
   'fromConcept and toConcept are the two codes of one offered pair. Cite only claim keys offered for that pair.',
   'Each side needs a claim of its own ("from", "to") besides the one that connects them; the connecting claim, cited as "mechanism", must name both sides.',
-  'Use "explains" only when a claim naming both gives fromConcept the role "mechanism" and toConcept a different role (see its "roles").',
+  'relationType, fromConcept and toConcept together must be one of the pair\'s "admissible" entries, exactly as listed.',
   '"analogous_in" and "compares_mechanism" need a limitation of kind "analogy_limit".',
   'List under counterevidence only offered claims that argue against the connection, and never one you cite as evidence.',
   'If none argues against it, use {"disposition": "searched_none_found", "searchedScope": "the offered claims", "claimKeys": []}.',
@@ -157,7 +171,7 @@ export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], rou
   // Codes, names and claims only: no place, universe or reader identifier leaves the process.
   const offeredPairs = pairs.map(p => ({
     a: { code: p.a.code, name: p.a.name }, b: { code: p.b.code, name: p.b.name },
-    claimsAboutA: p.claimsA.map(claim), claimsAboutB: p.claimsB.map(claim), claimsNamingBoth: p.both.map(claim),
+    claimsAboutA: p.claimsA.map(claim), claimsAboutB: p.claimsB.map(claim), claimsNamingBoth: p.both.map(claim), admissible: p.admissible,
   }));
   return new TextEncoder().encode(canonical({
     model: route.model,

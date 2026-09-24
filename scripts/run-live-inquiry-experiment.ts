@@ -157,6 +157,18 @@ async function main() {
       });
     }
     receipt.proposals = (await pool.query(`SELECT status, count(*)::int AS n FROM semantic_proposal WHERE proposer_kind = 'model' GROUP BY status ORDER BY status`)).rows;
+    // For diagnosis, locally only (ignored artifacts, never Git): each model proposal's structure --
+    // relation, direction, cited claim keys with what they support and each claim's concept roles --
+    // and the validator's decision. The mechanism and other prose are left out even here.
+    const structure = (await pool.query(`SELECT p.status, p.decision, p.payload->>'relationType' AS relation, p.payload->>'fromConcept' AS "from",
+        p.payload->>'toConcept' AS "to", p.payload->'evidence' AS evidence, p.payload->'counterevidence'->'claimKeys' AS counter
+      FROM semantic_proposal p WHERE p.proposer_kind = 'model'`)).rows;
+    const roles = (await pool.query(`SELECT cl.key, json_agg(json_build_object('code', c.code, 'role', cc.role)) AS links
+      FROM claim cl JOIN claim_concept cc ON cc.claim_id = cl.id JOIN concept c ON c.id = cc.concept_id GROUP BY cl.key`)).rows;
+    const cited = new Set(structure.flatMap(r => (r.evidence ?? []).map((e: { claimKey: string }) => e.claimKey)));
+    mkdirSync(resolve(root, 'artifacts/live-inquiries'), { recursive: true });
+    writeFileSync(resolve(root, `artifacts/live-inquiries/${database}.structure.local.json`),
+      JSON.stringify({ proposals: structure, claimRoles: roles.filter(r => cited.has(r.key)) }, null, 2));
   } finally {
     // Workers stop first, so nothing can dispatch after the count; the count is written to the
     // session ledger whether or not the run succeeded, and the database is kept if it cannot be.

@@ -13,7 +13,7 @@ const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
 const scope = { universeId: id, privacyEpoch: z.number().int().min(0).max(2147483647) };
 
-export const INQUIRY_CONTEXT_VERSIONS = Object.freeze({ compiler: 'bridge-inquiry-context-v1', prompt: 'bridge-inquiry-prompt-v2', sourcePolicy: 'inquiry-bridge-between-places-v1' });
+export const INQUIRY_CONTEXT_VERSIONS = Object.freeze({ compiler: 'bridge-inquiry-context-v1', prompt: 'bridge-inquiry-prompt-v3', sourcePolicy: 'inquiry-bridge-between-places-v1' });
 export const INQUIRY_KIND = 'bridge_between_places';
 export const INQUIRY_DIRTY_SCOPE = 'inquiry:bridge_between_places';
 export const INQUIRY_CONTEXT_LIMITS = Object.freeze({ maxBytes: 65_536, maxDependencies: 128, maxCausesPerInquiry: 16 });
@@ -51,6 +51,7 @@ const offeredPlace = z.object({ placeId: id, code: conceptCode, name: z.string()
 export const inquiryPair = z.object({
   a: offeredPlace, b: offeredPlace,
   claimsA: z.array(offeredClaim).max(8), claimsB: z.array(offeredClaim).max(8), both: z.array(namingClaim).max(8),
+  admissible: z.array(z.object({ relationType: z.enum(['explains', 'compares_mechanism', 'analogous_in']), fromConcept: conceptCode, toConcept: conceptCode }).strict()).min(1).max(4),
 }).strict().refine(p => p.a.code < p.b.code, 'A pair is ordered by concept code');
 
 export const inquiryContextPayload = z.object({

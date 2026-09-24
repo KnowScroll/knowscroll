@@ -170,3 +170,17 @@ test('prompt v2 tells the model what the validator judges: each side\'s role in 
   assert.doesNotMatch(request.system, /applies_to|prerequisite_for/);
   assert.match(request.system, /never one you cite as evidence/);
 });
+
+test('prompt v3 offers each pair only the relations its claims can carry, directions included', () => {
+  const pair = selectInquiryPairs(base).find(p => p.a.code === 'x.gravity' && p.b.code === 'x.sun')!;
+  // c.sun.held gives Gravity the mechanism role and The Sun the subject role: only Gravity explains The Sun.
+  assert.deepEqual(pair.admissible, [
+    { relationType: 'explains', fromConcept: 'x.gravity', toConcept: 'x.sun' },
+    { relationType: 'compares_mechanism', fromConcept: 'x.gravity', toConcept: 'x.sun' },
+    { relationType: 'analogous_in', fromConcept: 'x.gravity', toConcept: 'x.sun' },
+  ]);
+  const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100 })));
+  const offered = JSON.parse(String(request.messages[0].content).split('\n').slice(1).join('\n'));
+  assert.deepEqual(offered[0].admissible, pair.admissible);
+  assert.match(request.system, /one of the pair's "admissible" entries/);
+});
