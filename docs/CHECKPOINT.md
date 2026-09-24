@@ -26,6 +26,14 @@ The fresh review's fix pass: pairs are offered only when each side has a claim o
 since-sealing guards are proven by mutants, a late reply fails as `expired` at once (found while
 testing), and the Android wording is fixed. The deferred items are in #153.
 
+## 2026-09-24 #131 decorative Places art labelled (lane `131-illustrative-art`)
+
+The Places layer's line now reads "Positions, orbits, moons and land art are illustrative — what's
+mapped and how it connects is real.", so no decorative orbit ring, moon, continent, current or cloud
+implies verified knowledge. This is #131's last open item. `PlacesScreenTest` was updated first; Android units, lint
+and the emulator `places` journey pass. See the
+[evidence](journeys/evidence/illustrative-art-2026-09-24/README.md).
+
 ## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
 
 `AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
@@ -324,7 +332,6 @@ are in the evidence directory. Live branch/rich transport, semantic hierarchy,
 source-scoped discovery, actual social presence, real Cutroom generation and full-v1
 acceptance remain open. No Web or shared contract changes were made.
 
-
 ## 2026-09-22 owner-authorized merge and interactive preview
 
 The owner explicitly requested restarting the emulator and merging the delivered code. This
@@ -377,7 +384,6 @@ are not production-smoothness acceptance. Final checks: typecheck, assemble/lint
 113,660 → 126,570 KiB; investigate draw/queue costs on a physical profileable build. Review the draft and captures, then prioritize the
 listed shared-contract dependencies and physical-device profiling. Do not merge/close #72 or
 claim full v1 from this delivery. Web follow-up is recorded only; no Web edits were made.
-
 
 ## 2026-09-22 UI refinement successor — #72 / #4
 
