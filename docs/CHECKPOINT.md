@@ -12,9 +12,10 @@ The atlas returns `foundation: {holdsUp, relations}` per place. Android parses i
 the marker brighter and says "Foundation", adds "· Foundation" in the list, shows what it holds up
 with each connection's claim in the sheet, and explains both deltas' evidence.
 
-Verification on `6f8a910` (main merged): pure 4 (a kind mutant killed), HTTP 2, backend 837+13, web
-87, Android 193 + lint, and the emulator `foundation` journey with SQL lineage, plus the places
-journey again. Gravity formed from the device's reading and was recognised in the same transaction;
+Verification on `d51af5b` (main merged, review fixes in): pure 7 (a kind mutant killed), HTTP 5,
+backend 844+13, web 87, Android 194 + lint, and the emulator `foundation` journey with SQL lineage,
+plus the places journey again. A fresh review found stale foundation connections, a rejection that
+re-ran the whole Cartographer, and an unsupported screenshot claim; all fixed test-first. Gravity formed from the device's reading and was recognised in the same transaction;
 setting Tides aside withdrew it. Tides, Orbits and Star formation were placed from supplied accounts
 (labelled; the library cannot anchor the last two from reading). The first device run showed each
 connection twice on the sheet, fixed test-first. See the
