@@ -408,8 +408,9 @@ fun SpatialAtlas(
                         .size(300.dp)
                         .clickable { continents() }
                         .semantics {
-                            contentDescription =
-                                "Enter continents on ${markers.firstOrNull { it.id==selectedId }?.title}"
+                            val selected = markers.firstOrNull { it.id == selectedId }
+                            contentDescription = "Enter continents on ${selected?.title}"
+                            if (selected?.foundation == true) stateDescription = "Foundation"
                         }
                 )
             } else if (level == "continents" && point != null) {

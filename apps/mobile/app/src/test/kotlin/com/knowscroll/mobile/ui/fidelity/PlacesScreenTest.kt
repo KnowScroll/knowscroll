@@ -3,6 +3,8 @@ package com.knowscroll.mobile.ui.fidelity
 import android.provider.Settings
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasStateDescription
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -217,6 +219,8 @@ class PlacesScreenTest {
         content(atlasState = AtlasState.Loaded(atlas.copy(places = listOf(foundation, region, sighting, otherPlanet))))
         composeRule.onNodeWithText("Foundation").assertExists()
         composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        // Selected, the planet still says so (review I3: the device journey checks it this way).
+        composeRule.onNode(hasContentDescription("Enter continents on Gravity") and hasStateDescription("Foundation")).assertExists()
         composeRule.onNodeWithText("Info").performClick()
         composeRule.onNodeWithText("Holds up Light and Tides").performScrollTo().assertExists()
         composeRule.onNodeWithText("Gravity explains Tides").performScrollTo().assertExists()

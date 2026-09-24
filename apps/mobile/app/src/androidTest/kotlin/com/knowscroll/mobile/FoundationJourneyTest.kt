@@ -70,11 +70,9 @@ class FoundationJourneyTest : AtlasJourneySupport() {
         val tides = heldUp.single { it.anchor.code == "earth.tides" }
         val tidesName = tides.anchor.name
 
-        // On the map, when its marker is not hidden by the layout's collision policy, the marker says so.
-        compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Explore place: $tidesName").fetchSemanticsNodes().isNotEmpty() }
-        val gravityMarker = compose.onAllNodesWithContentDescription("Explore place: Gravity").fetchSemanticsNodes()
-        if (gravityMarker.isNotEmpty())
-            compose.onNode(hasContentDescription("Explore place: Gravity") and hasText("Foundation")).assertExists()
+        // The system overview (a marker may sit under another by the layout's collision policy;
+        // the list below always has every place).
+        compose.waitUntil(20_000) { compose.onAllNodesWithText("List").fetchSemanticsNodes().isNotEmpty() }
         screenshot("foundation-system.png")
 
         // The list always shows it, and opens its sheet.
@@ -97,8 +95,13 @@ class FoundationJourneyTest : AtlasJourneySupport() {
         compose.onNodeWithText("Recognised from 3 sourced connections to 3 of your places.").performScrollTo()
         screenshot("foundation-evidence.png")
 
-        // Set Tides aside: Gravity now explains only two of the reader's places.
+        // Back on the map with Gravity selected: drawn with its glow, and it says so.
         closePlace()
+        val selectedFoundation = hasContentDescription("Enter continents on Gravity") and hasStateDescription("Foundation")
+        compose.waitUntil(15_000) { compose.onAllNodes(selectedFoundation).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("foundation-marker.png")
+
+        // Set Tides aside: Gravity now explains only two of the reader's places.
         openList()
         compose.onNode(hasText(tidesName) and hasClickAction()).performScrollTo().performClick()
         compose.onNodeWithContentDescription("Set $tidesName aside").performScrollTo().performClick()

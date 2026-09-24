@@ -116,9 +116,17 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
     "foundation_recognised" -> {
         val relations = (delta.evidence["relations"] as? List<*>)?.size
         val holdsUp = (delta.evidence["holdsUp"] as? List<*>)?.size
-        if (relations != null && holdsUp != null)
-            "Recognised from $relations sourced connection${if (relations == 1) "" else "s"} to $holdsUp of your places."
-        else "Recognised from sourced connections to your places."
+        val connections = relations?.let { "$it sourced connection${if (it == 1) "" else "s"}" }
+        val places = holdsUp?.let { "$it of your places" }
+        // Before and after both load-bearing: its connections changed while it stood (ADR-0037).
+        val revised = delta.before?.get("loadBearing") == true
+        when {
+            connections == null || places == null -> "Recognised from sourced connections to your places."
+            !revised -> "Recognised from $connections to $places."
+            delta.causalClass == "reader_correction" -> "After you set a place aside, it still stands on $connections to $places."
+            delta.causalClass == "source_correction" -> "A source changed; it now stands on $connections to $places."
+            else -> "It now holds up $places, through $connections."
+        }
     }
     "foundation_withdrawn" ->
         if (delta.causalClass == "source_correction") "A source behind one of its connections changed."
@@ -191,9 +199,9 @@ fun placesSubtitle(places: List<AtlasPlace>): String {
     return "$liveCount $placeWord · $sightingCount $sightingWord"
 }
 
-/** "Holds up Orbits, Star formation and Tides" -- a foundation's held-up places that are still
- * live in this response, in the server's order; `null` when it is not a foundation (or holds up
- * nothing that is still live, which the next refresh will record as withdrawn). */
+/** "Holds up Orbit, Star formation and Tides" -- a foundation's held-up places that are live in
+ * this response, in the server's order; `null` when it is not a foundation. (The server re-plans
+ * foundations whenever a place goes, so a held-up id missing here is only ever defensive.) */
 fun holdsUpLine(place: AtlasPlace, places: List<AtlasPlace>): String? {
     val names = place.foundation?.holdsUp?.mapNotNull { id -> places.firstOrNull { it.placeId == id && it.kind != "sighting" }?.anchor?.name }
     if (names.isNullOrEmpty()) return null

@@ -177,6 +177,21 @@ class AtlasTest {
         )
     }
 
+    /** Review I1: a standing foundation whose connections change is re-recorded (before and after
+     * both load-bearing), and the evidence says why it changed, not that it was newly recognised. */
+    @Test
+    fun evidenceSummaryForARerecordedFoundationSaysWhatChanged() {
+        fun revised(causalClass: String) = parseAtlasDelta(JSONObject(
+            """{"deltaId":"$deltaId","placeId":"$gravityId","kind":"foundation_recognised","causalClass":"$causalClass",
+                "policyVersion":"cartographer-v2","at":"2026-09-24T00:00:00.000Z",
+                "anchor":{"code":"physics.gravity","name":"Gravity"},"before":{"loadBearing":true},
+                "after":{"loadBearing":true},"evidence":{"relations":[{},{},{}],"holdsUp":["a","b"]}}""",
+        ))
+        assertEquals("After you set a place aside, it still stands on 3 sourced connections to 2 of your places.", evidenceSummary(revised("reader_correction")))
+        assertEquals("A source changed; it now stands on 3 sourced connections to 2 of your places.", evidenceSummary(revised("source_correction")))
+        assertEquals("It now holds up 2 of your places, through 3 sourced connections.", evidenceSummary(revised("substrate_neighbourhood")))
+    }
+
     @Test
     fun refusesAnUnknownKind() {
         val bad = defaultPlaces().replace("\"kind\":\"planet\"", "\"kind\":\"moon\"")

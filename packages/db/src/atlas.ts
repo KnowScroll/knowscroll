@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
-  CARTOGRAPHER_POLICY, planPlaces, planRejection,
+  CARTOGRAPHER_POLICY, planFoundations, planPlaces, planRejection,
   type ConceptNode, type PlaceAccount, type PlaceDelta, type PlaceView, type RelationKind, type TypedRelation,
 } from '../../core/src/atlas/cartographer.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
@@ -100,9 +100,10 @@ async function applyDeltas(client: pg.PoolClient, universeId: string, substrate:
       const place = liveByAnchor.get(d.anchor)!;
       const bearing = d.kind === 'foundation_recognised';
       await client.query('UPDATE atlas_place SET load_bearing=$2 WHERE id=$1 AND state=\'live\'', [place.placeId, bearing]);
-      await insertDelta(client, universeId, place.placeId, d, { loadBearing: !bearing }, { loadBearing: bearing });
+      // A re-recognition (the connections changed while it stood) keeps the flag: true -> true.
+      await insertDelta(client, universeId, place.placeId, d, { loadBearing: place.loadBearing ?? false }, { loadBearing: bearing });
       place.loadBearing = bearing;
-      place.foundationBasis = bearing && d.kind === 'foundation_recognised' ? d.evidence.relations : null;
+      place.foundationBasis = d.kind === 'foundation_recognised' ? d.evidence.relations : null;
       continue;
     }
     const place = byId.get(d.placeId)!;
@@ -143,21 +144,13 @@ export async function rejectPlace(client: pg.PoolClient, universeId: string, pla
   if (target.state !== 'live' || target.kind === 'sighting') throw new AtlasConflict('Only a live planet or region can be set aside');
   const substrate = await loadSubstrate(client);
   const rejected = await applyDeltas(client, universeId, substrate, places, planRejection(places, placeId));
-  // What the rejection changed is re-evaluated at once (e.g. a foundation that held it up).
+  // Only the foundations the rejection affects are re-evaluated at once (ADR-0037); every other
+  // change waits for the reader's next refresh, exactly as in ADR-0036.
   const after = await loadPlaces(client, universeId);
-  const followUp = planPlaces({ concepts: substrate.concepts, relations: substrate.relations, accounts: await loadStoredAccounts(client, universeId), places: after,
-    rejectedAnchors: after.filter(p => p.state === 'rejected').map(p => p.anchor) });
+  const followUp = planFoundations({ relations: substrate.relations, places: after });
   return { deltas: rejected + await applyDeltas(client, universeId, substrate, after, followUp) };
 }
 
-/** The accounts the last refresh wrote, for re-planning outside a refresh (a rejection). */
-async function loadStoredAccounts(client: pg.PoolClient, universeId: string): Promise<PlaceAccount[]> {
-  return (await client.query<{ code: string; state: PlaceAccount['state']; episodes: number; days_active: number; voluntary: number; source_families: number; mass: number; evidence: { episodeIds?: string[]; markIds?: string[] } }>(
-    `SELECT c.code, a.state, a.episodes, a.days_active, a.voluntary, a.source_families, a.mass, a.evidence
-     FROM attention_account a JOIN concept c ON c.id = a.concept_id WHERE a.universe_id = $1`, [universeId],
-  )).rows.map(r => ({ concept: r.code, state: r.state, episodes: r.episodes, daysActive: r.days_active, voluntary: r.voluntary,
-    sourceFamilies: r.source_families, mass: Number(r.mass), evidence: { episodeIds: r.evidence.episodeIds ?? [], markIds: r.evidence.markIds ?? [] } }));
-}
 
 export interface AtlasView {
   policyVersion: string;
@@ -239,6 +232,16 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
      WHERE d.universe_id = $1 AND d.kind <> 'sighting_promoted' ORDER BY d.created_at DESC, d.id LIMIT 20`, [universeId],
   )).rows;
   const nameOf = (code: string | null) => (code === null ? null : names.get(code)?.name ?? code);
+  // What a foundation holds up is always among the reader's live planets and regions: a connection
+  // whose place has gone is not shown, and one holding nothing live up shows as none (every path
+  // that removes a place re-plans foundations in the same transaction, so this is a backstop).
+  const foundationOf = (p: PlaceRow): AtlasView['places'][number]['foundation'] => {
+    if (!p.loadBearing || !p.foundationBasis) return null;
+    const standing = p.foundationBasis.filter(r => { const t = liveAnchor.get(r.to); return !!t && t.kind !== 'sighting'; });
+    const holdsUp = [...new Set(standing.map(r => liveAnchor.get(r.to)!.placeId))];
+    if (holdsUp.length === 0) return null;
+    return { holdsUp, relations: standing.map(r => ({ kind: r.kind, from: nameOf(r.from)!, to: nameOf(r.to)!, ...refs(r) })) };
+  };
 
   return {
     policyVersion: CARTOGRAPHER_POLICY,
@@ -253,10 +256,7 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
         attention: p.kind === 'sighting' ? null : accounts.get(p.anchor) ?? null,
         scrolls: counts.get(p.placeId) ?? { total: 0, seen: 0 },
         formedAt: f ? iso(f.created_at) : iso(new Date()), formedBy: f?.kind ?? 'place_formed',
-        foundation: p.loadBearing && p.foundationBasis ? {
-          holdsUp: [...new Set(p.foundationBasis.map(r => liveAnchor.get(r.to)?.placeId).filter((id): id is string => !!id))],
-          relations: p.foundationBasis.map(r => ({ kind: r.kind, from: nameOf(r.from)!, to: nameOf(r.to)!, ...refs(r) })),
-        } : null,
+        foundation: foundationOf(p),
       };
     }),
     relations: between.map(r => ({ fromPlaceId: liveAnchor.get(r.from)!.placeId, toPlaceId: liveAnchor.get(r.to)!.placeId, kind: r.kind, ...refs(r) })),
@@ -293,7 +293,7 @@ export async function eraseAtlas(client: pg.PoolClient, universeId: string): Pro
 export async function exportAtlas(client: pg.PoolClient, universeId: string) {
   const q = async (sql: string) => (await client.query(sql, [universeId])).rows;
   return {
-    atlasPlaces: await q(`SELECT p.id, c.code AS anchor, p.kind, p.parent_place_id, p.state, p.basis, p.policy_version, p.created_at, p.changed_at
+    atlasPlaces: await q(`SELECT p.id, c.code AS anchor, p.kind, p.parent_place_id, p.state, p.basis, p.load_bearing, p.policy_version, p.created_at, p.changed_at
       FROM atlas_place p JOIN concept c ON c.id = p.anchor_concept_id WHERE p.universe_id=$1 ORDER BY p.created_at, p.id`),
     atlasDeltas: await q(`SELECT id, place_id, kind, causal_class, policy_version, evidence, before, after, created_at
       FROM atlas_delta WHERE universe_id=$1 ORDER BY created_at, id`),

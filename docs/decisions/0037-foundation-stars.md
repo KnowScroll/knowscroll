@@ -15,17 +15,23 @@ Follows `docs/architecture/target/07-UNIVERSE-EVOLUTION.md` §1 (the `load_beari
    they have not been met. The connection count only triggers the evaluation. Attention plays no
    part, so no amount of reading can buy the status.
 2. **Recorded like every other change** (`cartographer-v2`). `foundation_recognised`
-   (`substrate_neighbourhood`) carries the connections and the places they hold up;
-   `foundation_withdrawn` carries the connections it had, with cause `source_correction` when one
-   of them was revoked and `reader_correction` when the reader set a place aside. Setting a place
-   aside re-evaluates foundations in the same transaction. The `load_bearing` flag changes only
-   together with such a delta (the ADR-0036 trigger) and is never set on a sighting.
+   (`substrate_neighbourhood`) carries the connections and the places they hold up. While it stands,
+   any change to those connections is recorded again as `foundation_recognised`, with its cause:
+   `source_correction` (a connection's source changed), `reader_correction` (the reader set a
+   held-up place aside) or `substrate_neighbourhood` (it now holds up more). What the atlas shows is
+   always the latest recognition. `foundation_withdrawn` carries the connections it had, with cause
+   `source_correction` when one of them was revoked and `reader_correction` otherwise. Setting a
+   place aside re-evaluates foundations, and only foundations, in the same transaction; a
+   foundation that is itself set aside is withdrawn first. The `load_bearing` flag changes only
+   together with a foundation delta for that place (migration 0031's own deferred trigger) and is
+   never set on a sighting.
 3. **Shown as a property, not an object.** The atlas returns, per place, `foundation: {holdsUp,
    relations}` or null. The chronicle says "Gravity holds up Orbits, Star formation and Tides.";
    the place sheet lists what it holds up and the claims that say so. The renderer may express it
    as brightness or pull lines. There is no separate star object.
-4. **v2 changes nothing v1 decides.** Places, regions, sightings and rejection behave exactly as
-   in ADR-0036; only the foundation step is new.
+4. **v2 changes nothing v1 decides.** Places, regions and sightings behave exactly as in
+   ADR-0036. The foundation step is new, and it is the only thing a rejection re-plans beyond
+   ADR-0036's own rejection deltas.
 
 ## Not in this version
 

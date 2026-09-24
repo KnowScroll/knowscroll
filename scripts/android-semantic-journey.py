@@ -48,7 +48,7 @@ JOURNEYS = {
                'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
     # #131/#134: a place that holds others up (ADR-0037) is recognised, inspected and withdrawn.
     'foundation': {'test': 'com.knowscroll.mobile.FoundationJourneyTest', 'receipt': 'foundation-journey.json',
-                   'captures': ('foundation-system.png', 'foundation-sheet.png', 'foundation-evidence.png', 'foundation-withdrawn.png', 'foundation-failure.png')},
+                   'captures': ('foundation-system.png', 'foundation-sheet.png', 'foundation-evidence.png', 'foundation-marker.png', 'foundation-withdrawn.png', 'foundation-failure.png')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
@@ -228,7 +228,7 @@ try:
           AND kind='foundation_recognised' AND causal_class='substrate_neighbourhood'),
       'recognisedConnections', (SELECT jsonb_array_length(evidence->'relations') FROM atlas_delta WHERE id='{ids['recognised']}'),
       'recognisedInGravitysFormingTransaction', (SELECT count(*) FROM atlas_delta f JOIN atlas_delta r ON r.id='{ids['recognised']}'
-          WHERE f.id='{ids['gravityFormed']}' AND r.xmin::text = f.xmin::text),
+          WHERE f.id='{ids['gravityFormed']}' AND r.txid = f.txid),
       'tidesRejectedReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{ids['tidesRejected']}' AND place_id='{t}'
           AND kind='place_rejected' AND causal_class='reader_correction'),
       'withdrawnReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{ids['withdrawn']}' AND place_id='{g}'
