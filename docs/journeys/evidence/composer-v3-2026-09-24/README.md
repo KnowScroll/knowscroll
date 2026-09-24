@@ -51,20 +51,24 @@ the path was rendered every time.
 
 Three scripted readers walk the real 23-Scroll library for 20 deliberate steps under each policy,
 each three times with fresh universes (v3's tie-break is salted by the universe), keeping only
-Scrolls that match a fixed interest. The walker picks the first served Scroll not yet seen this
-session, as the Android client does ([comparison.md](comparison.md) has every sequence):
+Scrolls that match a fixed interest. Like both clients, the walker sends what it opened this trip
+(`exclude`) and picks the first served Scroll it has not opened ([comparison.md](comparison.md) has
+every sequence):
 
 | Reader | Policy | Keeps in first 10 | All interest kept by step | Grounded in own acts | Ran out early |
 |---|---|---|---|---|---|
 | sky reader | v2 | 4 | — | 0 | no |
-| sky reader | v3 | 7.67 (7–8) | — | 0.92 (0.85–0.95) | no |
+| sky reader | v3 | 8 | — | 0.92 (0.9–0.95) | no |
 | living-systems reader | v2 | 3 | 17 | 0 | no |
-| living-systems reader | v3 | 5 (4–6) | 10.33 (8–12) | 0.3 (0.25–0.35) | no |
+| living-systems reader | v3 | 2.67 (2–3) | 14 | 0.28 (0.25–0.3) | no |
 | watcher | v2 / v3 | 0 / 0 | — | 0 / 0 | no |
 
-Both policies touched all four domains. v3 found each reader's interest sooner and explained most
-encounters by the reader's own acts. This says nothing about whether the encounters were *useful*;
-that needs owner review.
+Both policies touched all four domains. For the sky reader, v3 finds their interest sooner and
+explains most encounters by the reader's own acts. For the living-systems reader (6 Scrolls of
+interest out of 23), v3 keeps slightly fewer in the first 10 steps (2.67 against 3) but still reaches
+all of them sooner (step 14 against 17). Earlier runs, before the trip sent what it opened, scored
+v3 higher on early keeps; this run is the one that matches the clients. None of this says whether
+the encounters were *useful*; that needs owner review.
 
 **What the comparison and the web journey changed.** The first v3 gated every seen Scroll, so a
 reader who had seen everything reached "end of library" without keeping anything. That broke the
@@ -83,7 +87,11 @@ penalty and passes on this one.
 A fresh-context review of `a71ec16` found one blocking and four important defects. Each was fixed
 with a test that failed first:
 
-- **B1, false end of library on a second pass.** Fixed with the strict seen tiers above.
+- **B1, false end of library on a second pass.** Fixed with the strict seen tiers above; a second
+  verification review then showed the remaining case (inside one tier, relevance could refill the
+  slate with Scrolls this trip already opened, which the client skips). Both clients now send what the
+  trip opened (`exclude`, at most 256 ids) and v3 gates those; a trip test over uniform, uneven and
+  partial histories fails without the gate.
 - **I1, Clear/Reset returned 500** once a v3 candidate named the reader's own bridge. v3 decision
   records are now erased before the semantic erase.
 - **I2, v3 invariants checked only on insert.** They now also run on decision update and context

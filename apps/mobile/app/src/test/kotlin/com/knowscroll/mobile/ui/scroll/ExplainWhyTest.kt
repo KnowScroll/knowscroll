@@ -49,10 +49,12 @@ class ExplainWhyTest {
         waitForIdle()
         onNodeWithText("Wrong connection").performScrollTo().assertIsNotEnabled()
 
-        panel.value = panel.value.copy(sending = null, corrected = "less_like_this", message = correctedText("less_like_this"))
+        panel.value = panel.value.copy(sending = null, corrected = setOf("less_like_this"), message = correctedText("less_like_this"))
         waitForIdle()
         onNodeWithText(correctedText("less_like_this")).performScrollTo()
-        assertEquals("a made correction is not offered again", 0, onAllNodesWithText("Wrong connection").fetchSemanticsNodes().size)
+        assertEquals("a made correction is not offered again", 0, onAllNodesWithText("Less like this").fetchSemanticsNodes().size)
+        // …while the other correction this connection supports stays available.
+        onNodeWithText("Wrong connection").performScrollTo()
     }
 
     @Test

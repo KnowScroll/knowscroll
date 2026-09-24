@@ -94,6 +94,14 @@ async function feedCandidates(client: import('pg').PoolClient, kinds: readonly (
   return merged;
 }
 
+/** `exclude`: up to 256 comma-separated asset UUIDs, or absent. Null when malformed. */
+export function parseFeedExclude(value: string | undefined): Set<string> | null {
+  if (value === undefined || value === '') return new Set();
+  const ids = value.split(',');
+  if (ids.length > 256 || ids.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) return null;
+  return new Set(ids.map(id => id.toLowerCase()));
+}
+
 export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits; composerPolicy?: typeof COMPOSER_SIGNALS_V2 | typeof COMPOSER_SEMANTIC_V3 } = {}) {
   const composerPolicy = options.composerPolicy ?? COMPOSER_SEMANTIC_V3;
   if (developmentToken.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
@@ -222,9 +230,13 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     return reply.header('Cache-Control','no-store').send(result);
   });
 
-  app.get<{ Querystring: { kinds?: string } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
+  app.get<{ Querystring: { kinds?: string; exclude?: string } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const kinds = parseFeedKinds(req.query.kinds);
     if (kinds === null) throw new HttpError(400, 'Invalid kinds parameter');
+    // #133: what this discovery trip already has on screen or opened. The client skips those, so
+    // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason.
+    const exclude = parseFeedExclude(req.query.exclude);
+    if (exclude === null) throw new HttpError(400, 'Invalid exclude parameter');
     const account = (await client.query('SELECT * FROM accounts WHERE universe_id=$1', [scope.universeId])).rows[0];
     const assets = await feedCandidates(client, kinds);
 
@@ -233,7 +245,7 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     const { decisionId, items } = composerPolicy === COMPOSER_SIGNALS_V2
       ? await composeAndRecordV2(client, scope, assets, account)
       // v3 gates kept encounters itself and records them, so "why not that" has an answer.
-      : await composeAndRecordV3(client, scope, assets, account.revision);
+      : await composeAndRecordV3(client, scope, assets, account.revision, exclude);
     return { decisionId, universeId: scope.universeId, accountRevision: account.revision, privacyEpoch: scope.privacyEpoch, items };
   }));
 

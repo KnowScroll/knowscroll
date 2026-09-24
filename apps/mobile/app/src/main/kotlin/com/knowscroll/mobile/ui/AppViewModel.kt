@@ -303,7 +303,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
         feedJob = viewModelScope.launch {
             try {
-                val feed=api.getFeed(_cableMode.value)
+                val feed=api.getFeed(_cableMode.value,visited+listOfNotNull(reading?.item?.assetId ?: session?.item?.assetId))
                 if(!operationIsCurrent(version,epoch))return@launch
                 when(val selected=selectDiscovery(feed,universeId,epoch,visited,reading?.item?.assetId ?: session?.item?.assetId)){
                     DiscoverySelection.InvalidScope -> {
@@ -455,7 +455,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 val result=api.getWhy(current.decisionId,current.item.assetId)
                 if(epoch!=observedPrivacyEpoch || _why.value?.decisionId!=current.decisionId)return@launch
                 _why.value=_why.value?.copy(availability=result?.let{WhyAvailability.Ready(it)} ?: WhyAvailability.Unrecorded,
-                    corrected=result?.corrected?.firstOrNull() ?: _why.value?.corrected)
+                    corrected=(_why.value?.corrected ?: emptySet()) + (result?.corrected ?: emptyList()))
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(invalidatesReader(e)){purgeForScope(current.universeId,epoch);failClosed(message(e));return@launch}
@@ -470,7 +470,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(!ready || reconciling)return
         val panel=_why.value ?: return
         val recorded=(panel.availability as? WhyAvailability.Ready)?.why ?: return
-        if(kind !in recorded.corrections || panel.sending!=null || panel.corrected!=null)return
+        if(kind !in recorded.corrections || panel.sending!=null || kind in panel.corrected)return
         val epoch=observedPrivacyEpoch
         val id="${panel.decisionId}:${panel.assetId}:$kind"
         val key=pendingCorrections.getOrPut(id){UUID.randomUUID().toString()}
@@ -480,7 +480,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 api.postEncounterFeedback(key,panel.decisionId,panel.assetId,kind,epoch)
                 pendingCorrections.remove(id)
                 if(_why.value?.decisionId!=panel.decisionId || epoch!=observedPrivacyEpoch)return@launch
-                _why.value=_why.value?.copy(sending=null,corrected=kind,message=correctedText(kind))
+                _why.value=_why.value?.copy(sending=null,corrected=(_why.value?.corrected ?: emptySet())+kind,message=correctedText(kind))
                 if(kind=="wrong_connection")(_scroll.value as? ScrollState.Reading)?.item?.takeIf{it.assetId==panel.assetId}?.let(::refreshBranches)
             } catch(e:Exception){
                 if(e is CancellationException)throw e

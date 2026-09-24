@@ -40,7 +40,7 @@ export async function loadReasonTemplates(client: pg.PoolClient): Promise<Map<st
 }
 
 /** Everything the pure policy reads, for one universe and the requested kinds. */
-export async function loadV3State(client: pg.PoolClient, universeId: string, eligible: readonly FeedAsset[], nowMs: number): Promise<V3State> {
+export async function loadV3State(client: pg.PoolClient, universeId: string, eligible: readonly FeedAsset[], nowMs: number, excluded: ReadonlySet<string> = new Set()): Promise<V3State> {
   const concepts = new Map((await client.query<{ code: string; name: string; parent_code: string | null }>(
     'SELECT c.code, c.name, p.code AS parent_code FROM concept c LEFT JOIN concept p ON p.id = c.parent_id',
   )).rows.map(r => [r.code, { code: r.code, name: r.name, parentCode: r.parent_code }]));
@@ -127,18 +127,18 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
     nowMs, seed: `${universeId}:${windows}`, concepts, assets, kept, exposures, sourceExposures, marks, served, accounts, bridges, contradictions,
     openQuestionConcepts: hypotheses.filter(h => h.kind === 'open_question' && (h.permitted_uses as string[]).includes('composer.continuity')).map(h => String(h.code)),
     directionPriors: hypotheses.filter(h => h.kind === 'direction' && (h.permitted_uses as string[]).includes('composer.family_prior')).map(h => String(h.code)),
-    suppressedRoutes, currentAssetId: null,
+    suppressedRoutes, excluded,
   };
 }
 
 export type ComposedFeed = { decisionId: string; items: (FeedAsset & { reason: string })[]; policyVersion: string };
 
 /** Compose and record one v3 decision. The caller holds the universe lock (authenticateAndLock). */
-export async function composeAndRecordV3(client: pg.PoolClient, scope: AuthScope, eligible: readonly FeedAsset[], accountRevision: number): Promise<ComposedFeed> {
+export async function composeAndRecordV3(client: pg.PoolClient, scope: AuthScope, eligible: readonly FeedAsset[], accountRevision: number, excluded: ReadonlySet<string> = new Set()): Promise<ComposedFeed> {
   const nowMs = ((await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!.now).getTime();
   const policy = await loadV3Policy(client);
   const templates = await loadReasonTemplates(client);
-  const state = await loadV3State(client, scope.universeId, eligible, nowMs);
+  const state = await loadV3State(client, scope.universeId, eligible, nowMs, excluded);
   const result = composeSemantic(state, policy);
   const byId = new Map(eligible.map(a => [a.assetId, a]));
   const reasonFor = (key: string, facts: Record<string, string | number | null>) => {

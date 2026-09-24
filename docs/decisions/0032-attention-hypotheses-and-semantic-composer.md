@@ -49,10 +49,14 @@ marked), `bridge` (admitted, non-suppressed bridges from what they marked), `cha
 contradict a common idea near what they marked), `revisit` (a seen encounter newly relevant because
 of a later act), `frontier` (a domain this universe has never been shown), `seed` (cold start: one
 door per domain) and `fallback` (unmapped inventory, so nothing in the library is hidden).
-Gates are hard and recorded with reasons (kept, the encounter on screen, suppressed by the reader).
-A *seen* encounter is not gated: exposure-aware reranking keeps it available below unseen ones,
-least-seen first, through a recorded `seen` term, so the library is exhausted only when everything
-is kept, exactly as before v3. (An earlier draft gated seen encounters; the web reader journey
+Gates are hard and recorded with reasons (kept; on screen or already opened in this discovery trip,
+which the client sends as `exclude` because it skips those; suppressed by the reader). A *seen*
+encounter is not gated: exposure-aware reranking keeps it available in strict tiers by how often it
+was seen (each showing costs more than any relevance difference), so the library is exhausted only
+when everything is kept, exactly as before v3. Two consequences, by design: `revisit` fires only
+once every less-seen Scroll has been offered, and the no-adjacent-repeat rule may serve a once-seen
+Scroll one step before an unseen one that repeats the idea just shown. Only the 50 most recent acts
+shape families, so composition stays bounded as history grows. (An earlier draft gated seen encounters; the web reader journey
 showed that this silently changed the established exhaustion contract, and the handoff asks for
 reranking, not removal.) Terms are a transparent versioned utility (continuity, a
 target-conditioned useful-encounter proxy that saturates when a concept was mostly system-offered,
@@ -73,7 +77,8 @@ the same state through the same policy reproduces the slate (tested on the pure 
 record what was considered, how each candidate scored and why, the seed and the composing clock;
 they are an audit of the decision, not a complete state snapshot (per-source exposure counts and the
 account/hypothesis values at that moment are not stored), so an independent recomputation from rows
-alone is not claimed. Every term size lives in the immutable policy row. ADR-0029's commit-time
+alone is not claimed. Every Composer term size and the exploration family order live in the
+immutable policy row; attention decay is `attention-v1`'s own versioned constant. ADR-0029's commit-time
 invariants are kept for v3 by equivalent triggers on `decision_candidate`; `composer-signals-v2` stays
 registered and immutable.
 

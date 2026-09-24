@@ -145,8 +145,10 @@ them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `sema
 
 ### Composer v3: why and correction (#133, ADR-0032)
 
-`GET /v1/feed` is ranked by `composer-semantic-v3` by default (`composer-signals-v2` stays a
-configured alternative). The item shape is unchanged; each decision records every candidate it
+`GET /v1/feed?kinds=…&exclude=<id,…>` is ranked by `composer-semantic-v3` by default
+(`composer-signals-v2` stays a configured alternative). `exclude` (optional, at most 256 UUIDs) names
+what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`
+so a client that skips them never meets a false end of library. Malformed or oversized: 400. The item shape is unchanged; each decision records every candidate it
 considered (`decision_candidate`: family, gate, terms, score, rank, evidence path) and its served
 window and quotas (`decision_context`).
 

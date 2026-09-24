@@ -42,6 +42,16 @@ class WhyTest {
     }
 
     @Test
+    fun theFeedIsToldWhatThisTripAlreadyOpened() {
+        assertEquals("/v1/feed?kinds=Scroll", feedPath("Scroll", emptyList()))
+        val ids = List(300) { java.util.UUID.randomUUID().toString() }
+        val path = feedPath("Scroll", ids + "not-a-uuid" + ids.first())
+        val sent = path.substringAfter("exclude=").split(",")
+        assertEquals(256, sent.size)
+        assertEquals(ids.takeLast(256), sent)
+    }
+
+    @Test
     fun refusesAnExplanationTheServerCouldNotHaveRecorded() {
         assertThrows(IllegalArgumentException::class.java) { parseWhy(why(family = "because_you_like_it")) }
         assertThrows(IllegalArgumentException::class.java) { parseWhy(why(corrections = "[\"delete_my_profile\"]")) }

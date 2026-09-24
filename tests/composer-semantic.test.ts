@@ -55,7 +55,7 @@ function state(over: Partial<V3State> = {}): V3State {
     marks: [], served: [], accounts: new Map(),
     bridges: [{ id: 'b.gravity.tides', from: 'physics.gravity', to: 'earth.tides', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Tides' }],
     contradictions: [{ from: 'astro.orbit.ellipse', to: 'earth.seasons', claimKey: 'c.seasons.tilt' }],
-    openQuestionConcepts: [], directionPriors: [], suppressedRoutes: [], currentAssetId: null,
+    openQuestionConcepts: [], directionPriors: [], suppressedRoutes: [], excluded: new Set(),
     ...over,
   };
 }
@@ -129,7 +129,7 @@ test('"less like this" suppresses exactly that route for this reader, and the re
 });
 
 test('kept and on-screen encounters are gated with named reasons; a seen one is ranked lower, never silently dropped', () => {
-  const s = state({ kept: new Set(['tides-1']), exposures: exposed('orbit-1'), currentAssetId: 'body-1', served: served(['orbit-1', 'seed']) });
+  const s = state({ kept: new Set(['tides-1']), exposures: exposed('orbit-1'), excluded: new Set(['body-1']), served: served(['orbit-1', 'seed']) });
   const fallback = new Map(composeSemantic(s, COMPOSER_V3_POLICY).candidates.filter(c => c.family === 'fallback').map(c => [c.assetId, c]));
   assert.equal(fallback.get('tides-1')!.gate, 'kept');
   assert.equal(fallback.get('body-1')!.gate, 'current_encounter');
@@ -214,6 +214,38 @@ test('a reader skipping what they opened this session never meets a false end wh
   assert.equal(visited.size, unkept, 'every unkept Scroll was reached in the second pass');
 });
 
+test('a trip that sends what it opened never ends while an unkept Scroll it has not opened remains', () => {
+  // The review's cases: relevance inside one seen tier would refill the slate with Scrolls this trip
+  // already opened, which a client skips. The trip now tells the server what it opened.
+  const bridges = [...state().bridges,
+    { id: 'b.gravity.orbit', from: 'physics.gravity', to: 'astro.orbit', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Orbit' },
+    { id: 'b.gravity.seasons', from: 'physics.gravity', to: 'earth.seasons', symmetric: false, phraseForward: 'shapes', phraseReverse: 'is shaped by', fromName: 'Gravity', toName: 'Seasons' }];
+  const dayAgo = NOW - 24 * HOUR;
+  const histories: Record<string, V3State['exposures']> = {
+    uniform: new Map(library.map(a => [a.assetId, { count: 1, lastAtMs: dayAgo }])),
+    uneven: new Map(library.map(a => [a.assetId, { count: a.assetId === 'tides-1' ? 3 : 1, lastAtMs: dayAgo }])),
+    partial: new Map(library.filter((_, i) => i % 2 === 0).map(a => [a.assetId, { count: 1, lastAtMs: dayAgo }])),
+  };
+  for (const [name, exposures] of Object.entries(histories)) {
+    let s = state({ bridges, kept: new Set(['gravity-1']), exposures,
+      marks: [{ eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: dayAgo }],
+      served: [...exposures.keys()].map((assetId, i) => ({ assetId, family: null, atMs: dayAgo - i * 1000 })) });
+    const unkept = library.filter(a => !s.kept.has(a.assetId)).map(a => a.assetId);
+    const opened = new Set<string>();
+    for (let step = 0; opened.size < unkept.length; step += 1) {
+      const slate = composeSemantic({ ...s, excluded: opened }, COMPOSER_V3_POLICY).selected;
+      const next = slate.find(c => !opened.has(c.assetId));
+      assert.ok(next, `${name}, step ${step}: no unopened Scroll offered while ${unkept.filter(id => !opened.has(id)).join(', ')} remain`);
+      assert.ok(slate.every(c => !opened.has(c.assetId)), `${name}: an opened Scroll was offered again`);
+      opened.add(next.assetId);
+      const prior = s.exposures.get(next.assetId);
+      s = { ...s, seed: `u1:${step + 20}`, nowMs: s.nowMs + HOUR,
+        exposures: new Map([...s.exposures, [next.assetId, { count: (prior?.count ?? 0) + 1, lastAtMs: s.nowMs }]]),
+        served: [{ assetId: next.assetId, family: next.family, atMs: s.nowMs }, ...s.served] };
+    }
+  }
+});
+
 test('only keeping everything exhausts the library, as the established contract says', () => {
   const seenAll = serveHeads(state(), library.length).state;
   assert.ok(composeSemantic(seenAll, COMPOSER_V3_POLICY).selected.length > 0, 'having seen everything is not the end');
@@ -244,8 +276,8 @@ test('the same recorded state always yields the same slate and records (replay)'
   const a = composeSemantic(s, COMPOSER_V3_POLICY);
   // Round-trip through JSON exactly as a recorded snapshot would be stored, restoring only the
   // top-level collections.
-  const wire = JSON.parse(JSON.stringify({ ...s, concepts: [...s.concepts], kept: [...s.kept], exposures: [...s.exposures], sourceExposures: [...s.sourceExposures], accounts: [...s.accounts] }));
-  const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
+  const wire = JSON.parse(JSON.stringify({ ...s, concepts: [...s.concepts], kept: [...s.kept], excluded: [...s.excluded], exposures: [...s.exposures], sourceExposures: [...s.sourceExposures], accounts: [...s.accounts] }));
+  const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), excluded: new Set(wire.excluded), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
   const b = composeSemantic(restored, COMPOSER_V3_POLICY);
   assert.deepEqual(b, a);
 });

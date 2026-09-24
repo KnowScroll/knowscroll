@@ -6,7 +6,7 @@
  *   ./scripts/test.sh scripts/composer-compare.ts
  *
  * Three scripted readers walk the real editorial library for the same number of deliberate steps,
- * picking the first served Scroll they have not seen this session (as the Android client does),
+ * sending what they opened this session and picking the first served Scroll they have not opened (as both clients do),
  * exposing it, and keeping it only when it matches their fixed interest. The report measures
  * behaviour — grounding in the reader's own acts, staying with an interest, reaching the rest of the
  * library, exploration and repetition — never usefulness, which needs a person (owner review).
@@ -51,7 +51,9 @@ async function walk(policy: keyof typeof apps, persona: Persona, annotated: Awai
   const visited = new Set<string>();
   const steps: Step[] = [];
   for (let step = 1; step <= STEPS; step += 1) {
-    const feed = await app.inject({ url: '/v1/feed?kinds=Scroll', headers });
+    // As the clients do (#133): the trip tells the feed what it already opened.
+    const exclude = [...visited].slice(-256).join(',');
+    const feed = await app.inject({ url: `/v1/feed?kinds=Scroll${exclude ? `&exclude=${exclude}` : ''}`, headers });
     assert.equal(feed.statusCode, 200, feed.body);
     const body = feed.json() as { decisionId: string; items: { assetId: string; title: string; reason: string }[] };
     const item = body.items.find(i => !visited.has(i.assetId));

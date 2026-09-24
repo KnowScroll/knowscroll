@@ -510,7 +510,7 @@ private fun WhySection(why: WhyPanel, onCorrect: (String) -> Unit) {
                 val steps = availability.why.steps
                 if (steps.isEmpty()) Text(stringResource(R.string.reader_why_no_path), style = MaterialTheme.typography.bodyMedium)
                 steps.forEach { Text("\u00b7 ${whyStepText(it)}", style = MaterialTheme.typography.bodyMedium) }
-                val offered = availability.why.corrections.filter { why.corrected == null }
+                val offered = availability.why.corrections.filter { it !in why.corrected }
                 if (offered.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     offered.forEach { kind ->
                         OutlinedButton(

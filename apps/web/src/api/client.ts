@@ -87,7 +87,8 @@ const DEFAULT_DELAYS: [number, number] = [400, 1200];
 /** The subset of ApiClient the reader store depends on; lets tests inject a hand-written fake. */
 export interface ReaderApi {
   getUniverse(): Promise<Universe>;
-  getFeed(): Promise<FeedResponse>;
+  /** `exclude`: what this discovery trip has on screen or already opened (#133). */
+  getFeed(exclude?: Iterable<string>): Promise<FeedResponse>;
   postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse>;
   postInteraction(body: { clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }): Promise<InteractionResponse>;
   getEvent(eventId: string): Promise<EventStatus>;
@@ -125,8 +126,8 @@ export class ApiClient implements ReaderApi {
     return this.request('GET', '/universe', undefined, [200], false, universe);
   }
 
-  async getFeed(): Promise<FeedResponse> {
-    return this.request('GET', '/feed', undefined, [200], false, feedResponse);
+  async getFeed(exclude: Iterable<string> = []): Promise<FeedResponse> {
+    return this.request('GET', feedPath(exclude), undefined, [200], false, feedResponse);
   }
 
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {
@@ -272,4 +273,11 @@ export function invalidatesReader(error: unknown): boolean {
 
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 401;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** `/feed`, with at most the 256 most recent opened ids of this trip (#133). */
+export function feedPath(exclude: Iterable<string>): string {
+  const ids = [...new Set([...exclude].filter(id => UUID.test(id)))].slice(-256);
+  return ids.length === 0 ? '/feed' : `/feed?exclude=${ids.join(',')}`;
 }

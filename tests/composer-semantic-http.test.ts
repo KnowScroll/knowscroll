@@ -143,6 +143,21 @@ test('a v3 feed records every candidate it considered, and "why" reads back exac
   assert.equal((await app.inject({ url: `/v1/decisions/not-a-uuid/why?assetId=${served.items[0]!.assetId}`, headers: headers(r.token) })).statusCode, 400);
 });
 
+test('a trip tells the feed what it already opened: those are gated with a named reason, never served', async () => {
+  const r = await reader();
+  const f = await substrate();
+  const opened = [f.assets.gravity, f.assets.star];
+  const response = await app.inject({ url: `/v1/feed?kinds=Scroll&exclude=${opened.join(',')}`, headers: headers(r.token) });
+  assert.equal(response.statusCode, 200, response.body);
+  const served = response.json() as Feed;
+  assert.ok(served.items.every(i => !opened.includes(i.assetId)), 'nothing already opened is served');
+  const gates = (await pool.query('SELECT DISTINCT gate FROM decision_candidate WHERE decision_id=$1 AND asset_id = ANY($2::uuid[])', [served.decisionId, opened])).rows.map(x => x.gate);
+  assert.deepEqual(gates, ['current_encounter']);
+  for (const bad of ['not-a-uuid', Array.from({ length: 257 }, () => randomUUID()).join(',')]) {
+    assert.equal((await app.inject({ url: `/v1/feed?kinds=Scroll&exclude=${bad}`, headers: headers(r.token) })).statusCode, 400);
+  }
+});
+
 test('a keep updates the private model in the same request, and the next encounter crosses a sourced bridge citing that keep', async () => {
   const r = await reader();
   const f = await substrate();
@@ -298,6 +313,7 @@ test('the database refuses a v3 decision that contradicts itself', async () => {
   // A recorded decision stays consistent: editing what it returned or removing its context is refused.
   await assert.rejects(transaction(client => client.query(`UPDATE decision SET candidates='[]' WHERE id=$1`, [honest])), /rank exactly the candidates it returned/);
   await assert.rejects(transaction(client => client.query('DELETE FROM decision_context WHERE decision_id=$1', [honest])), /must record its served window and quotas/);
+  await assert.rejects(transaction(client => client.query('UPDATE decision SET ranking_version=NULL WHERE id=$1', [honest])), /ranking version is fixed/);
 });
 
 test('while recording is paused the feed is still composed and explained, but the private model does not move', async () => {

@@ -100,7 +100,7 @@ ALTER TABLE composer_policy ADD COLUMN record_kind text NOT NULL DEFAULT 'decisi
 
 INSERT INTO composer_policy(version, weights, slate_size, max_per_source, record_kind) VALUES (
  'composer-semantic-v3',
- '{"maxPerConcept":1,"weights":{"continuity":1,"useful":1,"depth":1,"novelty":1,"returnRelevance":1,"prior":1,"redundancy":1,"fatigue":1,"seen":1},"familyDepth":{"continue":0.3,"deepen":0.8,"bridge":1.2,"challenge":0.7,"revisit":0.2,"frontier":0.4,"seed":0.3,"fallback":0},"continuityWindowHours":72,"explorationEvery":3,"fatigueWindow":5,"redundancyWindowDays":30,"revisitMinGapDays":3,"usefulSaturation":{"exposureShare":0.8,"cap":0.5},"terms":{"continuity":0.3,"questionContinuity":0.2,"novelty":0.5,"returnRelevance":0.3,"prior":0.1,"redundancy":0.6,"redundancyShare":0.5,"fatigueStep":0.15,"usefulScale":4,"parentMassShare":0.5,"seenPerShowing":10,"maxMarks":50}}'::jsonb,
+ '{"maxPerConcept":1,"weights":{"continuity":1,"useful":1,"depth":1,"novelty":1,"returnRelevance":1,"prior":1,"redundancy":1,"fatigue":1,"seen":1},"familyDepth":{"continue":0.3,"deepen":0.8,"bridge":1.2,"challenge":0.7,"revisit":0.2,"frontier":0.4,"seed":0.3,"fallback":0},"continuityWindowHours":72,"explorationEvery":3,"fatigueWindow":5,"redundancyWindowDays":30,"revisitMinGapDays":3,"usefulSaturation":{"exposureShare":0.8,"cap":0.5},"terms":{"continuity":0.3,"questionContinuity":0.2,"novelty":0.5,"returnRelevance":0.3,"prior":0.1,"redundancy":0.6,"redundancyShare":0.5,"fatigueStep":0.15,"usefulScale":4,"parentMassShare":0.5,"seenPerShowing":10,"maxMarks":50},"explorationFamilies":["bridge","frontier","challenge","revisit","fallback"]}'::jsonb,
  3, 2, 'decision_candidate'
 );
 
@@ -234,3 +234,12 @@ CREATE CONSTRAINT TRIGGER decision_context_invariants AFTER INSERT OR DELETE ON 
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION composer_candidate_invariants();
 CREATE CONSTRAINT TRIGGER decision_v3_invariants AFTER INSERT OR UPDATE ON decision
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION composer_candidate_invariants();
+-- Which policy ranked a decision is part of what was recorded: once set it never changes (clearing
+-- it would otherwise switch every check above off for that decision).
+CREATE FUNCTION decision_ranking_version_fixed() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ RAISE EXCEPTION 'A decision''s ranking version is fixed once recorded';
+END $$;
+CREATE TRIGGER decision_ranking_version_fixed BEFORE UPDATE OF ranking_version ON decision
+ FOR EACH ROW WHEN (OLD.ranking_version IS NOT NULL AND NEW.ranking_version IS DISTINCT FROM OLD.ranking_version)
+ EXECUTE FUNCTION decision_ranking_version_fixed();

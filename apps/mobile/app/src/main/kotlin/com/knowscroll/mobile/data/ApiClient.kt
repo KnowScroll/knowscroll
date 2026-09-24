@@ -41,9 +41,11 @@ class ApiClient(
         }
     }
 
-    suspend fun getFeed(kind: String = "Scroll"): FeedResponse = io {
+    /** `exclude`: what this discovery trip has on screen or already opened (#133), so the Composer
+     * never fills a slate with Scrolls the reader would skip. At most 256 ids are sent. */
+    suspend fun getFeed(kind: String = "Scroll", exclude: Collection<String> = emptyList()): FeedResponse = io {
         require(kind in setOf("Scroll", "Reel"))
-        get("/v1/feed?kinds=$kind") { obj ->
+        get(feedPath(kind, exclude)) { obj ->
             FeedResponse(
                 decisionId = obj.getString("decisionId"),
                 universeId = obj.getString("universeId"),
@@ -405,3 +407,11 @@ private fun jsonNames(value:JSONObject):Set<String> {
 private inline fun protocol(condition:Boolean,message:()->String) {
     if(!condition)throw ApiException.Protocol(message())
 }
+
+/** The feed path for one kind, with this trip's opened ids (UUIDs only, newest last, at most 256). */
+internal fun feedPath(kind: String, exclude: Collection<String>): String {
+    val ids = exclude.filter { UUID_PATTERN.matches(it) }.distinct().takeLast(256)
+    return if (ids.isEmpty()) "/v1/feed?kinds=$kind" else "/v1/feed?kinds=$kind&exclude=${ids.joinToString(",")}"
+}
+
+private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")

@@ -50,8 +50,10 @@ export class FakeApi implements ReaderApi {
     this.universeCalls++;
     return this.take(this.universeQueue, 'getUniverse');
   }
-  async getFeed(): Promise<FeedResponse> {
+  feedExcludes: string[][] = [];
+  async getFeed(exclude: Iterable<string> = []): Promise<FeedResponse> {
     this.feedCalls++;
+    this.feedExcludes.push([...exclude]);
     return this.take(this.feedQueue, 'getFeed');
   }
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {

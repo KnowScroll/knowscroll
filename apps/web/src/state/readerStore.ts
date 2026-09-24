@@ -494,11 +494,12 @@ export class ReaderStore {
       this.storage.writeScreen('scroll');
       this.set({ screen: 'scroll', scroll: { status: 'loading' } });
     }
+    const openedAssetId = reading?.item.assetId ?? this.session?.item.assetId;
     this.api
-      .getFeed()
+      .getFeed(openedAssetId ? [...this.visited, openedAssetId] : this.visited)
       .then((feed: FeedResponse) => {
         if (!this.operationIsCurrent(version, epoch)) return;
-        const currentAssetId = reading?.item.assetId ?? this.session?.item.assetId;
+        const currentAssetId = openedAssetId;
         const selection = selectDiscovery(feed, universeId, epoch, this.visited, currentAssetId);
         if (selection.kind === 'invalid-scope') {
           this.purgeForScope(feed.universeId, feed.privacyEpoch);

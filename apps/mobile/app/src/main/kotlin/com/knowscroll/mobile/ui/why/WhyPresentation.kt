@@ -29,8 +29,8 @@ data class WhyPanel(
     val availability: WhyAvailability,
     /** The correction being sent, if any: its control is disabled until it settles. */
     val sending: String? = null,
-    /** The correction this reader already made here, so it is not offered twice. */
-    val corrected: String? = null,
+    /** Corrections this reader already made here, so none is offered twice; the others stay available. */
+    val corrected: Set<String> = emptySet(),
     val message: String? = null,
 )
 

@@ -14,7 +14,6 @@ import { isWithin } from '../semantic/bridge-validator.ts';
 export const COMPOSER_SEMANTIC_V3 = 'composer-semantic-v3';
 
 export type Family = 'continue' | 'deepen' | 'bridge' | 'challenge' | 'revisit' | 'frontier' | 'seed' | 'fallback';
-export const EXPLORATION_FAMILIES: readonly Family[] = ['bridge', 'frontier', 'challenge', 'revisit', 'fallback'];
 export type MarkKind = 'keep' | 'branch' | 'ask';
 export type GateReason = 'kept' | 'suppressed_by_person' | 'current_encounter';
 
@@ -40,6 +39,8 @@ export interface V3Policy {
     /** Only the most recent acts shape families: composition stays bounded as history grows. */
     maxMarks: number;
   };
+  /** Families that count toward the exploration floor, in the order the floor prefers them. */
+  explorationFamilies: Family[];
 }
 
 export interface V3Concept { code: string; name: string; parentCode: string | null }
@@ -71,8 +72,9 @@ export interface V3State {
   openQuestionConcepts: readonly string[];
   directionPriors: readonly string[];
   suppressedRoutes: readonly { family: Family; concept: string }[];
-  /** The encounter currently on screen, never offered as its own next step. */
-  currentAssetId: string | null;
+  /** Scrolls the client has on screen or already opened in this discovery trip. The server cannot
+   * know them otherwise, and a client skips them, so offering them could end a trip falsely. */
+  excluded: ReadonlySet<string>;
 }
 
 export type Facts = Record<string, string | number | null>;
@@ -124,6 +126,7 @@ export const COMPOSER_V3_POLICY: V3Policy = {
     redundancy: 0.6, redundancyShare: 0.5, fatigueStep: 0.15, usefulScale: 4, parentMassShare: 0.5,
     seenPerShowing: 10, maxMarks: 50,
   },
+  explorationFamilies: ['bridge', 'frontier', 'challenge', 'revisit', 'fallback'],
 };
 
 const HOUR = 3_600_000;
@@ -250,11 +253,13 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   }
   const madeElsewhere = (key: string, assetId: string) => [...(recentClaimSources.get(key) ?? [])].some(id => id !== assetId);
 
+  // Ideas this universe has been shown, computed once (was a scan of all exposures per candidate).
+  const shownPrimaries = new Set([...state.exposures.keys()].map(id => assetById.get(id)?.primary).filter((p): p is string => !!p));
   const scored: V3Candidate[] = raw.map(c => {
     const asset = assetById.get(c.assetId)!;
     let gate: GateReason | null = null;
     if (state.kept.has(asset.assetId)) gate = 'kept';
-    else if (asset.assetId === state.currentAssetId) gate = 'current_encounter';
+    else if (state.excluded.has(asset.assetId)) gate = 'current_encounter';
     else if (suppressed(c.family, c.concept)) gate = 'suppressed_by_person';
     const primary = asset.primary;
     const seenCount = state.exposures.get(asset.assetId)?.count ?? 0;
@@ -267,7 +272,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
       continuity: c.family === 'continue' ? (c.explanationKey === 'v3_question' ? t.questionContinuity : t.continuity) : 0,
       useful: round(useful),
       depth: policy.familyDepth[c.family],
-      novelty: c.family !== 'fallback' && primary !== null && ![...state.exposures.keys()].some(id => assetById.get(id)?.primary === primary) ? t.novelty : 0,
+      novelty: c.family !== 'fallback' && primary !== null && !shownPrimaries.has(primary) ? t.novelty : 0,
       returnRelevance: c.family === 'revisit' ? t.returnRelevance : 0,
       prior: primary !== null && (c.family === 'continue' || c.family === 'deepen') && state.directionPriors.some(p => isWithin(tree, primary, p)) ? t.prior : 0,
       redundancy: asset.claimKeys.length > 0 && asset.claimKeys.filter(k => madeElsewhere(k, asset.assetId)).length / asset.claimKeys.length >= t.redundancyShare ? t.redundancy : 0,
@@ -300,7 +305,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   for (const c of eligible) if (!byAsset.has(c.assetId)) byAsset.set(c.assetId, c);
   const pool = [...byAsset.values()];
   const recent = state.served.slice(0, policy.explorationEvery - 1);
-  const explorationDue = recent.length >= policy.explorationEvery - 1 && recent.every(s => !s.family || !EXPLORATION_FAMILIES.includes(s.family));
+  const explorationDue = recent.length >= policy.explorationEvery - 1 && recent.every(s => !s.family || !policy.explorationFamilies.includes(s.family));
   const lastPrimary = state.served[0] ? assetById.get(state.served[0].assetId)?.primary ?? null : null;
   const lastMarked = marks[0] && state.served[0] && marks[0].assetId === state.served[0].assetId;
 
@@ -326,9 +331,9 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     // when no bridge, frontier, challenge or revisit is eligible; an unseen encounter still comes
     // before a seen one, as everywhere else.
     const exploration = [...candidates]
-      .filter(c => c.gate === null && EXPLORATION_FAMILIES.includes(c.family))
+      .filter(c => c.gate === null && policy.explorationFamilies.includes(c.family))
       .sort((a, b) => a.terms.seen! - b.terms.seen!
-        || EXPLORATION_FAMILIES.indexOf(a.family) - EXPLORATION_FAMILIES.indexOf(b.family) || order(state, a, b));
+        || policy.explorationFamilies.indexOf(a.family) - policy.explorationFamilies.indexOf(b.family) || order(state, a, b));
     head = exploration[0];
     if (head) quotas.push(`exploration_floor:${head.family}`);
   }
