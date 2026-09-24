@@ -92,14 +92,14 @@ class AwayAtlasTest {
         composeRule.onNodeWithContentDescription("Mark what changed while you were away as seen").performClick()
         assertEquals(listOf("seen"), actions)
         // The map and its honest label are still there beneath it.
-        composeRule.onAllNodesWithText("Positions are illustrative — what's mapped and how it connects is real.").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Positions, orbits, moons and land art are illustrative — what's mapped and how it connects is real.").assertCountEquals(1)
     }
 
     @Test
     fun nothingUnacknowledgedLeavesTheAtlasAsItWas() {
         render(items = emptyList())
         composeRule.onAllNodesWithContentDescription("While you were away").assertCountEquals(0)
-        composeRule.onAllNodesWithText("Positions are illustrative — what's mapped and how it connects is real.").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Positions, orbits, moons and land art are illustrative — what's mapped and how it connects is real.").assertCountEquals(1)
     }
 
     @Test

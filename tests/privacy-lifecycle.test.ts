@@ -222,7 +222,7 @@ test('export contains exactly the rows the contract promises and no more', async
 
   assert.deepEqual(Object.keys(result).sort(), [
     'account', 'accounts', 'decisions', 'deviceSessions', 'exposures', 'exportedAt', 'jobs',
-    'askAnswers', 'inquiries', 'ledger', 'privacyEpoch', 'reasoning', 'receiptId', 'personalModel', 'rowCounts', 'semantic', 'traces', 'universe',
+    'askAnswers', 'inquiries', 'ledger', 'privacyEpoch', 'reasoning', 'receiptId', 'personalModel', 'returns', 'rowCounts', 'semantic', 'traces', 'universe',
   ].sort());
   assert.equal(result.privacyEpoch, 0);
   assert.match(result.exportedAt, /Z$/);
@@ -246,8 +246,11 @@ test('export contains exactly the rows the contract promises and no more', async
     askAnswers: 0,
     // ADR-0038: background inquiries (their consent, requests and mail are exported alongside).
     inquiries: 0,
+    // ADR-0039: return markers and Relics.
+    awayAcknowledgements: 0, relics: 0,
   });
   assert.deepEqual(result.inquiries, { consent: [], consentRequests: [], mail: [], inquiries: [] });
+  assert.deepEqual(result.returns, { acknowledgements: [], relics: [] });
   assert.equal(result.personalModel.attentionAccounts.length, result.rowCounts.attentionAccounts);
   assert.equal(result.decisions.length, 1);
   assert.equal(result.ledger.length, 2);
