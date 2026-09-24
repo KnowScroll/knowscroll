@@ -50,6 +50,8 @@ export type PrivacyExportResult = {
  reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
  semantic:{branchOpens:unknown[]; connectionFeedback:unknown[]; proposals:unknown[]; bridges:unknown[]};
  personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]};
+ /** #132: answer requests and their applied outcomes (ADR-0033). */
+ askAnswers:unknown[];
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;

@@ -8,6 +8,7 @@ import type { AuthScope } from './identity.ts';
 import {eraseReasoningForHistoryClear} from './reasoning-storage.ts';
 import {eraseSemanticHistory, exportSemanticHistory} from './semantic/branches.ts';
 import {erasePersonalModel, exportPersonalModel} from './semantic/personal-model.ts';
+import {eraseAskAnswers, exportAskAnswers} from './reasoning-answers.ts';
 
 export class HistoryClearConflict extends Error {
  readonly statusCode = 409;
@@ -37,6 +38,8 @@ async function eraseEncounterSystem(client:pg.PoolClient,universeId:string):Prom
  * the caller's universe lock and after its epoch has advanced. Semantic rows (#131) go before the
  * exposures/decisions/ledger events they reference. Shared knowledge and other universes survive. */
 async function erasePersonalHistory(client:pg.PoolClient,universeId:string,epochBefore:number,epochAfter:number):Promise<void> {
+ // #132: answers and their requests go first; they reference the Ask facts erased below.
+ await eraseAskAnswers(client,universeId);
  await eraseReasoningForHistoryClear(client,{universeId,epochBefore,epochAfter});
  await client.query('DELETE FROM job WHERE universe_id=$1',[universeId]);
  await client.query('DELETE FROM trace WHERE universe_id=$1',[universeId]);
@@ -217,6 +220,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
 
  const semantic = await exportSemanticHistory(client, scope.universeId);
  const personalModel = await exportPersonalModel(client, scope.universeId);
+ const askAnswers = await exportAskAnswers(client, scope.universeId);
 
  const rowCounts = {
   decisions: decisions.length, ledger: ledger.length, exposures: exposures.length,
@@ -254,6 +258,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   reasoning: { jobs: reasoningJobs, steps: reasoningSteps, receipts: reasoningReceipts, accounting: reasoningAccounting },
   semantic,
   personalModel,
+  askAnswers,
  };
 }
 

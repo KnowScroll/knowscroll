@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import type pg from 'pg';
 import {ASK_CONTEXT_LIMITS,ASK_CONTEXT_VERSIONS,askContextDependency,askContextDependencyKey,askContextPayload,compileDirectAskContextInput,type AskContextDependency,type AskContextPayload} from '../../contracts/src/reasoning-ask-context.ts';
-import {contextScroll,type ContextRefusal,type ContextValidation} from '../../contracts/src/reasoning-context.ts';
+import {candidateScroll,contextScroll,type ContextRefusal,type ContextValidation} from '../../contracts/src/reasoning-context.ts';
 import {explicitAskInput,exposureInput} from '../../contracts/src/index.ts';
 import {explicitAskLedgerKey} from './explicit-ask.ts';
 import type {AuthScope} from './identity.ts';
@@ -82,7 +82,7 @@ function selectedCandidate(row:LineageRow):{ok:true;asset:AskContextPayload['ass
     && typeof (candidate as Record<string,unknown>).assetId==='string'
     && String((candidate as Record<string,unknown>).assetId).toLowerCase()===row.asset_id);
   if(matched.length!==1) return {ok:false,reason:'stale_lineage'};
-  const candidate=contextScroll.safeParse({...record(matched[0])!,assetId:row.asset_id});
+  const candidate=contextScroll.safeParse({...candidateScroll(record(matched[0])!),assetId:row.asset_id});
   if(!candidate.success) return {ok:false,reason:'stale_lineage'};
   const current=contextScroll.safeParse(scrollFromRow(row));
   if(!current.success) return {ok:false,reason:'stale_asset'};
