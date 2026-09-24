@@ -12,7 +12,7 @@
     },
     {
       "component": "Desktop Web",
-      "responsibility": "Desktop release UI per definition \u00a79.5 (ADR-0022)",
+      "responsibility": "Desktop release UI per definition §9.5 (ADR-0022)",
       "path": "apps/web",
       "status": "decided-implementation-pending",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/92"
@@ -35,15 +35,15 @@
       "component": "Accounts",
       "responsibility": "Conservative signal projections",
       "path": "apps/worker/src/project.ts",
-      "status": "explicit-keeps-only",
+      "status": "explicit-keeps plus attention-v1 accounts and rule hypotheses (ADR-0032), recomputed in the evidence transaction",
       "issue": "https://github.com/KnowScroll/knowscroll/issues/4"
     },
     {
       "component": "Composer",
-      "responsibility": "Signal-ranked candidate selection, diversity and recorded explanations (ADR-0028)",
-      "path": "packages/core/src/composer.ts",
-      "status": "composer-signals-v1",
-      "issue": "https://github.com/KnowScroll/knowscroll/issues/5"
+      "responsibility": "Recorded, replayable selection with families, gates, terms and explanations (ADR-0028/0029, ADR-0032)",
+      "path": "packages/core/src/composer/semantic.ts",
+      "status": "composer-semantic-v3-default-with-recorded-candidates-why-and-corrections; composer-signals-v2-selectable",
+      "issue": "https://github.com/KnowScroll/knowscroll/issues/133"
     },
     {
       "component": "Substrate",

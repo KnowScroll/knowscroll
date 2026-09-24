@@ -185,6 +185,17 @@ describe('ReaderStore', () => {
     expect(api.exposureCalls).toHaveLength(1);
   });
 
+  it('asks the feed not to return what this trip already opened, and skips exactly that (#133)', async () => {
+    await enterReadingScroll();
+    expect(api.feedExcludes[0]).toEqual([]); // the first feed of a trip has opened nothing yet
+    const opened = feedItem().assetId;
+    const next = feedItem({ assetId: '10000000-0000-4000-8000-000000000002', title: 'Another Scroll' });
+    api.feedQueue.push({ decisionId: 'd2', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0, items: [next] });
+    store.nextScroll();
+    await waitFor(() => store.getState().scroll.status === 'reading' && (store.getState().scroll as { item: { assetId: string } }).item.assetId === next.assetId);
+    expect(api.feedExcludes[1]).toEqual([opened]);
+  });
+
   it('reaches a finite rest once every candidate in the bounded feed has been visited', async () => {
     await enterReadingScroll();
     api.feedQueue.push({ decisionId: 'd2', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0, items: [feedItem()] });

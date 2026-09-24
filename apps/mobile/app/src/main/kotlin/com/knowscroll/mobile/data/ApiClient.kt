@@ -41,9 +41,11 @@ class ApiClient(
         }
     }
 
-    suspend fun getFeed(kind: String = "Scroll"): FeedResponse = io {
+    /** `exclude`: what this discovery trip has on screen or already opened (#133), so the Composer
+     * never fills a slate with Scrolls the reader would skip. At most 256 ids are sent. */
+    suspend fun getFeed(kind: String = "Scroll", exclude: Collection<String> = emptyList()): FeedResponse = io {
         require(kind in setOf("Scroll", "Reel"))
-        get("/v1/feed?kinds=$kind") { obj ->
+        get(feedPath(kind, exclude)) { obj ->
             FeedResponse(
                 decisionId = obj.getString("decisionId"),
                 universeId = obj.getString("universeId"),
@@ -167,6 +169,33 @@ class ApiClient(
                     recorded, branch.getString("bridgeId"), branch.getString("relationType"), branch.getString("direction"),
                 )
             } catch (e: JSONException) { throw ApiException.Protocol("Branch receipt was malformed") }
+        }
+    }
+
+    /** #133: the recorded explanation for one served encounter, or null when its decision recorded
+     * none (a branch target, or a policy without candidate records). */
+    suspend fun getWhy(decisionId: String, assetId: String): EncounterWhy? = io {
+        try {
+            get("/v1/decisions/$decisionId/why?assetId=$assetId") { obj ->
+                try { parseWhy(obj).also { protocol(it.decisionId == decisionId && it.assetId == assetId) { "Explanation names another encounter" } } }
+                catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid explanation") }
+                catch (e: JSONException) { throw ApiException.Protocol("Explanation returned malformed JSON") }
+            }
+        } catch (e: ApiException.Server) { if (e.statusCode == 404) null else throw e }
+    }
+
+    /** #133 journey G: "less like this" / "wrong connection" on an encounter the Composer served. */
+    suspend fun postEncounterFeedback(clientFeedbackId: String, decisionId: String, assetId: String, kind: String, expectedPrivacyEpoch: Long): EncounterFeedbackReceipt = io {
+        require(kind in ENCOUNTER_CORRECTIONS)
+        val body = jsonObj(
+            "clientFeedbackId" to clientFeedbackId, "decisionId" to decisionId, "assetId" to assetId,
+            "kind" to kind, "expectedPrivacyEpoch" to expectedPrivacyEpoch,
+        ).toString()
+        post("/v1/encounters/feedback", body, setOf(201), false) { obj ->
+            try {
+                EncounterFeedbackReceipt(obj.getString("feedbackId"), obj.getString("kind"), obj.getJSONObject("suppressed").getString("until"))
+                    .also { protocol(it.kind == kind) { "Feedback receipt names another correction" } }
+            } catch (e: JSONException) { throw ApiException.Protocol("Feedback receipt was malformed") }
         }
     }
 
@@ -378,3 +407,11 @@ private fun jsonNames(value:JSONObject):Set<String> {
 private inline fun protocol(condition:Boolean,message:()->String) {
     if(!condition)throw ApiException.Protocol(message())
 }
+
+/** The feed path for one kind, with this trip's opened ids (UUIDs only, newest last, at most 256). */
+internal fun feedPath(kind: String, exclude: Collection<String>): String {
+    val ids = exclude.filter { UUID_PATTERN.matches(it) }.distinct().takeLast(256)
+    return if (ids.isEmpty()) "/v1/feed?kinds=$kind" else "/v1/feed?kinds=$kind&exclude=${ids.joinToString(",")}"
+}
+
+private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")

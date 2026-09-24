@@ -7,6 +7,7 @@ import type {
 import type { AuthScope } from './identity.ts';
 import {eraseReasoningForHistoryClear} from './reasoning-storage.ts';
 import {eraseSemanticHistory, exportSemanticHistory} from './semantic/branches.ts';
+import {erasePersonalModel, exportPersonalModel} from './semantic/personal-model.ts';
 
 export class HistoryClearConflict extends Error {
  readonly statusCode = 409;
@@ -39,6 +40,7 @@ async function erasePersonalHistory(client:pg.PoolClient,universeId:string,epoch
  await eraseReasoningForHistoryClear(client,{universeId,epochBefore,epochAfter});
  await client.query('DELETE FROM job WHERE universe_id=$1',[universeId]);
  await client.query('DELETE FROM trace WHERE universe_id=$1',[universeId]);
+ await erasePersonalModel(client,universeId);
  await eraseSemanticHistory(client,universeId);
  await client.query('DELETE FROM exposure WHERE universe_id=$1',[universeId]);
  await eraseEncounterSystem(client,universeId);
@@ -214,6 +216,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
  )).rows;
 
  const semantic = await exportSemanticHistory(client, scope.universeId);
+ const personalModel = await exportPersonalModel(client, scope.universeId);
 
  const rowCounts = {
   decisions: decisions.length, ledger: ledger.length, exposures: exposures.length,
@@ -222,6 +225,8 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   reasoningReceipts: reasoningReceipts.length, reasoningAccounting: reasoningAccounting.length,
   branchOpens: semantic.branchOpens.length, connectionFeedback: semantic.connectionFeedback.length,
   semanticProposals: semantic.proposals.length,
+  attentionAccounts: personalModel.attentionAccounts.length, hypotheses: personalModel.hypotheses.length,
+  encounterFeedback: personalModel.encounterFeedback.length,
  };
 
  const existing = (await client.query(
@@ -248,6 +253,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   decisions, ledger, exposures, traces, jobs, deviceSessions,
   reasoning: { jobs: reasoningJobs, steps: reasoningSteps, receipts: reasoningReceipts, accounting: reasoningAccounting },
   semantic,
+  personalModel,
  };
 }
 

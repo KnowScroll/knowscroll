@@ -33,6 +33,10 @@ internal fun selectDiscovery(
         ?.let { DiscoverySelection.Item(it) } ?: DiscoverySelection.Exhausted
 }
 
+/** What this discovery trip has opened, as sent to the feed: the current Scroll last, at most 256. */
+internal fun tripExclude(visited: Collection<String>, currentAssetId: String?): List<String> =
+    (visited.filter { it != currentAssetId } + listOfNotNull(currentAssetId)).takeLast(256)
+
 internal fun canRequestDiscovery(keep: KeepState, discovery: DiscoveryState): Boolean =
     discovery !is DiscoveryState.Loading && keep !is KeepState.Saving &&
         keep !is KeepState.Failed && keep !is KeepState.Conflict

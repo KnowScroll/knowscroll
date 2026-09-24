@@ -1,0 +1,32 @@
+{
+  "at": "2026-09-24T04:01:27.191145+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_4deec18831bca558",
+  "apiPort": 4333,
+  "source": "385249455a4e7cc01a69ea0dbd087f34f7337a92",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "why",
+  "journey": {
+    "decisionId": "c3e8ba3d-678b-4ca3-9836-f919f8a08f1d",
+    "assetId": "20000000-0000-4000-8000-000000000003",
+    "title": "A pull with a range",
+    "citedKeepTitle": "One force, many jobs",
+    "keepsBeforeCited": 1,
+    "skippedAssetId": "20000000-0000-4000-8000-000000000004",
+    "afterSkipDecisionId": "f05aa5b5-5228-4b3a-8648-8075aa276a49"
+  },
+  "lineage": {
+    "servedByV3": 1,
+    "citedKeepRecorded": 1,
+    "lessLikeThis": 1,
+    "tripExcludedGated": 1,
+    "attentionAccounts": 5,
+    "sharedBridgesStillAdmitted": 6
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Editorial substrate; composer-semantic-v3 with bench thresholds.",
+    "Debug API36 emulator, not a physical device.",
+    "Scroll reader only; the Reel reader has no why sheet yet."
+  ]
+}

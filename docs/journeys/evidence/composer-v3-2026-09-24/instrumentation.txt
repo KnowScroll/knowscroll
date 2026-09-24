@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.SemanticWhyJourneyTest:.
+
+Time: 8.844
+
+OK (1 test)
+
+

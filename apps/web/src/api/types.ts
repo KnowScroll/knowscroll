@@ -133,6 +133,9 @@ export const privacyExportRowCountsSchema = z
     branchOpens: z.number().int().nonnegative(),
     connectionFeedback: z.number().int().nonnegative(),
     semanticProposals: z.number().int().nonnegative(),
+    attentionAccounts: z.number().int().nonnegative(),
+    hypotheses: z.number().int().nonnegative(),
+    encounterFeedback: z.number().int().nonnegative(),
   })
   .strict();
 export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
@@ -192,6 +195,14 @@ export const privacyExportResultSchema = z
         connectionFeedback: z.array(exportRowSchema),
         proposals: z.array(exportRowSchema),
         bridges: z.array(exportRowSchema),
+      })
+      .strict(),
+    personalModel: z
+      .object({
+        attentionAccounts: z.array(exportRowSchema),
+        attentionTransitions: z.array(exportRowSchema),
+        hypotheses: z.array(exportRowSchema),
+        encounterFeedback: z.array(exportRowSchema),
       })
       .strict(),
   })

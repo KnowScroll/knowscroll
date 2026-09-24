@@ -50,8 +50,10 @@ export class FakeApi implements ReaderApi {
     this.universeCalls++;
     return this.take(this.universeQueue, 'getUniverse');
   }
-  async getFeed(): Promise<FeedResponse> {
+  feedExcludes: string[][] = [];
+  async getFeed(exclude: Iterable<string> = []): Promise<FeedResponse> {
     this.feedCalls++;
+    this.feedExcludes.push([...exclude]);
     return this.take(this.feedQueue, 'getFeed');
   }
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {
@@ -162,6 +164,9 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
       branchOpens: 0,
       connectionFeedback: 0,
       semanticProposals: 0,
+      attentionAccounts: 0,
+      hypotheses: 0,
+      encounterFeedback: 0,
     },
     account: { email: 'owner@example.com' },
     universe: { id: universeOf().universeId, revision: 1, privacyEpoch: 0, recordingPausedAt: null },
@@ -174,6 +179,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
     deviceSessions: [],
     reasoning: { jobs: [], steps: [], receipts: [], accounting: [] },
     semantic: { branchOpens: [], connectionFeedback: [], proposals: [], bridges: [] },
+    personalModel: { attentionAccounts: [], attentionTransitions: [], hypotheses: [], encounterFeedback: [] },
     ...overrides,
   };
 }

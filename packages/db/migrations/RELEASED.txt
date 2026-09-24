@@ -31,3 +31,4 @@
 0024_composer_coverage_tiebreak.sql
 0025_world_system_privacy_erasure.sql
 0026_semantic_substrate.sql
+0027_attention_hypotheses_composer_v3.sql

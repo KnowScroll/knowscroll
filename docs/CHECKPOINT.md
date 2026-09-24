@@ -1,5 +1,25 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #133 Composer v3 + #131 attention accounts and hypotheses (lane `133-semantic-composer`)
+
+Branch `claude/133-semantic-composer` on main `b0281db`. ADR-0032; migration 0027 appended to
+`RELEASED.txt`. `composer-semantic-v3` is the feed's default policy (`composer-signals-v2` stays
+registered, immutable and selectable). It records every considered candidate (`decision_candidate`)
+and its served window/quotas (`decision_context`); commit-time triggers refuse a self-contradicting
+decision. Attention accounts (`attention-v1`) and rule hypotheses (`hypothesis-rules-v1`: direction,
+open question) are recomputed in the transaction that records a keep, exposure, branch, Ask or
+correction; Clear/Reset erase them and export carries them. `GET /v1/decisions/:id/why` and
+`POST /v1/encounters/feedback` (journey G). Android: **What led here** and **Less like this** /
+**Wrong connection** in the Scroll reader's why sheet.
+
+Ruling recorded in ADR-0032 §3: a *seen* encounter is reranked below every unseen one, never gated.
+Seen-gating broke the established exhaustion contract (7 of 48 web-journey specs failed), and a
+soft penalty made readers run out early in the offline comparison. Verification: pure 15+9,
+HTTP 11 with 6 mutation checks, backend 778+13, Android 107 units, the web journey and the emulator
+why journey with DB lineage checked, and an offline v2-vs-v3 comparison (behaviour, not
+usefulness). Feed latency is ~20 ms at 500 Scrolls (was ~225 ms). See the
+[evidence](journeys/evidence/composer-v3-2026-09-24/README.md). No provider call; MiniMax 0/40.
+
 ## 2026-09-24 #131 first slice — semantic substrate, validated bridges, live Android continuations (PR140)
 
 Worktree `131-semantic-foundations`, branch `claude/131-semantic-foundations`. ADR-0031; migration

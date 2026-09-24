@@ -15,6 +15,7 @@ import type pg from 'pg';
 import { uuid } from '../../../packages/contracts/src/index.ts';
 import type { AuthScope } from '../../../packages/db/src/index.ts';
 import { listEncounterBranches, openBranch, recordConnectionFeedback } from '../../../packages/db/src/semantic/branches.ts';
+import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { HttpError } from './errors.ts';
 
 export type Authenticated = <T>(authorization: string | undefined, fn: (scope: AuthScope, client: pg.PoolClient) => Promise<T>) => Promise<T>;
@@ -29,12 +30,20 @@ export function registerSemanticRoutes(app: FastifyInstance, authenticated: Auth
   });
 
   app.post('/v1/branches', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => openBranch(client, scope, req.body));
+    const result = await authenticated(req.headers.authorization, async (scope, client) => {
+      const opened = await openBranch(client, scope, req.body);
+      if (opened.branch.recorded) await refreshPersonalModel(client, scope.universeId);
+      return opened;
+    });
     return reply.code(201).send(result);
   });
 
   app.post('/v1/connections/feedback', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => recordConnectionFeedback(client, scope, req.body));
+    const result = await authenticated(req.headers.authorization, async (scope, client) => {
+      const receipt = await recordConnectionFeedback(client, scope, req.body);
+      await refreshPersonalModel(client, scope.universeId);
+      return receipt;
+    });
     return reply.code(201).send(result);
   });
 }

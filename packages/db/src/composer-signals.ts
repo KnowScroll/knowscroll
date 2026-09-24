@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { FeedAsset } from '../../contracts/src/inventory.ts';
-import type { ComposerPolicy, SignalCandidate } from '../../core/src/composer.ts';
+import { COMPOSER_SIGNALS_V2, rankSignalCandidates, type ComposerPolicy, type SignalCandidate } from '../../core/src/composer.ts';
 
 /** ADR-0028 section 2: an immutable, versioned ranking policy. Rows never change once created
  * (migration 0017's `composer_policy_immutable` trigger), so this can be read once per request
@@ -77,4 +78,35 @@ export async function loadComposerSignalCandidates(
     };
   });
   return { candidates, nowMs: nowRow.now.getTime() };
+}
+
+/**
+ * ADR-0028/0029 — rank with `composer-signals-v2` and record its decision and `decision_signal`
+ * rows. Moved here from the feed route so the route only chooses a policy. Still available as a
+ * configured policy and for offline comparison with `composer-semantic-v3` (ADR-0032).
+ */
+export async function composeAndRecordV2(
+  client: pg.PoolClient,
+  scope: { universeId: string; privacyEpoch: number },
+  assets: readonly FeedAsset[],
+  account: { revision: number; kept_asset_ids: string[] },
+): Promise<{ decisionId: string; items: (FeedAsset & { reason: string })[] }> {
+  const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V2);
+  const templates = await loadComposerExplanationTemplates(client);
+  const { candidates, nowMs } = await loadComposerSignalCandidates(client, scope.universeId, assets);
+  const ranked = rankSignalCandidates(candidates, account.kept_asset_ids, policy, templates, nowMs);
+  const items = ranked.map(r => r.item);
+  const decisionId = randomUUID();
+  await client.query(
+    'INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch,ranking_version) VALUES($1,$2,$3,$4,$5,$6,$7)',
+    [decisionId, scope.universeId, account.revision, 'editorial-unkept-v1', JSON.stringify(items), scope.privacyEpoch, policy.version],
+  );
+  for (const r of ranked) {
+    await client.query(
+      `INSERT INTO decision_signal(id,decision_id,universe_id,asset_id,rank,retrieval_score,inputs,explanation_key)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [randomUUID(), decisionId, scope.universeId, r.item.assetId, r.rank, r.retrievalScore, JSON.stringify(r.inputs), r.explanationKey],
+    );
+  }
+  return { decisionId, items };
 }

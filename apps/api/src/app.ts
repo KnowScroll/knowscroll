@@ -16,8 +16,11 @@ import {
   UnauthorizedSession,
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
-import { COMPOSER_SIGNALS_V2, rankSignalCandidates } from '../../../packages/core/src/composer.ts';
-import { loadComposerExplanationTemplates, loadComposerPolicy, loadComposerSignalCandidates } from '../../../packages/db/src/composer-signals.ts';
+import { COMPOSER_SIGNALS_V2 } from '../../../packages/core/src/composer.ts';
+import { COMPOSER_SEMANTIC_V3 } from '../../../packages/core/src/composer/semantic.ts';
+import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts';
+import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
+import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
 import { SHARED_SOURCE_V1, projectWorldsForEncounter, readWorldSystem } from '../../../packages/db/src/worlds.ts';
@@ -25,6 +28,7 @@ import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
 import { registerSignInRoutes } from './sign-in-routes.ts';
 import { registerSemanticRoutes } from './semantic-routes.ts';
+import { registerComposerRoutes } from './composer-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -90,7 +94,17 @@ async function feedCandidates(client: import('pg').PoolClient, kinds: readonly (
   return merged;
 }
 
-export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits } = {}) {
+/** `exclude`: up to 256 comma-separated asset UUIDs, or absent. Null when malformed. */
+export function parseFeedExclude(value: unknown): Set<string> | null {
+  if (value === undefined || value === '') return new Set();
+  if (typeof value !== 'string') return null; // a repeated parameter arrives as an array: refuse it, never throw
+  const ids = value.split(',');
+  if (ids.length > 256 || ids.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) return null;
+  return new Set(ids.map(id => id.toLowerCase()));
+}
+
+export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits; composerPolicy?: typeof COMPOSER_SIGNALS_V2 | typeof COMPOSER_SEMANTIC_V3 } = {}) {
+  const composerPolicy = options.composerPolicy ?? COMPOSER_SEMANTIC_V3;
   if (developmentToken.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
   // Resolved once at build time (deployment configuration, never per-request data), but only
   // actually required the first time the media route is hit: a caller that never touches
@@ -123,6 +137,7 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
 
   // #131: semantic continuations and connection feedback, through the same authenticated path.
   registerSemanticRoutes(app, authenticated);
+  registerComposerRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 
@@ -216,38 +231,22 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     return reply.header('Cache-Control','no-store').send(result);
   });
 
-  app.get<{ Querystring: { kinds?: string } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
+  app.get<{ Querystring: { kinds?: string; exclude?: string | string[] } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const kinds = parseFeedKinds(req.query.kinds);
     if (kinds === null) throw new HttpError(400, 'Invalid kinds parameter');
+    // #133: what this discovery trip already has on screen or opened. The client skips those, so
+    // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason.
+    const exclude = parseFeedExclude(req.query.exclude);
+    if (exclude === null) throw new HttpError(400, 'Invalid exclude parameter');
     const account = (await client.query('SELECT * FROM accounts WHERE universe_id=$1', [scope.universeId])).rows[0];
     const assets = await feedCandidates(client, kinds);
 
-    // ADR-0028 (#114/#5): real retrieval-time signals, a versioned policy and a registered
-    // explanation vocabulary, all fetched with bounded SQL — never a provider call
-    // (packages/core/AGENTS.md, ADR-0016). `policy_version` stays 'editorial-unkept-v1' (section 1:
-    // retrieval itself is unchanged); `ranking_version` records the policy that actually ordered
-    // and explained this slate, so migration 0017's own invariants apply to every decision from
-    // here on. composer-signals-v2 (#113/ADR-0029 amendment, migration 0021): adds a coverage
-    // tie-break over v1's hash-only one so a source cannot sit behind another indefinitely;
-    // composer-signals-v1 stays registered but is never loaded by any code path from here on.
-    const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V2);
-    const templates = await loadComposerExplanationTemplates(client);
-    const { candidates, nowMs } = await loadComposerSignalCandidates(client, scope.universeId, assets);
-    const ranked = rankSignalCandidates(candidates, account.kept_asset_ids, policy, templates, nowMs);
-    const items = ranked.map(r => r.item);
-
-    const decisionId = randomUUID();
-    await client.query(
-      'INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch,ranking_version) VALUES($1,$2,$3,$4,$5,$6,$7)',
-      [decisionId, scope.universeId, account.revision, 'editorial-unkept-v1', JSON.stringify(items), scope.privacyEpoch, policy.version],
-    );
-    for (const r of ranked) {
-      await client.query(
-        `INSERT INTO decision_signal(id,decision_id,universe_id,asset_id,rank,retrieval_score,inputs,explanation_key)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [randomUUID(), decisionId, scope.universeId, r.item.assetId, r.rank, r.retrievalScore, JSON.stringify(r.inputs), r.explanationKey],
-      );
-    }
+    // The ranking policy is deployment configuration recorded on every decision: composer-semantic-v3
+    // (ADR-0032) by default; composer-signals-v2 (ADR-0028/0029) remains selectable and immutable.
+    const { decisionId, items } = composerPolicy === COMPOSER_SIGNALS_V2
+      ? await composeAndRecordV2(client, scope, assets, account)
+      // v3 gates kept encounters itself and records them, so "why not that" has an answer.
+      : await composeAndRecordV3(client, scope, assets, account.revision, exclude);
     return { decisionId, universeId: scope.universeId, accountRevision: account.revision, privacyEpoch: scope.privacyEpoch, items };
   }));
 
@@ -274,6 +273,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
       // is the one deterministic projection step that must never lag behind it.
       await projectWorldsForEncounter(client, scope.universeId);
+      // ADR-0032: the private personal model follows the same evidence, in the same transaction.
+      await refreshPersonalModel(client, scope.universeId);
       return { exposureId, eventId };
     });
     return reply.code(201).send(result);
@@ -303,6 +304,7 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       const jobId = randomUUID();
       await client.query('INSERT INTO ledger(id,universe_id,kind,client_key,causation_id,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6,$7)', [eventId, scope.universeId, 'keep', body.clientEventId, exposure.event_id, JSON.stringify(body), scope.privacyEpoch]);
       await client.query('INSERT INTO job(id,universe_id,event_id,kind,privacy_epoch) VALUES($1,$2,$3,$4,$5)', [jobId, scope.universeId, eventId, 'project_keep', scope.privacyEpoch]);
+      await refreshPersonalModel(client, scope.universeId);
       return { eventId, jobId, status: 'accepted' };
     });
     return reply.code(202).send(result);
@@ -313,7 +315,9 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       const parsed = explicitAskInput.safeParse(req.body);
       if (!parsed.success) throw new HttpError(400, 'Invalid Ask');
       try {
-        return await recordExplicitAsk(client, scope, parsed.data);
+        const receipt = await recordExplicitAsk(client, scope, parsed.data);
+        await refreshPersonalModel(client, scope.universeId);
+        return receipt;
       } catch (error) {
         if (!(error instanceof ExplicitAskError)) throw error;
         if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Ask');

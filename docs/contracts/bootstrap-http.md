@@ -142,3 +142,30 @@ retraction of shared knowledge. Allowed while paused (a correction control, not 
 
 Clear and Reset erase branch opens, feedback and universe-scoped proposals/bridges; export includes
 them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `semanticProposals`.
+
+### Composer v3: why and correction (#133, ADR-0032)
+
+`GET /v1/feed?kinds=…&exclude=<id,…>` is ranked by `composer-semantic-v3` by default
+(`composer-signals-v2` stays a configured alternative). `exclude` (optional, at most 256 UUIDs) names
+what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`.
+A client skips exactly the ids it sent (the current Scroll last, at most 256), so the trip ends only
+when every unkept Scroll it has not opened is used up; past 256 an older opened Scroll may return.
+Malformed, oversized or repeated: 400. The item shape is unchanged; each decision records every candidate it
+considered (`decision_candidate`: family, gate, terms, score, rank, evidence path) and its served
+window and quotas (`decision_context`).
+
+`GET /v1/decisions/:decisionId/why?assetId=` → 200 `WhyResponseWire` for an encounter this
+universe was served: `family`, the rendered `reason` (identical to the served one), `evidence`
+steps built from recorded ids (`mark` with `eventId`, `bridge`, `question`, `outside`), `terms`,
+`quotas` and the `corrections` it supports. 404 for a gated or unserved candidate, another
+universe's decision, or a decision recorded by another policy (branch targets, v2). 400 for a
+malformed id.
+
+`POST /v1/encounters/feedback` `{clientFeedbackId, decisionId, assetId, kind:
+less_like_this|wrong_connection, expectedPrivacyEpoch}` → 201 receipt with the suppressed route
+(`family`, `concept`, `bridgeId`, `until`, 14 days). The route is the one recorded when the encounter
+was served, never re-derived. `wrong_connection` only on a bridge candidate (it also records the
+ADR-0031 personal suppression); an unmapped fallback has no route (422); an unserved encounter is
+422; a stale epoch or a key reused with other content is 409; an exact retry returns the original
+receipt. Allowed while paused. Clear/Reset erase it with attention accounts, transitions and
+hypotheses; export carries them under `personalModel`.

@@ -35,6 +35,7 @@ export type PrivacyExportRowCounts = {
  deviceSessions:number; reasoningJobs:number; reasoningSteps:number;
  reasoningReceipts:number; reasoningAccounting:number;
  branchOpens:number; connectionFeedback:number; semanticProposals:number;
+ attentionAccounts:number; hypotheses:number; encounterFeedback:number;
 };
 export type PrivacyExportDeviceSession = {
  deviceId:string; origin:string; createdAt:string; expiresAt:string; revokedAt:string|null;
@@ -48,6 +49,7 @@ export type PrivacyExportResult = {
  deviceSessions:PrivacyExportDeviceSession[];
  reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
  semantic:{branchOpens:unknown[]; connectionFeedback:unknown[]; proposals:unknown[]; bridges:unknown[]};
+ personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]};
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;

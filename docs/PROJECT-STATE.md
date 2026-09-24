@@ -1,5 +1,15 @@
 # Project state
 
+## 2026-09-24 Composer v3, the reader's why and correction (#133, #131 hypotheses)
+
+The feed is now composed by `composer-semantic-v3` from the reader's own recorded acts and the
+admitted substrate: it continues, deepens, crosses sourced bridges, challenges, revisits, steps
+outside on a rolling exploration floor, or falls back honestly, and it records why. On Android the
+reader can see what led to a Scroll and correct the route without editing a profile. Private
+attention accounts and revisable hypotheses exist and are erasable and exportable. Usefulness has
+not been judged by a person; the offline comparison shows behaviour only. Ask remains recorded-only
+(#132); worlds remain source-derived (#134); the frame regression is unaccepted.
+
 ## 2026-09-24 semantic substrate and live continuations (#131, PR140)
 
 A source-backed semantic substrate now exists (ADR-0031, migration 0026): claims quote hashed
