@@ -30,7 +30,7 @@ export async function verifyPersistedJourney(pool: Pick<Pool, 'query'>, journey:
   const rows = (await pool.query<Row>(`
     SELECT
       d.id AS decision_id, d.universe_id AS decision_universe_id,
-      d.account_revision AS decision_account_revision, d.policy_version, d.candidates,
+      d.account_revision AS decision_account_revision, d.policy_version, d.ranking_version, d.candidates,
       e.id AS exposure_id, e.universe_id AS exposure_universe_id,
       e.asset_id AS exposure_asset_id, e.event_id AS exposure_event_id,
       le.id AS ledger_exposure_id, le.kind AS ledger_exposure_kind,
@@ -84,7 +84,13 @@ export async function verifyPersistedJourney(pool: Pick<Pool, 'query'>, journey:
   assert.equal(row.source_url, journey.asset.sourceUrl);
   assert.equal(row.truth_state, journey.asset.truthState);
   assert.equal(row.decision_account_revision, journey.accountRevision);
-  assert.equal(row.policy_version, 'editorial-unkept-v1');
+  // Retrieval and ranking are recorded as a pair: composer-semantic-v3 (the default, ADR-0032) considers
+  // kept encounters and gates them; composer-signals-v2 retrieves only unkept ones (ADR-0028).
+  assert.ok(
+    (row.policy_version === 'semantic-retrieval-v3' && row.ranking_version === 'composer-semantic-v3')
+      || (row.policy_version === 'editorial-unkept-v1' && row.ranking_version === 'composer-signals-v2'),
+    `unexpected retrieval/ranking pair ${row.policy_version}/${row.ranking_version}`,
+  );
   assert.ok(Array.isArray(row.candidates) && row.candidates.some((candidate: {assetId?: string}) => candidate.assetId===journey.asset.assetId), 'decision must persist the selected asset');
   assert.ok(Number(row.accounts_revision) > journey.beforeRevision, 'Accounts projection must advance');
   assert.ok(Number(row.universe_revision) > journey.beforeRevision, 'universe projection must advance');
