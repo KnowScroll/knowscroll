@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-23T20:45:08.587Z",
-  "url": "http://127.0.0.1:62451/",
+  "timestamp": "2026-09-24T09:13:40.164Z",
+  "url": "http://127.0.0.1:58314/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -4264,16 +4264,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#fefcf1",
+                "fgColor": "#fdfbf1",
                 "bgColor": "#061a27",
-                "contrastRatio": 17.22,
+                "contrastRatio": 17.08,
                 "fontSize": "10.5pt (14px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 17.22"
+              "message": "Element has sufficient color contrast of 17.08"
             }
           ],
           "all": [],

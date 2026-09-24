@@ -795,6 +795,12 @@ a:focus-visible,
   min-height: 0;
   overflow-y: auto;
 }
+/* Once the open "why this appeared" sheet (with #133's "What led here") is taller than the rail,
+   the rail must scroll, not squash: as flex items its pills and cards would otherwise shrink to a
+   sliver of their own height. */
+.context-rail > * {
+  flex-shrink: 0;
+}
 
 .reading-column {
   min-width: 0;

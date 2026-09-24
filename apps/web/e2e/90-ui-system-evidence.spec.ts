@@ -66,6 +66,8 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       // (docs/contracts/trace-revisit.md), so this also exercises the honest fallback copy.
       await page.getByRole('button', { name: 'Why this appeared' }).click();
       await expect(page.getByText('No explanation recorded.')).toBeVisible();
+      // #133: a saved Trace was never chosen by the Composer, so "What led here" says so plainly.
+      await expect(page.getByText('This step was not chosen by the Composer, so there is no recorded path to show.')).toBeVisible();
       await page.screenshot({ path: join(screenshotsDir, `reader-why-${viewport.name}.png`), fullPage: true });
       await page.getByRole('button', { name: 'Why this appeared' }).click();
     });
