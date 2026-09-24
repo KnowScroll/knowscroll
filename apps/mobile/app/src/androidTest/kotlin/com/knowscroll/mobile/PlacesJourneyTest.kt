@@ -123,20 +123,27 @@ class PlacesJourneyTest {
         val api = ApiClient()
         val beforeOpen = runBlocking { api.getAtlas() }
         val planet = beforeOpen.places.single { it.anchor.code == "physics.gravity" }
-        val sightingPlace = beforeOpen.places.first { it.kind == "sighting" && it.parentPlaceId == planet.placeId }
-        val basis = sightingPlace.basis!!
-        val expectedSentence = com.knowscroll.mobile.ui.system.basisSentence(basis)
-        val expectedSupport = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
-        assertNotNull("a sighting shows what connects it", expectedSupport)
+        // A sighting is a neighbour the reader has never been shown, so a trip that already read all
+        // of Gravity's neighbours has none: then there is honestly nothing to show (PlacesScreenTest
+        // covers the sighting rendering on the JVM).
+        val sightingPlace = beforeOpen.places.firstOrNull { it.kind == "sighting" && it.parentPlaceId == planet.placeId }
 
         compose.onNodeWithContentDescription("Explore place: Gravity").performClick()
         compose.onNodeWithText("Info").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(expectedSentence).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(expectedSupport!!).assertExists()
+        if (sightingPlace != null) {
+            val basis = sightingPlace.basis!!
+            val expectedSentence = com.knowscroll.mobile.ui.system.basisSentence(basis)
+            val expectedSupport = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
+            assertNotNull("a sighting shows what connects it", expectedSupport)
+            compose.waitUntil(10_000) { compose.onAllNodesWithText(expectedSentence).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText(expectedSupport!!).assertExists()
+        } else {
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("A place formed around Gravity.").fetchSemanticsNodes().isNotEmpty() }
+        }
         screenshot("places-sheet.png")
 
         val formed = beforeOpen.chronicle.first { it.kind == "place_formed" && it.placeId == planet.placeId }
-        val sightingDelta = beforeOpen.chronicle.first { it.kind == "sighting_appeared" && it.placeId == sightingPlace.placeId }
+        val sightingDelta = sightingPlace?.let { s -> beforeOpen.chronicle.first { it.kind == "sighting_appeared" && it.placeId == s.placeId } }
 
         compose.onNodeWithText("A place formed around Gravity.").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Formed from", substring = true).fetchSemanticsNodes().isNotEmpty() }
@@ -157,7 +164,7 @@ class PlacesJourneyTest {
             JSONObject().apply {
                 put("placeId", planet.placeId)
                 put("deltaIds", JSONObject().apply {
-                    put("formed", formed.deltaId); put("sightingAppeared", sightingDelta.deltaId); put("rejected", rejected.deltaId)
+                    put("formed", formed.deltaId); put("sightingAppeared", sightingDelta?.deltaId ?: JSONObject.NULL); put("rejected", rejected.deltaId)
                 })
                 put("counts", JSONObject().apply {
                     put("scrollsTotal", planet.scrolls.total); put("scrollsSeen", planet.scrolls.seen)
