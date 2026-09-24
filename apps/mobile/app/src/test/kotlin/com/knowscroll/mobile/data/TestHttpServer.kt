@@ -1,6 +1,7 @@
 package com.knowscroll.mobile.data
 
 import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.thread
 
 /**
@@ -16,6 +17,21 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
     /** A copy taken under the list's lock: iterating [requests] itself while the server thread appends can throw. */
     fun snapshot(): List<Recorded> = synchronized(requests) { requests.toList() }
     private var worker: Thread? = null
+    @Volatile private var held: CountDownLatch? = null
+
+    /**
+     * #169: every answer from now on waits for [releaseAnswers] (or [close]), so a test can see the
+     * state an action shows while its request is in flight. Otherwise a fast enough answer can finish
+     * the whole call before the action returns -- `withContext(Dispatchers.IO)` then never suspends --
+     * and that state is never there to see.
+     */
+    fun holdAnswers() {
+        held = CountDownLatch(1)
+    }
+
+    fun releaseAnswers() {
+        held?.countDown()
+    }
 
     /** Serves each `(status, jsonBody)` reply, in order, to one accepted connection. */
     fun serve(vararg replies: Pair<Int, String>) {
@@ -46,6 +62,7 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
             val recorded = Recorded(requestLine, requestBody)
             requests += recorded
             val (status, body) = reply(recorded)
+            held?.await()
             if (status == HANG) {
                 // Received in full, never answered: hold the connection until the client
                 // gives up (its read timeout) and closes it -- a genuinely lost response.
@@ -65,6 +82,7 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
     }
 
     override fun close() {
+        releaseAnswers()
         server.close()
     }
 

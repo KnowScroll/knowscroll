@@ -141,8 +141,10 @@ class ReturnViewModelTest {
             server.serve(Routes(away(found, nothing), relics(), acknowledged(), away()))
             val model = viewModel(server)
             openAtlas(model)
+            server.holdAnswers()
             model.markSeen()
             assertEquals(ReturnActionState.Working, model.acknowledge.value)
+            server.releaseAnswers()
             awaitUntil { awayOrNull(model)?.items?.isEmpty() == true && model.acknowledge.value == ReturnActionState.Idle }
             val body = sent(server, "POST /v1/away/acknowledge").single()
             assertEquals("the newest item displayed, not the time of the tap", "2026-09-24T10:05:00.000Z", body.getString("through"))
@@ -223,8 +225,10 @@ class ReturnViewModelTest {
             server.serve(Routes(away(found), relics(), kept(), relics(relic())))
             val model = viewModel(server)
             openAtlas(model)
+            server.holdAnswers()
             model.keep(bridgeId)
             assertEquals(ReturnActionState.Working, connectionState(model).keep)
+            server.releaseAnswers()
             awaitUntil { connectionState(model).kept && relicsOrNull(model)?.relics?.size == 1 }
             val body = sent(server, "POST /v1/relics").single()
             assertEquals(bridgeId, body.getString("bridgeId"))
@@ -328,8 +332,10 @@ class ReturnViewModelTest {
             val model = viewModel(server)
             model.openKeep()
             awaitUntil { model.relics.value is RelicsState.Loaded }
+            server.holdAnswers()
             model.letGo(relicId)
             assertEquals(ReturnActionState.Working, model.releases.value[relicId])
+            server.releaseAnswers()
             awaitUntil { relicsOrNull(model)?.relics?.isEmpty() == true && model.releases.value[relicId] == null }
             assertEquals("""{"expectedPrivacyEpoch":4}""", server.snapshot()[1].body)
             awaitUntil { server.requests.size == 3 }
