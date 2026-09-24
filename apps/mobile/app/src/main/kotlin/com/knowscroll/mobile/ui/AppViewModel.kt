@@ -41,6 +41,7 @@ import com.knowscroll.mobile.ui.ask.AnswerRequestConflict
 import com.knowscroll.mobile.ui.ask.AskPanel
 import com.knowscroll.mobile.ui.ask.AskStage
 import com.knowscroll.mobile.ui.ask.answerRequestConflict
+import com.knowscroll.mobile.ui.ask.askToWatchOnReopen
 import com.knowscroll.mobile.ui.ask.cancelAlreadyStarted
 import com.knowscroll.mobile.ui.ask.reopenedAskPanel
 import com.knowscroll.mobile.ui.ask.stageAfterPoll
@@ -596,12 +597,16 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     /** #132: open the Ask sheet for the Scroll on screen. A panel already open for this same
-     * Scroll is left as-is (its own stage carries forward); a different Scroll starts fresh, unless
-     * it is the one whose answer the reader was waiting for when the process died (#166): that
-     * answer is picked up again and polled, never requested again. */
+     * Scroll keeps its own stage, and an answer it was waiting for is watched again (closing the
+     * sheet stopped polling); a different Scroll starts fresh, unless it is the one whose answer the
+     * reader was waiting for when the process died (#166): that answer is picked up again and
+     * polled, never requested again. */
     fun openAsk(){
         val reading=_scroll.value as? ScrollState.Reading ?: return
-        if(_ask.value?.assetId==reading.item.assetId)return
+        _ask.value?.takeIf{it.assetId==reading.item.assetId}?.let{open->
+            askToWatchOnReopen(open,polling=askPollJob?.isActive==true)?.let{pollAnswer(it,reading.item.assetId,observedPrivacyEpoch)}
+            return
+        }
         askPollJob?.cancel();askPollJob=null
         val panel=reopenedAskPanel(reading.item.assetId,observedPrivacyEpoch,store.readWatchedAnswer())
         _ask.value=panel

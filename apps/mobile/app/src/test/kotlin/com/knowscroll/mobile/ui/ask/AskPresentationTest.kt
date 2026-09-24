@@ -51,4 +51,16 @@ class AskPresentationTest {
         assertFalse(cancelAlreadyStarted(ApiException.Server(409, "{}")))
         assertFalse(cancelAlreadyStarted(ApiException.Server(404, "not found")))
     }
+
+    /** #166 review: closing the sheet stops polling, so reopening it on the same Scroll must watch an
+     * answer still on its way again (or one whose polling timed out); nothing else restarts. */
+    @Test fun reopeningTheSheetWatchesAnAnswerStillOnItsWayAgain() {
+        val panel = { stage: AskStage -> AskPanel("asset-a", stage, "Why two tides?") }
+        assertEquals("ask-1", askToWatchOnReopen(panel(AskStage.Waiting("ask-1", "queued")), polling = false))
+        assertEquals("ask-1", askToWatchOnReopen(panel(AskStage.Waiting("ask-1", "running")), polling = false))
+        assertEquals("ask-1", askToWatchOnReopen(panel(AskStage.TimedOut("ask-1")), polling = false))
+        assertNull("a poll already running is left alone", askToWatchOnReopen(panel(AskStage.Waiting("ask-1", "queued")), polling = true))
+        for (stage in listOf(AskStage.Composing, AskStage.Recorded("ask-1"), AskStage.Requesting, AskStage.Error("ask-1", "failed")))
+            assertNull("$stage", askToWatchOnReopen(panel(stage), polling = false))
+    }
 }

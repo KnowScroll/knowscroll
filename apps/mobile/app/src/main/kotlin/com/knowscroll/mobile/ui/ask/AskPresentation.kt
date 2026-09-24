@@ -49,6 +49,16 @@ internal fun reopenedAskPanel(assetId: String, epoch: Long, watched: WatchedAnsw
         ?.let { AskPanel(assetId, AskStage.Waiting(it.askId, "queued"), it.question) }
         ?: AskPanel(assetId)
 
+/** #166: the Ask sheet reopened on the Scroll it was open for. Closing it stopped polling, so an
+ * answer still on its way (or one whose bounded polling timed out) is watched again, unless a poll is
+ * already running; any other stage stays exactly as the reader left it. */
+internal fun askToWatchOnReopen(panel: AskPanel, polling: Boolean): String? =
+    if (polling) null else when (val stage = panel.stage) {
+        is AskStage.Waiting -> stage.askId
+        is AskStage.TimedOut -> stage.askId
+        else -> null
+    }
+
 enum class AnswerRequestConflict { Paused, NotAsker, AlreadyRequested, StaleEpoch }
 
 /** A 409 from `POST /v1/asks/:id/answer` names exactly one of four conditions; the client tells
