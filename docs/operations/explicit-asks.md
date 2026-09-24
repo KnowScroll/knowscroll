@@ -21,3 +21,11 @@ Source history remains until Clear History, like exposure and Keep. The seven-da
 `pnpm exec tsx scripts/run-isolated-ask-journey.ts artifacts/explicit-ask-journey.json` creates a disposable PostgreSQL database and a separate HTTP API process. It records/replays a synthetic literal Ask, verifies conflicting reuse and no execution/projection state, restarts that API and replays the same durable receipt, clears history, rejects old-epoch retry, preserves a later Ask under an old clear replay, then removes its process/database.
 
 This proves HTTP/storage behavior with fixtures, not PostgreSQL restart, mobile Ask UX, an answer, provider execution, semantic application or usefulness. [Evidence](../journeys/evidence/explicit-asks/README.md) pins tested revisions. The owner's existing API process is not implicitly restarted by pulling code; this internal endpoint requires an API launch on the new revision when needed. Product reasoning remains disabled.
+
+## Answers (ADR-0033, #132)
+
+A recorded Ask stays a fact. An answer exists only after a separate, fresh request from the Ask's own
+session (`POST /v1/asks/:askId/answer`); the worker sends the sealed question and Scroll to the enabled
+route once and applies the reply only through the answer validator. Clear and Reset erase answer
+requests and answers with the Ask; minimal content-free accounting keeps its ADR-0019 retention. See
+the [evidence](../journeys/evidence/ask-answers-2026-09-24/README.md).

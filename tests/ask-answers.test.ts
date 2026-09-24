@@ -198,3 +198,14 @@ for (const operation of ['clear', 'reset'] as const) {
     }
   });
 }
+
+test('review M1/I8: a stale epoch is refused before anything is queued; a malformed Ask id is a 400, never a 500', async () => {
+  const a = await ask();
+  const stale = await app.inject({ method: 'POST', url: `/v1/asks/${a.askId}/answer`, headers: headers(a.token), payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: 1 } });
+  assert.equal(stale.statusCode, 409, stale.body);
+  assert.equal(Number((await pool.query('SELECT count(*) FROM ask_answer_request WHERE ask_id=$1', [a.askId])).rows[0].count), 0, 'nothing queued');
+  for (const url of ['/v1/asks/not-a-uuid/answer/cancel', '/v1/asks/not-a-uuid/answer']) {
+    const r = await app.inject({ method: 'POST', url, headers: headers(a.token), payload: url.endsWith('cancel') ? { expectedPrivacyEpoch: 0 } : { clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
+    assert.ok([400, 404].includes(r.statusCode), `${url}: ${r.statusCode}`);
+  }
+});

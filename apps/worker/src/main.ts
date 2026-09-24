@@ -2,7 +2,8 @@ import { setTimeout } from 'node:timers/promises';
 import { pool } from '../../../packages/db/src/index.ts';
 import { projectOne } from './project.ts';
 import { answerTransportsFromEnvironment } from './reasoning/answer-loop.ts';
-import { runAnswerPass } from './reasoning/answer-worker.ts';
+import { createReadinessGate, runAnswerPass } from './reasoning/answer-worker.ts';
+import { settleAbandonedAnswers } from '../../../packages/db/src/reasoning-answers.ts';
 let running=true;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{running=false;});
 const workerId=`local-${process.pid}`;
@@ -10,6 +11,9 @@ const workerId=`local-${process.pid}`;
 const answerTransports=answerTransportsFromEnvironment(process.env);
 // Lease on an admitted answer; bounded by admission's own 1..60,000 ms limit.
 const answerLeaseMs=Math.min(60_000,Math.max(1_000,Number(process.env.KS_ANSWER_LEASE_MS ?? 60_000)||60_000));
+// Provider readiness (quota) at most every 30 s while work waits; a refusal backs off 60 s.
+const readiness=answerTransports?Object.fromEntries(Object.entries(answerTransports).map(([k,t])=>[k,createReadinessGate(t!)])):{};
+let lastSweep=0;
 const stop=new AbortController();
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>stop.abort());
 console.log(JSON.stringify({service:'worker',workerId,kind:'deterministic-projection',answers:answerTransports?Object.keys(answerTransports):[]}));
@@ -19,9 +23,15 @@ try {while(running) {
  catch {console.error(JSON.stringify({error:'projection_failed'}));}
  if(answerTransports) {
   // Minimal log: ids and outcome kinds only, never a question, reply or key.
-  try {const pass=await runAnswerPass({pool,owner:workerId,leaseMs:answerLeaseMs,transports:answerTransports,signal:stop.signal});
+  try {const pass=await runAnswerPass({pool,owner:workerId,leaseMs:answerLeaseMs,transports:answerTransports,readiness,signal:stop.signal});
    if(pass.kind==='done') console.log(JSON.stringify({answer:pass.askId,invocation:pass.invocation,outcome:pass.outcome.kind,status:'status' in pass.outcome?pass.outcome.status:pass.outcome.reason}));}
   catch {console.error(JSON.stringify({error:'answer_pass_failed'}));}
+  // Answers whose worker died are closed once their lease expires (#132 review B2).
+  if(Date.now()-lastSweep>=5_000) {
+   lastSweep=Date.now();
+   try {const settled=await settleAbandonedAnswers(pool,{owner:workerId});if(settled) console.log(JSON.stringify({answersSettled:settled}));}
+   catch {console.error(JSON.stringify({error:'answer_sweep_failed'}));}
+  }
  }
  await setTimeout(300);
 }} finally {await pool.end();}

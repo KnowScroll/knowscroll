@@ -2,7 +2,9 @@
  * #132 — a worker killed during an answer call (ADR-0033 §3): separate worker processes against the
  * test database. The first worker commits its dispatch and is killed mid-call; a replacement worker
  * runs; the database shows exactly one attempt and one dispatch (a possibly-sent request is never
- * repeated), and once the deadline passes the reader sees the answer as unavailable.
+ * repeated). The replacement's recovery sweep closes the abandoned call honestly: the answer fails as
+ * `outcome_unknown`, the accounting stays `unknown` and its remote slot stays held (it may have been
+ * spent, ADR-0012), and no answer text is ever invented.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +45,7 @@ async function until(check: () => Promise<boolean>, ms: number, what: string) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-test('a worker killed mid-call is never repeated by its replacement, and the answer ends as unavailable', async () => {
+test('a worker killed mid-call is never repeated by its replacement, and the answer fails as outcome unknown', async () => {
   const identity = await provisionIdentity();
   const feed = (await app.inject({ url: '/v1/feed?kinds=Scroll', headers: headers(identity.token) })).json() as { decisionId: string; items: { assetId: string }[] };
   const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers: headers(identity.token), payload: { decisionId: feed.decisionId, assetId: feed.items[0]!.assetId, clientExposureId: randomUUID() } });
@@ -63,9 +65,13 @@ test('a worker killed mid-call is never repeated by its replacement, and the ans
   await new Promise(r => setTimeout(r, LEASE_MS * 4));
   kill(replacement);
   assert.deepEqual(await dispatches(), { sent: 1, attempts: 1 }, 'the possibly-sent request is never sent again');
-  assert.equal(Number((await pool.query('SELECT count(*) FROM ask_answer WHERE ask_id=$1', [askId])).rows[0].count), 0, 'no answer was invented');
-
-  const view = async () => (await app.inject({ url: `/v1/asks/${askId}/answer`, headers: headers(identity.token) })).json().status as string;
-  assert.equal(await view(), 'running');
-  await until(async () => (await view()) === 'unavailable', (TTL + 10) * 1000, 'the deadline to pass');
+  const answer = (await pool.query('SELECT status, answer, basis, reasons FROM ask_answer WHERE ask_id=$1', [askId])).rows[0];
+  assert.deepEqual(answer, { status: 'failed', answer: null, basis: [], reasons: ['outcome_unknown'] }, 'closed honestly, nothing invented');
+  const accounting = (await pool.query(`SELECT ac.state, ac.output_authority FROM reasoning_attempt at JOIN reasoning_accounting ac ON ac.attempt_id = at.id WHERE at.job_id=$1`, [jobId])).rows;
+  assert.deepEqual(accounting, [{ state: 'unknown', output_authority: 'withdrawn' }]);
+  const remoteHeld = Number((await pool.query(`SELECT count(*) FROM reasoning_reservation rr JOIN reasoning_bucket b ON b.id = rr.bucket_id
+    JOIN reasoning_attempt at ON at.id = rr.attempt_id WHERE at.job_id=$1 AND b.dimension='remote_concurrency' AND rr.state='held'`, [jobId])).rows[0].count);
+  assert.equal(remoteHeld, 1, 'an unknown outcome keeps its remote slot: it may have been spent');
+  const view = (await app.inject({ url: `/v1/asks/${askId}/answer`, headers: headers(identity.token) })).json();
+  assert.deepEqual([view.status, view.reasons], ['failed', ['outcome_unknown']]);
 });

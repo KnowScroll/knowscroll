@@ -76,8 +76,13 @@ export function serializeAskAnswerRequest(source: AskAnswerSource, route: AskAns
 }
 
 const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
-// Statements about the reader, not the subject: the product never characterises a person.
-const CHARACTERIZES = /\b(you (seem|are|must be|clearly|probably|love|like|prefer|enjoy)|your (personality|interests?|nature|kind of person))\b/i;
+// Statements about the reader, not the subject: the product never characterises a person. A trait
+// or taste is refused ("you're clearly curious", "you seem…", "your curiosity"); plain second person
+// about the subject ("if you are near a coast") is not. Curly apostrophes are normalised first.
+const CHARACTERIZES = /\b(you(?: are|'re) (?:a|an|the|clearly|obviously|probably|really|so|very|such|someone|one of)\b|you(?: seem| must be| sound| strike me)\b|you(?: clearly| obviously| probably)? (?:love|like|prefer|enjoy|adore)\b|the (?:kind|sort|type) (?:of person )?who\b|your (?:personality|interests?|nature|curiosity|character|taste|tastes|passion|kind of person)\b)/i;
+const characterizes = (text: string) => CHARACTERIZES.test(text.replace(/[\u2018\u2019\u02bc]/g, "'"));
+// Text the database would refuse is refused here, so a paid reply is never lost at storage.
+const hasNul = (text: string) => text.includes('\u0000');
 
 /** The single top-level JSON object in the text, after dropping reasoning blocks; null if none or several. */
 function oneObject(text: string): unknown {
@@ -105,6 +110,7 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
   const keys = Object.keys(v).sort().join(',');
   if (keys !== 'answer,basis,limits') return reject('shape_invalid', 'shape_keys');
   if (!(v.answer === null || typeof v.answer === 'string') || typeof v.limits !== 'string' || !Array.isArray(v.basis)) return reject('shape_invalid', 'shape_types');
+  if ((typeof v.answer === 'string' && hasNul(v.answer)) || hasNul(v.limits)) return reject('shape_invalid', 'shape_types');
   if (v.basis.length > ASK_ANSWER_LIMITS.maxQuotes) return reject('shape_invalid', 'shape_too_many_quotes');
   const basis: { quote: string }[] = [];
   for (const item of v.basis) {
@@ -114,25 +120,27 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
     const quote = typeof item === 'string' ? item
       : item !== null && typeof item === 'object' && !Array.isArray(item) && typeof (item as { quote?: unknown }).quote === 'string' ? (item as { quote: string }).quote
       : null;
-    if (quote === null) return reject('shape_invalid', 'shape_basis_item');
-    basis.push({ quote });
+    if (quote === null || hasNul(quote)) return reject('shape_invalid', 'shape_basis_item');
+    // Collapsed first: the length bounds, the Scroll check and the stored quote all see the same text.
+    basis.push({ quote: squash(quote) });
   }
   const limits = v.limits.trim();
   if (limits.length > ASK_ANSWER_LIMITS.limitsChars) return reject('shape_invalid', 'shape_limits_too_long');
 
   if (v.answer === null) {
     if (limits.length === 0) return reject('limits_missing');
-    if (CHARACTERIZES.test(limits)) return reject('characterizes_reader');
+    if (characterizes(limits)) return reject('characterizes_reader');
     return { ok: true, proposal: { kind: 'not_in_source', limits }, validatorVersion };
   }
   const answer = v.answer.trim();
   const reasons: AskAnswerRejection[] = [];
   if (answer.length === 0) return reject('shape_invalid', 'shape_empty_answer');
+  if (limits.length === 0) return reject('limits_missing');
   if (answer.length > ASK_ANSWER_LIMITS.answerChars) reasons.push('answer_too_long');
   if (basis.length === 0) reasons.push('basis_missing');
   const haystack = squash(`${source.scroll.summary}\n${source.scroll.body}`);
-  if (basis.some(b => b.quote.length < ASK_ANSWER_LIMITS.quoteMinChars || b.quote.length > ASK_ANSWER_LIMITS.quoteMaxChars || !haystack.includes(squash(b.quote)))) reasons.push('basis_not_in_source');
-  if (CHARACTERIZES.test(answer) || CHARACTERIZES.test(limits)) reasons.push('characterizes_reader');
+  if (basis.some(b => b.quote.length < ASK_ANSWER_LIMITS.quoteMinChars || b.quote.length > ASK_ANSWER_LIMITS.quoteMaxChars || !haystack.includes(b.quote))) reasons.push('basis_not_in_source');
+  if (characterizes(answer) || characterizes(limits)) reasons.push('characterizes_reader');
   if (reasons.length > 0) return reject(...reasons);
-  return { ok: true, proposal: { kind: 'answered', answer, basis: basis.map(b => ({ quote: squash(b.quote) })), limits }, validatorVersion };
+  return { ok: true, proposal: { kind: 'answered', answer, basis, limits }, validatorVersion };
 }

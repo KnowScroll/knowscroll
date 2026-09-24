@@ -214,7 +214,11 @@ finally:
         live_ledger['used'] += dispatched
         live_ledger['runs'].append({'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'dispatched': dispatched, 'database': name, 'via': 'android-ask-journey'})
         live_ledger_path.write_text(json.dumps(live_ledger, indent=2))
-    if created and journey_name == 'ask' and ask_transport == 'minimax': attempt('count live requests', count_live)
+    if created and journey_name == 'ask' and ask_transport == 'minimax':
+        before_count = len(cleanup_errors)
+        attempt('count live requests', count_live)
+        # A live request that cannot be counted keeps its database, so it can be counted by hand.
+        if len(cleanup_errors) > before_count: created = False
     # Outcome codes only (status, validator reasons, usage counts), never question or answer text.
     def record_outcome():
         (out / 'answer-outcome.json').write_text(sql("""SELECT coalesce(json_agg(json_build_object('status', a.status, 'reasons', a.reasons,

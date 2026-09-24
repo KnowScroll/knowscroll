@@ -217,7 +217,7 @@
     <string name="ask_submit_action">Ask</string>
     <string name="ask_submit_description">Send this question</string>
     <string name="ask_recording">Recording your question…</string>
-    <string name="ask_recorded_explanation">Getting an answer uses a separate answer service, which checks its response against this Scroll before it is shown.</string>
+    <string name="ask_recorded_explanation">Getting an answer sends your question and this Scroll\'s text to an outside AI model. Its reply is shown only if it holds up against this Scroll. Clearing your history removes the question and answer; a content-free record of the request\'s size and timing is kept for billing checks.</string>
     <string name="ask_get_answer_action">Get an answer</string>
     <string name="ask_requesting">Requesting an answer…</string>
     <string name="ask_waiting_queued">Your question is queued for an answer.</string>

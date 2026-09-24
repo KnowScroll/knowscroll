@@ -136,21 +136,27 @@ async function main() {
         writeFileSync(resolve(root, `artifacts/live-answers/${database}-${q.label}.local.json`), JSON.stringify({ question: q.text, ...view }, null, 2));
       }
     }
-    const dispatched = Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL')).rows[0].count);
-    receipt.dispatched = dispatched;
-    if (mode === 'live') {
-      ledger.used += dispatched;
-      ledger.runs.push({ at: String(receipt.at), dispatched, database });
-      writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
-      receipt.sessionLedger = { used: ledger.used, cap: ledger.sessionCap };
-    }
   } finally {
+    // Workers stop first, so nothing can dispatch after the count; the count is written to the
+    // session ledger whether or not the run succeeded, and the database is kept if it cannot be.
     for (const c of children) { try { process.kill(-c.pid!, 'SIGTERM'); } catch { /* gone */ } }
     await new Promise(r => setTimeout(r, 1500));
     for (const c of children) { try { process.kill(-c.pid!, 'SIGKILL'); } catch { /* gone */ } }
+    let counted = mode !== 'live';
+    try {
+      const dispatched = Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL')).rows[0].count);
+      receipt.dispatched = dispatched;
+      if (mode === 'live') {
+        ledger.used += dispatched;
+        ledger.runs.push({ at: String(receipt.at), dispatched, database });
+        writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
+        receipt.sessionLedger = { used: ledger.used, cap: ledger.sessionCap };
+        counted = true;
+      }
+    } catch { console.error(`Live requests could not be counted; ${database} is kept for counting by hand.`); }
     await pool.end().catch(() => undefined);
     await closeDb().catch(() => undefined);
-    await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`).catch(() => undefined);
+    if (counted) await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`).catch(() => undefined);
     await admin.end();
   }
   mkdirSync(resolve(root, 'artifacts/live-answers'), { recursive: true });

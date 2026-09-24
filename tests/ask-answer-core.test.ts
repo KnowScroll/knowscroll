@@ -107,3 +107,21 @@ test('v2 takes a quote as a bare string or an object with a string quote, drops 
   assert.equal(extra.validatorVersion, 'ask-answer-v2');
   assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: ['The Moon is made of green cheese entirely'] }), source)), ['basis_not_in_source']);
 });
+
+test('review B1/I1/I6: whitespace quotes, empty limits, NUL bytes and second-person characterisations are rejected; ordinary "you" is not', () => {
+  // B1: length is judged on the collapsed quote; an all-space or near-empty quote never grounds an answer.
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: ['            '] }), source)), ['basis_not_in_source']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: ['           a'] }), source)), ['basis_not_in_source']);
+  // I1: everything the database would refuse is refused here first.
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ limits: '   ' }), source)), ['limits_missing']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: 'The Moon pulls\u0000 the water.' }), source)), ['shape_invalid', 'shape_types']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ limits: 'Local\u0000 coasts differ.' }), source)), ['shape_invalid', 'shape_types']);
+  // I6: statements about the reader, in contracted and curly forms, are refused.
+  for (const answer of ["You're clearly a curious person: the Moon pulls the water.", 'You\u2019re the kind who loves the sea; the Moon pulls the water.',
+    'You must be fascinated by the ocean. The Moon pulls the water.', 'Your curiosity shows. The Moon pulls the water.']) {
+    assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer }), source)), ['characterizes_reader'], answer);
+  }
+  // Ordinary second person about the subject is fine.
+  const ordinary = validateAskAnswerProposal(good({ answer: 'If you are near a coast, you would see two high tides a day because Earth rotates through two bulges of water.' }), source);
+  assert.ok(ordinary.ok, JSON.stringify(ordinary));
+});

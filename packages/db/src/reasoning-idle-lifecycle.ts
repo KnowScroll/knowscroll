@@ -171,3 +171,12 @@ export async function cancelIdleDirectJob(client:pg.PoolClient,authScope:AuthSco
 export async function expireIdleDirectJob(client:pg.PoolClient,scope:IdleDirectJobScope):Promise<IdleWithdrawalResult> {
  return withdraw(client,scope,'expired');
 }
+
+/** Trusted worker maintenance (#132 review B2). A direct Job whose worker lost its lease and whose
+ * active attempt was already moved to a leaseless `waiting` state by `recoverAttempt` is closed the
+ * same way a reader's idle cancel closes one: never-sent attempts release everything they held,
+ * possibly-sent ones stay `unknown`. No reader session is required; the immutable session binding
+ * and the privacy epoch still are. Caller owns the transaction. */
+export async function withdrawRecoveredDirectJob(client:pg.PoolClient,scope:IdleDirectJobScope):Promise<IdleWithdrawalResult> {
+ return withdraw(client,scope,'cancelled');
+}

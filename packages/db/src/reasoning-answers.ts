@@ -17,7 +17,8 @@ import type { AuthScope } from './identity.ts';
 import { compileDirectAskContext } from './reasoning-ask-context.ts';
 import { createSealedContextAuthority } from './reasoning-context-authority.ts';
 import { lockBoundContextSession } from './reasoning-context-session.ts';
-import { cancelIdleDirectJob, isIdleWithdrawalIneligible } from './reasoning-idle-lifecycle.ts';
+import { cancelIdleDirectJob, isIdleWithdrawalIneligible, withdrawRecoveredDirectJob } from './reasoning-idle-lifecycle.ts';
+import { createReasoningAdmission, type ReasoningAdmission } from './reasoning-admission.ts';
 import { enqueueFairInTransaction } from './reasoning-fairness.ts';
 import type { ReasoningAuthority, ResolvedReasoningPolicy } from './reasoning-runtime-policy.ts';
 
@@ -271,21 +272,104 @@ export async function applyAskAnswer(client: pg.PoolClient, f: Fence, text: stri
     return { kind: 'applied', status: 'rejected' };
   }
   const p = verdict.proposal;
-  await insertAnswer(client, request, f.attemptId, p.kind === 'answered'
-    ? { status: 'answered', answer: p.answer, basis: p.basis, limits: p.limits, validatorVersion: verdict.validatorVersion }
-    : { status: 'not_in_source', limits: p.limits, validatorVersion: verdict.validatorVersion });
+  // The validator refuses everything the schema would; should they ever disagree, the reply is
+  // rejected here rather than thrown, so no provider text travels in a database error.
+  await client.query('SAVEPOINT ask_answer_insert');
+  try {
+    await insertAnswer(client, request, f.attemptId, p.kind === 'answered'
+      ? { status: 'answered', answer: p.answer, basis: p.basis, limits: p.limits, validatorVersion: verdict.validatorVersion }
+      : { status: 'not_in_source', limits: p.limits, validatorVersion: verdict.validatorVersion });
+    await client.query('RELEASE SAVEPOINT ask_answer_insert');
+  } catch {
+    await client.query('ROLLBACK TO SAVEPOINT ask_answer_insert');
+    await insertAnswer(client, request, f.attemptId, { status: 'rejected', reasons: ['storage_refused'], validatorVersion: verdict.validatorVersion });
+    await finish(client, f, false);
+    return { kind: 'applied', status: 'rejected' };
+  }
   await finish(client, f, true);
   return { kind: 'applied', status: p.kind };
 }
 
 /** A refused, failed or unconfirmed call ends the answer honestly; nothing the provider said is kept. */
-export async function failAskAnswer(client: pg.PoolClient, f: Fence, reason: 'outcome_unknown' | 'provider_error' | 'provider_refusal' | 'not_invoked'): Promise<AnswerOutcome> {
+export type AnswerFailure = 'outcome_unknown' | 'provider_error' | 'provider_refusal' | 'apply_failed';
+export async function failAskAnswer(client: pg.PoolClient, f: Fence, reason: AnswerFailure): Promise<AnswerOutcome> {
   const stale = await lockFence(client, f);
   if (stale) return { kind: 'discarded', reason: stale };
   const request = (await client.query<RequestRow>('SELECT * FROM ask_answer_request WHERE job_id=$1', [f.jobId])).rows[0]!;
   await insertAnswer(client, request, f.attemptId, { status: 'failed', reasons: [reason] });
   await finish(client, f, false);
   return { kind: 'failed', status: 'failed' };
+}
+
+/**
+ * #132 review B2: an admitted attempt that was never sent is given back while this worker still holds
+ * the lease — every reservation released, the Job cancelled — and the answer fails as `not_sent`.
+ */
+export async function giveBackUnsentAnswer(pool: pg.Pool, admission: ReasoningAdmission, f: Fence): Promise<AnswerOutcome> {
+  await admission.withdrawJob({ universeId: f.universeId, privacyEpoch: f.privacyEpoch, jobId: f.jobId, owner: f.owner, leaseFence: f.leaseFence, reason: 'cancelled' });
+  const closed = await inTransaction(pool, client => closeTerminalAnswer(client, f.jobId, 'not_sent'));
+  return closed ? { kind: 'failed', status: 'failed' } : { kind: 'discarded', reason: 'already_settled' };
+}
+
+/** A terminal answer Job with no answer gets its honest failure: unknown if anything may have been sent. */
+async function closeTerminalAnswer(client: pg.PoolClient, jobId: string, fallback: 'not_sent' | 'worker_stopped' | 'expired'): Promise<boolean> {
+  const request = (await client.query<RequestRow>('SELECT * FROM ask_answer_request WHERE job_id=$1', [jobId])).rows[0];
+  if (!request) return false;
+  await client.query('SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [request.universe_id, request.privacy_epoch]);
+  const job = (await client.query<{ status: string }>('SELECT status FROM reasoning_job WHERE id=$1 FOR UPDATE', [jobId])).rows[0];
+  if (!job || !['cancelled', 'expired', 'failed', 'completed'].includes(job.status)) return false;
+  if ((await client.query('SELECT 1 FROM ask_answer WHERE ask_id=$1', [request.ask_id])).rowCount) return false;
+  const attempt = (await client.query<{ id: string; state: string }>(
+    `SELECT at.id, ac.state FROM reasoning_attempt at JOIN reasoning_accounting ac ON ac.attempt_id = at.id WHERE at.job_id=$1 ORDER BY at.id DESC LIMIT 1`, [jobId])).rows[0];
+  const reason = attempt && ['dispatch_committed', 'unknown'].includes(attempt.state) ? 'outcome_unknown' : fallback;
+  await insertAnswer(client, request, attempt?.id ?? null, { status: 'failed', reasons: [reason] });
+  return true;
+}
+
+async function inTransaction<T>(pool: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try { await client.query('BEGIN'); const value = await body(client); await client.query('COMMIT'); return value; }
+  catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; }
+  finally { client.release(); }
+}
+
+/**
+ * #132 review B2: the recovery sweep. An answer Job whose worker died is never left holding its
+ * reservations or its remote slot beyond what it may have spent: after the lease expires the active
+ * attempt is recovered (ADR-0019), the leaseless Job is withdrawn like an idle one, and every
+ * terminal answer Job without an answer gets its honest failure. Returns how many answers it settled.
+ */
+export async function settleAbandonedAnswers(pool: pg.Pool, input: { owner: string; limit?: number }): Promise<number> {
+  const limit = input.limit ?? 10;
+  const admission = createReasoningAdmission(pool, answerAuthority());
+  const expired = (await pool.query<{ job_id: string; universe_id: string; privacy_epoch: number; step_id: string; attempt_id: string }>(
+    `SELECT j.id AS job_id, j.universe_id, j.privacy_epoch, at.step_id, at.id AS attempt_id FROM ask_answer_request r
+     JOIN reasoning_job j ON j.id = r.job_id JOIN reasoning_attempt at ON at.job_id = j.id AND at.active
+     WHERE j.status = 'running' AND j.lease_expires_at <= clock_timestamp() AND NOT EXISTS (SELECT 1 FROM ask_answer a WHERE a.ask_id = r.ask_id)
+     ORDER BY j.id LIMIT $1`, [limit])).rows;
+  for (const row of expired) {
+    try {
+      await admission.recoverAttempt({ universeId: row.universe_id, privacyEpoch: row.privacy_epoch, jobId: row.job_id, stepId: row.step_id, attemptId: row.attempt_id, owner: input.owner });
+    } catch { /* another worker recovered it, or it moved on; the next sweep sees its new state */ }
+  }
+  const recovered = (await pool.query<{ job_id: string; universe_id: string; privacy_epoch: number }>(
+    `SELECT j.id AS job_id, j.universe_id, j.privacy_epoch FROM ask_answer_request r JOIN reasoning_job j ON j.id = r.job_id
+     WHERE j.status = 'waiting' AND j.lease_owner IS NULL AND EXISTS (SELECT 1 FROM reasoning_attempt at WHERE at.job_id = j.id)
+       AND NOT EXISTS (SELECT 1 FROM ask_answer a WHERE a.ask_id = r.ask_id) ORDER BY j.id LIMIT $1`, [limit])).rows;
+  for (const row of recovered) {
+    try {
+      await inTransaction(pool, client => withdrawRecoveredDirectJob(client, { jobId: row.job_id, universeId: row.universe_id, privacyEpoch: row.privacy_epoch }));
+    } catch (error) { if (!isIdleWithdrawalIneligible(error)) throw error; }
+  }
+  const terminal = (await pool.query<{ job_id: string; status: string }>(
+    `SELECT j.id AS job_id, j.status FROM ask_answer_request r JOIN reasoning_job j ON j.id = r.job_id
+     WHERE j.status IN ('cancelled','expired','failed','completed') AND NOT EXISTS (SELECT 1 FROM ask_answer a WHERE a.ask_id = r.ask_id)
+     ORDER BY j.id LIMIT $1`, [limit])).rows;
+  let settled = 0;
+  for (const row of terminal) {
+    if (await inTransaction(pool, client => closeTerminalAnswer(client, row.job_id, row.status === 'expired' ? 'expired' : 'worker_stopped'))) settled += 1;
+  }
+  return settled;
 }
 
 async function insertAnswer(client: pg.PoolClient, request: RequestRow, attemptId: string | null, a: {
@@ -326,7 +410,7 @@ export async function readAskAnswer(client: pg.PoolClient, scope: AuthScope, ask
  */
 export async function cancelAskAnswer(client: pg.PoolClient, scope: AuthScope, askId: string, raw: unknown): Promise<AskAnswerView> {
   const parsed = z.object({ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647) }).strict().safeParse(raw);
-  if (!parsed.success) throw new AskAnswerError(400, 'Invalid cancel request');
+  if (!parsed.success || !z.string().uuid().safeParse(askId).success) throw new AskAnswerError(400, 'Invalid cancel request');
   if (parsed.data.expectedPrivacyEpoch !== scope.privacyEpoch) throw new AskAnswerError(409, 'Cancel privacy epoch is stale');
   const request = (await client.query<RequestRow>('SELECT * FROM ask_answer_request WHERE ask_id=$1 AND universe_id=$2 AND privacy_epoch=$3', [askId, scope.universeId, scope.privacyEpoch])).rows[0];
   if (!request) throw new AskAnswerError(404, 'No answer was requested for this Ask');
