@@ -1,0 +1,79 @@
+{
+  "at": "2026-09-24T10:04:21.587559+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_8ebd50d3e92d6089",
+  "apiPort": 4333,
+  "source": "d4d95868b32b3d1a0e1858c4062d1742452dc0c1",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "inquiry",
+  "journey": {
+    "inquiryId": "a502ae3f-8829-4534-acb4-41f95b2a3d14",
+    "status": "found",
+    "bridgeId": "950874c1-8822-4410-a5bf-ffb1f8b19e3f",
+    "relationType": "compares_mechanism",
+    "pairs": [
+      [
+        "astro.sun",
+        "physics.gravity"
+      ]
+    ],
+    "bridgeConcepts": [
+      "astro.sun",
+      "physics.gravity"
+    ],
+    "evidenceCount": 3,
+    "statusesSeen": [
+      "waiting",
+      "found"
+    ],
+    "inquiriesListed": 1,
+    "consent": {
+      "enabled": true,
+      "dailyLimit": 3,
+      "usedToday": 1
+    },
+    "sunPlaceId": "150dc23f-76d4-4500-b8b6-e088f2917304",
+    "gravityPlaceId": "b31a9ae5-45f0-4b2a-ad0b-f3227767ef85",
+    "deltaIds": {
+      "gravityFormed": "64db06e0-55e4-4734-9561-be7cd54fbe9c"
+    },
+    "continuation": {
+      "originAssetId": "20000000-0000-4000-8000-000000000012",
+      "targetAssetId": "20000000-0000-4000-8000-000000000001",
+      "direction": "forward",
+      "walkedPast": 0
+    }
+  },
+  "lineage": {
+    "inquiryAdmitted": 1,
+    "jobBackgroundDirtyCompleted": 1,
+    "attempts": 1,
+    "dispatches": 1,
+    "modelProposalAdmitted": 1,
+    "universeBridgeAdmitted": 1,
+    "universeBridges": 1,
+    "inquiryStatus": "admitted",
+    "mailCausedByGravityFormed": 1,
+    "mailOnInquiry": 1,
+    "gravityFormedFromReading": 1,
+    "suppliedSunUnread": 1,
+    "suppliedSunMailed": 0,
+    "consentRequestsBeforeMail": 1,
+    "consentEnabled": true,
+    "routeTransport": "fixture",
+    "requestHash": "5d5574b7a914ff9ae2edd1be7f9549a81edb878e0fb5fb5dee9ee142b68a0956",
+    "inputBytes": 5622,
+    "inquiryStatuses": [
+      "admitted"
+    ]
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Fixture inquiry transport (labelled): the proposal is the fixture's, the admission is bridge-validator-v1's; no provider call.",
+    "Editorial substrate; cartographer and validator as shipped, bench thresholds.",
+    "Debug API36 emulator, not a physical device.",
+    "The Sun was formed by the real Cartographer from a supplied account (zero readings), before consent, because the library cannot anchor it from reading (one source family); Gravity formed from this run's reading after consent.",
+    "The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.",
+    "Coalescing delay shortened to 3 s for the journey route."
+  ]
+}

@@ -138,6 +138,7 @@ export const privacyExportRowCountsSchema = z
     hypotheses: z.number().int().nonnegative(),
     encounterFeedback: z.number().int().nonnegative(),
     askAnswers: z.number().int().nonnegative(),
+    inquiries: z.number().int().nonnegative(),
   })
   .strict();
 export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
@@ -210,6 +211,15 @@ export const privacyExportResultSchema = z
       })
       .strict(),
     askAnswers: z.array(exportRowSchema),
+    /** ADR-0038: background inquiry consent, its requests, mail and inquiries. */
+    inquiries: z
+      .object({
+        consent: z.array(exportRowSchema),
+        consentRequests: z.array(exportRowSchema),
+        mail: z.array(exportRowSchema),
+        inquiries: z.array(exportRowSchema),
+      })
+      .strict(),
   })
   .strict();
 export type PrivacyExportResult = z.infer<typeof privacyExportResultSchema>;

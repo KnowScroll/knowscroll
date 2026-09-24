@@ -8,7 +8,10 @@ import {IDLE_WITHDRAWAL_LIMITS,type IdleDirectJobScope,type IdleWithdrawalResult
 import {ReasoningDenied} from './reasoning-runtime-policy.js';
 
 type Reason=IdleWithdrawalResult['status'];
-type Job={status:string;lease_fence:string;withdrawn_at:Date|null;wake_kind:string;healthy:boolean;expired:boolean};
+type Job={status:string;lease_fence:string;withdrawn_at:Date|null;wake_kind:string;class:string;healthy:boolean;expired:boolean};
+/** Who may withdraw an idle Job: its original live session (a direct Ask, ADR-0018), or — for a
+ * background inquiry Job, which has no session (ADR-0038 §8) — its inquiry having recorded why it closed. */
+type Authority={kind:'session';auth?:AuthScope}|{kind:'background'};
 type Attempt={id:string;permit_id:string;state:string;permit_state:string;dispatch_id:string|null;permit_dispatch_id:string|null};
 
 function deny(code:string):never {throw new ReasoningDenied(code);}
@@ -16,7 +19,7 @@ const EXPECTED_REFUSALS=new Set([
  'idle_job_ineligible','idle_missing_binding','idle_original_session_required','idle_session_authority',
  'idle_stale_epoch','idle_unknown_job','idle_healthy_lease','idle_deadline_not_elapsed','idle_fence_overflow',
  'idle_graph_too_large','idle_incomplete_graph','idle_unsafe_attempt','idle_missing_bucket','idle_job_changed',
- 'idle_withdrawal_race','reservation_counter_mismatch','permit_not_releasable','idle_fairness_scope_mismatch',
+ 'idle_withdrawal_race','idle_background_authority','reservation_counter_mismatch','permit_not_releasable','idle_fairness_scope_mismatch',
  'idle_fairness_membership_changed','fairness_ready_count_mismatch','idle_fairness_scheduler_missing',
 ]);
 /** Only known eligibility/integrity refusals are skippable by background probes.
@@ -47,7 +50,7 @@ async function checkAuthority(client:pg.PoolClient,scope:IdleDirectJobScope,sess
 
 async function readJob(client:pg.PoolClient,scope:IdleDirectJobScope,lock=false):Promise<Job> {
  const row=(await client.query<Job>(
-  `SELECT status,lease_fence::text,withdrawn_at,wake_kind,
+  `SELECT status,lease_fence::text,withdrawn_at,wake_kind,class,
     (lease_owner IS NOT NULL AND (lease_expires_at IS NULL OR lease_expires_at>clock_timestamp())) AS healthy,
     deadline<=clock_timestamp() AS expired FROM reasoning_job
    WHERE (id,universe_id,privacy_epoch)=($1,$2,$3) ${lock?'FOR UPDATE':''}`,
@@ -57,32 +60,50 @@ async function readJob(client:pg.PoolClient,scope:IdleDirectJobScope,lock=false)
  return row;
 }
 
-function assertEligible(job:Job,reason:Reason):void {
- if(job.wake_kind!=='direct'||!['queued','waiting'].includes(job.status)||job.withdrawn_at!==null) deny('idle_job_ineligible');
+/** A background inquiry Job closes only once its inquiry says why, or past its own deadline. */
+async function checkBackgroundAuthority(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Reason):Promise<void> {
+ const row=(await client.query(
+  `SELECT 1 FROM background_inquiry i JOIN universe u ON u.id=i.universe_id AND u.privacy_epoch=i.privacy_epoch
+   WHERE (i.job_id,i.universe_id,i.privacy_epoch)=($1,$2,$3) AND ($4='expired' OR i.status NOT IN ('pending','queued'))`,
+  [scope.jobId,scope.universeId,scope.privacyEpoch,reason],
+ )).rowCount;
+ if(!row) deny('idle_background_authority');
+}
+
+const ownKind=(job:Job,authority:Authority)=>authority.kind==='session'?job.wake_kind==='direct'
+ :job.wake_kind==='dirty'&&job.class==='background_inquiry';
+
+function assertEligible(job:Job,reason:Reason,authority:Authority):void {
+ if(!ownKind(job,authority)||!['queued','waiting'].includes(job.status)||job.withdrawn_at!==null) deny('idle_job_ineligible');
  if(job.healthy) deny('idle_healthy_lease');
  if(reason==='expired'&&!job.expired) deny('idle_deadline_not_elapsed');
  if(BigInt(job.lease_fence)>=9223372036854775807n) deny('idle_fence_overflow');
 }
 
-async function withdraw(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Reason,auth?:AuthScope):Promise<IdleWithdrawalResult> {
+async function withdraw(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Reason,authority:Authority):Promise<IdleWithdrawalResult> {
  validateScope(scope);
  const universe=await client.query('SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE',[scope.universeId,scope.privacyEpoch]);
  if(universe.rowCount!==1) deny('idle_stale_epoch');
- // An optional session-lock helper cannot prove this required immutable binding.
- const binding=await client.query<{session_id:string}>(
-  'SELECT session_id FROM reasoning_context_job_session WHERE (job_id,universe_id,privacy_epoch)=($1,$2,$3)',
-  [scope.jobId,scope.universeId,scope.privacyEpoch],
- );
- if(binding.rowCount!==1) deny('idle_missing_binding');
- const sessionId=binding.rows[0]!.session_id;
- if(auth&&sessionId!==auth.sessionId) deny('idle_original_session_required');
- await checkAuthority(client,scope,sessionId,auth,true);
+ const auth=authority.kind==='session'?authority.auth:undefined;
+ let sessionId:string|null=null;
+ if(authority.kind==='session') {
+  // An optional session-lock helper cannot prove this required immutable binding.
+  const binding=await client.query<{session_id:string}>(
+   'SELECT session_id FROM reasoning_context_job_session WHERE (job_id,universe_id,privacy_epoch)=($1,$2,$3)',
+   [scope.jobId,scope.universeId,scope.privacyEpoch],
+  );
+  if(binding.rowCount!==1) deny('idle_missing_binding');
+  sessionId=binding.rows[0]!.session_id;
+  if(auth&&sessionId!==auth.sessionId) deny('idle_original_session_required');
+ }
+ const authorize=async(lock=false)=>(sessionId!==null?checkAuthority(client,scope,sessionId,auth,lock):checkBackgroundAuthority(client,scope,reason));
+ await authorize(true);
  const job=await readJob(client,scope,true);
- await checkAuthority(client,scope,sessionId,auth);
- if(job.status===reason&&job.withdrawn_at!==null&&job.wake_kind==='direct') {
+ await authorize();
+ if(job.status===reason&&job.withdrawn_at!==null&&ownKind(job,authority)) {
   return {status:reason,changed:false,closedNotSent:0,preservedUnknown:0};
  }
- assertEligible(job,reason);
+ assertEligible(job,reason,authority);
  const counts=(await client.query<{steps:string;attempts:string}>(
   `SELECT (SELECT count(*) FROM reasoning_step WHERE job_id=$1)::text AS steps,
     (SELECT count(*) FROM reasoning_attempt WHERE job_id=$1)::text AS attempts`,[scope.jobId],
@@ -124,9 +145,9 @@ async function withdraw(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Rea
  if(buckets.rowCount!==bucketIds.length) deny('idle_missing_bucket');
  // The final authority/fence/deadline check acquires NO new locks. It runs after
  // scheduler and physical resource waits, before any closure/refund writes.
- await checkAuthority(client,scope,sessionId,auth);
+ await authorize();
  const current=await readJob(client,scope);
- assertEligible(current,reason);
+ assertEligible(current,reason,authority);
  if(current.status!==job.status||current.lease_fence!==job.lease_fence) deny('idle_job_changed');
  let closedNotSent=0,preservedUnknown=0;
  for(const attempt of attempts.rows) {
@@ -150,12 +171,15 @@ async function withdraw(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Rea
    WHERE (id,universe_id,privacy_epoch)=($1,$2,$3) AND status=$5 AND lease_fence=$6::bigint
     AND (lease_owner IS NULL OR lease_expires_at<=clock_timestamp())
     AND ($4<>'expired' OR deadline<=clock_timestamp())
-    AND EXISTS(SELECT 1 FROM reasoning_context_job_session b
+    AND ((wake_kind='direct' AND EXISTS(SELECT 1 FROM reasoning_context_job_session b
       JOIN device_session s ON (s.id,s.universe_id)=(b.session_id,b.universe_id)
       JOIN universe u ON u.id=b.universe_id AND u.privacy_epoch=b.privacy_epoch
       WHERE (b.job_id,b.universe_id,b.privacy_epoch)=(j.id,j.universe_id,j.privacy_epoch) AND s.id=$7
        AND ($8::uuid IS NULL OR (s.id=$8 AND s.device_id=$9 AND s.privacy_epoch=j.privacy_epoch
-         AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp())))`,
+         AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp()))))
+     OR ($7::uuid IS NULL AND wake_kind='dirty' AND class='background_inquiry' AND EXISTS(SELECT 1 FROM background_inquiry i
+      WHERE (i.job_id,i.universe_id,i.privacy_epoch)=(j.id,j.universe_id,j.privacy_epoch)
+       AND ($4='expired' OR i.status NOT IN ('pending','queued')))))`,
   [scope.jobId,scope.universeId,scope.privacyEpoch,reason,job.status,job.lease_fence,sessionId,auth?.sessionId??null,auth?.deviceId??null],
  );
  if(updated.rowCount!==1) deny('idle_withdrawal_race');
@@ -164,12 +188,21 @@ async function withdraw(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Rea
 
 /** Caller authenticated on this client and owns the transaction. */
 export async function cancelIdleDirectJob(client:pg.PoolClient,authScope:AuthScope,input:{jobId:string}):Promise<IdleWithdrawalResult> {
- return withdraw(client,{jobId:input.jobId,universeId:authScope.universeId,privacyEpoch:authScope.privacyEpoch},'cancelled',authScope);
+ return withdraw(client,{jobId:input.jobId,universeId:authScope.universeId,privacyEpoch:authScope.privacyEpoch},'cancelled',{kind:'session',auth:authScope});
 }
 
 /** Trusted maintenance/scheduler operation. Caller owns the transaction. */
 export async function expireIdleDirectJob(client:pg.PoolClient,scope:IdleDirectJobScope):Promise<IdleWithdrawalResult> {
- return withdraw(client,scope,'expired');
+ return withdraw(client,scope,'expired',{kind:'session'});
+}
+
+/** ADR-0038 §8: trusted withdrawal of an idle background inquiry Job (queued, or leaseless `waiting`
+ * after `recoverAttempt`). It has no session: `cancelled` requires its inquiry to have recorded why
+ * it closed, earlier in this same transaction; `expired` only its own database deadline. Never-sent
+ * attempts release everything they held; possibly-sent ones stay `unknown`. Caller owns the
+ * transaction and holds (or may take) the universe lock first. */
+export async function withdrawIdleBackgroundJob(client:pg.PoolClient,scope:IdleDirectJobScope,reason:Reason):Promise<IdleWithdrawalResult> {
+ return withdraw(client,scope,reason,{kind:'background'});
 }
 
 /** Trusted worker maintenance (#132 review B2). A direct Job whose worker lost its lease, and whose
@@ -195,5 +228,5 @@ export async function withdrawRecoveredDirectJob(client:pg.PoolClient,scope:Idle
  if(!row) deny('idle_unknown_job');
  if(row.status!=='waiting'||row.lease_owner!==null||row.attempts<1||row.active>0) deny('idle_job_ineligible');
  if(!row.live) deny('idle_session_authority');
- return withdraw(client,scope,'cancelled');
+ return withdraw(client,scope,'cancelled',{kind:'session'});
 }

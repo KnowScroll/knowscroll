@@ -150,6 +150,25 @@ class StateStore(context: Context) {
     }
     fun clearPendingAnswerRequest() { check(prefs.edit().remove("pendingAnswerRequest").commit()) { "Could not clear the answer request" } }
 
+    /** #132/ADR-0038: the persisted retry envelope for `PUT /v1/inquiries/consent` -- the client
+     * request id with the exact content and the epoch it was sent with, written before dispatch.
+     * Personal history: [purgePrivateState] drops it. */
+    fun writePendingInquiryConsent(r: InquiryConsentRequest) {
+        val json = JSONObject().apply {
+            put("clientRequestId", r.clientRequestId); put("enabled", r.enabled)
+            put("dailyLimit", r.dailyLimit); put("expectedPrivacyEpoch", r.expectedPrivacyEpoch)
+        }
+        check(prefs.edit().putString("pendingInquiryConsent", json.toString()).commit()) { "Could not save the consent change" }
+    }
+    fun readPendingInquiryConsent(): InquiryConsentRequest? {
+        val raw = prefs.getString("pendingInquiryConsent", null) ?: return null
+        return runCatching {
+            val o = JSONObject(raw)
+            InquiryConsentRequest(o.getString("clientRequestId"), o.getBoolean("enabled"), o.getInt("dailyLimit"), o.getLong("expectedPrivacyEpoch"))
+        }.getOrNull()
+    }
+    fun clearPendingInquiryConsent() { check(prefs.edit().remove("pendingInquiryConsent").commit()) { "Could not clear the consent change" } }
+
     /** Position is not a retry envelope. Apply in memory now and serialize disk work off-main. */
     fun writeReadingPosition(assetId: String, position: Int) {
         val edit = prefs.edit().putString("readingAssetId",assetId).putInt("readingPosition",position)
@@ -299,6 +318,7 @@ class StateStore(context: Context) {
             .remove("session").remove("session_Scroll").remove("session_Reel").remove("readingAssetId").remove("readingPosition")
             .remove("branchTrail").remove("pendingBranch")
             .remove("pendingAsk").remove("pendingAnswerRequest")
+            .remove("pendingInquiryConsent")
             .remove("revisit")
             .remove("visited").remove("pendingHistoryClear")
             .putString("screen", "universe").putString("privacyUniverseId",universeId)
