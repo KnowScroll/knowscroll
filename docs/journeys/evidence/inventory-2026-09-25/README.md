@@ -35,12 +35,26 @@ ADR-0046. Setup:
      - "While you were away" says "A Scroll about Gravity you were waiting for was withdrawn: what it
        was based on changed." (`hands-on-05-atlas-away.png`).
 
+## One bounded live request (coordinator, after the review and the rebase onto #165)
+
+Stack `knowscroll_test_hands_f8725d38aea1`, dropped afterwards. The route was `minimax`, with a request cap of 1, installed by `install-supply.ts`. The only material was NASA's "What Is Gravity?" page, for `physics.gravity`.
+
+1. **Reading.** Read and kept "A rhythm the ocean keeps" and "The pull you can't see", and Gravity formed as a planet.
+2. **The need is funded.** The next Cable step recorded the need: `waiting`, `fund`, one `open` request.
+   - The place sheet read "Being written: more about Gravity", with "Keep" on the same sheet.
+3. **One pass of the worker's writing loop** (`runSupplyPass`) ran with the MiniMax transport.
+   - The quota preflight passed (at least 25%). The session ledger counted the request before anything was sent (72 → 73 of 190).
+   - The request was admitted as `sending` and sent once.
+   - The written Scroll was refused by `scroll-checks-v2`, with `quote_not_in_material` and `copied_passage`: the same refusals as #162's batch (#181).
+   - Nothing was retried. The demand became `cannot_meet` (`no_budget`: the route's one request was spent).
+4. **What the reader sees.** On re-entering the system view, the place sheet read "Nothing more about Gravity for now" and "Writing more has reached its limit for now."
+   - An Atlas already open keeps the earlier line until it is read again.
+
+The pass ran from a coordinator script outside Git. It read the key from `.env` without printing it, and printed only statuses and reason codes. No model text is in this directory.
+
 ## Limits
 
-- **Fixture writer.** The supply loop wrote with the fixture transport. The MiniMax transport it calls
-  for `minimax` is the one #162's live batch used (35 requests). Running it here would put the key in
-  the hands-on stack's worker environment file, so no live request was spent on this slice.
-- **"Being written…"** passed too quickly to screenshot with the fixture writer. The state
-  progression (`fund` → `waiting` → `bound` → `withdrawn` → `cannot_meet`) is in the database.
+- **The earlier walk-through used the fixture writer.** The live request above was refused, so no Scroll written by MiniMax was bound and served in this slice. The fixture run shows the bound path.
+- **"Being written…"** was too quick to screenshot with the fixture writer. It was seen in the live run above. The state progression (`fund` → `waiting` → `bound` → `withdrawn` → `cannot_meet`) is in the database.
 - **Place count.** After the withdrawal the place still counts the withdrawn Scroll ("4 of 4").
 - Debug API36 emulator, not a physical device.
