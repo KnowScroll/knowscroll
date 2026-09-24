@@ -11,9 +11,11 @@ Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are
 Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
 recorded path of a v3 encounter and the reader's "less like this"), `sheets` (#97 each reader
 sheet survives Activity recreation), `ask` (#132 an authorized answer through the worker;
-fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request) and `owner`
-(#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own section 3
-below).
+fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request), `places`
+(#134 the reader's own live places, ADR-0036: seeds one day-old keep through the real API before
+instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
+real second day) and `owner` (#135 the real, sign-in-backed owner identity and privacy-lifecycle
+screen -- see its own section 3 below).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -40,6 +42,9 @@ JOURNEYS = {
     # #132: an authorized Ask answer through the worker, with the labelled fixture transport.
     'ask': {'test': 'com.knowscroll.mobile.AskAnswerJourneyTest', 'receipt': 'ask-answer.json',
             'captures': ('ask-recorded.png', 'ask-answer.png', 'ask-answer-failure.png')},
+    # #134: the reader's own places form, are inspected and set aside.
+    'places': {'test': 'com.knowscroll.mobile.PlacesJourneyTest', 'receipt': 'places-journey.json',
+               'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
     # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
     'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
               'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
@@ -144,6 +149,13 @@ try:
     # A receipt or capture left by an earlier run must never be read as this run's.
     for stale in (spec['receipt'], *spec['captures']):
         if (out / stale).exists(): (out / stale).unlink()
+
+    # 2.5. `places` only: one day-old keep through the real API, before instrumenting -- the
+    # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
+    if journey_name == 'places':
+        seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}'}
+        seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/atlas/seed-day-old-history.ts'], env=seed_env, text=True, cwd=root)
+        print(seeded, flush=True)
 
     # 3. Separate journey build against this stack only (gradle_env: KS_DEV_TOKEN empty for `owner`).
     run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=gradle_env)
@@ -254,6 +266,23 @@ try:
         limits = ['Single-owner v1 (ADR-0026): one account only, so this proves deletion, not multi-account isolation.',
                   'Debug API36 emulator, not a physical device.',
                   'Export is asserted via the app-cache file the journey build writes instead of the system SAF picker.']
+    elif journey_name == 'places':
+        p, formed_id, rejected_id = journey['placeId'], journey['deltaIds']['formed'], journey['deltaIds']['rejected']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'placeFormedPersonalExploration', (SELECT count(*) FROM atlas_delta WHERE id='{formed_id}' AND place_id='{p}'
+          AND kind='place_formed' AND causal_class='personal_exploration'),
+      'rejectionDeltaReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{rejected_id}' AND place_id='{p}'
+          AND kind='place_rejected' AND causal_class='reader_correction'),
+      'placeStateRejected', (SELECT count(*) FROM atlas_place WHERE id='{p}' AND state='rejected'),
+      'formedEpisodes', (SELECT jsonb_array_length(evidence->'account'->'episodeIds') FROM atlas_delta WHERE id='{formed_id}'),
+      'formedMarks', (SELECT jsonb_array_length(evidence->'account'->'markIds') FROM atlas_delta WHERE id='{formed_id}'),
+      'formedDaysActive', (SELECT (evidence->'account'->>'daysActive')::int FROM atlas_delta WHERE id='{formed_id}'))"""))
+        ok = (lineage['placeFormedPersonalExploration'] == 1 and lineage['rejectionDeltaReaderCorrection'] == 1 and lineage['placeStateRejected'] == 1
+              and lineage['formedEpisodes'] >= 3 and lineage['formedMarks'] >= 2 and lineage['formedDaysActive'] >= 2)
+        assert ok, lineage
+        limits = ['Editorial substrate; cartographer-v1 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
+                  'One live planet inspected end to end; sightings appear only for neighbours this walk has not shown.']
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),

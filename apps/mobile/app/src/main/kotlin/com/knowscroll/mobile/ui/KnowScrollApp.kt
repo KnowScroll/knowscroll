@@ -128,6 +128,9 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
         val historyClear by viewModel.historyClear.collectAsStateWithLifecycle()
         val signOut by viewModel.signOut.collectAsStateWithLifecycle()
         val system by viewModel.system.collectAsStateWithLifecycle()
+        val atlas by viewModel.atlas.collectAsStateWithLifecycle()
+        val placeReject by viewModel.placeReject.collectAsStateWithLifecycle()
+        val atlasEvidence by viewModel.atlasEvidence.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val branches by viewModel.branches.collectAsStateWithLifecycle()
         val why by viewModel.why.collectAsStateWithLifecycle()
@@ -324,10 +327,18 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                         atlasStates.SaveableStateProvider("system:$scopeKey") {
                             SystemScreen(
                                 state = system,
+                                atlasState = atlas,
+                                placeRejectState = placeReject,
+                                evidenceState = atlasEvidence,
                                 onReturn = viewModel::returnFromSystem,
                                 onRetry = viewModel::retrySystem,
                                 onEnterScroll = viewModel::enterScrollFromSystem,
                                 onOpenKeep = viewModel::openKeep,
+                                onRequestSetAside = viewModel::requestSetAside,
+                                onCancelSetAside = viewModel::cancelSetAside,
+                                onConfirmSetAside = viewModel::confirmSetAside,
+                                onOpenEvidence = viewModel::openEvidence,
+                                onCloseEvidence = viewModel::closeEvidence,
                             )
                         }
                 }

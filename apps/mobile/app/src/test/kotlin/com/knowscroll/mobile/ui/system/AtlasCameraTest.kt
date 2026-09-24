@@ -48,6 +48,23 @@ class AtlasCameraTest {
     }
 
     @Test
+    fun regionAreaLayoutIsIdentityDerivedLikeAtlasLayout() {
+        val before = regionAreaLayout(listOf("r1", "r2"))
+        val after = regionAreaLayout(listOf("r0", "r1", "r2", "r3"))
+        before.forEach { point -> assertEquals(point, after.single { it.id == point.id }) }
+        assertEquals(regionAreaLayout(listOf("r1", "r2")), regionAreaLayout(listOf("r2", "r1")))
+        assertEquals(1, regionAreaLayout(listOf("r1", "r1")).size)
+    }
+
+    @Test
+    fun sightingOffsetIsSmallAndDeterministic() {
+        val offset = sightingOffset("sighting-1")
+        assertEquals(offset, sightingOffset("sighting-1"))
+        assertTrue(kotlin.math.abs(offset.x) <= 30f && kotlin.math.abs(offset.y) <= 30f)
+        assertNotEquals(sightingOffset("sighting-1").let { it.x to it.y }, sightingOffset("sighting-2").let { it.x to it.y })
+    }
+
+    @Test
     fun denseBodiesNeverShareATouchTargetAtAnyScale() {
         val points = atlasLayout((1..100).map { "dense-$it" })
         for (zoom in listOf(.35f, .86f, 1.5f, 3f, 12f)) {

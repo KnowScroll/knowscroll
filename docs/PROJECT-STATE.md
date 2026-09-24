@@ -9,6 +9,14 @@ the account and its history in one step. Upgrading a copy of the owner's real da
 rehearsed and verified without touching the original. Not built: tapping the emailed link straight
 into the app (it is pasted), and a production mail provider.
 
+## 2026-09-24 The reader's places (#134, first slice)
+
+Reading about a subject on different days, from more than one source, now forms a place in the
+reader's own Atlas. Nearby subjects they have not met yet show as sightings, with the sourced claim
+that connects them. Every change can be opened to see why it happened, and the reader can set a
+place aside. It is not authored and not decorative. Not built yet: rooms, relics, away-time work,
+foundation stars, model naming, and the Reel reader's link into places.
+
 ## 2026-09-24 Scroll Ask answers (#132)
 
 A reader can now ask a question about a Scroll and, on a separate deliberate tap, get an answer
