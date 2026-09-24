@@ -20,7 +20,7 @@ import type {
   Universe,
   WorldSystemResponse,
 } from '../api/types.ts';
-import { canRequestDiscovery, selectDiscovery, type DiscoveryState, type KeepState } from './discovery.ts';
+import { canRequestDiscovery, selectDiscovery, tripExclude, type DiscoveryState, type KeepState } from './discovery.ts';
 import type { ReaderStorage, RevisitSession, ScrollSession } from './storage.ts';
 
 function randomUuid(): string {
@@ -494,13 +494,15 @@ export class ReaderStore {
       this.storage.writeScreen('scroll');
       this.set({ screen: 'scroll', scroll: { status: 'loading' } });
     }
+    // The trip skips exactly what it told the feed it opened (#133): a capped list can only bring
+    // back an old Scroll, never end the trip while unopened ones remain.
     const openedAssetId = reading?.item.assetId ?? this.session?.item.assetId;
+    const trip = tripExclude(this.visited, openedAssetId);
     this.api
-      .getFeed(openedAssetId ? [...this.visited, openedAssetId] : this.visited)
+      .getFeed(trip)
       .then((feed: FeedResponse) => {
         if (!this.operationIsCurrent(version, epoch)) return;
-        const currentAssetId = openedAssetId;
-        const selection = selectDiscovery(feed, universeId, epoch, this.visited, currentAssetId);
+        const selection = selectDiscovery(feed, universeId, epoch, new Set(trip), undefined);
         if (selection.kind === 'invalid-scope') {
           this.purgeForScope(feed.universeId, feed.privacyEpoch);
           this.failClosed('Your session moved to a different universe or privacy state. Reconnect to continue.');

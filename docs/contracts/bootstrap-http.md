@@ -147,8 +147,10 @@ them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `sema
 
 `GET /v1/feed?kinds=…&exclude=<id,…>` is ranked by `composer-semantic-v3` by default
 (`composer-signals-v2` stays a configured alternative). `exclude` (optional, at most 256 UUIDs) names
-what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`
-so a client that skips them never meets a false end of library. Malformed or oversized: 400. The item shape is unchanged; each decision records every candidate it
+what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`.
+A client skips exactly the ids it sent (the current Scroll last, at most 256), so the trip ends only
+when every unkept Scroll it has not opened is used up; past 256 an older opened Scroll may return.
+Malformed, oversized or repeated: 400. The item shape is unchanged; each decision records every candidate it
 considered (`decision_candidate`: family, gate, terms, score, rank, evidence path) and its served
 window and quotas (`decision_context`).
 

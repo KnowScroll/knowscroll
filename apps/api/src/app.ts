@@ -95,8 +95,9 @@ async function feedCandidates(client: import('pg').PoolClient, kinds: readonly (
 }
 
 /** `exclude`: up to 256 comma-separated asset UUIDs, or absent. Null when malformed. */
-export function parseFeedExclude(value: string | undefined): Set<string> | null {
+export function parseFeedExclude(value: unknown): Set<string> | null {
   if (value === undefined || value === '') return new Set();
+  if (typeof value !== 'string') return null; // a repeated parameter arrives as an array: refuse it, never throw
   const ids = value.split(',');
   if (ids.length > 256 || ids.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) return null;
   return new Set(ids.map(id => id.toLowerCase()));
@@ -230,7 +231,7 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     return reply.header('Cache-Control','no-store').send(result);
   });
 
-  app.get<{ Querystring: { kinds?: string; exclude?: string } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
+  app.get<{ Querystring: { kinds?: string; exclude?: string | string[] } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const kinds = parseFeedKinds(req.query.kinds);
     if (kinds === null) throw new HttpError(400, 'Invalid kinds parameter');
     // #133: what this discovery trip already has on screen or opened. The client skips those, so

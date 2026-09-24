@@ -33,6 +33,13 @@ export function selectDiscovery(
   return next ? { kind: 'item', item: next } : { kind: 'exhausted' };
 }
 
+/** What this discovery trip has opened, as sent to the feed: the current Scroll last, at most 256. */
+export function tripExclude(visited: Iterable<string>, currentAssetId: string | undefined): string[] {
+  const opened = [...visited].filter(id => id !== currentAssetId);
+  if (currentAssetId) opened.push(currentAssetId);
+  return opened.slice(-256);
+}
+
 export function canRequestDiscovery(keep: KeepState, discovery: DiscoveryState): boolean {
   return discovery !== 'loading' && keep.status !== 'saving' && keep.status !== 'failed' && keep.status !== 'conflict';
 }

@@ -114,9 +114,11 @@ try:
           JOIN ledger l ON l.id=(s->>'eventId')::uuid WHERE dc.decision_id='{d}' AND dc.asset_id='{a}' AND dc.rank IS NOT NULL
           AND s->>'kind'='mark' AND l.kind='keep'),
       'lessLikeThis', (SELECT count(*) FROM encounter_feedback WHERE decision_id='{d}' AND asset_id='{a}' AND kind='less_like_this'),
+      'tripExcludedGated', (SELECT count(*) FROM decision_candidate WHERE decision_id='{journey['afterSkipDecisionId']}'
+          AND asset_id='{journey['skippedAssetId']}' AND gate='current_encounter'),
       'attentionAccounts', (SELECT count(*) FROM attention_account),
       'sharedBridgesStillAdmitted', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status='admitted'))"""))
-        ok = (lineage['servedByV3'] == 1 and lineage['citedKeepRecorded'] >= 1 and lineage['lessLikeThis'] == 1
+        ok = (lineage['servedByV3'] == 1 and lineage['citedKeepRecorded'] >= 1 and lineage['lessLikeThis'] == 1 and lineage['tripExcludedGated'] >= 1
               and lineage['attentionAccounts'] >= 1 and lineage['sharedBridgesStillAdmitted'] == 6)
         assert ok, lineage
         limits = ['Editorial substrate; composer-semantic-v3 with bench thresholds.', 'Debug API36 emulator, not a physical device.',

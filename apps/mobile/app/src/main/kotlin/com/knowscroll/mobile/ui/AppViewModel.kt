@@ -303,9 +303,12 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
         feedJob = viewModelScope.launch {
             try {
-                val feed=api.getFeed(_cableMode.value,visited+listOfNotNull(reading?.item?.assetId ?: session?.item?.assetId))
+                // The trip skips exactly what it told the feed it opened (#133), so a capped list can
+                // only bring back an old Scroll, never end the trip while unopened ones remain.
+                val trip=tripExclude(visited,reading?.item?.assetId ?: session?.item?.assetId)
+                val feed=api.getFeed(_cableMode.value,trip)
                 if(!operationIsCurrent(version,epoch))return@launch
-                when(val selected=selectDiscovery(feed,universeId,epoch,visited,reading?.item?.assetId ?: session?.item?.assetId)){
+                when(val selected=selectDiscovery(feed,universeId,epoch,trip.toSet(),null)){
                     DiscoverySelection.InvalidScope -> {
                         purgeForScope(feed.universeId,feed.privacyEpoch)
                         failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))

@@ -153,6 +153,7 @@ test('a trip tells the feed what it already opened: those are gated with a named
   assert.ok(served.items.every(i => !opened.includes(i.assetId)), 'nothing already opened is served');
   const gates = (await pool.query('SELECT DISTINCT gate FROM decision_candidate WHERE decision_id=$1 AND asset_id = ANY($2::uuid[])', [served.decisionId, opened])).rows.map(x => x.gate);
   assert.deepEqual(gates, ['current_encounter']);
+  assert.equal((await app.inject({ url: `/v1/feed?kinds=Scroll&exclude=${opened[0]}&exclude=${opened[1]}`, headers: headers(r.token) })).statusCode, 400, 'a repeated parameter is refused, not a 500');
   for (const bad of ['not-a-uuid', Array.from({ length: 257 }, () => randomUUID()).join(',')]) {
     assert.equal((await app.inject({ url: `/v1/feed?kinds=Scroll&exclude=${bad}`, headers: headers(r.token) })).statusCode, 400);
   }

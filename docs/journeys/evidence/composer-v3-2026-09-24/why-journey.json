@@ -1,7 +1,9 @@
 {
-  "decisionId": "04bd81bf-97b6-4cf8-be65-36df6ac7e4b8",
-  "assetId": "20000000-0000-4000-8000-000000000002",
-  "title": "One force, many jobs",
-  "citedKeepTitle": "A rhythm the ocean keeps",
-  "keepsBeforeCited": 1
+  "decisionId": "c3e8ba3d-678b-4ca3-9836-f919f8a08f1d",
+  "assetId": "20000000-0000-4000-8000-000000000003",
+  "title": "A pull with a range",
+  "citedKeepTitle": "One force, many jobs",
+  "keepsBeforeCited": 1,
+  "skippedAssetId": "20000000-0000-4000-8000-000000000004",
+  "afterSkipDecisionId": "f05aa5b5-5228-4b3a-8648-8075aa276a49"
 }

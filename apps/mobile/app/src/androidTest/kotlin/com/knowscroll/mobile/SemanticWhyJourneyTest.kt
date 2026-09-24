@@ -52,6 +52,14 @@ class SemanticWhyJourneyTest {
         compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
         waitReadingExposed()
 
+        // Skip one Scroll without keeping it: the next feed must be told this trip opened it (#133).
+        val skipped = store().read()!!
+        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasContentDescription("Get the next Scroll"))
+        compose.onNodeWithContentDescription("Get the next Scroll").performClick()
+        compose.waitUntil(20_000) { store().read()?.item?.assetId?.let { it != skipped.item.assetId } == true }
+        waitReadingExposed()
+        val afterSkipDecisionId = store().read()!!.decisionId
+
         var citedTitle: String? = null
         var keeps = 0
         val keptTitles = mutableListOf<String>()
@@ -93,6 +101,7 @@ class SemanticWhyJourneyTest {
         File(instrumentation.targetContext.filesDir, "why-journey.json").writeText(JSONObject().apply {
             put("decisionId", served.decisionId); put("assetId", served.item.assetId); put("title", served.item.title)
             put("citedKeepTitle", citedTitle); put("keepsBeforeCited", keeps)
+            put("skippedAssetId", skipped.item.assetId); put("afterSkipDecisionId", afterSkipDecisionId)
         }.toString(2))
     }
 }
