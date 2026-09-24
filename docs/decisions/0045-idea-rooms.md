@@ -71,6 +71,26 @@ cause and evidence, never by a timed counter or a visual rearrangement; social r
    (not while paused). The Atlas marks a place that holds a room (PR130's visual direction: a small
    lit door on the place, no new object on the map). Web parity is #171.
 
+## Amendment (implementation), 2026-09-25
+
+Built as decided, with these adaptations to what the code holds. The question is not copied: the
+room names the Ask whose words it uses (`question_ask_id`), and the text is read from that Ask's
+ledger payload (`question`, migration 0009). An Ask counts at the nearest live planet or region on
+its Scroll's primary-concept chain (the atlas's own rule for where a Scroll belongs), so one question
+never opens a room on both a planet and its region. No room can outlive its Asks: they are erased
+only by Clear, Reset and deletion, which erase rooms first (and the room references its question's
+Ask), so a room retires only when its place stops being a live planet or region. A claim is held by
+one seat only (doubter, then connector, then the reader of record, who holds the anchor's other
+supported claims), so no sentence appears twice. A position change or an unseating is
+`source_correction` when a claim it held left the substrate (lost its support, its qualification or
+its tie), `reader_correction` when the connector's other place was set aside, and
+`substrate_neighbourhood` otherwise. Setting aside and retirement unseat everyone under the room's
+own delta. The Keeper is its own step (`runKeeper`), run by the refresh right after the Cartographer
+and by a rejection; room changes reach "While you were away" as `room_changed`; the set-aside answers
+with the atlas, as a place's rejection does; `GET /v1/rooms/:roomId` carries each line's evidence
+inline. Backdating a day-old Ask in a disposable database (tests, the device seed) lifts migration
+0009's Ask immutability trigger for that one update only.
+
 ## Not in this version
 
 Model-backed resident steps (reflex, background, night), credits and attention funding, visitors, the
