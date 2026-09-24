@@ -1,6 +1,10 @@
 """Repeatable frame metrics for 12 world-entry/source/Back cycles, disposable demo and .journey only.
 
 Run after sourcing scripts/env.sh. No provider calls, owner app changes, or owner history reset.
+The `.journey` app is also the owner's running preview: it is preserved before anything replaces it
+and restored (verified) first in `finally` (scripts/android_preview.py). Each run writes to its own
+folder, `artifacts/android-spatial/profile/<KS_PROFILE_LABEL or timestamp>/`, with every frame phase
+and per-frame rows (#136), and records the exact source with `git describe --dirty`.
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -13,6 +17,11 @@ import signal
 import subprocess
 import time
 import urllib.request
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines()
@@ -22,7 +31,7 @@ if source.hostname not in ('127.0.0.1', 'localhost', '::1'):
     raise RuntimeError('UI verification requires loopback PostgreSQL')
 name = 'knowscroll_demo_ui_' + secrets.token_hex(8)
 package = 'com.knowscroll.mobile.journey'
-out = root / 'artifacts/android-spatial/profile'
+out = root / 'artifacts/android-spatial/profile' / (os.environ.get('KS_PROFILE_LABEL') or datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
 out.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME',
            'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME', 'ANDROID_USER_HOME',
@@ -54,7 +63,9 @@ motion = adb('shell', 'settings', 'get', 'global', 'animator_duration_scale')
 sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
+guard = PreviewGuard(package, out)
 try:
+    guard.preserve()
     import socket
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -88,10 +99,14 @@ try:
         if failure.returncode==0: (out/'failure.png').write_bytes(failure.stdout)
         raise RuntimeError('Profile scenario failed')
     (out/'atlas-profile.json').write_bytes(subprocess.check_output(['adb','exec-out','run-as',package,'cat','files/atlas-profile.json']))
-    (out/'source.json').write_text(json.dumps({'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+    (out/'atlas-frames.json').write_bytes(subprocess.check_output(['adb','exec-out','run-as',package,'cat','files/atlas-frames.json']))
+    (out/'source.json').write_text(json.dumps({'revision':subprocess.check_output(['git','describe','--always','--dirty','--abbrev=40'],text=True).strip(),
         'mainSourceSha256':hashlib.sha256(b''.join(str(p.relative_to(root)).encode()+b'\0'+p.read_bytes() for p in sorted((root/'apps/mobile/app/src/main').rglob('*')) if p.is_file())).hexdigest()},indent=2))
 
 finally:
+    restore_error = None
+    try: guard.restore()
+    except Exception as error: restore_error = error; print(f'PREVIEW RESTORE FAILED: {error}', flush=True)
     for process, log in processes:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGTERM)
@@ -103,3 +118,4 @@ finally:
     admin = {**os.environ, 'PGPASSWORD': source.password or ''}
     run(['dropdb', '--if-exists', '-h', source.hostname, '-p', str(source.port or 5432),
          '-U', source.username, name], env=admin)
+    if restore_error: raise RuntimeError(f'preview restore failed: {restore_error}')

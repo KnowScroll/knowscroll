@@ -2,10 +2,8 @@
 substrate, the separate .journey app, no provider call and no owner-database access.
 
 Source scripts/env.sh first. The .journey app is also the owner's running preview (its APK carries
-that preview's API address and token), so this runner pulls the installed APK and archives its app
-data before replacing it, and in `finally` reinstalls that exact APK, restores the data and
-relaunches it. Each run keeps its own timestamped backup, the runner refuses to replace the preview
-unless that backup is a readable archive, and the restore is verified against the backup's listing.
+that preview's API address and token); `scripts/android_preview.py` preserves it before anything
+replaces it and restores it, verified, first in `finally` -- only if this run replaced it.
 Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
 
 Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
@@ -23,6 +21,10 @@ section 3 below).
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 import datetime, hashlib, io, json, os, secrets, signal, socket, subprocess, sys, tarfile, threading, time, urllib.request
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
@@ -68,9 +70,9 @@ if journey_name == 'ask' and ask_transport == 'minimax':
     live_ledger = json.loads(live_ledger_path.read_text()) if live_ledger_path.exists() else {'sessionCap': 40, 'used': 0, 'runs': []}
     if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live answer allowance is spent')
 out = root / 'artifacts/semantic-journey' / journey_name
-# Never shared between runs: a failed run must not overwrite the last good backup.
-backup = out / 'preview-backup' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-out.mkdir(parents=True, exist_ok=True); backup.mkdir(mode=0o700, parents=True, exist_ok=True)
+out.mkdir(parents=True, exist_ok=True)
+# The owner's preview: preserved before anything replaces it, restored first in `finally` (#136).
+guard = PreviewGuard(package, out)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
            'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
 env = {key: os.environ[key] for key in allowed if key in os.environ}
@@ -97,35 +99,16 @@ if journey_name == 'owner':
 gradle_env = {**env, 'KS_DEV_TOKEN': ''} if journey_name == 'owner' else env
 args = ['-h', source.hostname, '-p', str(source.port or 5432), '-U', source.username]
 admin = {**env, 'PGPASSWORD': source.password or ''}
-processes, created, preview_apk, preview_listing = [], False, None, []
+processes, created = [], False
 
 def run(command, **kwargs): return subprocess.run(command, check=True, **kwargs)
 def adb(*command): return subprocess.check_output(['adb', *command], text=True).strip()
 def sql(query):
     return subprocess.check_output(['psql', *args, '-d', name, '-Atqc', query], env=admin, text=True).strip()
-def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
-def archive_listing(data):
-    # Names and sizes of regular files; raises on anything that is not a complete tar archive.
-    with tarfile.open(fileobj=io.BytesIO(data), mode='r:') as archive:
-        return sorted((m.name, m.size) for m in archive.getmembers() if m.isfile())
-def pull_preview_data():
-    data = subprocess.run(['adb', 'exec-out', 'run-as', package, 'tar', '-cf', '-', 'shared_prefs', 'files'], capture_output=True)
-    if data.returncode != 0: raise RuntimeError('could not archive the preview app data; the preview was not touched')
-    listing = archive_listing(data.stdout)
-    if not any(name.startswith('shared_prefs/') for name, _ in listing):
-        raise RuntimeError('preview app data archive has no preferences; the preview was not touched')
-    return data.stdout, listing
 
 try:
-    # 1. Preserve the owner's preview exactly as it is.
-    installed = subprocess.run(['adb', 'shell', 'pm', 'path', package], capture_output=True, text=True).stdout.strip()
-    if installed.startswith('package:'):
-        pulled = backup / 'preview-base.apk'
-        run(['adb', 'pull', installed.splitlines()[0].split(':', 1)[1], str(pulled)], stdout=subprocess.DEVNULL)
-        data, preview_listing = pull_preview_data()
-        (backup / 'preview-data.tar').write_bytes(data)
-        # Only now is the preview recoverable, so only now may anything replace it.
-        preview_apk = pulled
+    # 1. Preserve the owner's preview exactly as it is (refuses, touching nothing, if it cannot).
+    guard.preserve()
 
     # 2. Disposable stack with the editorial substrate.
     with socket.socket() as probe: probe.bind(('127.0.0.1', port))
@@ -346,24 +329,9 @@ finally:
     def attempt(label, step):
         try: step()
         except Exception as error: cleanup_errors.append(f'{label}: {error}')
-    # 5. Restore the owner's preview first, so no later cleanup failure can leave it replaced:
-    # exact APK (a downgrade is allowed), then its app data, verified, then relaunch it.
-    def restore_preview():
-        run(['adb', 'install', '-r', '-d', str(preview_apk)], stdout=subprocess.DEVNULL)
-        subprocess.run(['adb', 'shell', 'pm', 'clear', package], stdout=subprocess.DEVNULL)
-        data = (backup / 'preview-data.tar').read_bytes()
-        subprocess.run(['adb', 'shell', f'run-as {package} tar -xf -'], input=data, check=True)
-        _, restored_listing = pull_preview_data()
-        subprocess.run(['adb', 'shell', 'am', 'start', '-n', package + '/com.knowscroll.mobile.MainActivity'], stdout=subprocess.DEVNULL)
-        restored = subprocess.run(['adb', 'shell', 'pm', 'path', package], capture_output=True, text=True).stdout.strip()
-        verified = restored_listing == preview_listing
-        (out / 'preview-restored.json').write_text(json.dumps({'apkSha256': sha(preview_apk), 'restoredPath': restored, 'backup': backup.name,
-            'dataBytes': len(data), 'files': len(preview_listing), 'dataVerified': verified,
-            'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
-        if not verified: raise RuntimeError(f'preview data restore differs from its backup; the backup is kept at {backup}')
-        # The archive holds the preview's session; once the restore is proven it is not kept.
-        (backup / 'preview-data.tar').unlink()
-    if preview_apk is not None and preview_apk.exists(): attempt('restore preview', restore_preview)
+    # 5. Restore the owner's preview first, so no later cleanup failure can leave it replaced
+    # (and only if this run replaced it at all).
+    attempt('restore preview', guard.restore)
     for child, log in processes:
         def stop(child=child):
             if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)

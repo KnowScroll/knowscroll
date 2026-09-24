@@ -5,7 +5,11 @@ No raw media, credentials or personal captures belong in Git. Android runners ru
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
-import argparse, datetime, hashlib, json, os, re, secrets, signal, socket, subprocess, time, urllib.request
+import argparse, datetime, hashlib, json, os, re, secrets, signal, socket, subprocess, sys, time, urllib.request
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--keep', action='store_true')
@@ -50,7 +54,12 @@ motion = adb('shell', 'settings', 'get', 'global', 'animator_duration_scale')
 font = adb('shell', 'settings', 'get', 'system', 'font_scale')
 sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
+# A verification run replaces the owner's .journey preview, so it is guarded (#136); `--keep` is the
+# preview's own setup and deliberately installs it.
+guard = None if options.keep else PreviewGuard(package, out)
+preview_error = None
 try:
+    if guard: guard.preserve()
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(('127.0.0.1', port))
@@ -126,6 +135,9 @@ try:
     (out / 'runtime.json').write_text(json.dumps(receipt, indent=2))
     success = True
 finally:
+    if guard:
+        try: guard.restore()
+        except Exception as error: preview_error = error; print(f'PREVIEW RESTORE FAILED: {error}', flush=True)
     if options.reduced_motion: adb('shell', 'settings', 'put', 'global', 'animator_duration_scale', motion if motion != 'null' else '1.0')
     if options.compact:
         adb('shell', 'wm', 'size', original_override or 'reset')
@@ -135,3 +147,4 @@ finally:
             if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)
             log.close()
         if created: run(['dropdb', '--if-exists', *args, name], env=admin)
+if preview_error is not None: raise preview_error
