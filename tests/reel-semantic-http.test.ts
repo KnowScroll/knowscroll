@@ -126,7 +126,8 @@ test('minting waits for a seed load holding the substrate, then carries the anno
     const minting = mintReelAsset(pool, gated.generatedReelId);
     let waiting = false;
     for (const deadline = Date.now() + 5000; !waiting && Date.now() < deadline; await new Promise(r => setTimeout(r, 20))) {
-      waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype='advisory' AND NOT granted`)).rows[0].n > 0;
+      waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype='advisory' AND NOT granted
+        AND database=(SELECT oid FROM pg_database WHERE datname=current_database())`)).rows[0].n > 0;
     }
     assert.ok(waiting, 'the mint waits for the seed load to commit');
     await seeding.query('COMMIT');
