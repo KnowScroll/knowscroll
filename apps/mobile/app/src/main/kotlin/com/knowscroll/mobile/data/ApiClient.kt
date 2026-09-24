@@ -211,6 +211,58 @@ class ApiClient(
         }
     }
 
+    /** #132/ADR-0033: record an Ask against the reader's current exposure of this Scroll. Exact
+     * retry with the same clientAskId replays the same receipt. */
+    suspend fun postAsk(req: PendingAsk): AskReceipt = io {
+        val body = jsonObj(
+            "clientAskId" to req.clientAskId, "exposureId" to req.exposureId,
+            "expectedPrivacyEpoch" to req.expectedPrivacyEpoch, "question" to req.question,
+        ).toString()
+        post("/v1/asks", body, setOf(201), false) { obj ->
+            try {
+                AskReceipt(obj.getString("askId"), obj.getString("eventId"), obj.getString("status"))
+                    .also { protocol(it.status == "recorded_only") { "Ask receipt reported an unexpected status" } }
+            } catch (e: JSONException) { throw ApiException.Protocol("Ask receipt was malformed") }
+        }
+    }
+
+    /** #132: request an answer for a recorded Ask -- a separate, explicit reader action; never
+     * sent automatically after the Ask is recorded. Exact retry with the same clientRequestId
+     * returns the same requestId. */
+    suspend fun requestAnswer(req: PendingAnswerRequest): AnswerRequestReceipt = io {
+        val body = jsonObj("clientRequestId" to req.clientRequestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch).toString()
+        post("/v1/asks/${req.askId}/answer", body, setOf(202), false) { obj ->
+            try {
+                AnswerRequestReceipt(obj.getString("requestId"), obj.getString("askId"), obj.getString("jobId"), obj.getString("status"))
+                    .also { protocol(it.askId == req.askId && it.status == "queued") { "Answer request receipt was unexpected" } }
+            } catch (e: JSONException) { throw ApiException.Protocol("Answer request receipt was malformed") }
+        }
+    }
+
+    /** #132: the answer view for one Ask, or null when no answer was ever requested for it. */
+    suspend fun getAnswer(askId: String): AnswerView? = io {
+        try {
+            get("/v1/asks/$askId/answer") { obj ->
+                try { parseAnswerView(obj).also { protocol(it.askId == askId) { "Answer view named another Ask" } } }
+                catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid answer view") }
+                catch (e: JSONException) { throw ApiException.Protocol("Answer view returned malformed JSON") }
+            }
+        } catch (e: ApiException.Server) { if (e.statusCode == 404) null else throw e }
+    }
+
+    /** #132: cancel an answer request before it has started running. */
+    suspend fun cancelAnswer(askId: String, expectedPrivacyEpoch: Long): AnswerView = io {
+        val body = jsonObj("expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
+        post("/v1/asks/$askId/answer/cancel", body, setOf(200), false) { obj ->
+            try {
+                parseAnswerView(obj).also {
+                    protocol(it.askId == askId && it.status is AnswerStatus.Cancelled) { "Cancel did not return a cancelled view" }
+                }
+            } catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid answer view") }
+            catch (e: JSONException) { throw ApiException.Protocol("Cancel receipt returned malformed JSON") }
+        }
+    }
+
     /** POST /v1/session/revoke {} -> 204. Revokes only the authenticated session; the
      * caller decides what "ambiguous vs confirmed" means for its own retry policy. */
     suspend fun revokeSession(): Unit = io {
