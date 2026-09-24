@@ -23,9 +23,12 @@ class WatchedAnswerStoreTest {
 
     @Test
     fun theWatchedAnswerSurvivesAColdStartWholeAndClears() {
-        freshStore().writeWatchedAnswer(watched)
+        val store = freshStore()
+        store.writePendingAnswerRequest(PendingAnswerRequest("cr1", watched.askId, watched.expectedPrivacyEpoch))
+        store.watchAnswer(watched)
         val cold = StateStore(ApplicationProvider.getApplicationContext())
         assertEquals(watched, cold.readWatchedAnswer())
+        assertNull("its request was accepted: the retry envelope went with the same commit", cold.readPendingAnswerRequest())
         cold.clearWatchedAnswer()
         assertNull(cold.readWatchedAnswer())
     }
@@ -33,7 +36,7 @@ class WatchedAnswerStoreTest {
     @Test
     fun aPrivacyPurgeDropsTheWatchedAnswer() {
         val store = freshStore()
-        store.writeWatchedAnswer(watched)
+        store.watchAnswer(watched)
         store.purgePrivateState("u1", 3)
         assertNull(store.readWatchedAnswer())
     }

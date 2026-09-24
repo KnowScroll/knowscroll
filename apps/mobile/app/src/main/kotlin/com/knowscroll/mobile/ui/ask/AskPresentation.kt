@@ -1,9 +1,13 @@
 package com.knowscroll.mobile.ui.ask
 
+import com.knowscroll.mobile.data.AnswerRequestReceipt
 import com.knowscroll.mobile.data.AnswerStatus
 import com.knowscroll.mobile.data.AnswerView
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.PendingAnswerRequest
+import com.knowscroll.mobile.data.StateStore
 import com.knowscroll.mobile.data.WatchedAnswer
+import java.util.UUID
 
 /**
  * #132 — ADR-0033: authorized answers to a reader's Ask about the Scroll on screen. Recording a
@@ -73,6 +77,25 @@ fun answerRequestConflict(error: ApiException.Server): AnswerRequestConflict? {
         body.contains("Only the session that asked", ignoreCase = true) -> AnswerRequestConflict.NotAsker
         else -> null
     }
+}
+
+/**
+ * #132/#182: requests [answer] with its saved retry envelope (written before dispatch, reused after an
+ * unclear failure). Once the server has accepted it -- a 202, or a 409 saying it already had -- in the
+ * epoch the reader is still in, the answer is watched, whatever the reader did meanwhile: navigation
+ * only decides whether the sheet shows it. Returns whether the sheet may show it waiting.
+ */
+internal suspend fun requestWatchedAnswer(
+    store: StateStore, answer: WatchedAnswer, send: suspend (PendingAnswerRequest) -> AnswerRequestReceipt,
+    epochIsCurrent: () -> Boolean, screenIsCurrent: () -> Boolean,
+): Boolean {
+    val pending = store.readPendingAnswerRequest()?.takeIf { it.askId == answer.askId && it.expectedPrivacyEpoch == answer.expectedPrivacyEpoch }
+        ?: PendingAnswerRequest(UUID.randomUUID().toString(), answer.askId, answer.expectedPrivacyEpoch).also(store::writePendingAnswerRequest)
+    try { send(pending) }
+    catch (e: ApiException.Server) { if (answerRequestConflict(e) != AnswerRequestConflict.AlreadyRequested) throw e }
+    if (!epochIsCurrent()) return false
+    store.watchAnswer(answer)
+    return screenIsCurrent()
 }
 
 /** A 409 from `POST /v1/asks/:id/answer/cancel`: the job already started and cannot be cancelled. */

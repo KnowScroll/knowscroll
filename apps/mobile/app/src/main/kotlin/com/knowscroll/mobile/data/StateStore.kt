@@ -156,12 +156,14 @@ class StateStore(context: Context) {
     }
     fun clearPendingAnswerRequest() { check(prefs.edit().remove("pendingAnswerRequest").commit()) { "Could not clear the answer request" } }
 
-    /** #166: the answer being waited for, so it survives the process (see [WatchedAnswer]). */
-    fun writeWatchedAnswer(w: WatchedAnswer) {
+    /** #166: the answer being waited for, so it survives the process (see [WatchedAnswer]). #182: its
+     * request was accepted, so the retry envelope goes in the same commit: no kill between two writes
+     * can lose both. */
+    fun watchAnswer(w: WatchedAnswer) {
         val json = JSONObject().apply {
             put("askId", w.askId); put("assetId", w.assetId); put("expectedPrivacyEpoch", w.expectedPrivacyEpoch); put("question", w.question)
         }
-        check(prefs.edit().putString("watchedAnswer", json.toString()).commit()) { "Could not save the answer being waited for" }
+        check(prefs.edit().putString("watchedAnswer", json.toString()).remove("pendingAnswerRequest").commit()) { "Could not save the answer being waited for" }
     }
     fun readWatchedAnswer(): WatchedAnswer? {
         val raw = prefs.getString("watchedAnswer", null) ?: return null
