@@ -27,9 +27,8 @@ import org.junit.runner.RunWith
  * sheet flags to `ScrollScreen`, above the `when` that used to remove them from composition during
  * that reload (see `ScrollScreen.kt`). This test drives the real app end to end (real
  * `AppViewModel`, real `onForeground()`), following `ReaderExplainJourneyTest`/
- * `SemanticBranchJourneyTest`'s launch/wait patterns, and is a joined-runtime journey: it requires
- * the separate disposable `journey` app and its API/worker, so it is not run from this offline
- * worktree (no adb/emulator here) -- only compiled (`:app:assembleDebugAndroidTest`).
+ * `SemanticBranchJourneyTest`'s launch/wait patterns, and is a joined-runtime journey on the
+ * separate `journey` app: `KS_SEMANTIC_JOURNEY=sheets python3 scripts/android-semantic-journey.py`.
  */
 @RunWith(AndroidJUnit4::class)
 class ReaderSheetRecreationTest {
@@ -54,8 +53,9 @@ class ReaderSheetRecreationTest {
     }
 
     /** The three tests share one install, so a later one may launch straight back into the reading
-     * session an earlier one persisted; either starting point is a real reading Scroll. */
-    private fun openReaderFresh() {
+     * session an earlier one persisted; either starting point is a real reading Scroll, and each
+     * test's new Activity starts with every sheet closed. */
+    private fun openReader() {
         guardJourneyApp()
         compose.waitUntil(20_000) {
             compose.onAllNodesWithContentDescription("Enter Scroll").fetchSemanticsNodes().isNotEmpty() ||
@@ -77,7 +77,7 @@ class ReaderSheetRecreationTest {
         File(instrumentation.targetContext.filesDir, name).writeText(value.toString(2))
 
     @Test fun sourcesSheetSurvivesRecreation() {
-        openReaderFresh()
+        openReader()
         val before = store().read() ?: error("Expected a persisted reading session")
         compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
         waitText("Sources and truth")
@@ -97,7 +97,7 @@ class ReaderSheetRecreationTest {
     }
 
     @Test fun explainSheetSurvivesRecreation() {
-        openReaderFresh()
+        openReader()
         val before = store().read() ?: error("Expected a persisted reading session")
         compose.onNodeWithContentDescription("Why this Scroll appeared").performClick()
         waitText("Why this appeared")
@@ -120,7 +120,7 @@ class ReaderSheetRecreationTest {
      * advances through ordinary discovery (as SemanticBranchJourneyTest does) until one is found,
      * bounded so a library without continuations does not hang. */
     @Test fun connectionsSheetSurvivesRecreationWhenAvailable() {
-        openReaderFresh()
+        openReader()
         var connected = textShown("Why these connections?")
         var hops = 0
         while (!connected && hops < 24) {
@@ -144,10 +144,11 @@ class ReaderSheetRecreationTest {
 
         val after = store().read() ?: error("Reading session lost across recreation")
         assertEquals(before.item.assetId, after.item.assetId)
+        assertEquals(before.exposureId, after.exposureId)
         screenshot("connections-sheet-recreate.png")
         writeReceipt("connections-sheet-recreate.json", JSONObject().apply {
             put("scenario", "connectionsSheetSurvivesRecreationWhenAvailable")
-            put("assetId", after.item.assetId); put("hopsToReachContinuations", hops)
+            put("assetId", after.item.assetId); put("exposureId", after.exposureId); put("hopsToReachContinuations", hops)
             put("sheetRestoredAfterRecreation", true)
         })
     }

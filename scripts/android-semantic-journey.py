@@ -8,8 +8,9 @@ relaunches it. Each run keeps its own timestamped backup, the runner refuses to 
 unless that backup is a readable archive, and the restore is verified against the backup's listing.
 Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
 
-Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations) and `why` (#133 the
-recorded path of a v3 encounter and the reader's "less like this").
+Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
+recorded path of a v3 encounter and the reader's "less like this") and `sheets` (#97 each reader
+sheet survives Activity recreation).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -94,6 +95,10 @@ try:
             if attempt == 99: raise
             time.sleep(.1)
 
+    # A receipt or capture left by an earlier run must never be read as this run's.
+    for stale in (spec['receipt'], *spec['captures']):
+        if (out / stale).exists(): (out / stale).unlink()
+
     # 3. Separate journey build against this stack only.
     run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=env)
     for apk in ('debug/app-debug.apk', 'androidTest/debug/app-debug-androidTest.apk'):
@@ -155,7 +160,7 @@ try:
         limits = ['Editorial substrate and bridges; no model-proposed bridge.', 'Debug API36 emulator, not a physical device.',
                   'Continuations are Scroll-only; Reels carry no concept annotations yet.']
     receipt = {'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'result': 'passed', 'database': name, 'apiPort': port,
-               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'package': package,
+               'source': subprocess.check_output(['git', 'describe', '--always', '--dirty', '--abbrev=40'], text=True).strip(), 'package': package,
                'journeyName': journey_name, 'journey': journey, 'lineage': lineage, 'providerCalls': 0, 'limits': limits}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(lineage), flush=True)

@@ -116,4 +116,27 @@ class ReaderSheetRemountTest {
 
         onNodeWithText("Sources and truth").assertDoesNotExist()
     }
+
+    @Test
+    fun anUnavailableReaderInBetweenClosesTheSheets() = runComposeUiTest {
+        val backing = mutableStateOf<ScrollState>(reading("asset-1"))
+        setContent {
+            KnowScrollTheme {
+                ScrollScreen(
+                    state = backing.value, onKeep = {}, onReturn = {}, onNext = {}, onRetry = {},
+                    onReadingPosition = { _, _ -> }, onOpenKeep = {},
+                )
+            }
+        }
+        onNodeWithContentDescription("Sources for this Scroll").performClick()
+        onNodeWithText("Sources and truth").assertIsDisplayed()
+
+        // Only a reload carries a sheet over; a failed opening in between does not.
+        backing.value = ScrollState.Unavailable("Opening this Scroll was interrupted.", true)
+        waitForIdle()
+        backing.value = reading("asset-1")
+        waitForIdle()
+
+        onNodeWithText("Sources and truth").assertDoesNotExist()
+    }
 }

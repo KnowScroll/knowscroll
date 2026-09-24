@@ -89,14 +89,21 @@ fun ScrollScreen(
         // consumed once: the flags' first mount (right after the real recreation) already consumed
         // the restored `true`, so the second mount moments later fell back to the plain `false`
         // default. Hoisting the flags here, above the `when`, keeps them alive across that
-        // same-item reload; keying them on `stickyAssetId` (which only changes when the reader
+        // same-item reload; keying them on the Scroll (which only changes when the reader
         // shows a genuinely different item) preserves the existing behavior of closing the sheets
         // when the reader moves on.
-        var stickyAssetId by remember { mutableStateOf((state as? ScrollState.Reading)?.item?.assetId) }
-        (state as? ScrollState.Reading)?.item?.assetId?.let { stickyAssetId = it }
-        var sourcesOpen by rememberSaveable(stickyAssetId) { mutableStateOf(false) }
-        var explainOpen by rememberSaveable(stickyAssetId) { mutableStateOf(false) }
-        var connectionsOpen by rememberSaveable(stickyAssetId) { mutableStateOf(false) }
+        // Saved state itself: after process death the screen first composes without a Scroll
+        // (a new ViewModel starts in Loading), and the flags must still belong to the same Scroll.
+        // The key is derived, never written during composition: the Scroll on screen, or while it
+        // reloads, the last one shown (remembered after each commit).
+        var stickyAssetId by rememberSaveable { mutableStateOf<String?>(null) }
+        val readingId = (state as? ScrollState.Reading)?.item?.assetId
+        // Only a reload carries the sheets over; an unavailable or exhausted reader closes them.
+        val sheetKey = readingId ?: stickyAssetId.takeIf { state is ScrollState.Loading }
+        SideEffect { if (readingId != null) stickyAssetId = readingId }
+        var sourcesOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
+        var explainOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
+        var connectionsOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (state) {
                 is ScrollState.Reading -> key(state.item.assetId) {
