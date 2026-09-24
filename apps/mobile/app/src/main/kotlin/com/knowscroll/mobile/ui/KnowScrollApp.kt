@@ -23,6 +23,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.knowscroll.mobile.ui.account.AccountViewModel
 import com.knowscroll.mobile.ui.account.AuthState
+import com.knowscroll.mobile.ui.account.InquiriesSection
+import com.knowscroll.mobile.ui.account.InquiriesViewModel
+import com.knowscroll.mobile.ui.account.InquiryActions
 import com.knowscroll.mobile.ui.account.PrivacyActions
 import com.knowscroll.mobile.ui.account.PrivacyScreen
 import com.knowscroll.mobile.ui.account.SignInScreen
@@ -73,7 +76,14 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
     if (privacyOpen) {
         KnowScrollTheme {
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                LaunchedEffect(Unit) { accountViewModel.openPrivacy() }
+                // #132 (ADR-0038): the connections section has its own small view model.
+                val inquiriesViewModel: InquiriesViewModel = viewModel()
+                LaunchedEffect(Unit) {
+                    accountViewModel.openPrivacy()
+                    inquiriesViewModel.open()
+                }
+                val inquiries by inquiriesViewModel.state.collectAsStateWithLifecycle()
+                val inquiryChange by inquiriesViewModel.change.collectAsStateWithLifecycle()
                 val privacy by accountViewModel.privacy.collectAsStateWithLifecycle()
                 val pause by accountViewModel.pause.collectAsStateWithLifecycle()
                 val resume by accountViewModel.resume.collectAsStateWithLifecycle()
@@ -107,6 +117,18 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
                         onConfirmSignOut = accountViewModel::confirmAccountSignOut,
                         onRetrySignOut = accountViewModel::retryAccountSignOut,
                     ),
+                    inquiries = { recordingPaused ->
+                        InquiriesSection(
+                            state = inquiries, change = inquiryChange, recordingPaused = recordingPaused,
+                            actions = InquiryActions(
+                                onRetryLoad = inquiriesViewModel::retryLoad,
+                                onRefresh = inquiriesViewModel::refresh,
+                                onSetEnabled = inquiriesViewModel::setEnabled,
+                                onSetDailyLimit = inquiriesViewModel::setDailyLimit,
+                                onRetryChange = inquiriesViewModel::retryChange,
+                            ),
+                        )
+                    },
                 )
             }
         }
