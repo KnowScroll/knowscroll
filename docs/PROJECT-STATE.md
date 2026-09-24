@@ -1,5 +1,20 @@
 # Project state
 
+## 2026-09-24 semantic substrate and live continuations (#131, PR140)
+
+A source-backed semantic substrate now exists (ADR-0031, migration 0026): claims quote hashed
+source snapshots, and a bridge between two ideas is admitted only by a deterministic validator
+whose inputs are recorded for replay. Android offers live continuations drawn only from admitted
+bridges, lets the reader inspect the mechanism, its limits and its cited evidence, follow one and
+return to the exact reading position, or hide one for themselves. Source corrections revoke
+dependent bridges. Pause, Clear/Reset and export cover the new private history.
+
+The Composer is still `composer-signals-v2` on main; `composer-semantic-v3` (ADR-0032) is on the
+`133-semantic-composer` lane. Ask stays recorded-only; worlds are still source-derived; the frame
+regression is unaccepted. Evidence levels reached for this slice: source, implementation checks,
+fixture, real local service, and a real emulator journey. No live provider, release UI or owner
+acceptance.
+
 ## 2026-09-24 current delivery scope
 
 PR130 is merged at `f89e625`; its Android visual direction has owner approval. Algorithm

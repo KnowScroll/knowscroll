@@ -129,6 +129,59 @@ class ApiClient(
         }
     }
 
+    /** #131: live continuations for one encounter. A malformed or dishonest response (an empty
+     * list without a reason, a branch without evidence) is a protocol error, never shown. */
+    suspend fun getBranches(assetId: String): EncounterBranches = io {
+        get("/v1/assets/$assetId/branches") { obj ->
+            try { parseEncounterBranches(obj) }
+            catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid continuations") }
+            catch (e: JSONException) { throw ApiException.Protocol("Continuations returned malformed JSON") }
+        }
+    }
+
+    /** #131: take one continuation. Idempotent by `clientBranchId`; a 409 means the branch is no
+     * longer available (revoked, suppressed or stale epoch) and is surfaced, never retried blindly. */
+    suspend fun openBranch(req: BranchOpenRequest): BranchOpenReceipt = io {
+        val body = jsonObj(
+            "clientBranchId" to req.clientBranchId, "fromExposureId" to req.fromExposureId,
+            "bridgeId" to req.bridgeId, "targetAssetId" to req.targetAssetId,
+            "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
+        ).toString()
+        post("/v1/branches", body, setOf(200, 201), false) { obj ->
+            try {
+                val branch = obj.getJSONObject("branch")
+                // While recording is paused the server serves the target but stores no decision, so
+                // there is nothing to record an exposure against: the session carries an empty id.
+                val recorded = branch.getBoolean("recorded")
+                val decisionId = if (obj.isNull("decisionId")) "" else obj.getString("decisionId")
+                protocol(recorded == decisionId.isNotEmpty()) { "Branch receipt disagrees about what was recorded" }
+                val feed = FeedResponse(
+                    decisionId = decisionId, universeId = obj.getString("universeId"),
+                    accountRevision = obj.getLong("accountRevision"), privacyEpoch = obj.getLong("privacyEpoch"),
+                    items = parseItems(obj.getJSONArray("items")),
+                )
+                protocol(feed.items.size == 1 && feed.items[0].assetId == req.targetAssetId) { "Branch served an unexpected target" }
+                protocol(branch.getString("bridgeId") == req.bridgeId) { "Branch receipt names another connection" }
+                BranchOpenReceipt(
+                    feed, if (branch.isNull("branchOpenId")) null else branch.getString("branchOpenId"),
+                    recorded, branch.getString("bridgeId"), branch.getString("relationType"), branch.getString("direction"),
+                )
+            } catch (e: JSONException) { throw ApiException.Protocol("Branch receipt was malformed") }
+        }
+    }
+
+    /** #131: "not useful" / "seems wrong" — suppresses a connection for this universe only. */
+    suspend fun postConnectionFeedback(clientFeedbackId: String, bridgeId: String, expectedPrivacyEpoch: Long, objection: String): Unit = io {
+        require(objection == "not_useful" || objection == "seems_wrong")
+        val body = jsonObj(
+            "clientFeedbackId" to clientFeedbackId, "bridgeId" to bridgeId,
+            "expectedPrivacyEpoch" to expectedPrivacyEpoch, "objection" to objection,
+        ).toString()
+        post("/v1/connections/feedback", body, setOf(200, 201), false) { obj ->
+            protocol(obj.optBoolean("suppressed", false) && obj.optString("bridgeId") == bridgeId) { "Feedback receipt was unexpected" }
+        }
+    }
+
     /** POST /v1/session/revoke {} -> 204. Revokes only the authenticated session; the
      * caller decides what "ambiguous vs confirmed" means for its own retry policy. */
     suspend fun revokeSession(): Unit = io {

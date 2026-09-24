@@ -222,7 +222,7 @@ test('export contains exactly the rows the contract promises and no more', async
 
   assert.deepEqual(Object.keys(result).sort(), [
     'account', 'accounts', 'decisions', 'deviceSessions', 'exposures', 'exportedAt', 'jobs',
-    'ledger', 'privacyEpoch', 'reasoning', 'receiptId', 'rowCounts', 'traces', 'universe',
+    'ledger', 'privacyEpoch', 'reasoning', 'receiptId', 'rowCounts', 'semantic', 'traces', 'universe',
   ].sort());
   assert.equal(result.privacyEpoch, 0);
   assert.match(result.exportedAt, /Z$/);
@@ -234,6 +234,8 @@ test('export contains exactly the rows the contract promises and no more', async
   assert.deepEqual(result.rowCounts, {
     decisions: 1, ledger: 2, exposures: 1, traces: 1, jobs: 1, deviceSessions: 2,
     reasoningJobs: 0, reasoningSteps: 0, reasoningReceipts: 0, reasoningAccounting: 0,
+    // ADR-0031: branch opens, connection feedback and personal proposals are exported too.
+    branchOpens: 0, connectionFeedback: 0, semanticProposals: 0,
   });
   assert.equal(result.decisions.length, 1);
   assert.equal(result.ledger.length, 2);
@@ -246,6 +248,7 @@ test('export contains exactly the rows the contract promises and no more', async
     assert.equal('tokenHash' in session, false);
   }
   assert.deepEqual(result.reasoning, { jobs: [], steps: [], receipts: [], accounting: [] });
+  assert.deepEqual(result.semantic, { branchOpens: [], connectionFeedback: [], proposals: [], bridges: [] });
   assert.equal(JSON.stringify(result).includes(neighbor.scope.universeId), false, 'no other universe leaks into this export');
   assert.ok(otherDevice.scope.deviceId);
 

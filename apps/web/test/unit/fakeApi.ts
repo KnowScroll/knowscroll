@@ -159,6 +159,9 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
       reasoningSteps: 0,
       reasoningReceipts: 0,
       reasoningAccounting: 0,
+      branchOpens: 0,
+      connectionFeedback: 0,
+      semanticProposals: 0,
     },
     account: { email: 'owner@example.com' },
     universe: { id: universeOf().universeId, revision: 1, privacyEpoch: 0, recordingPausedAt: null },
@@ -170,6 +173,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
     jobs: [],
     deviceSessions: [],
     reasoning: { jobs: [], steps: [], receipts: [], accounting: [] },
+    semantic: { branchOpens: [], connectionFeedback: [], proposals: [], bridges: [] },
     ...overrides,
   };
 }

@@ -1,0 +1,26 @@
+[
+  {
+    "assetId": "10000000-0000-4000-8000-000000000001",
+    "title": "An orbit is not a perfect circle",
+    "summary": "A small change in shape changes how a planet moves.",
+    "body": "Imagine a planet moving around the Sun. Would you expect it to travel at one constant speed?\n\nKepler described planetary paths as ellipses, with the Sun at one focus. Along an elliptical orbit, a planet moves faster near the Sun and slower farther away.\n\nTry picturing equal slices of time: the line from planet to Sun sweeps equal areas, even though the distance travelled changes. Compare that picture with your first guess.",
+    "sourceTitle": "NASA · Orbits and Kepler’s Laws",
+    "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+  },
+  {
+    "assetId": "10000000-0000-4000-8000-000000000002",
+    "title": "A star is a balancing act",
+    "summary": "Gravity pulls inward while pressure pushes outward.",
+    "body": "A star is not a solid lamp hanging in space. It is a vast body of hot gas, with gravity drawing material inward.\n\nFor much of its life, energy from nuclear fusion helps sustain pressure that resists that inward pull. The balance can change as its fuel and structure change.\n\nThink of another system held steady by opposing effects. Which part of that comparison helps, and where does it stop being useful?",
+    "sourceTitle": "NASA · Stars",
+    "sourceUrl": "https://science.nasa.gov/universe/stars/"
+  },
+  {
+    "assetId": "10000000-0000-4000-8000-000000000003",
+    "title": "Farther out, a longer year",
+    "summary": "Distance and orbital period follow a relationship.",
+    "body": "Two planets orbit the same star. One travels on a much larger orbit. Which takes longer to complete a year?\n\nKepler’s third law connects orbital period to the size of an orbit: the square of the period is proportional to the cube of the semi-major axis. A larger orbit means a longer period.\n\nThe comparison assumes bodies orbiting the same central mass. Notice how specifying that condition makes the statement more useful.",
+    "sourceTitle": "NASA · Orbits and Kepler’s Laws",
+    "sourceUrl": "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/"
+  }
+]

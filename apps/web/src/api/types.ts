@@ -130,6 +130,9 @@ export const privacyExportRowCountsSchema = z
     reasoningSteps: z.number().int().nonnegative(),
     reasoningReceipts: z.number().int().nonnegative(),
     reasoningAccounting: z.number().int().nonnegative(),
+    branchOpens: z.number().int().nonnegative(),
+    connectionFeedback: z.number().int().nonnegative(),
+    semanticProposals: z.number().int().nonnegative(),
   })
   .strict();
 export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
@@ -181,6 +184,14 @@ export const privacyExportResultSchema = z
         steps: z.array(exportRowSchema),
         receipts: z.array(exportRowSchema),
         accounting: z.array(exportRowSchema),
+      })
+      .strict(),
+    semantic: z
+      .object({
+        branchOpens: z.array(exportRowSchema),
+        connectionFeedback: z.array(exportRowSchema),
+        proposals: z.array(exportRowSchema),
+        bridges: z.array(exportRowSchema),
       })
       .strict(),
   })

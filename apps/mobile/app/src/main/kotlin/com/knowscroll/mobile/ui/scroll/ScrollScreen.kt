@@ -48,6 +48,7 @@ import com.knowscroll.mobile.ui.truthStateMeaning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun ScrollScreen(
@@ -59,13 +60,19 @@ fun ScrollScreen(
     onReadingPosition: (String, Int) -> Unit,
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
-    mode: String = "Scroll"
+    mode: String = "Scroll",
+    branches: com.knowscroll.mobile.ui.branch.BranchPanel? = null,
+    onOpenBranch: (String) -> Unit = {},
+    onRetryBranches: () -> Unit = {},
+    onObjectConnection: (String, String) -> Unit = { _, _ -> },
+    /** System-Back semantics: from a Scroll opened by a connection, return to its origin. */
+    onBack: () -> Unit = onReturn,
 ) {
     PosterTheme { Column(modifier.fillMaxSize().background(Poster.Paper)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (state) {
                 is ScrollState.Reading -> key(state.item.assetId) {
-                    ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition)
+                    ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition, branches?.takeIf { it.assetId == state.item.assetId }, onOpenBranch, onRetryBranches, onObjectConnection, onBack)
                 }
                 is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable, mode)
                 is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry, mode = mode)
@@ -113,28 +120,57 @@ private fun ReadingSheet(
     onKeep: () -> Unit,
     onReturn: () -> Unit,
     onNext: () -> Unit,
-    onReadingPosition: (String, Int) -> Unit
+    onReadingPosition: (String, Int) -> Unit,
+    branches: com.knowscroll.mobile.ui.branch.BranchPanel?,
+    onOpenBranch: (String) -> Unit,
+    onRetryBranches: () -> Unit,
+    onObjectConnection: (String, String) -> Unit,
+    onBack: () -> Unit,
 ) {
     val contentLabel = stringResource(R.string.reader_content_description)
     val item = state.item
     val originLabel = stringResource(
-        if (state.origin is com.knowscroll.mobile.ui.ReaderOrigin.SavedTrace) R.string.reader_saved_trace_origin
-        else R.string.reader_origin
+        when (state.origin) {
+            is com.knowscroll.mobile.ui.ReaderOrigin.SavedTrace -> R.string.reader_saved_trace_origin
+            is com.knowscroll.mobile.ui.ReaderOrigin.Branch -> R.string.reader_branch_origin
+            else -> R.string.reader_origin
+        }
     )
     val readingScroll = rememberScrollState(state.readingPosition)
+    // #131: content below the body (live continuations) arrives after first layout, so the
+    // document can be briefly shorter than the saved position. ScrollState clamps to that shorter
+    // maximum; without this guard the clamped value was written back as the reading position and
+    // exact return/restoration silently lost the reader's place. Hold the saved position until the
+    // document can contain it (bounded), and give way at once if the reader scrolls first.
+    val savedPosition = state.readingPosition
+    var restoringPosition by remember(item.assetId) { mutableStateOf(savedPosition > 0) }
+    LaunchedEffect(item.assetId, savedPosition) {
+        if (!restoringPosition) return@LaunchedEffect
+        kotlinx.coroutines.withTimeoutOrNull(3_000) {
+            snapshotFlow { readingScroll.isScrollInProgress to readingScroll.maxValue }
+                .first { (scrolling, max) -> scrolling || documentCanHold(max, savedPosition) }
+        }
+        if (!readingScroll.isScrollInProgress && readingScroll.value != savedPosition && documentCanHold(readingScroll.maxValue, savedPosition)) {
+            readingScroll.scrollTo(savedPosition)
+        }
+        restoringPosition = false
+    }
     val positionDescription = stringResource(R.string.reader_position_description, readingScroll.value)
     var sourcesOpen by rememberSaveable { mutableStateOf(false) }
     var explainOpen by rememberSaveable { mutableStateOf(false) }
+    var connectionsOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(item.assetId, readingScroll) {
-        snapshotFlow { readingScroll.value }.distinctUntilChanged().collectLatest {
+        snapshotFlow { readingScroll.value to restoringPosition }.distinctUntilChanged().collectLatest { (value, restoring) ->
+            if (restoring) return@collectLatest
             delay(200)
-            onReadingPosition(item.assetId, it)
+            onReadingPosition(item.assetId, value)
         }
     }
+    val latestRestoring = rememberUpdatedState(restoringPosition)
     DisposableEffect(item.assetId, readingScroll) {
-        onDispose { onReadingPosition(item.assetId, readingScroll.value) }
+        onDispose { onReadingPosition(item.assetId, if (latestRestoring.value) savedPosition else readingScroll.value) }
     }
-    BackHandler(enabled = sourcesOpen || explainOpen) { sourcesOpen = false; explainOpen = false }
+    BackHandler(enabled = sourcesOpen || explainOpen || connectionsOpen) { sourcesOpen = false; explainOpen = false; connectionsOpen = false }
 
     Column(Modifier.fillMaxSize()) {
         // docs/product/ui-system.md section 5b: "origin chip (`● in Machine learning ›`)" -- a
@@ -156,6 +192,16 @@ private fun ReadingSheet(
                     Box(Modifier.size(6.dp).background(Cosmos.Teal, androidx.compose.foundation.shape.CircleShape))
                     Text(originLabel, fontWeight = androidx.compose.ui.text.font.FontWeight(800), fontSize = 12.5.sp)
                 }
+            }
+            // #131: a Scroll opened by a connection shows where it came from, and one tap returns
+            // there at the exact reading position (the same path as system Back).
+            (state.origin as? com.knowscroll.mobile.ui.ReaderOrigin.Branch)?.let { origin ->
+                val backLabel = stringResource(R.string.reader_branch_back, origin.fromTitle)
+                TextButton(
+                    onClick = onBack,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = backLabel },
+                ) { Text("← ${origin.fromTitle}", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, fontSize = 12.5.sp) }
             }
             // Audit A2 (#72): the 150dp gradient placeholder that used to repeat the title is
             // gone. The cream reading sheet below now begins directly under the origin chip, so
@@ -204,7 +250,7 @@ private fun ReadingSheet(
                         com.knowscroll.mobile.ui.scroll.content.ScrollDocument.fromBody(item.body)
                     }
                     com.knowscroll.mobile.ui.scroll.content.ScrollBlocks(document)
-                    com.knowscroll.mobile.ui.BranchRail()
+                    BranchSection(branches, onOpenBranch, onRetryBranches) { connectionsOpen = true }
                     HorizontalDivider(color = Cosmos.CreamDim)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.reader_source_marker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
@@ -219,6 +265,11 @@ private fun ReadingSheet(
     }
     if (sourcesOpen) SourceSheet(item) { sourcesOpen = false }
     if (explainOpen) ExplainSheet(item, state.origin) { explainOpen = false }
+    if (connectionsOpen) {
+        val live = branches?.branches.orEmpty()
+        if (live.isEmpty()) connectionsOpen = false
+        else ConnectionSheet(live, { connectionsOpen = false; onOpenBranch(it) }, { bridge, objection -> connectionsOpen = false; onObjectConnection(bridge, objection) }) { connectionsOpen = false }
+    }
 }
 
 /**
@@ -427,3 +478,6 @@ internal fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** ScrollState reports `Int.MAX_VALUE` until its first layout, which is not a measured document. */
+internal fun documentCanHold(maxValue: Int, position: Int): Boolean = maxValue != Int.MAX_VALUE && maxValue >= position

@@ -11,7 +11,9 @@ data class ScrollSession(
     val clientEventId: String = UUID.randomUUID().toString(),
     val exposureId: String = "", val exposureEventId: String = "",
     val keepJobId: String = "", val keepEventId: String = "",
-    val readingPosition: Int = 0
+    val readingPosition: Int = 0,
+    /** #131: set when this session was opened by taking a live continuation. */
+    val branchFrom: BranchFrom? = null
 )
 
 /** The only persisted revisit data. Content must be fetched again after process death. */
@@ -23,6 +25,8 @@ data class TraceRevisitSession(
     val revision: Int? = null,
     val readingPosition: Int = 0
 )
+
+const val MAX_BRANCH_TRAIL = 8
 
 /** Persist the whole retry envelope together, not a UUID detached from its payload. */
 class StateStore(context: Context) {
@@ -44,7 +48,7 @@ class StateStore(context: Context) {
         check(prefs.edit().putStringSet("visited", assetIds.toSet()).commit()) { "Could not save navigation history" }
     }
     fun readVisited(): Set<String> = prefs.getStringSet("visited", emptySet())?.toSet() ?: emptySet()
-    fun write(s: ScrollSession) {
+    private fun sessionJson(s: ScrollSession): JSONObject {
         val item = JSONObject().apply {
             put("assetId", s.item.assetId); put("revision", s.item.revision); put("kind", s.item.kind)
             put("title", s.item.title); put("summary", s.item.summary); put("body", s.item.body)
@@ -52,7 +56,7 @@ class StateStore(context: Context) {
             put("truthState", s.item.truthState); put("reason", s.item.reason)
             s.item.media?.let { put("media",it.toJson()) }
         }
-        val json = JSONObject().apply {
+        return JSONObject().apply {
             put("decisionId", s.decisionId); put("item", item)
             put("privacyEpoch", s.privacyEpoch)
             put("universeId", s.universeId)
@@ -60,10 +64,46 @@ class StateStore(context: Context) {
             put("exposureId", s.exposureId); put("exposureEventId", s.exposureEventId)
             put("keepJobId", s.keepJobId); put("keepEventId", s.keepEventId)
             put("readingPosition", s.readingPosition)
+            s.branchFrom?.let { put("branchFrom", it.toJson()) }
         }
+    }
+
+    private fun parseSession(o: JSONObject, position: Int? = null): ScrollSession {
+        val i = o.getJSONObject("item")
+        val item = ScrollItem(i.getString("assetId"),i.getInt("revision"),i.getString("kind"),i.getString("title"),i.getString("summary"),i.getString("body"),i.getString("sourceTitle"),i.getString("sourceUrl"),i.getString("truthState"),i.getString("reason"),i.optJSONObject("media")?.let { ReelMedia.parse(it) })
+        return ScrollSession(o.getString("decisionId"),item,o.optLong("privacyEpoch",0),o.optString("universeId",""),o.getString("clientExposureId"),o.getString("clientEventId"),o.getString("exposureId"),o.getString("exposureEventId"),o.getString("keepJobId"),o.getString("keepEventId"),position ?: o.optInt("readingPosition",0),o.optJSONObject("branchFrom")?.let { BranchFrom.parse(it) })
+    }
+
+    fun write(s: ScrollSession) {
+        val json = sessionJson(s)
         check(prefs.edit().putString("session", json.toString()).putString("session_${s.item.kind}", json.toString())
             .putString("readingAssetId",s.item.assetId).putInt("readingPosition",s.readingPosition).commit()) { "Could not save the retry envelope" }
     }
+
+    /** #131: the Scrolls a reader branched away from, newest last, each with its own exact
+     * reading position and retry envelope. Bounded; purged with all private state. */
+    fun writeBranchTrail(trail: List<ScrollSession>) {
+        val arr = org.json.JSONArray().apply { trail.takeLast(MAX_BRANCH_TRAIL).forEach { put(sessionJson(it)) } }
+        check(prefs.edit().putString("branchTrail", arr.toString()).commit()) { "Could not save the branch trail" }
+    }
+    fun readBranchTrail(): List<ScrollSession> {
+        val raw = prefs.getString("branchTrail", null) ?: return emptyList()
+        return runCatching { val arr = org.json.JSONArray(raw); List(arr.length()) { parseSession(arr.getJSONObject(it)) } }.getOrDefault(emptyList())
+    }
+
+    fun writePendingBranch(r: BranchOpenRequest) {
+        val json = JSONObject().apply {
+            put("clientBranchId", r.clientBranchId); put("fromExposureId", r.fromExposureId); put("bridgeId", r.bridgeId)
+            put("targetAssetId", r.targetAssetId); put("expectedPrivacyEpoch", r.expectedPrivacyEpoch); put("universeId", r.universeId)
+        }
+        check(prefs.edit().putString("pendingBranch", json.toString()).commit()) { "Could not save the branch request" }
+    }
+    fun readPendingBranch(): BranchOpenRequest? {
+        val raw = prefs.getString("pendingBranch", null) ?: return null
+        return runCatching { val o = JSONObject(raw); BranchOpenRequest(o.getString("clientBranchId"), o.getString("fromExposureId"), o.getString("bridgeId"), o.getString("targetAssetId"), o.getLong("expectedPrivacyEpoch"), o.getString("universeId")) }.getOrNull()
+    }
+    fun clearPendingBranch() { check(prefs.edit().remove("pendingBranch").commit()) { "Could not clear the branch request" } }
+
     /** Position is not a retry envelope. Apply in memory now and serialize disk work off-main. */
     fun writeReadingPosition(assetId: String, position: Int) {
         val edit = prefs.edit().putString("readingAssetId",assetId).putInt("readingPosition",position)
@@ -78,10 +118,10 @@ class StateStore(context: Context) {
     }
     fun read(key: String = "session"): ScrollSession? {
         val raw = prefs.getString(key, null) ?: return null
-        val o = JSONObject(raw); val i = o.getJSONObject("item")
-        val item = ScrollItem(i.getString("assetId"),i.getInt("revision"),i.getString("kind"),i.getString("title"),i.getString("summary"),i.getString("body"),i.getString("sourceTitle"),i.getString("sourceUrl"),i.getString("truthState"),i.getString("reason"),i.optJSONObject("media")?.let { ReelMedia.parse(it) })
-        val position=if(prefs.getString("readingAssetId",null)==item.assetId) prefs.getInt("readingPosition",0) else o.optInt("readingPosition",0)
-        return ScrollSession(o.getString("decisionId"),item,o.optLong("privacyEpoch",0),o.optString("universeId",""),o.getString("clientExposureId"),o.getString("clientEventId"),o.getString("exposureId"),o.getString("exposureEventId"),o.getString("keepJobId"),o.getString("keepEventId"),position)
+        val o = JSONObject(raw)
+        val assetId = o.getJSONObject("item").getString("assetId")
+        val position=if(prefs.getString("readingAssetId",null)==assetId) prefs.getInt("readingPosition",0) else o.optInt("readingPosition",0)
+        return parseSession(o, position)
     }
 
     fun writeRevisit(value: TraceRevisitSession) {
@@ -169,6 +209,7 @@ class StateStore(context: Context) {
         val observed = if(readObservedUniverseId()==universeId)maxOf(readObservedPrivacyEpoch(),epoch) else epoch
         check(prefs.edit()
             .remove("session").remove("session_Scroll").remove("session_Reel").remove("readingAssetId").remove("readingPosition")
+            .remove("branchTrail").remove("pendingBranch")
             .remove("revisit")
             .remove("visited").remove("pendingHistoryClear")
             .putString("screen", "universe").putString("privacyUniverseId",universeId)

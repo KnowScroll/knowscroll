@@ -24,6 +24,7 @@ import { SHARED_SOURCE_V1, projectWorldsForEncounter, readWorldSystem } from '..
 import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
 import { registerSignInRoutes } from './sign-in-routes.ts';
+import { registerSemanticRoutes } from './semantic-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -119,6 +120,9 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     const scope = await authenticateAndLock(client, bearerToken(authorization));
     return fn(scope, client);
   });
+
+  // #131: semantic continuations and connection feedback, through the same authenticated path.
+  registerSemanticRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 

@@ -1,0 +1,193 @@
+[
+  {
+    "key": "tmp.orbit_distance_explains_seasons",
+    "whyTempting": "Earth's orbit really is elliptical and its Sun distance really does change over the year, and 'closer to a heat source is hotter' is an intuitive, physically-reasonable-sounding mechanism, so a keyword or vibes heuristic matching on ‘distance’, ‘Sun’, and ‘seasons’ would wave this through.",
+    "whyUnsupported": "The one claim that mechanically ties astro.orbit.distance to earth.seasons (clm.seasons.distance_not_cause) is being cited here as if it supported a distance-causes-seasons mechanism, but its actual statement says the opposite: winter in the Northern Hemisphere occurs when Earth is closest to the Sun and summer when it is farthest away, which the source gives specifically to rule out distance as the cause. The substrate also carries an explicit `contradicts` relation from astro.orbit.distance to earth.seasons backed by this same claim, and this proposal's counterevidence disposition claims none was found, silently ignoring it.",
+    "expectedReasons": [
+      "contradicted_by_substrate",
+      "counterevidence_cited_as_support",
+      "mechanism_unsupported"
+    ],
+    "payload": {
+      "fromConcept": "astro.orbit.distance",
+      "toConcept": "earth.seasons",
+      "relationType": "explains",
+      "mechanism": "Earth's orbit is elliptical, so its distance from the Sun changes over the year; when Earth is closer to the Sun it receives more solar energy and heats up, producing summer, and when it is farther away it receives less and cools down, producing winter.",
+      "prerequisites": [
+        {
+          "statement": "The reader knows Earth's orbit is an ellipse, not a perfect circle."
+        },
+        {
+          "statement": "The reader knows the Sun is Earth's source of heat and light."
+        }
+      ],
+      "limitations": [
+        {
+          "kind": "scope_limit",
+          "statement": "This does not address why the two hemispheres experience opposite seasons at the same time, which a pure distance mechanism cannot explain."
+        }
+      ],
+      "evidence": [
+        {
+          "claimKey": "clm.seasons.distance_not_cause",
+          "supports": "from"
+        },
+        {
+          "claimKey": "clm.seasons.distance_not_cause",
+          "supports": "to"
+        },
+        {
+          "claimKey": "clm.seasons.distance_not_cause",
+          "supports": "mechanism"
+        }
+      ],
+      "counterevidence": {
+        "disposition": "searched_none_found",
+        "searchedScope": "editorial substrate 2026-09-24",
+        "claimKeys": []
+      }
+    }
+  },
+  {
+    "key": "tmp.star_lifetime_analogous_orbit_period",
+    "whyTempting": "Both claims have the same surface shape: ‘more of a physical quantity changes a time span.’ More stellar mass shortens a star's life; more orbital distance lengthens a planet's year. The shared vocabulary of ‘mass/size’ and ‘duration’ make the pairing sound like a real analogy to a keyword or vibes-based heuristic.",
+    "whyUnsupported": "No claim in the substrate ties these two together, and the relationships even point in opposite directions: more star mass means a SHORTER lifetime (it burns fuel faster), while more orbital distance means a LONGER period (Kepler's third law) — there is no shared underlying mechanism concept connecting them, only a superficial pattern match. Neither evidence claim mentions the other domain at all.",
+    "expectedReasons": [
+      "mechanism_unsupported"
+    ],
+    "payload": {
+      "fromConcept": "astro.star.lifetime_mass",
+      "toConcept": "astro.orbit.period_distance",
+      "relationType": "analogous_in",
+      "mechanism": "A star with more mass burns through its fuel faster and so dies younger, just as a planet with a larger orbit takes a longer, 'older' year to complete — in both cases, the size of a physical quantity governs the length of a time period, so the two relationships are really the same pattern showing up in different domains.",
+      "prerequisites": [
+        {
+          "statement": "The reader understands that a star's mass sets how fast it burns its fuel."
+        },
+        {
+          "statement": "The reader understands that a planet's orbital distance sets its orbital period."
+        }
+      ],
+      "limitations": [
+        {
+          "kind": "analogy_limit",
+          "statement": "The two relationships run in opposite directions (more mass shortens a star's life; more distance lengthens a planet's year) and arise from unrelated physics, so the surface similarity does not reflect a shared mechanism."
+        }
+      ],
+      "evidence": [
+        {
+          "claimKey": "clm.star.mass_lifetime",
+          "supports": "from"
+        },
+        {
+          "claimKey": "clm.orbits.period_distance_law",
+          "supports": "to"
+        },
+        {
+          "claimKey": "clm.star.massive_short_lived",
+          "supports": "mechanism"
+        }
+      ],
+      "counterevidence": {
+        "disposition": "searched_none_found",
+        "searchedScope": "editorial substrate 2026-09-24",
+        "claimKeys": []
+      }
+    }
+  },
+  {
+    "key": "tmp.star_equilibrium_compares_homeostasis_feedback",
+    "whyTempting": "The real, admitted bridge (brg.star_equilibrium_analogous_homeostasis) shows a star and the body really do share a genuine balance-of-opposing-effects analogy, so it is a short, tempting step to overstate that shared idea into a claim that the star 'senses' and 'corrects' its own state the way a regulated feedback loop does — the vocabulary of 'regulation' and 'control' sounds like it belongs to both.",
+    "whyUnsupported": "The NASA stars source supports only a passive physical balance (fusion pressure offsets gravity); it never describes a sensor, a control center, a set point, or any comparison-and-correction step for a star. This proposal also omits an analogy_limit and supplies only a one-sided mechanism reference (from the star side only), so no evidence ties a sensing/feedback mechanism to both sides.",
+    "expectedReasons": [
+      "mechanism_unsupported",
+      "analogy_limit_missing"
+    ],
+    "payload": {
+      "fromConcept": "astro.star.equilibrium",
+      "toConcept": "bio.homeostasis.negative_feedback",
+      "relationType": "compares_mechanism",
+      "mechanism": "A star regulates its own size much like the body regulates its temperature: when fusion pressure exceeds gravity the star expands and fusion slows, and when gravity exceeds pressure the star contracts and fusion speeds up — a self-correcting feedback loop that senses and corrects deviations just like the body's negative feedback system.",
+      "prerequisites": [
+        {
+          "statement": "The reader understands a star's equilibrium as a balance between fusion pressure and gravity."
+        },
+        {
+          "statement": "The reader understands negative feedback as a loop that senses a deviation and corrects it."
+        }
+      ],
+      "limitations": [
+        {
+          "kind": "scope_limit",
+          "statement": "This describes energy balance only; it does not establish any sensing or control mechanism in a star."
+        }
+      ],
+      "evidence": [
+        {
+          "claimKey": "clm.star.fusion_supports_star",
+          "supports": "from"
+        },
+        {
+          "claimKey": "clm.homeo.neg_feedback",
+          "supports": "to"
+        },
+        {
+          "claimKey": "clm.star.fusion_supports_star",
+          "supports": "mechanism"
+        }
+      ],
+      "counterevidence": {
+        "disposition": "searched_none_found",
+        "searchedScope": "editorial substrate 2026-09-24",
+        "claimKeys": []
+      }
+    }
+  },
+  {
+    "key": "tmp.sun_gravity_explains_greenhouse_effect",
+    "whyTempting": "Both ideas involve 'the Sun' and 'keeping something stable,' and both evidence claims are real, well-supported claims about the Sun and about the greenhouse effect, so a heuristic skimming for shared entities and a plausible-sounding stability theme would accept the pairing without checking whether either claim actually connects gravity to trapped heat.",
+    "whyUnsupported": "Gravitational binding of the solar system and the atmospheric trapping of infrared radiation are physically unrelated mechanisms. No claim in the substrate ties astro.sun or physics.gravity to earth.climate.greenhouse_effect; the two evidence claims cited each describe only one side and never mention the other. (No cited claim connects the Sun's gravity to the greenhouse effect at all, so the validator reports the missing mechanism; direction is only judged when a connecting claim exists.)",
+    "expectedReasons": [
+      "mechanism_unsupported"
+    ],
+    "payload": {
+      "fromConcept": "astro.sun",
+      "toConcept": "earth.climate.greenhouse_effect",
+      "relationType": "explains",
+      "mechanism": "The Sun's gravity holds Earth in a stable orbit at just the right distance from the Sun, and this orbital stability is what allows the greenhouse effect to keep Earth's temperature steady over time, so the Sun's gravitational grip is what makes the greenhouse effect possible.",
+      "prerequisites": [
+        {
+          "statement": "The reader knows the Sun's gravity holds the solar system together."
+        },
+        {
+          "statement": "The reader knows the greenhouse effect keeps Earth's surface warmer than it would otherwise be."
+        }
+      ],
+      "limitations": [
+        {
+          "kind": "scope_limit",
+          "statement": "This does not identify any physical pathway from gravitational binding to atmospheric heat trapping."
+        }
+      ],
+      "evidence": [
+        {
+          "claimKey": "clm.sun.gravity_holds_system",
+          "supports": "from"
+        },
+        {
+          "claimKey": "clm.greenhouse.definition",
+          "supports": "to"
+        },
+        {
+          "claimKey": "clm.sun.gravity_holds_system",
+          "supports": "mechanism"
+        }
+      ],
+      "counterevidence": {
+        "disposition": "searched_none_found",
+        "searchedScope": "editorial substrate 2026-09-24",
+        "claimKeys": []
+      }
+    }
+  }
+]

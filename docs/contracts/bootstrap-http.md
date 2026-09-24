@@ -115,3 +115,30 @@ inbox both present) and **never falls back** to the development sink — a deplo
 real mail refuses to start rather than quietly writing links to a local file. This is redundant with,
 but independent of, `apps/api/src/main.ts` already refusing to start any production-mode process at
 all.
+
+## Semantic continuations (2026-09-24, #131, ADR-0031)
+
+`GET /v1/assets/:assetId/branches` → `EncounterBranchesResponse` (`packages/contracts/src/semantic.ts`):
+up to four continuations along admitted, non-suppressed bridges touching the encounter's primary or
+secondary concepts, each with relation, travel `direction` (`forward`/`reverse`), plain
+`relationPhrase`, mechanism, limitations, prerequisites, cited evidence (claim statement + source)
+and one target Scroll. An empty list carries `emptyReason`
+(`no_semantic_annotation` | `no_admitted_bridge` | `no_eligible_target`); it is never filled with
+unrelated inventory. `Cache-Control: no-store`. 404 for an unknown asset.
+
+`POST /v1/branches` `{clientBranchId, fromExposureId, bridgeId, targetAssetId, expectedPrivacyEpoch}`
+→ 201 `BranchOpenResponse`: the feed decision shape (`decisionId`, `items[1]`, …) plus
+`branch.{branchOpenId, recorded, bridgeId, relationType, direction}`. The server re-checks the
+branch against the current substrate; a revoked or suppressed one is 409. Stale epoch 409; key
+reuse with a different payload 409; an exposure from another universe 422. Exact retry returns
+the original decision. While recording is paused the target is still served, but `recorded` is
+false, `decisionId` and `branch.branchOpenId` are null, and no decision, Ledger event or branch row
+is written; a client must not try to expose that target. Otherwise expose the target with the
+returned `decisionId` exactly like a feed item.
+
+`POST /v1/connections/feedback` `{clientFeedbackId, bridgeId, expectedPrivacyEpoch, objection:
+not_useful|seems_wrong}` → 201 receipt. Suppresses that connection for this universe only; never a
+retraction of shared knowledge. Allowed while paused (a correction control, not attention).
+
+Clear and Reset erase branch opens, feedback and universe-scoped proposals/bridges; export includes
+them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `semanticProposals`.

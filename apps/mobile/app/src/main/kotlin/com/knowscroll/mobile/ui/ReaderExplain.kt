@@ -32,4 +32,6 @@ internal fun explainShowsSourcesNote(truthState: String): Boolean = truthState =
 internal fun explainOriginText(origin: ReaderOrigin): String = when (origin) {
     ReaderOrigin.Discovery -> "You opened this Scroll through deliberate discovery from your universe."
     is ReaderOrigin.SavedTrace -> "This is a saved Trace you kept, from ${origin.keptAt}."
+    is ReaderOrigin.Branch -> "You chose a sourced connection from \u201c${origin.fromTitle}\u201d: ${origin.relationSentence}." +
+        if (origin.recorded) "" else " Recording was paused, so this step was not kept in your history."
 }

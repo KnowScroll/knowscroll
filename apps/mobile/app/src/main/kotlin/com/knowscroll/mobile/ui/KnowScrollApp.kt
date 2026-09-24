@@ -42,6 +42,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val signOut by viewModel.signOut.collectAsStateWithLifecycle()
         val system by viewModel.system.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
+        val branches by viewModel.branches.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val atlasStates = rememberSaveableStateHolder()
         var scopeKey by rememberSaveable { mutableStateOf("") }
@@ -196,7 +197,12 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                     ScrollScreen(
                                         state = scroll,
                                         onKeep = viewModel::keep,
-                                        onReturn = viewModel::returnFromReader,
+                                        onReturn = viewModel::leaveReader,
+                                        onBack = viewModel::returnFromReader,
+                                        branches = branches,
+                                        onOpenBranch = viewModel::openBranch,
+                                        onRetryBranches = viewModel::retryBranches,
+                                        onObjectConnection = viewModel::objectToConnection,
                                         onNext = viewModel::nextScroll,
                                         onRetry = viewModel::retryScrollLoad,
                                         mode = cableMode,
