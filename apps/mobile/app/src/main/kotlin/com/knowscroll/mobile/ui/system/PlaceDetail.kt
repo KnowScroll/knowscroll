@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -41,7 +42,8 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * places, its chronicle and each line's evidence, and "Set aside" for the whole place. #161: each
  * connection shows the claim it rests on, never where that claim came from. #163: its Idea Rooms,
  * each under the reader's own question, open their own sheet ([RoomSheet]). #165 (ADR-0044): Keep
- * keeps the place as a Relic; "Set aside" is how the reader doubts it.
+ * keeps the place as a Relic; "Set aside" is how the reader doubts it. #164: what became of the
+ * reader's need for more about it ([placeDemandView]); a Scroll bound to that need opens in the reader.
  */
 @Composable
 internal fun PlaceDetail(
@@ -57,6 +59,7 @@ internal fun PlaceDetail(
     onCloseEvidence: () -> Unit,
     onOpenRoom: (String) -> Unit,
     keeps: KeepControls,
+    onOpenScroll: (String) -> Unit,
 ) {
     val sightings = atlas.places.filter { it.kind == "sighting" && it.parentPlaceId == place.placeId }
     val connections = placeConnections(place, atlas)
@@ -118,6 +121,7 @@ internal fun PlaceDetail(
                     color = Cosmos.MutedOnCream,
                 )
             Text(placeMarkerDetail(place), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
+            placeDemandView(place)?.let { PlaceDemandLines(it, onOpenScroll) }
             KeepChoices(RelicTarget.Place(place.placeId), keeps)
 
             if (place.rooms.isNotEmpty()) {
@@ -184,6 +188,27 @@ internal fun PlaceDetail(
             if (place.kind != "sighting")
                 PlaceSetAside(place, rejectState, onRequestSetAside, onCancelSetAside, onConfirmSetAside)
         }
+    }
+}
+
+/** The need's headline -- a 48dp target when it names a Scroll to open -- and its notes. */
+@Composable
+private fun PlaceDemandLines(view: PlaceDemandView, onOpenScroll: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        val opens = view.opens
+        if (opens == null)
+            Text(view.headline, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+        else
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "Open it in the reader") { onOpenScroll(opens) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(view.headline, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700), modifier = Modifier.weight(1f))
+                // A visual cue only: the row's click label already says it opens.
+                Text("›", style = MaterialTheme.typography.titleMedium, color = Cosmos.Teal, modifier = Modifier.clearAndSetSemantics {})
+            }
+        view.notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream) }
     }
 }
 

@@ -51,6 +51,10 @@ sealed interface AwayItem {
         override val at: String, val bridgeId: String, val status: String,
         val fromConcept: InquiryConcept, val toConcept: InquiryConcept, val seemsWrong: Boolean,
     ) : AwayItem
+
+    /** #164 (ADR-0046 §5): a Scroll about [concept], bound to the reader's need, was withdrawn
+     * because what it was based on changed. Named by its concept alone. */
+    data class ScrollWithdrawn(override val at: String, val bindingId: String, val concept: InquiryConcept) : AwayItem
 }
 
 data class AwayResponse(
@@ -84,7 +88,7 @@ internal val AWAY_CORRECTION_STATUSES = setOf("revoked", "superseded")
 /** `at|kind|id`: a page's last item in the list's one total order (`AWAY_CURSOR_PATTERN`). */
 private val AWAY_CURSOR = Regex(
     "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z\\|" +
-        "(connection_found|connection_did_not_hold_up|nothing_found|place_changed|room_changed|connection_corrected)\\|" +
+        "(connection_found|connection_did_not_hold_up|nothing_found|place_changed|room_changed|connection_corrected|scroll_withdrawn)\\|" +
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
 )
 
@@ -140,6 +144,10 @@ internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
             o.datetime("at"), o.uuid("bridgeId"), status,
             parseInquiryConcept(o.obj("fromConcept")), parseInquiryConcept(o.obj("toConcept")), o.bool("seemsWrong"),
         )
+    }
+    "scroll_withdrawn" -> {
+        o.requireKeys("kind", "at", "bindingId", "concept")
+        AwayItem.ScrollWithdrawn(o.datetime("at"), o.uuid("bindingId"), parseInquiryConcept(o.obj("concept")))
     }
     else -> throw IllegalArgumentException("Unknown away item kind")
 }

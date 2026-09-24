@@ -132,7 +132,7 @@ class RoomsTest {
             put("anchor", JSONObject().put("code", "physics.gravity").put("name", "Gravity").put("description", "The force that pulls masses together."))
             put("basis", if (kind == "sighting") JSONObject().put("kind", "explains").put("from", "Gravity").put("to", "Tides").put("claim", JSONObject.NULL).put("bridge", JSONObject().put("mechanism", "m")) else JSONObject.NULL)
             put("attention", JSONObject.NULL); put("scrolls", JSONObject().put("total", 1).put("seen", 1))
-            put("formedAt", "2026-09-23T00:00:00.000Z"); put("formedBy", "place_formed"); put("foundation", JSONObject.NULL); put("rooms", rooms)
+            put("formedAt", "2026-09-23T00:00:00.000Z"); put("formedBy", "place_formed"); put("foundation", JSONObject.NULL); put("rooms", rooms); put("demand", JSONObject.NULL)
         }
         assertEquals(listOf(roomId), parseAtlasPlace(place("planet", JSONArray().put(summary()))).rooms.map { it.roomId })
         refused("a room on a sighting") { parseAtlasPlace(place("sighting", JSONArray().put(summary()))) }

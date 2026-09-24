@@ -25,6 +25,32 @@ fun placeMarkerDetail(place: AtlasPlace): String {
     return "${place.scrolls.seen} of $total ${if (total == 1) "Scroll" else "Scrolls"} read"
 }
 
+/** #164 (ADR-0046 §6): what a place sheet says about the reader's need for more about the place --
+ * a [headline] from the need's state, [notes] on what it lost or why it cannot be met, and the bound
+ * Scroll a tap [opens] in the reader, if any. */
+data class PlaceDemandView(val headline: String, val notes: List<String>, val opens: String?)
+
+/** The Quartermaster's reasons (`CANNOT_MEET_REASONS`), in plain words that name nothing it came from. */
+private val CANNOT_MEET_WORDS = mapOf(
+    "no_route" to "Nothing is set up to write more yet.",
+    "no_budget" to "Writing more has reached its limit for now.",
+    "no_material" to "There is no material to write more from yet.",
+    "checks_failed" to "What was written for it did not pass its checks.",
+    "request_failed" to "The last attempt to write more did not finish.",
+)
+
+/** `null` when the reader's reading recorded no need for more about this place. */
+fun placeDemandView(place: AtlasPlace): PlaceDemandView? {
+    val demand = place.demand ?: return null
+    val name = place.anchor.name
+    val withdrawn = listOfNotNull("Withdrawn: what it was based on changed".takeIf { demand.withdrawn })
+    return when (demand.status) {
+        "bound" -> PlaceDemandView("New for you: ${demand.scroll!!.title}", withdrawn, demand.scroll.assetId)
+        "waiting" -> PlaceDemandView("Being written: more about $name", withdrawn, null)
+        else -> PlaceDemandView("Nothing more about $name for now", withdrawn + CANNOT_MEET_WORDS.getValue(demand.reason!!), null)
+    }
+}
+
 /** Empty for a sighting: the wire contract already refuses attention on something unshown. */
 fun placeMarkerStatus(place: AtlasPlace): String = place.attention?.state?.uppercase() ?: ""
 

@@ -16,21 +16,27 @@ sealed interface DiscoverySelection {
     data class Item(val item: ScrollItem) : DiscoverySelection
     data object Exhausted : DiscoverySelection
     data object InvalidScope : DiscoverySelection
+    /** The Scroll the reader asked for from its place is no longer offered (read, or withdrawn meanwhile). */
+    data object PreferredGone : DiscoverySelection
 }
 
-/** Check scope even for an empty feed: exhaustion must not hide invalid authority. */
+/** Check scope even for an empty feed: exhaustion must not hide invalid authority. #164: a Scroll the
+ * reader asked for from its place ([preferredAssetId]) is taken when the feed offers it, and nothing
+ * else is opened in its name when it does not. */
 internal fun selectDiscovery(
     feed: FeedResponse,
     universeId: String,
     privacyEpoch: Long,
     visited: Set<String>,
-    currentAssetId: String?
+    currentAssetId: String?,
+    preferredAssetId: String? = null,
 ): DiscoverySelection {
     if (feed.universeId != universeId || feed.privacyEpoch != privacyEpoch) {
         return DiscoverySelection.InvalidScope
     }
-    return feed.items.firstOrNull { it.assetId !in visited && it.assetId != currentAssetId }
-        ?.let { DiscoverySelection.Item(it) } ?: DiscoverySelection.Exhausted
+    val open = feed.items.filter { it.assetId !in visited && it.assetId != currentAssetId }
+    if (preferredAssetId != null) return open.firstOrNull { it.assetId == preferredAssetId }?.let { DiscoverySelection.Item(it) } ?: DiscoverySelection.PreferredGone
+    return open.firstOrNull()?.let { DiscoverySelection.Item(it) } ?: DiscoverySelection.Exhausted
 }
 
 /** What this discovery trip has opened, as sent to the feed: the current Scroll last, at most 256. */

@@ -210,6 +210,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
       awayAcknowledgements: 0,
       relics: 0,
       objections: 0,
+      demands: 0,
     },
     account: { email: 'owner@example.com' },
     universe: { id: universeOf().universeId, revision: 1, privacyEpoch: 0, recordingPausedAt: null },
@@ -226,6 +227,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
     askAnswers: [],
     inquiries: { consent: [], consentRequests: [], mail: [], inquiries: [] },
     returns: { acknowledgements: [], relics: [], objections: [] },
+    inventory: { demands: [], waiters: [], bindings: [] },
     ...overrides,
   };
 }

@@ -29,6 +29,7 @@ internal fun awayItemLine(item: AwayItem, context: Context): String = when (item
         if (item.status == "revoked") R.string.away_corrected_revoked else R.string.away_corrected_superseded,
         item.fromConcept.name, item.toConcept.name,
     )
+    is AwayItem.ScrollWithdrawn -> context.getString(R.string.away_scroll_withdrawn, item.concept.name)
 }
 
 /** "The Sun and Gravity", or "The Sun and Gravity, or Orbit and Tides" for an inquiry that offered more. */

@@ -21,6 +21,7 @@ import { COMPOSER_SIGNALS_V2 } from '../../../packages/core/src/composer.ts';
 import { COMPOSER_SEMANTIC_V3, COMPOSER_SEMANTIC_V4 } from '../../../packages/core/src/composer/semantic.ts';
 import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts';
 import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
+import { observeExhaustion } from '../../../packages/db/src/inventory/demand.ts';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
@@ -36,6 +37,7 @@ import { registerAtlasRoutes } from './atlas-routes.ts';
 import { registerInquiryRoutes } from './inquiry-routes.ts';
 import { registerReturnRoutes } from './return-routes.ts';
 import { registerRoomRoutes } from './room-routes.ts';
+import { registerInventoryRoutes } from './inventory-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -161,6 +163,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   registerReturnRoutes(app, authenticated);
   // #163: the reader's Idea Rooms, their inhabitants and their setting aside (ADR-0045).
   registerRoomRoutes(app, authenticated);
+  // #164: the reader's content demands and what met them (ADR-0046); nothing is written here.
+  registerInventoryRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 
@@ -291,6 +295,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       ? await composeAndRecordV2(client, scope, assets, account)
       // v3 gates kept encounters itself and records them, so "why not that" has an answer.
       : await composeAndRecordV3(client, scope, assets, account.revision, exclude, composerPolicy);
+    // ADR-0046 §1: a place this reader has now seen in full is a need, recorded with the semantic decision that saw it.
+    if (composerPolicy !== COMPOSER_SIGNALS_V2) await observeExhaustion(client, scope, decisionId);
     return { decisionId, universeId: scope.universeId, accountRevision: account.revision, privacyEpoch: scope.privacyEpoch, items };
   }));
 

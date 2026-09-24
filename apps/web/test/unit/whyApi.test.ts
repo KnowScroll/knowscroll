@@ -86,6 +86,7 @@ describe('ApiClient.getWhy (#133)', () => {
       evidence: [
         { kind: 'question', concept: 'physics.gravity' },
         { kind: 'outside', domain: 'life' },
+        { kind: 'demand', demandId: 'd1', bindingId: 'b1', concept: 'earth.tides', placeId: 'p1', origin: { bridgeId: 'br1', exposureId: 'e1' } },
       ],
       corrections: ['less_like_this'],
       corrected: ['less_like_this'],

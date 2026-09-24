@@ -49,6 +49,7 @@ export type PrivacyExportRowCounts = {
  awayAcknowledgements:number;
  relics:number;
  objections:number;
+ demands:number;
 };
 export type PrivacyExportDeviceSession = {
  deviceId:string; origin:string; createdAt:string; expiresAt:string; revokedAt:string|null;
@@ -71,6 +72,8 @@ export type PrivacyExportResult = {
  inquiries:{consent:unknown[]; consentRequests:unknown[]; mail:unknown[]; inquiries:unknown[]};
  /** #134/#165: return markers, Relics and the reader's objections (ADR-0039, ADR-0044). */
  returns:{acknowledgements:unknown[]; relics:unknown[]; objections:unknown[]};
+ /** #164: content demands, their waiters and bindings (ADR-0046). */
+ inventory:{demands:unknown[]; waiters:unknown[]; bindings:unknown[]};
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;

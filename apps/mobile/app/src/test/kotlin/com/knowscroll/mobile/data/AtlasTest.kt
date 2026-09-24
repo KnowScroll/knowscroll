@@ -40,12 +40,12 @@ class AtlasTest {
          "anchor":{"code":"physics.gravity","name":"Gravity","description":"The force that pulls masses together."},
          "basis":null,
          "attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[]},
+         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[],"demand":null},
         {"placeId":"$sightingId","kind":"sighting","parentPlaceId":"$gravityId",
          "anchor":{"code":"astro.star-formation","name":"Star formation","description":"How stars are born."},
          "basis":{"kind":"explains","from":"Gravity","to":"Star formation",
              "claim":{"text":"Gravity pulls gas clouds together until they ignite.","sourceTitle":"NASA · Star formation"},"bridge":null},
-         "attention":null,"scrolls":{"total":0,"seen":0},"formedAt":"2026-09-24T00:00:00.000Z","formedBy":"sighting_appeared","foundation":null,"rooms":[]}
+         "attention":null,"scrolls":{"total":0,"seen":0},"formedAt":"2026-09-24T00:00:00.000Z","formedBy":"sighting_appeared","foundation":null,"rooms":[],"demand":null}
     ]"""
 
     private fun defaultChronicle() = """[
@@ -95,15 +95,15 @@ class AtlasTest {
         {"placeId":"$gravityId","kind":"planet","parentPlaceId":null,
          "anchor":{"code":"physics.gravity","name":"Gravity","description":"The force that pulls masses together."},
          "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":$foundation,"rooms":[]},
+         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":$foundation,"rooms":[],"demand":null},
         {"placeId":"$tidesId","kind":"planet","parentPlaceId":null,
          "anchor":{"code":"earth.tides","name":"Tides","description":"The rise and fall of the sea."},
          "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[]},
+         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[],"demand":null},
         {"placeId":"$orbitsId","kind":"planet","parentPlaceId":null,
          "anchor":{"code":"astro.orbit","name":"Orbits","description":"Paths around a larger body."},
          "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[]}
+         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[],"demand":null}
     ]"""
 
     @Test
@@ -150,6 +150,49 @@ class AtlasTest {
     @Test
     fun refusesAPlaceThatDoesNotSayWhetherItIsAFoundation() {
         val silent = defaultPlaces().replace(",\"foundation\":null,", ",")
+        assertNotEquals(defaultPlaces(), silent)
+        assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = silent)) }
+    }
+
+    private val scrollId = "66666666-6666-4666-8666-666666666666"
+    private val demandId = "77777777-7777-4777-8777-777777777777"
+
+    /** #164 (ADR-0046 §6): the planet carries [demand] as its live need for more about it. */
+    private fun withDemand(demand: String) = defaultPlaces().replaceFirst("\"rooms\":[],\"demand\":null}", "\"rooms\":[],\"demand\":$demand}")
+
+    private fun demand(status: String, reason: String? = null, scroll: String = "null", withdrawn: Boolean = false) =
+        """{"demandId":"$demandId","status":"$status","reason":${reason?.let { "\"$it\"" } ?: "null"},"scroll":$scroll,"withdrawn":$withdrawn}"""
+
+    @Test
+    fun parsesEachPlacesLiveNeedForMore() {
+        assertTrue(parseAtlasResponse(atlasJson()).places.all { it.demand == null })
+        val waiting = parseAtlasResponse(atlasJson(places = withDemand(demand("waiting", withdrawn = true)))).places.first()
+        assertEquals(PlaceDemand(demandId, "waiting", null, null, withdrawn = true), waiting.demand)
+        val bound = parseAtlasResponse(atlasJson(places = withDemand(demand("bound", scroll = """{"assetId":"$scrollId","title":"Two bulges of water"}""")))).places.first()
+        assertEquals(BoundScroll(scrollId, "Two bulges of water"), bound.demand?.scroll)
+        val cannot = parseAtlasResponse(atlasJson(places = withDemand(demand("cannot_meet", reason = "no_budget")))).places.first()
+        assertEquals("no_budget", cannot.demand?.reason)
+    }
+
+    @Test
+    fun refusesANeedTheContractForbids() {
+        val scroll = """{"assetId":"$scrollId","title":"Two bulges of water"}"""
+        for (bad in listOf(
+            demand("bound"),
+            demand("waiting", scroll = scroll),
+            demand("cannot_meet"),
+            demand("cannot_meet", reason = "felt_like_it"),
+            demand("waiting", reason = "no_budget"),
+            demand("open"),
+            demand("bound", scroll = """{"assetId":"$scrollId","title":""}"""),
+            demand("bound", scroll = """{"assetId":"$scrollId","title":"Two bulges of water","sourceTitle":"NOAA · Tides"}"""),
+            demand("waiting").replace("}", ",\"sourceUrl\":\"https://oceanservice.noaa.gov/\"}"),
+        )) assertThrows(bad, IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = withDemand(bad))) }
+    }
+
+    @Test
+    fun refusesAPlaceThatDoesNotSayWhetherItHasANeedForMore() {
+        val silent = defaultPlaces().replace(",\"demand\":null}", "}")
         assertNotEquals(defaultPlaces(), silent)
         assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = silent)) }
     }

@@ -69,6 +69,13 @@ class AwayTest {
         put("fromConcept", concept("astro.sun", "The Sun")); put("toConcept", concept("physics.gravity", "Gravity")); put("seemsWrong", seemsWrong)
     }
 
+    private val bindingId = "55555555-5555-4555-8555-555555555555"
+
+    /** #164 (ADR-0046 §5): a Scroll bound to the reader's need was withdrawn. */
+    private fun scrollWithdrawn(at: String = "2026-09-24T10:00:00.000Z") = JSONObject().apply {
+        put("kind", "scroll_withdrawn"); put("at", at); put("bindingId", bindingId); put("concept", concept("earth.tides", "Tides"))
+    }
+
     private val cursor = "2026-09-24T09:50:00.000Z|nothing_found|$inquiryId"
 
     private fun response(
@@ -142,6 +149,18 @@ class AwayTest {
     }
 
     @Test
+    fun aWithdrawnScrollIsNamedByItsConceptAlone() {
+        val item = parseAwayResponse(response(scrollWithdrawn())).items.single() as AwayItem.ScrollWithdrawn
+        assertEquals(bindingId, item.bindingId)
+        assertEquals(InquiryConcept("earth.tides", "Tides"), item.concept)
+        assertEquals("2026-09-24T10:00:00.000Z", item.at)
+        refused(response(scrollWithdrawn().put("title", "Two bulges of water")))
+        refused(response(scrollWithdrawn().put("sourceTitle", "NOAA · Tides")))
+        refused(response(scrollWithdrawn().apply { remove("concept") }))
+        refused(response(scrollWithdrawn().put("bindingId", "not-a-uuid")))
+    }
+
+    @Test
     fun anEmptyListWithNoMarkerAndPausedRecordingIsCarried() {
         val parsed = parseAwayResponse(response(paused = true))
         assertNull(parsed.since)
@@ -159,7 +178,7 @@ class AwayTest {
 
     @Test
     fun aPageMayEndOnEveryKindTheListCarries() {
-        for (kind in listOf("connection_found", "connection_did_not_hold_up", "nothing_found", "place_changed", "room_changed", "connection_corrected")) {
+        for (kind in listOf("connection_found", "connection_did_not_hold_up", "nothing_found", "place_changed", "room_changed", "connection_corrected", "scroll_withdrawn")) {
             val next = "2026-09-24T09:50:00.000Z|$kind|$inquiryId"
             assertEquals(next, parseAwayResponse(response(*fullList(), more = 7, nextPage = next)).nextPage)
         }

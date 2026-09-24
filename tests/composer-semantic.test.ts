@@ -60,7 +60,7 @@ function state(over: Partial<V3State> = {}): V3State {
     marks: [], served: [], accounts: new Map(),
     bridges: [{ id: 'b.gravity.tides', from: 'physics.gravity', to: 'earth.tides', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Tides' }],
     contradictions: [{ from: 'astro.orbit.ellipse', to: 'earth.seasons', claimKey: 'c.seasons.tilt' }],
-    openQuestionConcepts: [], directionPriors: [], suppressedRoutes: [], excluded: new Set(),
+    openQuestionConcepts: [], directionPriors: [], suppressedRoutes: [], excluded: new Set(), bound: [],
     ...over,
   };
 }
@@ -120,6 +120,25 @@ test('the same idea is not served twice in a row unless the reader acted on it',
   assert.notEqual(primaryOf(noAct.selected[0]!.assetId), 'physics.gravity', 'no act on gravity: the next encounter changes idea');
   const acted = composeSemantic(state({ exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']), marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }] }), COMPOSER_V3_POLICY);
   assert.ok(acted.candidates.some(c => c.family === 'continue' && c.assetId === 'gravity-2' && c.gate === null));
+});
+
+test('a Scroll bound to the reader\'s own need is served first, as a continuation, with the binding as its evidence', () => {
+  const marks = [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep' as const, atMs: NOW - HOUR }];
+  const bound = [{ assetId: 'tilt-1', demandId: 'd1', bindingId: 'b1', concept: 'earth.seasons', placeId: 'p1', origin: null }];
+  // Due for exploration, and with better-scoring candidates: the reader's own need still comes first.
+  const s = state({ exposures: exposed('gravity-1', 'orbit-1'), marks, served: served(['gravity-1', 'continue'], ['orbit-1', 'continue']), bound });
+  const result = composeSemantic(s, COMPOSER_V3_POLICY);
+  const head = result.selected[0]!;
+  assert.deepEqual([head.assetId, head.family, head.explanationKey, head.facts], ['tilt-1', 'continue', 'v3_demand_bound', { conceptName: 'Seasons' }]);
+  assert.deepEqual(head.evidence, [{ kind: 'demand', demandId: 'd1', bindingId: 'b1', concept: 'earth.seasons', placeId: 'p1', origin: null }]);
+  assert.deepEqual(result.quotas, ['demand_bound'], 'the head records the rule that chose it');
+  assert.ok(result.candidates.filter(c => c.rank !== null).length === result.selected.length);
+  assert.notEqual(composeSemantic({ ...s, bound: [] }, COMPOSER_V3_POLICY).selected[0]!.assetId, 'tilt-1');
+  // Kept, on screen or suppressed by the reader, it is gated like any other encounter.
+  for (const over of [{ kept: new Set(['tilt-1']) }, { excluded: new Set(['tilt-1']) }, { suppressedRoutes: [{ family: 'continue' as const, concept: 'earth.seasons' }] }]) {
+    const gated = composeSemantic({ ...s, ...over }, COMPOSER_V3_POLICY);
+    assert.ok(!gated.quotas.includes('demand_bound') && gated.selected[0]!.assetId !== 'tilt-1', JSON.stringify(Object.keys(over)));
+  }
 });
 
 test('"less like this" suppresses exactly that route for this reader, and the record says so', () => {

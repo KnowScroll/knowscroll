@@ -409,6 +409,7 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                 onConfirmSetAside = viewModel::confirmSetAside,
                                 onOpenEvidence = viewModel::openEvidence,
                                 onCloseEvidence = viewModel::closeEvidence,
+                                onOpenBoundScroll = viewModel::openBoundScroll,
                                 away = AwayControls(
                                     state = away, acknowledge = acknowledge,
                                     onMarkSeen = returnViewModel::markSeen, onRetryMarkSeen = returnViewModel::retryMarkSeen,

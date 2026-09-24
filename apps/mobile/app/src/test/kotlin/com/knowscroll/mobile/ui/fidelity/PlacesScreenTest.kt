@@ -1,11 +1,16 @@
 package com.knowscroll.mobile.ui.fidelity
 
 import android.provider.Settings
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -15,11 +20,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
-import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
 import com.knowscroll.mobile.data.AtlasAnchor
 import com.knowscroll.mobile.data.AtlasAttention
 import com.knowscroll.mobile.data.AtlasBasis
@@ -32,6 +32,8 @@ import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.AtlasScrollCounts
+import com.knowscroll.mobile.data.BoundScroll
+import com.knowscroll.mobile.data.PlaceDemand
 import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.data.WorldSummary
 import com.knowscroll.mobile.data.WorldSystem
@@ -108,7 +110,8 @@ class PlacesScreenTest {
     private fun content(atlasState: AtlasState = AtlasState.Loaded(atlas), rejectState: PlaceRejectState = PlaceRejectState.Idle,
                          evidenceState: AtlasEvidenceState = AtlasEvidenceState.Idle, onRequestSetAside: (String) -> Unit = {},
                          onCancelSetAside: () -> Unit = {}, onConfirmSetAside: () -> Unit = {}, onOpenEvidence: (String) -> Unit = {},
-                         keeps: KeepControls = KeepControls()) {
+                         keeps: KeepControls = KeepControls(),
+                         onOpenBoundScroll: (String) -> Unit = {}) {
         // Deterministic, immediate camera/level transitions -- the reduced-motion path
         // (docs/product/ui-system.md sec.4b) never sets `travelling`, so a level change is visible
         // the moment the click that caused it settles, with no animation timing to race against.
@@ -120,7 +123,7 @@ class PlacesScreenTest {
                     state = loadedWorlds, atlasState = atlasState, placeRejectState = rejectState, evidenceState = evidenceState,
                     onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
                     onRequestSetAside = onRequestSetAside, onCancelSetAside = onCancelSetAside, onConfirmSetAside = onConfirmSetAside,
-                    onOpenEvidence = onOpenEvidence, keeps = keeps,
+                    onOpenEvidence = onOpenEvidence, keeps = keeps, onOpenBoundScroll = onOpenBoundScroll,
                 )
             }
         }
@@ -250,6 +253,45 @@ class PlacesScreenTest {
         composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
         composeRule.onNodeWithText("Info").performClick()
         composeRule.onAllNodesWithText("Holds up", substring = true).assertCountEquals(0)
+    }
+
+    /** #164 (ADR-0046 §6): the place sheet says what became of the reader's need for more about the
+     * place, and a Scroll bound to it is a 48dp target that opens it in the reader. */
+    private val scrollId = "66666666-6666-4666-8666-666666666666"
+    private fun withNeed(demand: PlaceDemand) = AtlasState.Loaded(atlas.copy(places = listOf(planet.copy(demand = demand), region, sighting, otherPlanet)))
+    private fun openGravitySheet() {
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+    }
+
+    @Test
+    fun aScrollBoundToThePlacesNeedIsNewForTheReaderAndOpens() {
+        var opened: String? = null
+        content(atlasState = withNeed(PlaceDemand("d1", "bound", null, BoundScroll(scrollId, "Two bulges of water"), false)), onOpenBoundScroll = { opened = it })
+        openGravitySheet()
+        composeRule.onNodeWithText("New for you: Two bulges of water").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(scrollId, opened)
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    @Test
+    fun aNeedBeingWrittenAgainSaysWhatWasWithdrawnAndOpensNothing() {
+        var opened: String? = null
+        content(atlasState = withNeed(PlaceDemand("d1", "waiting", null, null, true)), onOpenBoundScroll = { opened = it })
+        openGravitySheet()
+        composeRule.onNodeWithText("Being written: more about Gravity").performScrollTo().performClick()
+        composeRule.onNodeWithText("Withdrawn: what it was based on changed").performScrollTo().assertExists()
+        assertEquals(null, opened)
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    @Test
+    fun aNeedThatCannotBeMetSaysWhy() {
+        content(atlasState = withNeed(PlaceDemand("d1", "cannot_meet", "no_material", null, false)))
+        openGravitySheet()
+        composeRule.onNodeWithText("Nothing more about Gravity for now").performScrollTo().assertExists()
+        composeRule.onNodeWithText("There is no material to write more from yet.").performScrollTo().assertExists()
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test

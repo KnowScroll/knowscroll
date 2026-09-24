@@ -142,6 +142,7 @@ export const privacyExportRowCountsSchema = z
     awayAcknowledgements: z.number().int().nonnegative(),
     relics: z.number().int().nonnegative(),
     objections: z.number().int().nonnegative(),
+    demands: z.number().int().nonnegative(),
   })
   .strict();
 export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
@@ -229,6 +230,10 @@ export const privacyExportResultSchema = z
       .strict(),
     /** ADR-0039/0044: return markers, Relics and the reader's objections. */
     returns: z.object({ acknowledgements: z.array(exportRowSchema), relics: z.array(exportRowSchema), objections: z.array(exportRowSchema) }).strict(),
+    /** ADR-0046: content demands, their waiters and bindings. */
+    inventory: z
+      .object({ demands: z.array(exportRowSchema), waiters: z.array(exportRowSchema), bindings: z.array(exportRowSchema) })
+      .strict(),
   })
   .strict();
 export type PrivacyExportResult = z.infer<typeof privacyExportResultSchema>;
@@ -324,6 +329,17 @@ export const evidenceStepSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bridge'), bridgeId: z.string(), sentence: z.string() }).strict(),
   z.object({ kind: z.literal('question'), concept: z.string() }).strict(),
   z.object({ kind: z.literal('outside'), domain: z.string() }).strict(),
+  // ADR-0046: the reader's own recorded need a Scroll was bound to (web parity for the rest is #171).
+  z
+    .object({
+      kind: z.literal('demand'),
+      demandId: z.string(),
+      bindingId: z.string(),
+      concept: z.string(),
+      placeId: z.string().nullable(),
+      origin: z.object({ bridgeId: z.string(), exposureId: z.string() }).strict().nullable(),
+    })
+    .strict(),
 ]);
 export type EvidenceStep = z.infer<typeof evidenceStepSchema>;
 

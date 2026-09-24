@@ -20,6 +20,7 @@ import {
 import { SYMMETRIC_BRIDGE_TYPES, type BridgeRelationType } from '../../../contracts/src/semantic.ts';
 import { decayedMass, ATTENTION_V1 } from '../../../core/src/semantic/attention.ts';
 import type { AuthScope } from '../identity.ts';
+import { loadBoundScrolls } from '../inventory/read.ts';
 import { BRANCH_POLICY_VERSION } from '../semantic/branches.ts';
 
 type Row = Record<string, unknown>;
@@ -144,7 +145,7 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
     nowMs, seed: `${universeId}:${windows}`, concepts, assets, history, kept, exposures, sourceExposures, marks, served, accounts, bridges, contradictions,
     openQuestionConcepts: hypotheses.filter(h => h.kind === 'open_question' && (h.permitted_uses as string[]).includes('composer.continuity')).map(h => String(h.code)),
     directionPriors: hypotheses.filter(h => h.kind === 'direction' && (h.permitted_uses as string[]).includes('composer.family_prior')).map(h => String(h.code)),
-    suppressedRoutes, excluded,
+    suppressedRoutes, excluded, bound: await loadBoundScrolls(client, universeId),
   };
 }
 

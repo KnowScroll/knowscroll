@@ -8,6 +8,7 @@ import { executeInquiryClaim, runInquiryPass } from './reasoning/inquiry-worker.
 import { settleAbandonedAnswers } from '../../../packages/db/src/reasoning-answers.ts';
 import { settleInquiries } from '../../../packages/db/src/reasoning-inquiry-execution.ts';
 import { runCorrectionRefreshPass } from '../../../packages/db/src/semantic/correction-refresh.ts';
+import { runSupplyPass, scrollTransportsFromEnvironment } from './scrolls/supply-worker.ts';
 let running=true;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{running=false;});
 const workerId=`local-${process.pid}`;
@@ -15,6 +16,8 @@ const workerId=`local-${process.pid}`;
 // transport for them (ADR-0033 §2, ADR-0038 §2).
 const answerTransports=answerTransportsFromEnvironment(process.env);
 const inquiryTransports=inquiryTransportsFromEnvironment(process.env,answerTransports);
+// #164: shared supply requests are written only when this process has a Scroll-writing transport (ADR-0046 §3).
+const scrollTransports=scrollTransportsFromEnvironment(process.env,answerTransports);
 // Leases on admitted attempts; bounded by admission's own 1..60,000 ms limit.
 const leaseMs=(name:string)=>Math.min(60_000,Math.max(1_000,Number(process.env[name] ?? 60_000)||60_000));
 const answerLeaseMs=leaseMs('KS_ANSWER_LEASE_MS');
@@ -32,10 +35,13 @@ const inquiryReadiness=gatesFor(inquiryTransports);
 // bounded batch (1..100) at a time. Deterministic database work only; no model is called.
 const correctionRefreshMs=Math.max(1_000,Number(process.env.KS_CORRECTION_REFRESH_INTERVAL_MS ?? 60_000)||60_000);
 const correctionRefreshBatch=Math.min(100,Math.max(1,Math.trunc(Number(process.env.KS_CORRECTION_REFRESH_BATCH ?? 8)||8)));
-let lastSweep=0,lastCorrectionRefresh=0,refreshDeferred:string[]=[];
+// ADR-0046 §3: supply requests are written on an interval (at least 1 s). A request the readiness
+// gate held back (the quota preflight) is tried again after a minute, never at once.
+const scrollSupplyMs=Math.max(1_000,Number(process.env.KS_SCROLL_SUPPLY_INTERVAL_MS ?? 5_000)||5_000);
+let lastSweep=0,lastCorrectionRefresh=0,refreshDeferred:string[]=[],nextScrollSupply=0;
 const stop=new AbortController();
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>stop.abort());
-console.log(JSON.stringify({service:'worker',workerId,kind:'deterministic-projection',answers:answerTransports?Object.keys(answerTransports):[],inquiries:inquiryTransports?Object.keys(inquiryTransports):[]}));
+console.log(JSON.stringify({service:'worker',workerId,kind:'deterministic-projection',answers:answerTransports?Object.keys(answerTransports):[],inquiries:inquiryTransports?Object.keys(inquiryTransports):[],scrolls:scrollTransports?Object.keys(scrollTransports):[]}));
 // A background inquiry the answer route's shared scheduler admits is run by the inquiry path (ADR-0038 §4).
 const inquiries=inquiryTransports?{transports:inquiryTransports,readiness:inquiryReadiness,execute:executeInquiryClaim}:undefined;
 try {while(running) {
@@ -69,6 +75,12 @@ try {while(running) {
    try {const settled=await settleInquiries(pool,{owner:workerId});if(settled) console.log(JSON.stringify({inquiriesSettled:settled}));}
    catch {console.error(JSON.stringify({error:'inquiry_sweep_failed'}));}
   }
+ }
+ if(scrollTransports&&Date.now()>=nextScrollSupply) {
+  try {const pass=await runSupplyPass({pool,transports:scrollTransports,signal:stop.signal});
+   nextScrollSupply=Date.now()+(pass.kind==='done'&&pass.status==='open'?60_000:scrollSupplyMs);
+   if(pass.kind==='done') console.log(JSON.stringify({supplyRequest:pass.requestId,status:pass.status,reasons:pass.reasons}));}
+  catch {console.error(JSON.stringify({error:'scroll_supply_failed'}));nextScrollSupply=Date.now()+scrollSupplyMs;}
  }
  if(Date.now()-lastCorrectionRefresh>=correctionRefreshMs) {
   lastCorrectionRefresh=Date.now();

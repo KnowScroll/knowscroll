@@ -2,7 +2,8 @@
  * #131 — HTTP for the semantic substrate's personal consumers. Kept in its own module (like
  * `sign-in-routes.ts`) so `app.ts` only wires it in.
  *
- *   GET  /v1/assets/:assetId/branches   live continuations along admitted, non-suppressed bridges
+ *   GET  /v1/assets/:assetId/branches   live continuations along admitted, non-suppressed bridges (and,
+ *                                       for one into a concept with nothing unseen, its need: ADR-0046)
  *   POST /v1/branches                   take one (explicit request; re-checked under the locks)
  *   POST /v1/connections/feedback       "not useful" / "seems wrong": personal suppression only
  *
@@ -14,6 +15,7 @@ import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { uuid } from '../../../packages/contracts/src/index.ts';
 import type { AuthScope } from '../../../packages/db/src/index.ts';
+import { observeOfferedGaps } from '../../../packages/db/src/inventory/demand.ts';
 import { listEncounterBranches, openBranch, recordConnectionFeedback } from '../../../packages/db/src/semantic/branches.ts';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { HttpError } from './errors.ts';
@@ -24,7 +26,10 @@ export function registerSemanticRoutes(app: FastifyInstance, authenticated: Auth
   app.get<{ Params: { assetId: string } }>('/v1/assets/:assetId/branches', async (req, reply) => {
     const result = await authenticated(req.headers.authorization, async (scope, client) => {
       if (!uuid.safeParse(req.params.assetId).success) throw new HttpError(400, 'Invalid asset ID');
-      return listEncounterBranches(client, scope, req.params.assetId);
+      const listed = await listEncounterBranches(client, scope, req.params.assetId);
+      // ADR-0046 §1: a continuation offered into a concept with nothing unseen is a need, recorded with the listing that offered it.
+      await observeOfferedGaps(client, scope, req.params.assetId, listed.branches);
+      return listed;
     });
     return reply.header('Cache-Control', 'no-store').send(result);
   });

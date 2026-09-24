@@ -12,6 +12,8 @@ import {
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
 import type { KeeperAsk } from '../../core/src/rooms/keeper.ts';
 import type { RoomSummary } from '../../contracts/src/rooms.ts';
+import type { PlaceDemand } from '../../contracts/src/inventory.ts';
+import { placeDemands } from './inventory/read.ts';
 import { postInquiryMail } from './reasoning-inquiries.ts';
 import { keepRooms, readPlaceRooms, retireRooms } from './rooms.ts';
 
@@ -181,6 +183,8 @@ export interface AtlasView {
     foundation: { holdsUp: string[]; relations: { kind: RelationKind; from: string; to: string; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[] } | null;
     /** ADR-0045: its live Idea Rooms. */
     rooms: RoomSummary[];
+    /** ADR-0046 §6: the live demand for more about this place's anchor. */
+    demand: PlaceDemand | null;
   }[];
   relations: { fromPlaceId: string; toPlaceId: string; kind: RelationKind; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[];
   chronicle: { deltaId: string; placeId: string; parentPlaceId: string | null; kind: string; causalClass: string; at: string; line: string }[];
@@ -234,6 +238,7 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
   const accounts = new Map((await client.query<{ code: string; state: string; episodes: number; days_active: number; source_families: number }>(
     `SELECT c.code, a.state, a.episodes, a.days_active, a.source_families FROM attention_account a JOIN concept c ON c.id = a.concept_id WHERE a.universe_id = $1`, [universeId],
   )).rows.map(r => [r.code, { state: r.state, episodes: r.episodes, daysActive: r.days_active, sourceFamilies: r.source_families }]));
+  const demands = await placeDemands(client, universeId);
   const formed = new Map((await client.query<{ place_id: string; created_at: Date; kind: string }>(
     `SELECT DISTINCT ON (place_id) place_id, created_at, kind FROM atlas_delta WHERE universe_id = $1 AND before IS NULL ORDER BY place_id, created_at`, [universeId],
   )).rows.map(r => [r.place_id, r]));
@@ -277,6 +282,7 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
         formedAt: f ? iso(f.created_at) : iso(new Date()), formedBy: f?.kind ?? 'place_formed',
         foundation: foundationOf(p),
         rooms: rooms.get(p.placeId) ?? [],
+        demand: demands.get(p.anchor) ?? null,
       };
     }),
     relations: between.map(r => ({ fromPlaceId: liveAnchor.get(r.from)!.placeId, toPlaceId: liveAnchor.get(r.to)!.placeId, kind: r.kind, ...refs(r) })),

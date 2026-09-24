@@ -26,6 +26,7 @@ import {
 } from '../../../contracts/src/semantic.ts';
 import { isWithin } from '../../../core/src/semantic/bridge-validator.ts';
 import { recheckScope, type AuthScope } from '../identity.ts';
+import { observeBranchGap } from '../inventory/demand.ts';
 import { lockSubstrateShared } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
 import { SemanticNotFound } from './corrections.ts';
@@ -254,6 +255,8 @@ export async function openBranch(client: pg.PoolClient, scope: AuthScope, raw: u
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
     [branchOpenId, scope.universeId, scope.privacyEpoch, input.clientBranchId, eventId, input.fromExposureId, input.bridgeId, decisionId, input.targetAssetId],
   );
+  // ADR-0046 §1: a continuation into a concept with nothing else unseen is a need, recorded with it.
+  await observeBranchGap(client, scope, { concept: branch.toConcept.code, bridgeId: input.bridgeId, exposureId: input.fromExposureId, served: input.targetAssetId });
   return {
     decisionId, universeId: scope.universeId, accountRevision: accountRow.revision, privacyEpoch: scope.privacyEpoch, items,
     branch: { branchOpenId, recorded: true, bridgeId: input.bridgeId, relationType: branch.relationType, direction: branch.direction },

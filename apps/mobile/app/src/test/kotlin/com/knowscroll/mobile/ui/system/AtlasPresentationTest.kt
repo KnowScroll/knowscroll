@@ -12,11 +12,14 @@ import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.AtlasRoom
 import com.knowscroll.mobile.data.AtlasScrollCounts
+import com.knowscroll.mobile.data.BoundScroll
+import com.knowscroll.mobile.data.PlaceDemand
 import com.knowscroll.mobile.data.RoomAskEvidence
 import com.knowscroll.mobile.data.RoomChronicleEntry
 import com.knowscroll.mobile.data.RoomClaim
 import com.knowscroll.mobile.data.RoomEvidence
 import com.knowscroll.mobile.data.RoomInhabitant
+import com.knowscroll.mobile.ui.pointsAtASource
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -40,6 +43,35 @@ class AtlasPresentationTest {
         basis = AtlasBasis("explains", from, to, null, null), attention = null, scrolls = AtlasScrollCounts(0, 0),
         formedAt = "2026-09-24T00:00:00.000Z", formedBy = "sighting_appeared",
     )
+
+    /** #164 (ADR-0046 §6): a place's need for more is said from its own state, the place's name and a
+     * bound Scroll's title -- never from where anything came from. */
+    @Test
+    fun aPlacesNeedForMoreIsSaidFromItsStateAlone() {
+        val tides = planet("p1", "Tides")
+        assertNull(placeDemandView(tides))
+        fun viewOf(demand: PlaceDemand) = placeDemandView(tides.copy(demand = demand))!!
+        assertEquals(PlaceDemandView("Being written: more about Tides", emptyList(), null), viewOf(PlaceDemand("d", "waiting", null, null, false)))
+        assertEquals(
+            PlaceDemandView("New for you: Two bulges of water", emptyList(), "s1"),
+            viewOf(PlaceDemand("d", "bound", null, BoundScroll("s1", "Two bulges of water"), false)),
+        )
+        assertEquals(
+            PlaceDemandView("Nothing more about Tides for now", listOf("Writing more has reached its limit for now."), null),
+            viewOf(PlaceDemand("d", "cannot_meet", "no_budget", null, false)),
+        )
+        // The Scroll last bound to it was withdrawn: the need is met again, and the sheet says why it went.
+        assertEquals(listOf("Withdrawn: what it was based on changed"), viewOf(PlaceDemand("d", "waiting", null, null, true)).notes)
+        assertEquals(
+            listOf("Withdrawn: what it was based on changed", "The last attempt to write more did not finish."),
+            viewOf(PlaceDemand("d", "cannot_meet", "request_failed", null, true)).notes,
+        )
+        for (reason in listOf("no_route", "no_budget", "no_material", "checks_failed", "request_failed")) {
+            val notes = viewOf(PlaceDemand("d", "cannot_meet", reason, null, false)).notes
+            assertEquals(reason, 1, notes.size)
+            assertFalse(reason, pointsAtASource(notes.single()))
+        }
+    }
 
     /** #161: a connection rests on its claim, shown without the source it came from. */
     @Test

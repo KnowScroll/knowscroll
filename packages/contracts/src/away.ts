@@ -23,8 +23,9 @@ const seemsWrong = z.boolean();
 
 /**
  * Only what the reader did not cause (ADR-0039 §1): a background inquiry's outcome, a change to a
- * place or a room (ADR-0045) from a source correction, or a correction to a connection they were
- * shown as found or kept. `at` is when it happened; the list is newest first.
+ * place or a room (ADR-0045) from a source correction, a correction to a connection they were
+ * shown as found or kept, or a withdrawn Scroll they were waiting for or were shown (ADR-0046).
+ * `at` is when it happened; the list is newest first.
  */
 export const awayItem = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('connection_found'), at, inquiryId: id, found: inquiryFound, seemsWrong }).strict(),
@@ -50,6 +51,9 @@ export const awayItem = z.discriminatedUnion('kind', [
     kind: z.literal('connection_corrected'), at, bridgeId: id, status: z.enum(['revoked', 'superseded']),
     fromConcept: conceptRef, toConcept: conceptRef, seemsWrong,
   }).strict(),
+  /** ADR-0046 §5: a Scroll bound to the reader's need (shown or awaited) was withdrawn because what it
+   * was based on changed. The client words it; no source is named. */
+  z.object({ kind: z.literal('scroll_withdrawn'), at, bindingId: id, concept: conceptRef }).strict(),
 ]);
 export type AwayItem = z.infer<typeof awayItem>;
 

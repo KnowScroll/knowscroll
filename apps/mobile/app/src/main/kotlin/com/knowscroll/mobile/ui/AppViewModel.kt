@@ -261,6 +261,15 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         enterScroll()
     }
 
+    /** #164 (ADR-0046 §6): "New for you" in a place sheet. The Composer serves a Scroll bound to the
+     * reader's own need first, so this is a new discovery from the System that takes that Scroll when
+     * the feed offers it (it may have been withdrawn or read meanwhile); Back returns to the System. */
+    fun openBoundScroll(assetId:String) {
+        if(busy || reconciling || !ready || store.readPendingClear()!=null)return
+        savedState["readerFromSystem"] = true
+        loadNext(preferredAssetId=assetId)
+    }
+
     fun returnFromReader() {
         pendingCableMode=null
         if(returnAlongBranch())return
@@ -382,7 +391,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(!busy && !reconciling && ready && store.readPendingClear()==null && canRequestDiscovery(reading.keep,reading.discovery))loadNext(preserveReading=true)
     }
 
-    private fun loadNext(preserveReading:Boolean=false){
+    private fun loadNext(preserveReading:Boolean=false,preferredAssetId:String?=null){
         if(busy || reconciling || !ready || store.readPendingClear()!=null)return
         val reading=if(preserveReading)_scroll.value as? ScrollState.Reading else null
         busy=true
@@ -404,11 +413,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 val trip=tripExclude(visited,reading?.item?.assetId ?: session?.item?.assetId)
                 val feed=api.getFeed(_cableMode.value,trip)
                 if(!operationIsCurrent(version,epoch))return@launch
-                when(val selected=selectDiscovery(feed,universeId,epoch,trip.toSet(),null)){
+                when(val selected=selectDiscovery(feed,universeId,epoch,trip.toSet(),null,preferredAssetId)){
                     DiscoverySelection.InvalidScope -> {
                         purgeForScope(feed.universeId,feed.privacyEpoch)
                         failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
                     }
+                    DiscoverySelection.PreferredGone ->
+                        _scroll.value=ScrollState.Unavailable(getApplication<Application>().getString(com.knowscroll.mobile.R.string.bound_scroll_gone),retryable=false)
                     DiscoverySelection.Exhausted -> {
                         if(reading!=null){
                             (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Exhausted)}
