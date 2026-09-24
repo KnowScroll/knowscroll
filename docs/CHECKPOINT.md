@@ -2,7 +2,7 @@
 
 ## 2026-09-24 #134 first slice — the reader's places (lane `134-living-worlds`)
 
-ADR-0036; migration `atlas_place`/`atlas_delta` (numbered after #132 and #135 at merge). A pure
+ADR-0036; migration 0029 (`atlas_place`/`atlas_delta`). A pure
 Cartographer (`cartographer-v1`) runs in the personal-model refresh, never while paused: an
 anchored concept becomes a free planet or a region of the nearest anchored ancestor (two parent
 hops). Planets and regions offer up to five sightings: never-shown concepts one active typed
@@ -15,8 +15,8 @@ planets, regions and sightings on the accepted Atlas visuals, and a place sheet 
 Scroll counts, sightings with their claims, chronicle lines that open their evidence, and "Set
 aside". Authored geography stays for Sources and the labelled preview.
 
-Verification: pure 8 (4 mutants), HTTP 5, backend and web suites, Android units + lint, and the
-emulator places journey with SQL lineage; see the
+Verification (merged with main at `79be40e`): pure 8 (4 mutants), HTTP 5, backend 827+13, web 82,
+Android 161 units + lint, and the emulator places journey with SQL lineage; see the
 [evidence](journeys/evidence/places-2026-09-24/README.md). Preview restored; no provider call.
 
 ## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)
