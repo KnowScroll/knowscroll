@@ -199,14 +199,17 @@ test('competing workers send each continuation exactly once', async () => {
   await quiesce();
   const readers = [await reader(), await reader(), await reader()];
   const seen: string[] = [];
-  // Two schedulers on one policy mostly find each other's cursor moved and yield; progress is slower,
-  // never double: the bound only gives them time.
-  for (let i = 0; i < 80 && (await pool.query(`SELECT 1 FROM background_inquiry WHERE status IN ('pending','queued')`)).rowCount; i += 1) {
+  const open = async () => (await pool.query(`SELECT 1 FROM background_inquiry WHERE status IN ('pending','queued')`)).rowCount;
+  // Two schedulers on one policy mostly find each other's cursor moved and yield: they contend for a
+  // while, then one finishes what is left. How far the pair gets depends on timing; what is asserted
+  // below never does: each Step was sent exactly once, whichever worker sent it.
+  for (let i = 0; i < 40 && await open(); i += 1) {
     for (const done of await Promise.all([pass(fixture, 'worker-a'), pass(fixture, 'worker-b')])) {
       seen.push(done.kind === 'idle' ? done.reason : done.kind === 'done' ? done.outcome.kind : done.kind);
     }
     await sweep();
   }
+  for (let i = 0; i < 40 && await open(); i += 1) { await pass(fixture, 'worker-a'); await sweep(); }
   for (const r of readers) {
     const inquiry = await newestInquiry(r.universeId);
     assert.deepEqual([inquiry.status, inquiry.dispatched], ['admitted', 2], JSON.stringify(seen));
