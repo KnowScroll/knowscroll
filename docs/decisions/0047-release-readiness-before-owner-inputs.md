@@ -41,7 +41,9 @@ switch that transfer off on every manufacturer's devices.
    owner names the domain. The activity takes only that exact scheme, host, default port and path,
    with a token the paste parser accepts, and never from a relaunch out of Recents. The link fills
    the sign-in screen's field, and the reader presses "Sign in with this link", exactly as for a
-   pasted link and as the web page's "Sign in on this browser". A signed-in device ignores it.
+   pasted link and as the web page's "Sign in on this browser". A signed-in device ignores it. The
+   activity is single-top: a link opened while the app runs reaches the running activity
+   (`onNewIntent`), never a second copy of the app, and the field takes it once.
    Debug builds declare no link filter and keep pasting. The host must be the host of
    `KS_WEB_ORIGIN`, because that is the link the API mails. The domain serves
    `/.well-known/assetlinks.json` naming `com.knowscroll.mobile` and the release certificate's
