@@ -638,6 +638,65 @@ class AccountViewModelTest {
         }
     }
 
+    // ---- #168 (ADR-0047): an opened App Link ----
+
+    private val openedLink = "https://links.knowscroll.example/sign-in#token=raw-token"
+
+    /** The link opens the confirmation, never the consumption (ADR-0026 section 3): it waits in the
+     * sign-in field for the reader's tap, and nothing is sent. */
+    @Test
+    fun anOpenedLinkWaitsForTheReaderAndSendsNothing() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault())
+            model.receiveSignInLink(openedLink)
+            assertEquals(openedLink, model.receivedLink.value)
+            assertEquals(AuthState.SignedOut, model.authState.value)
+            assertEquals(0, server.requests.size)
+        }
+    }
+
+    @Test
+    fun aSignedInDeviceIgnoresAnOpenedLink() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            model.receiveSignInLink(openedLink)
+            assertNull(model.receivedLink.value)
+        }
+    }
+
+    /** Once used, the link is spent: a later sign-out must not offer it again. */
+    @Test
+    fun signingInWithTheOpenedLinkForgetsIt() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u1",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a1","origin":"magic_link"}""",
+            )
+            val model = viewModel(server, FakeSessionVault())
+            model.receiveSignInLink(openedLink)
+            model.submitPastedLink(openedLink)
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+            assertNull(model.receivedLink.value)
+            assertEquals("raw-token", JSONObject(server.requests[0].body).getString("token"))
+        }
+    }
+
+    /** An expired, used or unknown token is one indistinguishable 401 (ADR-0026 section 3). */
+    @Test
+    fun anExpiredOrUsedLinkSaysSoAndLeavesTheDeviceSignedOut() {
+        TestHttpServer.open().use { server ->
+            server.serve(unauthorized)
+            val vault = FakeSessionVault()
+            val model = viewModel(server, vault)
+            model.submitPastedLink(openedLink)
+            awaitUntil { model.tokenSubmit.value is TokenSubmitState.Failed }
+            assertEquals(TokenSubmitState.Failed("This link is no longer valid. Request a new one."), model.tokenSubmit.value)
+            assertEquals(AuthState.SignedOut, model.authState.value)
+            assertNull(vault.readToken())
+        }
+    }
+
     // ---- #168: a pause, resume or export belongs to the session that sent it ----
 
     private val lifecycleIntents = listOf("pause", "resume", "export")

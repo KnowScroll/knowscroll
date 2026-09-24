@@ -69,6 +69,9 @@ class AccountViewModel @JvmOverloads constructor(
     val linkRequest = _linkRequest.asStateFlow()
     private val _tokenSubmit = MutableStateFlow<TokenSubmitState>(TokenSubmitState.Idle)
     val tokenSubmit = _tokenSubmit.asStateFlow()
+    /** #168: the sign-in link an App Link just opened, waiting in the sign-in field. */
+    private val _receivedLink = MutableStateFlow<String?>(null)
+    val receivedLink = _receivedLink.asStateFlow()
 
     private val _privacy = MutableStateFlow<PrivacyState>(PrivacyState.Loading)
     val privacy = _privacy.asStateFlow()
@@ -157,6 +160,16 @@ class AccountViewModel @JvmOverloads constructor(
         if (_tokenSubmit.value !is TokenSubmitState.Submitting) _tokenSubmit.value = TokenSubmitState.Idle
     }
 
+    /** #168 (ADR-0047): an opened App Link ([com.knowscroll.mobile.data.receivedSignInLink]) only
+     * fills the sign-in field. A link opens the confirmation, never the consumption (ADR-0026 section
+     * 3), so signing in is still the reader's "Sign in with this link". A signed-in device has no use
+     * for it. */
+    fun receiveSignInLink(link: String) {
+        if (_authState.value is AuthState.SignedIn) return
+        resetTokenSubmit()
+        _receivedLink.value = link
+    }
+
     /** [raw] is whatever the reader pasted -- the whole emailed link, ideally. [parseSignInToken]
      * rejects anything that is not a recognisable KnowScroll sign-in link before this ever
      * touches the network. */
@@ -184,6 +197,7 @@ class AccountViewModel @JvmOverloads constructor(
                 vault.writeToken(receipt.sessionToken)
                 _tokenSubmit.value = TokenSubmitState.Idle
                 _linkRequest.value = LinkRequestState.Idle
+                _receivedLink.value = null
                 _signedOutReason.value = null
                 _authState.value = AuthState.SignedIn
             } catch (e: CancellationException) {

@@ -15,6 +15,9 @@ val local = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+// #168 (ADR-0047): App Links answer only for the owner's domain, which arrives at release time.
+// `.invalid` never resolves (RFC 6761), so until then nothing can be verified.
+val appLinksPlaceholder = "links.knowscroll.invalid"
 android {
     namespace = "com.knowscroll.mobile"
     compileSdk { version = release(37) { minorApiLevel = 2 } }
@@ -25,6 +28,8 @@ android {
         versionCode = 1
         versionName = "0.1.0-bootstrap"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "KS_APP_LINKS_HOST", quoted(appLinksPlaceholder))
+        manifestPlaceholders["appLinksHost"] = appLinksPlaceholder
     }
     buildFeatures { compose = true; buildConfig = true }
     buildTypes {

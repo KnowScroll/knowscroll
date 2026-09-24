@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,7 +36,8 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * #135 (ADR-0026): shown whenever this device has no usable credential, or a signed-in session
  * just died (401). Email -> `POST /v1/auth/magic-link` always answers with the same fixed
  * "check your email" message (no account-existence leak); a pasted link is parsed purely
- * ([parseSignInToken]) before it ever reaches the network.
+ * ([parseSignInToken]) before it ever reaches the network. An App Link opened on this device fills
+ * the same field (#168).
  */
 @Composable
 fun SignInScreen(
@@ -44,10 +46,13 @@ fun SignInScreen(
     reason: SignedOutReason?,
     onRequestLink: (String) -> Unit,
     onSubmitLink: (String) -> Unit,
+    /** #168: a link an App Link opened. It fills the field; the reader still signs in. */
+    receivedLink: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var pasted by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(receivedLink) { receivedLink?.let { pasted = it } }
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(
