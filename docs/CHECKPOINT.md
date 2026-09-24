@@ -1,5 +1,20 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
+
+`AtlasProfileTest` now records every frame phase and one row per frame. Two device runners
+(`android-native-profile.py`, `android-reader-explain-journey.py`) now preserve and restore the
+owner's `.journey` preview, verified, through `scripts/android_preview.py`; the semantic runner
+already did. Matched profiles on a quiet host, baseline `81431cc` against main, interleaved (see the
+[profile evidence](journeys/evidence/frame-profile-2026-09-24/README.md)): p95 is equal (67.6 vs
+67.4 ms) and p50 improved (33.8 → 29.5 ms). The earlier 47.40 ms baseline does not reproduce.
+Recomposition p95 roughly doubled (10.1 → 19.7 ms), with more draw and swap; that is the next
+target. Smoothness is not accepted: almost every emulator frame is over 16.67 ms.
+
+The #91 reader-explain journey was failing on main from harness rot. Its proxy missed
+`/v1/feed?kinds=`, and it looked for saved Traces on the universe screen instead of in Keep by
+title. It now passes 9/9 ([evidence](journeys/evidence/reader-explain-2026-09-24/README.md)).
+
 ## 2026-09-24 #135 owner access, privacy and release clients (lane `135-owner-access`)
 
 ADR-0034, ADR-0035, migration 0030. Server: a desktop session cookie (HttpOnly, Secure,

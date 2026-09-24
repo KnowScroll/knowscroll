@@ -1,5 +1,13 @@
 # Project state
 
+## 2026-09-24 Frame timing re-measured, and a broken device check repaired (#136)
+
+Measured side by side on the same emulator, the current app is as fast as PR130's baseline at the
+slow end and faster in the middle. It does redraw more work per frame, which is the next thing to
+cut. It is still not smooth on the emulator, and there is no phone measurement yet. A device check
+for the "why this appeared" sheet and sign-out, broken since the reader's feed changed, works
+again. The device runners no longer risk the owner's running preview.
+
 ## 2026-09-24 Owner sign-in, privacy and account deletion on both clients (#135)
 
 The Android app no longer needs a baked-in development token: the owner signs in with an emailed
