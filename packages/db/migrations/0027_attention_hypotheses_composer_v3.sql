@@ -215,8 +215,12 @@ BEGIN
  END IF;
  RETURN NULL;
 END $$;
-CREATE CONSTRAINT TRIGGER decision_candidate_invariants AFTER INSERT OR DELETE ON decision_candidate
- DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION composer_candidate_invariants();
+-- Every invariant above reads ranked rows only, so an unranked (gated or unchosen) candidate can
+-- neither break nor repair one: checking per ranked row keeps a library-sized record cheap.
+CREATE CONSTRAINT TRIGGER decision_candidate_invariants AFTER INSERT ON decision_candidate
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.rank IS NOT NULL) EXECUTE FUNCTION composer_candidate_invariants();
+CREATE CONSTRAINT TRIGGER decision_candidate_delete_invariants AFTER DELETE ON decision_candidate
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (OLD.rank IS NOT NULL) EXECUTE FUNCTION composer_candidate_invariants();
 CREATE CONSTRAINT TRIGGER decision_context_invariants AFTER INSERT ON decision_context
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION composer_candidate_invariants();
 CREATE CONSTRAINT TRIGGER decision_v3_invariants AFTER INSERT ON decision

@@ -157,15 +157,19 @@ export async function composeAndRecordV3(client: pg.PoolClient, scope: AuthScope
     'INSERT INTO decision_context(decision_id,universe_id,policy_version,seed,served_window,quotas,exploration_due) VALUES($1,$2,$3,$4,$5,$6,$7)',
     [decisionId, scope.universeId, policy.version, state.seed, JSON.stringify(result.window.served), JSON.stringify(result.quotas), result.window.explorationDue],
   );
-  const conceptIds = new Map((await client.query<{ code: string; id: string }>('SELECT code, id FROM concept')).rows.map(r => [r.code, r.id]));
-  for (const c of result.candidates) {
-    await client.query(
-      `INSERT INTO decision_candidate(id,decision_id,universe_id,asset_id,family,concept_id,bridge_id,gate,terms,score,rank,explanation_key,facts,evidence)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [randomUUID(), decisionId, scope.universeId, c.assetId, c.family, c.concept ? conceptIds.get(c.concept) ?? null : null, c.bridgeId,
-        c.gate, JSON.stringify(c.terms), c.score, c.rank, c.explanationKey, JSON.stringify(c.facts), JSON.stringify(c.evidence)],
-    );
-  }
+  // One statement for every considered candidate: a library-sized slate record is one round trip.
+  // Scores cross as JSON numbers, which PostgreSQL float8 reads back exactly.
+  await client.query(
+    `INSERT INTO decision_candidate(id,decision_id,universe_id,asset_id,family,concept_id,bridge_id,gate,terms,score,rank,explanation_key,facts,evidence)
+     SELECT x.id, $1, $2, x.asset_id, x.family, c.id, x.bridge_id, x.gate, x.terms, x.score, x.rank, x.explanation_key, x.facts, x.evidence
+     FROM jsonb_to_recordset($3::jsonb) AS x(id uuid, asset_id uuid, family text, concept text, bridge_id uuid, gate text, terms jsonb,
+       score double precision, rank integer, explanation_key text, facts jsonb, evidence jsonb)
+     LEFT JOIN concept c ON c.code = x.concept`,
+    [decisionId, scope.universeId, JSON.stringify(result.candidates.map(c => ({
+      id: randomUUID(), asset_id: c.assetId, family: c.family, concept: c.concept, bridge_id: c.bridgeId, gate: c.gate, terms: c.terms,
+      score: c.score, rank: c.rank, explanation_key: c.explanationKey, facts: c.facts, evidence: c.evidence,
+    })))],
+  );
   return { decisionId, items, policyVersion: policy.version };
 }
 
