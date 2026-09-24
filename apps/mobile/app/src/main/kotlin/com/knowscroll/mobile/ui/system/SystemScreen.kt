@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +43,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
+import com.knowscroll.mobile.data.AtlasPlace
+import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.WorldSummary
+import com.knowscroll.mobile.ui.AtlasEvidenceState
+import com.knowscroll.mobile.ui.AtlasState
+import com.knowscroll.mobile.ui.PlaceRejectState
 import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
@@ -52,6 +58,10 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 /**
  * Source-backed worlds use the existing ADR-0028 response. Detail is local navigation, decorative
  * cartography carries no inferred regions, and Back returns to the same system.
+ *
+ * #134: the reader's own live places (ADR-0036) share this screen as a second, default layer --
+ * see [AtlasLayer]. Sources is unchanged; Places reuses the same spatial engine (`SpatialAtlas`)
+ * with the reader's planets/regions/sightings in place of the source worlds/authored geography.
  */
 @Composable
 fun SystemScreen(
@@ -61,11 +71,38 @@ fun SystemScreen(
     onEnterScroll: () -> Unit,
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
+    // #134: defaulted so every call site that only knows about Sources (incl. the existing
+    // `ui/fidelity` fixed-state screenshot/geometry tests) keeps compiling unchanged.
+    atlasState: AtlasState = AtlasState.Idle,
+    placeRejectState: PlaceRejectState = PlaceRejectState.Idle,
+    evidenceState: AtlasEvidenceState = AtlasEvidenceState.Idle,
+    onRequestSetAside: (String) -> Unit = {},
+    onCancelSetAside: () -> Unit = {},
+    onConfirmSetAside: () -> Unit = {},
+    onOpenEvidence: (String) -> Unit = {},
+    onCloseEvidence: () -> Unit = {},
 ) {
     val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var inspection by rememberSaveable { mutableStateOf(false) }
     var selectedWorldId by rememberSaveable { mutableStateOf<String?>(null) }
+    var focusedRegionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var manualLayer by rememberSaveable { mutableStateOf<String?>(null) }
     val worlds = (state as? SystemState.Loaded)?.response?.system?.worlds.orEmpty()
+    val atlas = (atlasState as? AtlasState.Loaded)?.response
+    val places = atlas?.places.orEmpty()
+    val layer = manualLayer?.let { if (it == "places") AtlasLayer.Places else AtlasLayer.Sources }
+        ?: defaultAtlasLayer(places)
+    // Switching layers (or losing the focused place, e.g. after Set aside) never leaves a stale
+    // selection from the other layer pointing at nothing.
+    LaunchedEffect(layer) { selectedWorldId = null; focusedRegionId = null; inspection = false }
+    val focusedPlaceId = if (layer == AtlasLayer.Places) focusedRegionId ?: selectedWorldId else null
+    val focusedPlace = focusedPlaceId?.let { id -> places.firstOrNull { it.placeId == id } }
+    LaunchedEffect(atlas, focusedPlaceId) {
+        if (layer == AtlasLayer.Places && focusedPlaceId != null && atlas != null && focusedPlace == null) {
+            // The place this sheet was showing is gone (e.g. it was just set aside).
+            inspection = false; focusedRegionId = null; selectedWorldId = null
+        }
+    }
     val selected = worlds.firstOrNull { it.worldId == selectedWorldId }
     BackHandler { if (selectedWorldId != null) selectedWorldId = null else onReturn() }
 
@@ -96,36 +133,95 @@ fun SystemScreen(
                                 color = Cosmos.MutedOnDark,
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
-                            Text(
-                                "Orbits & moons are illustrative",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Cosmos.MutedOnDark,
-                                modifier = Modifier.padding(horizontal = 20.dp),
+                            AtlasLayerToggle(
+                                layer = layer,
+                                onSelect = { manualLayer = if (it == AtlasLayer.Places) "places" else "sources" },
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                             )
-                            cameraStates.SaveableStateProvider("camera") {
-                                SpatialAtlas(
-                                    loadedWorlds.map { world ->
-                                        AtlasMarker(
-                                            world.worldId,
-                                            world.sourceTitle,
-                                            "${world.scrollCount} ${if(world.scrollCount==1) "SCROLL" else "SCROLLS"} · ${world.seenCount} SEEN",
-                                            if (isWorldFullyExplored(world))
-                                                "ALL SCROLLS ENCOUNTERED"
-                                            else "MORE TO EXPLORE",
-                                        )
-                                    },
-                                    selectedWorldId,
-                                    { selectedWorldId = it },
-                                    Modifier.weight(1f).fillMaxWidth(),
-                                    onDeselect = {
-                                        selectedWorldId = null
-                                        inspection = false
-                                    },
-                                    onInspect = { inspection = true },
+                            if (layer == AtlasLayer.Sources && places.none { it.kind == "planet" })
+                                Text(
+                                    "Places form when you come back to a subject on different days.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Cosmos.MutedOnDark,
+                                    modifier = Modifier.padding(horizontal = 20.dp),
                                 )
+                            else if (layer == AtlasLayer.Sources)
+                                Text(
+                                    "Orbits & moons are illustrative",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Cosmos.MutedOnDark,
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                )
+                            cameraStates.SaveableStateProvider("camera:${layer.name}") {
+                                if (layer == AtlasLayer.Places)
+                                    SpatialAtlas(
+                                        markers = planetMarkersOf(places),
+                                        selectedId = selectedWorldId,
+                                        onSelect = { selectedWorldId = it },
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        collectionLabel = "Places",
+                                        actionLabel = "Explore place: ",
+                                        onDeselect = { selectedWorldId = null; inspection = false },
+                                        onInspect = { inspection = true },
+                                        sightings = sightingMarkersOf(places),
+                                        regions = selectedWorldId?.let { regionAreasOf(places, it) } ?: emptyList(),
+                                        regionsEmptyMessage = "No regions yet — a region forms when you anchor a narrower subject.",
+                                        regionActionLabel = "Explore region: ",
+                                        onFocusedRegionChanged = { focusedRegionId = it },
+                                    )
+                                else
+                                    SpatialAtlas(
+                                        loadedWorlds.map { world ->
+                                            AtlasMarker(
+                                                world.worldId,
+                                                world.sourceTitle,
+                                                "${world.scrollCount} ${if(world.scrollCount==1) "SCROLL" else "SCROLLS"} · ${world.seenCount} SEEN",
+                                                if (isWorldFullyExplored(world))
+                                                    "ALL SCROLLS ENCOUNTERED"
+                                                else "MORE TO EXPLORE",
+                                            )
+                                        },
+                                        selectedWorldId,
+                                        { selectedWorldId = it },
+                                        Modifier.weight(1f).fillMaxWidth(),
+                                        onDeselect = {
+                                            selectedWorldId = null
+                                            inspection = false
+                                        },
+                                        onInspect = { inspection = true },
+                                    )
                             }
                         }
-                        if (selected != null && inspection) {
+                        if (inspection && layer == AtlasLayer.Places && focusedPlace != null) {
+                            Box(
+                                Modifier.fillMaxSize()
+                                    .clickable { inspection = false }
+                                    .semantics { contentDescription = "Dismiss place inspection" }
+                            )
+                            Surface(
+                                modifier =
+                                    Modifier.align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .heightIn(max = 480.dp),
+                                color = Cosmos.Cream,
+                                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                            ) {
+                                com.knowscroll.mobile.ui.theme.PosterTheme {
+                                    PlaceDetail(
+                                        place = focusedPlace,
+                                        atlas = atlas ?: AtlasResponse("", emptyList(), emptyList(), emptyList()),
+                                        rejectState = placeRejectState,
+                                        evidenceState = evidenceState,
+                                        onClose = { inspection = false },
+                                        onRequestSetAside = onRequestSetAside,
+                                        onCancelSetAside = onCancelSetAside,
+                                        onConfirmSetAside = onConfirmSetAside,
+                                        onOpenEvidence = onOpenEvidence,
+                                        onCloseEvidence = onCloseEvidence,
+                                    )
+                                }
+                            }
+                        } else if (selected != null && inspection) {
                             // Consume taps above inspection as a dismissal, never through to the
                             // map.
                             Box(
@@ -183,6 +279,31 @@ fun SystemScreen(
         }
     }
     BackHandler(enabled = inspection) { inspection = false }
+}
+
+/** The reader's own choice between the two layers of the same system: places formed from their
+ * reading (default once any exist) and the unchanged source worlds. */
+@Composable
+private fun AtlasLayerToggle(layer: AtlasLayer, onSelect: (AtlasLayer) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AtlasLayer.entries.forEach { option ->
+            val label = if (option == AtlasLayer.Places) "Places" else "Sources"
+            val selected = option == layer
+            Surface(
+                color = if (selected) Cosmos.Teal else Cosmos.Cream.copy(alpha = .18f),
+                contentColor = if (selected) Cosmos.Dark else Cosmos.Cream,
+                shape = RoundedCornerShape(percent = 50),
+                modifier =
+                    Modifier.heightIn(min = 40.dp)
+                        .clickable(onClickLabel = "Show $label") { onSelect(option) }
+                        .semantics { contentDescription = if (selected) "$label, selected" else "Show $label" },
+            ) {
+                Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                    Text(label, fontWeight = FontWeight(700), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -401,5 +522,190 @@ private fun WorldDetail(world: WorldSummary, onClose: () -> Unit, onDiscover: ()
                     color = Cosmos.Coral,
                 )
         }
+    }
+}
+
+/**
+ * #134: the reader's own place sheet, reusing [WorldDetail]'s pattern (back pill, headline, body,
+ * a `verticalScroll` column) for a planet or region instead of a source world: its basis-formed
+ * sightings, its typed relations to other live places, its chronicle and each line's evidence, and
+ * "Set aside" for the whole place.
+ */
+@Composable
+private fun PlaceDetail(
+    place: AtlasPlace,
+    atlas: AtlasResponse,
+    rejectState: PlaceRejectState,
+    evidenceState: AtlasEvidenceState,
+    onClose: () -> Unit,
+    onRequestSetAside: (String) -> Unit,
+    onCancelSetAside: () -> Unit,
+    onConfirmSetAside: () -> Unit,
+    onOpenEvidence: (String) -> Unit,
+    onCloseEvidence: () -> Unit,
+) {
+    val sightings = atlas.places.filter { it.kind == "sighting" && it.parentPlaceId == place.placeId }
+    val relations = atlas.relations.filter { it.fromPlaceId == place.placeId || it.toPlaceId == place.placeId }
+    val chronicle = chronicleFor(atlas, place.placeId)
+    val attention = place.attention
+    Surface(
+        color = androidx.compose.ui.graphics.Color.Transparent,
+        contentColor = Cosmos.InkOnCream,
+        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Column(
+            Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Surface(
+                    color = Cosmos.Cream.copy(alpha = 0.94f),
+                    contentColor = Cosmos.InkOnCream,
+                    shape = RoundedCornerShape(percent = 50),
+                    modifier =
+                        Modifier.heightIn(min = 48.dp)
+                            .clickable(onClickLabel = "Close place detail and return to the system") { onCloseEvidence(); onClose() }
+                            .semantics { contentDescription = "Close place detail and return to the system" },
+                ) {
+                    Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+                        Text("‹ System", fontWeight = FontWeight(800), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Text(
+                    if (place.kind == "region") "Region" else "Place",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Cosmos.MutedOnCream,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text(
+                place.anchor.name,
+                style = MaterialTheme.typography.headlineLarge,
+                color = Cosmos.InkOnCream,
+                modifier = Modifier.fillMaxWidth().semantics { heading() },
+            )
+            Text(place.anchor.description, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
+            if (attention != null)
+                Text(
+                    "Read on ${attention.daysActive} ${if (attention.daysActive == 1) "day" else "days"} · " +
+                        "${attention.sourceFamilies} ${if (attention.sourceFamilies == 1) "source" else "sources"}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Cosmos.MutedOnCream,
+                )
+            Text(placeMarkerDetail(place), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
+
+            if (sightings.isNotEmpty()) {
+                Text("Sightings", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
+                sightings.forEach { sighting ->
+                    val basis = sighting.basis
+                    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(sighting.anchor.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight(700))
+                        if (basis != null) {
+                            Text(basisSentence(basis), style = MaterialTheme.typography.bodyMedium)
+                            val support = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
+                            if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                        }
+                    }
+                }
+            }
+
+            if (relations.isNotEmpty()) {
+                Text("Connections", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
+                relations.forEach { relation ->
+                    val sentence = placeRelationSentence(relation, place.placeId, atlas.places)
+                    if (sentence != null) {
+                        Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(sentence, style = MaterialTheme.typography.bodyMedium)
+                            val support = relation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: relation.bridge?.mechanism
+                            if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                        }
+                    }
+                }
+            }
+
+            if (chronicle.isNotEmpty()) {
+                Text("What happened here", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
+                chronicle.forEach { entry -> ChronicleLine(entry.deltaId, entry.line, evidenceState, onOpenEvidence) }
+            }
+
+            PlaceSetAside(place, rejectState, onRequestSetAside, onCancelSetAside, onConfirmSetAside)
+        }
+    }
+}
+
+@Composable
+private fun ChronicleLine(
+    deltaId: String,
+    line: String,
+    evidenceState: AtlasEvidenceState,
+    onOpenEvidence: (String) -> Unit,
+) {
+    val open = evidenceState is AtlasEvidenceState.Loaded && evidenceState.deltaId == deltaId
+    val loading = evidenceState is AtlasEvidenceState.Loading && evidenceState.deltaId == deltaId
+    val failed = (evidenceState as? AtlasEvidenceState.Failed)?.takeIf { it.deltaId == deltaId }
+    Column(Modifier.padding(vertical = 2.dp)) {
+        Text(
+            line,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Cosmos.InkOnCream,
+            modifier =
+                Modifier.clickable(onClickLabel = if (open) "Hide evidence" else "Show evidence") { onOpenEvidence(deltaId) }
+                    .heightIn(min = 32.dp)
+                    .semantics { contentDescription = "${if (open) "Hide" else "Show"} evidence: $line" },
+        )
+        if (loading)
+            Text("Loading evidence…", style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+        else if (failed != null)
+            Text(failed.message, style = MaterialTheme.typography.bodySmall, color = Cosmos.Coral)
+        else if (open && evidenceState is AtlasEvidenceState.Loaded)
+            Text(evidenceSummary(evidenceState.delta), style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+    }
+}
+
+/** "Set aside" on a live planet/region, with the confirmation step the brief names verbatim. */
+@Composable
+private fun PlaceSetAside(
+    place: AtlasPlace,
+    rejectState: PlaceRejectState,
+    onRequestSetAside: (String) -> Unit,
+    onCancelSetAside: () -> Unit,
+    onConfirmSetAside: () -> Unit,
+) {
+    val confirming = (rejectState as? PlaceRejectState.Confirming)?.takeIf { it.placeId == place.placeId }
+    val sending = (rejectState as? PlaceRejectState.Sending)?.takeIf { it.placeId == place.placeId }
+    val failed = (rejectState as? PlaceRejectState.Failed)?.takeIf { it.placeId == place.placeId }
+    if (confirming != null || sending != null) {
+        Text(
+            "Set ${place.anchor.name} aside? It won't form again unless you clear your history.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Cosmos.InkOnCream,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onConfirmSetAside,
+                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Coral, contentColor = Cosmos.Dark),
+                modifier =
+                    Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Confirm setting ${place.anchor.name} aside" },
+            ) { Text(if (sending != null) "Setting aside…" else "Set aside", fontWeight = FontWeight(800)) }
+            OutlinedButton(
+                onClick = onCancelSetAside,
+                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Cancel setting aside" },
+            ) { Text("Cancel") }
+        }
+    } else {
+        OutlinedButton(
+            onClick = { onRequestSetAside(place.placeId) },
+            modifier =
+                Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Set ${place.anchor.name} aside" },
+        ) { Text("Set aside") }
+        if (failed != null)
+            Text(failed.message, style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
     }
 }
