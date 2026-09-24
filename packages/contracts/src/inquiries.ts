@@ -59,6 +59,8 @@ export const inquiryFound = z.object({
   sentence: z.string().min(1).max(600),
   evidence: z.array(z.object({
     claimKey: z.string().min(1), statement: z.string().min(1), supports: evidenceSupports, sourceTitle: z.string().min(1), sourceUrl: z.string().url(),
+    /** The claim has lost its current support since (ADR-0044, M4): shown as such, never by which source. */
+    withdrawn: z.boolean(),
   }).strict()).min(1).max(12),
 }).strict();
 

@@ -25,6 +25,8 @@ const { projectOne } = await import('../apps/worker/src/project.ts');
 const { pool, ensureDevelopmentSession } = await import('../packages/db/src/index.ts');
 const { resolveOwnerEmail, requestMagicLink } = await import('../packages/db/src/sign-in.ts');
 const { carryGravityQuestion } = await import('./helpers/rooms.ts');
+const { readScroll } = await import('./helpers/reading.ts');
+const { formPlaces } = await import('./helpers/inquiry-fixture.ts');
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Account deletion tests require a disposable knowscroll_test_* database');
 const app = buildApp(randomBytes(32).toString('hex'), {
@@ -239,6 +241,32 @@ test('deletion erases the reader\'s Relics and return marker too, even while rec
   const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
   assert.equal(deleted.statusCode, 200, deleted.body);
   for (const table of ['relic', 'away_acknowledgement']) {
+    assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [s.universeId])).rows[0].count), 0, table);
+  }
+});
+
+test('deletion erases typed Relics and the reader\'s objections too (#165, ADR-0044)', async () => {
+  const s = await bearerSession();
+  const headers = { authorization: s.authorization };
+  const epoch = await epochOf(headers);
+  // A Scroll the editorial substrate annotates: read, one of its claims kept and doubted; its concept a place, kept.
+  const annotated = (await pool.query(`SELECT ac.asset_id, c.key, pc.code FROM asset_claim ac JOIN claim c ON c.id = ac.claim_id
+    JOIN asset_concept p ON p.asset_id = ac.asset_id AND p.role = 'primary' JOIN concept pc ON pc.id = p.concept_id
+    WHERE claim_is_supported(c.id) ORDER BY ac.asset_id, c.key LIMIT 1`)).rows[0];
+  await readScroll(app, headers, annotated.asset_id, false);
+  await formPlaces(s.universeId, [annotated.code]);
+  const place = (await pool.query(`SELECT id FROM atlas_place WHERE universe_id=$1 AND state='live' LIMIT 1`, [s.universeId])).rows[0].id;
+  const revision = (await pool.query('SELECT revision FROM asset WHERE id=$1', [annotated.asset_id])).rows[0].revision;
+  for (const thing of [{ kind: 'place', placeId: place }, { kind: 'passage', assetId: annotated.asset_id, revision, claimKey: annotated.key }]) {
+    const kept = await app.inject({ method: 'POST', url: '/v1/relics', headers, payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, ...thing } });
+    assert.equal(kept.statusCode, 201, kept.body);
+  }
+  const objected = await app.inject({ method: 'POST', url: '/v1/objections', headers,
+    payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, kind: 'passage', assetId: annotated.asset_id, claimKey: annotated.key } });
+  assert.equal(objected.statusCode, 201, objected.body);
+  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  for (const table of ['relic', 'reader_objection']) {
     assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [s.universeId])).rows[0].count), 0, table);
   }
 });

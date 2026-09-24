@@ -2,12 +2,15 @@
  * #134 — the return and Relics (ADR-0039) against real PostgreSQL, the real Fastify app and the
  * inquiry worker over the fixture transport: what changed while the reader was away (only what they
  * did not cause), the marker they move, a connection kept as a Relic whose state shows a later
- * source correction or their own doubt, release, pause, Clear and export, and the SQL guards.
+ * source correction or their own doubt, release, pause, Clear and export, and the SQL guards; and
+ * the #159 follow-ups (ADR-0044): a withdrawn claim marked, "seems wrong" carried on the return, a
+ * correction that commits behind a read, and paging.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { buildApp } from '../apps/api/src/app.ts';
+import { compareAway } from '../packages/core/src/away.ts';
 import { awayResponse, awayAcknowledgeResponse } from '../packages/contracts/src/away.ts';
 import { relicKeepResponse, relicsResponse } from '../packages/contracts/src/relics.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
@@ -65,8 +68,8 @@ async function drain(r: Reader) {
   }
   throw new Error('inquiry never closed');
 }
-async function away(r: Reader) {
-  const response = await app.inject({ url: '/v1/away', headers: headers(r) });
+async function away(r: Reader, page?: string) {
+  const response = await app.inject({ url: `/v1/away${page ? `?page=${encodeURIComponent(page)}` : ''}`, headers: headers(r) });
   assert.equal(response.statusCode, 200, response.body);
   return awayResponse.parse(response.json());
 }
@@ -99,7 +102,7 @@ async function foundWhileAway(r: Reader) {
 
 test('a fresh reader has nothing waiting and no marker', async () => {
   const r = await reader();
-  assert.deepEqual(await away(r), { privacyEpoch: 0, since: null, items: [], more: 0, recordingPaused: false });
+  assert.deepEqual(await away(r), { privacyEpoch: 0, since: null, items: [], more: 0, nextPage: null, recordingPaused: false });
   assert.equal((await app.inject({ url: '/v1/away' })).statusCode, 401);
 });
 
@@ -118,6 +121,7 @@ test('return after real background work: found, inspected, kept, acknowledged; a
   const kept = await keep(r, found.found.bridgeId);
   assert.equal(kept.statusCode, 201, kept.body);
   const relic = relicKeepResponse.parse(kept.json()).relic;
+  assert.ok(relic.kind === 'connection');
   assert.deepEqual([relic.state, relic.kind, relic.provenance.inquiryId, relic.provenance.validatorVersion], ['current', 'connection', inquiryId, 'bridge-validator-v1']);
   assert.deepEqual([...relic.provenance.citedClaimKeys].sort(), [r.f.claims.both, r.f.claims.gravity, r.f.claims.sun].sort());
 
@@ -149,8 +153,12 @@ test('return after real background work: found, inspected, kept, acknowledged; a
   assert.equal(place.line, 'Tides left the horizon: what it was based on changed.');
 
   const [after] = await relics(r);
+  assert.ok(after!.kind === 'connection' && relic.kind === 'connection');
   assert.deepEqual([after!.relicId, after!.state, after!.connection.bridgeStatus], [relic.relicId, 'corrected', 'revoked']);
   assert.equal(after!.connection.sentence, relic.connection.sentence, 'the kept form stays readable');
+  // M4: the claim whose only support was withdrawn is marked as such, never by which source.
+  assert.deepEqual(Object.fromEntries(after!.connection.evidence.map(e => [e.claimKey, e.withdrawn])),
+    { [r.f.claims.gravity]: true, [r.f.claims.sun]: false, [r.f.claims.both]: false });
 
   assert.equal((await release(r, relic.relicId)).statusCode, 200);
   assert.deepEqual(await relics(r), []);
@@ -245,7 +253,7 @@ test('Clear erases Relics and markers; export carried them first', async () => {
   for (const table of ['relic', 'away_acknowledgement']) {
     assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [r.universeId])).rows[0].count), 0, table);
   }
-  assert.deepEqual(await away(r), { privacyEpoch: 1, since: null, items: [], more: 0, recordingPaused: false });
+  assert.deepEqual(await away(r), { privacyEpoch: 1, since: null, items: [], more: 0, nextPage: null, recordingPaused: false });
 });
 
 test('SQL guards: rows are immutable, bound to the current epoch, never written while paused, and a marker never moves back', async () => {
@@ -306,4 +314,75 @@ test('Reset erases Relics and markers too (review I3; account deletion: tests/ac
   for (const table of ['relic', 'away_acknowledgement', 'background_inquiry']) {
     assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [r.universeId])).rows[0].count), 0, table);
   }
+});
+
+test('a reader\'s "seems wrong" is carried on found and corrected connections, so no client offers it again (M5)', async () => {
+  mode = 'proposal';
+  const r = await reader();
+  const found = await foundWhileAway(r);
+  assert.equal(found.seemsWrong, false);
+  assert.equal((await seemsWrong(r, found.found.bridgeId)).statusCode, 201);
+  const [again] = (await away(r)).items;
+  assert.ok(again?.kind === 'connection_found' && again.seemsWrong, 'the objection outlives the client that made it');
+  await transaction(client => correctSourceSnapshot(client, { sourceKey: r.f.sources.physics, action: 'revoked', reason: 'Fixture: the publisher withdrew this page' }, 'editorial'));
+  const corrected = (await away(r)).items.find(i => i.kind === 'connection_corrected');
+  assert.ok(corrected?.kind === 'connection_corrected' && corrected.seemsWrong);
+});
+
+test('a correction that commits behind a read is never skipped by the marker (M6)', async () => {
+  mode = 'proposal';
+  const r = await reader();
+  const found = await foundWhileAway(r);
+  assert.equal((await acknowledge(r, found.at)).statusCode, 200);
+  const place = (await pool.query(`SELECT p.id FROM atlas_place p JOIN concept c ON c.id=p.anchor_concept_id WHERE p.universe_id=$1 AND c.code=$2`,
+    [r.universeId, r.f.codes.gravity])).rows[0].id;
+  // A correction takes its time, then runs on: meanwhile a later item commits and the reader reads.
+  const correcting = await pool.connect();
+  try {
+    await correcting.query('BEGIN');
+    await correctSourceSnapshot(correcting, { sourceKey: r.f.sources.physics, action: 'revoked', reason: 'Fixture: withdrawn during a read' }, 'editorial');
+    await pool.query(`INSERT INTO atlas_delta(id,universe_id,place_id,kind,causal_class,policy_version,evidence,before,after)
+      VALUES(gen_random_uuid(),$1,$2,'place_released','source_correction','cartographer-v2','{}','{}','{}')`, [r.universeId, place]);
+    let settled = false;
+    const reading = away(r).finally(() => { settled = true; });
+    const deadline = Date.now() + 10_000;
+    while (!settled && (await pool.query(`SELECT count(*)::int n FROM pg_stat_activity
+      WHERE datname=current_database() AND wait_event_type='Lock' AND wait_event='advisory' AND pid<>pg_backend_pid()`)).rows[0].n === 0) {
+      assert.ok(Date.now() < deadline, 'the read neither finished nor waited');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    await correcting.query('COMMIT');
+    const first = await reading;
+    // The reader marks as seen what they were shown; the correction is never behind that marker unseen.
+    assert.equal((await acknowledge(r, first.items[0]!.at)).statusCode, 200);
+    const second = await away(r);
+    assert.equal([...first.items, ...second.items].filter(i => i.kind === 'connection_corrected').length, 1, 'shown before or after the marker moved');
+  } catch (error) {
+    await correcting.query('ROLLBACK');
+    throw error;
+  } finally {
+    correcting.release();
+  }
+});
+
+test('pages reach every unacknowledged item exactly once, even inside one millisecond (M7)', async () => {
+  const r = await reader();
+  await form(r, 'gravity');
+  const place = (await pool.query(`SELECT p.id FROM atlas_place p JOIN concept c ON c.id=p.anchor_concept_id WHERE p.universe_id=$1 AND c.code=$2`,
+    [r.universeId, r.f.codes.gravity])).rows[0].id;
+  // 25 source corrections a second apart, except six that share one millisecond across the first
+  // page's edge (each with microseconds of its own that the wire does not carry).
+  for (let i = 25; i >= 1; i -= 1) {
+    await pool.query(`INSERT INTO atlas_delta(id,universe_id,place_id,kind,causal_class,policy_version,evidence,before,after,created_at)
+      VALUES(gen_random_uuid(),$1,$2,'place_released','source_correction','cartographer-v2','{}','{}','{}',
+             date_trunc('milliseconds', clock_timestamp()) - make_interval(secs => $3) + make_interval(secs => $4::double precision / 1000000))`,
+      [r.universeId, place, i >= 8 && i <= 13 ? 8 : i, i]);
+  }
+  const pages = [await away(r)];
+  while (pages.at(-1)!.nextPage) pages.push(await away(r, pages.at(-1)!.nextPage!));
+  assert.deepEqual(pages.map(p => [p.items.length, p.more]), [[10, 15], [10, 5], [5, 0]]);
+  const items = pages.flatMap(p => p.items).map(i => ({ kind: i.kind, at: i.at, key: i.kind === 'place_changed' ? i.deltaId : '' }));
+  assert.equal(new Set(items.map(i => i.key)).size, 25, 'no item twice, none skipped');
+  assert.deepEqual(items, [...items].sort(compareAway), 'one order across pages');
+  assert.equal((await app.inject({ url: '/v1/away?page=not-a-cursor', headers: headers(r) })).statusCode, 400);
 });

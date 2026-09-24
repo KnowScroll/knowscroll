@@ -458,16 +458,17 @@ async function connectionView(client: pg.PoolClient, column: 'b.id' | 'b.proposa
     `SELECT b.id, b.status, b.relation_type, b.mechanism, f.code AS from_code, f.name AS from_name, t.code AS to_code, t.name AS to_name
      FROM bridge b JOIN concept f ON f.id = b.from_concept_id JOIN concept t ON t.id = b.to_concept_id WHERE ${column}=$1`, [value])).rows[0];
   if (!b) return null;
-  // The evidence it was admitted on, even if a source was corrected since (current snapshots first).
-  const evidence = (await client.query<{ key: string; statement: string; supports: 'from' | 'to' | 'mechanism' | 'limitation'; source_title: string; source_url: string }>(
-    `SELECT DISTINCT ON (cl.key, e.supports) cl.key, cl.statement, e.supports, s.title AS source_title, s.url AS source_url
+  // The evidence it was admitted on, even if a source was corrected since (current snapshots first),
+  // each saying whether it has since lost its current support (ADR-0044 M4).
+  const evidence = (await client.query<{ key: string; statement: string; supports: 'from' | 'to' | 'mechanism' | 'limitation'; source_title: string; source_url: string; withdrawn: boolean }>(
+    `SELECT DISTINCT ON (cl.key, e.supports) cl.key, cl.statement, e.supports, s.title AS source_title, s.url AS source_url, NOT claim_is_supported(cl.id) AS withdrawn
      FROM bridge_evidence e JOIN claim cl ON cl.id = e.claim_id JOIN claim_support cs ON cs.claim_id = cl.id AND cs.support_kind = 'supports'
      JOIN source_snapshot ss ON ss.id = cs.snapshot_id JOIN semantic_source s ON s.id = ss.source_id
      WHERE e.bridge_id=$1 ORDER BY cl.key, e.supports, (ss.status = 'current') DESC, s.key`, [b.id])).rows;
   return {
     bridgeId: b.id, bridgeStatus: b.status, relationType: b.relation_type as NonNullable<InquiryWire['found']>['relationType'],
     fromConcept: { code: b.from_code, name: b.from_name }, toConcept: { code: b.to_code, name: b.to_name }, sentence: b.mechanism,
-    evidence: evidence.map(e => ({ claimKey: e.key, statement: e.statement, supports: e.supports, sourceTitle: e.source_title, sourceUrl: e.source_url })),
+    evidence: evidence.map(e => ({ claimKey: e.key, statement: e.statement, supports: e.supports, sourceTitle: e.source_title, sourceUrl: e.source_url, withdrawn: e.withdrawn })),
   };
 }
 

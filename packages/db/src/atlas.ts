@@ -243,10 +243,9 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
   const refs = await describeRefs(client, [...between, ...places.flatMap(p => [...(p.basis ? [p.basis] : []), ...(p.loadBearing ? p.foundationBasis ?? [] : [])])]);
 
   const rooms = await readPlaceRooms(client, universeId);
-  const deltas = (await client.query<{ id: string; place_id: string; kind: string; causal_class: string; created_at: Date; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null; parent_place_id: string | null }>(
+  const deltas = (await client.query<DeltaNaming & { id: string; place_id: string; created_at: Date; parent_place_id: string | null }>(
     `SELECT d.id, d.place_id, d.kind, d.causal_class, d.created_at, d.evidence, c.code AS anchor, pc.code AS parent_anchor, pp.id AS parent_place_id
-     FROM atlas_delta d JOIN atlas_place p ON p.id = d.place_id JOIN concept c ON c.id = p.anchor_concept_id
-     LEFT JOIN atlas_place pp ON pp.id = COALESCE((d.after->>'parentPlaceId')::uuid, (d.before->>'parentPlaceId')::uuid) LEFT JOIN concept pc ON pc.id = pp.anchor_concept_id
+     FROM atlas_delta d ${DELTA_PLACES}
      WHERE d.universe_id = $1 AND d.kind <> 'sighting_promoted' ORDER BY d.created_at DESC, d.id LIMIT 20`, [universeId],
   )).rows;
   const nameOf = (code: string | null) => (code === null ? null : names.get(code)?.name ?? code);
@@ -283,11 +282,36 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
     relations: between.map(r => ({ fromPlaceId: liveAnchor.get(r.from)!.placeId, toPlaceId: liveAnchor.get(r.to)!.placeId, kind: r.kind, ...refs(r) })),
     chronicle: deltas.map(d => ({
       deltaId: d.id, placeId: d.place_id, parentPlaceId: d.parent_place_id, kind: d.kind, causalClass: d.causal_class, at: iso(d.created_at),
-      line: chronicleLine({ kind: d.kind, causalClass: d.causal_class, name: nameOf(d.anchor)!, parentName: nameOf(d.parent_anchor),
-        relation: (d.evidence.relation as TypedRelation | undefined) ? { ...(d.evidence.relation as TypedRelation), fromName: nameOf((d.evidence.relation as TypedRelation).from)!, toName: nameOf((d.evidence.relation as TypedRelation).to)! } : null,
-        holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map(code => nameOf(code)!) }),
+      line: deltaLine(d, nameOf),
     })),
   };
+}
+
+/** What names a delta's chronicle line: the place it changed, and the parent it belonged to then. */
+export const DELTA_PLACES = `JOIN atlas_place p ON p.id = d.place_id JOIN concept c ON c.id = p.anchor_concept_id
+     LEFT JOIN atlas_place pp ON pp.id = COALESCE((d.after->>'parentPlaceId')::uuid, (d.before->>'parentPlaceId')::uuid)
+     LEFT JOIN concept pc ON pc.id = pp.anchor_concept_id`;
+
+/** A delta row with the anchor codes [DELTA_PLACES] selects as `anchor` and `parent_anchor`. */
+export type DeltaNaming = { kind: string; causal_class: string; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null };
+
+/** The chronicle's own deterministic line for one delta (ADR-0036), never model text. */
+function deltaLine(d: DeltaNaming, nameOf: (code: string | null) => string | null): string {
+  const relation = d.evidence.relation as { kind: RelationKind; from: string; to: string } | undefined;
+  return chronicleLine({ kind: d.kind, causalClass: d.causal_class, name: nameOf(d.anchor)!, parentName: nameOf(d.parent_anchor),
+    relation: relation ? { kind: relation.kind, fromName: nameOf(relation.from)!, toName: nameOf(relation.to)! } : null,
+    holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map(code => nameOf(code)!) });
+}
+
+/** Lines for a few deltas, naming only the concepts they mention (the return, a place Relic). */
+export async function deltaLines(client: pg.PoolClient, deltas: readonly DeltaNaming[]): Promise<(d: DeltaNaming) => string> {
+  const codes = [...new Set(deltas.flatMap(d => {
+    const relation = d.evidence.relation as { from?: string; to?: string } | undefined;
+    return [d.anchor, d.parent_anchor, relation?.from, relation?.to, ...((d.evidence.holdsUp as string[] | undefined) ?? [])];
+  }).filter((c): c is string => typeof c === 'string'))];
+  const names = new Map((await client.query<{ code: string; name: string }>('SELECT code, name FROM concept WHERE code = ANY($1)', [codes])).rows.map(r => [r.code, r.name]));
+  const nameOf = (code: string | null) => (code === null ? null : names.get(code) ?? code);
+  return d => deltaLine(d, nameOf);
 }
 
 /** One delta and its evidence, readable only in its own universe. */

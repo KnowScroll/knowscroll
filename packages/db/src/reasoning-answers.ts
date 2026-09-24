@@ -429,6 +429,8 @@ async function insertAnswer(client: pg.PoolClient, request: RequestRow, attemptI
 export type AskAnswerView = {
   askId: string; status: 'queued' | 'running' | 'answered' | 'not_in_source' | 'rejected' | 'failed' | 'cancelled' | 'unavailable';
   answer: string | null; basis: { quote: string }[]; limits: string | null; reasons: string[]; requestedAt: string; answeredAt: string | null;
+  /** ADR-0044: whether the reader kept this answer as a Relic, and whether they said it seems wrong. */
+  kept: boolean; seemsWrong: boolean;
 };
 
 /** The reader's view of an answer request, from this universe only. */
@@ -438,7 +440,11 @@ export async function readAskAnswer(client: pg.PoolClient, scope: AuthScope, ask
   if (!request) return null;
   const answer = (await client.query<{ status: AskAnswerView['status']; answer: string | null; basis: { quote: string }[]; limits: string | null; reasons: string[]; created_at: Date }>(
     'SELECT status,answer,basis,limits,reasons,created_at FROM ask_answer WHERE ask_id=$1', [askId])).rows[0];
-  const base = { askId, requestedAt: request.requested_at.toISOString() };
+  const marks = (await client.query<{ kept: boolean; seems_wrong: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM relic WHERE universe_id=$1 AND privacy_epoch=$2 AND kind='answer' AND ask_id=$3) AS kept,
+       EXISTS (SELECT 1 FROM reader_objection WHERE universe_id=$1 AND privacy_epoch=$2 AND kind='answer' AND ask_id=$3) AS seems_wrong`,
+    [scope.universeId, scope.privacyEpoch, askId])).rows[0]!;
+  const base = { askId, requestedAt: request.requested_at.toISOString(), kept: marks.kept, seemsWrong: marks.seems_wrong };
   if (answer) return { ...base, status: answer.status, answer: answer.answer, basis: answer.basis, limits: answer.limits, reasons: answer.reasons, answeredAt: answer.created_at.toISOString() };
   const job = (await client.query<{ status: string; past: boolean }>('SELECT status, deadline <= clock_timestamp() AS past FROM reasoning_job WHERE id=$1', [request.job_id])).rows[0];
   // Past its deadline an unfinished answer will not arrive (a worker may have stopped mid-call, and a
