@@ -208,7 +208,7 @@ test('review B1/I2/M3: reading a sighting\'s subject retires it as the reader\'s
   assert.ok(!after.places.some((p: { anchor: { code: string } }) => p.anchor.code === 'astro.star.birth'), 'no longer a sighting once met');
   const reached = after.chronicle.find((c: { kind: string; placeId: string }) => c.kind === 'sighting_retired' && c.placeId === sighting.placeId);
   assert.equal(reached.causalClass, 'personal_exploration');
-  assert.equal(reached.line, 'You reached Star formation.');
+  assert.equal(reached.line, 'You came across Star formation.');
   assert.equal(reached.parentPlaceId, planet.placeId);
   const evidence = atlasDeltaSchema.parse((await app.inject({ url: `/v1/atlas/deltas/${reached.deltaId}`, headers: h(i) })).json()) as any;
   assert.equal(evidence.evidence.met.state, 'seen');

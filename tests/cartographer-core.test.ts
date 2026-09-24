@@ -182,3 +182,21 @@ test('review M1: a claim is preferred over a bridge as a sighting\'s basis, and 
   // Gravity's duplicate pair is one connection: resonance (two distinct neighbours) ranks first.
   assert.deepEqual(plan.filter(d => d.kind === 'sighting_appeared').map(d => d.anchor), ['physics.resonance', 'physics.gravity']);
 });
+
+test('verification review: a claim beats a bridge whatever the direction, and an anchored sighting whose basis was revoked is promoted, not retired', () => {
+  const mixed: TypedRelation[] = [
+    { from: 'astro.moon', to: 'earth.ocean.tides', kind: 'explains', ref: { bridgeId: 'bridge-m-t' } },
+    { from: 'earth.ocean.tides', to: 'astro.moon', kind: 'applies_to', ref: { claimId: 'claim-t-m' } },
+  ];
+  const plan = planPlaces(input({ relations: mixed, accounts: [anchored('earth.ocean.tides')] }));
+  const moon = plan.find(d => d.kind === 'sighting_appeared' && d.anchor === 'astro.moon');
+  assert.deepEqual(moon?.kind === 'sighting_appeared' && moon.evidence.relation.ref, { claimId: 'claim-t-m' });
+  const places: PlaceView[] = [
+    { placeId: 'p1', anchor: 'earth.ocean.tides', kind: 'planet', parentAnchor: null, state: 'live', basis: null },
+    { placeId: 's1', anchor: 'astro.moon', kind: 'sighting', parentAnchor: 'earth.ocean.tides', state: 'live', basis: relations[1]! },
+  ];
+  const revokedButAnchored = planPlaces(input({ relations: relations.filter(r => r.from !== 'astro.moon'), accounts: [anchored('earth.ocean.tides'), anchored('astro.moon')], places }));
+  assert.ok(!revokedButAnchored.some(d => d.kind === 'sighting_retired'));
+  const formed = revokedButAnchored.find(d => d.anchor === 'astro.moon');
+  assert.equal(formed?.kind === 'place_formed' && formed.promotesPlaceId, 's1');
+});

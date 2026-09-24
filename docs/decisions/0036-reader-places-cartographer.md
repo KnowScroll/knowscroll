@@ -37,7 +37,7 @@ evidence. Nothing turns that into places, and nothing records why a place exists
      relation and its claim or bridge).
    - A live sighting whose relation or bridge is no longer active is **retired**
      (`sighting_retired`, `source_correction`). A sighting the reader has now been shown is
-     retired as their own exploration (`personal_exploration`, "You reached …"); a sighting is only
+     retired as their own exploration (`personal_exploration`, "You came across …"); a sighting is only
      ever something not yet met, so it never carries attention. If it is already anchored it is
      promoted instead. The five-sighting cap counts the sightings a place already has; a sourced
      claim is preferred over a bridge as a basis, and degree counts distinct neighbours.

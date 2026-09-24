@@ -49,8 +49,9 @@ export type PlaceDelta =
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const relationKey = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `c:${r.ref.claimId}` : `b:${r.ref.bridgeId}`}`;
-// A sourced claim is the preferred basis for a sighting; an admitted bridge is the fallback.
-const basisOrder = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `0:${r.ref.claimId}` : `1:${r.ref.bridgeId}`}`;
+// A sourced claim is the preferred basis for a sighting, whatever its direction or kind; an admitted
+// bridge is the fallback.
+const basisOrder = (r: TypedRelation) => `${'claimId' in r.ref ? '0' : '1'}|${relationKey(r)}`;
 
 export function planPlaces(input: CartographerInput): PlaceDelta[] {
   const parentOf = new Map(input.concepts.map(c => [c.code, c.parent]));
@@ -71,10 +72,12 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
   for (const p of [...live.values()].sort((a, b) => byCode(a.anchor, b.anchor))) {
     if (p.kind !== 'sighting') continue;
     const met = accounts.get(p.anchor);
+    // An anchored sighting is promoted below (keeping its link), whatever became of its basis.
+    if (met?.state === 'anchored' && !rejected.has(p.anchor)) continue;
     if (p.basis && !active.has(relationKey(p.basis))) {
       deltas.push({ ...common(p.anchor, 'source_correction'), kind: 'sighting_retired', placeId: p.placeId, evidence: { relation: p.basis } });
       live.delete(p.anchor);
-    } else if (met && met.state !== 'anchored') {
+    } else if (met) {
       deltas.push({ ...common(p.anchor, 'personal_exploration'), kind: 'sighting_retired', placeId: p.placeId, evidence: { met: { state: met.state, episodes: met.episodes } } });
       live.delete(p.anchor);
     }
