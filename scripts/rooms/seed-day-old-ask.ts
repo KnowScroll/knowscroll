@@ -21,8 +21,8 @@ import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
 if (!new URL(process.env.DATABASE_URL ?? '').pathname.startsWith('/knowscroll_test_')) {
   throw new Error('seed-day-old-ask.ts requires a disposable knowscroll_test_* database');
 }
-const base = process.env.KS_ROOM_SEED_API_BASE;
-if (!base || new URL(base).hostname !== '127.0.0.1') throw new Error('seed-day-old-ask.ts requires a loopback KS_ROOM_SEED_API_BASE');
+const base = process.env.KS_ATLAS_SEED_API_BASE;
+if (!base || new URL(base).hostname !== '127.0.0.1') throw new Error('seed-day-old-ask.ts requires a loopback KS_ATLAS_SEED_API_BASE');
 const token = process.env.KS_DEV_TOKEN;
 if (!token) throw new Error('seed-day-old-ask.ts requires KS_DEV_TOKEN');
 
