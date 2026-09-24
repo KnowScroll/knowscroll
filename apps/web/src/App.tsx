@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { ApiClient } from './api/client.ts';
+import type { ApiClient } from './api/client.ts';
 import { KeepScreen } from './components/KeepScreen.tsx';
 import { PrivacyScreen } from './components/PrivacyScreen.tsx';
 import { ScrollScreen } from './components/ScrollScreen.tsx';
@@ -9,9 +9,21 @@ import { useReaderStore } from './hooks/useReaderStore.ts';
 import { ReaderStore } from './state/readerStore.ts';
 import { createBrowserStorage } from './state/storage.ts';
 
-export function App() {
+export interface AppProps {
+  /** Owned by `Root` (#135): the one `ApiClient` instance for the whole page, so the CSRF token
+   * `SignInPage` fed it (or that a lazy 403 discovers) survives every reader action without a
+   * reload. `App` never constructs its own -- Root is the only place a bare `new ApiClient()` is
+   * still built, matching the pre-#135 default this class's own tests never exercised directly. */
+  apiClient: ApiClient;
+  /** Fired on a 401 from any authenticated call, a real sign-out, or a real account deletion
+   * (`ReaderStore`'s own `onSignedOut`, forwarded verbatim) -- `Root` uses it to swap this whole
+   * reader tree for the signed-in screen. */
+  onSignedOut: (message: string | null) => void;
+}
+
+export function App({ apiClient, onSignedOut }: AppProps) {
   const storage = useMemo(() => createBrowserStorage(), []);
-  const store = useMemo(() => new ReaderStore(new ApiClient(), storage), [storage]);
+  const store = useMemo(() => new ReaderStore(apiClient, storage, onSignedOut), [apiClient, storage, onSignedOut]);
   const state = useReaderStore(store);
 
   useEffect(() => {
@@ -64,6 +76,10 @@ export function App() {
           onConfirmReset={typed => store.confirmReset(typed)}
           onAcknowledgeReset={() => store.acknowledgeReset()}
           onEnterScroll={() => store.enterScroll()}
+          onSignOut={() => store.signOut()}
+          onBeginDeleteAccount={() => store.beginDeleteAccount()}
+          onCancelDeleteAccount={() => store.cancelDeleteAccount()}
+          onConfirmDeleteAccount={typed => store.confirmDeleteAccount(typed)}
         />
       )}
       {(state.screen === 'scroll' || state.screen === 'revisit') && (
