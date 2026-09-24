@@ -12,7 +12,7 @@ import type pg from 'pg';
 import type { AssistantBlock } from '../../../../packages/core/src/reasoning/bridge-inquiry.ts';
 import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-admission.ts';
 import { createReasoningFairness, type FairnessScheduled } from '../../../../packages/db/src/reasoning-fairness.ts';
-import { inquiryAuthority, jobFamily, openDueInquiries, sharedReasoningAuthority, type OpenResult } from '../../../../packages/db/src/reasoning-inquiries.ts';
+import { inquiryAuthority, jobFamily, mailRevokedConnections, openDueInquiries, sharedReasoningAuthority, type OpenResult } from '../../../../packages/db/src/reasoning-inquiries.ts';
 import {
   applyInquiryReply, failInquiry, giveBackUnsentInquiry, loadInquiryWork, settleInquiries, type InquiryOutcome, type InquiryReply, type InquiryWork,
 } from '../../../../packages/db/src/reasoning-inquiry-execution.ts';
@@ -53,6 +53,8 @@ export async function runInquiryPass(deps: {
   answers?: { transports: Transports<AnswerTransport>; readiness?: Gates };
 }): Promise<InquiryPass> {
   const { pool, owner, leaseMs, transports, signal } = deps;
+  // A correction's revocations are mailed here, under each reader's lock (ADR-0042 §5.3), before the intake.
+  await mailRevokedConnections(pool);
   const opened = await openDueInquiries(pool);
   const idle = (reason: string): InquiryPass => ({ kind: 'idle', reason, opened });
   const route = (await pool.query<{ policy_version: string; transport: 'fixture' | 'minimax' }>('SELECT policy_version, transport FROM background_inquiry_route WHERE enabled')).rows[0];

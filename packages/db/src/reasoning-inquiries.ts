@@ -133,6 +133,13 @@ export async function jobFamily(db: pg.Pool | pg.PoolClient, jobId: string): Pro
   return row.answer ? 'answer' : row.inquiry ? 'inquiry' : null;
 }
 
+async function inTransaction<T>(pool: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try { await client.query('BEGIN'); const value = await body(client); await client.query('COMMIT'); return value; }
+  catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; }
+  finally { client.release(); }
+}
+
 // Consent -------------------------------------------------------------------------------------
 
 /** Inquiries the mailbox opened today (UTC): a family counts once, its children never (ADR-0042 §4). */
@@ -227,6 +234,40 @@ export async function postInquiryMail(client: pg.PoolClient, universeId: string,
   return true;
 }
 
+/** Revoked bridges (shared, or the reader's own) between two of a consenting, recording reader's live
+ * planets or regions, revoked since that reader's consent was turned on (or recording resumed), not yet mailed. */
+const REVOKED_CONNECTIONS = `SELECT u.id AS universe_id, b.id AS bridge_id FROM bridge b
+  JOIN atlas_place f ON f.anchor_concept_id = b.from_concept_id AND f.state = 'live' AND f.kind IN ('planet','region')
+  JOIN atlas_place t ON t.universe_id = f.universe_id AND t.anchor_concept_id = b.to_concept_id AND t.state = 'live' AND t.kind IN ('planet','region')
+  JOIN universe u ON u.id = f.universe_id AND u.recording_paused_at IS NULL
+  JOIN background_inquiry_consent c ON c.universe_id = u.id AND c.privacy_epoch = u.privacy_epoch AND c.enabled
+  WHERE b.status = 'revoked' AND (b.universe_id IS NULL OR b.universe_id = u.id)
+    AND b.status_changed_at > inquiry_mail_since(u.id, u.privacy_epoch)
+    AND NOT EXISTS (SELECT 1 FROM inquiry_mail m WHERE m.universe_id = u.id AND m.cause_bridge_id = b.id)`;
+
+/**
+ * ADR-0042 §5.3: a source correction that revoked a connection between two of a reader's live places asks
+ * for a look again, from current evidence. The correction holds the exclusive substrate lock, which
+ * follows universe locks (ADR-0031 §7), so its own transaction cannot mail: the worker does, each pass,
+ * under each universe's lock with the facts checked again, once per universe and bridge.
+ */
+export async function mailRevokedConnections(pool: pg.Pool, input: { limit?: number } = {}): Promise<number> {
+  const found = (await pool.query<{ universe_id: string; bridge_id: string }>(
+    `${REVOKED_CONNECTIONS} ORDER BY b.status_changed_at, b.id LIMIT $1`, [input.limit ?? 10])).rows;
+  let mailed = 0;
+  for (const row of found) {
+    try {
+      const posted = await inTransaction(pool, async client => {
+        await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [row.universe_id]);
+        const still = (await client.query(`${REVOKED_CONNECTIONS} AND u.id=$1 AND b.id=$2`, [row.universe_id, row.bridge_id])).rowCount;
+        return still ? postInquiryMail(client, row.universe_id, { kind: 'bridge_revoked', bridgeId: row.bridge_id }) : false;
+      });
+      if (posted) mailed += 1;
+    } catch { /* a pause or a Clear moved it meanwhile; the next pass sees its new state */ }
+  }
+  return mailed;
+}
+
 // Stopping -------------------------------------------------------------------------------------
 
 /**
@@ -261,13 +302,6 @@ export async function withdrawInquiries(client: pg.PoolClient, universeId: strin
 // Opening a due inquiry (worker) ---------------------------------------------------------------
 
 export type OpenResult = 'opened' | 'nothing_to_ask' | 'waiting' | 'withdrawn' | 'failed' | 'gone';
-
-async function inTransaction<T>(pool: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try { await client.query('BEGIN'); const value = await body(client); await client.query('COMMIT'); return value; }
-  catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; }
-  finally { client.release(); }
-}
 
 /** The worker's intake: every pending inquiry whose first mail is older than the route's coalescing
  * delay, while none of its universe's is already in flight, is opened in its own transaction. */

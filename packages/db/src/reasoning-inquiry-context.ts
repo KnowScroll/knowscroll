@@ -72,9 +72,16 @@ export async function readInquiryInputs(client: pg.PoolClient, universeId: strin
      JOIN concept f ON f.id = b.from_concept_id JOIN concept t ON t.id = b.to_concept_id
      WHERE cf.universe_id = $1 AND cf.objection = 'seems_wrong'`, [universeId],
   )).rows;
-  const asked = (await client.query<{ pairs: { a: { code: string }; b: { code: string } }[] }>(
-    'SELECT pairs FROM background_inquiry WHERE universe_id = $1 AND privacy_epoch = $2 AND pairs IS NOT NULL', [universeId, privacyEpoch],
-  )).rows.flatMap(r => r.pairs.map(p => [p.a.code, p.b.code] as const));
+  // A pair counts as asked in this epoch until a bridge between it is revoked after its inquiry closed:
+  // then it may be looked for again from current evidence (ADR-0042 §5.3).
+  const asked = (await client.query<{ a: string; b: string }>(
+    `SELECT p->'a'->>'code' AS a, p->'b'->>'code' AS b FROM background_inquiry i CROSS JOIN jsonb_array_elements(i.pairs) p
+     WHERE i.universe_id = $1 AND i.privacy_epoch = $2 AND i.pairs IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM bridge br JOIN concept f ON f.id = br.from_concept_id JOIN concept t ON t.id = br.to_concept_id
+         WHERE br.status = 'revoked' AND (br.universe_id IS NULL OR br.universe_id = $1) AND br.status_changed_at > i.closed_at
+           AND ((f.code = p->'a'->>'code' AND t.code = p->'b'->>'code') OR (f.code = p->'b'->>'code' AND t.code = p->'a'->>'code')))`,
+    [universeId, privacyEpoch],
+  )).rows.map(r => [r.a, r.b] as const);
   return { places, parentOf, claims, connections, suppressed, asked };
 }
 
