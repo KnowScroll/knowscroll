@@ -12,8 +12,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
+import { useTestOwnerEmail } from './helpers/owner-address.ts';
 
-process.env.KS_OWNER_EMAIL ??= 'owner@knowscroll.test';
+useTestOwnerEmail();
 process.env.KS_WEB_ORIGIN = 'https://knowscroll.test';
 process.env.KS_CSRF_SECRET = 'a-fixed-test-secret-of-at-least-32-bytes!!';
 const scratch = await mkdtemp(join(tmpdir(), 'ks-account-deletion-'));

@@ -26,10 +26,11 @@ import {
   resolveOwnerEmail,
   SIGN_IN_TOKEN_TTL_MINUTES,
 } from '../packages/db/src/sign-in.ts';
+import { TEST_OWNER_EMAIL, useTestOwnerEmail } from './helpers/owner-address.ts';
 
 // This suite defines its own owner address rather than inheriting operator configuration: a test
 // must not pass or fail because of what happens to be in a local .env or a CI job's environment.
-process.env.KS_OWNER_EMAIL ??= 'owner@knowscroll.test';
+useTestOwnerEmail();
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('Sign-in tests require an isolated knowscroll_test_* database');
@@ -333,4 +334,11 @@ test('the universe is adopted on first consumption and never re-bound by a secon
   assert.equal(session.universeId, OWNER_ID);
   const universeAfter = (await pool.query('SELECT account_id FROM universe WHERE id=$1', [OWNER_ID])).rows[0].account_id;
   assert.equal(universeAfter, accountId, 'still the same account; never re-bound');
+});
+
+test('every sign-in suite uses its own owner address, never one a local .env supplied (#177)', () => {
+  // What packages/db's loadLocalEnv() copies in from a developer's .env before this file's first statement.
+  process.env.KS_OWNER_EMAIL = 'developer@local-env.knowscroll.test';
+  useTestOwnerEmail();
+  assert.equal(resolveOwnerEmail() === TEST_OWNER_EMAIL, true);
 });
