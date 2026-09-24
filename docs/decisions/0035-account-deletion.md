@@ -49,7 +49,7 @@ privacy receipts are immutable, and a universe "stays with the account that adop
 
 ## Consequences
 
-Migration 0029, `deleteAccount` in `packages/db/src/privacy.ts`, the route in `apps/api/src/app.ts`,
+Migration 0030, `deleteAccount` in `packages/db/src/privacy.ts`, the route in `apps/api/src/app.ts`,
 `AccountDeletionInput`/`AccountDeletionReceipt` contracts, and `tests/account-deletion.test.ts`
 (confirmation, stale epoch, full footprint, re-sign-in, cookie + CSRF, guards refusing outside the
 transaction). Clients: web settings and Android privacy screen offer it behind the literal.
