@@ -638,6 +638,58 @@ class AccountViewModelTest {
         }
     }
 
+    // ---- #168: a pause, resume or export belongs to the session that sent it ----
+
+    private val lifecycleIntents = listOf("pause", "resume", "export")
+
+    /** The session ended with a pause, resume and export unconfirmed. None of them is the next
+     * session's to retry -- that may be another account's universe -- and Privacy reads the real
+     * recording state again anyway. */
+    @Test
+    fun aSessionThatEndsTakesItsUnconfirmedPauseResumeAndExportWithIt() {
+        TestHttpServer.open().use { server ->
+            server.serve(unauthorized)
+            val store = StateStore(freshContext())
+            lifecycleIntents.forEach { store.writePendingPrivacyRequest(it, "earlier-$it", 5, mayHaveLanded = true) }
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            model.openPrivacy()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+
+            lifecycleIntents.forEach { assertNull("the ended session's $it", store.readPendingPrivacyRequest(it)) }
+            val nextProcess = viewModel(server, FakeSessionVault(), store)
+            assertEquals(PrivacyOperationState.Idle, nextProcess.pause.value)
+            assertEquals(PrivacyOperationState.Idle, nextProcess.resume.value)
+        }
+    }
+
+    /** The reader's own sign-out (#91) ends a session without passing through this view model; the
+     * new sign-in still leaves nothing of the earlier one to retry. */
+    @Test
+    fun aNewSignInClearsAnEarlierSessionsPendingPauseResumeAndExport() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u2",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a2","origin":"magic_link"}""",
+            )
+            val store = StateStore(freshContext())
+            lifecycleIntents.forEach { store.writePendingPrivacyRequest(it, "earlier-$it", 5) }
+            store.writeSignedOut()
+            val model = viewModel(server, FakeSessionVault(), store)
+            assertTrue("offered as an earlier process left it", model.pause.value is PrivacyOperationState.Failed)
+
+            model.submitPastedLink("https://knowscroll.test/sign-in#token=raw-token")
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+
+            lifecycleIntents.forEach { assertNull("the earlier session's $it", store.readPendingPrivacyRequest(it)) }
+            assertEquals(PrivacyOperationState.Idle, model.pause.value)
+            assertEquals(PrivacyOperationState.Idle, model.resume.value)
+            model.retryPause() // nothing kept, and Privacy not loaded: nothing is sent
+            assertEquals(1, server.snapshot().size)
+        }
+    }
+
     // ---- #168: a refused pause, resume or export is never re-sent with its stale epoch ----
 
     private val pausedAt5 = 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":"2026-09-24T00:00:00Z"}"""

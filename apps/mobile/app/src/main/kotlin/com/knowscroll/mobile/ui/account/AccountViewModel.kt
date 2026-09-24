@@ -28,6 +28,7 @@ private const val INTENT_RESUME = "resume"
 private const val INTENT_EXPORT = "export"
 private const val INTENT_RESET = "reset"
 private const val INTENT_DELETE = "delete"
+private val PRIVACY_INTENTS = listOf(INTENT_PAUSE, INTENT_RESUME, INTENT_EXPORT, INTENT_RESET, INTENT_DELETE)
 internal const val PRIVACY_RETRY_MESSAGE =
     "The last attempt is unconfirmed. Retry checks the same request; nothing is repeated."
 
@@ -173,16 +174,13 @@ class AccountViewModel @JvmOverloads constructor(
             try {
                 val receipt = api.consumeSignInToken(token)
                 // A new session is not the signed-out device any more: clear the mark (so a fresh
-                // reader never opens on #91's dead end) and any pending revoke (which would
-                // otherwise be retried against this new session) -- before the vault write, so a
-                // crash in between can never leave a live session behind a stale mark.
+                // reader never opens on #91's dead end), any pending revoke and every earlier
+                // privacy request (which would otherwise be retried against this new session) --
+                // before the vault write, so a crash in between can never leave a live session
+                // behind a stale mark.
                 store.clearSignedOut()
                 store.clearPendingSignOut()
-                // An earlier session's Reset or Delete is not this session's to retry (verification N1).
-                store.clearPendingPrivacyRequest(INTENT_RESET)
-                store.clearPendingPrivacyRequest(INTENT_DELETE)
-                _reset.value = PrivacyOperationState.Idle
-                _delete.value = PrivacyOperationState.Idle
+                forgetPrivacyRequests()
                 vault.writeToken(receipt.sessionToken)
                 _tokenSubmit.value = TokenSubmitState.Idle
                 _linkRequest.value = LinkRequestState.Idle
@@ -515,10 +513,7 @@ class AccountViewModel @JvmOverloads constructor(
             mayHaveLanded(INTENT_RESET) -> SignedOutReason.RESET
             else -> reason
         }
-        store.clearPendingPrivacyRequest(INTENT_RESET)
-        store.clearPendingPrivacyRequest(INTENT_DELETE)
-        _reset.value = PrivacyOperationState.Idle
-        _delete.value = PrivacyOperationState.Idle
+        forgetPrivacyRequests()
         vault.clear()
         val universeId = store.readObservedUniverseId()
         store.purgePrivateState(universeId, epoch ?: store.readObservedPrivacyEpoch())
@@ -528,6 +523,15 @@ class AccountViewModel @JvmOverloads constructor(
         clearPrivacyViews()
         _signedOutReason.value = honest
         _authState.value = AuthState.SignedOut
+    }
+
+    /** Every privacy request belongs to the session that sent it. An earlier session's is never this
+     * one's to retry (verification N1) -- by then it may be another account's universe -- and the
+     * Privacy screen reads what the server holds instead (#168). */
+    private fun forgetPrivacyRequests() {
+        PRIVACY_INTENTS.forEach(store::clearPendingPrivacyRequest)
+        listOf(_pause, _resume, _reset, _delete).forEach { it.value = PrivacyOperationState.Idle }
+        _export.value = ExportState.Idle
     }
 
     private fun clearPrivacyViews() {
