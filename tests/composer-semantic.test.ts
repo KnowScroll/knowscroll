@@ -128,29 +128,57 @@ test('"less like this" suppresses exactly that route for this reader, and the re
   assert.ok(!result.selected.some(c => c.family === 'bridge' && c.assetId === 'tides-1'));
 });
 
-test('kept, seen and on-screen encounters are gated with named reasons, never silently dropped', () => {
+test('kept and on-screen encounters are gated with named reasons; a seen one is ranked lower, never silently dropped', () => {
   const s = state({ kept: new Set(['tides-1']), exposures: exposed('orbit-1'), currentAssetId: 'body-1', served: served(['orbit-1', 'seed']) });
-  const gates = new Map(composeSemantic(s, COMPOSER_V3_POLICY).candidates.filter(c => c.family === 'fallback').map(c => [c.assetId, c.gate]));
-  assert.equal(gates.get('tides-1'), 'kept');
-  assert.equal(gates.get('orbit-1'), 'seen');
-  assert.equal(gates.get('body-1'), 'current_encounter');
+  const fallback = new Map(composeSemantic(s, COMPOSER_V3_POLICY).candidates.filter(c => c.family === 'fallback').map(c => [c.assetId, c]));
+  assert.equal(fallback.get('tides-1')!.gate, 'kept');
+  assert.equal(fallback.get('body-1')!.gate, 'current_encounter');
+  // Exposure-aware reranking: seen is a recorded penalty, not a gate.
+  assert.equal(fallback.get('orbit-1')!.gate, null);
+  assert.ok(fallback.get('orbit-1')!.terms.seen! > 0 && fallback.get('ellipse-1')!.terms.seen === 0);
+  assert.ok(fallback.get('orbit-1')!.score < fallback.get('ellipse-1')!.score);
 });
 
-test('no encounter starves: serving the head each time reaches the whole library, then exhausts honestly', () => {
-  let s = state();
+function serveHeads(start: V3State, steps: number): { order: string[]; state: V3State } {
+  let s = start;
   const order: string[] = [];
-  for (let i = 0; i < library.length + 2; i += 1) {
-    const result = composeSemantic(s, COMPOSER_V3_POLICY);
-    const head = result.selected[0];
+  for (let i = 0; i < steps; i += 1) {
+    const head = composeSemantic(s, COMPOSER_V3_POLICY).selected[0];
     if (!head) break;
     order.push(head.assetId);
+    const prior = s.exposures.get(head.assetId);
     s = { ...s, seed: `u1:${i + 1}`, nowMs: s.nowMs + HOUR,
-      exposures: new Map([...s.exposures, [head.assetId, { count: 1, lastAtMs: s.nowMs }]]),
+      exposures: new Map([...s.exposures, [head.assetId, { count: (prior?.count ?? 0) + 1, lastAtMs: s.nowMs }]]),
       sourceExposures: new Map([...s.sourceExposures, [head.sourceKey, (s.sourceExposures.get(head.sourceKey) ?? 0) + 1]]),
       served: [{ assetId: head.assetId, family: head.family, atMs: s.nowMs }, ...s.served] };
   }
-  assert.deepEqual([...order].sort(), library.map(a => a.assetId).sort());
-  assert.equal(composeSemantic(s, COMPOSER_V3_POLICY).selected.length, 0, 'an exhausted library returns nothing, not a repeat');
+  return { order, state: s };
+}
+
+test('no encounter starves: the whole library is reached before anything returns, then the least-seen return first', () => {
+  const first = serveHeads(state(), library.length);
+  assert.deepEqual([...first.order].sort(), library.map(a => a.assetId).sort(), 'every Scroll once before any repeat');
+  const second = serveHeads(first.state, library.length);
+  assert.deepEqual([...second.order].sort(), library.map(a => a.assetId).sort(), 'a second pass also reaches every Scroll before a third showing');
+});
+
+test('a seen encounter never outranks an unseen one, however relevant, except as a revisit', () => {
+  // gravity-1 was kept, so tides-1 is a sourced bridge; tides-1 was also already seen.
+  const s = state({
+    kept: new Set(['gravity-1']), exposures: exposed('tides-1', 'gravity-1'),
+    marks: [{ eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }],
+    served: served(['gravity-1', null], ['tides-1', 'seed']),
+  });
+  const ranked = composeSemantic(s, COMPOSER_V3_POLICY).selected;
+  const firstSeen = ranked.findIndex(c => s.exposures.has(c.assetId) && c.family !== 'revisit');
+  assert.ok(firstSeen === -1 || ranked.slice(firstSeen).every(c => s.exposures.has(c.assetId)), ranked.map(c => `${c.assetId}:${c.family}`).join(', '));
+});
+
+test('only keeping everything exhausts the library, as the established contract says', () => {
+  const seenAll = serveHeads(state(), library.length).state;
+  assert.ok(composeSemantic(seenAll, COMPOSER_V3_POLICY).selected.length > 0, 'having seen everything is not the end');
+  const keptAll = { ...seenAll, kept: new Set(library.map(a => a.assetId)) };
+  assert.equal(composeSemantic(keptAll, COMPOSER_V3_POLICY).selected.length, 0, 'an exhausted library returns nothing, not a repeat');
 });
 
 test('fatigue and redundant arguments lower a candidate, and the terms are recorded', () => {

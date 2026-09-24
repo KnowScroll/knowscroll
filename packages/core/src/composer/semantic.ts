@@ -16,14 +16,14 @@ export const COMPOSER_SEMANTIC_V3 = 'composer-semantic-v3';
 export type Family = 'continue' | 'deepen' | 'bridge' | 'challenge' | 'revisit' | 'frontier' | 'seed' | 'fallback';
 export const EXPLORATION_FAMILIES: readonly Family[] = ['bridge', 'frontier', 'challenge', 'revisit', 'fallback'];
 export type MarkKind = 'keep' | 'branch' | 'ask';
-export type GateReason = 'kept' | 'seen' | 'suppressed_by_person' | 'current_encounter';
+export type GateReason = 'kept' | 'suppressed_by_person' | 'current_encounter';
 
 export interface V3Policy {
   version: string;
   slateSize: number;
   maxPerSource: number;
   maxPerConcept: number;
-  weights: { continuity: number; useful: number; depth: number; novelty: number; returnRelevance: number; prior: number; redundancy: number; fatigue: number };
+  weights: { continuity: number; useful: number; depth: number; novelty: number; returnRelevance: number; prior: number; redundancy: number; fatigue: number; seen: number };
   familyDepth: Record<Family, number>;
   continuityWindowHours: number;
   explorationEvery: number;
@@ -102,7 +102,7 @@ export const COMPOSER_V3_POLICY: V3Policy = {
   slateSize: 3,
   maxPerSource: 2,
   maxPerConcept: 1,
-  weights: { continuity: 1, useful: 1, depth: 1, novelty: 1, returnRelevance: 1, prior: 1, redundancy: 1, fatigue: 1 },
+  weights: { continuity: 1, useful: 1, depth: 1, novelty: 1, returnRelevance: 1, prior: 1, redundancy: 1, fatigue: 1, seen: 1 },
   familyDepth: { continue: 0.3, deepen: 0.8, bridge: 1.2, challenge: 0.7, revisit: 0.2, frontier: 0.4, seed: 0.3, fallback: 0 },
   continuityWindowHours: 72,
   explorationEvery: 3,
@@ -228,16 +228,21 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   const suppressed = (family: Family, concept: string | null) => concept !== null && state.suppressedRoutes.some(r => r.family === family && isWithin(tree, concept, r.concept));
   const servedRecent = state.served.slice(0, policy.fatigueWindow);
   const redundantSince = state.nowMs - policy.redundancyWindowDays * DAY;
-  const recentClaims = new Set(state.served.filter(s => s.atMs >= redundantSince).flatMap(s => assetById.get(s.assetId)?.claimKeys ?? []));
+  // Arguments already made by *other* encounters; a Scroll's own earlier showing is the seen term.
+  const recentClaimSources = new Map<string, Set<string>>();
+  for (const s of state.served.filter(x => x.atMs >= redundantSince)) {
+    for (const key of assetById.get(s.assetId)?.claimKeys ?? []) recentClaimSources.set(key, (recentClaimSources.get(key) ?? new Set()).add(s.assetId));
+  }
+  const madeElsewhere = (key: string, assetId: string) => [...(recentClaimSources.get(key) ?? [])].some(id => id !== assetId);
 
   const scored: V3Candidate[] = raw.map(c => {
     const asset = assetById.get(c.assetId)!;
     let gate: GateReason | null = null;
     if (state.kept.has(asset.assetId)) gate = 'kept';
     else if (asset.assetId === state.currentAssetId) gate = 'current_encounter';
-    else if (state.exposures.has(asset.assetId) && c.family !== 'revisit') gate = 'seen';
     else if (suppressed(c.family, c.concept)) gate = 'suppressed_by_person';
     const primary = asset.primary;
+    const seenCount = state.exposures.get(asset.assetId)?.count ?? 0;
     const account = primary ? state.accounts.get(primary) : undefined;
     const parentMass = primary ? ancestorMass(state, primary) : 0;
     let useful = 1 - Math.exp(-((account?.mass ?? 0) + 0.5 * parentMass) / 4);
@@ -249,12 +254,17 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
       novelty: c.family !== 'fallback' && primary !== null && ![...state.exposures.keys()].some(id => assetById.get(id)?.primary === primary) ? 0.5 : 0,
       returnRelevance: c.family === 'revisit' ? 0.3 : 0,
       prior: primary !== null && (c.family === 'continue' || c.family === 'deepen') && state.directionPriors.some(p => isWithin(tree, primary, p)) ? 0.1 : 0,
-      redundancy: asset.claimKeys.length > 0 && asset.claimKeys.filter(k => recentClaims.has(k)).length / asset.claimKeys.length >= 0.5 ? 0.6 : 0,
+      redundancy: asset.claimKeys.length > 0 && asset.claimKeys.filter(k => madeElsewhere(k, asset.assetId)).length / asset.claimKeys.length >= 0.5 ? 0.6 : 0,
       fatigue: round(0.15 * servedRecent.filter(s => primary !== null && assetById.get(s.assetId)?.primary === primary).length),
+      // Exposure-aware reranking (ADR-0032 §3): a seen encounter stays available, but only below
+      // every unseen one (5 exceeds the largest possible unseen advantage, ~4.8), least-seen first.
+      // A softer penalty let relevant seen Scrolls fill the slate while unseen ones remained.
+      // Revisit is the family for a seen encounter made newly relevant, so it carries none.
+      seen: c.family === 'revisit' || !seenCount ? 0 : round(Math.min(10, 5 + 0.5 * (seenCount - 1))),
     };
     const w = policy.weights;
     const score = round(w.continuity * terms.continuity! + w.useful * terms.useful! + w.depth * terms.depth! + w.novelty * terms.novelty!
-      + w.returnRelevance * terms.returnRelevance! + w.prior * terms.prior! - w.redundancy * terms.redundancy! - w.fatigue * terms.fatigue!);
+      + w.returnRelevance * terms.returnRelevance! + w.prior * terms.prior! - w.redundancy * terms.redundancy! - w.fatigue * terms.fatigue! - w.seen * terms.seen!);
     return { ...c, gate, terms, score, rank: null };
   });
 
@@ -297,10 +307,12 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   let head: V3Candidate | undefined;
   if (explorationDue) {
     // Families are ordered by exploration value before score, so a fallback item is chosen only
-    // when no bridge, frontier, challenge or revisit is eligible.
+    // when no bridge, frontier, challenge or revisit is eligible; an unseen encounter still comes
+    // before a seen one, as everywhere else.
     const exploration = [...candidates]
       .filter(c => c.gate === null && EXPLORATION_FAMILIES.includes(c.family))
-      .sort((a, b) => EXPLORATION_FAMILIES.indexOf(a.family) - EXPLORATION_FAMILIES.indexOf(b.family) || order(state, a, b));
+      .sort((a, b) => Number(a.terms.seen! > 0) - Number(b.terms.seen! > 0)
+        || EXPLORATION_FAMILIES.indexOf(a.family) - EXPLORATION_FAMILIES.indexOf(b.family) || order(state, a, b));
     head = exploration[0];
     if (head) quotas.push(`exploration_floor:${head.family}`);
   }

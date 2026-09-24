@@ -49,10 +49,15 @@ marked), `bridge` (admitted, non-suppressed bridges from what they marked), `cha
 contradict a common idea near what they marked), `revisit` (a seen encounter newly relevant because
 of a later act), `frontier` (a domain this universe has never been shown), `seed` (cold start: one
 door per domain) and `fallback` (unmapped inventory, so nothing in the library is hidden).
-Gates are hard and recorded with reasons (kept, seen, suppressed by the reader, kind). Terms are a
-transparent versioned utility (continuity, a target-conditioned useful-encounter proxy that saturates
-when a concept was mostly system-offered, depth, novelty, return relevance, a permitted direction
-prior, minus redundancy of arguments already served and fatigue). Watch time is not an input.
+Gates are hard and recorded with reasons (kept, the encounter on screen, suppressed by the reader).
+A *seen* encounter is not gated: exposure-aware reranking keeps it available below unseen ones,
+least-seen first, through a recorded `seen` term, so the library is exhausted only when everything
+is kept, exactly as before v3. (An earlier draft gated seen encounters; the web reader journey
+showed that this silently changed the established exhaustion contract, and the handoff asks for
+reranking, not removal.) Terms are a transparent versioned utility (continuity, a
+target-conditioned useful-encounter proxy that saturates when a concept was mostly system-offered,
+depth, novelty, return relevance, a permitted direction prior, minus redundancy of arguments
+already served by *other* encounters, fatigue and seen). Watch time is not an input.
 Selection enforces, over the **rolling sequence actually served** (each decision serves one
 encounter on the current clients): an exploration floor (one of `bridge/frontier/challenge/revisit/
 fallback` at least every third served encounter when eligible), no adjacent repeat of a concept

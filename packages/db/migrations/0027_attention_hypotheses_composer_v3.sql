@@ -98,7 +98,7 @@ ALTER TABLE composer_policy ADD COLUMN record_kind text NOT NULL DEFAULT 'decisi
 
 INSERT INTO composer_policy(version, weights, slate_size, max_per_source, record_kind) VALUES (
  'composer-semantic-v3',
- '{"maxPerConcept":1,"weights":{"continuity":1,"useful":1,"depth":1,"novelty":1,"returnRelevance":1,"prior":1,"redundancy":1,"fatigue":1},"familyDepth":{"continue":0.3,"deepen":0.8,"bridge":1.2,"challenge":0.7,"revisit":0.2,"frontier":0.4,"seed":0.3,"fallback":0},"continuityWindowHours":72,"explorationEvery":3,"fatigueWindow":5,"redundancyWindowDays":30,"revisitMinGapDays":3,"usefulSaturation":{"exposureShare":0.8,"cap":0.5}}'::jsonb,
+ '{"maxPerConcept":1,"weights":{"continuity":1,"useful":1,"depth":1,"novelty":1,"returnRelevance":1,"prior":1,"redundancy":1,"fatigue":1,"seen":1},"familyDepth":{"continue":0.3,"deepen":0.8,"bridge":1.2,"challenge":0.7,"revisit":0.2,"frontier":0.4,"seed":0.3,"fallback":0},"continuityWindowHours":72,"explorationEvery":3,"fatigueWindow":5,"redundancyWindowDays":30,"revisitMinGapDays":3,"usefulSaturation":{"exposureShare":0.8,"cap":0.5}}'::jsonb,
  3, 2, 'decision_candidate'
 );
 
@@ -131,7 +131,7 @@ CREATE TABLE decision_candidate (
  family text NOT NULL CHECK (family IN ('continue','deepen','bridge','challenge','revisit','frontier','seed','fallback')),
  concept_id uuid REFERENCES concept(id),
  bridge_id uuid REFERENCES bridge(id),
- gate text CHECK (gate IN ('kept','seen','suppressed_by_person','current_encounter')),
+ gate text CHECK (gate IN ('kept','suppressed_by_person','current_encounter')),
  terms jsonb NOT NULL CHECK (jsonb_typeof(terms) = 'object'),
  score double precision NOT NULL CHECK (score > '-Infinity'::float8 AND score < 'Infinity'::float8),
  rank integer CHECK (rank >= 1),
