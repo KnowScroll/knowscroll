@@ -310,6 +310,32 @@ class ApiClient(
         }
     }
 
+    /** #132/ADR-0038: the reader's standing consent and what was looked for, newest first. A shape
+     * the contract does not describe is a protocol error, never shown (`data/Inquiries.kt`). */
+    suspend fun getInquiries(): InquiriesResponse = io {
+        get("/v1/inquiries") { obj -> inquiryProtocol { parseInquiriesResponse(obj) } }
+    }
+
+    /** #132/ADR-0038: one explicit consent change. An exact retry (same [InquiryConsentRequest])
+     * replays; a 409 (stale epoch, or the key reused with other content) is definitive and surfaced
+     * to the caller, never re-sent. */
+    suspend fun putInquiryConsent(req: InquiryConsentRequest): InquiryConsentResponse = io {
+        val body = jsonObj(
+            "enabled" to req.enabled, "dailyLimit" to req.dailyLimit,
+            "clientRequestId" to req.clientRequestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
+        ).toString()
+        request("PUT", "/v1/inquiries/consent", body, true, setOf(200), false) { obj ->
+            inquiryProtocol { parseInquiryConsentResponse(obj) }.also {
+                protocol(it.privacyEpoch == req.expectedPrivacyEpoch) { "Consent receipt names another privacy epoch" }
+            }
+        }
+    }
+
+    private inline fun <T> inquiryProtocol(parse: () -> T): T =
+        try { parse() }
+        catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid inquiries response") }
+        catch (e: JSONException) { throw ApiException.Protocol("Inquiries returned malformed JSON") }
+
     /** POST /v1/session/revoke {} -> 204. Revokes only the authenticated session; the
      * caller decides what "ambiguous vs confirmed" means for its own retry policy. */
     suspend fun revokeSession(): Unit = io {
