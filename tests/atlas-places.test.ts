@@ -13,6 +13,7 @@ import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
+import { atlasDeltaSchema, atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
 
@@ -72,7 +73,9 @@ async function anchorGravity(): Promise<Identity> {
 const atlasOf = async (i: Identity) => {
   const r = await app.inject({ url: '/v1/atlas', headers: h(i) });
   assert.equal(r.statusCode, 200, r.body);
-  return r.json();
+  // Every served atlas satisfies the strict wire contract the clients parse.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return atlasResponseSchema.parse(r.json()) as any;
 };
 
 test('reading gravity on two days across two source families forms a planet with sightings, each with its evidence', async () => {
@@ -95,7 +98,7 @@ test('reading gravity on two days across two source families forms a planet with
   assert.equal(formed.line, 'A place formed around Gravity.');
   assert.ok(atlas.chronicle.some((c: { kind: string; line: string }) => c.kind === 'sighting_appeared' && / appeared near Gravity: Gravity explains /.test(c.line)));
 
-  const evidence = (await app.inject({ url: `/v1/atlas/deltas/${formed.deltaId}`, headers: h(i) })).json();
+  const evidence = atlasDeltaSchema.parse((await app.inject({ url: `/v1/atlas/deltas/${formed.deltaId}`, headers: h(i) })).json()) as any;
   assert.equal(evidence.causalClass, 'personal_exploration');
   assert.ok(evidence.evidence.account.episodes >= 3 && evidence.evidence.account.episodeIds.length >= 3 && evidence.evidence.account.markIds.length >= 2);
   const sightingDelta = atlas.chronicle.find((c: { kind: string }) => c.kind === 'sighting_appeared');
