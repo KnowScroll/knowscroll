@@ -60,6 +60,10 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(href).toMatch(/^https:\/\//);
 
     // Verify against the real backend: the stored exposure event genuinely exists and is an "exposure".
+    // The poll above only proves the request was sent; the receipt is persisted when the response
+    // lands. Wait for that effect (the same idiom as the reload test below) rather than assume the
+    // UI steps in between outlast the response — on a loaded runner they did not (main 91f2a5d).
+    await expect.poll(async () => (await readStoredSession(page))?.exposureEventId ?? '', { timeout: 8000 }).not.toBe('');
     const stored = await readStoredSession(page);
     expect(stored?.exposureEventId).toBeTruthy();
     const eventResponse = await apiFetch(`/v1/events/${stored!.exposureEventId}`);
