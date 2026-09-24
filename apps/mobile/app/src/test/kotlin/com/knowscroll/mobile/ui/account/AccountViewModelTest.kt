@@ -690,6 +690,38 @@ class AccountViewModelTest {
         }
     }
 
+    // ---- #168: an export is done only when its file holds it ----
+
+    @Test
+    fun anExportThatNeverReachedItsFileIsReportedAndRetryExportsAgain() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, 200 to """{"receiptId":"e1","privacyEpoch":5}""", 200 to """{"receiptId":"e2","privacyEpoch":5}""")
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            openLoadedPrivacy(model)
+            model.requestExport()
+            awaitUntil { model.export.value is ExportState.Ready }
+
+            model.exportNotSaved()
+            assertTrue("never shown as done", model.export.value is ExportState.Failed)
+            model.retryExport()
+            awaitUntil { model.export.value is ExportState.Ready }
+            server.join()
+            assertEquals(3, server.requests.size)
+        }
+    }
+
+    /** The process died while the picker was open; its answer reaches a new view model, which never
+     * held the export. */
+    @Test
+    fun anExportLostWithTheProcessIsReportedToTheNextOne() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            model.exportNotSaved()
+            assertTrue(model.export.value is ExportState.Failed)
+            assertEquals(0, server.requests.size)
+        }
+    }
+
     // ---- #168: a refused pause, resume or export is never re-sent with its stale epoch ----
 
     private val pausedAt5 = 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":"2026-09-24T00:00:00Z"}"""

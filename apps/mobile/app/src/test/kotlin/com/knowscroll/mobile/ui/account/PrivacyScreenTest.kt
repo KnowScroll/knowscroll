@@ -1,5 +1,13 @@
 package com.knowscroll.mobile.ui.account
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -9,7 +17,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.core.app.ActivityOptionsCompat
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
+import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,7 +39,7 @@ class PrivacyScreenTest {
     private fun noopActions() = PrivacyActions(
         onBack = {}, onRetryLoad = {},
         onRequestPause = {}, onRetryPause = {}, onRequestResume = {}, onRetryResume = {},
-        onRequestExport = {}, onRetryExport = {}, onExportSaved = {},
+        onRequestExport = {}, onRetryExport = {}, onExportSaved = {}, onExportNotSaved = {},
         onRequestResetConfirmation = {}, onCancelReset = {}, onConfirmReset = {}, onRetryReset = {},
         onRequestDeleteConfirmation = {}, onCancelDelete = {}, onConfirmDelete = {}, onRetryDelete = {},
         onRequestSignOutConfirmation = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
@@ -49,6 +60,53 @@ class PrivacyScreenTest {
                 PrivacyScreen(privacy, pause, resume, export, reset, delete, signOut, actions)
             }
         }
+    }
+
+    /** A ready export whose save picker is answered in process with [chosen], standing in for the
+     * system's document picker. */
+    private fun renderSavingTo(chosen: Uri, json: String, actions: PrivacyActions) {
+        val picker = object : ActivityResultRegistry() {
+            override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+                dispatchResult(requestCode, Activity.RESULT_OK, Intent().setData(chosen))
+            }
+        }
+        composeRule.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides object : ActivityResultRegistryOwner {
+                override val activityResultRegistry = picker
+            }) {
+                KnowScrollTheme {
+                    PrivacyScreen(PrivacyState.Loaded("u1", null, 1), PrivacyOperationState.Idle, PrivacyOperationState.Idle,
+                        ExportState.Ready(json), PrivacyOperationState.Idle, PrivacyOperationState.Idle, PrivacyOperationState.Idle, actions)
+                }
+            }
+        }
+    }
+
+    /** #168: the file the reader chose holds the export before it is called saved. */
+    @Test
+    fun anExportWrittenToTheChosenFileIsReportedSaved() {
+        val file = File.createTempFile("knowscroll-export", ".json").apply { deleteOnExit() }
+        var saved = 0
+        var notSaved = 0
+        renderSavingTo(Uri.fromFile(file), """{"rowCounts":{}}""", noopActions().copy(onExportSaved = { saved++ }, onExportNotSaved = { notSaved++ }))
+        composeRule.onNodeWithContentDescription("Save the export file").performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, saved)
+        assertEquals(0, notSaved)
+        assertEquals("""{"rowCounts":{}}""", file.readText())
+    }
+
+    /** #168: a destination that refuses the write is reported, never taken for a saved export. */
+    @Test
+    fun anExportTheChosenFileRefusedIsReportedNotSaved() {
+        var saved = 0
+        var notSaved = 0
+        renderSavingTo(Uri.parse("content://com.knowscroll.test.nowhere/export.json"), "{}",
+            noopActions().copy(onExportSaved = { saved++ }, onExportNotSaved = { notSaved++ }))
+        composeRule.onNodeWithContentDescription("Save the export file").performClick()
+        composeRule.waitForIdle()
+        assertEquals(0, saved)
+        assertEquals(1, notSaved)
     }
 
     @Test

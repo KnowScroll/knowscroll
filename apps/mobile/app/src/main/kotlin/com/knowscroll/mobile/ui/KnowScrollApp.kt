@@ -109,6 +109,7 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
                         onRequestExport = accountViewModel::requestExport,
                         onRetryExport = accountViewModel::retryExport,
                         onExportSaved = accountViewModel::consumeExport,
+                        onExportNotSaved = accountViewModel::exportNotSaved,
                         onRequestResetConfirmation = accountViewModel::requestResetConfirmation,
                         onCancelReset = accountViewModel::cancelReset,
                         onConfirmReset = accountViewModel::confirmReset,

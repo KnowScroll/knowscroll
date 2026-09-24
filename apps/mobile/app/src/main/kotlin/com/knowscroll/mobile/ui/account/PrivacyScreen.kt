@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,6 +55,8 @@ data class PrivacyActions(
     val onRequestExport: () -> Unit,
     val onRetryExport: () -> Unit,
     val onExportSaved: () -> Unit,
+    /** #168: the chosen file does not hold the export (see [writeExport]). */
+    val onExportNotSaved: () -> Unit,
     val onRequestResetConfirmation: () -> Unit,
     val onCancelReset: () -> Unit,
     val onConfirmReset: () -> Unit,
@@ -94,14 +97,11 @@ fun PrivacyScreen(
     val context = LocalContext.current
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(export) { pendingExportJson = (export as? ExportState.Ready)?.json }
+    val reportSaved = { saved: Boolean -> if (saved) actions.onExportSaved() else actions.onExportNotSaved() }
     val saveExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        val json = pendingExportJson
-        if (uri != null && json != null) {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray(Charsets.UTF_8)) }
-            }
-        }
-        actions.onExportSaved()
+        // No file chosen: the reader cancelled, and the export is set aside.
+        if (uri == null) actions.onExportSaved()
+        else reportSaved(writeExport(pendingExportJson) { context.contentResolver.openOutputStream(uri) })
     }
     // The disposable journey app (`scripts/android-semantic-journey.py`'s `owner` mode) cannot
     // drive the system's own Storage Access Framework picker -- a separate process/activity --
@@ -111,11 +111,7 @@ fun PrivacyScreen(
     val isJourneyBuild = com.knowscroll.mobile.BuildConfig.DEBUG && com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)
     val onSaveExport: () -> Unit = {
         if (isJourneyBuild) {
-            val json = pendingExportJson
-            if (json != null) {
-                runCatching { java.io.File(context.cacheDir, "owner-journey-export.json").writeText(json, Charsets.UTF_8) }
-            }
-            actions.onExportSaved()
+            reportSaved(writeExport(pendingExportJson) { java.io.File(context.cacheDir, "owner-journey-export.json").outputStream() })
         } else {
             saveExport.launch(exportFileName())
         }
@@ -220,6 +216,16 @@ private fun ExportSection(export: ExportState, actions: PrivacyActions, onSave: 
             ) { Text(stringResource(R.string.privacy_export_action)) }
         }
     }
+}
+
+/** #168: writes the export to the destination [open] returns, and says whether it got there. Not
+ * when there is nothing to write -- the process died while the picker was open and took the
+ * export, held only in memory, with it -- nor when the destination cannot be opened or refuses the
+ * write. The picker's file is then left without the export, and the reader must be told. */
+internal fun writeExport(json: String?, open: () -> OutputStream?): Boolean {
+    if (json == null) return false
+    val destination = runCatching(open).getOrNull() ?: return false
+    return runCatching { destination.use { it.write(json.toByteArray(Charsets.UTF_8)) } }.isSuccess
 }
 
 private fun exportFileName(): String =

@@ -334,9 +334,18 @@ class AccountViewModel @JvmOverloads constructor(
         }
     }
 
-    /** Called once the export JSON has been handed off (saved via SAF, or its failure shown). */
+    /** Called once the export JSON has been handed off: saved via SAF, or the picker cancelled. */
     fun consumeExport() {
         if (_export.value is ExportState.Ready) _export.value = ExportState.Idle
+    }
+
+    /** #168: the file the reader chose does not hold the export -- the destination refused it, or the
+     * process died while the picker was open and this view model never held it. Its request was
+     * answered, so nothing is kept: Retry exports afresh. */
+    fun exportNotSaved() {
+        if (_export.value is ExportState.Ready || _export.value is ExportState.Idle) {
+            _export.value = ExportState.Failed("The export was not saved. Retry to export again.")
+        }
     }
 
     // ---- Reset (ADR-0028/0030): deliberate confirmation, ends every session including this one --

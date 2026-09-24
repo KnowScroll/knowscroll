@@ -363,7 +363,7 @@ class InquiriesSectionTest {
     private fun privacyTestActions() = PrivacyActions(
         onBack = {}, onRetryLoad = {},
         onRequestPause = {}, onRetryPause = {}, onRequestResume = {}, onRetryResume = {},
-        onRequestExport = {}, onRetryExport = {}, onExportSaved = {},
+        onRequestExport = {}, onRetryExport = {}, onExportSaved = {}, onExportNotSaved = {},
         onRequestResetConfirmation = {}, onCancelReset = {}, onConfirmReset = {}, onRetryReset = {},
         onRequestDeleteConfirmation = {}, onCancelDelete = {}, onConfirmDelete = {}, onRetryDelete = {},
         onRequestSignOutConfirmation = {}, onCancelSignOut = {}, onConfirmSignOut = {}, onRetrySignOut = {},
