@@ -26,11 +26,20 @@ export function webSessionConfig(env: NodeJS.ProcessEnv = process.env): WebSessi
   return { secret: configured ? Buffer.from(configured) : randomBytes(32), webOrigin: env.KS_WEB_ORIGIN?.replace(/\/+$/, '') ?? null };
 }
 
+/** A value that is not valid percent-encoding was never set by this API (`sessionCookie` encodes
+ * it), so it is no credential at all: the request continues unauthenticated and gets the ordinary
+ * 401, never a 500 from `decodeURIComponent` throwing. */
 export function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
   for (const part of header.split(';')) {
     const eq = part.indexOf('=');
-    if (eq > 0 && part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+    if (eq > 0 && part.slice(0, eq).trim() === name) {
+      try {
+        return decodeURIComponent(part.slice(eq + 1).trim());
+      } catch {
+        return null;
+      }
+    }
   }
   return null;
 }

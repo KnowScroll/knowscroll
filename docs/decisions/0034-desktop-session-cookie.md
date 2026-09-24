@@ -26,7 +26,9 @@ a credential, and a cookie that authenticates on its own must not let another si
    `ks_session` cookie, through the same `authenticateAndLock` (epoch, revocation, expiry and
    universe lock unchanged). Presenting both is refused (400): a request has one identity.
 3. **CSRF.** A request authenticated by the cookie with any method other than GET or HEAD must carry
-   `X-CSRF-Token` equal to `HMAC-SHA256(KS_CSRF_SECRET, sessionId)` (compared in constant time), and
+   `X-CSRF-Token` equal to `HMAC-SHA256(KS_CSRF_SECRET, "csrf:" + hex(SHA-256(session token)))`
+   (compared in constant time; the input is the token hash the `device_session` row already
+   stores, never the token itself), and
    must be same-origin: an `Origin` header, when present, must equal `KS_WEB_ORIGIN`; when absent,
    `Sec-Fetch-Site` must be `same-origin`. Otherwise 403. The token is not stored; it is derived, so
    it survives reloads and tabs. `GET /v1/session/csrf` returns it to a cookie-authenticated page.

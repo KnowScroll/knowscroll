@@ -109,3 +109,12 @@ test('production refuses to start without a CSRF secret and the web origin', () 
   assert.throws(() => webSessionConfig({ NODE_ENV: 'production', KS_CSRF_SECRET: 'x'.repeat(32) }), /KS_WEB_ORIGIN/);
   assert.ok(webSessionConfig({ NODE_ENV: 'production', KS_CSRF_SECRET: 'x'.repeat(32), KS_WEB_ORIGIN: ORIGIN }));
 });
+
+test('a cookie that is not valid percent-encoding is no credential: 401, never a 500', async () => {
+  for (const cookie of ['ks_session=%E0%A4%A', 'ks_session=%', 'other=1; ks_session=abc%zz']) {
+    const read = await app.inject({ url: '/v1/universe', headers: { cookie } });
+    assert.equal(read.statusCode, 401, `${cookie}: ${read.body}`);
+    const csrf = await app.inject({ url: '/v1/session/csrf', headers: { cookie } });
+    assert.equal(csrf.statusCode, 401, `${cookie}: ${csrf.body}`);
+  }
+});
