@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Backup rules. The slice stores nothing user-private beyond an
-  idempotency UUID per persisted POST; backup is disabled so those
-  UUIDs do not leak across devices and so we do not silently replicate
-  state we have not validated.
+  Backup and transfer rules (Android 12+). Nothing this app stores leaves the device: the private
+  reading state and its retry envelopes (ks_session_v1), and the sealed session, whose key never
+  leaves this device's keystore (ks_session_vault_v1). Every domain is excluded whole, for cloud
+  backup and for device-to-device transfer, which allowBackup="false" cannot switch off on every
+  manufacturer's devices. A new device signs in and starts from the server (ADR-0047).
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="sharedpref" path="ks_state.xml" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="sharedpref" path="ks_state.xml" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
     </device-transfer>
 </data-extraction-rules>
