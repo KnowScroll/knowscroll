@@ -192,7 +192,8 @@ CREATE TABLE semantic_proposal (
      OR (scope_kind = 'universe' AND universe_id IS NOT NULL AND privacy_epoch IS NOT NULL)),
  -- The recorded decision is the authority for the status; a row cannot claim an admission its
  -- own decision does not record.
- CHECK (decision->>'outcome' = status AND decision->>'validatorVersion' = validator_version)
+ -- IS NOT DISTINCT FROM, not =: a decision missing its outcome must fail, and a NULL check passes.
+ CHECK ((decision->>'outcome') IS NOT DISTINCT FROM status AND (decision->>'validatorVersion') IS NOT DISTINCT FROM validator_version)
 );
 -- Replay identity is per scope: the same proposer ref and payload in another universe is another
 -- proposal, never a replay of this one.

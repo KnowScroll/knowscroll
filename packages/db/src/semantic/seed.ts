@@ -164,14 +164,16 @@ export async function loadSubstrateSeed(client: pg.PoolClient, rawText: string):
 
   // New knowledge can invalidate an existing connection (a later contradiction, say): revalidate
   // every admitted bridge against the substrate as this seed leaves it, and record what changed.
-  const revoked = await revalidateAdmittedBridges(client, null, { seedVersion: seed.version });
-  if (revoked.length > 0) {
+  // A universe's own revoked bridge keeps its reason on its own (erasable) row; the shared log is
+  // written only when shared knowledge changed, so it never dates a private event.
+  const shared = (await revalidateAdmittedBridges(client, null, { seedVersion: seed.version })).filter(x => x.universeId === null);
+  if (shared.length > 0) {
     const correctionId = randomUUID();
     await client.query(
       `INSERT INTO semantic_correction(id,target_kind,target_id,action,reason,actor_kind) VALUES($1,'seed_load',NULL,'revalidated',$2,'editorial')`,
       [correctionId, `Editorial seed ${seed.version} changed the substrate`],
     );
-    for (const r of revoked.filter(x => x.universeId === null)) {
+    for (const r of shared) {
       await client.query(
         `INSERT INTO semantic_correction_effect(correction_id,target_kind,target_id,before_status,after_status,reasons) VALUES($1,'bridge',$2,'admitted','revoked',$3)`,
         [correctionId, r.id, JSON.stringify(r.reasons)],

@@ -295,6 +295,12 @@ test('"applies to" needs a typed relation of that kind; claim roles alone cannot
     { from: 'bio.homeostasis', to: 'earth', kind: 'applies_to', claimKey: 'clm.feedback.setpoint', active: true },
   ] });
   assert.equal(validateBridgeProposal(p, typed).outcome, 'admitted');
+  // The relation's own claim must be among the evidence, or a correction to it could not reach
+  // this bridge: an uncited relation carries no direction.
+  const uncited = readSet({ claims: [...claims, claim('clm.feedback.applies', [{ code: 'bio.homeostasis', role: 'subject' }, { code: 'earth', role: 'object' }])],
+    relations: [{ from: 'bio.homeostasis', to: 'earth', kind: 'applies_to', claimKey: 'clm.feedback.applies', active: true }] });
+  const d = validateBridgeProposal(p, uncited);
+  assert.ok(d.outcome === 'rejected' && d.reasons.includes('direction_unsupported'), JSON.stringify(d));
 });
 
 test('one claim cannot be the whole case: each side needs a claim of its own besides the connecting one', () => {

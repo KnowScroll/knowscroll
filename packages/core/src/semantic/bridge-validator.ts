@@ -216,7 +216,9 @@ export function validateBridgeProposal(payload: BridgeProposalPayload, readSet: 
   } else if (!symmetric && bridging.length > 0) {
     // `explains` is carried by claim roles (the explaining side is the mechanism). Roles cannot tell
     // "applies to" from "comes before", so those need a typed substrate relation of that kind,
-    // backed by its own claim, from the same or a broader concept on each side.
+    // backed by its own claim, from the same or a broader concept on each side. That claim must be
+    // cited: corrections re-validate bridges by the claims they cite, so an uncited one could be
+    // withdrawn while the bridge it directs stayed admitted.
     const directed = relationType === 'explains'
       ? bridging.some(claim => {
         const fromRoles = sideLinks(readSet, claim, from).map(l => l.role);
@@ -224,7 +226,7 @@ export function validateBridgeProposal(payload: BridgeProposalPayload, readSet: 
         return fromRoles.includes('mechanism') && toRoles.some(r => r !== 'mechanism');
       })
       : readSet.relations.some(r => r.active && r.kind === relationType && isWithin(readSet, from, r.from) && isWithin(readSet, to, r.to)
-        && readSet.claims.get(r.claimKey)?.status === 'supported');
+        && readSet.claims.get(r.claimKey)?.status === 'supported' && payload.evidence.some(e => e.claimKey === r.claimKey));
     if (!directed) reject('direction_unsupported', `nothing in the evidence carries the ${relationType} direction from ${from} to ${to}`);
   }
 

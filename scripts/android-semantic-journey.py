@@ -23,7 +23,7 @@ package = 'com.knowscroll.mobile.journey'
 out = root / 'artifacts/semantic-journey'
 # Never shared between runs: a failed run must not overwrite the last good backup.
 backup = out / 'preview-backup' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-out.mkdir(parents=True, exist_ok=True); backup.mkdir(parents=True, exist_ok=True)
+out.mkdir(parents=True, exist_ok=True); backup.mkdir(mode=0o700, parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
            'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
 env = {key: os.environ[key] for key in allowed if key in os.environ}
@@ -114,13 +114,14 @@ try:
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(lineage), flush=True)
 finally:
-    for child, log in processes:
-        if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)
-        log.close()
-    if created: run(['dropdb', '--if-exists', *args, name], env=admin)
-    # 5. Restore the owner's preview: exact APK, then its app data, then relaunch it.
-    if preview_apk is not None and preview_apk.exists():
-        run(['adb', 'install', '-r', str(preview_apk)], stdout=subprocess.DEVNULL)
+    cleanup_errors = []
+    def attempt(label, step):
+        try: step()
+        except Exception as error: cleanup_errors.append(f'{label}: {error}')
+    # 5. Restore the owner's preview first, so no later cleanup failure can leave it replaced:
+    # exact APK (a downgrade is allowed), then its app data, verified, then relaunch it.
+    def restore_preview():
+        run(['adb', 'install', '-r', '-d', str(preview_apk)], stdout=subprocess.DEVNULL)
         subprocess.run(['adb', 'shell', 'pm', 'clear', package], stdout=subprocess.DEVNULL)
         data = (backup / 'preview-data.tar').read_bytes()
         subprocess.run(['adb', 'shell', f'run-as {package} tar -xf -'], input=data, check=True)
@@ -132,3 +133,13 @@ finally:
             'dataBytes': len(data), 'files': len(preview_listing), 'dataVerified': verified,
             'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
         if not verified: raise RuntimeError(f'preview data restore differs from its backup; the backup is kept at {backup}')
+        # The archive holds the preview's session; once the restore is proven it is not kept.
+        (backup / 'preview-data.tar').unlink()
+    if preview_apk is not None and preview_apk.exists(): attempt('restore preview', restore_preview)
+    for child, log in processes:
+        def stop(child=child):
+            if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)
+        attempt('stop ' + ' '.join(child.args[-1:]), stop)
+        log.close()
+    if created: attempt('drop database', lambda: run(['dropdb', '--if-exists', *args, name], env=admin))
+    if cleanup_errors: raise RuntimeError('cleanup incomplete: ' + '; '.join(cleanup_errors))

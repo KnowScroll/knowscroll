@@ -118,6 +118,10 @@ test('the database refuses an admitted bridge without evidence, a bridge without
   await assert.rejects(pool.query(`INSERT INTO semantic_proposal(id,kind,scope_kind,proposer_kind,proposer_ref,payload,payload_sha256,read_set,status,decision,validator_version)
     VALUES($1,'bridge_candidate','shared','editorial','forged-test-2','{}',$2,'{}','admitted','{"outcome":"rejected","validatorVersion":"test"}','test')`,
     [randomUUID(), randomBytes(32).toString('hex')]), /semantic_proposal_check|violates check constraint/);
+  // …nor one whose recorded decision is missing the outcome altogether (a NULL check would pass).
+  await assert.rejects(pool.query(`INSERT INTO semantic_proposal(id,kind,scope_kind,proposer_kind,proposer_ref,payload,payload_sha256,read_set,status,decision,validator_version)
+    VALUES($1,'bridge_candidate','shared','editorial','forged-test-3','{}',$2,'{}','admitted','{}','test')`,
+    [randomUUID(), randomBytes(32).toString('hex')]), /semantic_proposal_check|violates check constraint/);
 
   // Evidence is immutable while its bridge exists: it cannot be moved to another bridge or removed.
   const evidenceBridge = fixture.proposals[0]!.result.bridgeId!;
