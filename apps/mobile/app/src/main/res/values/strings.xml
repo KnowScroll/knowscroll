@@ -58,7 +58,6 @@
     <string name="action_retry">Retry</string>
     <string name="traces_heading">Traces</string>
     <string name="trace_unknown_title">Untitled Scroll</string>
-    <string name="trace_revisit_action">Reopen saved Scroll %1$s</string>
     <string name="keep_kicker">KNOWSCROLL</string>
     <string name="keep_title">Keep</string>
     <string name="keep_subtitle">Saved Traces. Tap any to reopen the verified original.</string>

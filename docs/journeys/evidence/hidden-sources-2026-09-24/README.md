@@ -24,6 +24,22 @@ fixture inquiry route) and `seed-day-old-history.ts`.
 
 The fixture inquiry's sentence ("Fixture: …") is the labelled fixture transport's, not model text.
 
+## Device journeys (regression guards, rebased head)
+
+Run on the API36 emulator as `.journeytest`, each with its own disposable stack; preview unchanged.
+
+| Runner | Result |
+| --- | --- |
+| `android-ui-refinement.py` (SystemViewJourneyTest) | passed |
+| `android-reader-journey.py` | passed alone; once timed out opening the first Scroll (15 s) while the host was loaded — a timing budget, not a fix, recorded in #177 |
+| `android-reader-explain-journey.py` | passed |
+| `android-trace-revisit-journey.py` | **failed on main too**: stale since #130 moved saved Traces to the Keep tab and audit A4 labelled cards by title. The journey now opens a Trace from Keep by its title, reaching the universe first; passed |
+| `android-semantic-journey.py` `sheets`, `branch`, `why`, `places`, `foundation`, `inquiry`, `return` | passed (7/7) |
+| `android-native-journey.py` (port 4344, an authorized MP4) | passed |
+
+Not run: `android-living-preview.py` (it replaces the owner's preview) and `android-native-profile.py`
+(performance profile; #170).
+
 ## Also changed by the coordinator
 
 The server's chronicle line for a sighting lost to a correction now reads "… left the horizon: what it

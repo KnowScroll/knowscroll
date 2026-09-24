@@ -2,6 +2,10 @@ package com.knowscroll.mobile
 
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.assertIsDisplayed
 import org.junit.Assert.assertNotEquals
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -18,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.StateStore
+import com.knowscroll.mobile.data.Trace
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -51,7 +56,10 @@ class TraceRevisitJourneyTest {
         .digest(value.toByteArray()).joinToString("") { "%02x".format(it) }.take(16)
 
     private fun waitUntil(block:()->Boolean) = compose.waitUntil(15_000, block)
-    private fun traceDescription(eventId:String) = "Reopen saved Scroll $eventId"
+    // Audit A4 (#72): a Trace card is labelled by its title, never its event id.
+    private fun traceDescription(trace:Trace) = "Reopen saved Scroll ${trace.title}"
+    /** The dock's Keep tab (a Role.Tab, never the reader's "Keep" button), where saved Traces live since #130. */
+    private val keepTab = hasText("Keep") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
     private fun displayedPosition():String? {
         val node=compose.onAllNodesWithContentDescription("Scroll reading content")
             .fetchSemanticsNodes().singleOrNull() ?: return null
@@ -82,24 +90,27 @@ class TraceRevisitJourneyTest {
         error("Separate worker did not project the UI Keep")
     }
 
-    private fun showTraceCard(traceEventId:String) {
-        // A fresh instrumentation Activity first reconciles/refetches its saved origin.
-        waitUntil {
-            compose.onAllNodesWithContentDescription(traceDescription(traceEventId)).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithContentDescription("Return to the universe").fetchSemanticsNodes().isNotEmpty()
+    private fun shown(description:String) = compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
+    private fun universeShown() = compose.onAllNodesWithText("Your universe").fetchSemanticsNodes().isNotEmpty()
+
+    /** Saved Traces live on the Keep tab (#130). A fresh instrumentation Activity first reconciles its
+     * saved origin, and may land in the reader; the universe is reached before Keep is opened, so a
+     * tap on the dock never races a navigation still under way. */
+    private fun showTraceCard(trace:Trace) {
+        waitUntil { shown(traceDescription(trace)) || universeShown() || shown("Return to the universe") }
+        if(!shown(traceDescription(trace)) && !universeShown()) {
+            compose.onNodeWithContentDescription("Return to the universe").performClick()
+            waitUntil { universeShown() }
         }
-        if(compose.onAllNodesWithContentDescription(traceDescription(traceEventId)).fetchSemanticsNodes().isEmpty()) {
-            val home=compose.onAllNodesWithContentDescription("Return to the universe")
-            if(home.fetchSemanticsNodes().isNotEmpty()) home[0].performClick()
-        }
-        waitUntil { compose.onAllNodesWithContentDescription(traceDescription(traceEventId)).fetchSemanticsNodes().isNotEmpty() }
+        if(!shown(traceDescription(trace))) compose.onAllNodes(keepTab).onFirst().performClick()
+        waitUntil { shown(traceDescription(trace)) }
     }
 
-    private fun open(traceEventId:String) {
-        showTraceCard(traceEventId)
-        compose.onNodeWithContentDescription(traceDescription(traceEventId)).assertIsDisplayed().performClick()
+    private fun open(trace:Trace) {
+        showTraceCard(trace)
+        compose.onNodeWithContentDescription(traceDescription(trace)).assertIsDisplayed().performClick()
         waitUntil {
-            store().readRevisit()?.eventId == traceEventId &&
+            store().readRevisit()?.eventId == trace.eventId &&
                 compose.onAllNodesWithText("SAVED FROM YOUR KEEP").fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -132,7 +143,7 @@ class TraceRevisitJourneyTest {
 
     @Test fun prepareProjectedTraceForRevisit() {
         val trace=keepThroughUi()
-        open(trace.eventId)
+        open(trace)
         val selected=runBlocking { ApiClient().getTraceRevisit(trace.eventId) }
         compose.onNodeWithText(selected.scroll.title).assertExists()
         compose.onNodeWithText(selected.scroll.body).assertExists()
@@ -174,14 +185,14 @@ class TraceRevisitJourneyTest {
     /** #161: a reopened Trace offers no Sources control; why it appeared names its kept date, never a source. */
     @Test fun reopensVerifiedTraceWithoutASourceAndReturns() {
         val trace=projectedTrace()
-        open(trace.eventId)
+        open(trace)
         compose.onAllNodesWithContentDescription("Sources for this Scroll").assertCountEquals(0)
         compose.onNodeWithContentDescription("Why this Scroll appeared").performClick()
         waitUntil { compose.onAllNodesWithText("This is a saved Trace you kept",substring=true).fetchSemanticsNodes().isNotEmpty() }
         screenshot("trace-revisit-reader.png")
         compose.onNodeWithContentDescription("Close why this appeared").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Return to the universe").performClick()
-        waitUntil { compose.onAllNodesWithContentDescription(traceDescription(trace.eventId)).fetchSemanticsNodes().isNotEmpty() }
+        waitUntil { compose.onAllNodesWithText("Your universe").fetchSemanticsNodes().isNotEmpty() }
         receipt("trace-revisit-reader.json","reopensVerifiedTraceWithoutASourceAndReturns",trace.eventId) {
             put("sourceShown",false);put("savedOriginExplained",true);put("returnedToUniverse",true)
         }
@@ -189,9 +200,9 @@ class TraceRevisitJourneyTest {
 
     @Test fun traceReadDropRetriesSameIdentity() {
         val trace=projectedTrace()
-        showTraceCard(trace.eventId)
+        showTraceCard(trace)
         val controlStatus=control("/__journey/trace-mode",JSONObject().put("eventId",trace.eventId).put("mode","drop_next"))
-        compose.onNodeWithContentDescription(traceDescription(trace.eventId)).performClick()
+        compose.onNodeWithContentDescription(traceDescription(trace)).performClick()
         waitUntil { compose.onAllNodesWithText("This Scroll is unavailable.").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(trace.eventId,store().readRevisit()?.eventId)
         compose.onNodeWithText("Retry").performClick()
@@ -204,10 +215,10 @@ class TraceRevisitJourneyTest {
 
     @Test fun changedSourceDiscardsTraceReader() {
         val trace=projectedTrace()
-        showTraceCard(trace.eventId)
+        showTraceCard(trace)
         val changed=control("/__journey/source-mode",JSONObject().put("assetId",trace.assetId).put("mode","changed"))
         try {
-            compose.onNodeWithContentDescription(traceDescription(trace.eventId)).performClick()
+            compose.onNodeWithContentDescription(traceDescription(trace)).performClick()
             waitUntil { compose.onAllNodesWithText("This Scroll is unavailable.").fetchSemanticsNodes().isNotEmpty() }
             assertNull(store().readRevisit())
             waitUntil { compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isEmpty() }
@@ -222,7 +233,7 @@ class TraceRevisitJourneyTest {
     }
 
     @Test fun explicitNextLeavesTraceForFreshDiscovery() {
-        val trace=projectedTrace();open(trace.eventId)
+        val trace=projectedTrace();open(trace)
         compose.onNodeWithContentDescription("Scroll reading content")
             .performScrollToNode(hasContentDescription("Get the next Scroll"))
         compose.onNodeWithContentDescription("Get the next Scroll").performClick()
@@ -237,11 +248,11 @@ class TraceRevisitJourneyTest {
             put("freshExposureRecorded",true);put("savedOriginDiscarded",true)
         }
         compose.onNodeWithContentDescription("Return to the universe").performClick()
-        showTraceCard(trace.eventId)
+        showTraceCard(trace)
     }
 
     @Test fun clearHistoryDiscardsOpenTrace() {
-        val trace=projectedTrace();open(trace.eventId)
+        val trace=projectedTrace();open(trace)
         val status=control("/__journey/clear-history",JSONObject())
         compose.activityRule.scenario.recreate()
         waitUntil { store().readRevisit()==null && compose.onAllNodesWithText("Your universe").fetchSemanticsNodes().isNotEmpty() }
@@ -253,7 +264,7 @@ class TraceRevisitJourneyTest {
     }
 
     @Test fun revokedSessionDiscardsOpenTrace() {
-        val trace=keepThroughUi();open(trace.eventId)
+        val trace=keepThroughUi();open(trace)
         val status=control("/__journey/revoke-sessions",JSONObject())
         compose.activityRule.scenario.recreate()
         waitUntil { store().readRevisit()==null && compose.onAllNodesWithText("The universe is unreachable.").fetchSemanticsNodes().isNotEmpty() }
