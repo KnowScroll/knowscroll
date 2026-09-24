@@ -112,6 +112,11 @@ export class ReaderStore {
   private observedPrivacyEpoch: number;
   private observedUniverseId: string;
   private busy = false;
+  /** The exposure being recorded for the Scroll on screen, so a Keep tapped meanwhile joins it
+   * instead of being dropped as "busy" (#123). The join belongs to this one exposure: `joined`
+   * means a Keep now owns `busy` and what the reader sees next; `version`/`epoch` stop a Keep from
+   * joining an exposure started before the last navigation. */
+  private exposing: { clientExposureId: string; version: number; epoch: number; promise: Promise<ScrollSession>; joined: boolean } | null = null;
   private reconciling = false;
   private ready = false;
   private navigationVersion = 0;
@@ -580,11 +585,15 @@ export class ReaderStore {
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
     this.busy = true;
-    this.recordExposure(current, version, epoch)
+    const record = { clientExposureId: current.clientExposureId, version, epoch, promise: this.recordExposure(current, version, epoch), joined: false };
+    this.exposing = record;
+    record.promise
       .then(next => {
         if (this.operationIsCurrent(version, epoch, next)) {
           this.session = next;
-          this.show(next);
+          // A Keep that joined this exposure shows its own result; showing this one would
+          // briefly put its "Keeping…" back to idle.
+          if (!record.joined) this.show(next);
         }
       })
       .catch((error: unknown) => {
@@ -592,12 +601,14 @@ export class ReaderStore {
         if (invalidatesReader(error)) {
           this.purgeForScope(current.universeId, epoch);
           this.failClosed(describeApiError(error));
-        } else {
+        } else if (!record.joined) {
+          // A Keep that joined reports this failure itself.
           this.set({ toast: describeApiError(error) });
         }
       })
       .finally(() => {
-        if (version === this.navigationVersion) this.busy = false;
+        if (this.exposing === record) this.exposing = null;
+        if (version === this.navigationVersion && !record.joined) this.busy = false;
       });
   }
 
@@ -616,7 +627,12 @@ export class ReaderStore {
   }
 
   keep(): void {
-    if (this.busy || !this.ready) return;
+    // A reader who taps Keep while this Scroll's exposure is still being recorded is not ignored:
+    // the Keep waits for that same exposure (#123). Anything else busy still refuses the tap.
+    const record = this.exposing;
+    const join = record && !record.joined && record.version === this.navigationVersion && record.epoch === this.observedPrivacyEpoch
+      && this.session?.clientExposureId === record.clientExposureId ? record : null;
+    if ((this.busy && !join) || !this.ready) return;
     if (this.state.scroll.status === 'reading' && this.state.scroll.origin.type === 'saved-trace') return;
     const currentSession = this.session;
     if (!currentSession || currentSession.keepJobId !== '') return;
@@ -625,8 +641,9 @@ export class ReaderStore {
     this.busy = true;
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
+    if (join) join.joined = true;
     this.set({ scroll: { ...currentState, keep: { status: 'saving' } } });
-    this.recordExposure(currentSession, version, epoch)
+    (join ? join.promise : this.recordExposure(currentSession, version, epoch))
       .then(exposed => {
         if (!this.operationIsCurrent(version, epoch, exposed)) return Promise.reject(new StaleOperationError());
         this.session = exposed;
