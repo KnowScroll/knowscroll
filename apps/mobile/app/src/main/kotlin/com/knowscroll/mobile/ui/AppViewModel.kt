@@ -1018,6 +1018,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 val response=api.getAtlas()
                 if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
                 _atlas.value=AtlasState.Loaded(response)
+                // #163: a room sheet left open (for example across a return) reads what the atlas
+                // just read, so a position a correction changed while away is not shown stale.
+                (_room.value as? RoomState.Loaded)?.let{rereadOpenRoom(it.room.roomId,epoch,universeId)}
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
@@ -1123,6 +1126,22 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 if(e is CancellationException)throw e
                 if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e));return@launch}
                 if((_room.value as? RoomState.Loading)?.roomId==roomId)_room.value=RoomState.Failed(roomId,message(e))
+            }
+        }
+    }
+
+    /** Replaces the open room's contents in place (no Loading flash); a room closed or changed meanwhile is left alone. */
+    private fun rereadOpenRoom(roomId:String,epoch:Long,universeId:String){
+        roomJob?.cancel()
+        roomJob=viewModelScope.launch {
+            try {
+                val room=api.getRoom(roomId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_room.value as? RoomState.Loaded)?.room?.roomId!=roomId)return@launch
+                _room.value=RoomState.Loaded(room)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e))}
+                // Otherwise the sheet keeps what it showed; the next open reads it again.
             }
         }
     }
