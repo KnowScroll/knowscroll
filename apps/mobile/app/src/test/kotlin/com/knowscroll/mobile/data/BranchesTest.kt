@@ -59,6 +59,13 @@ class BranchesTest {
     }
 
     @Test
+    fun anUnmappedReelSaysItIsTheReelThatIsUnmapped() {
+        val reel = parent.copy(assetId = "r1", kind = "Reel", media = ReelMedia("/v1/media/${"a".repeat(64)}", 7.25, "1080:1920", true))
+        val shown = branchAvailabilityOf(parseEncounterBranches(response("", "no_semantic_annotation")), reel) as BranchAvailability.Empty
+        assertTrue(shown.reason, shown.reason.startsWith("This Reel has not been mapped"))
+    }
+
+    @Test
     fun aWithdrawnConnectionIsNotAPrivacyFailure() {
         assertEquals(BranchOpenConflict.StaleEpoch, branchOpenConflict(ApiException.Server(409, """{"error":"Branch privacy epoch is stale"}""")))
         assertEquals(BranchOpenConflict.Unavailable, branchOpenConflict(ApiException.Server(409, """{"error":"This continuation is no longer available"}""")))

@@ -2,16 +2,21 @@
  * #133 — pure `composer-semantic-v3` cases over a small synthetic library shaped like the editorial
  * one. Each test names the product behavior it protects: cold-start doors, continuation after an
  * act, sourced bridges, credible challenge, the rolling exploration floor, no adjacent repeats,
- * the reader's correction, gates, starvation, fatigue, redundancy and deterministic replay.
+ * the reader's correction, gates, starvation, fatigue, redundancy and deterministic replay; and
+ * (#167) the same with Reels that carry their Scroll's concepts.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 import {
   COMPOSER_V3_POLICY,
+  COMPOSER_V4_POLICY,
   composeSemantic,
   renderReason,
   type V3Asset,
+  type V3Candidate,
+  type V3Policy,
   type V3State,
 } from '../packages/core/src/composer/semantic.ts';
 
@@ -51,7 +56,7 @@ const HOUR = 3_600_000;
 
 function state(over: Partial<V3State> = {}): V3State {
   return {
-    nowMs: NOW, seed: 'u1:0', concepts, assets: library, kept: new Set(), exposures: new Map(), sourceExposures: new Map(),
+    nowMs: NOW, seed: 'u1:0', concepts, assets: library, history: [], kept: new Set(), exposures: new Map(), sourceExposures: new Map(),
     marks: [], served: [], accounts: new Map(),
     bridges: [{ id: 'b.gravity.tides', from: 'physics.gravity', to: 'earth.tides', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Tides' }],
     contradictions: [{ from: 'astro.orbit.ellipse', to: 'earth.seasons', claimKey: 'c.seasons.tilt' }],
@@ -280,4 +285,96 @@ test('the same recorded state always yields the same slate and records (replay)'
   const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), excluded: new Set(wire.excluded), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
   const b = composeSemantic(restored, COMPOSER_V3_POLICY);
   assert.deepEqual(b, a);
+});
+
+// --- #167 (ADR-0043): a Reel carries its Scroll's concepts --------------------------------------
+
+/** A Reel minted over a library Scroll: the same concepts and source key, none of its claims. */
+const reelOver = (scrollId: string): V3Asset => {
+  const scroll = library.find(a => a.assetId === scrollId)!;
+  return { ...scroll, assetId: `reel-${scrollId}`, title: `Reel ${scrollId}`, kind: 'Reel', claimKeys: [] };
+};
+const reels = ['gravity-1', 'tides-1', 'seasons-1', 'orbit-1', 'body-1'].map(reelOver);
+const cites = (c: V3Candidate, assetId: string) => c.evidence.some(e => e.kind === 'mark' && e.assetId === assetId);
+
+test('a kept Reel grounds a Scroll-only composition from its primary concept, and is never itself offered there', () => {
+  const reel = reelOver('tides-1');
+  const s = state({ history: [reel], exposures: exposed(reel.assetId), served: served([reel.assetId, 'seed']),
+    marks: [{ eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR }] });
+  const result = composeSemantic(s, COMPOSER_V3_POLICY);
+  assert.ok(result.candidates.some(c => c.family === 'continue' && c.assetId === 'tides-1' && cites(c, reel.assetId)), 'continues the Reel\'s primary idea');
+  assert.ok(result.candidates.some(c => c.family === 'bridge' && c.assetId === 'gravity-1' && cites(c, reel.assetId)), 'crosses the connection from it');
+  assert.ok(cites(result.selected[0]!, reel.assetId), 'the head names the kept Reel');
+  assert.equal(result.selected[0]!.facts.markTitle, 'Reel tides-1');
+  assert.ok(!result.candidates.some(c => c.assetId === reel.assetId), 'a kind the client did not ask for is never a candidate');
+});
+
+test('a Scroll kept in Scroll mode grounds Reel mode: the next Reel crosses the connection from it', () => {
+  const s = state({ assets: reels, history: library, exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']),
+    marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }] });
+  const head = composeSemantic(s, COMPOSER_V3_POLICY).selected[0]!;
+  assert.deepEqual([head.assetId, head.family, head.facts.toName], ['reel-tides-1', 'bridge', 'Tides']);
+  assert.ok(cites(head, 'gravity-1'));
+});
+
+test('with Reels in the pool: one door per domain at cold start, a Reel never shares a slate with its own Scroll, and nothing starves', () => {
+  const s = state({ assets: [...library, ...reels] });
+  const cold = composeSemantic(s, COMPOSER_V3_POLICY).selected;
+  assert.equal(new Set(cold.map(c => c.facts.domainName)).size, cold.length);
+  const walk = serveHeads(s, library.length + reels.length);
+  assert.deepEqual([...walk.order].sort(), [...library, ...reels].map(a => a.assetId).sort(), 'every Scroll and Reel once before any repeat');
+  let seen = walk.state;
+  for (let i = 0; i < 6; i += 1) {
+    const slate = composeSemantic(seen, COMPOSER_V3_POLICY).selected;
+    const primaries = slate.map(c => [...library, ...reels].find(a => a.assetId === c.assetId)!.primary).filter(p => p !== null);
+    assert.equal(new Set(primaries).size, primaries.length, `slate ${i} repeats an idea: ${slate.map(c => c.assetId)}`);
+    seen = { ...seen, seed: `u1:slate-${i}` };
+  }
+});
+
+test('a reader who only skips is never served a Reel right after its own Scroll, or the reverse', () => {
+  const pool = [...library, ...reels];
+  const primaryOf = (id: string) => pool.find(a => a.assetId === id)!.primary;
+  for (const seed of ['u1:0', 'u2:0', 'u3:0']) {
+    const { order } = serveHeads(state({ seed, assets: pool }), pool.length * 2);
+    for (let i = 1; i < order.length; i += 1) {
+      const [before, now] = [order[i - 1]!, order[i]!];
+      assert.ok(primaryOf(before) === null || primaryOf(before) !== primaryOf(now), `${seed}: ${before} then ${now}`);
+    }
+  }
+});
+
+test('replay with Reels, under v3 and v4: the same recorded state and seed give the same slate, records and explanation facts', () => {
+  const reel = reelOver('tides-1');
+  const s = state({ assets: [...library, ...reels.filter(r => r.assetId !== reel.assetId)], history: [reel],
+    exposures: exposed('gravity-1', reel.assetId), served: served([reel.assetId, 'bridge'], ['gravity-1', 'seed']),
+    marks: [{ eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR }, { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - 2 * HOUR }] });
+  const wire = JSON.parse(JSON.stringify({ ...s, concepts: [...s.concepts], kept: [...s.kept], excluded: [...s.excluded], exposures: [...s.exposures], sourceExposures: [...s.sourceExposures], accounts: [...s.accounts] }));
+  const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), excluded: new Set(wire.excluded), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
+  const template = '{{fromName}} {{relationPhrase}} {{toName}} / {{conceptName}} / {{markVerb}} {{markTitle}} / {{domainName}}';
+  for (const policy of [COMPOSER_V3_POLICY, COMPOSER_V4_POLICY]) {
+    const a = composeSemantic(s, policy);
+    const b = composeSemantic(restored, policy);
+    assert.deepEqual(b, a, policy.version);
+    assert.deepEqual(b.selected.map(c => renderReason(template, c.facts)), a.selected.map(c => renderReason(template, c.facts)));
+    assert.ok(a.selected.some(c => cites(c, reel.assetId)), `${policy.version}: the replayed slate still names the kept Reel`);
+  }
+});
+
+test('composer-semantic-v4 (ADR-0043 §7): a tie never favours one kind because of how its ids are spelled', () => {
+  // The editorial Scrolls' ids are sequential; a Reel's is random. Everything here ties at cold
+  // start (one door per unshown domain, equal terms), so only the tie-break orders the slate.
+  const uuid = (text: string) => { const h = createHash('sha256').update(text).digest('hex'); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`; };
+  const scrolls: V3Asset[] = Array.from({ length: 23 }, (_, i) => ({ assetId: `20000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, title: `S${i}`, kind: 'Scroll',
+    sourceKey: `src${i}`, editorialOrder: i, primary: `k${i}`, concepts: [{ code: `k${i}`, role: 'primary' }], claimKeys: [] }));
+  const reelIds = new Set<string>();
+  const minted = scrolls.slice(0, 12).map((s, i) => { const r: V3Asset = { ...s, assetId: uuid(`reel-${i}`), title: `R${i}`, kind: 'Reel' }; reelIds.add(r.assetId); return r; });
+  const flat = state({ concepts: new Map(scrolls.map(s => [s.primary!, { code: s.primary!, name: s.primary!, parentCode: null }])), assets: [...scrolls, ...minted], bridges: [], contradictions: [] });
+  const seeds = Array.from({ length: 400 }, (_, i) => `${uuid(`universe-${i}`)}:0`);
+  const reelHeads = (policy: V3Policy) => seeds.filter(seed => reelIds.has(composeSemantic({ ...flat, seed }, policy).selected[0]!.assetId)).length / seeds.length;
+  const fair = minted.length / (scrolls.length + minted.length);
+  const v4 = reelHeads(COMPOSER_V4_POLICY);
+  assert.ok(Math.abs(v4 - fair) < 0.07, `v4 heads a cold start with a Reel ${v4} of the time; fair is ${fair.toFixed(3)}`);
+  assert.ok(reelHeads(COMPOSER_V3_POLICY) > 0.6, 'the defect v4 exists to fix: v3 heads most cold starts with a Reel');
+  assert.deepEqual({ ...COMPOSER_V4_POLICY, version: COMPOSER_V3_POLICY.version, tieBreak: COMPOSER_V3_POLICY.tieBreak }, COMPOSER_V3_POLICY, 'v4 changes the tie-break and nothing else');
 });

@@ -434,10 +434,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(panel==null || panel.assetId!=value.item.assetId || panel.availability is BranchAvailability.Failed)refreshBranches(value.item)
     }
 
-    /** #131: a read of the live continuations; never blocks reading, never retried blindly. */
+    /** #131: a read of the live continuations of a Scroll or (#167) a Reel; never blocks reading, never retried blindly. */
     private fun refreshBranches(item:ScrollItem,message:String?=null){
         branchJob?.cancel()
-        if(item.kind!="Scroll"){_branches.value=null;return}
         val epoch=observedPrivacyEpoch
         val universeId=observedUniverseId
         // A refresh of the same encounter keeps the current list until the answer arrives: flashing

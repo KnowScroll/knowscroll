@@ -20,7 +20,7 @@ import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
 import { makeSemanticFixture, type SemanticFixture } from './helpers/semantic-fixture.ts';
 import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
 import { loadV3Policy } from '../packages/db/src/composer/semantic.ts';
-import { COMPOSER_V3_POLICY } from '../packages/core/src/composer/semantic.ts';
+import { COMPOSER_SEMANTIC_V4, COMPOSER_V3_POLICY, COMPOSER_V4_POLICY } from '../packages/core/src/composer/semantic.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('Composer v3 tests require an isolated knowscroll_test_* database');
@@ -96,9 +96,10 @@ async function feedback(r: Reader, body: { decisionId: string; assetId: string; 
 }
 
 
-test('the registered composer-semantic-v3 row is exactly the policy the code runs', async () => {
+test('the registered composer-semantic-v3 and -v4 rows are exactly the policies the code runs', async () => {
   // Term sizes live in the immutable policy row (packages/core/AGENTS.md); a code-only change fails here.
   assert.deepEqual(await transaction(client => loadV3Policy(client)), COMPOSER_V3_POLICY);
+  assert.deepEqual(await transaction(client => loadV3Policy(client, COMPOSER_SEMANTIC_V4)), COMPOSER_V4_POLICY);
 });
 
 test('a v3 feed records every candidate it considered, and "why" reads back exactly what was served', async () => {

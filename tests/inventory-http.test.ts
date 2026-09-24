@@ -10,15 +10,13 @@
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
-import { generationBrief } from '../packages/contracts/src/generation.ts';
-import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
-import { insertFakeEngine } from './helpers/generation-fixture.ts';
-import { mintReelAsset, withdrawGeneratedReel } from '../apps/worker/src/publication/mint.ts';
+import { withdrawGeneratedReel } from '../apps/worker/src/publication/mint.ts';
+import { mintGatedTestReel, type GatedReel } from '../scripts/fixtures/gated-reel.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('Inventory HTTP tests require an isolated knowscroll_test_* database');
@@ -32,34 +30,10 @@ const headers = (token: string) => ({ authorization: `Bearer ${token}` });
 
 // -------------------------------------------------------------------------------------------
 // Seeding one legitimate, minted, test_eligible Reel — going through migration 0013/0014/0015's
-// own admission, lineage, gate and provenance guards, not around them.
+// own admission, lineage, gate and provenance guards, not around them (scripts/fixtures/gated-reel.ts).
 // -------------------------------------------------------------------------------------------
 
-const claim = (id: string, role: 'main' | 'supporting') => ({ id, role });
-const sentence = (text: string, claimIds: string[]) => ({ text, claimIds });
-
-function brief(assetId: string, tag: string) {
-  return generationBrief.parse({
-    version: 1,
-    worldId: `inventory-http-${tag}`,
-    narration: [
-      sentence(`Sentence one ${tag}.`, ['c1']),
-      sentence(`Sentence two ${tag}.`, ['c1']),
-      sentence(`Sentence three ${tag}.`, ['c2']),
-      sentence(`Sentence four ${tag}.`, ['c2']),
-    ],
-    claims: [claim('c1', 'main'), claim('c2', 'supporting')],
-    claimSources: [{ claimId: 'c1', assetId, assetRevision: 1 }, { claimId: 'c2', assetId, assetRevision: 1 }],
-    criteria: { mustShow: [{ id: 'show-1', text: 'Something visible.', type: 'presence' as const, claimId: 'c1' }], mustNotShow: [], depictionPolicyVersion: 'depiction-v1' },
-    style: { id: 'library', version: 1, text: 'Quiet, documentary, no captions burned in.' },
-    title: `Inventory HTTP Reel ${tag}`,
-    summary: `A fixture Reel minted for the inventory HTTP tests (${tag}).`,
-  });
-}
-
-const REQUIRED_GATES = ['lineage_complete', 'source_support', 'engine_record', 'media_conformance', 'truth_label', 'repetition', 'witness_alignment'];
-
-async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha256: string; sourceAssetId: string; generatedReelId: string }> {
+async function seedMintedReel(tag: string): Promise<GatedReel> {
   const sourceAssetId = randomUUID();
   // ADR-0028: a minted Reel's `source_title`/`source_url` (copied verbatim from this Scroll by
   // `mintReelAsset`) is now also the composer's `sourceKey` for diversity ranking. A literal
@@ -71,77 +45,7 @@ async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha2
      VALUES($1,1,'Scroll','Library title','Library summary','Library body text.',$2,$3,'documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
     [sourceAssetId, `Library source ${tag}`, `https://example.test/library-${tag}`],
   );
-
-  const briefJson = brief(sourceAssetId, tag);
-  const briefSha256 = createHash('sha256').update(JSON.stringify(briefJson)).digest('hex');
-  const briefId = randomUUID();
-  await pool.query(
-    `INSERT INTO generation_brief(id,source_asset_id,source_asset_revision,truth_state,brief,brief_sha256,authored_by,review_state)
-     VALUES($1,$2,1,'synthesis',$3,$4,'test','approved')`,
-    [briefId, sourceAssetId, JSON.stringify(briefJson), briefSha256],
-  );
-
-  const engineId = randomUUID();
-  await insertFakeEngine(pool, { id: engineId, artifactRoot: '/tmp/inventory-http-fixtures', providerMode: 'standin' });
-  const grantId = randomUUID();
-  await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`, [grantId]);
-  await pool.query('UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1', [grantId]);
-
-  const jobId = randomUUID();
-  await pool.query(
-    `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
-     VALUES($1,$2,$3,$4,'video',500,now()+interval '1 hour')`,
-    [jobId, briefId, engineId, grantId],
-  );
-
-  const attemptId = randomUUID();
-  const requestId = `ks-gen-${attemptId}`;
-  const requestBody = '{}';
-  await pool.query(
-    `INSERT INTO cutroom_attempt(id,job_id,ordinal,request_id,request_body,body_sha256,contract_revision)
-     VALUES($1,$2,1,$3,$4,$5,$6)`,
-    [attemptId, jobId, requestId, requestBody, createHash('sha256').update(requestBody).digest('hex'), REVISION],
-  );
-  const runId = `run-${attemptId}`;
-  const enginePath = `/tmp/inventory-http-fixtures/${attemptId}.mp4`;
-  await pool.query(`UPDATE cutroom_attempt SET state='dispatch_committed', dispatch_committed_at=now() WHERE id=$1`, [attemptId]);
-  await pool.query(`UPDATE cutroom_attempt SET state='accepted', run_id=$2, accepted_at=now() WHERE id=$1`, [attemptId, runId]);
-  await pool.query(
-    `UPDATE cutroom_attempt SET state='finished', finished_at=now(), reported_cost_cents=0, settlement='settled',
-       result=jsonb_build_object('status','completed','until','video','video',jsonb_build_object('path',$2::text)),
-       record_summary=jsonb_build_object('contractVersion',1,'runId',$3::text,'pictures','[]'::jsonb,
-         'takes',jsonb_build_array(jsonb_build_object('takeId','t1','shotId','s1','number',1,'used',true,'checks','[]'::jsonb)),
-         'degradations','[]'::jsonb)
-     WHERE id=$1`,
-    [attemptId, enginePath, runId],
-  );
-
-  const mediaSha256 = createHash('sha256').update(`${attemptId}-media`).digest('hex');
-  const storageKey = `sha256/${mediaSha256.slice(0, 2)}/${mediaSha256.slice(2, 4)}/${mediaSha256}.mp4`;
-  await pool.query(
-    `INSERT INTO media_object(sha256,byte_size,content_type,probe,storage_key) VALUES($1,4096,'video/mp4',$2,$3)`,
-    [mediaSha256, JSON.stringify({ durationSeconds: 7.25, width: 1080, height: 1920 }), storageKey],
-  );
-
-  const generatedReelId = randomUUID();
-  const lineage = { briefSha256, contractRevision: REVISION, runId, recordSummary: { takes: 1, used: 1 } };
-  await pool.query(
-    `INSERT INTO generated_reel(id,attempt_id,brief_id,engine_id,cutroom_run_id,media_sha256,engine_path,provider_mode,truth_state,generated_label,lineage)
-     VALUES($1,$2,$3,$4,$5,$6,$7,'standin','synthesis',true,$8)`,
-    [generatedReelId, attemptId, briefId, engineId, runId, mediaSha256, enginePath, JSON.stringify(lineage)],
-  );
-
-  for (const gate of REQUIRED_GATES) {
-    const verdict = gate === 'witness_alignment' ? 'unavailable' : 'pass';
-    await pool.query(
-      `INSERT INTO publication_gate_result(id,generated_reel_id,policy_version,gate,verdict,evidence) VALUES($1,$2,'publication-v1',$3,$4,$5)`,
-      [randomUUID(), generatedReelId, gate, verdict, JSON.stringify(verdict === 'unavailable' ? { reason: 'test' } : {})],
-    );
-  }
-  await pool.query(`UPDATE generated_reel SET availability='test_eligible', availability_policy_version='publication-v1', availability_decided_at=now() WHERE id=$1`, [generatedReelId]);
-
-  const minted = await mintReelAsset(pool, generatedReelId);
-  return { assetId: minted.assetId, mediaSha256, sourceAssetId, generatedReelId };
+  return mintGatedTestReel(pool, sourceAssetId, { tag, title: `Inventory HTTP Reel ${tag}`, summary: `A fixture Reel minted for the inventory HTTP tests (${tag}).` });
 }
 
 /**

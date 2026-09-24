@@ -152,7 +152,7 @@ them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `sema
 ### Composer v3: why and correction (#133, ADR-0032)
 
 `GET /v1/feed?kinds=…&exclude=<id,…>` is ranked by `composer-semantic-v3` by default
-(`composer-signals-v2` stays a configured alternative). `exclude` (optional, at most 256 UUIDs) names
+(`composer-signals-v2` and `composer-semantic-v4`, ADR-0043 §7, stay configured alternatives). `exclude` (optional, at most 256 UUIDs) names
 what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`.
 A client skips exactly the ids it sent (the current Scroll last, at most 256), so the trip ends only
 when every unkept Scroll it has not opened is used up; past 256 an older opened Scroll may return.
@@ -175,3 +175,12 @@ ADR-0031 personal suppression); an unmapped fallback has no route (422); an unse
 422; a stale epoch or a key reused with other content is 409; an exact retry returns the original
 receipt. Allowed while paused. Clear/Reset erase it with attention accounts, transitions and
 hypotheses; export carries them under `personalModel`.
+
+### Reels explain and continue like Scrolls (#167, ADR-0043)
+
+No wire shape changes. A Reel is minted carrying its source Scroll's concepts (same roles), so the
+three routes above apply to a Reel encounter unchanged: `…/why` returns its recorded family, reason
+and evidence path; `POST /v1/encounters/feedback` corrects its route; `GET /v1/assets/:id/branches`
+lists continuations from its concepts, whose targets are Scrolls, and `POST /v1/branches` accepts a
+Reel exposure as `fromExposureId`. The feed composes from the reader's whole history whatever `kinds`
+asks for: a Reel kept in Reel mode grounds the next Scroll, and the reverse.

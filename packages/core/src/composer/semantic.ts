@@ -12,6 +12,7 @@
 import { isWithin } from '../semantic/bridge-validator.ts';
 
 export const COMPOSER_SEMANTIC_V3 = 'composer-semantic-v3';
+export const COMPOSER_SEMANTIC_V4 = 'composer-semantic-v4';
 
 export type Family = 'continue' | 'deepen' | 'bridge' | 'challenge' | 'revisit' | 'frontier' | 'seed' | 'fallback';
 export type MarkKind = 'keep' | 'branch' | 'ask';
@@ -41,6 +42,9 @@ export interface V3Policy {
   };
   /** Families that count toward the exploration floor, in the order the floor prefers them. */
   explorationFamilies: Family[];
+  /** How a score tie is broken after coverage: FNV-1a of `seed:assetId` (v3), or that key through
+   * murmur3's finalizer (v4, ADR-0043 §7), so ids spelled alike do not cluster. */
+  tieBreak: 'fnv1a' | 'fnv1a-fmix32';
 }
 
 export interface V3Concept { code: string; name: string; parentCode: string | null }
@@ -58,7 +62,11 @@ export interface V3State {
   /** Deterministic tie-break salt: universe id + the number of v3 windows already served. */
   seed: string;
   concepts: ReadonlyMap<string, V3Concept>;
+  /** What this composition may offer: the kinds the client asked for. */
   assets: readonly V3Asset[];
+  /** Encounters the reader's exposures and marks name that are not offered here (another kind than
+   * the client asked for, ADR-0043): read for what they are about, never offered. */
+  history: readonly V3Asset[];
   kept: ReadonlySet<string>;
   exposures: ReadonlyMap<string, { count: number; lastAtMs: number }>;
   sourceExposures: ReadonlyMap<string, number>;
@@ -127,7 +135,12 @@ export const COMPOSER_V3_POLICY: V3Policy = {
     seenPerShowing: 10, maxMarks: 50,
   },
   explorationFamilies: ['bridge', 'frontier', 'challenge', 'revisit', 'fallback'],
+  tieBreak: 'fnv1a',
 };
+
+/** v3 with a tie-break that mixes every character of the key (ADR-0043 §7); migration 0037 seeds
+ * the identical immutable row. */
+export const COMPOSER_V4_POLICY: V3Policy = { ...COMPOSER_V3_POLICY, version: COMPOSER_SEMANTIC_V4, tieBreak: 'fnv1a-fmix32' };
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -138,6 +151,17 @@ function fnv(text: string): number {
   for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return h >>> 0;
 }
+
+/** murmur3's 32-bit finalizer: every input bit reaches every output bit. FNV-1a alone barely mixes
+ * the last characters, so ids that differ only there (the editorial library's) cluster together. */
+function fmix32(h: number): number {
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+const TIE_BREAKS: Record<V3Policy['tieBreak'], (key: string) => number> = { fnv1a: fnv, 'fnv1a-fmix32': key => fmix32(fnv(key)) };
 
 function rootOf(concepts: ReadonlyMap<string, V3Concept>, code: string): string {
   let at = code;
@@ -156,7 +180,7 @@ export function renderReason(template: string, facts: Facts): string {
 export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   const tree = { concepts: new Map([...state.concepts].map(([k, v]) => [k, { code: v.code, name: v.name, description: '', parentCode: v.parentCode }])) };
   const name = (code: string) => state.concepts.get(code)?.name ?? code;
-  const assetById = new Map(state.assets.map(a => [a.assetId, a]));
+  const assetById = new Map([...state.history, ...state.assets].map(a => [a.assetId, a]));
   const markedConcepts = (m: V3Mark) => (assetById.get(m.assetId)?.concepts ?? []).filter(c => c.role !== 'mentioned').map(c => c.code);
   const raw: Omit<V3Candidate, 'gate' | 'terms' | 'score' | 'rank'>[] = [];
   const offer = (asset: V3Asset, family: Family, concept: string | null, explanationKey: string, facts: Facts, evidence: EvidenceStep[], bridgeId: string | null = null) =>
@@ -294,9 +318,9 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   for (const c of scored) {
     const key = `${c.assetId}|${c.family}`;
     const prior = best.get(key);
-    if (!prior || c.score > prior.score || (c.score === prior.score && tieKey(state, c) < tieKey(state, prior))) best.set(key, c);
+    if (!prior || c.score > prior.score || (c.score === prior.score && tieKey(state, policy, c) < tieKey(state, policy, prior))) best.set(key, c);
   }
-  const candidates = [...best.values()].sort((a, b) => order(state, a, b));
+  const candidates = [...best.values()].sort((a, b) => order(state, policy, a, b));
 
   // --- Selection over the rolling served sequence ----------------------------------------------
   const quotas: string[] = [];
@@ -333,7 +357,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     const exploration = [...candidates]
       .filter(c => c.gate === null && policy.explorationFamilies.includes(c.family))
       .sort((a, b) => a.terms.seen! - b.terms.seen!
-        || policy.explorationFamilies.indexOf(a.family) - policy.explorationFamilies.indexOf(b.family) || order(state, a, b));
+        || policy.explorationFamilies.indexOf(a.family) - policy.explorationFamilies.indexOf(b.family) || order(state, policy, a, b));
     head = exploration[0];
     if (head) quotas.push(`exploration_floor:${head.family}`);
   }
@@ -362,17 +386,17 @@ function ancestorMass(state: V3State, code: string): number {
   return total;
 }
 
-function tieKey(state: V3State, c: V3Candidate): number { return fnv(`${state.seed}:${c.assetId}`); }
+function tieKey(state: V3State, policy: V3Policy, c: V3Candidate): number { return TIE_BREAKS[policy.tieBreak](`${state.seed}:${c.assetId}`); }
 
 const FAMILY_ORDER: readonly Family[] = ['continue', 'bridge', 'deepen', 'challenge', 'revisit', 'frontier', 'seed', 'fallback'];
 
 /** Score, then coverage (a less-offered source first, so no source waits behind another forever),
- * then a salted hash (no id wins every tie), then id and family: a strict total order. */
-function order(state: V3State, a: V3Candidate, b: V3Candidate): number {
+ * then the policy's salted tie-break hash (no id wins every tie), then id and family: a strict total order. */
+function order(state: V3State, policy: V3Policy, a: V3Candidate, b: V3Candidate): number {
   if (a.score !== b.score) return b.score - a.score;
   const coverage = (state.sourceExposures.get(a.sourceKey) ?? 0) - (state.sourceExposures.get(b.sourceKey) ?? 0);
   if (coverage !== 0) return coverage;
-  const hash = tieKey(state, a) - tieKey(state, b);
+  const hash = tieKey(state, policy, a) - tieKey(state, policy, b);
   if (hash !== 0) return hash;
   if (a.assetId !== b.assetId) return a.assetId < b.assetId ? -1 : 1;
   return FAMILY_ORDER.indexOf(a.family) - FAMILY_ORDER.indexOf(b.family);
