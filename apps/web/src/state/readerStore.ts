@@ -171,6 +171,9 @@ export class ReaderStore {
    * (see `mayHaveLanded`) -- whatever its requestId, so Cancel and a fresh confirmation after a lost
    * response still read a 401 as "deleted" (verification N3). See `confirmDeleteAccount`. */
   private deletionMayHaveLanded = false;
+  /** The same fact for Reset (#135, from #119): Reset also ends the calling session inside its own
+   * transaction (ADR-0030), so a 401 after a lost response may mean the Reset itself happened. */
+  private resetMayHaveLanded = false;
   /** #133: the latest "why" read; an older one that lands after it (a quick close and reopen) is dropped. */
   private whyRequest = 0;
   /** #133: one clientFeedbackId per correction intent (`decision:asset:kind`), reused by every retry
@@ -182,15 +185,18 @@ export class ReaderStore {
    * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
    * working unchanged. It fires whenever this store learns the reader is no longer authenticated --
    * a 401 from any authenticated call (alongside the existing fail-closed Unavailable universe,
-   * never in place of it), a real `signOut()`, or a real `confirmDeleteAccount()` -- carrying a
-   * deletion-specific message on the last of those ("deleted" only when a deletion was, or may have
-   * been, applied; otherwise that the session ended before it was sent) and `null` otherwise.
+   * never in place of it), a real `signOut()`, a real `confirmDeleteAccount()`, or a `confirmReset()`
+   * whose 401 follows an attempt that may have landed -- carrying a deletion-specific message for
+   * deletion ("deleted" only when a deletion was, or may have been, applied; otherwise that the
+   * session ended before it was sent), a "may have completed" message for that Reset, and `null`
+   * otherwise.
    *
    * Its second argument, `verify`, tells the caller whether this needs confirming before it acts
    * on it: `true` for an *ambient* 401 hit during ordinary reads (this store has no way to know
    * whether the deployment even has a sign-in surface -- a bearer/dev-proxy session has none, and
    * for that shape an ambient 401 is exactly the existing fail-closed-and-retry flow, not a reason
-   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`,
+   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`
+   * and that `confirmReset()` case,
    * which the reader asked for directly and which always deserve a real answer regardless of
    * deployment shape. The app uses `ApiClient.isBearerSession()` to settle a `true` case; this
    * class itself has no notion of screens outside its own five and makes no such deployment
@@ -421,8 +427,15 @@ export class ReaderStore {
 
   cancelReset(): void {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (!this.resetConfirmationOpen()) return;
     this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** The typed-confirmation panel is showing: freshly opened, or after a failed attempt, whose own
+   * Confirm is the retry (same requestId, via `nextPrivacyRequestId`), as for account deletion. */
+  private resetConfirmationOpen(): boolean {
+    const action = this.currentPrivacyAction();
+    return action !== null && (action.status === 'confirming-reset' || (action.status === 'failed' && action.kind === 'reset'));
   }
 
   /** Refuses to send anything unless `typed` is exactly the wire contract's own confirmation
@@ -431,7 +444,7 @@ export class ReaderStore {
   confirmReset(typed: string): void {
     if (this.busy || this.reconciling || !this.ready) return;
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (!this.resetConfirmationOpen()) return;
     if (typed !== RESET_CONFIRMATION) return;
     const requestId = this.nextPrivacyRequestId('reset');
     const epoch = this.observedPrivacyEpoch;
@@ -461,10 +474,21 @@ export class ReaderStore {
       })
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error) && (this.resetMayHaveLanded || mayHaveLanded(error))) {
+          // An earlier attempt may have reset the universe and ended this session with it; the
+          // receipt never arrived, so say only that it may have completed. Every local private
+          // artifact goes; the epoch fence stays at what was observed (unlike deletion, the
+          // universe is the same one, and a fence ahead of the server would refuse it if the
+          // Reset did not in fact land). The next sign-in observes the real epoch.
+          this.storage.purgePrivateState(universeId, epoch);
+          this.onSignedOut?.('Your session ended. The Reset may have completed, but the connection dropped before it was confirmed. Sign in to see your universe.', false);
+          return;
+        }
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
           this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
+          if (mayHaveLanded(error)) this.resetMayHaveLanded = true;
           this.setPrivacyAction({ status: 'failed', kind: 'reset', requestId, message: describeApiError(error) });
         }
       })
