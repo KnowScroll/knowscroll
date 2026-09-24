@@ -171,6 +171,9 @@ export class ReaderStore {
    * (see `mayHaveLanded`) -- whatever its requestId, so Cancel and a fresh confirmation after a lost
    * response still read a 401 as "deleted" (verification N3). See `confirmDeleteAccount`. */
   private deletionMayHaveLanded = false;
+  /** The same fact for Reset (#135, from #119): Reset also ends the calling session inside its own
+   * transaction (ADR-0030), so a 401 after a lost response may mean the Reset itself happened. */
+  private resetMayHaveLanded = false;
   /** #133: the latest "why" read; an older one that lands after it (a quick close and reopen) is dropped. */
   private whyRequest = 0;
   /** #133: one clientFeedbackId per correction intent (`decision:asset:kind`), reused by every retry
@@ -421,8 +424,15 @@ export class ReaderStore {
 
   cancelReset(): void {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (!this.resetConfirmationOpen()) return;
     this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** The typed-confirmation panel is showing: freshly opened, or after a failed attempt, whose own
+   * Confirm is the retry (same requestId, via `nextPrivacyRequestId`), as for account deletion. */
+  private resetConfirmationOpen(): boolean {
+    const action = this.currentPrivacyAction();
+    return action !== null && (action.status === 'confirming-reset' || (action.status === 'failed' && action.kind === 'reset'));
   }
 
   /** Refuses to send anything unless `typed` is exactly the wire contract's own confirmation
@@ -431,7 +441,7 @@ export class ReaderStore {
   confirmReset(typed: string): void {
     if (this.busy || this.reconciling || !this.ready) return;
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (!this.resetConfirmationOpen()) return;
     if (typed !== RESET_CONFIRMATION) return;
     const requestId = this.nextPrivacyRequestId('reset');
     const epoch = this.observedPrivacyEpoch;
@@ -461,10 +471,21 @@ export class ReaderStore {
       })
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error) && (this.resetMayHaveLanded || mayHaveLanded(error))) {
+          // An earlier attempt may have reset the universe and ended this session with it; the
+          // receipt never arrived, so say only that it may have completed. Every local private
+          // artifact goes; the epoch fence stays at what was observed (unlike deletion, the
+          // universe is the same one, and a fence ahead of the server would refuse it if the
+          // Reset did not in fact land). The next sign-in observes the real epoch.
+          this.storage.purgePrivateState(universeId, epoch);
+          this.onSignedOut?.('Your session ended. The Reset may have completed before its answer was lost; sign in to see your universe.', false);
+          return;
+        }
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
           this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
+          if (mayHaveLanded(error)) this.resetMayHaveLanded = true;
           this.setPrivacyAction({ status: 'failed', kind: 'reset', requestId, message: describeApiError(error) });
         }
       })

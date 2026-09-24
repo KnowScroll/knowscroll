@@ -1,5 +1,14 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #135 web Reset retry after a failure (lane `135-web-reset-retry`)
+
+A failed Reset's own Confirm is the retry (same request id) and Cancel closes it. Before, both did
+nothing. A 401 after a lost response says the Reset may have completed; it never claims a receipt.
+Proven by store tests (3 failed first) and by the real web owner journey with injected network
+failures: one Reset where nothing reached the API, then the retry and its receipt, and one Reset
+that landed with its response lost. The journey fails without the change. See the
+[evidence](journeys/evidence/web-reset-retry-2026-09-24/README.md).
+
 ## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
 
 `AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
