@@ -1,5 +1,20 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #133 "What led here" on the desktop web (lane `133-web-why`)
+
+This reaches parity with Android's journey G on the web reader. "Why this appeared" now loads the
+recorded explanation for the Scroll being read (`GET /v1/decisions/:id/why`). It shows the family
+that chose it, one line per recorded step, and the corrections that path supports: "Less like
+this", and "Wrong connection" where a connection was crossed. Each correction says what it does
+before and after, is idempotent under its request id across retries and reopening, and goes
+through the CSRF-aware client. A path that was never recorded (404, or a saved Trace) is shown
+honestly. Parsing is strict, and the web's zod schemas are guarded against the contracts by
+`contractsDrift`. Web units 199 (15 → 18 files). A new journey, `run-web-why-journey.ts`, uses a
+real cookie sign-in and a disposable database with the substrate, and checks lineage in SQL (the
+v3 decision, the cited keep, exactly one `less_like_this` under the page's request id, bridges
+unchanged). The reader journey passes 50/50. CI's web-journey job now also runs the owner (#135)
+and why journeys. [Evidence](journeys/evidence/web-why/last-run-receipt.json).
+
 ## 2026-09-24 #131/#134 foundation Stars (lane `131-foundation-stars`)
 
 ADR-0037, migration 0031, `cartographer-v2`. A live planet or region whose anchor explains, or

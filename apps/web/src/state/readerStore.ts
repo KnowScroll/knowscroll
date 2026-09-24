@@ -10,6 +10,7 @@
 import { ApiException, describeApiError, invalidatesReader, isUnauthorized, mayHaveLanded, type ReaderApi } from '../api/client.ts';
 import { ACCOUNT_DELETE_CONFIRMATION, ACCOUNT_DELETE_TYPED_WORD, RESET_CONFIRMATION } from '../api/types.ts';
 import type {
+  EncounterFeedbackKind,
   EventStatus,
   FeedItem,
   FeedResponse,
@@ -18,6 +19,7 @@ import type {
   Trace,
   TraceRevisit,
   Universe,
+  WhyResponse,
   WorldSystemResponse,
 } from '../api/types.ts';
 import { canRequestDiscovery, selectDiscovery, tripExclude, type DiscoveryState, type KeepState } from './discovery.ts';
@@ -93,12 +95,48 @@ export type PrivacyActionState =
  * never a copy of their own that could drift from it. */
 export type PrivacyView = { status: 'idle' } | { status: 'open'; action: PrivacyActionState };
 
+/** #133: what the "What led here" panel can honestly say about the encounter on screen.
+ * `unrecorded` is absence, not failure: a saved Trace (no Composer decision) or the server's 404. */
+export type WhyAvailability =
+  | { status: 'loading' }
+  | { status: 'loaded'; why: WhyResponse }
+  | { status: 'unrecorded' }
+  | { status: 'failed'; message: string };
+
+/** The outcome of the reader's last correction here, for the panel to say in words. */
+export type WhyNotice =
+  | { kind: 'corrected'; correction: EncounterFeedbackKind }
+  | { kind: 'no-route' }
+  | { kind: 'failed'; correction: EncounterFeedbackKind; message: string };
+
+/**
+ * #133 (ADR-0032 §5, journey G): the recorded explanation of the encounter being read -- its feed
+ * decision and Scroll -- and the reader's corrections of it. Never persisted across reload, like
+ * `SystemView`: reopening always re-reads what is recorded now. `corrected` is what the server
+ * reported plus what this page has since recorded, so no correction is offered twice.
+ */
+export type WhyView =
+  | { status: 'closed' }
+  | {
+      status: 'open';
+      decisionId: string;
+      assetId: string;
+      availability: WhyAvailability;
+      /** The correction being sent, if any: every correction control waits until it settles. */
+      sending: EncounterFeedbackKind | null;
+      corrected: EncounterFeedbackKind[];
+      notice: WhyNotice | null;
+    };
+
+const WHY_CLOSED: WhyView = { status: 'closed' };
+
 export interface ReaderState {
   screen: Screen;
   universe: UniverseView;
   scroll: ScrollView;
   system: SystemView;
   privacy: PrivacyView;
+  why: WhyView;
   toast: string | null;
 }
 
@@ -111,6 +149,7 @@ export class ReaderStore {
     scroll: { status: 'idle' },
     system: { status: 'idle' },
     privacy: { status: 'idle' },
+    why: WHY_CLOSED,
     toast: null,
   };
   private readonly listeners = new Set<Listener>();
@@ -132,6 +171,12 @@ export class ReaderStore {
    * (see `mayHaveLanded`) -- whatever its requestId, so Cancel and a fresh confirmation after a lost
    * response still read a 401 as "deleted" (verification N3). See `confirmDeleteAccount`. */
   private deletionMayHaveLanded = false;
+  /** #133: the latest "why" read; an older one that lands after it (a quick close and reopen) is dropped. */
+  private whyRequest = 0;
+  /** #133: one clientFeedbackId per correction intent (`decision:asset:kind`), reused by every retry
+   * of that intent until the server answers -- the route is replay-keyed on it, so a fresh id per
+   * retry would record one correction twice. Private history: purged with the rest. */
+  private readonly pendingCorrections = new Map<string, string>();
 
   /**
    * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
@@ -409,8 +454,9 @@ export class ReaderStore {
         this.session = null;
         this.revisit = null;
         this.visited.clear();
+        this.pendingCorrections.clear();
         this.ready = false; // the calling session is revoked server-side; nothing else may act as it until re-authenticated
-        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' } });
+        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' }, why: WHY_CLOSED });
         this.setPrivacyAction({ status: 'reset-complete', receipt });
       })
       .catch((error: unknown) => {
@@ -552,6 +598,124 @@ export class ReaderStore {
     this.onSignedOut?.('Your account and history were deleted.', false);
   }
 
+  // ---------- What led here (#133, ADR-0032 §5, journey G) ----------
+
+  /**
+   * Opens the explanation of the encounter on screen: the feed decision that served it and its
+   * Scroll (the same pair its exposure was recorded under). A saved Trace was never chosen by the
+   * Composer, so it has nothing recorded to show and nothing is asked. Nothing is read while the
+   * reader is not ready -- signed out, failed closed or reconciling a privacy change.
+   */
+  openWhy(): void {
+    if (!this.ready || this.reconciling) return;
+    const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
+    if (!reading) return;
+    if (reading.origin.type !== 'discovery') {
+      this.set({ why: { status: 'open', decisionId: '', assetId: reading.item.assetId, availability: { status: 'unrecorded' }, sending: null, corrected: [], notice: null } });
+      return;
+    }
+    const session = this.session;
+    if (!session || session.item.assetId !== reading.item.assetId) return;
+    if (session.privacyEpoch !== this.observedPrivacyEpoch || session.universeId !== this.observedUniverseId) return;
+    const current = this.state.why;
+    if (current.status === 'open' && current.decisionId === session.decisionId && current.assetId === session.item.assetId && current.availability.status !== 'failed') return;
+    if (session.decisionId === '') {
+      this.set({ why: { status: 'open', decisionId: '', assetId: session.item.assetId, availability: { status: 'unrecorded' }, sending: null, corrected: [], notice: null } });
+      return;
+    }
+    this.loadWhy(session.decisionId, session.item.assetId);
+  }
+
+  closeWhy(): void {
+    if (this.state.why.status !== 'closed') this.set({ why: WHY_CLOSED });
+  }
+
+  /** A failed read's own retry; anything else is already showing the truth. */
+  retryWhy(): void {
+    const view = this.state.why;
+    if (!this.ready || this.reconciling || view.status !== 'open' || view.availability.status !== 'failed') return;
+    this.loadWhy(view.decisionId, view.assetId, view.corrected);
+  }
+
+  private loadWhy(decisionId: string, assetId: string, corrected: EncounterFeedbackKind[] = []): void {
+    const request = ++this.whyRequest;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ why: { status: 'open', decisionId, assetId, availability: { status: 'loading' }, sending: null, corrected, notice: null } });
+    this.api
+      .getWhy(decisionId, assetId)
+      .then(why => {
+        const view = this.openWhyFor(decisionId, assetId);
+        if (request !== this.whyRequest || epoch !== this.observedPrivacyEpoch || !view) return;
+        const known = new Set([...view.corrected, ...(why?.corrected ?? [])]);
+        this.set({ why: { ...view, availability: why ? { status: 'loaded', why } : { status: 'unrecorded' }, corrected: [...known] } });
+      })
+      .catch((error: unknown) => {
+        if (epoch !== this.observedPrivacyEpoch) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+          return;
+        }
+        const view = this.openWhyFor(decisionId, assetId);
+        if (request !== this.whyRequest || !view) return;
+        this.set({ why: { ...view, availability: { status: 'failed', message: describeApiError(error) } } });
+      });
+  }
+
+  private openWhyFor(decisionId: string, assetId: string): Extract<WhyView, { status: 'open' }> | null {
+    const view = this.state.why;
+    return view.status === 'open' && view.decisionId === decisionId && view.assetId === assetId ? view : null;
+  }
+
+  /**
+   * Journey G: "less like this" / "wrong connection" on the route that chose this encounter. It
+   * never edits a profile and never retracts shared knowledge; it is private history like any other
+   * act. Only a correction the recorded explanation supports, not already made, and with none in
+   * flight, is sent -- with the privacy epoch this page last observed, and the one clientFeedbackId
+   * its intent keeps across every retry.
+   */
+  correctEncounter(kind: EncounterFeedbackKind): void {
+    if (!this.ready || this.reconciling) return;
+    const view = this.state.why;
+    if (view.status !== 'open' || view.availability.status !== 'loaded') return;
+    if (!view.availability.why.corrections.includes(kind) || view.corrected.includes(kind) || view.sending !== null) return;
+    const { decisionId, assetId } = view;
+    const intent = `${decisionId}:${assetId}:${kind}`;
+    const clientFeedbackId = this.pendingCorrections.get(intent) ?? randomUuid();
+    this.pendingCorrections.set(intent, clientFeedbackId);
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ why: { ...view, sending: kind, notice: null } });
+    this.api
+      .postEncounterFeedback({ clientFeedbackId, decisionId, assetId, kind, expectedPrivacyEpoch: epoch })
+      .then(() => {
+        this.pendingCorrections.delete(intent);
+        const current = this.openWhyFor(decisionId, assetId);
+        if (epoch !== this.observedPrivacyEpoch || !current) return;
+        const corrected = current.corrected.includes(kind) ? current.corrected : [...current.corrected, kind];
+        this.set({ why: { ...current, sending: null, corrected, notice: { kind: 'corrected', correction: kind } } });
+      })
+      .catch((error: unknown) => {
+        if (epoch !== this.observedPrivacyEpoch) return;
+        if (error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 422) {
+          // Definitively refused: nothing was recorded, so this intent's key is spent.
+          this.pendingCorrections.delete(intent);
+          const current = this.openWhyFor(decisionId, assetId);
+          if (current) this.set({ why: { ...current, sending: null, notice: { kind: 'no-route' } } });
+          return;
+        }
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+          return;
+        }
+        // Possibly applied (a lost response) or not: either way the retry resends the same key.
+        const current = this.openWhyFor(decisionId, assetId);
+        if (current) this.set({ why: { ...current, sending: null, notice: { kind: 'failed', correction: kind, message: describeApiError(error) } } });
+      });
+  }
+
   /** A Trace has an explicit origin and never becomes a new discovery or exposure (docs/contracts/trace-revisit.md). */
   openTrace(trace: Trace): void {
     if (this.busy || this.reconciling || !this.ready) return;
@@ -577,7 +741,7 @@ export class ReaderStore {
     const version = ++this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
     this.storage.writeScreen('revisit');
-    this.set({ screen: 'revisit', scroll: { status: 'loading' } });
+    this.set({ screen: 'revisit', scroll: { status: 'loading' }, why: WHY_CLOSED });
     this.api
       .getTraceRevisit(requested.eventId)
       .then(receipt => {
@@ -712,7 +876,11 @@ export class ReaderStore {
   private show(value: ScrollSession): void {
     if (value.privacyEpoch !== this.observedPrivacyEpoch || value.universeId !== this.observedUniverseId) return;
     this.storage.writeScreen('scroll');
+    // The panel explains one encounter: showing another one closes it (a Keep of the same one does not).
+    const why = this.state.why;
+    const sameEncounter = why.status === 'open' && why.decisionId === value.decisionId && why.assetId === value.item.assetId;
     this.set({
+      why: sameEncounter ? why : WHY_CLOSED,
       screen: 'scroll',
       scroll: {
         status: 'reading',
@@ -882,7 +1050,7 @@ export class ReaderStore {
     this.visited.clear();
     this.storage.writeVisited(this.visited);
     this.storage.writeScreen('universe');
-    this.set({ screen: destination, scroll: { status: 'idle' } });
+    this.set({ screen: destination, scroll: { status: 'idle' }, why: WHY_CLOSED });
     this.reconcilePrivacy(false, destination);
   }
 
@@ -895,9 +1063,9 @@ export class ReaderStore {
     const storedScreen = this.storage.readScreen();
     const wantedScroll = restoreStoredScroll && storedScreen === 'scroll';
     const wantedRevisit = restoreStoredScroll && storedScreen === 'revisit';
-    if (wantedScroll) this.set({ screen: 'scroll', scroll: { status: 'loading' } });
-    else if (wantedRevisit) this.set({ screen: 'revisit', scroll: { status: 'loading' } });
-    else this.set({ screen: destination, universe: { status: 'loading' } });
+    if (wantedScroll) this.set({ screen: 'scroll', scroll: { status: 'loading' }, why: WHY_CLOSED });
+    else if (wantedRevisit) this.set({ screen: 'revisit', scroll: { status: 'loading' }, why: WHY_CLOSED });
+    else this.set({ screen: destination, universe: { status: 'loading' }, why: WHY_CLOSED });
     this.api
       .getUniverse()
       .then(actual => {
@@ -959,7 +1127,8 @@ export class ReaderStore {
     this.session = null;
     this.revisit = null;
     this.visited.clear();
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' } });
+    this.pendingCorrections.clear();
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
   }
 
   /** `signedOut` (#135) is additive: every existing caller keeps landing on exactly the same
@@ -969,12 +1138,14 @@ export class ReaderStore {
   private failClosed(reason: string, signedOut = false): void {
     this.ready = false;
     this.session = null;
+    this.pendingCorrections.clear();
     if (signedOut) this.onSignedOut?.(null, true);
     this.set({
       screen: 'universe',
       scroll: { status: 'idle' },
       system: { status: 'idle' },
       privacy: { status: 'idle' },
+      why: WHY_CLOSED,
       universe: { status: 'unavailable', message: reason },
     });
   }
