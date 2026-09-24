@@ -4,8 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.knowscroll.mobile.BuildConfig
+import com.knowscroll.mobile.data.AndroidKeyStoreSessionVault
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.CredentialProvider
+import com.knowscroll.mobile.data.VaultCredentialProvider
 import com.knowscroll.mobile.data.ExposureRequest
 import com.knowscroll.mobile.data.HistoryClearRequest
 import com.knowscroll.mobile.data.HistoryClearReceipt
@@ -108,7 +112,14 @@ sealed interface SystemState {
 }
 
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
-    private val api=ApiClient()
+    // #135: the signed-in session if one exists; otherwise, only in a debug build, the baked-in
+    // development token; otherwise no credential at all (release builds have none, matching the
+    // existing MissingToken refusal). Exposed so the reader can hand the exact same resolved
+    // token to the media route (ReelScreen's `mediaToken`), which is authenticated outside
+    // ApiClient's own request path.
+    val credentialProvider: CredentialProvider =
+        VaultCredentialProvider(AndroidKeyStoreSessionVault(application), BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG)
+    private val api=ApiClient(credential=credentialProvider)
     private val store=StateStore(application)
     private var feedJob: kotlinx.coroutines.Job? = null
     private var pendingCableMode: String? = null

@@ -28,6 +28,9 @@ data class TraceRevisitSession(
 
 const val MAX_BRANCH_TRAIL = 8
 
+/** #135: one persisted privacy-lifecycle retry envelope. See [StateStore.writePendingPrivacyRequest]. */
+data class PendingPrivacyRequest(val requestId: String, val expectedPrivacyEpoch: Long)
+
 /** Persist the whole retry envelope together, not a UUID detached from its payload. */
 class StateStore(context: Context) {
     private val prefs = context.getSharedPreferences("ks_session_v1", Context.MODE_PRIVATE)
@@ -237,6 +240,37 @@ class StateStore(context: Context) {
         check(prefs.edit().putBoolean("signedOut", true).commit()) { "Could not save signed-out state" }
     }
     fun readSignedOut(): Boolean = prefs.getBoolean("signedOut", false)
+
+    /** #135: one privacy-lifecycle intent's in-flight retry envelope (`pause`/`resume`/`export`/
+     * `reset`/`delete`), persisted before dispatch so process death never silently drops or
+     * duplicates it -- the exact pattern [writePendingClear] already uses for Clear History. Each
+     * intent has its own slot; they are independent (e.g. a pending pause survives a concurrent
+     * export). Deliberately NOT touched by [purgePrivateState]: a destructive intent's own
+     * completion handler clears its slot itself, after the server has confirmed the outcome. */
+    fun writePendingPrivacyRequest(intent: String, requestId: String, expectedPrivacyEpoch: Long) {
+        val json = JSONObject().apply {
+            put("requestId", requestId); put("expectedPrivacyEpoch", expectedPrivacyEpoch)
+        }
+        check(prefs.edit().putString(privacyRequestKey(intent), json.toString()).commit()) {
+            "Could not save the pending $intent request"
+        }
+    }
+
+    fun readPendingPrivacyRequest(intent: String): PendingPrivacyRequest? {
+        val raw = prefs.getString(privacyRequestKey(intent), null) ?: return null
+        return runCatching {
+            val json = JSONObject(raw)
+            PendingPrivacyRequest(json.getString("requestId"), json.getLong("expectedPrivacyEpoch"))
+        }.getOrNull()
+    }
+
+    fun clearPendingPrivacyRequest(intent: String) {
+        check(prefs.edit().remove(privacyRequestKey(intent)).commit()) {
+            "Could not clear the pending $intent request"
+        }
+    }
+
+    private fun privacyRequestKey(intent: String) = "pendingPrivacy_$intent"
 
     /** Removes only private encounter/navigation state and retains the monotonic privacy epoch. */
     @Synchronized fun purgePrivateState(universeId: String, epoch: Long) {

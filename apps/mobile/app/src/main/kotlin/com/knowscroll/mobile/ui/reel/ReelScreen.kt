@@ -38,6 +38,11 @@ fun ReelScreen(
     onBranch: (EncounterBranch) -> Unit = {},
     preview: Boolean = false,
     onPrevious: (() -> Unit)? = null,
+    /** #135: the resolved bearer credential for this media request (the signed-in session, or
+     * the development token in a debug build). `null` sends no `Authorization` header at all --
+     * the default preserves the exact previous debug/journey behaviour for every caller (such as
+     * the Authored Preview/Atlas sandboxes) that does not pass one explicitly. */
+    mediaToken: String? = BuildConfig.KS_DEV_TOKEN.takeIf { it.isNotBlank() },
 ) {
     val media = requireNotNull(state.item.media)
     var sources by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
@@ -69,7 +74,7 @@ fun ReelScreen(
                 )
                 ReelPlayer(
                     BuildConfig.KS_DEBUG_API_BASE.trimEnd('/') + media.path,
-                    mapOf("Authorization" to "Bearer ${BuildConfig.KS_DEV_TOKEN}"),
+                    mediaToken?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap(),
                     Modifier.weight(1f).fillMaxWidth(),
                     onVisible,
                     onAuthorityFailure,

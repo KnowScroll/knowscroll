@@ -193,6 +193,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                             { viewModel.onVisible(reading.item.assetId) },
                                             viewModel::onMediaAuthorityFailure,
                                             viewModel::updateReadingPosition,
+                                            mediaToken = viewModel.credentialProvider.currentToken(),
                                         )
                                     }
                                 } else
