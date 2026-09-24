@@ -382,6 +382,7 @@
     <string name="away_mark_seen_description">Mark what changed while you were away as seen</string>
     <string name="away_retry_mark_seen_description">Retry marking what changed while you were away as seen</string>
     <string name="away_paused">Recording is paused, so this stays until you resume.</string>
+    <string name="connection_paused">Recording is paused, so nothing new is kept.</string>
     <string name="away_more">and %1$d more</string>
     <string name="away_more_description">Show everything that changed while you were away</string>
     <string name="away_fewer">Show fewer</string>

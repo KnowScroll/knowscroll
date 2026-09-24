@@ -105,7 +105,7 @@ internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
         val cause = o.string("cause")
         require(cause == "source_correction") { "Only a source correction changes a place while away" }
         val line = o.string("line")
-        require(line.isNotEmpty() && line.length <= 300) { "Invalid chronicle line" }
+        require(line.isNotEmpty() && line.length <= 600) { "Invalid chronicle line" }
         AwayItem.PlaceChanged(o.datetime("at"), o.uuid("deltaId"), o.uuid("placeId"), change, cause, line)
     }
     "connection_corrected" -> {

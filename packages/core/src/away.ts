@@ -26,3 +26,15 @@ export function nextMarker(current: string | null, through: string): string | nu
   if (current !== null && Date.parse(through) <= Date.parse(current)) return null;
   return through;
 }
+
+/** The wire's bound on a chronicle line (`contracts/away.ts`). A foundation that holds up many places
+ * can word a longer one (ADR-0037): it is shortened at a word with an ellipsis, never dropped, so one
+ * long line can never make the whole list unreadable to a strict client. */
+export const AWAY_LINE_MAX = 600;
+
+export function clampLine(line: string, max = AWAY_LINE_MAX): string {
+  if (line.length <= max) return line;
+  const cut = line.slice(0, max - 1);
+  const atWord = cut.lastIndexOf(' ');
+  return `${(atWord > max / 2 ? cut.slice(0, atWord) : cut).trimEnd()}…`;
+}

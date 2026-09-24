@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AWAY_LIST_LIMIT, awayAcknowledgeInput, type AwayAcknowledgeResponse, type AwayItem, type AwayResponse } from '../../contracts/src/away.ts';
-import { selectAway } from '../../core/src/away.ts';
+import { clampLine, nextMarker, selectAway } from '../../core/src/away.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
 import type { RelationKind } from '../../core/src/atlas/cartographer.ts';
 import type { AuthScope } from './identity.ts';
@@ -82,9 +82,9 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope): Promise
     const relation = d.evidence.relation as { kind: RelationKind; from: string; to: string } | undefined;
     candidates.push({
       kind: 'place_changed', at: iso(d.created_at), deltaId: d.id, placeId: d.place_id, change: d.kind, cause: 'source_correction', key: d.id,
-      line: chronicleLine({ kind: d.kind, causalClass: 'source_correction', name: nameOf(d.anchor)!, parentName: nameOf(d.parent_anchor),
+      line: clampLine(chronicleLine({ kind: d.kind, causalClass: 'source_correction', name: nameOf(d.anchor)!, parentName: nameOf(d.parent_anchor),
         relation: relation ? { kind: relation.kind, fromName: nameOf(relation.from)!, toName: nameOf(relation.to)! } : null,
-        holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map(code => nameOf(code)!) }),
+        holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map(code => nameOf(code)!) })),
     });
   }
 
@@ -142,7 +142,7 @@ export async function acknowledgeAway(client: pg.PoolClient, scope: AuthScope, r
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new ReturnError(409, 'Privacy epoch is stale');
   if (await paused(client, scope.universeId)) throw new ReturnError(409, 'Recording is paused');
   const current = await currentMarker(client, scope);
-  if (current && Date.parse(input.through) <= current.getTime()) return { privacyEpoch: scope.privacyEpoch, since: iso(current) };
+  if (current && nextMarker(iso(current), input.through) === null) return { privacyEpoch: scope.privacyEpoch, since: iso(current) };
   const inFuture = (await client.query<{ future: boolean }>('SELECT $1::timestamptz > clock_timestamp() AS future', [input.through])).rows[0]!.future;
   if (inFuture) throw new ReturnError(422, 'A return cannot be acknowledged in the future');
   await client.query('INSERT INTO away_acknowledgement(id, universe_id, privacy_epoch, client_request_id, through) VALUES ($1,$2,$3,$4,$5)',

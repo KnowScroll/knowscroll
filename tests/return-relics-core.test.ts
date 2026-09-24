@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { nextMarker, selectAway } from '../packages/core/src/away.ts';
+import { AWAY_LINE_MAX, clampLine, nextMarker, selectAway } from '../packages/core/src/away.ts';
 import { awayResponse } from '../packages/contracts/src/away.ts';
 import { relicWire } from '../packages/contracts/src/relics.ts';
 
@@ -78,4 +78,16 @@ test('a Relic is "corrected" exactly when its connection is no longer admitted',
   assert.equal(relicWire.safeParse({ ...revoked, state: 'corrected' }).success, true);
   assert.equal(relicWire.safeParse({ ...revoked, state: 'current' }).success, false, 'a correction is never hidden');
   assert.equal(relicWire.safeParse({ ...revoked, state: 'doubted' }).success, false);
+});
+
+test('a chronicle line longer than the wire allows is shortened at a word, never dropped (review I1)', () => {
+  const names = Array.from({ length: 30 }, (_, i) => `Place number ${i} with a long descriptive name`);
+  const line = `Gravity holds up ${names.join(', ')}.`;
+  const clamped = clampLine(line);
+  assert.ok(line.length > AWAY_LINE_MAX && clamped.length <= AWAY_LINE_MAX, `${clamped.length}`);
+  assert.ok(clamped.endsWith('…') && line.startsWith(clamped.slice(0, -1).trimEnd()));
+  assert.equal(clampLine('Tides left the horizon.'), 'Tides left the horizon.');
+  const place = { kind: 'place_changed', at: '2026-09-24T11:00:00.000Z', deltaId: '33333333-3333-4333-8333-333333333333', placeId: '44444444-4444-4444-8444-444444444444',
+    change: 'foundation_recognised', cause: 'source_correction', line: clamped };
+  assert.equal(awayResponse.safeParse({ privacyEpoch: 0, since: null, items: [place], more: 0, recordingPaused: false }).success, true);
 });

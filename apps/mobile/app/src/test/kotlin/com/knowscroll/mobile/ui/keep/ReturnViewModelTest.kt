@@ -81,6 +81,11 @@ class ReturnViewModelTest {
 
     private fun loadedAway(model: ReturnViewModel) = (model.away.value as AwayState.Loaded).response
     private fun loadedRelics(model: ReturnViewModel) = (model.relics.value as RelicsState.Loaded).response
+    // For waits: a reload passes through Loading, which is not yet the answer (never a cast failure).
+    private fun awayOrNull(model: ReturnViewModel) = (model.away.value as? AwayState.Loaded)?.response
+    private fun relicsOrNull(model: ReturnViewModel) = (model.relics.value as? RelicsState.Loaded)?.response
+    private fun awayEpoch(model: ReturnViewModel) = awayOrNull(model)?.privacyEpoch
+    private fun relicsEpoch(model: ReturnViewModel) = relicsOrNull(model)?.privacyEpoch
 
     private fun openAtlas(model: ReturnViewModel) {
         model.openAtlas()
@@ -138,7 +143,7 @@ class ReturnViewModelTest {
             openAtlas(model)
             model.markSeen()
             assertEquals(ReturnActionState.Working, model.acknowledge.value)
-            awaitUntil { loadedAway(model).items.isEmpty() && model.acknowledge.value == ReturnActionState.Idle }
+            awaitUntil { awayOrNull(model)?.items?.isEmpty() == true && model.acknowledge.value == ReturnActionState.Idle }
             val body = sent(server, "POST /v1/away/acknowledge").single()
             assertEquals("the newest item displayed, not the time of the tap", "2026-09-24T10:05:00.000Z", body.getString("through"))
             assertEquals(4L, body.getLong("expectedPrivacyEpoch"))
@@ -170,7 +175,7 @@ class ReturnViewModelTest {
             awaitUntil { model.acknowledge.value is ReturnActionState.Failed }
             assertTrue("an unconfirmed acknowledgement may have landed: retry is offered", (model.acknowledge.value as ReturnActionState.Failed).canRetry)
             model.retryMarkSeen()
-            awaitUntil { model.acknowledge.value == ReturnActionState.Idle && loadedAway(model).items.isEmpty() }
+            awaitUntil { model.acknowledge.value == ReturnActionState.Idle && awayOrNull(model)?.items?.isEmpty() == true }
             val (first, retry) = sent(server, "POST /v1/away/acknowledge")
             assertEquals("the retry is the same request: id, epoch and time", first.toString(), retry.toString())
         }
@@ -201,7 +206,7 @@ class ReturnViewModelTest {
             val model = viewModel(server)
             openAtlas(model)
             model.markSeen()
-            awaitUntil { model.acknowledge.value is ReturnActionState.Failed && loadedAway(model).recordingPaused }
+            awaitUntil { model.acknowledge.value is ReturnActionState.Failed && awayOrNull(model)?.recordingPaused == true }
             assertTrue("a definitive refusal offers no retry", !(model.acknowledge.value as ReturnActionState.Failed).canRetry)
             model.retryMarkSeen()
             model.markSeen()
@@ -220,7 +225,7 @@ class ReturnViewModelTest {
             openAtlas(model)
             model.keep(bridgeId)
             assertEquals(ReturnActionState.Working, connectionState(model).keep)
-            awaitUntil { connectionState(model).kept && loadedRelics(model).relics.size == 1 }
+            awaitUntil { connectionState(model).kept && relicsOrNull(model)?.relics?.size == 1 }
             val body = sent(server, "POST /v1/relics").single()
             assertEquals(bridgeId, body.getString("bridgeId"))
             assertEquals("connection", body.getString("kind"))
@@ -289,7 +294,7 @@ class ReturnViewModelTest {
             openAtlas(model)
             assertTrue(connectionState(model).kept)
             model.seemsWrong(bridgeId)
-            awaitUntil { connectionState(model).markedWrong && loadedRelics(model).relics.single().state == "doubted" }
+            awaitUntil { connectionState(model).markedWrong && relicsOrNull(model)?.relics?.singleOrNull()?.state == "doubted" }
             val body = sent(server, "POST /v1/connections/feedback").single()
             assertEquals("seems_wrong", body.getString("objection"))
             assertEquals(bridgeId, body.getString("bridgeId"))
@@ -325,7 +330,7 @@ class ReturnViewModelTest {
             awaitUntil { model.relics.value is RelicsState.Loaded }
             model.letGo(relicId)
             assertEquals(ReturnActionState.Working, model.releases.value[relicId])
-            awaitUntil { loadedRelics(model).relics.isEmpty() && model.releases.value[relicId] == null }
+            awaitUntil { relicsOrNull(model)?.relics?.isEmpty() == true && model.releases.value[relicId] == null }
             assertEquals("""{"expectedPrivacyEpoch":4}""", server.requests[1].body)
             awaitUntil { server.requests.size == 3 }
             assertTrue(!connectionState(model).kept)
@@ -343,7 +348,27 @@ class ReturnViewModelTest {
             awaitUntil { (model.releases.value[relicId] as? ReturnActionState.Failed)?.canRetry == true }
             assertEquals("still listed until the server confirms", 1, loadedRelics(model).relics.size)
             model.retryLetGo(relicId)
-            awaitUntil { loadedRelics(model).relics.isEmpty() }
+            awaitUntil { relicsOrNull(model)?.relics?.isEmpty() == true }
+        }
+    }
+
+    @Test
+    fun aKeepTheListConfirmsIsSettledSoARetryNeverBringsBackALetGoRelic() {
+        TestHttpServer.open().use { server ->
+            // Review M1: the keep landed but its answer was lost; the list then shows the Relic.
+            server.serve(Routes(away(found), relics(), "POST /v1/relics" to (503 to "{}"), relics(relic()), released, relics()))
+            val model = viewModel(server)
+            openAtlas(model)
+            model.keep(bridgeId)
+            awaitUntil { (connectionState(model).keep as? ReturnActionState.Failed)?.canRetry == true }
+            model.openKeep()
+            awaitUntil { relicsOrNull(model)?.relics?.size == 1 }
+            assertEquals("the list confirms it: nothing is left to retry", ReturnActionState.Idle, connectionState(model).keep)
+            model.letGo(relicId)
+            awaitUntil { relicsOrNull(model)?.relics?.isEmpty() == true }
+            model.retryKeep(bridgeId)
+            server.join(300)
+            assertEquals("a Relic the reader let go is never kept again by a stale retry", 1, sent(server, "POST /v1/relics").size)
         }
     }
 
@@ -378,7 +403,7 @@ class ReturnViewModelTest {
             model.keep(bridgeId)
             awaitUntil { (connectionState(model).keep as? ReturnActionState.Failed)?.canRetry == true }
             model.openAtlas()
-            awaitUntil { loadedAway(model).privacyEpoch == 5L && loadedRelics(model).privacyEpoch == 5L }
+            awaitUntil { awayEpoch(model) == 5L && relicsEpoch(model) == 5L }
             assertEquals("a request for the old epoch could only be refused", ConnectionState(), connectionState(model))
             model.retryKeep(bridgeId)
             server.join(300)

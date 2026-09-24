@@ -211,8 +211,17 @@ class ReturnSectionsTest {
         onSeemsWrong = { connectionActions += "wrong:$it" }, onRetrySeemsWrong = { connectionActions += "retry-wrong:$it" },
     )
 
-    private fun renderFound(found: InquiryFound = found(), state: ConnectionState = ConnectionState(), onClose: () -> Unit = {}) {
-        composeRule.setContent { KnowScrollTheme { ReturnSheet(onDismiss = onClose) { FoundConnectionSheet(found, state, recording(), onClose) } } }
+    private fun renderFound(found: InquiryFound = found(), state: ConnectionState = ConnectionState(), onClose: () -> Unit = {}, paused: Boolean = false) {
+        composeRule.setContent { KnowScrollTheme { ReturnSheet(onDismiss = onClose) { FoundConnectionSheet(found, state, recording(), onClose, paused) } } }
+    }
+
+    @Test
+    fun whileRecordingIsPausedKeepIsNotOfferedButSeemsWrongIs() {
+        // Review M3: a keep is refused while paused (ADR-0030); a correction is not.
+        renderFound(paused = true)
+        composeRule.onAllNodesWithContentDescription("Keep this connection").assertCountEquals(0)
+        shown("Recording is paused, so nothing new is kept.")
+        composeRule.onNodeWithContentDescription("This connection seems wrong").performScrollTo().assertExists()
     }
 
     @Test

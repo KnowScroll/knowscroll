@@ -16,6 +16,7 @@ import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.t
 import { inquiryAuthority, installBackgroundInquiryRoute } from '../packages/db/src/reasoning-inquiries.ts';
 import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
+import { deleteAccount } from '../packages/db/src/privacy.ts';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureInquiryTransport, type InquiryFixtureMode } from '../apps/worker/src/providers/inquiry-fixture.ts';
 import { formPlaces, loadInquiryFixture, type InquiryFixture } from './helpers/inquiry-fixture.ts';
@@ -120,6 +121,10 @@ test('return after real background work: found, inspected, kept, acknowledged; a
   const relic = relicKeepResponse.parse(kept.json()).relic;
   assert.deepEqual([relic.state, relic.kind, relic.provenance.inquiryId, relic.provenance.validatorVersion], ['current', 'connection', inquiryId, 'bridge-validator-v1']);
   assert.deepEqual([...relic.provenance.citedClaimKeys].sort(), [r.f.claims.both, r.f.claims.gravity, r.f.claims.sun].sort());
+
+  // Another reader sees none of it (review I3).
+  const stranger = await reader();
+  assert.deepEqual([(await away(stranger)).items, await relics(stranger)], [[], []]);
 
   const acked = await acknowledge(r, found.at);
   assert.equal(acked.statusCode, 200, acked.body);
@@ -268,4 +273,53 @@ test('SQL guards: rows are immutable, bound to the current epoch, never written 
   // A connection that is no longer admitted cannot be kept, even by SQL.
   await transaction(client => correctSourceSnapshot(client, { sourceKey: r.f.sources.bridge, action: 'revoked', reason: 'Fixture: withdrawn' }, 'editorial'));
   await assert.rejects(insertRelic(0), /admitted connection/);
+});
+
+test('the marker covers an item at its millisecond, so the count of the rest is exact on a full list (review I3)', async () => {
+  const r = await reader();
+  await form(r, 'gravity');
+  const place = (await pool.query(`SELECT p.id FROM atlas_place p JOIN concept c ON c.id=p.anchor_concept_id WHERE p.universe_id=$1 AND c.code=$2`,
+    [r.universeId, r.f.codes.gravity])).rows[0].id;
+  // Twelve source corrections a second apart, each with microseconds the wire does not carry.
+  for (let i = 12; i >= 1; i -= 1) {
+    await pool.query(`INSERT INTO atlas_delta(id,universe_id,place_id,kind,causal_class,policy_version,evidence,before,after,created_at)
+      VALUES(gen_random_uuid(),$1,$2,'place_released','source_correction','cartographer-v2','{}','{}','{}',
+             date_trunc('milliseconds', clock_timestamp()) - make_interval(secs => $3) + interval '456 microseconds')`, [r.universeId, place, i]);
+  }
+  const first = await away(r);
+  assert.deepEqual([first.items.length, first.more], [10, 2]);
+  const oldest = (await pool.query(`SELECT date_trunc('milliseconds', min(created_at)) AS at FROM atlas_delta WHERE universe_id=$1 AND causal_class='source_correction'`,
+    [r.universeId])).rows[0].at as Date;
+  assert.equal((await acknowledge(r, oldest.toISOString())).statusCode, 200);
+  const after = await away(r);
+  assert.deepEqual([after.items.length, after.more], [10, 1], 'the oldest is covered by a marker at its millisecond');
+});
+
+test('Reset and account deletion erase Relics and markers too, even while paused (review I3)', async () => {
+  mode = 'proposal';
+  const reset = await reader();
+  const foundOnReset = await foundWhileAway(reset);
+  assert.equal((await keep(reset, foundOnReset.found.bridgeId)).statusCode, 201);
+  assert.equal((await acknowledge(reset, foundOnReset.at)).statusCode, 200);
+  const done = await app.inject({ method: 'POST', url: '/v1/privacy/reset', headers: headers(reset),
+    payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'reset-personal-universe' } });
+  assert.equal(done.statusCode, 200, done.body);
+  const deleting = await reader();
+  const foundOnDelete = await foundWhileAway(deleting);
+  assert.equal((await keep(deleting, foundOnDelete.found.bridgeId)).statusCode, 201);
+  assert.equal((await acknowledge(deleting, foundOnDelete.at)).statusCode, 200);
+  assert.equal((await privacy(deleting, 'pause')).statusCode, 200);
+  const accountId = randomUUID();
+  await pool.query(`INSERT INTO account(id,email) VALUES($1,$2)`, [accountId, `return-${accountId}@knowscroll.test`]);
+  await pool.query('UPDATE universe SET account_id=$2 WHERE id=$1', [deleting.universeId, accountId]);
+  const scope = { sessionId: '', deviceId: '', universeId: deleting.universeId, privacyEpoch: 0, expiresAt: '' };
+  await transaction(async client => {
+    await client.query('SELECT 1 FROM universe WHERE id=$1 FOR UPDATE', [deleting.universeId]);
+    return deleteAccount(client, scope, { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'delete-my-account-and-history' });
+  });
+  for (const r of [reset, deleting]) {
+    for (const table of ['relic', 'away_acknowledgement', 'background_inquiry']) {
+      assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [r.universeId])).rows[0].count), 0, table);
+    }
+  }
 });

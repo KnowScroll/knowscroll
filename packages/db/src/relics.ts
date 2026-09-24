@@ -10,6 +10,7 @@ import { RELIC_LIST_LIMIT, relicKeepInput, relicReleaseInput, type RelicKeepResp
 import { ReturnError } from './away.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning-inquiries.ts';
+import { lockSubstrateShared } from './semantic/read-set.ts';
 
 type RelicRow = { id: string; bridge_id: string; inquiry_id: string | null; validator_version: string; cited_claim_keys: string[]; kept_at: Date };
 
@@ -45,6 +46,9 @@ export async function keepRelic(client: pg.PoolClient, scope: AuthScope, raw: un
   if ((await client.query<{ paused: boolean }>('SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1', [scope.universeId])).rows[0]!.paused) {
     throw new ReturnError(409, 'Recording is paused');
   }
+  // A source correction takes this lock exclusively: the bridge read next cannot be revoked before
+  // the insert, so a racing correction gives a clean refusal, never a guard error (review M2).
+  await lockSubstrateShared(client);
   const bridge = (await client.query<{ validator_version: string; proposal_id: string }>(
     `SELECT validator_version, proposal_id FROM bridge WHERE id=$1 AND status='admitted'
        AND (scope_kind='shared' OR (universe_id=$2 AND privacy_epoch=$3))`, [input.bridgeId, scope.universeId, scope.privacyEpoch])).rows[0];

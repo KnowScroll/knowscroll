@@ -115,7 +115,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         // 2. Leave while the inquiry is still open. The worker finds the connection while the app is
         // in the background (the runner's coalescing delay keeps it waiting past this point).
         val statusWhenLeft = runBlocking { api.getInquiries() }.inquiries.firstOrNull()?.status
-        assertTrue("the inquiry is still open when the reader leaves ($statusWhenLeft)", statusWhenLeft in setOf("waiting", "looking"))
+        assertEquals("the inquiry is still waiting when the reader leaves", "waiting", statusWhenLeft)
         leave()
         val list: InquiriesResponse = poll("the inquiry is found while away", { api.getInquiries() }) { l -> l.inquiries.any { it.status == "found" } }
         val inquiry = list.inquiries.first { it.status == "found" }
@@ -142,11 +142,13 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         val relic: Relic = poll("the Relic is kept", { api.getRelics() }) { r -> r.relics.any { it.connection.bridgeId == found.bridgeId } }
             .relics.single { it.connection.bridgeId == found.bridgeId }
         assertEquals("current", relic.state)
+        val statesSeen = mutableListOf(relic.state)
         assertEquals(inquiry.inquiryId, relic.provenance.inquiryId)
 
         // 6. On reflection it seems wrong: the reader's own doubt, recorded on the Relic too.
         compose.onNodeWithContentDescription("This connection seems wrong").performScrollTo().performClick()
-        poll("the doubt is recorded", { api.getRelics() }) { r -> r.relics.any { it.relicId == relic.relicId && it.state == "doubted" } }
+        statesSeen += poll("the doubt is recorded", { api.getRelics() }) { r -> r.relics.any { it.relicId == relic.relicId && it.state == "doubted" } }
+            .relics.single { it.relicId == relic.relicId }.state
         waitText("You marked this as seeming wrong")
         compose.onNodeWithContentDescription("Close this connection").performClick()
         compose.waitForIdle()
@@ -163,10 +165,13 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         compose.onNodeWithContentDescription("Mark what changed while you were away as seen").performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithContentDescription("While you were away").fetchSemanticsNodes().isEmpty() }
         leave()
-        val corrected = poll("a source correction reaches the Relic while away", { api.getRelics() }) { r ->
+        // Only now, with the app in the background, may the runner apply the correction: it waits for this.
+        File(instrumentation.targetContext.filesDir, "return-left-again.txt").writeText("left")
+        val corrected = poll("the runner's source correction reaches the Relic while away (did its correction watcher fire?)", { api.getRelics() }) { r ->
             r.relics.any { it.relicId == relic.relicId && it.state == "corrected" }
         }.relics.single { it.relicId == relic.relicId }
         assertEquals("revoked", corrected.connection.bridgeStatus)
+        statesSeen += corrected.state
         assertEquals("the kept form stays readable", found.sentence, corrected.connection.sentence)
 
         // 9. Return (to the Atlas, where they left): it shows the correction; Keep shows the Relic corrected.
@@ -182,7 +187,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         File(instrumentation.targetContext.filesDir, "return-journey.json").writeText(
             JSONObject().apply {
                 put("inquiryId", inquiry.inquiryId); put("inquiryStatus", inquiry.status); put("bridgeId", found.bridgeId)
-                put("relicId", relic.relicId); put("relicStates", org.json.JSONArray(listOf("current", "doubted", "corrected")))
+                put("relicId", relic.relicId); put("relicStates", org.json.JSONArray(statesSeen))
                 put("statusWhenLeft", statusWhenLeft)
                 put("evidenceCount", found.evidence.size)
             }.toString(2)

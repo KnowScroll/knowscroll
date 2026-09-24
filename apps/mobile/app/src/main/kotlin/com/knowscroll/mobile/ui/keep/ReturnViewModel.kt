@@ -135,11 +135,19 @@ class ReturnViewModel @JvmOverloads constructor(
     /** A kept Relic says its connection is kept, and a doubted one that the reader marked it wrong. */
     private fun applyRelics(response: RelicsResponse) {
         val kept = response.relics.associateBy { it.connection.bridgeId }
+        // A Relic the server lists is confirmed kept: an unconfirmed keep of it is settled, so a later
+        // retry can never bring back a Relic the reader has since let go (review M1). One still in
+        // flight settles itself.
+        for (id in kept.keys) if (_connections.value[id]?.keep !is ReturnActionState.Working) pendingKeeps.remove(id)
         _connections.update { current ->
             (current.keys + kept.keys).associateWith { id ->
                 val known = current[id] ?: ConnectionState()
                 val relic = kept[id]
-                known.copy(kept = relic != null, markedWrong = known.markedWrong || relic?.state == "doubted")
+                val settled = relic != null && known.keep !is ReturnActionState.Working
+                known.copy(
+                    kept = relic != null, markedWrong = known.markedWrong || relic?.state == "doubted",
+                    keep = if (settled) ReturnActionState.Idle else known.keep,
+                )
             }
         }
     }

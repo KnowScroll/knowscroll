@@ -166,7 +166,9 @@ class AwayTest {
         refused(response(nothingFound(pairs = JSONArray())))
         refused(response(nothingFound(pairs = JSONArray(List(4) { pair() }))))
         refused(response(placeChanged().put("line", "")))
-        refused(response(placeChanged().put("line", "x".repeat(301))))
+        refused(response(placeChanged().put("line", "x".repeat(601))))
+        // The server shortens a longer chronicle line to fit (review I1): 600 is accepted.
+        assertEquals(600, (parseAwayResponse(response(placeChanged().put("line", "x".repeat(600)))).items.single() as AwayItem.PlaceChanged).line.length)
         refused(response(placeChanged().put("deltaId", "not-a-uuid")))
         refused(response(connectionFound(at = "yesterday")))
         refused(response(since = "2026-09-24 10:00"))

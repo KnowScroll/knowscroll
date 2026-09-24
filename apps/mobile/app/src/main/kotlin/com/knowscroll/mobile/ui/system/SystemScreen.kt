@@ -308,6 +308,7 @@ fun SystemScreen(
                                     state = away.connections[openConnection.bridgeId] ?: ConnectionState(),
                                     actions = away.connection,
                                     onClose = { openConnectionId = null },
+                                    paused = (away.state as? com.knowscroll.mobile.ui.keep.AwayState.Loaded)?.response?.recordingPaused == true,
                                 )
                             }
                         } else if (selected != null && inspection) {

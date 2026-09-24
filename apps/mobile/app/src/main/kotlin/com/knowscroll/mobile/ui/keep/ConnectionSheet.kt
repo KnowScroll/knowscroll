@@ -67,7 +67,7 @@ internal fun ReturnSheet(onDismiss: () -> Unit, bordered: Boolean = false, conte
 
 /** A connection found while the reader was away: "Keep" and "Seems wrong" while it still stands. */
 @Composable
-internal fun FoundConnectionSheet(found: InquiryFound, state: ConnectionState, actions: ConnectionActions, onClose: () -> Unit) {
+internal fun FoundConnectionSheet(found: InquiryFound, state: ConnectionState, actions: ConnectionActions, onClose: () -> Unit, paused: Boolean = false) {
     SheetColumn {
         SheetHeader(stringResource(R.string.connection_back_atlas), stringResource(R.string.connection_kicker), onClose)
         SheetTitle(found)
@@ -76,7 +76,10 @@ internal fun FoundConnectionSheet(found: InquiryFound, state: ConnectionState, a
         if (state.markedWrong) Text(stringResource(R.string.relic_state_doubted), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
         // Only an admitted connection can be kept or doubted; a withdrawn one is shown, not offered.
         val admitted = found.bridgeStatus == "admitted"
-        if (admitted && !state.kept && !state.markedWrong && !state.keep.retryable()) {
+        // While recording is paused nothing new is kept (ADR-0030); a "seems wrong" is a correction and stays.
+        if (admitted && paused && !state.kept && !state.markedWrong)
+            Text(stringResource(R.string.connection_paused), style = MaterialTheme.typography.bodyMedium)
+        if (admitted && !paused && !state.kept && !state.markedWrong && !state.keep.retryable()) {
             val keepDescription = stringResource(R.string.connection_keep_description)
             Button(
                 onClick = { actions.onKeep(found.bridgeId) },

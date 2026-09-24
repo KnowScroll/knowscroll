@@ -30,7 +30,7 @@ export const awayItem = z.discriminatedUnion('kind', [
     /** Only a source correction changes a place without the reader: every other cause follows their own reading. */
     cause: z.literal('source_correction'),
     /** The chronicle's own deterministic line for the delta (ADR-0036), never model text. */
-    line: z.string().min(1).max(300),
+    line: z.string().min(1).max(600),
   }).strict(),
   z.object({
     kind: z.literal('connection_corrected'), at, bridgeId: id, status: z.enum(['revoked', 'superseded']),

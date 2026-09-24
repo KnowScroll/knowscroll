@@ -204,14 +204,14 @@ try:
     if journey_name == 'return':
         # ADR-0039: the second time away, the publisher of the kept connection's mechanism source withdraws
         # it -- an operator correction through the real tool, applied only once the device has kept the
-        # connection, doubted it and marked what changed as seen (then it leaves). Shared knowledge in this
-        # disposable database only.
+        # connection, doubted it, marked what changed as seen and then written, from the background, that it
+        # left. Shared knowledge in this disposable database only.
         def correct_when_away(deadline=time.time() + 300):
             while time.time() < deadline:
                 ready = sql("""SELECT (SELECT count(*) FROM relic) > 0 AND (SELECT count(*) FROM connection_feedback WHERE objection='seems_wrong') > 0
                               AND (SELECT count(*) FROM away_acknowledgement) > 0""")
-                if ready == 't':
-                    time.sleep(3)  # the device goes to the background right after marking as seen
+                left = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/return-left-again.txt'], capture_output=True).stdout == b'left'
+                if ready == 't' and left:
                     key = sql("""SELECT s.key FROM relic r JOIN bridge_evidence e ON e.bridge_id=r.bridge_id
                         JOIN claim_support cs ON cs.claim_id=e.claim_id AND cs.support_kind='supports'
                         JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='current' JOIN semantic_source s ON s.id=ss.source_id
@@ -223,6 +223,7 @@ try:
                     if applied.returncode != 0: correction['error'] = applied.stderr.strip()[-300:]
                     return
                 time.sleep(0.5)
+            correction.update(applied=False, error='the device never both finished its first return and left again')
         watcher = threading.Thread(target=correct_when_away, daemon=True)
         watcher.start()
     if journey_name == 'owner':
@@ -259,7 +260,8 @@ try:
         capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
         if capture.returncode == 0 and (filename.endswith('.json') or capture.stdout.startswith(b'\x89PNG')): (out / filename).write_bytes(capture.stdout)
     expected = 'OK (1 test)' if spec.get('tests', 1) == 1 else f"OK ({spec['tests']} tests)"
-    if expected not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
+    if expected not in result:
+        raise RuntimeError(f'Semantic {journey_name} journey failed' + (f'; correction watcher: {correction or "not yet fired"}' if journey_name == 'return' else ''))
 
     # 4. Verify the causal lineage the UI claimed, in the database itself.
     journey = json.loads((out / spec['receipt']).read_text())
@@ -434,18 +436,19 @@ try:
       'relics', (SELECT count(*) FROM relic),
       'seemsWrong', (SELECT count(*) FROM connection_feedback WHERE bridge_id='{b}' AND objection='seems_wrong'),
       'bridgeRevokedByCorrection', (SELECT count(*) FROM bridge WHERE id='{b}' AND status='revoked'),
-      'markersForward', (SELECT count(*) FROM away_acknowledgement),
+      'markers', (SELECT count(*) FROM away_acknowledgement),
       'markerAfterFound', (SELECT count(*) FROM away_acknowledgement a JOIN background_inquiry q ON q.id='{i}'
           WHERE a.through >= date_trunc('milliseconds', q.closed_at)),
       'sharedBridgesStillAdmittedOrRevoked', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status IN ('admitted','revoked')))"""))
         found = journey['inquiryStatus'] == 'found'
         # The device saw the inquiry still open when it left, and found when it came back: the work
         # happened while it was away (the device's clock is never compared with the database's).
-        away_work = journey['statusWhenLeft'] in ('waiting', 'looking')
+        away_work = journey['statusWhenLeft'] == 'waiting'
         assert found and away_work and correction.get('applied') is True, (journey['inquiryStatus'], journey['statusWhenLeft'], correction)
         expected = {'inquiryAdmitted': 1, 'inquiryFoundTheBridge': 1, 'jobBackgroundDirtyCompleted': 1,
                     'relicKeptWithProvenance': 1, 'relics': 1, 'seemsWrong': 1, 'bridgeRevokedByCorrection': 1}
-        assert {k: lineage[k] for k in expected} == expected and lineage['markersForward'] >= 1 and lineage['markerAfterFound'] >= 1, lineage
+        assert {k: lineage[k] for k in expected} == expected and lineage['markers'] == 1 and lineage['markerAfterFound'] == 1, lineage
+        assert journey['relicStates'] == ['current', 'doubted', 'corrected'], journey['relicStates']
         lineage['correction'] = {'sourceKey': correction['sourceKey'], 'applied': correction['applied']}
         limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
                    'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else

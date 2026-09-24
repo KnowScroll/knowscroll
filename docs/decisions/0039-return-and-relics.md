@@ -29,9 +29,11 @@ superseded". No Relic exists. Keep holds only Traces, which are keyed by asset.
      (`personal_exploration`, `substrate_neighbourhood`, `reader_correction`) comes from the
      Cartographer's refresh after the reader's own action, so the reader saw it happen;
    - status changes of bridges the reader was shown as found or kept as a Relic (`revoked`,
-     `superseded`), with the correction's reason.
+     `superseded`). The item says a source correction did it; it does not carry the operator's
+     reason text, which is shared editorial history, not the reader's.
    Each item is typed and carries its evidence reference. The list is capped (at most 10 items, with
-   a count of the rest). No item is composed by a model: a delta carries the chronicle's own
+   a count of the rest, compared with the marker at the wire's millisecond precision); a chronicle
+   line longer than the wire allows is shortened at a word, never dropped (review). No item is composed by a model: a delta carries the chronicle's own
    deterministic line (ADR-0036), and the client words the rest from their types.
 2. **The return marker is the reader's to move.** `POST /v1/away/acknowledge` with a client request
    id, the expected epoch and `through`: the time of the newest item the client displayed, so an item
@@ -46,7 +48,7 @@ superseded". No Relic exists. Keep holds only Traces, which are keyed by asset.
    (like a keep, ADR-0030), for a bridge that is not admitted, and for a bridge this reader has marked
    "seems wrong". One Relic per bridge per epoch.
 4. **A Relic never hides a correction.** `GET /v1/relics` derives each Relic's state when read:
-   `current`; `corrected` (the bridge was revoked or superseded, with the reason); or `doubted` (the
+   `current`; `corrected` (the bridge was revoked or superseded since); or `doubted` (the
    reader marked the bridge "seems wrong" after keeping it). The kept form stays readable. The Relic
    is not deleted by a correction. `POST /v1/relics/:id/release` lets the reader let it go: the row is
    removed, not hidden.
@@ -54,8 +56,9 @@ superseded". No Relic exists. Keep holds only Traces, which are keyed by asset.
    `POST /v1/connections/feedback` (ADR-0031): personal suppression, never a retraction of shared
    knowledge. A place that should not exist is set aside with the existing reject (ADR-0036).
 6. **Android shows it where the reader returns.** A quiet "While you were away" section at the top of
-   the atlas, only when there is something unacknowledged. Each item opens its evidence, and a found
-   connection offers "Seems wrong" and "Keep". Keep lists Relics above Traces, each with its state.
+   the atlas, only when there is something unacknowledged. A found connection opens its sentence
+   and sources and offers "Keep" (not while paused) and "Seems wrong"; every other item is one line
+   from its type (a place change is the chronicle's own line, whose evidence the atlas already opens). Keep lists Relics above Traces, each with its state.
    The web client is not in this slice.
 
 ## Not in this version
