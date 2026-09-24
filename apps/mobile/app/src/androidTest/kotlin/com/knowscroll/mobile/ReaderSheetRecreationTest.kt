@@ -46,9 +46,6 @@ class ReaderSheetRecreationTest {
     private fun waitText(text: String) = compose.waitUntil(15_000) {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
-    private fun waitDescription(description: String) = compose.waitUntil(15_000) {
-        compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
-    }
     private fun textShown(text: String): Boolean =
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     private fun waitReading() = compose.waitUntil(15_000) {
@@ -56,10 +53,17 @@ class ReaderSheetRecreationTest {
             compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isNotEmpty()
     }
 
+    /** The three tests share one install, so a later one may launch straight back into the reading
+     * session an earlier one persisted; either starting point is a real reading Scroll. */
     private fun openReaderFresh() {
         guardJourneyApp()
-        waitDescription("Enter Scroll")
-        compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
+        compose.waitUntil(20_000) {
+            compose.onAllNodesWithContentDescription("Enter Scroll").fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
+        }
         waitReading()
     }
 

@@ -29,6 +29,10 @@ JOURNEYS = {
                'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
     'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
             'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
+    # #97: each reader sheet stays open across Activity recreation, on the real stack.
+    'sheets': {'test': 'com.knowscroll.mobile.ReaderSheetRecreationTest', 'receipt': 'sources-sheet-recreate.json', 'tests': 3,
+               'captures': ('sources-sheet-recreate.png', 'explain-sheet-recreate.png', 'connections-sheet-recreate.png',
+                            'explain-sheet-recreate.json', 'connections-sheet-recreate.json')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
@@ -101,11 +105,22 @@ try:
     for filename in (spec['receipt'], *spec['captures']):
         capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
         if capture.returncode == 0 and (filename.endswith('.json') or capture.stdout.startswith(b'\x89PNG')): (out / filename).write_bytes(capture.stdout)
-    if 'OK (1 test)' not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
+    expected = 'OK (1 test)' if spec.get('tests', 1) == 1 else f"OK ({spec['tests']} tests)"
+    if expected not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
 
     # 4. Verify the causal lineage the UI claimed, in the database itself.
     journey = json.loads((out / spec['receipt']).read_text())
-    if journey_name == 'why':
+    if journey_name == 'sheets':
+        receipts = [json.loads((out / f).read_text()) for f in (spec['receipt'], 'explain-sheet-recreate.json', 'connections-sheet-recreate.json') if (out / f).exists()]
+        # Tests that launch back into a persisted reading session share its exposure.
+        exposure_ids = sorted({r['exposureId'] for r in receipts if 'exposureId' in r})
+        lineage = {'sheetsRestored': sum(1 for r in receipts if r.get('sheetRestoredAfterRecreation') is True),
+                   'connectionsReached': any(r.get('scenario') == 'connectionsSheetSurvivesRecreationWhenAvailable' for r in receipts),
+                   'exposuresRecorded': int(sql("SELECT count(*) FROM exposure WHERE id IN (" + ",".join(f"'{e}'" for e in exposure_ids) + ")") if exposure_ids else 0)}
+        assert lineage['sheetsRestored'] >= 2 and lineage['exposuresRecorded'] == len(exposure_ids) >= 1, lineage
+        journey = {'receipts': receipts}
+        limits = ['Debug API36 emulator, not a physical device.', 'Recreation via ActivityScenario.recreate(), not a physical rotation.']
+    elif journey_name == 'why':
         d, a = journey['decisionId'], journey['assetId']
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'servedByV3', (SELECT count(*) FROM decision d JOIN decision_candidate dc ON dc.decision_id=d.id
