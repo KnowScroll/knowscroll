@@ -23,9 +23,11 @@ export type RequestOutcome =
   | { status: 'refused'; writingId: string | null; reasons: readonly string[] }
   | { status: 'failed' | 'cancelled'; reasons: readonly string[] };
 
-/** Every decision about a concept's supply is made under this lock (after the universe lock). */
-export async function lockConceptSupply(client: pg.PoolClient, conceptId: string): Promise<void> {
-  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ks-inventory:${conceptId}`]);
+/** Every decision about supply is made under this one lock: after the universe lock, before the
+ * route's bucket row. A transaction may decide several concepts' needs; with one lock taken in one
+ * order, two such transactions cannot wait on each other. */
+export async function lockSupply(client: pg.PoolClient): Promise<void> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext('ks-inventory'))");
 }
 
 /** Installs and enables one route (disabling any other); its request cap becomes its bucket. */
@@ -55,7 +57,7 @@ export interface SupplyFacts {
   candidates: { id: string; conceptCodes: string[]; requested: boolean }[];
 }
 
-/** What the Quartermaster knows about a concept's supply. The caller holds `lockConceptSupply`; the
+/** What the Quartermaster knows about a concept's supply. The caller holds `lockSupply`; the
  * route's bucket stays locked until it commits, so the budget it decided on is still there to fund. */
 export async function loadSupplyFacts(client: pg.PoolClient, conceptId: string): Promise<SupplyFacts> {
   const open = (await client.query<{ id: string }>(`SELECT id FROM supply_request WHERE concept_id=$1 AND modality='scroll' AND status IN ('open','sending')`, [conceptId])).rows[0];
@@ -64,7 +66,8 @@ export async function loadSupplyFacts(client: pg.PoolClient, conceptId: string):
      WHERE r.enabled FOR UPDATE OF b`,
   )).rows[0];
   const candidates = (await client.query<{ id: string; concept_codes: string[]; requested: boolean }>(
-    `SELECT m.id, m.concept_codes, EXISTS (SELECT 1 FROM supply_request s WHERE s.candidate_id = m.id AND s.concept_id = $1) AS requested
+    `SELECT m.id, m.concept_codes,
+       EXISTS (SELECT 1 FROM supply_request s WHERE s.candidate_id = m.id AND s.concept_id = $1 AND supply_request_uses_material(s.status, s.reasons)) AS requested
      FROM scroll_material_candidate m ORDER BY m.created_at, m.id`, [conceptId],
   )).rows;
   return {
@@ -101,8 +104,7 @@ export async function nextOpenRequest(client: pg.Pool | pg.PoolClient): Promise<
  * on an enabled route becomes `sending`, which consumes the unit it held. Otherwise nothing is sent:
  * a request no one waits for, or whose route was disabled, is cancelled with that reason. */
 export async function admitRequest(client: pg.PoolClient, requestId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const { concept_id: conceptId } = (await client.query<{ concept_id: string }>('SELECT concept_id FROM supply_request WHERE id=$1', [requestId])).rows[0]!;
-  await lockConceptSupply(client, conceptId);
+  await lockSupply(client);
   const current = (await client.query<{ status: string; enabled: boolean }>(
     'SELECT r.status, w.enabled FROM supply_request r JOIN scroll_writing_route w ON w.id = r.route_id WHERE r.id=$1 FOR UPDATE OF r', [requestId])).rows[0]!;
   if (current.status !== 'open') return { ok: false, reason: 'request_not_open' };

@@ -83,7 +83,6 @@ CREATE TABLE supply_request (
  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  sent_at timestamptz,
  settled_at timestamptz,
- UNIQUE (candidate_id, concept_id),
  CHECK ((status = 'fulfilled') = (asset_id IS NOT NULL)),
  CHECK ((status IN ('open','sending')) = (settled_at IS NULL)),
  CHECK (status NOT IN ('sending','failed') OR sent_at IS NOT NULL),
@@ -91,6 +90,12 @@ CREATE TABLE supply_request (
  CHECK ((status IN ('refused','failed','cancelled')) = (jsonb_array_length(reasons) > 0))
 );
 CREATE UNIQUE INDEX supply_request_one_open ON supply_request(concept_id, modality) WHERE status IN ('open','sending');
+-- A request uses its material for its concept, once, unless it was cancelled (never sent) for a
+-- reason that is not the material's own: no one waited any more, or the route changed. That
+-- material may be funded again.
+CREATE FUNCTION supply_request_uses_material(status text, reasons jsonb) RETURNS boolean LANGUAGE sql IMMUTABLE
+ AS $$ SELECT status <> 'cancelled' OR reasons ?| ARRAY['material_corrected','material_revoked'] $$;
+CREATE UNIQUE INDEX supply_request_material_used ON supply_request(candidate_id, concept_id) WHERE supply_request_uses_material(status, reasons);
 CREATE INDEX supply_request_queue ON supply_request(created_at, id) WHERE status = 'open';
 
 CREATE FUNCTION supply_request_guard() RETURNS trigger LANGUAGE plpgsql AS $$

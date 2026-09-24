@@ -21,7 +21,9 @@ import { runSupplyPass, scrollTransportsFromEnvironment } from '../apps/worker/s
 import { atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { awayResponse } from '../packages/contracts/src/away.ts';
 import { inventoryResponse } from '../packages/contracts/src/inventory.ts';
-import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
+import type pg from 'pg';
+import { lockUniverse, pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
+import { observeBranchGap } from '../packages/db/src/inventory/demand.ts';
 import { loadBoundScrolls } from '../packages/db/src/inventory/read.ts';
 import { admitRequest, installMaterialCandidates, installScrollWritingRoute } from '../packages/db/src/inventory/supply.ts';
 import { catchUpUniverse } from '../packages/db/src/semantic/correction-refresh.ts';
@@ -76,12 +78,12 @@ async function setup(options: { requestCap: number; material: { name: string; co
 }
 
 type DemandRow = { id: string; status: string; decision: string | null; reason: string | null; causes: Record<string, unknown>[]; decisions: Record<string, unknown>[] };
-async function demandOf(r: Reader, concept: string): Promise<DemandRow> {
+async function demandOf(r: Pick<Reader, 'universeId'>, concept: string): Promise<DemandRow> {
   return (await pool.query<DemandRow>(
     `SELECT d.id, d.status, d.decision, d.reason, d.causes, d.decisions FROM content_demand d JOIN concept c ON c.id = d.concept_id
      WHERE d.universe_id = $1 AND c.code = $2 ORDER BY d.created_at DESC LIMIT 1`, [r.universeId, concept])).rows[0]!;
 }
-const requestsFor = async (concept: string) => (await pool.query<{ id: string; status: string; reasons: string[]; asset_id: string | null; offered_codes: string[]; rights_policy: string }>(
+const requestsFor = async (concept: string) => (await pool.query<{ id: string; status: string; reasons: string[]; candidate_id: string; asset_id: string | null; offered_codes: string[]; rights_policy: string }>(
   'SELECT r.* FROM supply_request r JOIN concept c ON c.id = r.concept_id WHERE c.code = $1 ORDER BY r.created_at', [concept])).rows;
 const waitersOf = async (r: Reader) => (await pool.query<{ request_id: string; status: string; reason: string | null }>(
   'SELECT request_id, status, reason FROM demand_waiter WHERE universe_id = $1 ORDER BY created_at', [r.universeId])).rows;
@@ -221,6 +223,56 @@ test('pause, Clear and Reset cancel only their own waiter; a request no one wait
   assert.deepEqual(pass.kind === 'done' && [pass.status, pass.reasons], ['cancelled', ['no_waiters']]);
   assert.deepEqual([s.calls.count, s.requested.length], [0, 1], 'the page was read, nothing was sent');
   assert.deepEqual(await bucketOf(s.f), { reserved: 0, consumed: 0 });
+  // A request cancelled before it was sent never used its material: a new need funds it again.
+  await readTidesInFull(app, b.h, b.universeId, s.f);
+  await feed(b);
+  const [, again] = await requestsFor(s.f.codes.tides);
+  assert.deepEqual([(await demandOf(b, s.f.codes.tides)).decision, again?.candidate_id], ['fund', request!.candidate_id]);
+});
+
+test('deciding several needs in one transaction takes one supply lock, so two readers in opposite orders never wait on each other', async () => {
+  const { f } = await setup({ requestCap: 1, material: [] });
+  // Each reader was shown everything about Tides and Gravity: a continuation into either is a need.
+  const shown = async () => {
+    const identity = await provisionIdentity();
+    let exposureId = '';
+    for (const id of [...f.scrolls.tides, f.scrolls.gravity]) exposureId = await readScroll(app, { authorization: `Bearer ${identity.token}` }, id, false);
+    return { scope: identity.scope, exposureId };
+  };
+  const [a, b] = [await shown(), await shown()];
+  const gap = (client: pg.PoolClient, r: typeof a, concept: string) =>
+    observeBranchGap(client, r.scope, { concept, bridgeId: f.bridgeId, exposureId: r.exposureId, served: null });
+  const [one, two] = [await pool.connect(), await pool.connect()];
+  try {
+    for (const [client, r] of [[one, a], [two, b]] as const) { await client.query('BEGIN'); await lockUniverse(client, r.scope.universeId); }
+    await gap(one, a, f.codes.tides);
+    const pid = (await two.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
+    const second = gap(two, b, f.codes.gravity).then(() => null, (error: unknown) => error);
+    const deadline = Date.now() + 10_000;
+    while ((await pool.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1', [pid])).rows[0]?.wait_event_type !== 'Lock') {
+      assert.ok(Date.now() < deadline, 'the second reader never waited');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    // The first reader's next need, in the opposite order: it must not wait on the second reader.
+    await gap(one, a, f.codes.gravity);
+    await one.query('COMMIT');
+    assert.equal(await second, null);
+    await gap(two, b, f.codes.tides);
+    await two.query('COMMIT');
+  } catch (error) {
+    await one.query('ROLLBACK');
+    await two.query('ROLLBACK');
+    throw error;
+  } finally {
+    one.release();
+    two.release();
+  }
+  for (const r of [a, b]) {
+    for (const concept of [f.codes.tides, f.codes.gravity]) {
+      const { status, reason } = await demandOf(r.scope, concept);
+      assert.deepEqual([status, reason], ['cannot_meet', 'no_material'], concept);
+    }
+  }
 });
 
 test('an offered continuation into a concept with nothing unseen is a need; a funded request holds the route\'s unit, so another need is told no_budget, never left waiting', async () => {

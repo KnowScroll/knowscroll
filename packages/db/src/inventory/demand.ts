@@ -10,15 +10,15 @@
  * Quartermaster (`packages/core/src/inventory/quartermaster.ts`) decides then, when supply settles
  * and when a correction withdraws a binding; every decision is appended to the demand's history and
  * applied here as a private binding, a waiter on a shared request, a funded request, or the reason
- * the need cannot be met. Callers hold the universe lock; deciding takes the concept's supply lock
- * after it, and the route's bucket row after that.
+ * the need cannot be met. Callers hold the universe lock; deciding takes the one supply lock after
+ * it, and the route's bucket row after that.
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { decideDemand, withinConcept, type DemandFacts, type QuartermasterDecision } from '../../../core/src/inventory/quartermaster.ts';
 import type { AuthScope } from '../identity.ts';
 import { lockUniverse, transaction } from '../index.ts';
-import { loadSupplyFacts, lockConceptSupply, openRequest } from './supply.ts';
+import { loadSupplyFacts, lockSupply, openRequest } from './supply.ts';
 
 /** Bench value: how many distinct causes one demand keeps. */
 const MAX_CAUSES = 8;
@@ -120,7 +120,7 @@ async function decide(client: pg.PoolClient, demandId: string, trigger: Trigger,
   const demand = (await client.query<DemandRow>(
     `SELECT d.id, d.universe_id, d.privacy_epoch, d.concept_id, c.code, d.status, d.decision, d.reason, d.causes, d.decisions
      FROM content_demand d JOIN concept c ON c.id = d.concept_id WHERE d.id=$1`, [demandId])).rows[0]!;
-  await lockConceptSupply(client, demand.concept_id);
+  await lockSupply(client);
   const waiter = (await client.query<Waiter>(
     `SELECT w.id, w.request_id, r.asset_id FROM demand_waiter w JOIN supply_request r ON r.id = w.request_id WHERE w.demand_id=$1 AND w.status='waiting'`, [demandId])).rows[0];
   // How this demand's own requests ended: those it was still waiting for when they settled.
