@@ -8,8 +8,10 @@ relaunches it. Each run keeps its own timestamped backup, the runner refuses to 
 unless that backup is a readable archive, and the restore is verified against the backup's listing.
 Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
 
-Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations) and `why` (#133 the
-recorded path of a v3 encounter and the reader's "less like this").
+Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
+recorded path of a v3 encounter and the reader's "less like this") and `places` (#134 the reader's
+own live places, ADR-0036: seeds one day-old keep through the real API before instrumenting, via
+`scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a real second day).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -29,6 +31,8 @@ JOURNEYS = {
                'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
     'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
             'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
+    'places': {'test': 'com.knowscroll.mobile.PlacesJourneyTest', 'receipt': 'places-journey.json',
+               'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
@@ -90,6 +94,13 @@ try:
             if attempt == 99: raise
             time.sleep(.1)
 
+    # 2.5. `places` only: one day-old keep through the real API, before instrumenting -- the
+    # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
+    if journey_name == 'places':
+        seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}'}
+        seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/atlas/seed-day-old-history.ts'], env=seed_env, text=True, cwd=root)
+        print(seeded, flush=True)
+
     # 3. Separate journey build against this stack only.
     run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=env)
     for apk in ('debug/app-debug.apk', 'androidTest/debug/app-debug-androidTest.apk'):
@@ -123,6 +134,19 @@ try:
         assert ok, lineage
         limits = ['Editorial substrate; composer-semantic-v3 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
                   'Scroll reader only; the Reel reader has no why sheet yet.']
+    elif journey_name == 'places':
+        p, formed_id, rejected_id = journey['placeId'], journey['deltaIds']['formed'], journey['deltaIds']['rejected']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'placeFormedPersonalExploration', (SELECT count(*) FROM atlas_delta WHERE id='{formed_id}' AND place_id='{p}'
+          AND kind='place_formed' AND causal_class='personal_exploration'),
+      'rejectionDeltaReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{rejected_id}' AND place_id='{p}'
+          AND kind='place_rejected' AND causal_class='reader_correction'),
+      'placeStateRejected', (SELECT count(*) FROM atlas_place WHERE id='{p}' AND state='rejected'),
+      'sharedBridgesStillAdmitted', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status='admitted'))"""))
+        expected = {'placeFormedPersonalExploration': 1, 'rejectionDeltaReaderCorrection': 1, 'placeStateRejected': 1, 'sharedBridgesStillAdmitted': 6}
+        assert lineage == expected, lineage
+        limits = ['Editorial substrate; cartographer-v1 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'One live planet inspected end to end; further sightings/regions not separately exercised by this journey.']
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),
