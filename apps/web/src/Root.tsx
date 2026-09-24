@@ -17,12 +17,18 @@ type AuthState = { screen: 'reader' } | { screen: 'signed-out'; message: string 
  * `App` never sees a signed-out state of its own -- the moment `ReaderStore`'s `onSignedOut`
  * fires (a 401, a real sign-out, or a real account deletion), this component swaps the whole
  * reader tree for `SignedOutScreen` rather than leaving `App` to render some dead-end state.
+ *
+ * The one exception is an *ambient* 401 (`verify === true`, see `ReaderStore`'s own doc comment)
+ * in a bearer/dev-proxy deployment: that shape has no sign-in surface of its own, so this screen
+ * would be a dead end where the app's existing fail-closed-Unavailable-and-retry already recovers
+ * (ADR-0022). `ApiClient.isBearerSession()` confirms that before swapping -- never merely assumed,
+ * since guessing wrong the other way would silently strand a real cookie-deployment reader.
  */
 export function Root() {
   const apiClient = useMemo(() => new ApiClient(), []);
   const [auth, setAuth] = useState<AuthState>({ screen: 'reader' });
 
-  const onSignedOut = useCallback(
+  const showSignedOut = useCallback(
     (message: string | null) => {
       // A dead session can never authenticate a change again; forgetting the token here (rather
       // than leaving a stale one cached) matches ApiClient's own "never persisted" CSRF contract.
@@ -30,6 +36,22 @@ export function Root() {
       setAuth({ screen: 'signed-out', message });
     },
     [apiClient],
+  );
+
+  const onSignedOut = useCallback(
+    (message: string | null, verify: boolean) => {
+      if (!verify) {
+        showSignedOut(message);
+        return;
+      }
+      apiClient.isBearerSession().then(isBearer => {
+        if (!isBearer) showSignedOut(message);
+        // A confirmed bearer/dev-proxy session: leave ReaderStore's own fail-closed Unavailable
+        // state exactly as it already rendered -- its own "Retry loading the universe" is the
+        // real recovery this deployment shape has.
+      });
+    },
+    [apiClient, showSignedOut],
   );
 
   const goToReader = useCallback(() => {

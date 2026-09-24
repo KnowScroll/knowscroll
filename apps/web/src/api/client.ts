@@ -235,6 +235,29 @@ export class ApiClient implements ReaderApi {
   }
 
   /**
+   * ADR-0034: true only when this credential is *confirmed* to be a bearer/dev-proxy session --
+   * `GET /v1/session/csrf` answers 400 for exactly one reason ("Only a cookie session has a CSRF
+   * token"), never for anything else. Any other outcome (200, 401, a network failure) returns
+   * `false`: the safe default when this cannot be confirmed is to treat an ambient authentication
+   * failure as "show the sign-in screen", not to risk silently leaving the reader at a dead end.
+   *
+   * This exists for exactly one caller (`Root`'s `onSignedOut` handler, #135): a bearer/dev-proxy
+   * deployment has no sign-in surface of its own, so an *ambient* 401 there (the dev token
+   * momentarily rejected, a test fault injection, ADR-0022's existing recovery flow) must keep
+   * showing the reader app's own Unavailable-state-and-retry, exactly as it did before #135 --
+   * never this screen. A cookie deployment's 401 (no cookie, revoked, deleted) is the one case
+   * this screen exists for.
+   */
+  async isBearerSession(): Promise<boolean> {
+    try {
+      const response = await this.fetchImpl(`${this.basePath}/session/csrf`, { headers: { Accept: 'application/json' } });
+      return response.status === 400;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * CSRF retry wrapper (ADR-0034): every non-GET call goes through `attempt()` first. If it comes
    * back 403 and no token is known yet, this fetches the page's own token exactly once
    * (`GET /v1/session/csrf` -- a 400 there means a bearer/dev-proxy session, which never needed one)

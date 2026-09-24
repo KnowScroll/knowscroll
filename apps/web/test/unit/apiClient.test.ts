@@ -122,4 +122,21 @@ describe('ApiClient CSRF (ADR-0034)', () => {
     await client.postSessionRevoke();
     expect(calls).toHaveLength(2); // the ordinary transient retry, never the CSRF preflight path
   });
+
+  it('isBearerSession is true only for a confirmed 400 from GET /v1/session/csrf', async () => {
+    const { fetchImpl } = fakeFetch(() => jsonResponse(400, { error: 'Only a cookie session has a CSRF token' }));
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0] });
+    expect(await client.isBearerSession()).toBe(true);
+  });
+
+  it('isBearerSession is false for a 200 (a real cookie session), a 401, or a network failure -- never a guess', async () => {
+    const cookieSession = new ApiClient({ fetchImpl: fakeFetch(() => jsonResponse(200, { csrfToken: 'a'.repeat(64) })).fetchImpl, delaysMs: [0, 0] });
+    expect(await cookieSession.isBearerSession()).toBe(false);
+
+    const unauthorized = new ApiClient({ fetchImpl: fakeFetch(() => jsonResponse(401, { error: 'unauthorized' })).fetchImpl, delaysMs: [0, 0] });
+    expect(await unauthorized.isBearerSession()).toBe(false);
+
+    const broken = new ApiClient({ fetchImpl: async () => { throw new TypeError('network down'); }, delaysMs: [0, 0] });
+    expect(await broken.isBearerSession()).toBe(false);
+  });
 });

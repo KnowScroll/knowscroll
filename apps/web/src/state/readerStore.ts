@@ -134,13 +134,22 @@ export class ReaderStore {
    * working unchanged. It fires whenever this store learns the reader is no longer authenticated --
    * a 401 from any authenticated call (alongside the existing fail-closed Unavailable universe,
    * never in place of it), a real `signOut()`, or a real `confirmDeleteAccount()` -- carrying the
-   * one deletion-specific message on the last of those and `null` otherwise. The app uses it to
-   * show the sign-in screen; this class itself has no notion of screens outside its own five.
+   * one deletion-specific message on the last of those and `null` otherwise.
+   *
+   * Its second argument, `verify`, tells the caller whether this needs confirming before it acts
+   * on it: `true` for an *ambient* 401 hit during ordinary reads (this store has no way to know
+   * whether the deployment even has a sign-in surface -- a bearer/dev-proxy session has none, and
+   * for that shape an ambient 401 is exactly the existing fail-closed-and-retry flow, not a reason
+   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`,
+   * which the reader asked for directly and which always deserve a real answer regardless of
+   * deployment shape. The app uses `ApiClient.isBearerSession()` to settle a `true` case; this
+   * class itself has no notion of screens outside its own five and makes no such deployment
+   * assumption on its own.
    */
   constructor(
     private readonly api: ReaderApi,
     private readonly storage: ReaderStorage,
-    private readonly onSignedOut?: (message: string | null) => void,
+    private readonly onSignedOut?: (message: string | null, verify: boolean) => void,
   ) {
     this.observedPrivacyEpoch = storage.readObservedPrivacyEpoch();
     this.observedUniverseId = storage.readObservedUniverseId();
@@ -437,12 +446,12 @@ export class ReaderStore {
       .postSessionRevoke()
       .then(() => {
         if (version !== this.navigationVersion) return;
-        this.onSignedOut?.(null);
+        this.onSignedOut?.(null, false);
       })
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
         if (isUnauthorized(error)) {
-          this.onSignedOut?.(null); // already gone -- the same outcome the caller asked for
+          this.onSignedOut?.(null, false); // already gone -- the same outcome the caller asked for
           return;
         }
         this.setPrivacyAction({ status: 'failed', kind: 'sign-out', requestId: '', message: describeApiError(error) });
@@ -511,7 +520,7 @@ export class ReaderStore {
    * needs updating -- the app unmounts this whole reader tree the moment `onSignedOut` fires. */
   private finishAccountDeletion(universeId: string, epochAfter: number): void {
     this.storage.purgePrivateState(universeId, epochAfter);
-    this.onSignedOut?.('Your account and history were deleted.');
+    this.onSignedOut?.('Your account and history were deleted.', false);
   }
 
   /** A Trace has an explicit origin and never becomes a new discovery or exposure (docs/contracts/trace-revisit.md). */
@@ -931,7 +940,7 @@ export class ReaderStore {
   private failClosed(reason: string, signedOut = false): void {
     this.ready = false;
     this.session = null;
-    if (signedOut) this.onSignedOut?.(null);
+    if (signedOut) this.onSignedOut?.(null, true);
     this.set({
       screen: 'universe',
       scroll: { status: 'idle' },

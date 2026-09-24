@@ -16,9 +16,10 @@ export interface AppProps {
    * still built, matching the pre-#135 default this class's own tests never exercised directly. */
   apiClient: ApiClient;
   /** Fired on a 401 from any authenticated call, a real sign-out, or a real account deletion
-   * (`ReaderStore`'s own `onSignedOut`, forwarded verbatim) -- `Root` uses it to swap this whole
-   * reader tree for the signed-in screen. */
-  onSignedOut: (message: string | null) => void;
+   * (`ReaderStore`'s own `onSignedOut`, forwarded verbatim, including its `verify` argument --
+   * see that class's doc comment) -- `Root` uses it to swap this whole reader tree for the
+   * signed-out screen. */
+  onSignedOut: (message: string | null, verify: boolean) => void;
 }
 
 export function App({ apiClient, onSignedOut }: AppProps) {
