@@ -48,6 +48,16 @@ data class PendingAnswerRequest(
     val expectedPrivacyEpoch: Long,
 )
 
+/** #166: the answer the reader requested and is waiting for -- which Ask, on which Scroll, in which
+ * epoch. Persisted once the request is accepted, so a panel lost with the process picks the same
+ * answer up again (never a new request); dropped once the answer is final. */
+data class WatchedAnswer(
+    val askId: String,
+    val assetId: String,
+    val expectedPrivacyEpoch: Long,
+    val question: String,
+)
+
 private val ANSWER_STATUSES = setOf(
     "queued", "running", "answered", "not_in_source", "rejected", "failed", "cancelled", "unavailable",
 )

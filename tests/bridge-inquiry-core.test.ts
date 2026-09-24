@@ -78,6 +78,29 @@ test('a pair already connected, in either direction, is never offered', () => {
   assert.ok(!codes(reversed).includes('x.gravity~x.sun'));
 });
 
+test('a claim that bears on both sides only through what they share is offered to one side, the nearer; ties go to A (#153)', () => {
+  const shared = new Map<string, string | null>([['y.root', null], ['y.mid', 'y.root'], ['y.a', 'y.mid'], ['y.b', 'y.root'], ['y.c', 'y.root']]);
+  const own = [claim('c.a', [['y.a', 'subject']]), claim('c.b', [['y.b', 'subject']]), claim('c.c', [['y.c', 'subject']]),
+    claim('c.ab', [['y.a', 'mechanism'], ['y.b', 'subject']]), claim('c.bc', [['y.b', 'mechanism'], ['y.c', 'subject']])];
+  const input = { ...base, parentOf: shared, places: [place('y.a', 'A'), place('y.b', 'B'), place('y.c', 'C')], connections: [],
+    claims: [...own, claim('c.root', [['y.root', 'subject']]), claim('c.mid', [['y.mid', 'subject']])] };
+  const found = selectInquiryPairs(input);
+  const ab = found.find(p => p.a.code === 'y.a' && p.b.code === 'y.b')!;
+  const bc = found.find(p => p.a.code === 'y.b' && p.b.code === 'y.c')!;
+  for (const pair of [ab, bc]) assert.ok(!pair.claimsA.some(c => pair.claimsB.some(x => x.key === c.key)), 'no claim is offered to both sides');
+  // y.root is two steps above A and one above B: it is B's. y.mid is only A's own ancestor.
+  assert.deepEqual([keys(ab.claimsA), keys(ab.claimsB)], [['c.a', 'c.mid'], ['c.b', 'c.bc', 'c.root']]);
+  // Equally far from B and C: it is A's, where the reply's citation of it is then credited.
+  assert.deepEqual([keys(bc.claimsA), keys(bc.claimsB)], [['c.ab', 'c.b', 'c.root'], ['c.c']]);
+  const compares = bc.admissible.findIndex(r => r.relationType === 'compares_mechanism');
+  const parsed = parseBridgeInquiryReply(JSON.stringify({ proposal: {
+    pair: found.indexOf(bc), relation: compares, mechanism: 'B drives C through one mechanism that both of the offered claims describe in the same terms.',
+    prerequisites: [{ statement: 'Read both places first' }], limitations: [{ kind: 'analogy_limit', statement: 'Only as far as the offered claims go' }],
+    cite: ['c.root', 'c.c', 'c.bc'], counterevidence: { disposition: 'searched_none_found', searchedScope: 'the offered claims', claimKeys: [] } } }), found);
+  assert.ok(parsed.kind === 'proposal');
+  if (parsed.kind === 'proposal') assert.deepEqual(parsed.payload.evidence.find(e => e.claimKey === 'c.root'), { claimKey: 'c.root', supports: 'from' });
+});
+
 test('a pair the reader said seems wrong, or one already put to an inquiry this epoch, is not offered again', () => {
   assert.ok(!codes(selectInquiryPairs({ ...base, suppressed: [{ from: 'x.sun', to: 'x.gravity' }] })).includes('x.gravity~x.sun'));
   assert.ok(!codes(selectInquiryPairs({ ...base, asked: [['x.gravity', 'x.sun']] })).includes('x.gravity~x.sun'));
@@ -108,7 +131,7 @@ test('at most eight claims per anchor and eight naming both', () => {
   assert.equal(pairs[0]!.claimsA[0]!.key, 'c.body.00');
 });
 
-const route = { model: 'MiniMax-M3', maxOutputTokens: 2048 };
+const route = { model: 'MiniMax-M3', maxOutputTokens: 2048, thinking: 'disabled' as const };
 
 test('the request bytes are a deterministic function of the sealed pairs and the route, and carry no identifiers', () => {
   const pairs = selectInquiryPairs(withMoon);
@@ -129,6 +152,28 @@ test('the request bytes are a deterministic function of the sealed pairs and the
   assert.ok(pairs.every(p => !content.includes(p.a.placeId) && !content.includes(p.b.placeId)), 'no place ids leave the process');
   const changed = serializeBridgeInquiryRequest(pairs.slice(0, 1), route);
   assert.notEqual(Buffer.compare(Buffer.from(a), Buffer.from(changed)), 0);
+});
+
+test('a continuation is the same request, then the prior assistant turn exactly as returned (thinking blocks in place), then the validator\'s reasons', () => {
+  const pairs = selectInquiryPairs(withMoon);
+  const adaptive = { ...route, thinking: 'adaptive' as const };
+  const decode = (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes));
+  const first = decode(serializeBridgeInquiryRequest(pairs, adaptive));
+  assert.deepEqual(first.thinking, { type: 'adaptive' });
+  const refused = [{ type: 'thinking', thinking: 'Fixture thinking, not model output.', signature: 'fixture-signature-1' }, { type: 'text', text: '{"proposal":{}}' }];
+  const turns = [{ assistant: refused, reasons: ['analogy_limit_missing', 'from_evidence_missing'] }];
+  const bytes = serializeBridgeInquiryRequest(pairs, adaptive, turns);
+  assert.deepEqual(bytes, serializeBridgeInquiryRequest(structuredClone(pairs), adaptive, structuredClone(turns)), 'deterministic');
+  const next = decode(bytes);
+  assert.deepEqual([next.model, next.max_tokens, next.system, next.thinking], [first.model, first.max_tokens, first.system, first.thinking]);
+  assert.deepEqual(next.messages[0], first.messages[0]);
+  assert.deepEqual(next.messages[1], { role: 'assistant', content: refused }, 'every block, the thinking block first, as it was returned');
+  assert.equal(next.messages[2].role, 'user');
+  assert.match(next.messages[2].content, /analogy_limit_missing, from_evidence_missing/);
+  assert.match(next.messages[2].content, /exactly one JSON object/);
+  const again = decode(serializeBridgeInquiryRequest(pairs, adaptive, [...turns, { assistant: [{ type: 'text', text: 'second' }], reasons: ['side_evidence_missing'] }]));
+  assert.deepEqual(again.messages.map((m: { role: string }) => m.role), ['user', 'assistant', 'user', 'assistant', 'user'], 'a second continuation appends in order');
+  assert.deepEqual(again.messages.slice(0, 3), next.messages);
 });
 
 const pairs = selectInquiryPairs(base);
@@ -188,7 +233,7 @@ test('the request tells the model what the validator judges: each side\'s role i
   const pair = selectInquiryPairs(base).find(p => p.a.code === 'x.gravity' && p.b.code === 'x.sun')!;
   const held = pair.both.find(c => c.key === 'c.sun.held')!;
   assert.deepEqual(held.roles, { 'x.gravity': 'mechanism', 'x.sun': 'subject' });
-  const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100 })));
+  const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100, thinking: 'disabled' })));
   const offered = JSON.parse(String(request.messages[0].content).split('\n').slice(1).join('\n'));
   assert.deepEqual(offered[0].claimsNamingBoth.find((c: { key: string }) => c.key === 'c.sun.held').roles, { 'x.gravity': 'mechanism', 'x.sun': 'subject' });
   // A new pair has no recorded relation, so "applies_to"/"prerequisite_for" could never be admitted.
@@ -204,7 +249,7 @@ test('the request offers each pair only the relations its claims can carry, dire
     { relationType: 'compares_mechanism', fromConcept: 'x.gravity', toConcept: 'x.sun' },
     { relationType: 'analogous_in', fromConcept: 'x.gravity', toConcept: 'x.sun' },
   ]);
-  const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100 })));
+  const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100, thinking: 'disabled' })));
   const offered = JSON.parse(String(request.messages[0].content).split('\n').slice(1).join('\n'));
   assert.deepEqual(offered[0].admissible, pair.admissible.map((r, index) => ({ index, ...r })));
   assert.equal(offered[0].index, 0);

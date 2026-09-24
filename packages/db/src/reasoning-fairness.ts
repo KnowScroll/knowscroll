@@ -17,6 +17,7 @@ type UniverseLane={universe_id:string;credit:string;candidate_cursor:string;read
 type Ready=FairnessReadyInput&{seq:string;charge:string;queueAgeMs:number;deadlineMissed:boolean};
 type Discovery={state:State;lane:Lane;klass:FairnessClass;universe:UniverseLane|undefined;ready:Ready|undefined};
 const deny=(code:string):never=>{throw new ReasoningDenied(code);};
+const INELIGIBLE_HEAD=['stale_context','unknown_step','step_not_pending','retry_not_supported','invalid_deadline','policy_limit_exceeded','policy_version_mismatch'];
 const nextClass=(klass:FairnessClass)=>(FAIRNESS_CLASSES.indexOf(klass)+1)%FAIRNESS_CLASSES.length;
 const cap=(value:bigint,maximum:number)=>value>BigInt(maximum)?BigInt(maximum):value;
 async function tx<T>(db:pg.Pool,body:(client:pg.PoolClient)=>Promise<T>):Promise<T>{
@@ -135,7 +136,9 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
   try{
    preflight=await preflightAttemptInTransaction(client,authority,d.ready,async hook=>{await lockCursor(hook,input.policyVersion,d);locked=true;});
   }catch(error){
-   if(!(error instanceof ReasoningDenied)||!['stale_context','unknown_step','step_not_pending','retry_not_supported','invalid_deadline','policy_limit_exceeded','policy_version_mismatch'].includes(error.code))throw error;
+   // A head whose sealed context no longer holds (`context_*`) is skipped like any other ineligible head:
+   // its own sweep withdraws it, never sent, and the round never waits for that sweep (#153).
+   if(!(error instanceof ReasoningDenied)||!(INELIGIBLE_HEAD.includes(error.code)||error.code.startsWith('context_')))throw error;
    if(!locked)await lockCursor(client,input.policyVersion,d);await bypass(client,input.policyVersion,d);return {event:observation(d,'ineligible',error.code)};
   }
   if(preflight.physicallyFits!=='fit'){
@@ -205,7 +208,8 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
     const d=await discover(db,input.policyVersion);
     if(d.state.paused)return {kind:'policy_paused',observations:[...observations,observation(d,'policy_paused')],probes};
     try{const result=await probe(db,authority,input,d);lastProgress=result.terminalExpiry?undefined:{generation:(BigInt(d.state.generation)+1n).toString(),klass:d.klass};observations.push(result.event);if(result.admitted)return {...result.admitted,observations,probes};}
-    catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused','policy_binding_changed','expired_lease_or_job'].includes(error.code))throw error;observations.push(observation(d,error.code==='fairness_policy_paused'?'policy_paused':'temporarily_blocked',error.code));}
+    // A context that changed between a head's preflight and its reservation is one more such race.
+    catch(error){if(!(error instanceof ReasoningDenied)||!(['fairness_cas_retry','fairness_policy_paused','policy_binding_changed','expired_lease_or_job'].includes(error.code)||error.code.startsWith('context_')))throw error;observations.push(observation(d,error.code==='fairness_policy_paused'?'policy_paused':'temporarily_blocked',error.code));}
    }
    // A bounded scan cannot establish absence. Yield its current class opportunity
    // without granting a quantum or resetting any unfinished spend allowance.

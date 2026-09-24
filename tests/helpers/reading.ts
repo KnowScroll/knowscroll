@@ -5,9 +5,10 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { buildApp } from '../../apps/api/src/app.ts';
 import { projectOne } from '../../apps/worker/src/project.ts';
-import { pool } from '../../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '../../packages/db/src/index.ts';
 
 /** Asks the feed for more, skipping what this trip already saw, until the target is offered; exposes
  * only it, and keeps it when asked (its projection job runs at once). The library bounds the trip:
@@ -36,4 +37,27 @@ export async function readFirstOffered(app: ReturnType<typeof buildApp>, headers
   const feed = (await app.inject({ url: '/v1/feed?kinds=Scroll', headers })).json();
   const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers, payload: { decisionId: feed.decisionId, assetId: feed.items[0].assetId, clientExposureId: randomUUID() } });
   assert.equal(exposure.statusCode, 201, exposure.body);
+}
+
+const scrolls = JSON.parse(readFileSync('content/editorial-scrolls.json', 'utf8')) as { assetId: string; title: string }[] | Record<string, unknown>;
+const library = (Array.isArray(scrolls) ? scrolls : Object.values(scrolls).find(Array.isArray)) as { assetId: string; title: string }[];
+const idOf = (title: string) => library.find(s => s.title.startsWith(title))!.assetId;
+/** The editorial Scrolls the anchoring walks below read. */
+export const EDITORIAL = Object.freeze({
+  oneForce: idOf('One force, many jobs'), unseenPull: idOf("The pull you can't see"), oceanRhythm: idOf('A rhythm the ocean keeps'), starBorn: idOf('A star is born from a cloud'),
+});
+
+export type Identity = Awaited<ReturnType<typeof provisionIdentity>>;
+
+/** Two days of reading, compressed in a disposable database: yesterday's rows are moved back a day, so
+ * Gravity anchors into a planet. A source family counts only when the reader acted on it
+ * (attention-v1), so the NOAA Scroll is kept too. */
+export async function anchorGravity(app: ReturnType<typeof buildApp>, reader?: Identity): Promise<Identity> {
+  const i = reader ?? await provisionIdentity();
+  const headers = { authorization: `Bearer ${i.token}` };
+  await readScroll(app, headers, EDITORIAL.oneForce, true);
+  await pool.query("UPDATE ledger SET created_at = created_at - interval '1 day' WHERE universe_id=$1", [i.scope.universeId]);
+  await readScroll(app, headers, EDITORIAL.unseenPull, true);
+  await readScroll(app, headers, EDITORIAL.oceanRhythm, true);
+  return i;
 }

@@ -4,6 +4,7 @@
  * is killed mid-call; a replacement worker polls well past its lease. The database shows exactly one
  * attempt and one dispatch (a possibly-sent request is never repeated), and the replacement's sweep
  * closes the inquiry honestly as `outcome_unknown`, keeping the remote slot held (ADR-0012).
+ * #166: the same when the worker dies during a continuation step (ADR-0042 §1): two dispatches, never three.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,7 +47,8 @@ async function until(check: () => Promise<boolean>, ms: number, what: string) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-test('a worker killed mid-call is never repeated by its replacement, and the inquiry fails as outcome unknown', async () => {
+for (const [firstMode, dispatched] of [['hang', 1], ['refused_then_hang', 2]] as const) {
+test(`a worker killed mid-call (${firstMode === 'hang' ? 'its first request' : 'a continuation'}) is never repeated by its replacement, and the inquiry fails as outcome unknown`, async () => {
   const identity = await provisionIdentity();
   const headers = { authorization: `Bearer ${identity.token}` };
   const consent = await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers, payload: { enabled: true, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
@@ -55,18 +57,19 @@ test('a worker killed mid-call is never repeated by its replacement, and the inq
   const dispatches = async () => (await pool.query(`SELECT count(*) FILTER (WHERE dispatch_id IS NOT NULL)::int AS sent, count(*)::int AS attempts
     FROM reasoning_accounting WHERE universe_id=$1`, [identity.scope.universeId])).rows[0] as { sent: number; attempts: number };
 
-  const first = worker('hang');
-  await until(async () => (await dispatches()).sent === 1, 30_000, 'the first worker to open the inquiry and commit its dispatch');
+  const first = worker(firstMode);
+  await until(async () => (await dispatches()).sent === dispatched, 30_000, 'the first worker to commit the dispatch it will die in');
   kill(first);
   const replacement = worker('proposal');
   await new Promise(r => setTimeout(r, LEASE_MS * 4));
   kill(replacement);
 
-  assert.deepEqual(await dispatches(), { sent: 1, attempts: 1 }, 'the possibly-sent request is never sent again');
+  assert.deepEqual(await dispatches(), { sent: dispatched, attempts: dispatched }, 'the possibly-sent request is never sent again');
   const inquiry = (await pool.query('SELECT id, status, reasons, proposal_id, job_id FROM background_inquiry WHERE universe_id=$1', [identity.scope.universeId])).rows[0];
   assert.deepEqual([inquiry.status, inquiry.reasons, inquiry.proposal_id], ['failed', ['outcome_unknown'], null], 'closed honestly, nothing invented');
-  const accounting = (await pool.query(`SELECT state, output_authority FROM reasoning_accounting WHERE universe_id=$1`, [identity.scope.universeId])).rows;
-  assert.deepEqual(accounting, [{ state: 'unknown', output_authority: 'withdrawn' }]);
+  const accounting = (await pool.query(`SELECT ac.state, ac.output_authority FROM reasoning_accounting ac JOIN reasoning_attempt at ON at.id = ac.attempt_id
+    JOIN reasoning_step s ON s.id = at.step_id WHERE ac.universe_id=$1 ORDER BY s.ordinal`, [identity.scope.universeId])).rows;
+  assert.deepEqual(accounting, [...(dispatched === 2 ? [{ state: 'responded', output_authority: 'withdrawn' }] : []), { state: 'unknown', output_authority: 'withdrawn' }]);
   const remoteHeld = Number((await pool.query(`SELECT count(*) FROM reasoning_reservation rr JOIN reasoning_bucket b ON b.id = rr.bucket_id
     JOIN reasoning_attempt at ON at.id = rr.attempt_id WHERE at.job_id=$1 AND b.dimension='remote_concurrency' AND rr.state='held'`, [inquiry.job_id])).rows[0].count);
   assert.equal(remoteHeld, 1, 'an unknown outcome keeps its remote slot: it may have been spent');
@@ -74,3 +77,4 @@ test('a worker killed mid-call is never repeated by its replacement, and the inq
   assert.deepEqual([listed.inquiries[0].status, listed.inquiries[0].reasons], ['failed', ['outcome_unknown']]);
   await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers, payload: { enabled: false, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
 });
+}

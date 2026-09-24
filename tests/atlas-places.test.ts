@@ -8,45 +8,27 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { atlasDeltaSchema, atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
-import { readFirstOffered, readScroll } from './helpers/reading.ts';
+import { EDITORIAL, anchorGravity as anchorGravityIn, readFirstOffered, readScroll, type Identity } from './helpers/reading.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Atlas tests require a disposable knowscroll_test_* database');
 const app = buildApp('atlas-places-development-token-1234567890');
 await app.ready();
 after(async () => { await app.close(); await pool.end(); });
 
-const scrolls = JSON.parse(readFileSync('content/editorial-scrolls.json', 'utf8')) as { assetId: string; title: string }[] | Record<string, unknown>;
-const library = (Array.isArray(scrolls) ? scrolls : Object.values(scrolls).find(Array.isArray)) as { assetId: string; title: string }[];
-const idOf = (title: string) => library.find(s => s.title.startsWith(title))!.assetId;
-const ONE_FORCE = idOf('One force, many jobs');
-const UNSEEN_PULL = idOf("The pull you can't see");
-const OCEAN_RHYTHM = idOf('A rhythm the ocean keeps');
-const STAR_BORN = idOf('A star is born from a cloud');
-
-type Identity = Awaited<ReturnType<typeof provisionIdentity>>;
+const { oneForce: ONE_FORCE, unseenPull: UNSEEN_PULL, oceanRhythm: OCEAN_RHYTHM, starBorn: STAR_BORN } = EDITORIAL;
 const h = (i: Identity) => ({ authorization: `Bearer ${i.token}` });
 const epoch = async (i: Identity) => (await app.inject({ url: '/v1/universe', headers: h(i) })).json().privacyEpoch as number;
 
 const read = (i: Identity, assetId: string, keep: boolean) => readScroll(app, h(i), assetId, keep);
 const readAnything = (i: Identity) => readFirstOffered(app, h(i));
 
-/** Two days of reading, compressed: yesterday's rows are moved back a day in this disposable database. */
-async function anchorGravity(): Promise<Identity> {
-  const i = await provisionIdentity();
-  await read(i, ONE_FORCE, true);
-  await pool.query("UPDATE ledger SET created_at = created_at - interval '1 day' WHERE universe_id=$1", [i.scope.universeId]);
-  await read(i, UNSEEN_PULL, true);
-  // A source family counts only when the reader acted on it (attention-v1): keep the NOAA Scroll.
-  await read(i, OCEAN_RHYTHM, true);
-  return i;
-}
+const anchorGravity = () => anchorGravityIn(app);
 
 const atlasOf = async (i: Identity) => {
   const r = await app.inject({ url: '/v1/atlas', headers: h(i) });

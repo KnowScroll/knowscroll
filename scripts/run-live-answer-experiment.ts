@@ -6,7 +6,7 @@
  * macOS Keychain item `minimax_api_key` straight into the worker process's environment and never
  * printed; the worker runs the quota preflight (>=25% interval and weekly) before each request.
  *
- * Bounds: a persistent session ledger under $KS_DEV_ROOT caps live requests at 40 for this session;
+ * Bounds: a persistent session ledger under $KS_DEV_ROOT (held by one live run at a time) caps live requests at 40 for this session;
  * the route's request-quota bucket is set to the remaining allowance, so admission itself stops a run
  * at its limit. Requests stay within 16 KB and 1,024 output tokens. Everything runs against a
  * disposable database that is dropped afterwards. Receipts record statuses, counts, usage and
@@ -14,14 +14,14 @@
  */
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import pg from 'pg';
+import { openLiveLedger } from './lib/live-ledger.ts';
 
 const mode = process.argv.includes('--live') ? 'live' : process.argv.includes('--fixture') ? 'fixture' : null;
 if (!mode) { console.log('Refusing: pass --fixture (no network) or --live (bounded MiniMax-M3 experiment).'); process.exit(2); }
-const SESSION_CAP = 40;
 const TARGET = '20000000-0000-4000-8000-000000000004'; // "A rhythm the ocean keeps"
 const PAIR = [
   { label: 'answerable', text: 'Why do most coasts get two high tides a day instead of one?' },
@@ -38,11 +38,16 @@ const QUESTIONS = sample > 0
 
 const root = resolve('.');
 const devRoot = process.env.KS_DEV_ROOT ?? (() => { throw new Error('Source scripts/env.sh first'); })();
-const ledgerPath = resolve(devRoot, 'minimax-answer-session-ledger.json');
-type Ledger = { sessionCap: number; used: number; runs: { at: string; dispatched: number; database: string }[] };
-const ledger: Ledger = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : { sessionCap: SESSION_CAP, used: 0, runs: [] };
-const allowance = mode === 'live' ? Math.min(QUESTIONS.length, ledger.sessionCap - ledger.used) : QUESTIONS.length;
-if (allowance < QUESTIONS.length) { console.log(`Refusing: the session allowance has ${ledger.sessionCap - ledger.used} live requests left; this run needs ${QUESTIONS.length}.`); process.exit(2); }
+// A live run holds the session ledger from this check until its count is written (#153); if its requests
+// cannot be counted, the lock is kept, so no further live run starts before they are counted by hand.
+const live = mode === 'live' ? openLiveLedger(devRoot) : null;
+let uncounted = false;
+const allowance = live ? Math.min(QUESTIONS.length, live.ledger.sessionCap - live.ledger.used) : QUESTIONS.length;
+if (live && allowance < QUESTIONS.length) {
+  console.log(`Refusing: the session allowance has ${live.ledger.sessionCap - live.ledger.used} live requests left; this run needs ${QUESTIONS.length}.`);
+  live.release();
+  process.exit(2);
+}
 
 const config = Object.fromEntries(readFileSync(resolve(root, '.env'), 'utf8').split('\n').filter(l => l.includes('=') && !l.startsWith('#')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const source = new URL(config.DATABASE_URL!);
@@ -146,14 +151,17 @@ async function main() {
     try {
       const dispatched = Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL')).rows[0].count);
       receipt.dispatched = dispatched;
-      if (mode === 'live') {
-        ledger.used += dispatched;
-        ledger.runs.push({ at: String(receipt.at), dispatched, database });
-        writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
-        receipt.sessionLedger = { used: ledger.used, cap: ledger.sessionCap };
+      if (live) {
+        live.ledger.used += dispatched;
+        live.ledger.runs.push({ at: String(receipt.at), dispatched, database });
+        live.save();
+        receipt.sessionLedger = { used: live.ledger.used, cap: live.ledger.sessionCap };
         counted = true;
       }
-    } catch { console.error(`Live requests could not be counted; ${database} is kept for counting by hand.`); }
+    } catch {
+      uncounted = mode === 'live';
+      console.error(`Live requests could not be counted; ${database} and the ledger lock are kept for counting by hand.`);
+    }
     await pool.end().catch(() => undefined);
     await closeDb().catch(() => undefined);
     if (counted) await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`).catch(() => undefined);
@@ -165,4 +173,4 @@ async function main() {
   console.log(JSON.stringify(receipt, null, 2));
 }
 
-await main();
+try { await main(); } finally { if (!uncounted) live?.release(); }

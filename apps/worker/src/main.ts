@@ -6,7 +6,6 @@ import { createReadinessGate, runAnswerPass } from './reasoning/answer-worker.ts
 import { inquiryTransportsFromEnvironment } from './reasoning/inquiry-loop.ts';
 import { executeInquiryClaim, runInquiryPass } from './reasoning/inquiry-worker.ts';
 import { settleAbandonedAnswers } from '../../../packages/db/src/reasoning-answers.ts';
-import { inquiryAuthority, sharedReasoningAuthority } from '../../../packages/db/src/reasoning-inquiries.ts';
 import { settleInquiries } from '../../../packages/db/src/reasoning-inquiry-execution.ts';
 import { runCorrectionRefreshPass } from '../../../packages/db/src/semantic/correction-refresh.ts';
 let running=true;
@@ -38,20 +37,14 @@ const stop=new AbortController();
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>stop.abort());
 console.log(JSON.stringify({service:'worker',workerId,kind:'deterministic-projection',answers:answerTransports?Object.keys(answerTransports):[],inquiries:inquiryTransports?Object.keys(inquiryTransports):[]}));
 // A background inquiry the answer route's shared scheduler admits is run by the inquiry path (ADR-0038 §4).
-const otherFamily=inquiryTransports?async(scheduled:Parameters<typeof executeInquiryClaim>[1],signal:AbortSignal)=>{
- const route=(await pool.query<{transport:'fixture'|'minimax'}>('SELECT transport FROM background_inquiry_route WHERE enabled')).rows[0];
- const transport=route?inquiryTransports[route.transport]:undefined;
- if(!transport) throw new Error('No inquiry transport for the enabled route');
- const shared=(await pool.query('SELECT 1 FROM ask_answer_route a JOIN background_inquiry_route i ON i.policy_version=a.policy_version WHERE a.enabled AND i.enabled')).rowCount;
- return executeInquiryClaim({pool,owner:workerId,transport,signal,authority:shared?sharedReasoningAuthority():inquiryAuthority()},scheduled);
-}:undefined;
+const inquiries=inquiryTransports?{transports:inquiryTransports,readiness:inquiryReadiness,execute:executeInquiryClaim}:undefined;
 try {while(running) {
  await pool.query('INSERT INTO worker_heartbeat(worker_id,last_seen) VALUES($1,now()) ON CONFLICT(worker_id) DO UPDATE SET last_seen=now()',[workerId]);
  try {const result=await projectOne();if(result) console.log(JSON.stringify(result));}
  catch {console.error(JSON.stringify({error:'projection_failed'}));}
  // Minimal logs: ids and outcome kinds only, never a question, a claim, a reply or a key.
  if(answerTransports) {
-  try {const pass=await runAnswerPass({pool,owner:workerId,leaseMs:answerLeaseMs,transports:answerTransports,readiness,signal:stop.signal,otherFamily});
+  try {const pass=await runAnswerPass({pool,owner:workerId,leaseMs:answerLeaseMs,transports:answerTransports,readiness,signal:stop.signal,inquiries});
    if(pass.kind==='done') console.log(JSON.stringify({answer:pass.askId,invocation:pass.invocation,outcome:pass.outcome.kind,status:'status' in pass.outcome?pass.outcome.status:pass.outcome.reason}));
    if(pass.kind==='other_family') console.log(JSON.stringify({inquiryJob:pass.jobId,via:'answer_scheduler'}));}
   catch {console.error(JSON.stringify({error:'answer_pass_failed'}));}
@@ -60,7 +53,8 @@ try {while(running) {
   try {const pass=await runInquiryPass({pool,owner:workerId,leaseMs:inquiryLeaseMs,transports:inquiryTransports,readiness:inquiryReadiness,signal:stop.signal,
     answers:answerTransports?{transports:answerTransports,readiness}:undefined});
    if(pass.opened.opened||pass.opened.nothing_to_ask) console.log(JSON.stringify({inquiriesOpened:pass.opened.opened,nothingToAsk:pass.opened.nothing_to_ask}));
-   if(pass.kind==='done') console.log(JSON.stringify({inquiry:pass.inquiryId,invocation:pass.invocation,outcome:pass.outcome.kind,status:'status' in pass.outcome?pass.outcome.status:pass.outcome.reason}));
+   if(pass.kind==='done') console.log(JSON.stringify({inquiry:pass.inquiryId,invocation:pass.invocation,outcome:pass.outcome.kind,
+    status:'status' in pass.outcome?pass.outcome.status:'ordinal' in pass.outcome?`step_${pass.outcome.ordinal}_queued`:pass.outcome.reason}));
    if(pass.kind==='answer'&&pass.pass.kind==='done') console.log(JSON.stringify({answer:pass.pass.askId,invocation:pass.pass.invocation,outcome:pass.pass.outcome.kind,via:'inquiry_scheduler'}));}
   catch {console.error(JSON.stringify({error:'inquiry_pass_failed'}));}
  }

@@ -4,19 +4,24 @@
  * MiniMax-M3 through the fixed Anthropic-compatible subscription route; the caller supplies an
  * `sk-cp-` key from its own process environment. `ready()` runs the quota preflight before anything
  * is scheduled or reserved; `send()` posts exactly the reserved bytes once, with no redirects and no
- * retries, and reports the minimal receipt fields plus the reply text for the validator. Nothing
- * here is logged or persisted: no prompt, reply, header or key.
+ * retries, and reports the minimal receipt fields plus the reply for the validator: its text, and
+ * for a background inquiry's continuation (ADR-0042 §1) the whole assistant turn and its stop
+ * reason. Nothing here is logged or persisted: no prompt, reply, header or key.
  */
-import type { AnswerObservation, AnswerTransport } from '../reasoning/answer-worker.ts';
+import type { AssistantBlock } from '../../../../packages/core/src/reasoning/bridge-inquiry.ts';
+import type { AnswerTransport } from '../reasoning/answer-worker.ts';
+import type { InquiryObservation, InquiryTransport } from '../reasoning/inquiry-worker.ts';
 import { checkMiniMaxQuota } from './minimax-quota.ts';
 
 export const MINIMAX_ANSWER_URL = 'https://api.minimax.io/anthropic/v1/messages';
 
 const nullableCount = (v: unknown) => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null);
+const isBlock = (b: unknown): b is AssistantBlock => b !== null && typeof b === 'object' && !Array.isArray(b) && typeof (b as { type?: unknown }).type === 'string';
 
-export function createMiniMaxAnswerTransport(options: { apiKey: string; fetchImpl?: typeof fetch; requestTimeoutMs?: number; quotaTimeoutMs?: number }): AnswerTransport & {
-  ready(signal: AbortSignal): Promise<{ ok: true } | { ok: false; reason: string }>;
-} {
+/** One client serves answers and background inquiries (ADR-0038 §2), so both share its quota readiness. */
+export type MiniMaxTransport = AnswerTransport & InquiryTransport & { ready(signal: AbortSignal): Promise<{ ok: true } | { ok: false; reason: string }> };
+
+export function createMiniMaxAnswerTransport(options: { apiKey: string; fetchImpl?: typeof fetch; requestTimeoutMs?: number; quotaTimeoutMs?: number }): MiniMaxTransport {
   if (!options.apiKey.startsWith('sk-cp-')) throw new Error('The answer route accepts only a MiniMax subscription (sk-cp-) key');
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.requestTimeoutMs ?? 45_000;
@@ -30,7 +35,7 @@ export function createMiniMaxAnswerTransport(options: { apiKey: string; fetchImp
       catch { return { ok: false, reason: 'provider_quota_preflight_failed' }; }
       finally { clearTimeout(timer); }
     },
-    async send({ body, signal }): Promise<AnswerObservation> {
+    async send({ body, signal }): Promise<InquiryObservation> {
       const controller = new AbortController();
       const abort = () => controller.abort();
       signal.addEventListener('abort', abort, { once: true });
@@ -53,11 +58,12 @@ export function createMiniMaxAnswerTransport(options: { apiKey: string; fetchImp
             cacheReadTokens: nullableCount(usage.cache_read_input_tokens), cacheWriteTokens: nullableCount(usage.cache_creation_input_tokens), costMicroUsd: null },
         };
         if (response.status !== 200 || !value) {
-          return { ...observation, outcome: response.status >= 400 && response.status < 500 && response.status !== 429 ? 'refusal' : 'error', text: null };
+          return { ...observation, outcome: response.status >= 400 && response.status < 500 && response.status !== 429 ? 'refusal' : 'error', text: null, content: [], stopReason: null };
         }
-        const blocks = Array.isArray(value.content) ? value.content as { type?: unknown; text?: unknown }[] : [];
-        const text = blocks.filter(b => b.type === 'text' && typeof b.text === 'string').map(b => b.text as string).join('');
-        return { ...observation, outcome: 'success', text };
+        // The whole turn, thinking blocks included, in its original order: a continuation carries it back as it was.
+        const content = Array.isArray(value.content) ? value.content.filter(isBlock) : [];
+        const text = content.filter(b => b.type === 'text' && typeof b.text === 'string').map(b => b.text as string).join('');
+        return { ...observation, outcome: 'success', text, content, stopReason: typeof value.stop_reason === 'string' ? value.stop_reason : null };
       } finally {
         clearTimeout(timer);
         signal.removeEventListener('abort', abort);

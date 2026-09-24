@@ -91,3 +91,28 @@ test('review M5: a quota endpoint that never answers makes the transport not rea
   assert.deepEqual(await hung.ready(new AbortController().signal), { ok: false, reason: 'provider_quota_preflight_failed' });
   assert.ok(Date.now() - started < 2_000);
 });
+
+test('ADR-0042: the whole assistant turn, thinking blocks first as returned, and its stop reason are observed for a continuation', async () => {
+  const turn = [{ type: 'thinking', thinking: 'fixture thought', signature: 'sig' }, { type: 'text', text: '{"none":' }, { type: 'text', text: 'true}' }];
+  const t = createMiniMaxAnswerTransport({ apiKey: key, fetchImpl: async () => json(200, { content: [...turn, 'not a block', null], stop_reason: 'end_turn', usage: {} }) });
+  const o = await t.send({ body: new Uint8Array([1]), maxOutputTokens: 1, signal: new AbortController().signal });
+  assert.deepEqual([o.text, o.content, o.stopReason], ['{"none":true}', turn, 'end_turn']);
+  const truncated = await createMiniMaxAnswerTransport({ apiKey: key, fetchImpl: async () => json(200, { content: [turn[0]], stop_reason: 'max_tokens' }) })
+    .send({ body: new Uint8Array([1]), maxOutputTokens: 1, signal: new AbortController().signal });
+  assert.deepEqual([truncated.text, truncated.content, truncated.stopReason], ['', [turn[0]], 'max_tokens'], 'thinking that used the whole budget');
+  const failed = await createMiniMaxAnswerTransport({ apiKey: key, fetchImpl: async () => json(500, { error: 'x' }) })
+    .send({ body: new Uint8Array([1]), maxOutputTokens: 1, signal: new AbortController().signal });
+  assert.deepEqual([failed.content, failed.stopReason], [[], null]);
+});
+
+test('ADR-0042 §3: a dispatch spends a trusted readiness window, so every request has its own quota preflight', async () => {
+  let calls = 0;
+  const gate = createReadinessGate({ kind: 'minimax', ready: async () => { calls += 1; return { ok: true as const }; }, send: async () => { throw new Error('unused'); } },
+    { okMs: 30_000, failMs: 60_000, now: () => 0 });
+  const signal = new AbortController().signal;
+  await gate(signal); await gate(signal);
+  assert.equal(calls, 1, 'waiting passes share one check');
+  gate.spend();
+  await gate(signal);
+  assert.equal(calls, 2, 'the next request is checked again');
+});

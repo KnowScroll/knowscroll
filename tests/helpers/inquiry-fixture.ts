@@ -5,20 +5,26 @@
  *
  * Shape: Gravity and the Sun are connected only by a claim naming both (a candidate pair); Gravity
  * explains Tides (an active relation, so that pair is never offered); Body has claims but nothing
- * naming it with anything else.
+ * naming it with anything else; Gravity pulls the Moon (a second candidate pair, so a reader with
+ * Gravity, the Sun and the Moon has two: a family, ADR-0042 §4).
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
-import { transaction } from '../../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '../../packages/db/src/index.ts';
 import { runCartographer } from '../../packages/db/src/atlas.ts';
+import { answerFairnessPolicy } from '../../packages/db/src/reasoning-answers.ts';
+import { createReasoningFairness } from '../../packages/db/src/reasoning-fairness.ts';
+import { inquiryAuthority, installBackgroundInquiryRoute } from '../../packages/db/src/reasoning-inquiries.ts';
 import { loadSubstrateSeed } from '../../packages/db/src/semantic/seed.ts';
 
 export type InquiryFixture = {
   tag: string;
-  codes: Record<'gravity' | 'sun' | 'tides' | 'body', string>;
-  claims: Record<'gravity' | 'sun' | 'both' | 'tides' | 'gravityTides' | 'body', string>;
-  sources: Record<'physics' | 'stars' | 'bridge' | 'biology', string>;
+  codes: Record<'gravity' | 'sun' | 'tides' | 'body' | 'moon', string>;
+  claims: Record<'gravity' | 'sun' | 'both' | 'tides' | 'gravityTides' | 'body' | 'moon' | 'moonPull', string>;
+  sources: Record<'physics' | 'stars' | 'bridge' | 'biology' | 'lunar', string>;
   assets: { gravity: string; sun: string };
 };
 
@@ -36,9 +42,10 @@ export async function loadInquiryFixture(pool: pg.Pool): Promise<InquiryFixture>
   const tag = `i${randomBytes(5).toString('hex')}`;
   const c = (s: string) => `${tag}.${s}`;
   const k = (s: string) => `clm.${tag}.${s}`;
-  const codes = { gravity: c('gravity'), sun: c('sun'), tides: c('tides'), body: c('body') };
-  const claims = { gravity: k('gravity_attraction'), sun: k('sun_star'), both: k('sun_holds'), tides: k('tides_cycle'), gravityTides: k('gravity_tides'), body: k('body_stable') };
-  const sources = { physics: `src.${tag}.physics`, stars: `src.${tag}.stars`, bridge: `src.${tag}.bridge`, biology: `src.${tag}.biology` };
+  const codes = { gravity: c('gravity'), sun: c('sun'), tides: c('tides'), body: c('body'), moon: c('moon') };
+  const claims = { gravity: k('gravity_attraction'), sun: k('sun_star'), both: k('sun_holds'), tides: k('tides_cycle'), gravityTides: k('gravity_tides'), body: k('body_stable'),
+    moon: k('moon_phases'), moonPull: k('moon_pull') };
+  const sources = { physics: `src.${tag}.physics`, stars: `src.${tag}.stars`, bridge: `src.${tag}.bridge`, biology: `src.${tag}.biology`, lunar: `src.${tag}.lunar` };
   const url = (s: string) => `https://example.test/${tag}/${s}`;
   const assets = {
     gravity: await insertScroll(pool, `${tag} Gravity pulls`, 'Physics fixture', url('physics')),
@@ -50,7 +57,7 @@ export async function loadInquiryFixture(pool: pg.Pool): Promise<InquiryFixture>
   const seed: SubstrateSeed = {
     version: `editorial-substrate-2026-09-24.${parseInt(randomBytes(3).toString('hex'), 16)}`,
     families: [{ key: `fam.${tag}`, kind: 'publisher', description: 'Synthetic inquiry test family' }],
-    sources: (['physics', 'stars', 'bridge', 'biology'] as const).map(s => ({
+    sources: (['physics', 'stars', 'bridge', 'biology', 'lunar'] as const).map(s => ({
       key: sources[s], url: url(s), title: `${s[0]!.toUpperCase()}${s.slice(1)} fixture`, publisher: 'Fixture', familyKey: `fam.${tag}`, retrievedAt: '2026-09-24', contentSha256: hash(),
     })),
     concepts: [
@@ -59,6 +66,7 @@ export async function loadInquiryFixture(pool: pg.Pool): Promise<InquiryFixture>
       { code: codes.sun, name: 'The Sun', description: 'The star at the centre of the solar system', kind: 'object', parentCode: tag },
       { code: codes.tides, name: 'Tides', description: 'The regular rise and fall of the sea', kind: 'phenomenon', parentCode: tag },
       { code: codes.body, name: 'Body', description: 'A living organism keeping itself steady', kind: 'object', parentCode: tag },
+      { code: codes.moon, name: 'The Moon', description: 'The natural satellite of the Earth', kind: 'object', parentCode: tag },
     ],
     claims: [
       { key: claims.gravity, statement: 'Every mass attracts every other mass through gravity.', truthState: 'documented', concepts: [{ code: codes.gravity, role: 'subject' }], support: support(sources.physics) },
@@ -69,6 +77,9 @@ export async function loadInquiryFixture(pool: pg.Pool): Promise<InquiryFixture>
       { key: claims.gravityTides, statement: 'The pull of the Moon and Sun on the oceans causes the tides.', truthState: 'documented',
         concepts: [{ code: codes.gravity, role: 'mechanism' }, { code: codes.tides, role: 'subject' }], support: support(sources.physics) },
       { key: claims.body, statement: 'A body keeps its internal conditions within a stable range.', truthState: 'documented', concepts: [{ code: codes.body, role: 'subject' }], support: support(sources.biology) },
+      { key: claims.moon, statement: 'The Moon shows phases as it circles the Earth each month.', truthState: 'documented', concepts: [{ code: codes.moon, role: 'subject' }], support: support(sources.lunar) },
+      { key: claims.moonPull, statement: 'The Earth keeps the Moon in orbit through its gravity.', truthState: 'documented',
+        concepts: [{ code: codes.gravity, role: 'mechanism' }, { code: codes.moon, role: 'subject' }], support: support(sources.lunar) },
     ],
     relations: [{ from: codes.gravity, to: codes.tides, kind: 'explains', claimKey: claims.gravityTides }],
     assets: [
@@ -103,4 +114,40 @@ export async function formPlaces(universeId: string, codes: string[], earlier: s
     await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [universeId]);
     return runCartographer(client, universeId, [...earlier, ...codes].map(anchored));
   });
+}
+
+/** A labelled fixture inquiry route and its fairness policy (ADR-0038 §2), with ADR-0042's options where a test sets them. */
+export async function installFixtureInquiryRoute(policyVersion: string, over: Partial<Parameters<typeof installBackgroundInquiryRoute>[1]> = {}): Promise<void> {
+  await createReasoningFairness(pool, inquiryAuthority()).installPolicy(answerFairnessPolicy(policyVersion, { maxInputTokens: 16384, maxOutputTokens: 2048 }));
+  await transaction(client => installBackgroundInquiryRoute(client, { policyVersion, routeId: `fixture-${policyVersion}`, routeProfileVersion: 'fixture-v1',
+    transport: 'fixture', model: 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 2048, requestCap: 200, tokenBudget: 10_000_000,
+    ownerCapacity: 1_000_000, jobCapacity: 100_000, coalescingDelaySeconds: 0, jobTtlSeconds: 600, remoteSlots: 16, ...over }));
+}
+
+/** Only this route is enabled. */
+export async function useInquiryRoute(policyVersion: string): Promise<void> {
+  await transaction(async client => {
+    await client.query('UPDATE background_inquiry_route SET enabled=false WHERE enabled');
+    await client.query('UPDATE background_inquiry_route SET enabled=true WHERE policy_version=$1', [policyVersion]);
+  });
+}
+
+export type InquiryReader = { token: string; universeId: string; headers: { authorization: string } };
+
+/** A new reader who has turned on "Look for connections between my places", through the real app. */
+export async function consentingReader(app: FastifyInstance): Promise<InquiryReader> {
+  const identity = await provisionIdentity();
+  const headers = { authorization: `Bearer ${identity.token}` };
+  const consent = await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers, payload: { enabled: true, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
+  assert.equal(consent.statusCode, 200, consent.body);
+  return { token: identity.token, universeId: identity.scope.universeId, headers };
+}
+
+/** The reader's newest top-level inquiry, with its Job's status and how many requests its Job has sent. */
+export async function newestInquiry(universeId: string) {
+  return (await pool.query(
+    `SELECT i.*, j.status AS job_status, (SELECT count(*)::int FROM reasoning_attempt a JOIN reasoning_accounting ac ON ac.attempt_id = a.id
+       WHERE a.job_id = i.job_id AND ac.dispatch_id IS NOT NULL) AS dispatched
+     FROM background_inquiry i LEFT JOIN reasoning_job j ON j.id = i.job_id WHERE i.universe_id=$1 AND i.parent_id IS NULL
+     ORDER BY i.first_mail_at DESC LIMIT 1`, [universeId])).rows[0];
 }

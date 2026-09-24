@@ -32,13 +32,14 @@ export type InquiryRoute = {
   max_input_tokens: number; max_output_tokens: number; global_bucket_id: string; provider_account_bucket_id: string;
   route_quota_bucket_id: string; remote_concurrency_bucket_id: string; owner_capacity: string; job_capacity: string;
   coalescing_delay_seconds: number; job_ttl_seconds: number; enabled: boolean;
+  thinking: 'disabled' | 'adaptive'; max_continuation_steps: number; max_children: number;
 };
 export type InquiryRow = {
   id: string; universe_id: string; privacy_epoch: number; kind: string; status: string; first_mail_at: Date;
   policy_version: string | null; job_id: string | null; step_id: string | null; context_id: string | null; request_id: string | null;
   job_bucket_id: string | null; through_sequence: string | null; pairs: { a: { code: string; name: string }; b: { code: string; name: string } }[] | null;
   opened_at: Date | null; request_hash: string | null; input_bytes: number | null; attempt_id: string | null; proposal_id: string | null;
-  reasons: string[]; closed_at: Date | null;
+  reasons: string[]; closed_at: Date | null; role: 'single' | 'parent' | 'child'; parent_id: string | null; sent: boolean | null;
 };
 
 /** Operator/test setup, like `installAskAnswerRoute`. The fairness policy of the same version must
@@ -47,6 +48,8 @@ export async function installBackgroundInquiryRoute(client: pg.PoolClient, input
   policyVersion: string; routeId: string; routeProfileVersion: string; transport: 'fixture' | 'minimax'; model: string;
   maxInputTokens: number; maxOutputTokens: number; requestCap: number; tokenBudget: number; ownerCapacity: number; jobCapacity: number;
   coalescingDelaySeconds: number; jobTtlSeconds: number; remoteSlots: number;
+  /** ADR-0042: the thinking mode its requests ask for (default disabled), and its bounds on continuation steps (default 1) and children (default none). */
+  thinking?: 'disabled' | 'adaptive'; maxContinuationSteps?: number; maxChildren?: 0 | 2 | 3;
 }): Promise<void> {
   const policy = (await client.query<{ config: unknown }>('SELECT config FROM reasoning_fairness_policy WHERE version=$1', [input.policyVersion])).rows[0];
   if (!policy) throw new Error('Install the fairness policy of this version first');
@@ -64,16 +67,20 @@ export async function installBackgroundInquiryRoute(client: pg.PoolClient, input
   await client.query(
     `INSERT INTO background_inquiry_route(policy_version,route_id,route_profile_version,transport,model,max_input_tokens,max_output_tokens,
        global_bucket_id,provider_account_bucket_id,route_quota_bucket_id,remote_concurrency_bucket_id,owner_capacity,job_capacity,
-       coalescing_delay_seconds,job_ttl_seconds,enabled)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,true)`,
+       coalescing_delay_seconds,job_ttl_seconds,thinking,max_continuation_steps,max_children,enabled)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,true)`,
     [input.policyVersion, input.routeId, input.routeProfileVersion, input.transport, input.model, input.maxInputTokens, input.maxOutputTokens,
-      global, account, quota, remote, input.ownerCapacity, input.jobCapacity, input.coalescingDelaySeconds, input.jobTtlSeconds],
+      global, account, quota, remote, input.ownerCapacity, input.jobCapacity, input.coalescingDelaySeconds, input.jobTtlSeconds,
+      input.thinking ?? 'disabled', input.maxContinuationSteps ?? 1, input.maxChildren ?? 0],
   );
 }
 
 export async function inquiryRouteFor(client: pg.PoolClient | pg.Pool, policyVersion: string): Promise<InquiryRoute | undefined> {
   return (await client.query<InquiryRoute>('SELECT * FROM background_inquiry_route WHERE policy_version=$1', [policyVersion])).rows[0];
 }
+
+/** What of the route shapes the request bytes. */
+export const requestRoute = (route: InquiryRoute) => ({ model: route.model, maxOutputTokens: route.max_output_tokens, thinking: route.thinking });
 
 /** The same resolved shape as an answer Job's: the route's shared buckets plus its owner and Job buckets. */
 function policyOf(route: InquiryRoute, universeId: string, jobId: string, ownerBucket: string, jobBucket: string): ResolvedReasoningPolicy {
@@ -94,10 +101,12 @@ function policyOf(route: InquiryRoute, universeId: string, jobId: string, ownerB
   } as ResolvedReasoningPolicy;
 }
 
-/** Trusted local SQL only: resolves an inquiry Job's policy from its inquiry row. */
+/** Trusted local SQL only: resolves an inquiry Job's policy from its inquiry row. A child binds its
+ * parent's Job budget: a family never opens more than one (ADR-0042 §4). */
 export const resolveInquiryPolicy: ReasoningAuthority['resolvePolicy'] = async (client, scope) => {
   const inquiry = (await client.query<{ policy_version: string | null; job_bucket_id: string | null }>(
-    'SELECT policy_version, job_bucket_id FROM background_inquiry WHERE job_id=$1 AND universe_id=$2 AND privacy_epoch=$3',
+    `SELECT i.policy_version, COALESCE(i.job_bucket_id, p.job_bucket_id) AS job_bucket_id FROM background_inquiry i
+     LEFT JOIN background_inquiry p ON p.id = i.parent_id WHERE i.job_id=$1 AND i.universe_id=$2 AND i.privacy_epoch=$3`,
     [scope.jobId, scope.universeId, scope.privacyEpoch])).rows[0];
   if (!inquiry?.policy_version || !inquiry.job_bucket_id) return undefined;
   const route = await inquiryRouteFor(client, inquiry.policy_version);
@@ -124,16 +133,27 @@ export async function jobFamily(db: pg.Pool | pg.PoolClient, jobId: string): Pro
   return row.answer ? 'answer' : row.inquiry ? 'inquiry' : null;
 }
 
+async function inTransaction<T>(pool: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try { await client.query('BEGIN'); const value = await body(client); await client.query('COMMIT'); return value; }
+  catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; }
+  finally { client.release(); }
+}
+
 // Consent -------------------------------------------------------------------------------------
 
-const TODAY = `(date_trunc('day', clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`;
+/** Inquiries the mailbox opened today (UTC): a family counts once, its children never (ADR-0042 §4). */
+async function openedToday(client: pg.PoolClient, universeId: string, privacyEpoch: number): Promise<number> {
+  return (await client.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM background_inquiry WHERE universe_id=$1 AND privacy_epoch=$2 AND parent_id IS NULL
+       AND opened_at >= (date_trunc('day', clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`, [universeId, privacyEpoch])).rows[0]!.n;
+}
 
 export async function readInquiryConsent(client: pg.PoolClient, scope: { universeId: string; privacyEpoch: number }): Promise<InquiryConsentView> {
   const row = (await client.query<{ enabled: boolean; daily_limit: number; changed_at: Date }>(
     'SELECT enabled, daily_limit, changed_at FROM background_inquiry_consent WHERE universe_id=$1 AND privacy_epoch=$2', [scope.universeId, scope.privacyEpoch])).rows[0];
   const available = (await client.query('SELECT 1 FROM background_inquiry_route WHERE enabled')).rowCount === 1;
-  const used = (await client.query<{ n: number }>(`SELECT count(*)::int AS n FROM background_inquiry WHERE universe_id=$1 AND privacy_epoch=$2 AND opened_at >= ${TODAY}`,
-    [scope.universeId, scope.privacyEpoch])).rows[0]!.n;
+  const used = await openedToday(client, scope.universeId, scope.privacyEpoch);
   return { enabled: row?.enabled ?? false, dailyLimit: row?.daily_limit ?? INQUIRY_DAILY_LIMIT.default, changedAt: row ? row.changed_at.toISOString() : null, available, usedToday: used };
 }
 
@@ -177,13 +197,21 @@ export async function setInquiryConsent(client: pg.PoolClient, scope: AuthScope,
 
 // Mail ----------------------------------------------------------------------------------------
 
+/** Why a look is worth it (ADR-0042 §5): a planet or region formed, a bridge between two live places
+ * revoked, or a personal hypothesis about a live place created or changed. */
+export type InquiryMailCause =
+  | { kind: 'place_formed'; deltaId: string }
+  | { kind: 'bridge_revoked'; bridgeId: string }
+  | { kind: 'hypothesis_changed'; hypothesisId: string; revision: number };
+
 /**
- * ADR-0038 §3: called by `applyDeltas` for each planet or region the Cartographer forms, in its
- * transaction and under its universe lock. Only with consent in this epoch and while recording;
- * later mail joins the pending inquiry (at most 16 causes: the inquiry reads every live place when
- * it runs anyway). Nothing formed earlier is ever mailed (the schema requires this transaction's delta).
+ * ADR-0038 §3: called for each cause, in its transaction and under its universe lock (`applyDeltas` for
+ * a place the Cartographer forms). Only with consent in this epoch and while recording; later mail joins
+ * the pending inquiry (at most 16 causes: the inquiry reads every live place when it runs anyway).
+ * Nothing earlier is ever mailed: the schema requires this transaction's delta, or a revocation or
+ * hypothesis revision since consent was turned on (ADR-0042 §5).
  */
-export async function postInquiryMail(client: pg.PoolClient, universeId: string, causeDeltaId: string): Promise<boolean> {
+export async function postInquiryMail(client: pg.PoolClient, universeId: string, cause: InquiryMailCause): Promise<boolean> {
   const state = (await client.query<{ privacy_epoch: number; recording: boolean; enabled: boolean | null }>(
     `SELECT u.privacy_epoch, u.recording_paused_at IS NULL AS recording, c.enabled FROM universe u
      LEFT JOIN background_inquiry_consent c ON c.universe_id = u.id AND c.privacy_epoch = u.privacy_epoch WHERE u.id=$1`, [universeId])).rows[0];
@@ -197,9 +225,47 @@ export async function postInquiryMail(client: pg.PoolClient, universeId: string,
       [pending.id, universeId, state.privacy_epoch, INQUIRY_KIND]);
   }
   if (pending.causes >= INQUIRY_CONTEXT_LIMITS.maxCausesPerInquiry) return false;
-  await client.query('INSERT INTO inquiry_mail(id,universe_id,privacy_epoch,kind,inquiry_id,cause_delta_id) VALUES($1,$2,$3,$4,$5,$6)',
-    [randomUUID(), universeId, state.privacy_epoch, INQUIRY_KIND, pending.id, causeDeltaId]);
+  await client.query(
+    `INSERT INTO inquiry_mail(id,universe_id,privacy_epoch,kind,inquiry_id,cause_kind,cause_delta_id,cause_bridge_id,cause_hypothesis_id,cause_hypothesis_revision)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [randomUUID(), universeId, state.privacy_epoch, INQUIRY_KIND, pending.id, cause.kind, cause.kind === 'place_formed' ? cause.deltaId : null,
+      cause.kind === 'bridge_revoked' ? cause.bridgeId : null, cause.kind === 'hypothesis_changed' ? cause.hypothesisId : null,
+      cause.kind === 'hypothesis_changed' ? cause.revision : null]);
   return true;
+}
+
+/** Revoked bridges (shared, or the reader's own) between two of a consenting, recording reader's live
+ * planets or regions, revoked since that reader's consent was turned on (or recording resumed), not yet mailed. */
+const REVOKED_CONNECTIONS = `SELECT u.id AS universe_id, b.id AS bridge_id FROM bridge b
+  JOIN atlas_place f ON f.anchor_concept_id = b.from_concept_id AND f.state = 'live' AND f.kind IN ('planet','region')
+  JOIN atlas_place t ON t.universe_id = f.universe_id AND t.anchor_concept_id = b.to_concept_id AND t.state = 'live' AND t.kind IN ('planet','region')
+  JOIN universe u ON u.id = f.universe_id AND u.recording_paused_at IS NULL
+  JOIN background_inquiry_consent c ON c.universe_id = u.id AND c.privacy_epoch = u.privacy_epoch AND c.enabled
+  WHERE b.status = 'revoked' AND (b.universe_id IS NULL OR b.universe_id = u.id)
+    AND b.status_changed_at > inquiry_mail_since(u.id, u.privacy_epoch)
+    AND NOT EXISTS (SELECT 1 FROM inquiry_mail m WHERE m.universe_id = u.id AND m.cause_bridge_id = b.id)`;
+
+/**
+ * ADR-0042 §5.3: a source correction that revoked a connection between two of a reader's live places asks
+ * for a look again, from current evidence. The correction holds the exclusive substrate lock, which
+ * follows universe locks (ADR-0031 §7), so its own transaction cannot mail: the worker does, each pass,
+ * under each universe's lock with the facts checked again, once per universe and bridge.
+ */
+export async function mailRevokedConnections(pool: pg.Pool, input: { limit?: number } = {}): Promise<number> {
+  const found = (await pool.query<{ universe_id: string; bridge_id: string }>(
+    `${REVOKED_CONNECTIONS} ORDER BY b.status_changed_at, b.id LIMIT $1`, [input.limit ?? 10])).rows;
+  let mailed = 0;
+  for (const row of found) {
+    try {
+      const posted = await inTransaction(pool, async client => {
+        await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [row.universe_id]);
+        const still = (await client.query(`${REVOKED_CONNECTIONS} AND u.id=$1 AND b.id=$2`, [row.universe_id, row.bridge_id])).rowCount;
+        return still ? postInquiryMail(client, row.universe_id, { kind: 'bridge_revoked', bridgeId: row.bridge_id }) : false;
+      });
+      if (posted) mailed += 1;
+    } catch { /* a pause or a Clear moved it meanwhile; the next pass sees its new state */ }
+  }
+  return mailed;
 }
 
 // Stopping -------------------------------------------------------------------------------------
@@ -237,13 +303,6 @@ export async function withdrawInquiries(client: pg.PoolClient, universeId: strin
 
 export type OpenResult = 'opened' | 'nothing_to_ask' | 'waiting' | 'withdrawn' | 'failed' | 'gone';
 
-async function inTransaction<T>(pool: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try { await client.query('BEGIN'); const value = await body(client); await client.query('COMMIT'); return value; }
-  catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; }
-  finally { client.release(); }
-}
-
 /** The worker's intake: every pending inquiry whose first mail is older than the route's coalescing
  * delay, while none of its universe's is already in flight, is opened in its own transaction. */
 export async function openDueInquiries(pool: pg.Pool, input: { limit?: number } = {}): Promise<Record<OpenResult, number>> {
@@ -262,6 +321,40 @@ export async function openDueInquiries(pool: pg.Pool, input: { limit?: number } 
 }
 
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+/** The offered pairs' codes and names, as the inquiry records them for the reader's list. */
+const pairsView = (pairs: readonly InquiryPair[]) => JSON.stringify(pairs.map(p => ({ a: { code: p.a.code, name: p.a.name }, b: { code: p.b.code, name: p.b.name } })));
+
+/** What every Job an opening creates shares: the universe and epoch, the route, the cause and the deadline. */
+type InquiryJobShape = { universeId: string; privacyEpoch: number; route: InquiryRoute; through: string; deadline: Date };
+
+async function insertInquiryJob(client: pg.PoolClient, jobId: string, job: InquiryJobShape, status: 'queued' | 'waiting'): Promise<void> {
+  await client.query(
+    `INSERT INTO reasoning_job(id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,wake_kind,dirty_scope,through_sequence)
+     VALUES($1,$2,$3,$4,'background_inquiry',$2,$5,$6,'dirty',$7,$8)`,
+    [jobId, job.universeId, job.privacyEpoch, status, job.route.policy_version, job.deadline, INQUIRY_DIRTY_SCOPE, job.through]);
+}
+
+/** One inquiry's own Job, sealed context, Step and exact request bytes, enqueued fairly (ADR-0038 §4).
+ * `bind` names the Job on the inquiry's row first, so the policy resolver can see its buckets while sealing. */
+async function openInquiryJob(client: pg.PoolClient, job: InquiryJobShape, inquiryId: string, pairs: readonly InquiryPair[],
+  bind: (ids: { jobId: string; stepId: string; contextId: string; requestId: string }) => Promise<unknown>): Promise<void> {
+  const ids = { jobId: randomUUID(), stepId: randomUUID(), contextId: randomUUID(), requestId: randomUUID() };
+  const scope = { universeId: job.universeId, privacyEpoch: job.privacyEpoch };
+  await insertInquiryJob(client, ids.jobId, job, 'queued');
+  await bind(ids);
+  const payload = await sealInquiryContext(client, { ...scope, jobId: ids.jobId, contextId: ids.contextId, inquiryId }, pairs, resolveInquiryPolicy);
+  await client.query(`INSERT INTO reasoning_step(id,job_id,universe_id,privacy_epoch,context_id,ordinal,status) VALUES($1,$2,$3,$4,$5,1,'pending')`,
+    [ids.stepId, ids.jobId, scope.universeId, scope.privacyEpoch, ids.contextId]);
+  // The reserved bytes are rebuilt from the sealed pairs, exactly as the worker will rebuild them.
+  const bytes = serializeBridgeInquiryRequest(payload.pairs, requestRoute(job.route));
+  const requestHash = sha(bytes);
+  await client.query('UPDATE background_inquiry SET request_hash=$2, input_bytes=$3 WHERE id=$1', [inquiryId, requestHash, bytes.byteLength]);
+  await enqueueFairInTransaction(client, {
+    ...scope, jobId: ids.jobId, stepId: ids.stepId, contextId: ids.contextId, requestId: ids.requestId, requestHash,
+    inputTokensUpperBound: bytes.byteLength, maxOutputTokens: job.route.max_output_tokens, costCeilingMicroUsd: null,
+    deadline: job.deadline.toISOString(), permitTtlMs: 60_000, policyVersion: job.route.policy_version, class: 'background_inquiry',
+  });
+}
 
 /** ADR-0038 §4: one due inquiry, with fresh authority, in the caller's transaction. */
 export async function openInquiry(client: pg.PoolClient, inquiryId: string): Promise<OpenResult> {
@@ -284,14 +377,13 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
     [inquiry.first_mail_at])).rows[0];
   if (!route?.due) return 'waiting';
   const busy = (await client.query(`SELECT 1 FROM background_inquiry WHERE universe_id=$1 AND kind=$2 AND status='queued'`, [inquiry.universe_id, inquiry.kind])).rowCount;
-  const used = (await client.query<{ n: number }>(`SELECT count(*)::int AS n FROM background_inquiry WHERE universe_id=$1 AND privacy_epoch=$2 AND opened_at >= ${TODAY}`,
-    [inquiry.universe_id, inquiry.privacy_epoch])).rows[0]!.n;
+  const used = await openedToday(client, inquiry.universe_id, inquiry.privacy_epoch);
   // Today's limit reached: it stays pending (the reader sees `waiting`) until tomorrow.
   if (busy || used >= consent.daily_limit) return 'waiting';
 
   let pairs = selectInquiryPairs(await readInquiryInputs(client, inquiry.universe_id, inquiry.privacy_epoch));
   if (pairs.length === 0) { await close('nothing_to_ask', ['no_candidate_pair']); return 'nothing_to_ask'; }
-  const bytesFor = (offered: readonly InquiryPair[]) => serializeBridgeInquiryRequest(offered, { model: route.model, maxOutputTokens: route.max_output_tokens });
+  const bytesFor = (offered: readonly InquiryPair[]) => serializeBridgeInquiryRequest(offered, requestRoute(route));
   // The request must fit the route's input bound: the last pairs give way first.
   while (pairs.length > 1 && bytesFor(pairs).byteLength > route.max_input_tokens) pairs = pairs.slice(0, -1);
   if (bytesFor(pairs).byteLength > route.max_input_tokens) { await close('failed', ['request_too_large']); return 'failed'; }
@@ -306,32 +398,34 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
   })();
   await client.query('SAVEPOINT inquiry_open');
   try {
-    const jobId = randomUUID(), contextId = randomUUID(), stepId = randomUUID(), requestId = randomUUID(), jobBucket = randomUUID();
+    const jobBucket = randomUUID();
     await client.query("INSERT INTO reasoning_bucket(id,dimension,unit,capacity) VALUES($1,'job_budget','tokens',$2)", [jobBucket, route.job_capacity]);
     const through = (await client.query<{ n: string }>('SELECT max(sequence)::text AS n FROM inquiry_mail WHERE inquiry_id=$1', [inquiryId])).rows[0]!.n;
     const deadline = (await client.query<{ at: Date }>(`SELECT clock_timestamp() + ($1 * interval '1 second') AS at`, [route.job_ttl_seconds])).rows[0]!.at;
-    await client.query(
-      `INSERT INTO reasoning_job(id,universe_id,privacy_epoch,status,class,budget_owner_id,policy_version,deadline,wake_kind,dirty_scope,through_sequence)
-       VALUES($1,$2,$3,'queued','background_inquiry',$2,$4,$5,'dirty',$6,$7)`,
-      [jobId, scope.universeId, scope.privacyEpoch, route.policy_version, deadline, INQUIRY_DIRTY_SCOPE, through]);
-    // The inquiry names its Job first, so the policy resolver can see the Job's buckets while sealing.
-    await client.query(
-      `UPDATE background_inquiry SET status='queued', policy_version=$2, job_id=$3, step_id=$4, context_id=$5, request_id=$6, job_bucket_id=$7,
-         through_sequence=$8, pairs=$9 WHERE id=$1`,
-      [inquiryId, route.policy_version, jobId, stepId, contextId, requestId, jobBucket, through,
-        JSON.stringify(pairs.map(p => ({ a: { code: p.a.code, name: p.a.name }, b: { code: p.b.code, name: p.b.name } })))]);
-    const payload = await sealInquiryContext(client, { ...scope, jobId, contextId, inquiryId }, pairs, resolveInquiryPolicy);
-    await client.query(`INSERT INTO reasoning_step(id,job_id,universe_id,privacy_epoch,context_id,ordinal,status) VALUES($1,$2,$3,$4,$5,1,'pending')`,
-      [stepId, jobId, scope.universeId, scope.privacyEpoch, contextId]);
-    // The reserved bytes are rebuilt from the sealed pairs, exactly as the worker will rebuild them.
-    const bytes = bytesFor(payload.pairs);
-    const requestHash = sha(bytes);
-    await client.query('UPDATE background_inquiry SET request_hash=$2, input_bytes=$3 WHERE id=$1', [inquiryId, requestHash, bytes.byteLength]);
-    await enqueueFairInTransaction(client, {
-      universeId: scope.universeId, privacyEpoch: scope.privacyEpoch, jobId, stepId, contextId, requestId, requestHash,
-      inputTokensUpperBound: bytes.byteLength, maxOutputTokens: route.max_output_tokens, costCeilingMicroUsd: null,
-      deadline: deadline.toISOString(), permitTtlMs: 60_000, policyVersion: route.policy_version, class: 'background_inquiry',
-    });
+    const job: InquiryJobShape = { ...scope, route, through, deadline };
+    if (route.max_children >= 2 && pairs.length >= 2) {
+      // ADR-0042 §4: the inquiry becomes a parent. Its Job only waits for its children and holds the
+      // family's one budget; each pair is asked by a child with its own Job, binding that budget.
+      const offered = pairs.slice(0, route.max_children);
+      const parentJob = randomUUID();
+      await insertInquiryJob(client, parentJob, job, 'waiting');
+      await client.query(
+        `UPDATE background_inquiry SET status='queued', role='parent', policy_version=$2, job_id=$3, job_bucket_id=$4, through_sequence=$5, pairs=$6 WHERE id=$1`,
+        [inquiryId, route.policy_version, parentJob, jobBucket, through, pairsView(offered)]);
+      for (const pair of offered) {
+        const childId = randomUUID();
+        // A child keeps its parent's identity: universe, epoch, kind, first mail, route and cause.
+        await openInquiryJob(client, job, childId, [pair], ids => client.query(
+          `INSERT INTO background_inquiry(id,universe_id,privacy_epoch,kind,status,role,parent_id,first_mail_at,policy_version,job_id,step_id,context_id,request_id,through_sequence,pairs)
+           SELECT $1,universe_id,privacy_epoch,kind,'queued','child',id,first_mail_at,policy_version,$3,$4,$5,$6,through_sequence,$7 FROM background_inquiry WHERE id=$2`,
+          [childId, inquiryId, ids.jobId, ids.stepId, ids.contextId, ids.requestId, pairsView([pair])]));
+      }
+    } else {
+      await openInquiryJob(client, job, inquiryId, pairs, ids => client.query(
+        `UPDATE background_inquiry SET status='queued', policy_version=$2, job_id=$3, step_id=$4, context_id=$5, request_id=$6, job_bucket_id=$7,
+           through_sequence=$8, pairs=$9 WHERE id=$1`,
+        [inquiryId, route.policy_version, ids.jobId, ids.stepId, ids.contextId, ids.requestId, jobBucket, through, pairsView(pairs)]));
+    }
     await client.query('RELEASE SAVEPOINT inquiry_open');
     return 'opened';
   } catch (error) {
@@ -377,10 +471,11 @@ async function connectionView(client: pg.PoolClient, column: 'b.id' | 'b.proposa
   };
 }
 
-/** `GET /v1/inquiries`: this universe's inquiries in the current epoch, newest first. */
+/** `GET /v1/inquiries`: this universe's inquiries in the current epoch, newest first. A family is its
+ * children, each with its own pair and outcome; the parent that only waited for them is not listed. */
 export async function listInquiries(client: pg.PoolClient, scope: AuthScope): Promise<InquiriesResponse> {
   const rows = (await client.query<InquiryRow>(
-    'SELECT * FROM background_inquiry WHERE universe_id=$1 AND privacy_epoch=$2 ORDER BY first_mail_at DESC, id DESC LIMIT $3',
+    `SELECT * FROM background_inquiry WHERE universe_id=$1 AND privacy_epoch=$2 AND role <> 'parent' ORDER BY first_mail_at DESC, id DESC LIMIT $3`,
     [scope.universeId, scope.privacyEpoch, INQUIRY_LIST_LIMIT])).rows;
   const inquiries: InquiryWire[] = [];
   for (const r of rows) {
@@ -408,8 +503,9 @@ export async function exportInquiries(client: pg.PoolClient, universeId: string)
   return {
     consent: await q('SELECT privacy_epoch, enabled, daily_limit, revision, changed_at FROM background_inquiry_consent WHERE universe_id=$1 ORDER BY privacy_epoch'),
     consentRequests: await q('SELECT id, privacy_epoch, enabled, daily_limit, requested_at FROM background_inquiry_consent_request WHERE universe_id=$1 ORDER BY requested_at, id'),
-    mail: await q('SELECT id, privacy_epoch, kind, inquiry_id, cause_delta_id, sequence, created_at FROM inquiry_mail WHERE universe_id=$1 ORDER BY sequence'),
-    inquiries: await q(`SELECT id, privacy_epoch, kind, status, first_mail_at, opened_at, closed_at, pairs, input_bytes, reasons, proposal_id
+    mail: await q(`SELECT id, privacy_epoch, kind, inquiry_id, cause_kind, cause_delta_id, cause_bridge_id, cause_hypothesis_id, cause_hypothesis_revision, sequence, created_at
+      FROM inquiry_mail WHERE universe_id=$1 ORDER BY sequence`),
+    inquiries: await q(`SELECT id, privacy_epoch, kind, role, parent_id, status, first_mail_at, opened_at, closed_at, pairs, input_bytes, sent, reasons, proposal_id
       FROM background_inquiry WHERE universe_id=$1 ORDER BY first_mail_at, id`),
   };
 }

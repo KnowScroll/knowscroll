@@ -28,6 +28,7 @@ import com.knowscroll.mobile.data.BranchFrom
 import com.knowscroll.mobile.data.BranchOpenRequest
 import com.knowscroll.mobile.data.PendingAnswerRequest
 import com.knowscroll.mobile.data.PendingAsk
+import com.knowscroll.mobile.data.WatchedAnswer
 import com.knowscroll.mobile.data.questionIsValid
 import com.knowscroll.mobile.ui.branch.BranchOpenConflict
 import com.knowscroll.mobile.ui.branch.BranchPanel
@@ -40,7 +41,9 @@ import com.knowscroll.mobile.ui.ask.AnswerRequestConflict
 import com.knowscroll.mobile.ui.ask.AskPanel
 import com.knowscroll.mobile.ui.ask.AskStage
 import com.knowscroll.mobile.ui.ask.answerRequestConflict
+import com.knowscroll.mobile.ui.ask.askToWatchOnReopen
 import com.knowscroll.mobile.ui.ask.cancelAlreadyStarted
+import com.knowscroll.mobile.ui.ask.reopenedAskPanel
 import com.knowscroll.mobile.ui.ask.stageAfterPoll
 import com.knowscroll.mobile.ui.system.RejectPlaceConflict
 import com.knowscroll.mobile.ui.system.rejectPlaceConflict
@@ -594,12 +597,20 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     /** #132: open the Ask sheet for the Scroll on screen. A panel already open for this same
-     * Scroll is left as-is (its own stage carries forward); a different Scroll starts fresh. */
+     * Scroll keeps its own stage, and an answer it was waiting for is watched again (closing the
+     * sheet stopped polling); a different Scroll starts fresh, unless it is the one whose answer the
+     * reader was waiting for when the process died (#166): that answer is picked up again and
+     * polled, never requested again. */
     fun openAsk(){
         val reading=_scroll.value as? ScrollState.Reading ?: return
-        if(_ask.value?.assetId==reading.item.assetId)return
+        _ask.value?.takeIf{it.assetId==reading.item.assetId}?.let{open->
+            askToWatchOnReopen(open,polling=askPollJob?.isActive==true)?.let{pollAnswer(it,reading.item.assetId,observedPrivacyEpoch)}
+            return
+        }
         askPollJob?.cancel();askPollJob=null
-        _ask.value=AskPanel(reading.item.assetId)
+        val panel=reopenedAskPanel(reading.item.assetId,observedPrivacyEpoch,store.readWatchedAnswer())
+        _ask.value=panel
+        (panel.stage as? AskStage.Waiting)?.let{pollAnswer(it.askId,reading.item.assetId,observedPrivacyEpoch)}
     }
 
     /** The sheet closed: stop polling. The panel's own stage is left alone so reopening it (for
@@ -665,6 +676,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 val receipt=api.requestAnswer(pending)
                 if(version!=navigationVersion || epoch!=observedPrivacyEpoch)return@launch
                 store.clearPendingAnswerRequest()
+                store.writeWatchedAnswer(WatchedAnswer(receipt.askId,reading.item.assetId,epoch,panel.question))
                 if(_ask.value?.assetId!=reading.item.assetId)return@launch
                 _ask.value=_ask.value?.copy(stage=AskStage.Waiting(receipt.askId,"queued"))
                 pollAnswer(receipt.askId,reading.item.assetId,epoch)
@@ -683,6 +695,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         // Idempotent from this reader's own point of view: what was asked for is
                         // already in flight, so watch it rather than surface a false failure.
                         store.clearPendingAnswerRequest()
+                        store.writeWatchedAnswer(WatchedAnswer(askId,reading.item.assetId,epoch,panel.question))
                         if(_ask.value?.assetId==reading.item.assetId){
                             _ask.value=_ask.value?.copy(stage=AskStage.Waiting(askId,"queued"))
                             pollAnswer(askId,reading.item.assetId,epoch)
@@ -721,6 +734,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             try {
                 val view=api.cancelAnswer(waiting.askId,epoch)
                 if(epoch!=observedPrivacyEpoch || _ask.value?.assetId!=assetId)return@launch
+                stopWatching(waiting.askId)
                 _ask.value=_ask.value?.copy(stage=AskStage.Final(waiting.askId,view))
             } catch(e:Exception){
                 if(e is CancellationException)throw e
@@ -737,6 +751,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
     }
 
+    /** #166: an answer that is final (or gone) is no longer waited for; a newer one is left alone. */
+    private fun stopWatching(askId:String){
+        if(store.readWatchedAnswer()?.askId==askId)store.clearWatchedAnswer()
+    }
+
     /** #132: poll the answer view every ~1.5s, bounded to ~3 minutes. Stopped by the sheet
      * closing or the Scroll changing (see [closeAsk], [show]); a stale scope or asset is ignored,
      * never shown. */
@@ -751,13 +770,14 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     val view=api.getAnswer(askId)
                     if(epoch!=observedPrivacyEpoch || (_scroll.value as? ScrollState.Reading)?.item?.assetId!=assetId)return@launch
                     if(view==null || view.askId!=askId){
+                        stopWatching(askId)
                         if(_ask.value?.assetId==assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,
                             getApplication<Application>().getString(com.knowscroll.mobile.R.string.ask_answer_not_found)))
                         return@launch
                     }
                     val next=stageAfterPoll(askId,view)
                     if(_ask.value?.assetId==assetId)_ask.value=_ask.value?.copy(stage=next)
-                    if(next is AskStage.Final)return@launch
+                    if(next is AskStage.Final){stopWatching(askId);return@launch}
                 } catch(e:CancellationException){throw e}
                 catch(e:Exception){
                     if(invalidatesReader(e)){purgeForScope(observedUniverseId,epoch);failClosed(message(e));return@launch}

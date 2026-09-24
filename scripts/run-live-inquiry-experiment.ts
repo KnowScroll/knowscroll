@@ -10,26 +10,38 @@
  * One inquiry per run by default (`--inquiries N`, 1..3). Each is caused the product's way: the
  * reader has given consent, then the Cartographer forms a place (from supplied, labelled anchored
  * accounts, as in the `inquiry` journey), which mails an inquiry that the worker opens once due.
- * Bounds: the persistent session ledger under $KS_DEV_ROOT (shared with the Ask-answer experiment)
- * caps live requests at 40 for this session, and the route's request-quota bucket is set to what this
- * run may use, so admission itself stops at the limit. Requests stay within 16 KB and 4,096 output
- * tokens. Everything runs against a disposable database that is dropped afterwards. Receipts record
- * statuses, reason codes, counts, usage and hashes only -- never a prompt, a reply, a mechanism or a
- * key. A found bridge's text stays in the disposable database and an ignored local file.
+ * `--continuation` lets a refused proposal take its one continuation step (ADR-0042 §1), so each
+ * inquiry may send two requests; `--thinking adaptive` lets M3 think, and its thinking blocks then
+ * travel back in place (the fixture run uses `refused_then_valid`). Without them the route allows no
+ * continuation and each inquiry sends at most one request, as before.
+ * Bounds: the persistent session ledger under $KS_DEV_ROOT (shared with the Ask-answer experiment and
+ * held by one live run at a time) caps live requests at 40 for this session, and the route's
+ * request-quota bucket is set to what this run may use, so admission itself stops at the limit.
+ * Requests stay within 16 KB and 4,096 output tokens. Everything runs against a disposable database
+ * that is dropped afterwards. Receipts record statuses, reason codes, counts, usage and hashes only --
+ * never a prompt, a reply, a thought, a mechanism or a key. A found bridge's text stays in the
+ * disposable database and an ignored local file.
  */
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import pg from 'pg';
+import { openLiveLedger } from './lib/live-ledger.ts';
 
 const mode = process.argv.includes('--live') ? 'live' : process.argv.includes('--fixture') ? 'fixture' : null;
 if (!mode) { console.log('Refusing: pass --fixture (no network) or --live (bounded MiniMax-M3 experiment).'); process.exit(2); }
 const countArg = process.argv.indexOf('--inquiries');
 const INQUIRIES = countArg < 0 ? 1 : Number(process.argv[countArg + 1]);
 if (!Number.isInteger(INQUIRIES) || INQUIRIES < 1 || INQUIRIES > 3) { console.log('Refusing: --inquiries takes 1..3'); process.exit(2); }
-const SESSION_CAP = 40;
+const CONTINUATION = process.argv.includes('--continuation');
+const thinkingArg = process.argv.indexOf('--thinking');
+const thinking = thinkingArg < 0 ? 'disabled' : process.argv[thinkingArg + 1];
+if (thinking !== 'disabled' && thinking !== 'adaptive') { console.log('Refusing: --thinking takes disabled or adaptive'); process.exit(2); }
+const THINKING: 'disabled' | 'adaptive' = thinking;
+// A continuation is a second request for the same inquiry: the budget covers both.
+const REQUESTS = INQUIRIES * (CONTINUATION ? 2 : 1);
 // Each step forms one more place after consent; every step opens a new candidate pair with the
 // places before it. The first place is formed before consent, so it mails nothing.
 const BEFORE_CONSENT = ['astro.sun'];
@@ -37,11 +49,16 @@ const STEPS = [['physics.gravity'], ['earth.tides'], ['astro.star.birth']].slice
 
 const root = resolve('.');
 const devRoot = process.env.KS_DEV_ROOT ?? (() => { throw new Error('Source scripts/env.sh first'); })();
-const ledgerPath = resolve(devRoot, 'minimax-answer-session-ledger.json');
-type Ledger = { sessionCap: number; used: number; runs: { at: string; dispatched: number; database: string; kind?: string }[] };
-const ledger: Ledger = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : { sessionCap: SESSION_CAP, used: 0, runs: [] };
-const allowance = mode === 'live' ? Math.min(INQUIRIES, ledger.sessionCap - ledger.used) : INQUIRIES;
-if (allowance < INQUIRIES) { console.log(`Refusing: the session allowance has ${ledger.sessionCap - ledger.used} live requests left; this run needs ${INQUIRIES}.`); process.exit(2); }
+// A live run holds the session ledger from this check until its count is written (#153); if its requests
+// cannot be counted, the lock is kept, so no further live run starts before they are counted by hand.
+const live = mode === 'live' ? openLiveLedger(devRoot) : null;
+let uncounted = false;
+const allowance = live ? Math.min(REQUESTS, live.ledger.sessionCap - live.ledger.used) : REQUESTS;
+if (live && allowance < REQUESTS) {
+  console.log(`Refusing: the session allowance has ${live.ledger.sessionCap - live.ledger.used} live requests left; this run needs ${REQUESTS}.`);
+  live.release();
+  process.exit(2);
+}
 
 const config = Object.fromEntries(readFileSync(resolve(root, '.env'), 'utf8').split('\n').filter(l => l.includes('=') && !l.startsWith('#')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const source = new URL(config.DATABASE_URL!);
@@ -63,6 +80,7 @@ async function main() {
   const base: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: process.env.HOME, KS_DEV_ROOT: devRoot, TMPDIR: process.env.TMPDIR,
     npm_config_cache: process.env.npm_config_cache, COREPACK_HOME: process.env.COREPACK_HOME, DATABASE_URL: url(database), KS_DEV_TOKEN: token, PORT: String(port), NODE_ENV: 'test' };
   const receipt: Record<string, unknown> = { at: new Date().toISOString(), mode, database, model: mode === 'live' ? 'MiniMax-M3' : 'fixture',
+    continuation: CONTINUATION, thinking: THINKING,
     simulated: 'places formed from supplied anchored accounts (labelled), as in the inquiry journey; consent, mail, admission, the call and the validator are real', inquiries: [] as unknown[] };
   const pool = new pg.Pool({ connectionString: url(database) });
   let closeDb: () => Promise<void> = async () => undefined;
@@ -81,11 +99,12 @@ async function main() {
     await db.transaction(c => inquiries.installBackgroundInquiryRoute(c, { policyVersion: v,
       routeId: mode === 'live' ? 'minimax-subscription' : 'fixture-route', routeProfileVersion: mode === 'live' ? 'minimax-m3-anthropic-v1' : 'fixture-v1',
       transport: mode === 'live' ? 'minimax' : 'fixture', model: mode === 'live' ? 'MiniMax-M3' : 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 4096,
-      requestCap: allowance, tokenBudget: allowance * 24000, ownerCapacity: allowance * 24000, jobCapacity: 24000,
-      coalescingDelaySeconds: 1, jobTtlSeconds: 600, remoteSlots: 1 }));
+      requestCap: allowance, tokenBudget: allowance * 24000, ownerCapacity: allowance * 24000, jobCapacity: (CONTINUATION ? 2 : 1) * 24000,
+      coalescingDelaySeconds: 1, jobTtlSeconds: 600, remoteSlots: 1, thinking: THINKING, maxContinuationSteps: CONTINUATION ? 1 : 0 }));
     closeDb = () => db.pool.end();
 
-    const workerEnv: NodeJS.ProcessEnv = { ...base, KS_INQUIRY_TRANSPORT: mode === 'live' ? 'minimax' : 'fixture', KS_INQUIRY_FIXTURE_MODE: 'proposal' };
+    const workerEnv: NodeJS.ProcessEnv = { ...base, KS_INQUIRY_TRANSPORT: mode === 'live' ? 'minimax' : 'fixture',
+      KS_INQUIRY_FIXTURE_MODE: CONTINUATION ? 'refused_then_valid' : 'proposal' };
     if (mode === 'live') {
       const key = execFileSync('security', ['find-generic-password', '-s', 'minimax_api_key', '-w'], { encoding: 'utf8' }).trim();
       if (!key.startsWith('sk-cp-')) throw new Error('Refusing: the Keychain key is not a subscription (sk-cp-) key');
@@ -128,9 +147,14 @@ async function main() {
         await sleep(500);
       }
       const row = view ? (await pool.query(
-        `SELECT i.request_hash, i.input_bytes, ac.state AS accounting, rr.http_status, json_build_object('input', rr.input_tokens, 'output', rr.output_tokens) AS usage
-         FROM background_inquiry i LEFT JOIN reasoning_attempt at ON at.job_id = i.job_id
-         LEFT JOIN reasoning_accounting ac ON ac.attempt_id = at.id LEFT JOIN reasoning_receipt rr ON rr.attempt_id = at.id WHERE i.id = $1`, [view.inquiryId])).rows[0] : null;
+        `SELECT i.request_hash, i.input_bytes, i.sent FROM background_inquiry i WHERE i.id = $1`, [view.inquiryId])).rows[0] : null;
+      // One entry per Step, first request then any continuation: hashes, sizes, states and usage only.
+      const steps = view ? (await pool.query(
+        `SELECT s.ordinal, s.status AS step, COALESCE(c.request_hash, i.request_hash) AS "requestSha256", COALESCE(c.input_bytes, i.input_bytes) AS "inputBytes",
+           c.reasons AS "continuedAfter", ac.state AS accounting, rr.http_status AS "httpStatus", json_build_object('input', rr.input_tokens, 'output', rr.output_tokens) AS usage
+         FROM background_inquiry i JOIN reasoning_step s ON s.job_id = i.job_id LEFT JOIN background_inquiry_continuation c ON c.step_id = s.id
+         LEFT JOIN reasoning_attempt at ON at.step_id = s.id LEFT JOIN reasoning_accounting ac ON ac.attempt_id = at.id
+         LEFT JOIN reasoning_receipt rr ON rr.attempt_id = at.id WHERE i.id = $1 ORDER BY s.ordinal`, [view.inquiryId])).rows : [];
       const found = (view?.found ?? null) as Record<string, unknown> | null;
       let continuation: number | null = null;
       if (found) {
@@ -152,8 +176,7 @@ async function main() {
         pairs: Array.isArray(view?.pairs) ? (view!.pairs as unknown[]).length : 0,
         found: found ? { relationType: found.relationType, evidence: Array.isArray(found.evidence) ? (found.evidence as unknown[]).length : 0,
           sentenceSha256: sha(found.sentence), bridgeStatus: found.bridgeStatus, continuationsShowingIt: continuation } : null,
-        requestSha256: row?.request_hash ?? null, inputBytes: row?.input_bytes ?? null,
-        accounting: row?.accounting ?? null, httpStatus: row?.http_status ?? null, usage: row?.usage ?? null,
+        requestSha256: row?.request_hash ?? null, inputBytes: row?.input_bytes ?? null, sent: row?.sent ?? null, steps,
       });
     }
     receipt.proposals = (await pool.query(`SELECT status, count(*)::int AS n FROM semantic_proposal WHERE proposer_kind = 'model' GROUP BY status ORDER BY status`)).rows;
@@ -179,14 +202,17 @@ async function main() {
     try {
       const dispatched = Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL')).rows[0].count);
       receipt.dispatched = dispatched;
-      if (mode === 'live') {
-        ledger.used += dispatched;
-        ledger.runs.push({ at: String(receipt.at), dispatched, database, kind: 'inquiry' });
-        writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
-        receipt.sessionLedger = { used: ledger.used, cap: ledger.sessionCap };
+      if (live) {
+        live.ledger.used += dispatched;
+        live.ledger.runs.push({ at: String(receipt.at), dispatched, database, kind: 'inquiry' });
+        live.save();
+        receipt.sessionLedger = { used: live.ledger.used, cap: live.ledger.sessionCap };
         counted = true;
       }
-    } catch { console.error(`Live requests could not be counted; ${database} is kept for counting by hand.`); }
+    } catch {
+      uncounted = mode === 'live';
+      console.error(`Live requests could not be counted; ${database} and the ledger lock are kept for counting by hand.`);
+    }
     await pool.end().catch(() => undefined);
     await closeDb().catch(() => undefined);
     if (counted) await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`).catch(() => undefined);
@@ -198,4 +224,4 @@ async function main() {
   console.log(JSON.stringify(receipt, null, 2));
 }
 
-await main();
+try { await main(); } finally { if (!uncounted) live?.release(); }

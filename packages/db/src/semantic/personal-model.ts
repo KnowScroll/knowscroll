@@ -13,6 +13,7 @@ import { ATTENTION_V1, computeAttentionAccounts, type EpisodeEvidence, type Mark
 import { proposeHypotheses, validateHypothesis, type HypothesisProposal } from '../../../core/src/semantic/hypotheses.ts';
 import { BRANCH_POLICY_VERSION } from './branches.ts';
 import { eraseAtlas, exportAtlas, runCartographer } from '../atlas.ts';
+import { postInquiryMail } from '../reasoning-inquiries.ts';
 
 type Row = Record<string, unknown>;
 const ms = (v: unknown) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
@@ -159,20 +160,30 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
     ...evidence.episodes.map(e => `exposure:${e.exposureId}`), ...evidence.marks.map(m => `mark:${m.eventId}`),
     ...evidence.asks.map(a => `ask:${a.askEventId}`), ...evidence.negatives.map(n => `feedback:${n.ref}`),
   ]);
+  const statusBefore = new Map((await client.query<{ kind: string; concept_id: string; status: string }>(
+    'SELECT kind, concept_id, status FROM personal_hypothesis WHERE universe_id=$1', [universeId])).rows.map(h => [`${h.kind}:${h.concept_id}`, h.status]));
+  const livePlaces = new Set((await client.query<{ anchor_concept_id: string }>(
+    `SELECT anchor_concept_id FROM atlas_place WHERE universe_id=$1 AND state='live' AND kind IN ('planet','region')`, [universeId])).rows.map(r => r.anchor_concept_id));
   let upserted = 0, rejected = 0;
   for (const p of proposals) {
     const verdict = validateHypothesis(p, { proposer: 'rule', knownEvidence: known, knownConcepts: new Set(evidence.conceptIds.keys()) });
     if (!verdict.ok) { rejected += 1; continue; }
-    await upsertHypothesis(client, universeId, universe.privacy_epoch, evidence.conceptIds.get(p.concept)!, p);
+    const conceptId = evidence.conceptIds.get(p.concept)!;
+    const written = await upsertHypothesis(client, universeId, universe.privacy_epoch, conceptId, p);
     upserted += 1;
+    // ADR-0042 §5.2: what the reader seems to be doing at one of their places changed, so a look may be worth it.
+    if (written && written.status !== statusBefore.get(`${p.kind}:${conceptId}`) && livePlaces.has(conceptId)) {
+      await postInquiryMail(client, universeId, { kind: 'hypothesis_changed', hypothesisId: written.id, revision: written.revision });
+    }
   }
   return { accounts: accounts.size, transitions, hypotheses: { upserted, rejected }, places };
 }
 
-async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch: number, conceptId: string, p: HypothesisProposal): Promise<void> {
+/** Writes the hypothesis if it is new or what it says changed; returns the row then, and nothing otherwise. */
+async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch: number, conceptId: string, p: HypothesisProposal): Promise<{ id: string; revision: number; status: string } | undefined> {
   const payload = [p.statement, p.confidenceLabel, p.status, p.permittedUses, JSON.stringify(p.evidence), JSON.stringify(p.alternatives), JSON.stringify(p.counterevidence), JSON.stringify(p.decay)];
   // A revision is counted only when what the hypothesis says or may do actually changed.
-  await client.query(
+  return (await client.query<{ id: string; revision: number; status: string }>(
     `INSERT INTO personal_hypothesis(id,universe_id,privacy_epoch,kind,concept_id,proposer_kind,rule_version,statement,confidence_label,status,permitted_uses,evidence,alternatives,counterevidence,decay)
      VALUES($1,$2,$3,$4,$5,'rule',$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (universe_id,kind,concept_id) DO UPDATE SET
@@ -183,9 +194,10 @@ async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch
      WHERE (personal_hypothesis.statement, personal_hypothesis.confidence_label, personal_hypothesis.status, personal_hypothesis.permitted_uses,
             personal_hypothesis.evidence, personal_hypothesis.alternatives, personal_hypothesis.counterevidence)
        IS DISTINCT FROM (EXCLUDED.statement, EXCLUDED.confidence_label, EXCLUDED.status, EXCLUDED.permitted_uses,
-            EXCLUDED.evidence, EXCLUDED.alternatives, EXCLUDED.counterevidence)`,
+            EXCLUDED.evidence, EXCLUDED.alternatives, EXCLUDED.counterevidence)
+     RETURNING id, revision, status`,
     [randomUUID(), universeId, epoch, p.kind, conceptId, p.ruleVersion, ...payload],
-  );
+  )).rows[0];
 }
 
 /** Clear/Reset: the personal model goes with the history it was computed from. */

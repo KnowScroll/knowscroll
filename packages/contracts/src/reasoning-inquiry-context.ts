@@ -52,7 +52,9 @@ export const inquiryPair = z.object({
   a: offeredPlace, b: offeredPlace,
   claimsA: z.array(offeredClaim).max(8), claimsB: z.array(offeredClaim).max(8), both: z.array(namingClaim).max(8),
   admissible: z.array(z.object({ relationType: z.enum(['explains', 'compares_mechanism', 'analogous_in']), fromConcept: conceptCode, toConcept: conceptCode }).strict()).min(1).max(4),
-}).strict().refine(p => p.a.code < p.b.code, 'A pair is ordered by concept code');
+}).strict().refine(p => p.a.code < p.b.code, 'A pair is ordered by concept code')
+  // Each claim is offered to one side only, so where it was offered says which side it supports (#153).
+  .refine(p => !p.claimsA.some(c => p.claimsB.some(x => x.key === c.key)), 'A claim is offered to one side');
 
 export const inquiryContextPayload = z.object({
   version: z.literal(1), kind: z.literal('bridge_inquiry_v1'),
@@ -79,6 +81,13 @@ export const inquiryContextPayload = z.object({
   if (expected.some(k => !seen.has(k)) || [...seen].some(k => !wanted.has(k))) ctx.addIssue({ code: 'custom', path: ['dependencies'], message: 'Incomplete or extra dependency set' });
 });
 export type InquiryContextPayload = z.infer<typeof inquiryContextPayload>;
+
+/**
+ * ADR-0042 §1: a refused assistant turn a continuation carries — protected runtime data, never shown to a
+ * client, exported, used as evidence or put in a receipt. The native content blocks exactly as the provider
+ * returned them (thinking blocks included) in their original order; only their envelope is checked here.
+ */
+export const inquiryAssistantTurn = z.array(z.object({ type: z.string().min(1).max(64) }).catchall(z.unknown())).min(1).max(64);
 export type InquiryContextRefusal =
   | 'missing' | 'foreign' | 'unsupported' | 'obsolete_epoch' | 'corrupt_seal' | 'changed_policy' | 'bounds_exceeded' | 'expired'
   | 'consent_inactive' | 'recording_paused' | 'route_disabled' | 'inquiry_closed' | 'place_changed' | 'claim_changed' | 'pair_connected';
