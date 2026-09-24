@@ -31,6 +31,7 @@ import { registerSemanticRoutes } from './semantic-routes.ts';
 import { registerComposerRoutes } from './composer-routes.ts';
 import { registerAnswerRoutes } from './answer-routes.ts';
 import { registerAtlasRoutes } from './atlas-routes.ts';
+import { registerInquiryRoutes } from './inquiry-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -146,6 +147,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   registerAnswerRoutes(app, authenticated);
   // #134: the reader's places, from anchored attention (ADR-0036).
   registerAtlasRoutes(app, authenticated);
+  // #132: background bridge inquiries — standing consent and what was looked for (ADR-0038); no provider here.
+  registerInquiryRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 
