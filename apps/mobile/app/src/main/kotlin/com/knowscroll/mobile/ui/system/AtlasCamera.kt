@@ -47,6 +47,33 @@ fun atlasLayout(ids: List<String>): List<AtlasPoint> =
         AtlasPoint(id, (cos(angle) * radius).toFloat(), (sin(angle) * radius * .72f).toFloat())
     }
 
+/** #134: a region place's tap point at the continents level, in the same local coordinate range
+ * [AuthoredRegion]'s authored x/y already use -- deterministic by id, never by list order or
+ * count, same identity-derived approach as [atlasLayout] at a radius suited to that level. */
+fun regionAreaLayout(ids: List<String>): List<AtlasPoint> =
+    ids.distinct().sorted().map { id ->
+        var hash = 0xcbf29ce484222325UL
+        id.toByteArray(Charsets.UTF_8).forEach {
+            hash = (hash xor it.toUByte().toULong()) * 0x100000001b3UL
+        }
+        val ring = ((hash shr 32) % 2u).toInt()
+        val angle = (hash and 0xffffffu).toDouble() / 0xffffffu.toDouble() * Math.PI * 2
+        val radius = 40f + ring * 20f
+        AtlasPoint(id, (cos(angle) * radius).toFloat(), (sin(angle) * radius * .72f).toFloat())
+    }
+
+/** #134: a sighting sits close to its parent planet/region in a small fixed ring -- never
+ * [atlasLayout]'s independent orbit, which would scatter it away from what it neighbours. */
+fun sightingOffset(id: String): AtlasPoint {
+    var hash = 0xcbf29ce484222325UL
+    id.toByteArray(Charsets.UTF_8).forEach {
+        hash = (hash xor it.toUByte().toULong()) * 0x100000001b3UL
+    }
+    val angle = (hash and 0xffffffu).toDouble() / 0xffffffu.toDouble() * Math.PI * 2
+    val radius = 30f
+    return AtlasPoint(id, (cos(angle) * radius).toFloat(), (sin(angle) * radius * .72f).toFloat())
+}
+
 /**
  * Culling changes visibility, never an identity's coordinates. The full list remains accessible.
  */

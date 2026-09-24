@@ -38,7 +38,15 @@ data class AtlasMarker(
     val title: String,
     val detail: String = "",
     val status: String = "",
+    /** #134: set only for a sighting, naming the live place it neighbours. `null` for a planet/
+     * source world, which is laid out on its own orbit by [atlasLayout] instead. */
+    val parentId: String? = null,
 )
+
+/** #134: a tappable land area at the continents level -- the reader's own region place (Places) in
+ * place of an authored one (Sources). Same shape as [AuthoredRegion] minus its `known` art flag,
+ * which only ever describes illustrative geography. */
+data class AtlasRegionArea(val id: String, val name: String, val x: Float, val y: Float)
 
 /** Authored links only. Live world membership never grants topic/revision authority. */
 data class AtlasTopic(
@@ -68,9 +76,40 @@ fun SpatialAtlas(
     onInspect: (() -> Unit)? = null,
     topics: List<AtlasTopic> = emptyList(),
     onOpenTopic: (AtlasTopic) -> Unit = {},
+    /** #134: faint markers next to their parent's point (a live place's sightings). Never
+     * independently selectable -- a tap selects the parent, same as tapping the parent itself. */
+    sightings: List<AtlasMarker> = emptyList(),
+    /** #134: land areas at the continents level. `null` keeps today's authored regions and their
+     * "AUTHORED GEOGRAPHY"/"Illustrative geography" wording (Sources); a list (possibly empty)
+     * switches to the reader's own region places and drops that wording (Places). */
+    regions: List<AtlasRegionArea>? = null,
+    /** #134: shown instead of the continents caption when [regions] is an empty, non-null list --
+     * a live planet that has not anchored any narrower subject yet. */
+    regionsEmptyMessage: String? = null,
+    regionActionLabel: String = "Explore authored region: ",
+    /** #134: reports the region currently shown at the continents/region level (`null` at every
+     * other level), so the caller can target its own "Info" sheet at the right place. */
+    onFocusedRegionChanged: (String?) -> Unit = {},
+    /** #134 review I3: replaces the default flat marker list inside the "List" sheet when non-null
+     * -- Places supplies its own nested planets/regions/sightings list and a "Recent changes" list
+     * (`PlacesListSheet.kt`); Sources leaves this `null` and keeps today's flat marker list exactly.
+     * [onDismiss] closes the sheet, same as selecting a marker from the default list already does. */
+    listSheetContent: (@Composable (onDismiss: () -> Unit) -> Unit)? = null,
 ) {
     val points = remember(markers) { atlasLayout(markers.map { it.id }) }
     val point = points.firstOrNull { it.id == selectedId }
+    val effectiveRegions =
+        regions ?: remember(authoredRegions) { authoredRegions.map { AtlasRegionArea(it.suffix, it.name, it.x, it.y) } }
+    val showAuthoredLabels = regions == null
+    val sightingPoints =
+        remember(sightings, points) {
+            sightings.mapNotNull { s ->
+                points.firstOrNull { it.id == s.parentId }?.let { parent ->
+                    val offset = sightingOffset(s.id)
+                    AtlasPoint(s.id, parent.x + offset.x, parent.y + offset.y)
+                }
+            }
+        }
     var x by rememberSaveable { mutableFloatStateOf(0f) }
     var y by rememberSaveable { mutableFloatStateOf(0f) }
     var zoom by rememberSaveable { mutableFloatStateOf(.86f) }
@@ -175,11 +214,11 @@ fun SpatialAtlas(
             if (!gesture) fly(AtlasCamera(it.x, it.y, 2.15f))
         }
     }
-    fun enterRegion(area: AuthoredRegion, gesture: Boolean = false) {
+    fun enterRegion(area: AtlasRegionArea, gesture: Boolean = false) {
         val p = point ?: return
         if (level != "region") continentHome = listOf(x, y, zoom)
         level = "region"
-        region = area.suffix
+        region = area.id
         topicId = null
         if (!gesture) fly(AtlasCamera(p.x + area.x, p.y + area.y, 5.4f))
     }
@@ -233,6 +272,7 @@ fun SpatialAtlas(
         }
     }
     LaunchedEffect(land) { onDetailLevelChanged(land) }
+    LaunchedEffect(region) { onFocusedRegionChanged(region) }
     DisposableEffect(Unit) { onDispose { flight?.cancel() } }
     BackHandler(selectedId != null || sheet != null) { back() }
     BoxWithConstraints(
@@ -277,7 +317,7 @@ fun SpatialAtlas(
                         else if (level == "continents" && next.zoom > 3.5f && point != null) {
                             val wx = next.x + (focus.x / density - width / 2) / next.zoom - point.x
                             val wy = next.y + (focus.y / density - height / 2) / next.zoom - point.y
-                            authoredRegions
+                            effectiveRegions
                                 .firstOrNull {
                                     (it.x - wx) * (it.x - wx) + (it.y - wy) * (it.y - wy) <
                                         32f * 32f
@@ -309,6 +349,34 @@ fun SpatialAtlas(
                     AuthoredGeography(::camera, point, region, Modifier.fillMaxSize())
                 }
             if (!land && (selectedId == null || travelling)) {
+                // #134: faint, next to their parent -- never their own orbit, never independently
+                // selectable. A tap reaches the same planet a tap on the planet itself would. The
+                // touch target is >=48dp (review M7) though the drawn dot stays small; the label is
+                // literally what a tap does -- opens the parent, not the sighting itself. Drawn (and
+                // hit-tested) *before* the planet markers below, so a planet's own touch target --
+                // which a nearby sighting's larger >=48dp target can otherwise overlap -- always wins.
+                sightingPoints.forEach { p ->
+                    val sighting = sightings.first { it.id == p.id }
+                    val parentTitle = markers.firstOrNull { it.id == sighting.parentId }?.title.orEmpty()
+                    Box(
+                        position(p.x, p.y, 24f)
+                            .size(48.dp)
+                            .clickable(onClickLabel = "Open $parentTitle") {
+                                sighting.parentId?.let(onSelect)
+                            }
+                            .semantics {
+                                contentDescription = "Sighting: ${sighting.title} — near $parentTitle"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(26.dp),
+                            color = Cosmos.Cream.copy(alpha = .38f),
+                            contentColor = Cosmos.InkOnCream,
+                            shape = CircleShape,
+                        ) {}
+                    }
+                }
                 // Hit areas use the same deterministic collision policy as the renderer.
                 visiblePoints.forEach { p ->
                     val marker = markers.first { it.id == p.id }
@@ -343,7 +411,7 @@ fun SpatialAtlas(
                         }
                 )
             } else if (level == "continents" && point != null) {
-                authoredRegions.forEach { area ->
+                effectiveRegions.forEach { area ->
                     Surface(
                         modifier =
                             position(point.x + area.x, point.y + area.y, 52f)
@@ -351,7 +419,7 @@ fun SpatialAtlas(
                                 .heightIn(min = 48.dp)
                                 .clickable { enterRegion(area) }
                                 .semantics {
-                                    contentDescription = "Explore authored region: ${area.name}"
+                                    contentDescription = "$regionActionLabel${area.name}"
                                 },
                         color = Cosmos.Cream.copy(alpha = .94f),
                         contentColor = Cosmos.InkOnCream,
@@ -420,7 +488,7 @@ fun SpatialAtlas(
                         "planet" -> markers.firstOrNull { it.id == selectedId }?.title.orEmpty()
                         "continents" -> "Continents & coastlines"
                         "region" ->
-                            "${authoredRegions.firstOrNull { it.suffix==region }?.name} · local detail"
+                            "${effectiveRegions.firstOrNull { it.id==region }?.name} · local detail"
                         else -> "$collectionLabel ${markers.size}"
                     },
                     Modifier.clickable { sheet = if (land) "Regions" else "Worlds" }
@@ -485,7 +553,9 @@ fun SpatialAtlas(
         else {
             Text(
                 when {
-                    land -> "AUTHORED GEOGRAPHY · tap a region or topic"
+                    land && !showAuthoredLabels && effectiveRegions.isEmpty() && regionsEmptyMessage != null -> regionsEmptyMessage
+                    land && showAuthoredLabels -> "AUTHORED GEOGRAPHY · tap a region or topic"
+                    land -> "Tap a region"
                     selectedId != null -> "Tap the planet or pinch closer"
                     else -> "Tap a planet · the ship flies there"
                 },
@@ -556,7 +626,7 @@ fun SpatialAtlas(
                             "This station is an illustrative navigation landmark. Friends, rooms and live presence are not connected."
                         )
                     else if (sheet == "Regions")
-                        authoredRegions.forEach { area ->
+                        effectiveRegions.forEach { area ->
                             OutlinedButton(
                                 onClick = {
                                     sheet = null
@@ -567,6 +637,7 @@ fun SpatialAtlas(
                                 Text(area.name)
                             }
                         }
+                    else if (listSheetContent != null) listSheetContent { sheet = null }
                     else
                         markers.forEach { marker ->
                             OutlinedButton(
@@ -597,7 +668,7 @@ fun SpatialAtlas(
                         ) {
                             Text("Explore continents")
                         }
-                    if (land && topics.isEmpty())
+                    if (land && topics.isEmpty() && showAuthoredLabels)
                         Text(
                             "Illustrative geography. Open the authored Atlas from the universe for mapped topics and content."
                         )

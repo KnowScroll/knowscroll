@@ -1,5 +1,29 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #134 first slice — the reader's places (lane `134-living-worlds`)
+
+ADR-0036; migration 0029 (`atlas_place`/`atlas_delta`). A pure
+Cartographer (`cartographer-v1`) runs in the personal-model refresh, never while paused: an
+anchored concept becomes a free planet or a region of the nearest anchored ancestor (two parent
+hops). Planets and regions offer up to five sightings: never-shown concepts one active typed
+relation or admitted bridge away. A revoked relation retires its sighting, and the reader can set a
+place aside for good. Every change is an immutable delta with a causal class and evidence; a
+deferred constraint trigger refuses a place change without one. `GET /v1/atlas`,
+`GET /v1/atlas/deltas/:id` and `POST /v1/atlas/places/:id/reject` go through a strict contract.
+Android: a Places | Sources choice on the System screen (Sources unchanged). Places shows the live
+planets, regions and sightings on the accepted Atlas visuals, and a place sheet with its account,
+Scroll counts, sightings with their claims, chronicle lines that open their evidence, and "Set
+aside". Authored geography stays for Sources and the labelled preview.
+
+A fresh-context review found 1 blocking defect (a sighting whose subject the reader then read stayed
+live with attention; Android refused the atlas) and 4 important ones; all fixed test-first. A
+second, verification review found nothing blocking; its important findings (a false empty Places
+while loading or after a failure, claim-backed sightings first overall, an anchored sighting
+promoted before a revoked basis retires it, honest wording) were fixed test-first as well.
+Verification on `bfd9843` (main merged at `95f7481`): pure 12 (4 mutants), HTTP 6, backend 832+13,
+web 87, Android 183 units + lint, and the emulator places journey with SQL lineage; see the
+[evidence](journeys/evidence/places-2026-09-24/README.md). Preview restored; no provider call.
+
 ## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)
 
 Branch `claude/132-product-reasoning` on main `6a56b24`. ADR-0033 (with the validator-v2

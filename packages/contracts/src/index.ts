@@ -50,7 +50,7 @@ export type PrivacyExportResult = {
  deviceSessions:PrivacyExportDeviceSession[];
  reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
  semantic:{branchOpens:unknown[]; connectionFeedback:unknown[]; proposals:unknown[]; bridges:unknown[]};
- personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]};
+ personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]; atlasPlaces:unknown[]; atlasDeltas:unknown[]};
  /** #132: answer requests and their applied outcomes (ADR-0033). */
  askAnswers:unknown[];
 };

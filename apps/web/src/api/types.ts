@@ -204,6 +204,8 @@ export const privacyExportResultSchema = z
         attentionTransitions: z.array(exportRowSchema),
         hypotheses: z.array(exportRowSchema),
         encounterFeedback: z.array(exportRowSchema),
+        atlasPlaces: z.array(exportRowSchema),
+        atlasDeltas: z.array(exportRowSchema),
       })
       .strict(),
     askAnswers: z.array(exportRowSchema),
