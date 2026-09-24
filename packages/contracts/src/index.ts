@@ -36,6 +36,7 @@ export type PrivacyExportRowCounts = {
  reasoningReceipts:number; reasoningAccounting:number;
  branchOpens:number; connectionFeedback:number; semanticProposals:number;
  attentionAccounts:number; hypotheses:number; encounterFeedback:number;
+ askAnswers:number;
 };
 export type PrivacyExportDeviceSession = {
  deviceId:string; origin:string; createdAt:string; expiresAt:string; revokedAt:string|null;

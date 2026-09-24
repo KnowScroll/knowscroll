@@ -167,6 +167,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
       attentionAccounts: 0,
       hypotheses: 0,
       encounterFeedback: 0,
+      askAnswers: 0,
     },
     account: { email: 'owner@example.com' },
     universe: { id: universeOf().universeId, revision: 1, privacyEpoch: 0, recordingPausedAt: null },
@@ -180,6 +181,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
     reasoning: { jobs: [], steps: [], receipts: [], accounting: [] },
     semantic: { branchOpens: [], connectionFeedback: [], proposals: [], bridges: [] },
     personalModel: { attentionAccounts: [], attentionTransitions: [], hypotheses: [], encounterFeedback: [] },
+    askAnswers: [],
     ...overrides,
   };
 }

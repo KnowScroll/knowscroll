@@ -24,6 +24,8 @@ export type AnswerObservation = {
 };
 export interface AnswerTransport {
   readonly kind: 'fixture' | 'minimax';
+  /** Checked before anything is scheduled or reserved (e.g. provider quota); false leaves the queue untouched. */
+  ready?(signal: AbortSignal): Promise<{ ok: true } | { ok: false; reason: string }>;
   send(input: { body: Uint8Array; maxOutputTokens: number; signal: AbortSignal; work: AnswerWork }): Promise<AnswerObservation>;
 }
 
@@ -46,6 +48,11 @@ export async function runAnswerPass(deps: {
   if (!route) return { kind: 'idle', reason: 'no_enabled_route' };
   const transport = transports[route.transport];
   if (!transport) return { kind: 'idle', reason: `transport_not_configured:${route.transport}` };
+  // Provider readiness (a quota request) is asked only when an answer is actually waiting.
+  const waiting = (await pool.query('SELECT 1 FROM reasoning_fairness_ready r JOIN ask_answer_request a ON a.job_id = r.job_id LIMIT 1')).rowCount;
+  if (!waiting) return { kind: 'idle', reason: 'no_answer_waiting' };
+  const readiness = transport.ready ? await transport.ready(signal) : { ok: true as const };
+  if (!readiness.ok) return { kind: 'idle', reason: readiness.reason };
 
   const authority = answerAuthority();
   const scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version });

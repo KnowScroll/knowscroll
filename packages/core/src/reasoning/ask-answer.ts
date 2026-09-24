@@ -64,6 +64,8 @@ export function serializeAskAnswerRequest(source: AskAnswerSource, route: AskAns
   return new TextEncoder().encode(canonical({
     model: route.model,
     max_tokens: route.maxOutputTokens,
+    // A short JSON reply needs no hidden reasoning, which would otherwise spend the output budget.
+    thinking: { type: 'disabled' },
     system: SYSTEM,
     messages: [{ role: 'user', content }],
   }));

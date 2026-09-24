@@ -312,9 +312,11 @@ export async function readAskAnswer(client: pg.PoolClient, scope: AuthScope, ask
     'SELECT status,answer,basis,limits,reasons,created_at FROM ask_answer WHERE ask_id=$1', [askId])).rows[0];
   const base = { askId, requestedAt: request.requested_at.toISOString() };
   if (answer) return { ...base, status: answer.status, answer: answer.answer, basis: answer.basis, limits: answer.limits, reasons: answer.reasons, answeredAt: answer.created_at.toISOString() };
-  const job = (await client.query<{ status: string }>('SELECT status FROM reasoning_job WHERE id=$1', [request.job_id])).rows[0];
-  const status: AskAnswerView['status'] = !job ? 'unavailable' : job.status === 'queued' ? 'queued'
-    : ['running', 'waiting'].includes(job.status) ? 'running' : job.status === 'cancelled' ? 'cancelled' : 'unavailable';
+  const job = (await client.query<{ status: string; past: boolean }>('SELECT status, deadline <= clock_timestamp() AS past FROM reasoning_job WHERE id=$1', [request.job_id])).rows[0];
+  // Past its deadline an unfinished answer will not arrive (a worker may have stopped mid-call, and a
+  // possibly-sent request is never repeated): say so instead of "running" forever.
+  const status: AskAnswerView['status'] = !job || job.past ? (job?.status === 'cancelled' ? 'cancelled' : 'unavailable')
+    : job.status === 'queued' ? 'queued' : ['running', 'waiting'].includes(job.status) ? 'running' : job.status === 'cancelled' ? 'cancelled' : 'unavailable';
   return { ...base, status, answer: null, basis: [], limits: null, reasons: [], answeredAt: null };
 }
 

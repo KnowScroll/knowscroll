@@ -136,6 +136,7 @@ export const privacyExportRowCountsSchema = z
     attentionAccounts: z.number().int().nonnegative(),
     hypotheses: z.number().int().nonnegative(),
     encounterFeedback: z.number().int().nonnegative(),
+    askAnswers: z.number().int().nonnegative(),
   })
   .strict();
 export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
@@ -205,6 +206,7 @@ export const privacyExportResultSchema = z
         encounterFeedback: z.array(exportRowSchema),
       })
       .strict(),
+    askAnswers: z.array(exportRowSchema),
   })
   .strict();
 export type PrivacyExportResult = z.infer<typeof privacyExportResultSchema>;

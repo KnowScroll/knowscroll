@@ -222,7 +222,7 @@ test('export contains exactly the rows the contract promises and no more', async
 
   assert.deepEqual(Object.keys(result).sort(), [
     'account', 'accounts', 'decisions', 'deviceSessions', 'exposures', 'exportedAt', 'jobs',
-    'ledger', 'privacyEpoch', 'reasoning', 'receiptId', 'personalModel', 'rowCounts', 'semantic', 'traces', 'universe',
+    'askAnswers', 'ledger', 'privacyEpoch', 'reasoning', 'receiptId', 'personalModel', 'rowCounts', 'semantic', 'traces', 'universe',
   ].sort());
   assert.equal(result.privacyEpoch, 0);
   assert.match(result.exportedAt, /Z$/);
@@ -242,6 +242,8 @@ test('export contains exactly the rows the contract promises and no more', async
     branchOpens: 0, connectionFeedback: 0, semanticProposals: 0,
     // ADR-0032: the personal model derived from this history is exported with it.
     attentionAccounts: modelAccounts, hypotheses: modelHypotheses, encounterFeedback: 0,
+    // ADR-0033: Ask answer requests and outcomes.
+    askAnswers: 0,
   });
   assert.equal(result.personalModel.attentionAccounts.length, result.rowCounts.attentionAccounts);
   assert.equal(result.decisions.length, 1);

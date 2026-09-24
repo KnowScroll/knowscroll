@@ -231,6 +231,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   semanticProposals: semantic.proposals.length,
   attentionAccounts: personalModel.attentionAccounts.length, hypotheses: personalModel.hypotheses.length,
   encounterFeedback: personalModel.encounterFeedback.length,
+  askAnswers: askAnswers.length,
  };
 
  const existing = (await client.query(
