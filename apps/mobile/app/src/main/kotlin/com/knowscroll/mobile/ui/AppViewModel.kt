@@ -22,6 +22,9 @@ import com.knowscroll.mobile.data.BranchFrom
 import com.knowscroll.mobile.data.BranchOpenRequest
 import com.knowscroll.mobile.ui.branch.BranchOpenConflict
 import com.knowscroll.mobile.ui.branch.BranchPanel
+import com.knowscroll.mobile.ui.why.WhyAvailability
+import com.knowscroll.mobile.ui.why.WhyPanel
+import com.knowscroll.mobile.ui.why.correctedText
 import com.knowscroll.mobile.ui.branch.branchAvailabilityOf
 import com.knowscroll.mobile.ui.branch.branchOpenConflict
 import java.util.UUID
@@ -127,6 +130,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val branchTrail=store.readBranchTrail().toMutableList()
     /** Same key and payload after an ambiguous objection (in-memory; objections are idempotent). */
     private val pendingFeedback=mutableMapOf<String,String>()
+    /** #133: the recorded "why" of the encounter on screen, loaded when the reader asks for it. */
+    private val _why=MutableStateFlow<WhyPanel?>(null); val why=_why.asStateFlow()
+    private var whyJob:kotlinx.coroutines.Job?=null
+    /** Same key after an ambiguous correction; corrections are idempotent by key. */
+    private val pendingCorrections=mutableMapOf<String,String>()
 
     init {
         val restored=signOutRestoreState(store.readPendingSignOut(),store.readSignedOut())
@@ -426,6 +434,63 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     else -> _branches.value=panel.copy(opening=null,message=message(e))
                 }
             } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+        }
+    }
+
+    /** #133: read the recorded explanation of the encounter on screen. Only an encounter this
+     * reader was served by the Composer has one; a branch target or saved Trace says so honestly. */
+    fun loadWhy(){
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        val current=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
+        if(reading.origin !is ReaderOrigin.Discovery || current.decisionId.isEmpty()){
+            _why.value=WhyPanel(current.decisionId,current.item.assetId,WhyAvailability.Unrecorded);return
+        }
+        val existing=_why.value
+        if(existing!=null && existing.decisionId==current.decisionId && existing.assetId==current.item.assetId && existing.availability !is WhyAvailability.Failed)return
+        whyJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        _why.value=WhyPanel(current.decisionId,current.item.assetId,WhyAvailability.Loading)
+        whyJob=viewModelScope.launch {
+            try {
+                val result=api.getWhy(current.decisionId,current.item.assetId)
+                if(epoch!=observedPrivacyEpoch || _why.value?.decisionId!=current.decisionId)return@launch
+                _why.value=_why.value?.copy(availability=result?.let{WhyAvailability.Ready(it)} ?: WhyAvailability.Unrecorded)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(current.universeId,epoch);failClosed(message(e));return@launch}
+                if(_why.value?.decisionId==current.decisionId)_why.value=_why.value?.copy(availability=WhyAvailability.Failed)
+            }
+        }
+    }
+
+    /** #133 journey G: the reader corrects the route that chose this encounter. It never edits a
+     * profile and never retracts shared knowledge; it is private history like any other act. */
+    fun correctEncounter(kind:String){
+        if(!ready || reconciling)return
+        val panel=_why.value ?: return
+        val recorded=(panel.availability as? WhyAvailability.Ready)?.why ?: return
+        if(kind !in recorded.corrections || panel.sending!=null || panel.corrected!=null)return
+        val epoch=observedPrivacyEpoch
+        val id="${panel.decisionId}:${panel.assetId}:$kind"
+        val key=pendingCorrections.getOrPut(id){UUID.randomUUID().toString()}
+        _why.value=panel.copy(sending=kind,message=null)
+        viewModelScope.launch {
+            try {
+                api.postEncounterFeedback(key,panel.decisionId,panel.assetId,kind,epoch)
+                pendingCorrections.remove(id)
+                if(_why.value?.decisionId!=panel.decisionId || epoch!=observedPrivacyEpoch)return@launch
+                _why.value=_why.value?.copy(sending=null,corrected=kind,message=correctedText(kind))
+                if(kind=="wrong_connection")(_scroll.value as? ScrollState.Reading)?.item?.takeIf{it.assetId==panel.assetId}?.let(::refreshBranches)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                val server=e as? ApiException.Server
+                when {
+                    server?.statusCode==409 -> {pendingCorrections.remove(id);_why.value=_why.value?.copy(sending=null);reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                    server?.statusCode==422 -> {pendingCorrections.remove(id);_why.value=_why.value?.copy(sending=null,message="This encounter has no route that can be corrected.")}
+                    invalidatesReader(e) -> {purgeForScope(observedUniverseId,epoch);failClosed(message(e))}
+                    else -> _why.value=_why.value?.copy(sending=null,message=message(e))
+                }
+            }
         }
     }
 
@@ -901,6 +966,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         session=null;visited.clear()
         revisit=null
         branchJob?.cancel();branchTrail.clear();_branches.value=null;pendingFeedback.clear()
+        whyJob?.cancel();_why.value=null;pendingCorrections.clear()
         _scroll.value=ScrollState.Idle
         _system.value=SystemState.Idle
         _screen.value=Screen.Universe

@@ -43,6 +43,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val system by viewModel.system.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val branches by viewModel.branches.collectAsStateWithLifecycle()
+        val why by viewModel.why.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val atlasStates = rememberSaveableStateHolder()
         var scopeKey by rememberSaveable { mutableStateOf("") }
@@ -203,6 +204,7 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                         onOpenBranch = viewModel::openBranch,
                                         onRetryBranches = viewModel::retryBranches,
                                         onObjectConnection = viewModel::objectToConnection,
+                                        why = com.knowscroll.mobile.ui.scroll.WhyControls(why, viewModel::loadWhy, viewModel::correctEncounter),
                                         onNext = viewModel::nextScroll,
                                         onRetry = viewModel::retryScrollLoad,
                                         mode = cableMode,

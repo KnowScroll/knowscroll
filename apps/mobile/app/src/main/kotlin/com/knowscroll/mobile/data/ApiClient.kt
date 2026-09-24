@@ -170,6 +170,33 @@ class ApiClient(
         }
     }
 
+    /** #133: the recorded explanation for one served encounter, or null when its decision recorded
+     * none (a branch target, or a policy without candidate records). */
+    suspend fun getWhy(decisionId: String, assetId: String): EncounterWhy? = io {
+        try {
+            get("/v1/decisions/$decisionId/why?assetId=$assetId") { obj ->
+                try { parseWhy(obj).also { protocol(it.decisionId == decisionId && it.assetId == assetId) { "Explanation names another encounter" } } }
+                catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid explanation") }
+                catch (e: JSONException) { throw ApiException.Protocol("Explanation returned malformed JSON") }
+            }
+        } catch (e: ApiException.Server) { if (e.statusCode == 404) null else throw e }
+    }
+
+    /** #133 journey G: "less like this" / "wrong connection" on an encounter the Composer served. */
+    suspend fun postEncounterFeedback(clientFeedbackId: String, decisionId: String, assetId: String, kind: String, expectedPrivacyEpoch: Long): EncounterFeedbackReceipt = io {
+        require(kind in ENCOUNTER_CORRECTIONS)
+        val body = jsonObj(
+            "clientFeedbackId" to clientFeedbackId, "decisionId" to decisionId, "assetId" to assetId,
+            "kind" to kind, "expectedPrivacyEpoch" to expectedPrivacyEpoch,
+        ).toString()
+        post("/v1/encounters/feedback", body, setOf(201), false) { obj ->
+            try {
+                EncounterFeedbackReceipt(obj.getString("feedbackId"), obj.getString("kind"), obj.getJSONObject("suppressed").getString("until"))
+                    .also { protocol(it.kind == kind) { "Feedback receipt names another correction" } }
+            } catch (e: JSONException) { throw ApiException.Protocol("Feedback receipt was malformed") }
+        }
+    }
+
     /** #131: "not useful" / "seems wrong" — suppresses a connection for this universe only. */
     suspend fun postConnectionFeedback(clientFeedbackId: String, bridgeId: String, expectedPrivacyEpoch: Long, objection: String): Unit = io {
         require(objection == "not_useful" || objection == "seems_wrong")

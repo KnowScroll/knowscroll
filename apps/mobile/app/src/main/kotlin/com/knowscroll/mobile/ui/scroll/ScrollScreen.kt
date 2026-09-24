@@ -23,6 +23,12 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import com.knowscroll.mobile.ui.why.WhyAvailability
+import com.knowscroll.mobile.ui.why.WhyPanel
+import com.knowscroll.mobile.ui.why.correctionLabel
+import com.knowscroll.mobile.ui.why.whyStepText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,12 +73,15 @@ fun ScrollScreen(
     onObjectConnection: (String, String) -> Unit = { _, _ -> },
     /** System-Back semantics: from a Scroll opened by a connection, return to its origin. */
     onBack: () -> Unit = onReturn,
+    /** #133: the recorded "why" and the reader's corrections, loaded when the sheet opens. */
+    why: WhyControls = WhyControls(),
 ) {
     PosterTheme { Column(modifier.fillMaxSize().background(Poster.Paper)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (state) {
                 is ScrollState.Reading -> key(state.item.assetId) {
-                    ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition, branches?.takeIf { it.assetId == state.item.assetId }, onOpenBranch, onRetryBranches, onObjectConnection, onBack)
+                    ReadingSheet(state, onKeep, onReturn, onNext, onReadingPosition, branches?.takeIf { it.assetId == state.item.assetId }, onOpenBranch, onRetryBranches, onObjectConnection, onBack,
+                        why.copy(panel = why.panel?.takeIf { it.assetId == state.item.assetId }))
                 }
                 is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable, mode)
                 is ScrollState.Exhausted -> RestScreen(true, null, onReturn, onRetry, mode = mode)
@@ -126,6 +135,7 @@ private fun ReadingSheet(
     onRetryBranches: () -> Unit,
     onObjectConnection: (String, String) -> Unit,
     onBack: () -> Unit,
+    why: WhyControls,
 ) {
     val contentLabel = stringResource(R.string.reader_content_description)
     val item = state.item
@@ -264,7 +274,8 @@ private fun ReadingSheet(
         }
     }
     if (sourcesOpen) SourceSheet(item) { sourcesOpen = false }
-    if (explainOpen) ExplainSheet(item, state.origin) { explainOpen = false }
+    LaunchedEffect(explainOpen, item.assetId) { if (explainOpen) why.onOpen() }
+    if (explainOpen) ExplainSheet(item, state.origin, why.panel, why.onCorrect) { explainOpen = false }
     if (connectionsOpen) {
         val live = branches?.branches.orEmpty()
         if (live.isEmpty()) connectionsOpen = false
@@ -397,7 +408,7 @@ private fun ReaderControls(
  * origin. No interest, learning or hidden profile is shown or implied. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, onDismiss: () -> Unit) {
+internal fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, why: WhyPanel?, onCorrect: (String) -> Unit, onDismiss: () -> Unit) {
     val closeDescription = stringResource(R.string.reader_explain_close_description)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -428,6 +439,7 @@ private fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, onDismiss: () -
                 Text(stringResource(R.string.reader_explain_origin_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
                 Text(explainOriginText(origin), style = MaterialTheme.typography.bodyMedium)
             }
+            if (why != null) WhySection(why, onCorrect)
             OutlinedButton(
                 onClick = onDismiss,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
@@ -481,3 +493,35 @@ internal fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
 
 /** ScrollState reports `Int.MAX_VALUE` until its first layout, which is not a measured document. */
 internal fun documentCanHold(maxValue: Int, position: Int): Boolean = maxValue != Int.MAX_VALUE && maxValue >= position
+
+/** #133: the why sheet's recorded inputs, grouped so the reader's parameters stay readable. */
+data class WhyControls(val panel: WhyPanel? = null, val onOpen: () -> Unit = {}, val onCorrect: (String) -> Unit = {})
+
+/** "What led here": the recorded evidence path, and the corrections this encounter supports. */
+@Composable
+private fun WhySection(why: WhyPanel, onCorrect: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.reader_why_path_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+        when (val availability = why.availability) {
+            WhyAvailability.Loading -> Text(stringResource(R.string.reader_why_loading), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
+            WhyAvailability.Unrecorded -> Text(stringResource(R.string.reader_why_unrecorded), style = MaterialTheme.typography.bodyMedium)
+            WhyAvailability.Failed -> Text(stringResource(R.string.reader_why_failed), style = MaterialTheme.typography.bodyMedium)
+            is WhyAvailability.Ready -> {
+                val steps = availability.why.steps
+                if (steps.isEmpty()) Text(stringResource(R.string.reader_why_no_path), style = MaterialTheme.typography.bodyMedium)
+                steps.forEach { Text("\u00b7 ${whyStepText(it)}", style = MaterialTheme.typography.bodyMedium) }
+                val offered = availability.why.corrections.filter { why.corrected == null }
+                if (offered.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    offered.forEach { kind ->
+                        OutlinedButton(
+                            onClick = { onCorrect(kind) }, enabled = why.sending == null,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) { Text(correctionLabel(kind)) }
+                    }
+                }
+            }
+        }
+        why.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+    }
+}
