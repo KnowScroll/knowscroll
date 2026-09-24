@@ -29,7 +29,7 @@ export const inquiryConsentView = z.object({
   changedAt: at.nullable(),
   /** False when this deployment has no enabled inquiry route: consent is kept, nothing runs. */
   available: z.boolean(),
-  /** Inquiries that started a model call today (UTC), against `dailyLimit`. */
+  /** Inquiries opened today (UTC) — a Job created for a model call — counted against `dailyLimit`. */
   usedToday: z.number().int().min(0),
 }).strict();
 export type InquiryConsentView = z.infer<typeof inquiryConsentView>;
