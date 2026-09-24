@@ -65,7 +65,7 @@ export async function loadInquiryWork(db: pg.Pool | pg.PoolClient, jobId: string
 
 export type InquiryFence = { universeId: string; privacyEpoch: number; jobId: string; stepId: string; attemptId: string; owner: string; leaseFence: string };
 /** What the provider returned for the validator: its text, and the whole turn and stop reason (ADR-0042 §1–§2). */
-export type InquiryReply = { text: string; content: readonly AssistantBlock[]; stopReason: string | null };
+export type ProviderReply = { text: string; content: readonly AssistantBlock[]; stopReason: string | null };
 export type InquiryOutcome =
   | { kind: 'applied'; status: 'admitted' | 'rejected' | 'none' }
   /** The validator refused; the next Step waits in the fair queue (ADR-0042 §1). */
@@ -136,7 +136,7 @@ function staleOutcome(refusal: string): { status: 'withdrawn' | 'failed'; reason
  * failure stores only its reasons; "none" stores nothing; stale context discards the reply; a reply
  * that did not finish its turn is `truncated` (ADR-0042 §2). A refusal may continue (ADR-0042 §1).
  */
-export async function applyInquiryReply(client: pg.PoolClient, f: InquiryFence, reply: InquiryReply, authority: ReasoningAuthority): Promise<InquiryOutcome> {
+export async function applyInquiryReply(client: pg.PoolClient, f: InquiryFence, reply: ProviderReply, authority: ReasoningAuthority): Promise<InquiryOutcome> {
   const stale = await lockFence(client, f);
   if (stale) return { kind: 'discarded', reason: stale };
   const account = (await client.query<{ state: string; output_authority: string }>('SELECT state,output_authority FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE', [f.attemptId])).rows[0];

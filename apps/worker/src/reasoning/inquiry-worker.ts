@@ -14,7 +14,7 @@ import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-
 import { createReasoningFairness, type FairnessScheduled } from '../../../../packages/db/src/reasoning-fairness.ts';
 import { inquiryAuthority, jobFamily, mailRevokedConnections, openDueInquiries, sharedReasoningAuthority, type OpenResult } from '../../../../packages/db/src/reasoning-inquiries.ts';
 import {
-  applyInquiryReply, failInquiry, giveBackUnsentInquiry, loadInquiryWork, type InquiryOutcome, type InquiryReply, type InquiryWork,
+  applyInquiryReply, failInquiry, giveBackUnsentInquiry, loadInquiryWork, type InquiryOutcome, type InquiryWork, type ProviderReply,
 } from '../../../../packages/db/src/reasoning-inquiry-execution.ts';
 import { createReasoningReconciliation } from '../../../../packages/db/src/reasoning-reconciliation.ts';
 import { ReasoningDenied, type ReasoningAuthority } from '../../../../packages/db/src/reasoning-runtime-policy.ts';
@@ -116,7 +116,7 @@ export async function executeInquiryClaim(deps: { pool: pg.Pool; owner: string; 
   catch { return done('not_invoked', await close()); }
 
   // The minimal receipt never carries content (ADR-0012); the reply waits here for the parser.
-  let reply: InquiryReply | null = null;
+  let reply: ProviderReply | null = null;
   let observed: AnswerObservation['outcome'] | null = null;
   const seam: SingleInvocationTransport = {
     async invoke({ body, maxOutputTokens, signal: callSignal }) {
