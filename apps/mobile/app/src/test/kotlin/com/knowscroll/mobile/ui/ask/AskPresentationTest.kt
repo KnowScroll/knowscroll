@@ -13,16 +13,16 @@ import org.junit.Test
 class AskPresentationTest {
     @Test
     fun pollingKeepsWaitingOnlyWhileQueuedOrRunning() {
-        assertEquals(AskStage.Waiting("a1", "queued"), stageAfterPoll("a1", AnswerView("a1", AnswerStatus.Queued, "t", null)))
-        assertEquals(AskStage.Waiting("a1", "running"), stageAfterPoll("a1", AnswerView("a1", AnswerStatus.Running, "t", null)))
+        assertEquals(AskStage.Waiting("a1", "queued"), stageAfterPoll("a1", AnswerView("a1", AnswerStatus.Queued, "t", null, kept = false, seemsWrong = false)))
+        assertEquals(AskStage.Waiting("a1", "running"), stageAfterPoll("a1", AnswerView("a1", AnswerStatus.Running, "t", null, kept = false, seemsWrong = false)))
 
-        val answered = AnswerView("a1", AnswerStatus.Answered("x", listOf(AnswerBasisQuote("q")), "l"), "t", "t2")
+        val answered = AnswerView("a1", AnswerStatus.Answered("x", listOf(AnswerBasisQuote("q")), "l"), "t", "t2", kept = false, seemsWrong = false)
         assertEquals(AskStage.Final("a1", answered), stageAfterPoll("a1", answered))
 
-        val cancelled = AnswerView("a1", AnswerStatus.Cancelled(listOf("cancelled by the reader")), "t", null)
+        val cancelled = AnswerView("a1", AnswerStatus.Cancelled(listOf("cancelled by the reader")), "t", null, kept = false, seemsWrong = false)
         assertEquals(AskStage.Final("a1", cancelled), stageAfterPoll("a1", cancelled))
 
-        val unavailable = AnswerView("a1", AnswerStatus.Unavailable, "t", null)
+        val unavailable = AnswerView("a1", AnswerStatus.Unavailable, "t", null, kept = false, seemsWrong = false)
         assertEquals(AskStage.Final("a1", unavailable), stageAfterPoll("a1", unavailable))
     }
 

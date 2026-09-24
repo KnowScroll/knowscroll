@@ -28,8 +28,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasResponse
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.ui.AtlasEvidenceState
 import com.knowscroll.mobile.ui.PlaceRejectState
+import com.knowscroll.mobile.ui.keep.KeepChoices
+import com.knowscroll.mobile.ui.keep.KeepControls
 import com.knowscroll.mobile.ui.theme.Cosmos
 
 /**
@@ -37,7 +40,8 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * column -- for a planet or region: its basis-formed sightings, its typed relations to other live
  * places, its chronicle and each line's evidence, and "Set aside" for the whole place. #161: each
  * connection shows the claim it rests on, never where that claim came from. #163: its Idea Rooms,
- * each under the reader's own question, open their own sheet ([RoomSheet]).
+ * each under the reader's own question, open their own sheet ([RoomSheet]). #165 (ADR-0044): Keep
+ * keeps the place as a Relic; "Set aside" is how the reader doubts it.
  */
 @Composable
 internal fun PlaceDetail(
@@ -52,6 +56,7 @@ internal fun PlaceDetail(
     onOpenEvidence: (String) -> Unit,
     onCloseEvidence: () -> Unit,
     onOpenRoom: (String) -> Unit,
+    keeps: KeepControls,
 ) {
     val sightings = atlas.places.filter { it.kind == "sighting" && it.parentPlaceId == place.placeId }
     val connections = placeConnections(place, atlas)
@@ -113,6 +118,7 @@ internal fun PlaceDetail(
                     color = Cosmos.MutedOnCream,
                 )
             Text(placeMarkerDetail(place), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
+            KeepChoices(RelicTarget.Place(place.placeId), keeps)
 
             if (place.rooms.isNotEmpty()) {
                 Text("Idea rooms", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)

@@ -37,9 +37,12 @@ import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.AnswerStatus
 import com.knowscroll.mobile.data.AnswerView
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.data.questionIsValid
 import com.knowscroll.mobile.ui.ask.AskPanel
 import com.knowscroll.mobile.ui.ask.AskStage
+import com.knowscroll.mobile.ui.keep.KeepChoices
+import com.knowscroll.mobile.ui.keep.KeepControls
 import com.knowscroll.mobile.ui.theme.Cosmos
 
 /** #132 — ADR-0033: the Ask sheet's recorded inputs, grouped like [WhyControls] so the reader's
@@ -51,6 +54,8 @@ data class AskControls(
     val onGetAnswer: () -> Unit = {},
     val onCancel: () -> Unit = {},
     val onClose: () -> Unit = {},
+    /** #165: Keep and "Seems wrong" on an answer. */
+    val keeps: KeepControls = KeepControls(),
 )
 
 /**
@@ -76,7 +81,7 @@ internal fun AskSheet(controls: AskControls, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(stringResource(R.string.ask_sheet_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            AskBody(controls.panel, controls.onAsk, controls.onGetAnswer, controls.onCancel)
+            AskBody(controls.panel, controls.onAsk, controls.onGetAnswer, controls.onCancel, controls.keeps)
             OutlinedButton(
                 onClick = onDismiss,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
@@ -87,7 +92,7 @@ internal fun AskSheet(controls: AskControls, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun AskBody(panel: AskPanel?, onAsk: (String) -> Unit, onGetAnswer: () -> Unit, onCancel: () -> Unit) {
+private fun AskBody(panel: AskPanel?, onAsk: (String) -> Unit, onGetAnswer: () -> Unit, onCancel: () -> Unit, keeps: KeepControls) {
     when (val stage = panel?.stage ?: AskStage.Composing) {
         is AskStage.Error -> if (stage.askId != null) {
             // The question is recorded; only its answer request failed. Offer that request again.
@@ -118,7 +123,7 @@ private fun AskBody(panel: AskPanel?, onAsk: (String) -> Unit, onGetAnswer: () -
             ) { Text(stringResource(R.string.ask_cancel_action)) }
         }
         is AskStage.TimedOut -> Text(stringResource(R.string.ask_unavailable), style = MaterialTheme.typography.bodyLarge)
-        is AskStage.Final -> AskResult(stage.view)
+        is AskStage.Final -> AskResult(stage.view, keeps)
     }
 }
 
@@ -151,9 +156,10 @@ private fun Progress(label: String) {
     }
 }
 
-/** #132: the answer service's own recorded view -- exactly what it returned, nothing inferred. */
+/** #132: the answer service's own recorded view -- exactly what it returned, nothing inferred. #165:
+ * an answer may be kept as a Relic, or said to seem wrong; the view says whether it already was. */
 @Composable
-private fun AskResult(view: AnswerView) {
+private fun AskResult(view: AnswerView, keeps: KeepControls) {
     when (val status = view.status) {
         is AnswerStatus.Answered -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(status.answer, style = MaterialTheme.typography.bodyLarge)
@@ -165,6 +171,9 @@ private fun AskResult(view: AnswerView) {
                 Text(stringResource(R.string.ask_limits_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
                 Text(status.limits, style = MaterialTheme.typography.bodyMedium)
             }
+            val target = RelicTarget.Answer(view.askId)
+            val known = keeps.stateOf(target)
+            KeepChoices(target, keeps, state = known.copy(kept = known.kept || view.kept, markedWrong = known.markedWrong || view.seemsWrong))
         }
         is AnswerStatus.NotInSource -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.ask_not_in_source), style = MaterialTheme.typography.bodyLarge)

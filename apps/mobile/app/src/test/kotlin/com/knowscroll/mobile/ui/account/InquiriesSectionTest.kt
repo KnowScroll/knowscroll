@@ -57,13 +57,13 @@ class InquiriesSectionTest {
         pairs = pairs, reasons = reasons, found = found,
     )
 
-    private fun found(bridgeStatus: String = "admitted") = InquiryFound(
+    private fun found(bridgeStatus: String = "admitted", definitionWithdrawn: Boolean = false) = InquiryFound(
         bridgeId = "22222222-2222-4222-8222-222222222222", bridgeStatus = bridgeStatus, relationType = "compares_mechanism",
         fromConcept = InquiryConcept("astro.sun", "The Sun"), toConcept = InquiryConcept("physics.gravity", "Gravity"),
         sentence = "The Sun keeps every planet on a closed path because its gravity bends each one toward it.",
         evidence = listOf(
-            InquiryEvidence("clm.gravity.sun_holds_earth", "The Sun's gravity holds Earth in its orbit.", "mechanism", "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/"),
-            InquiryEvidence("clm.gravity.definition", "Gravity is a force that pulls masses together.", "to", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/"),
+            InquiryEvidence("clm.gravity.sun_holds_earth", "The Sun's gravity holds Earth in its orbit.", "mechanism", "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/", withdrawn = false),
+            InquiryEvidence("clm.gravity.definition", "Gravity is a force that pulls masses together.", "to", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/", withdrawn = definitionWithdrawn),
         ),
     )
 
@@ -269,6 +269,13 @@ class InquiriesSectionTest {
     fun aFoundConnectionALaterCorrectionWithdrewSaysSo() {
         render(loaded(inquiries = listOf(inquiry("found", found = found(bridgeStatus = "revoked")))))
         shown("What this connection was based on changed, so it was withdrawn.")
+    }
+
+    @Test
+    fun aClaimACorrectionWithdrewIsMarkedUnderItsStatementOnly() {
+        render(loaded(inquiries = listOf(inquiry("found", found = found(bridgeStatus = "revoked", definitionWithdrawn = true)))))
+        shown("Gravity is a force that pulls masses together.")
+        assertEquals(1, composeRule.onAllNodesWithText("What this was based on was withdrawn.").fetchSemanticsNodes().size)
     }
 
     @Test

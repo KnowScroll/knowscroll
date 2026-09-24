@@ -44,6 +44,7 @@ class InquiriesTest {
         put("evidence", JSONArray().put(JSONObject().apply {
             put("claimKey", "clm.gravity.sun_holds_earth"); put("statement", "The Sun's gravity holds Earth in its orbit.")
             put("supports", "mechanism"); put("sourceTitle", "NASA · Our Sun: Facts"); put("sourceUrl", "https://science.nasa.gov/sun/facts/")
+            put("withdrawn", false)
         }))
     }
 
@@ -93,6 +94,7 @@ class InquiriesTest {
         assertEquals(bridgeId, found.found!!.bridgeId)
         assertEquals("admitted", found.found!!.bridgeStatus)
         assertEquals("NASA · Our Sun: Facts", found.found!!.evidence.single().sourceTitle)
+        assertFalse(found.found!!.evidence.single().withdrawn)
         assertNull(parsed.inquiries[0].closedAt)
         assertEquals(listOf("shape", "claim_not_offered"), parsed.inquiries[4].reasons)
     }
@@ -163,6 +165,9 @@ class InquiriesTest {
         refused(response(inquiry().put("requestedAt", "yesterday")))
         refused(response(inquiry(found = found().put("evidence", JSONArray()))))
         refused(response(inquiry(found = found().apply { getJSONArray("evidence").getJSONObject(0).put("sourceUrl", "not a url") })))
+        // ADR-0044 M4: every claim says whether its support was withdrawn.
+        refused(response(inquiry(found = found().apply { getJSONArray("evidence").getJSONObject(0).remove("withdrawn") })))
+        refused(response(inquiry(found = found().apply { getJSONArray("evidence").getJSONObject(0).put("withdrawn", "no") })))
         refused(response(*Array(51) { inquiry() }))
     }
 

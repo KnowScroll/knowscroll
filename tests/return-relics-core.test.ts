@@ -51,12 +51,12 @@ const pair = { a: { code: 'astro.sun', name: 'The Sun' }, b: { code: 'physics.gr
 const found = {
   bridgeId: '11111111-1111-4111-8111-111111111111', bridgeStatus: 'admitted' as const, relationType: 'explains' as const,
   fromConcept: pair.b, toConcept: pair.a, sentence: 'Gravity holds the Sun together against the outward push of its heat.',
-  evidence: [{ claimKey: 'k1', statement: 'Gravity binds stars.', supports: 'from' as const, sourceTitle: 'NASA', sourceUrl: 'https://science.nasa.gov/sun/' }],
+  evidence: [{ claimKey: 'k1', statement: 'Gravity binds stars.', supports: 'from' as const, sourceTitle: 'NASA', sourceUrl: 'https://science.nasa.gov/sun/', withdrawn: false }],
 };
 
 test('the away contract: newest first, after the marker, and "more" only when the list is full', () => {
   const item = (at: string) => ({ kind: 'nothing_found', at, inquiryId: '22222222-2222-4222-8222-222222222222', pairs: [pair] });
-  const ok = { privacyEpoch: 0, since: '2026-09-24T09:00:00.000Z', items: [item('2026-09-24T11:00:00.000Z'), item('2026-09-24T10:00:00.000Z')], more: 0, recordingPaused: false };
+  const ok = { privacyEpoch: 0, since: '2026-09-24T09:00:00.000Z', items: [item('2026-09-24T11:00:00.000Z'), item('2026-09-24T10:00:00.000Z')], more: 0, nextPage: null, recordingPaused: false };
   assert.equal(awayResponse.safeParse(ok).success, true);
   assert.equal(awayResponse.safeParse({ ...ok, items: [...ok.items].reverse() }).success, false, 'oldest first is refused');
   assert.equal(awayResponse.safeParse({ ...ok, since: '2026-09-24T10:00:00.000Z' }).success, false, 'an item at the marker is refused');
@@ -89,5 +89,5 @@ test('a chronicle line longer than the wire allows is shortened at a word, never
   assert.equal(clampLine('Tides left the horizon.'), 'Tides left the horizon.');
   const place = { kind: 'place_changed', at: '2026-09-24T11:00:00.000Z', deltaId: '33333333-3333-4333-8333-333333333333', placeId: '44444444-4444-4444-8444-444444444444',
     change: 'foundation_recognised', cause: 'source_correction', line: clamped };
-  assert.equal(awayResponse.safeParse({ privacyEpoch: 0, since: null, items: [place], more: 0, recordingPaused: false }).success, true);
+  assert.equal(awayResponse.safeParse({ privacyEpoch: 0, since: null, items: [place], more: 0, nextPage: null, recordingPaused: false }).success, true);
 });

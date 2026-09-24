@@ -48,6 +48,7 @@ export type PrivacyExportRowCounts = {
  inquiries:number;
  awayAcknowledgements:number;
  relics:number;
+ objections:number;
 };
 export type PrivacyExportDeviceSession = {
  deviceId:string; origin:string; createdAt:string; expiresAt:string; revokedAt:string|null;
@@ -68,8 +69,8 @@ export type PrivacyExportResult = {
  askAnswers:unknown[];
  /** #132: background inquiry consent, its requests, mail and inquiries (ADR-0038). */
  inquiries:{consent:unknown[]; consentRequests:unknown[]; mail:unknown[]; inquiries:unknown[]};
- /** #134: return markers and Relics (ADR-0039). */
- returns:{acknowledgements:unknown[]; relics:unknown[]};
+ /** #134/#165: return markers, Relics and the reader's objections (ADR-0039, ADR-0044). */
+ returns:{acknowledgements:unknown[]; relics:unknown[]; objections:unknown[]};
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;

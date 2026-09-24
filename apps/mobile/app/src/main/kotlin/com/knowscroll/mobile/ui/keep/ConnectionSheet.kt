@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -29,26 +30,35 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
+import com.knowscroll.mobile.data.DoubtTarget
 import com.knowscroll.mobile.data.InquiryFound
 import com.knowscroll.mobile.data.Relic
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.ui.theme.Cosmos
 import com.knowscroll.mobile.ui.theme.Poster
 import com.knowscroll.mobile.ui.theme.PosterTheme
 
-/** The controls a found connection's sheet offers; every decision is [ReturnViewModel]'s. */
-data class ConnectionActions(
-    val onKeep: (String) -> Unit,
-    val onRetryKeep: (String) -> Unit,
-    val onSeemsWrong: (String) -> Unit,
-    val onRetrySeemsWrong: (String) -> Unit,
-)
+/**
+ * #134/#165: what the reader has kept or doubted, and Keep and "Seems wrong" on each thing they meet
+ * -- a found connection, a place, a passage, an answer. Every decision is [ReturnViewModel]'s.
+ */
+data class KeepControls(
+    val states: Map<RelicTarget, KeepableState> = emptyMap(),
+    /** Recording is paused: nothing new is kept (ADR-0030), nor objected to (ADR-0044). */
+    val paused: Boolean = false,
+    val onKeep: (RelicTarget) -> Unit = {},
+    val onRetryKeep: (RelicTarget) -> Unit = {},
+    val onSeemsWrong: (DoubtTarget) -> Unit = {},
+    val onRetrySeemsWrong: (DoubtTarget) -> Unit = {},
+) {
+    fun stateOf(target: RelicTarget): KeepableState = states[target] ?: KeepableState()
+}
 
 /**
  * #134 (ADR-0039): the bottom sheet a found connection (on the Atlas) or a Relic (on Keep) opens,
- * in the place sheet's own form (`PlaceDetail`): a back pill, the two places, the bridge's validated
- * sentence and the claims it was admitted on, then the reader's choices. Tapping above the sheet
- * dismisses it and never reaches what is beneath. [bordered] draws the poster ink edge Keep's paper
- * ground needs to set the sheet apart.
+ * in the place sheet's own form (`PlaceDetail`): a back pill, a title, what it rests on, then the
+ * reader's choices. Tapping above the sheet dismisses it and never reaches what is beneath.
+ * [bordered] draws the poster ink edge Keep's paper ground needs to set the sheet apart.
  */
 @Composable
 internal fun ReturnSheet(onDismiss: () -> Unit, bordered: Boolean = false, content: @Composable () -> Unit) {
@@ -65,55 +75,100 @@ internal fun ReturnSheet(onDismiss: () -> Unit, bordered: Boolean = false, conte
     }
 }
 
+/**
+ * #165: Keep and "Seems wrong" on one thing, wherever the reader meets it: what is already kept or
+ * doubted is said, and a choice already made is not offered again. [offered] is false for something
+ * that can no longer be kept (a withdrawn connection or claim): it is shown, not offered. While
+ * recording is paused nothing new is kept and a line says why; a connection's "seems wrong" is its
+ * ADR-0031 feedback, which a pause does not stop, while an objection to a passage or an answer is new
+ * personal history and waits too. [state] defaults to what [keeps] knows; a surface whose own answer
+ * says more (the Ask answer's `kept` and `seemsWrong`) passes it in.
+ */
+@Composable
+internal fun KeepChoices(
+    target: RelicTarget,
+    keeps: KeepControls,
+    offered: Boolean = true,
+    state: KeepableState = keeps.stateOf(target),
+    /** False where a list of choices says it once for all of them ([com.knowscroll.mobile.ui.scroll.PassagesSheet]). */
+    sayPaused: Boolean = true,
+) {
+    if (state.kept) Text(stringResource(R.string.connection_kept), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+    if (state.markedWrong) Text(stringResource(R.string.relic_state_doubted), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+    if (sayPaused && offered && keeps.paused && !state.kept && !state.markedWrong)
+        Text(stringResource(R.string.connection_paused), style = MaterialTheme.typography.bodyMedium)
+    val (keepWords, retryKeepWords) = keepDescriptions(target)
+    if (offered && !keeps.paused && !state.kept && !state.markedWrong && !state.keep.retryable()) {
+        val keepDescription = stringResource(keepWords)
+        Button(
+            onClick = { keeps.onKeep(target) },
+            enabled = state.keep !is ReturnActionState.Working,
+            colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Teal, contentColor = Cosmos.Dark),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = keepDescription },
+        ) { Text(stringResource(R.string.connection_keep), fontWeight = FontWeight(800), style = MaterialTheme.typography.labelLarge) }
+    }
+    ActionFeedback(state.keep, stringResource(retryKeepWords)) { keeps.onRetryKeep(target) }
+    if (target !is DoubtTarget) return
+    val (doubtWords, retryDoubtWords) = doubtDescriptions(target)
+    val doubtAllowed = !keeps.paused || target is RelicTarget.Connection
+    if (offered && doubtAllowed && !state.markedWrong && !state.seemsWrong.retryable()) {
+        val wrongDescription = stringResource(doubtWords)
+        OutlinedButton(
+            onClick = { keeps.onSeemsWrong(target) },
+            enabled = state.seemsWrong !is ReturnActionState.Working,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = wrongDescription },
+        ) { Text(stringResource(R.string.connection_seems_wrong)) }
+    }
+    ActionFeedback(state.seemsWrong, stringResource(retryDoubtWords)) { keeps.onRetrySeemsWrong(target) }
+}
+
 /** A connection found while the reader was away: "Keep" and "Seems wrong" while it still stands. */
 @Composable
-internal fun FoundConnectionSheet(found: InquiryFound, state: ConnectionState, actions: ConnectionActions, onClose: () -> Unit, paused: Boolean = false) {
+internal fun FoundConnectionSheet(found: InquiryFound, keeps: KeepControls, onClose: () -> Unit) {
     SheetColumn {
-        SheetHeader(stringResource(R.string.connection_back_atlas), stringResource(R.string.connection_kicker), onClose)
-        SheetTitle(found)
+        SheetHeader(stringResource(R.string.connection_back_atlas), stringResource(R.string.connection_kicker), stringResource(R.string.connection_close_description), onClose)
+        SheetTitle(stringResource(R.string.inquiry_pair, found.fromConcept.name, found.toConcept.name))
         ConnectionEvidence(found)
-        if (state.kept) Text(stringResource(R.string.connection_kept), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
-        if (state.markedWrong) Text(stringResource(R.string.relic_state_doubted), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
         // Only an admitted connection can be kept or doubted; a withdrawn one is shown, not offered.
-        val admitted = found.bridgeStatus == "admitted"
-        // While recording is paused nothing new is kept (ADR-0030); a "seems wrong" is a correction and stays.
-        if (admitted && paused && !state.kept && !state.markedWrong)
-            Text(stringResource(R.string.connection_paused), style = MaterialTheme.typography.bodyMedium)
-        if (admitted && !paused && !state.kept && !state.markedWrong && !state.keep.retryable()) {
-            val keepDescription = stringResource(R.string.connection_keep_description)
-            Button(
-                onClick = { actions.onKeep(found.bridgeId) },
-                enabled = state.keep !is ReturnActionState.Working,
-                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Teal, contentColor = Cosmos.Dark),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = keepDescription },
-            ) { Text(stringResource(R.string.connection_keep), fontWeight = FontWeight(800), style = MaterialTheme.typography.labelLarge) }
-        }
-        ActionFeedback(state.keep, stringResource(R.string.connection_retry_keep_description)) { actions.onRetryKeep(found.bridgeId) }
-        if (admitted && !state.markedWrong && !state.seemsWrong.retryable()) {
-            val wrongDescription = stringResource(R.string.connection_seems_wrong_description)
-            OutlinedButton(
-                onClick = { actions.onSeemsWrong(found.bridgeId) },
-                enabled = state.seemsWrong !is ReturnActionState.Working,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = wrongDescription },
-            ) { Text(stringResource(R.string.connection_seems_wrong)) }
-        }
-        ActionFeedback(state.seemsWrong, stringResource(R.string.connection_retry_seems_wrong_description)) { actions.onRetrySeemsWrong(found.bridgeId) }
+        KeepChoices(RelicTarget.Connection(found.bridgeId), keeps, offered = found.bridgeStatus == "admitted")
     }
 }
 
-/** A kept Relic: its state, when it was kept and by which validator, its kept form, and "Let go". */
+/** A kept Relic: its state, when it was kept, its kept form, and "Let go". */
 @Composable
 internal fun RelicSheet(relic: Relic, release: ReturnActionState, onLetGo: (String) -> Unit, onRetryLetGo: (String) -> Unit, onClose: () -> Unit) {
     SheetColumn {
-        SheetHeader(stringResource(R.string.connection_back_keep), stringResource(R.string.relic_kicker), onClose)
-        SheetTitle(relic.connection)
-        Text(stringResource(relicStateRes(relic.state)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+        SheetHeader(stringResource(R.string.connection_back_keep), stringResource(relicKindRes(relic)),
+            stringResource(if (relic is Relic.Connection) R.string.connection_close_description else R.string.relic_close_description), onClose)
+        SheetTitle(relicTitle(relic, LocalContext.current))
+        Text(stringResource(relicStateRes(relic)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+        val keptOn = humanDate(relic.keptAt)
         Text(
-            stringResource(R.string.relic_kept_on, humanDate(relic.keptAt), relic.provenance.validatorVersion),
+            if (relic is Relic.Connection) stringResource(R.string.relic_kept_on, keptOn, relic.provenance.validatorVersion)
+            else stringResource(R.string.relic_kept_on_date, keptOn),
             style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream,
         )
-        ConnectionEvidence(relic.connection)
+        when (relic) {
+            is Relic.Connection -> ConnectionEvidence(relic.connection)
+            is Relic.Place -> {
+                Text(stringResource(placeKindRes(relic.placeKind)), style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream)
+                Text(relic.formation, style = MaterialTheme.typography.bodyLarge, color = Cosmos.InkOnCream)
+                Text(stringResource(R.string.relic_place_formed, humanDate(relic.formedAt)), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+            }
+            is Relic.Passage -> {
+                Text(relic.title, style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnCream)
+                if (relic.withdrawn) Withdrawn()
+            }
+            is Relic.Answer -> {
+                Text(relic.title, style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnCream)
+                Text(relic.answer, style = MaterialTheme.typography.bodyLarge, color = Cosmos.InkOnCream)
+                Text(stringResource(R.string.ask_basis_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+                relic.basis.forEach { Text("· $it", style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream) }
+                Text(stringResource(R.string.ask_limits_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+                Text(relic.limits, style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream)
+            }
+        }
         if (!release.retryable()) {
             val letGoDescription = stringResource(R.string.relic_let_go_description)
             OutlinedButton(
@@ -125,6 +180,12 @@ internal fun RelicSheet(relic: Relic, release: ReturnActionState, onLetGo: (Stri
         }
         ActionFeedback(release, stringResource(R.string.relic_retry_let_go_description)) { onRetryLetGo(relic.relicId) }
     }
+}
+
+private fun placeKindRes(kind: String): Int = when (kind) {
+    "planet" -> R.string.relic_place_planet
+    "region" -> R.string.relic_place_region
+    else -> R.string.relic_place_sighting
 }
 
 private fun ReturnActionState.retryable(): Boolean = (this as? ReturnActionState.Failed)?.canRetry == true
@@ -139,8 +200,7 @@ private fun SheetColumn(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SheetHeader(backLabel: String, kicker: String, onClose: () -> Unit) {
-    val closeDescription = stringResource(R.string.connection_close_description)
+private fun SheetHeader(backLabel: String, kicker: String, closeDescription: String, onClose: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
             color = Cosmos.Cream.copy(alpha = 0.94f),
@@ -159,15 +219,15 @@ private fun SheetHeader(backLabel: String, kicker: String, onClose: () -> Unit) 
 }
 
 @Composable
-private fun SheetTitle(found: InquiryFound) {
+private fun SheetTitle(title: String) {
     Text(
-        stringResource(R.string.inquiry_pair, found.fromConcept.name, found.toConcept.name),
-        style = MaterialTheme.typography.headlineMedium, color = Cosmos.InkOnCream,
+        title, style = MaterialTheme.typography.headlineMedium, color = Cosmos.InkOnCream,
         modifier = Modifier.fillMaxWidth().semantics { heading() },
     )
 }
 
-/** The bridge's sentence, any correction since, and each cited claim once -- never its source (#161). */
+/** The bridge's sentence, any correction since, and each cited claim once -- never its source
+ * (#161) -- with a claim whose support was withdrawn marked as such (ADR-0044 M4). */
 @Composable
 private fun ConnectionEvidence(found: InquiryFound) {
     Text(found.sentence, style = MaterialTheme.typography.bodyLarge, color = Cosmos.InkOnCream)
@@ -178,12 +238,19 @@ private fun ConnectionEvidence(found: InquiryFound) {
     Text(stringResource(R.string.connection_evidence_heading), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
     found.evidence.distinctBy { it.statement }.forEach {
         Text(it.statement, style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream)
+        if (it.withdrawn) Withdrawn()
     }
+}
+
+/** A claim that has lost its current support since (ADR-0044 M4), never said by which source. */
+@Composable
+internal fun Withdrawn() {
+    Text(stringResource(R.string.claim_withdrawn), style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral)
 }
 
 /** "Working…", or what failed -- with Retry of the same request only when it may have landed. */
 @Composable
-private fun ActionFeedback(state: ReturnActionState, retryDescription: String, onRetry: () -> Unit) {
+internal fun ActionFeedback(state: ReturnActionState, retryDescription: String, onRetry: () -> Unit) {
     when (state) {
         ReturnActionState.Idle -> Unit
         ReturnActionState.Working -> Text(stringResource(R.string.privacy_working), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)

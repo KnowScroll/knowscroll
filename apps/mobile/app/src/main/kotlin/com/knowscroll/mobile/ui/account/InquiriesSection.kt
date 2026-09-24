@@ -31,6 +31,7 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.INQUIRY_DAILY_LIMIT_MAX
 import com.knowscroll.mobile.data.Inquiry
 import com.knowscroll.mobile.data.InquiryConsent
+import com.knowscroll.mobile.ui.keep.Withdrawn
 import com.knowscroll.mobile.ui.keep.humanDate
 import com.knowscroll.mobile.ui.theme.Cosmos
 
@@ -173,7 +174,10 @@ private fun InquiryCard(inquiry: Inquiry, consent: InquiryConsent) {
                 }
                 Text(stringResource(R.string.connection_evidence_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
                 // One claim can support several roles; show each once.
-                found.evidence.distinctBy { it.statement }.forEach { Text(it.statement, style = MaterialTheme.typography.bodyMedium) }
+                found.evidence.distinctBy { it.statement }.forEach {
+                    Text(it.statement, style = MaterialTheme.typography.bodyMedium)
+                    if (it.withdrawn) Withdrawn()
+                }
             }
         }
     }

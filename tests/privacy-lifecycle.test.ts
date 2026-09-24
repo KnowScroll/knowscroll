@@ -246,11 +246,11 @@ test('export contains exactly the rows the contract promises and no more', async
     askAnswers: 0,
     // ADR-0038: background inquiries (their consent, requests and mail are exported alongside).
     inquiries: 0,
-    // ADR-0039: return markers and Relics.
-    awayAcknowledgements: 0, relics: 0,
+    // ADR-0039/0044: return markers, Relics and the reader's objections.
+    awayAcknowledgements: 0, relics: 0, objections: 0,
   });
   assert.deepEqual(result.inquiries, { consent: [], consentRequests: [], mail: [], inquiries: [] });
-  assert.deepEqual(result.returns, { acknowledgements: [], relics: [] });
+  assert.deepEqual(result.returns, { acknowledgements: [], relics: [], objections: [] });
   assert.equal(result.personalModel.attentionAccounts.length, result.rowCounts.attentionAccounts);
   assert.equal(result.decisions.length, 1);
   assert.equal(result.ledger.length, 2);

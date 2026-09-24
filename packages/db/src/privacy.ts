@@ -42,11 +42,12 @@ async function eraseEncounterSystem(client:pg.PoolClient,universeId:string):Prom
  * the caller's universe lock and after its epoch has advanced. Semantic rows (#131) go before the
  * exposures/decisions/ledger events they reference. Shared knowledge and other universes survive. */
 async function erasePersonalHistory(client:pg.PoolClient,universeId:string,epochBefore:number,epochAfter:number):Promise<void> {
- // #132: answers and their requests go first; they reference the Ask facts erased below.
- await eraseAskAnswers(client,universeId);
- // #134 (ADR-0039): Relics name inquiries and personal bridges, so they go first; markers with them.
+ // #134/#165 (ADR-0039/0044): Relics and objections name answers, places, exposures, inquiries and
+ // personal bridges, so they go first; markers with them.
  await eraseRelics(client,universeId);
  await eraseAway(client,universeId);
+ // #132: answers and their requests go next; they reference the Ask facts erased below.
+ await eraseAskAnswers(client,universeId);
  // #132 (ADR-0038): inquiry mail, inquiries and consent go before the atlas deltas and proposals they name.
  await eraseInquiries(client,universeId);
  await eraseReasoningForHistoryClear(client,{universeId,epochBefore,epochAfter});
@@ -233,7 +234,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
  const personalModel = await exportPersonalModel(client, scope.universeId);
  const askAnswers = await exportAskAnswers(client, scope.universeId);
  const inquiries = await exportInquiries(client, scope.universeId);
- const returns = { acknowledgements: await exportAway(client, scope.universeId), relics: await exportRelics(client, scope.universeId) };
+ const returns = { acknowledgements: await exportAway(client, scope.universeId), ...await exportRelics(client, scope.universeId) };
 
  const rowCounts = {
   decisions: decisions.length, ledger: ledger.length, exposures: exposures.length,
@@ -246,7 +247,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   encounterFeedback: personalModel.encounterFeedback.length,
   askAnswers: askAnswers.length,
   inquiries: inquiries.inquiries.length,
-  awayAcknowledgements: returns.acknowledgements.length, relics: returns.relics.length,
+  awayAcknowledgements: returns.acknowledgements.length, relics: returns.relics.length, objections: returns.objections.length,
  };
 
  const existing = (await client.query(

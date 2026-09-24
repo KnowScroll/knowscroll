@@ -14,11 +14,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #134 (ADR-0039) — the return is read back exactly as `packages/contracts/src/away.ts` describes
- * it. The contract is `.strict()`: an unknown kind, change, cause or correction status, an
+ * #134/#165 (ADR-0039, ADR-0044) — the return is read back exactly as `packages/contracts/src/away.ts`
+ * describes it. The contract is `.strict()`: an unknown kind, change, cause or correction status, an
  * unexpected key, a missing field, or a list its own refinements forbid (not newest first, an item
- * at or before the marker, `more` without a full list) is refused, never shown -- mirrors
- * [InquiriesTest].
+ * at or before the marker, `more` without a full list, `more` without a next page) is refused, never
+ * shown -- mirrors [InquiriesTest]. Found and corrected connections say whether this reader objected (M5).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -38,11 +38,12 @@ class AwayTest {
         put("evidence", JSONArray().put(JSONObject().apply {
             put("claimKey", "clm.gravity.sun_holds_earth"); put("statement", "The Sun's gravity holds Earth in its orbit.")
             put("supports", "mechanism"); put("sourceTitle", "NASA · Our Sun: Facts"); put("sourceUrl", "https://science.nasa.gov/sun/facts/")
+            put("withdrawn", false)
         }))
     }
 
-    private fun connectionFound(at: String = "2026-09-24T10:05:00.000Z") =
-        JSONObject().put("kind", "connection_found").put("at", at).put("inquiryId", inquiryId).put("found", found())
+    private fun connectionFound(at: String = "2026-09-24T10:05:00.000Z", seemsWrong: Boolean = false) =
+        JSONObject().put("kind", "connection_found").put("at", at).put("inquiryId", inquiryId).put("found", found()).put("seemsWrong", seemsWrong)
 
     private fun didNotHoldUp(at: String = "2026-09-24T10:04:00.000Z", reasons: List<String> = listOf("from_side_unsupported")) =
         JSONObject().put("kind", "connection_did_not_hold_up").put("at", at).put("inquiryId", inquiryId)
@@ -63,14 +64,19 @@ class AwayTest {
         put("line", "The doubter left: what its claims were based on changed.")
     }
 
-    private fun corrected(at: String = "2026-09-24T10:01:00.000Z", status: String = "revoked") = JSONObject().apply {
+    private fun corrected(at: String = "2026-09-24T10:01:00.000Z", status: String = "revoked", seemsWrong: Boolean = false) = JSONObject().apply {
         put("kind", "connection_corrected"); put("at", at); put("bridgeId", bridgeId); put("status", status)
-        put("fromConcept", concept("astro.sun", "The Sun")); put("toConcept", concept("physics.gravity", "Gravity"))
+        put("fromConcept", concept("astro.sun", "The Sun")); put("toConcept", concept("physics.gravity", "Gravity")); put("seemsWrong", seemsWrong)
     }
 
-    private fun response(vararg items: JSONObject, epoch: Long = 4, since: String? = null, more: Long = 0, paused: Boolean = false) = JSONObject().apply {
+    private val cursor = "2026-09-24T09:50:00.000Z|nothing_found|$inquiryId"
+
+    private fun response(
+        vararg items: JSONObject, epoch: Long = 4, since: String? = null, more: Long = 0, paused: Boolean = false,
+        nextPage: String? = if (more > 0) cursor else null,
+    ) = JSONObject().apply {
         put("privacyEpoch", epoch); put("since", since ?: JSONObject.NULL); put("items", JSONArray(items.toList()))
-        put("more", more); put("recordingPaused", paused)
+        put("more", more); put("nextPage", nextPage ?: JSONObject.NULL); put("recordingPaused", paused)
     }
 
     private fun refused(value: JSONObject) {
@@ -108,6 +114,17 @@ class AwayTest {
         val correction = parsed.items[4] as AwayItem.ConnectionCorrected
         assertEquals("revoked", correction.status)
         assertEquals("The Sun", correction.fromConcept.name)
+        assertFalse(found.seemsWrong || correction.seemsWrong)
+        assertFalse(found.found.evidence.single().withdrawn)
+    }
+
+    @Test
+    fun aConnectionThisReaderObjectedToSaysSoOnTheReturn() {
+        val parsed = parseAwayResponse(response(connectionFound(seemsWrong = true), corrected(seemsWrong = true)))
+        assertTrue((parsed.items[0] as AwayItem.ConnectionFound).seemsWrong)
+        assertTrue((parsed.items[1] as AwayItem.ConnectionCorrected).seemsWrong)
+        refused(response(connectionFound().apply { remove("seemsWrong") }))
+        refused(response(corrected().put("seemsWrong", "true")))
     }
 
     /** #163 (ADR-0045): a room a source correction changed is away news too, in the Keeper's own line. */
@@ -133,10 +150,28 @@ class AwayTest {
     }
 
     @Test
-    fun aFullListMayCountMore() {
+    fun aFullListMayCountMoreWithTheCursorOfTheNextPage() {
         val parsed = parseAwayResponse(response(*fullList(), more = 7))
         assertEquals(10, parsed.items.size)
         assertEquals(7L, parsed.more)
+        assertEquals(cursor, parsed.nextPage)
+    }
+
+    @Test
+    fun aPageMayEndOnEveryKindTheListCarries() {
+        for (kind in listOf("connection_found", "connection_did_not_hold_up", "nothing_found", "place_changed", "room_changed", "connection_corrected")) {
+            val next = "2026-09-24T09:50:00.000Z|$kind|$inquiryId"
+            assertEquals(next, parseAwayResponse(response(*fullList(), more = 7, nextPage = next)).nextPage)
+        }
+    }
+
+    @Test
+    fun aNextPageExactlyWhenThereIsMoreAndInTheContractsForm() {
+        refused(response(*fullList(), more = 7, nextPage = null))
+        refused(response(nothingFound(), nextPage = cursor))
+        refused(response(*fullList(), more = 7, nextPage = "2026-09-24T09:50:00.000Z|rumour|$inquiryId"))
+        refused(response(*fullList(), more = 7, nextPage = "2026-09-24T09:50:00Z|nothing_found|$inquiryId"))
+        refused(response().apply { remove("nextPage") })
     }
 
     @Test
@@ -226,6 +261,17 @@ class AwayTest {
             server.join()
             assertTrue(server.requests.single().requestLine.startsWith("GET /v1/away "))
             assertEquals(bridgeId, (parsed.items.single() as AwayItem.ConnectionFound).found.bridgeId)
+        }
+    }
+
+    @Test
+    fun anEarlierPageSendsBackTheCursorItWasGiven() = runBlocking {
+        TestHttpServer.open().use { server ->
+            server.serve(200 to response(nothingFound()).toString())
+            api(server).getAway(cursor)
+            server.join()
+            val line = server.requests.single().requestLine
+            assertTrue(line, line.startsWith("GET /v1/away?page=2026-09-24T09%3A50%3A00.000Z%7Cnothing_found%7C$inquiryId "))
         }
     }
 

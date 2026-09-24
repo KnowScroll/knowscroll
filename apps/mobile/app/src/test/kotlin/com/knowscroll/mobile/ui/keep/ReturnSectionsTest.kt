@@ -4,11 +4,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasStateDescription
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -27,6 +33,7 @@ import com.knowscroll.mobile.data.InquiryFound
 import com.knowscroll.mobile.data.InquiryPair
 import com.knowscroll.mobile.data.Relic
 import com.knowscroll.mobile.data.RelicProvenance
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.data.RelicsResponse
 import com.knowscroll.mobile.data.Trace
 import com.knowscroll.mobile.data.Universe
@@ -43,11 +50,12 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * #134 (ADR-0039): what the return section on the Atlas, a found connection's sheet and Keep's
- * Relics say and offer -- every decision is [ReturnViewModel]'s (see `ReturnViewModelTest`); this
- * checks the rendering: each item's one plain line from its type and fields, the section absent when
- * there is nothing to show, "Mark as seen" gone while paused, and that Keep, Seems wrong and Let go
- * are reachable 48dp targets with the content descriptions the emulator journey drives.
+ * #134/#165 (ADR-0039, ADR-0044): what the return section on the Atlas, a found connection's sheet
+ * and Keep's Relics say and offer -- every decision is [ReturnViewModel]'s (see `ReturnViewModelTest`);
+ * this checks the rendering: each item's one plain line from its type and fields, the section absent
+ * when there is nothing to show, "Mark as seen" gone while paused, earlier and older pages a tap away,
+ * every kind of Relic with its kind, state and kept form and never a source, and that Keep, Seems
+ * wrong and Let go are reachable 48dp targets with the content descriptions the emulator journey drives.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -67,32 +75,32 @@ class ReturnSectionsTest {
         bridgeId = bridgeId, bridgeStatus = bridgeStatus, relationType = "compares_mechanism", fromConcept = sun, toConcept = gravity,
         sentence = "The Sun keeps every planet on a closed path because its gravity bends each one toward it.",
         evidence = listOf(
-            InquiryEvidence("clm.gravity.sun_holds_earth", "The Sun's gravity holds Earth in its orbit.", "mechanism", "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/"),
-            InquiryEvidence("clm.gravity.definition", "Gravity is a force that pulls masses together.", "to", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/"),
+            InquiryEvidence("clm.gravity.sun_holds_earth", "The Sun's gravity holds Earth in its orbit.", "mechanism", "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/", withdrawn = false),
+            InquiryEvidence("clm.gravity.definition", "Gravity is a force that pulls masses together.", "to", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/", withdrawn = bridgeStatus != "admitted"),
         ),
     )
 
     private val inquiryId = "11111111-1111-4111-8111-111111111111"
     private fun at(minute: Int) = "2026-09-24T10:%02d:00.000Z".format(minute)
-    private val foundItem = AwayItem.ConnectionFound(at(9), inquiryId, found())
+    private val foundItem = AwayItem.ConnectionFound(at(9), inquiryId, found(), seemsWrong = false)
     private val refusedItem = AwayItem.ConnectionDidNotHoldUp(at(8), inquiryId, listOf(InquiryPair(sun, gravity)), listOf("from_side_unsupported", "mechanism_is_label"))
     private val nothingItem = AwayItem.NothingFound(
         at(7), inquiryId, listOf(InquiryPair(sun, gravity), InquiryPair(InquiryConcept("astro.orbit", "Orbit"), InquiryConcept("earth.tides", "Tides"))),
     )
     private val placeItem = AwayItem.PlaceChanged(at(6), "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444",
         "foundation_withdrawn", "source_correction", "Gravity no longer holds up the places around it.")
-    private val revokedItem = AwayItem.ConnectionCorrected(at(5), bridgeId, "revoked", sun, gravity)
-    private val supersededItem = AwayItem.ConnectionCorrected(at(4), bridgeId, "superseded", sun, gravity)
+    private val revokedItem = AwayItem.ConnectionCorrected(at(5), bridgeId, "revoked", sun, gravity, seemsWrong = false)
+    private val supersededItem = AwayItem.ConnectionCorrected(at(4), bridgeId, "superseded", sun, gravity, seemsWrong = false)
 
-    private fun away(vararg items: AwayItem, more: Long = 0, paused: Boolean = false) =
-        AwayState.Loaded(AwayResponse(4, null, items.toList(), more, paused))
-
-    private val noConnection = ConnectionActions({}, {}, {}, {})
+    private fun away(vararg items: AwayItem, more: Long = 0, paused: Boolean = false) = AwayState.Loaded(
+        AwayResponse(4, null, items.toList(), more, if (more > 0) "2026-09-24T09:00:00.000Z|nothing_found|$inquiryId" else null, paused),
+    )
 
     private fun controls(
         state: AwayState, acknowledge: ReturnActionState = ReturnActionState.Idle,
         onMarkSeen: () -> Unit = {}, onRetryMarkSeen: () -> Unit = {},
-    ) = AwayControls(state, acknowledge, emptyMap(), onMarkSeen, onRetryMarkSeen, noConnection)
+        earlier: ReturnActionState = ReturnActionState.Idle, onShowEarlier: () -> Unit = {},
+    ) = AwayControls(state, acknowledge, onMarkSeen, onRetryMarkSeen, earlier, onShowEarlier)
 
     private fun renderAway(controls: AwayControls, onOpen: (String) -> Unit = {}) {
         composeRule.setContent {
@@ -108,7 +116,6 @@ class ReturnSectionsTest {
     @Test
     fun inquiryOutcomesAreEachOnePlainLineFromTheirFields() {
         renderAway(controls(away(foundItem, refusedItem, nothingItem)))
-        composeRule.onNodeWithContentDescription("While you were away").assertExists()
         shown("While you were away")
         shown("Found a connection: The Sun and Gravity.")
         shown("Looked for a connection between The Sun and Gravity; it did not hold up: one side had no evidence of its own; it named the link without explaining how it works.")
@@ -201,25 +208,51 @@ class ReturnSectionsTest {
         absent("Gravity no longer holds up the places around it.")
     }
 
+    /** ADR-0044 M8: the section's heading is read once -- no node repeats it as its description. */
     @Test
-    fun olderItemsTheServerCountedButDidNotSendAreCountedToo() {
+    fun theHeadingIsReadOnce() {
+        renderAway(controls(away(foundItem)))
+        composeRule.onAllNodes(hasContentDescription("While you were away"), useUnmergedTree = true).assertCountEquals(0)
+        composeRule.onAllNodes(hasText("While you were away") and isHeading()).assertCountEquals(1)
+    }
+
+    /** ADR-0044 M7: older items the server counted are a page away, never out of reach. */
+    @Test
+    fun olderItemsTheServerCountedAreCountedAndReadOnRequest() {
+        var earlier = 0
         val ten = List(10) { i -> AwayItem.NothingFound(at(59 - i), inquiryId, listOf(InquiryPair(sun, gravity))) }
-        renderAway(controls(away(*ten.toTypedArray(), more = 7)))
+        renderAway(controls(away(*ten.toTypedArray(), more = 7), onShowEarlier = { earlier += 1 }))
         shown("and 14 more")
         composeRule.onNodeWithContentDescription("Show everything that changed while you were away").performClick()
-        composeRule.onNodeWithText("And 7 earlier, not listed here.").assertExists()
+        composeRule.onNodeWithContentDescription("Show earlier changes while you were away").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        shown("Show 7 earlier")
+        assertEquals(1, earlier)
+    }
+
+    @Test
+    fun aFailedEarlierPageSaysSoAndOffersTheReadAgain() {
+        var earlier = 0
+        val ten = List(10) { i -> AwayItem.NothingFound(at(59 - i), inquiryId, listOf(InquiryPair(sun, gravity))) }
+        renderAway(controls(away(*ten.toTypedArray(), more = 7), earlier = ReturnActionState.Failed("Connection interrupted. Please retry.", canRetry = true),
+            onShowEarlier = { earlier += 1 }))
+        composeRule.onNodeWithContentDescription("Show everything that changed while you were away").performClick()
+        composeRule.onNodeWithText("Connection interrupted. Please retry.").performScrollTo().assertExists()
+        composeRule.onNodeWithContentDescription("Retry showing earlier changes while you were away").performScrollTo().performClick()
+        assertEquals(1, earlier)
     }
 
     // ---- A found connection's sheet ----
 
     private val connectionActions = mutableListOf<String>()
-    private fun recording() = ConnectionActions(
-        onKeep = { connectionActions += "keep:$it" }, onRetryKeep = { connectionActions += "retry-keep:$it" },
-        onSeemsWrong = { connectionActions += "wrong:$it" }, onRetrySeemsWrong = { connectionActions += "retry-wrong:$it" },
+    private fun idOf(target: RelicTarget) = (target as RelicTarget.Connection).bridgeId
+    private fun recording(state: KeepableState, paused: Boolean) = KeepControls(
+        states = mapOf(RelicTarget.Connection(bridgeId) to state), paused = paused,
+        onKeep = { connectionActions += "keep:${idOf(it)}" }, onRetryKeep = { connectionActions += "retry-keep:${idOf(it)}" },
+        onSeemsWrong = { connectionActions += "wrong:${idOf(it)}" }, onRetrySeemsWrong = { connectionActions += "retry-wrong:${idOf(it)}" },
     )
 
-    private fun renderFound(found: InquiryFound = found(), state: ConnectionState = ConnectionState(), onClose: () -> Unit = {}, paused: Boolean = false) {
-        composeRule.setContent { KnowScrollTheme { ReturnSheet(onDismiss = onClose) { FoundConnectionSheet(found, state, recording(), onClose, paused) } } }
+    private fun renderFound(found: InquiryFound = found(), state: KeepableState = KeepableState(), onClose: () -> Unit = {}, paused: Boolean = false) {
+        composeRule.setContent { KnowScrollTheme { ReturnSheet(onDismiss = onClose) { FoundConnectionSheet(found, recording(state, paused), onClose) } } }
     }
 
     @Test
@@ -247,7 +280,7 @@ class ReturnSectionsTest {
 
     @Test
     fun aKeptConnectionSaysSoAndCanStillBeMarkedWrong() {
-        renderFound(state = ConnectionState(kept = true))
+        renderFound(state = KeepableState(kept = true))
         shown("Kept in your Relics")
         composeRule.onAllNodesWithContentDescription("Keep this connection").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("This connection seems wrong").performScrollTo().assertExists()
@@ -255,7 +288,7 @@ class ReturnSectionsTest {
 
     @Test
     fun aConnectionMarkedWrongIsNeitherKeptNorMarkedAgain() {
-        renderFound(state = ConnectionState(kept = true, markedWrong = true))
+        renderFound(state = KeepableState(kept = true, markedWrong = true))
         shown("Kept in your Relics")
         shown("You marked this as seeming wrong")
         composeRule.onAllNodesWithContentDescription("Keep this connection").assertCountEquals(0)
@@ -272,7 +305,7 @@ class ReturnSectionsTest {
 
     @Test
     fun anUnconfirmedKeepOffersOnlyTheRetryOfTheSameRequest() {
-        renderFound(state = ConnectionState(keep = ReturnActionState.Failed("This is unconfirmed. Retry sends the same request; nothing is repeated.", canRetry = true)))
+        renderFound(state = KeepableState(keep = ReturnActionState.Failed("This is unconfirmed. Retry sends the same request; nothing is repeated.", canRetry = true)))
         composeRule.onAllNodesWithContentDescription("Keep this connection").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("Retry keeping this connection").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf("retry-keep:$bridgeId"), connectionActions)
@@ -280,7 +313,7 @@ class ReturnSectionsTest {
 
     @Test
     fun aRefusedSeemsWrongIsExplainedAndTheChoiceStays() {
-        renderFound(state = ConnectionState(seemsWrong = ReturnActionState.Failed("KnowScroll could not apply that.", canRetry = false)))
+        renderFound(state = KeepableState(seemsWrong = ReturnActionState.Failed("KnowScroll could not apply that.", canRetry = false)))
         shown("KnowScroll could not apply that.")
         composeRule.onAllNodesWithContentDescription("Retry marking this connection as seeming wrong").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("This connection seems wrong").performScrollTo().assertExists()
@@ -288,7 +321,7 @@ class ReturnSectionsTest {
 
     @Test
     fun whileKeepingTheButtonWaits() {
-        renderFound(state = ConnectionState(keep = ReturnActionState.Working))
+        renderFound(state = KeepableState(keep = ReturnActionState.Working))
         composeRule.onNodeWithContentDescription("Keep this connection").performScrollTo().assertIsNotEnabled()
     }
 
@@ -302,7 +335,7 @@ class ReturnSectionsTest {
 
     // ---- Keep's Relics ----
 
-    private fun relic(state: String, id: String = relicId) = Relic(
+    private fun relic(state: String, id: String = relicId) = Relic.Connection(
         relicId = id, keptAt = "2026-09-24T10:10:00.000Z", state = state,
         connection = found(if (state == "corrected") "revoked" else "admitted"),
         provenance = RelicProvenance(inquiryId, "bridge-validator-v1", listOf("clm.gravity.sun_holds_earth")),
@@ -314,18 +347,22 @@ class ReturnSectionsTest {
 
     private val letGo = mutableListOf<String>()
 
-    private fun renderKeep(state: RelicsState, releases: Map<String, ReturnActionState> = emptyMap(), onRetryLoad: () -> Unit = {}) {
+    private fun renderKeep(
+        state: RelicsState, releases: Map<String, ReturnActionState> = emptyMap(), onRetryLoad: () -> Unit = {},
+        older: ReturnActionState = ReturnActionState.Idle, onShowOlder: () -> Unit = {},
+    ) {
         composeRule.setContent {
             KnowScrollTheme {
                 KeepScreen(
                     state = universe, onOpenTrace = {}, onSelectAtlas = {}, onSelectCable = {},
-                    relics = RelicControls(state, releases, onLetGo = { letGo += "let-go:$it" }, onRetryLetGo = { letGo += "retry:$it" }, onRetryLoad = onRetryLoad),
+                    relics = RelicControls(state, releases, onLetGo = { letGo += "let-go:$it" }, onRetryLetGo = { letGo += "retry:$it" }, onRetryLoad = onRetryLoad,
+                        older = older, onShowOlder = onShowOlder),
                 )
             }
         }
     }
 
-    private fun relics(vararg relics: Relic) = RelicsState.Loaded(RelicsResponse(4, relics.toList()))
+    private fun relics(vararg relics: Relic, nextPage: String? = null) = RelicsState.Loaded(RelicsResponse(4, relics.toList(), nextPage, recordingPaused = false))
 
     @Test
     fun keepListsRelicsAboveTracesEachWithItsState() {
@@ -379,6 +416,8 @@ class ReturnSectionsTest {
         composeRule.onNodeWithText("The Sun keeps every planet on a closed path because its gravity bends each one toward it.").assertExists()
         composeRule.onNodeWithText("What this connection was based on changed, so it was withdrawn.").assertExists()
         composeRule.onNodeWithText("The Sun's gravity holds Earth in its orbit.").assertExists()
+        // ADR-0044 M4: the claim whose support was withdrawn says so, never by which source.
+        composeRule.onAllNodesWithText("What this was based on was withdrawn.").assertCountEquals(1)
         composeRule.assertNoSourceShown(*sources)
         composeRule.onNodeWithContentDescription("Let go of this Relic").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf("let-go:$relicId"), letGo)
@@ -391,5 +430,91 @@ class ReturnSectionsTest {
         composeRule.onAllNodesWithContentDescription("Let go of this Relic").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("Retry letting go of this Relic").performScrollTo().performClick()
         assertEquals(listOf("retry:$relicId"), letGo)
+    }
+
+    // ---- #165: every kind of Relic (ADR-0044) ----
+
+    private val tides = InquiryConcept("earth.tides", "Tides")
+    private val place = Relic.Place("11111111-2222-4333-8444-555555555555", "2026-09-24T10:10:00.000Z", "doubted",
+        "44444444-4444-4444-8444-444444444444", "sighting", tides, "2026-09-24T09:00:00.000Z", "Tides appeared near Gravity: Gravity explains Tides.")
+    private val passage = Relic.Passage("22222222-3333-4444-8555-666666666666", "2026-09-24T10:09:00.000Z", "corrected",
+        "55555555-5555-4555-8555-555555555555", 1, "The pull you can't see", "clm.gravity.mass", "Every mass attracts every other mass.", withdrawn = true)
+    private val answer = Relic.Answer("33333333-4444-4555-8666-777777777777", "2026-09-24T10:08:00.000Z", "current",
+        "99999999-9999-4999-8999-999999999999", "55555555-5555-4555-8555-555555555555", 1, "The pull you can't see",
+        "What pulls things together?", "Gravity: every mass attracts every other mass.", listOf("Every mass attracts every other mass"), "Only what this Scroll says.")
+
+    @Test
+    fun everyKindIsListedWithItsKindWhatItKeepsAndItsState() {
+        renderKeep(relics(relic("current"), place, passage, answer))
+        composeRule.onAllNodesWithContentDescription("Relic: The Sun and Gravity").assertCountEquals(1)
+        composeRule.onAllNodesWithContentDescription("Relic: the place Tides").assertCountEquals(1)
+        composeRule.onAllNodesWithContentDescription("Relic: a passage of The pull you can't see").assertCountEquals(1)
+        composeRule.onAllNodesWithContentDescription("Relic: your question, What pulls things together?").assertCountEquals(1)
+        for (kind in listOf("Connection", "Place", "Passage", "Answer")) shown(kind)
+        composeRule.onAllNodes(hasStateDescription("You set this place aside")).assertCountEquals(1)
+        composeRule.onAllNodes(hasStateDescription("Corrected — what it was based on changed after you kept it")).assertCountEquals(1)
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    /** ADR-0044 M8: tapping a Relic card says what it does. */
+    @Test
+    fun aRelicCardSaysWhatTappingItDoes() {
+        renderKeep(relics(relic("current"), place, passage, answer))
+        composeRule.onAllNodes(SemanticsMatcher("opens its Relic") { it.config.getOrNull(SemanticsActions.OnClick)?.label == "Open this Relic" }).assertCountEquals(4)
+    }
+
+    @Test
+    fun aPlaceRelicOpensAsKept() {
+        renderKeep(relics(place))
+        composeRule.onNodeWithContentDescription("Relic: the place Tides").performClick()
+        composeRule.onNodeWithText("A sighting on your horizon").assertExists()
+        composeRule.onNodeWithText("Tides appeared near Gravity: Gravity explains Tides.").assertExists()
+        composeRule.onAllNodesWithText("You set this place aside").assertCountEquals(1)
+        composeRule.assertNoSourceShown(*sources)
+        composeRule.onNodeWithContentDescription("Let go of this Relic").performScrollTo().performClick()
+        assertEquals(listOf("let-go:${place.relicId}"), letGo)
+    }
+
+    @Test
+    fun aPassageRelicOpensAsReadWithItsWithdrawnClaimMarked() {
+        renderKeep(relics(passage))
+        composeRule.onNodeWithContentDescription("Relic: a passage of The pull you can't see").performClick()
+        composeRule.onAllNodesWithText("Every mass attracts every other mass.").assertCountEquals(1)
+        composeRule.onNodeWithText("The pull you can't see").assertExists()
+        composeRule.onNodeWithText("What this was based on was withdrawn.").assertExists()
+        // TalkBack names what the back pill closes: this is a Relic, not a connection.
+        composeRule.onNodeWithContentDescription("Close this Relic").assertExists()
+        composeRule.onAllNodesWithContentDescription("Close this connection").assertCountEquals(0)
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    @Test
+    fun anAnswerRelicOpensWithItsQuestionAnswerQuotesAndLimits() {
+        renderKeep(relics(answer))
+        composeRule.onNodeWithContentDescription("Relic: your question, What pulls things together?").performClick()
+        composeRule.onAllNodesWithText("What pulls things together?").assertCountEquals(1)
+        composeRule.onNodeWithText("Gravity: every mass attracts every other mass.").assertExists()
+        composeRule.onNodeWithText("· Every mass attracts every other mass").assertExists()
+        composeRule.onNodeWithText("Only what this Scroll says.").performScrollTo().assertExists()
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    /** ADR-0044 M8: the oldest Relics are a page away, so they can be let go. */
+    @Test
+    fun olderRelicsAreReadOnRequest() {
+        var older = 0
+        renderKeep(relics(relic("current"), nextPage = "2026-09-24T10:10:00.123456Z|$relicId"), onShowOlder = { older += 1 })
+        composeRule.onNodeWithContentDescription("Show your older Relics").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(1, older)
+    }
+
+    @Test
+    fun aFailedOlderPageSaysSoAndOffersTheReadAgain() {
+        var older = 0
+        renderKeep(relics(relic("current"), nextPage = "2026-09-24T10:10:00.123456Z|$relicId"),
+            older = ReturnActionState.Failed("Connection interrupted. Please retry.", canRetry = true), onShowOlder = { older += 1 })
+        composeRule.onAllNodesWithContentDescription("Show your older Relics").assertCountEquals(0)
+        composeRule.onNodeWithContentDescription("Retry showing your older Relics").performScrollTo().performClick()
+        assertEquals(1, older)
     }
 }

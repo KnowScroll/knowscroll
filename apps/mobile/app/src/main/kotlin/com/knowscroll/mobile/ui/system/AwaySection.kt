@@ -34,8 +34,6 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.AwayItem
 import com.knowscroll.mobile.data.InquiryFound
 import com.knowscroll.mobile.ui.keep.AwayState
-import com.knowscroll.mobile.ui.keep.ConnectionActions
-import com.knowscroll.mobile.ui.keep.ConnectionState
 import com.knowscroll.mobile.ui.keep.ReturnActionState
 import com.knowscroll.mobile.ui.keep.awayHiddenCount
 import com.knowscroll.mobile.ui.keep.awayItemLine
@@ -45,11 +43,11 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 data class AwayControls(
     val state: AwayState,
     val acknowledge: ReturnActionState,
-    /** By bridge id: kept, marked wrong, and each action's progress. */
-    val connections: Map<String, ConnectionState>,
     val onMarkSeen: () -> Unit,
     val onRetryMarkSeen: () -> Unit,
-    val connection: ConnectionActions,
+    /** Reading the next earlier page (ADR-0044 M7). */
+    val earlier: ReturnActionState = ReturnActionState.Idle,
+    val onShowEarlier: () -> Unit = {},
 )
 
 /** At most this many items before "and N more". */
@@ -65,17 +63,18 @@ internal fun awayFound(state: AwayState, bridgeId: String): InquiryFound? =
  * could not be read (the map is not the place for that noise). Each item is one plain line from its
  * type and fields; a found connection opens its evidence. "Mark as seen" acknowledges through the
  * newest item shown, and while recording is paused it is replaced by a line saying why it stays.
- * At most [AWAY_COLLAPSED_ITEMS] lines until the reader asks for the rest, so the map keeps its room.
+ * At most [AWAY_COLLAPSED_ITEMS] lines until the reader asks for the rest, so the map keeps its room;
+ * then earlier items a page at a time, so none is out of reach (ADR-0044 M7). The heading is read
+ * once: the section carries no description of its own that would repeat it (M8).
  */
 @Composable
 internal fun AwaySection(controls: AwayControls, onOpenConnection: (String) -> Unit, modifier: Modifier = Modifier) {
     val response = (controls.state as? AwayState.Loaded)?.response ?: return
     if (response.items.isEmpty()) return
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val sectionDescription = stringResource(R.string.away_heading)
     Surface(
         color = Cosmos.Sea2, contentColor = Cosmos.InkOnDark, shape = RoundedCornerShape(16.dp),
-        modifier = modifier.fillMaxWidth().semantics { contentDescription = sectionDescription },
+        modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -113,11 +112,7 @@ internal fun AwaySection(controls: AwayControls, onOpenConnection: (String) -> U
             val shown = if (expanded) response.items else response.items.take(AWAY_COLLAPSED_ITEMS)
             Column(if (expanded) Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()) else Modifier) {
                 shown.forEach { AwayLine(it, onOpenConnection) }
-                if (expanded && response.more > 0)
-                    Text(
-                        stringResource(R.string.away_more_earlier, response.more), style = MaterialTheme.typography.bodyMedium,
-                        color = Cosmos.MutedOnDark, modifier = Modifier.padding(vertical = 6.dp),
-                    )
+                if (expanded && response.nextPage != null) EarlierPage(response.more, controls.earlier, controls.onShowEarlier)
             }
             val hidden = awayHiddenCount(response.items.size, shown.size, response.more)
             if (!expanded && hidden > 0) {
@@ -135,6 +130,31 @@ internal fun AwaySection(controls: AwayControls, onOpenConnection: (String) -> U
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = fewerDescription },
                 ) { Text(stringResource(R.string.away_fewer)) }
             }
+        }
+    }
+}
+
+/** "Show N earlier": the next page, read on request; a failed read says so and offers the read again. */
+@Composable
+private fun EarlierPage(more: Long, earlier: ReturnActionState, onShowEarlier: () -> Unit) {
+    when (earlier) {
+        is ReturnActionState.Failed -> {
+            Text(earlier.message, style = MaterialTheme.typography.bodyMedium, color = Cosmos.Coral)
+            val retryDescription = stringResource(R.string.away_retry_earlier_description)
+            OutlinedButton(
+                onClick = onShowEarlier,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = retryDescription },
+            ) { Text(stringResource(R.string.action_retry)) }
+        }
+        else -> {
+            val earlierDescription = stringResource(R.string.away_earlier_description)
+            TextButton(
+                onClick = onShowEarlier,
+                enabled = earlier !is ReturnActionState.Working,
+                colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.Teal),
+                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = earlierDescription },
+            ) { Text(stringResource(R.string.away_earlier, more)) }
         }
     }
 }

@@ -3,8 +3,9 @@ package com.knowscroll.mobile.data
 import org.json.JSONObject
 
 /**
- * #134 — the return (ADR-0039 §1-2): what changed while the reader was away (`GET /v1/away`) and
- * the marker they move once they have seen it (`POST /v1/away/acknowledge`). Strict, mirroring
+ * #134 — the return (ADR-0039 §1-2): what changed while the reader was away (`GET /v1/away`, a page
+ * at a time: ADR-0044 M7) and the marker they move once they have seen it
+ * (`POST /v1/away/acknowledge`). Strict, mirroring
  * `packages/contracts/src/away.ts`, which is `.strict()` on every object: an unknown kind, change,
  * cause or correction status, an unexpected key, a missing field, a value out of its bounds, or a
  * list the contract's own refinements forbid (not newest first, an item at or before the marker,
@@ -15,8 +16,9 @@ sealed interface AwayItem {
     /** When it happened (UTC); the list is newest first. */
     val at: String
 
-    /** A background inquiry (ADR-0038) found a connection the validator admitted. */
-    data class ConnectionFound(override val at: String, val inquiryId: String, val found: InquiryFound) : AwayItem
+    /** A background inquiry (ADR-0038) found a connection the validator admitted. [seemsWrong]: this
+     * reader marked it "seems wrong" (ADR-0044 M5), so it is neither kept nor marked again. */
+    data class ConnectionFound(override val at: String, val inquiryId: String, val found: InquiryFound, val seemsWrong: Boolean) : AwayItem
 
     /** A proposed connection was refused; [reasons] are the validator's codes. */
     data class ConnectionDidNotHoldUp(override val at: String, val inquiryId: String, val pairs: List<InquiryPair>, val reasons: List<String>) : AwayItem
@@ -47,7 +49,7 @@ sealed interface AwayItem {
     /** A connection the reader was shown as found, or kept, was [status] `revoked` or `superseded`. */
     data class ConnectionCorrected(
         override val at: String, val bridgeId: String, val status: String,
-        val fromConcept: InquiryConcept, val toConcept: InquiryConcept,
+        val fromConcept: InquiryConcept, val toConcept: InquiryConcept, val seemsWrong: Boolean,
     ) : AwayItem
 }
 
@@ -59,6 +61,8 @@ data class AwayResponse(
     val items: List<AwayItem>,
     /** Unacknowledged items beyond [items] (older ones: the list keeps the newest). */
     val more: Long,
+    /** The cursor of the next older page (`GET /v1/away?page=`), exactly when [more] is not zero. */
+    val nextPage: String?,
     /** While recording is paused the marker cannot move (ADR-0039 §2). */
     val recordingPaused: Boolean,
 )
@@ -77,9 +81,15 @@ internal val AWAY_PLACE_CHANGES = setOf(
 )
 internal val AWAY_ROOM_CHANGES = setOf("position_changed", "inhabitant_unseated", "room_retired")
 internal val AWAY_CORRECTION_STATUSES = setOf("revoked", "superseded")
+/** `at|kind|id`: a page's last item in the list's one total order (`AWAY_CURSOR_PATTERN`). */
+private val AWAY_CURSOR = Regex(
+    "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z\\|" +
+        "(connection_found|connection_did_not_hold_up|nothing_found|place_changed|room_changed|connection_corrected)\\|" +
+        "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+)
 
 internal fun parseAwayResponse(o: JSONObject): AwayResponse {
-    o.requireKeys("privacyEpoch", "since", "items", "more", "recordingPaused")
+    o.requireKeys("privacyEpoch", "since", "items", "more", "nextPage", "recordingPaused")
     val since = o.nullableDatetime("since")
     val items = o.array("items").strictObjects().map(::parseAwayItem)
     require(items.size <= AWAY_LIST_LIMIT) { "The away list exceeds its $AWAY_LIST_LIMIT-item cap" }
@@ -90,13 +100,15 @@ internal fun parseAwayResponse(o: JSONObject): AwayResponse {
     for (i in 1 until items.size) require(items[i].at <= items[i - 1].at) { "Items are newest first" }
     if (since != null) require(items.all { it.at > since }) { "Items are after the marker" }
     require(items.size == AWAY_LIST_LIMIT || more == 0L) { "More only when the list is full" }
-    return AwayResponse(o.epoch("privacyEpoch"), since, items, more, o.bool("recordingPaused"))
+    val nextPage = if (o.isNull("nextPage")) null else o.string("nextPage").also { require(AWAY_CURSOR.matches(it)) { "Invalid page cursor" } }
+    require((more > 0) == (nextPage != null)) { "A next page exactly when there is more" }
+    return AwayResponse(o.epoch("privacyEpoch"), since, items, more, nextPage, o.bool("recordingPaused"))
 }
 
 internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
     "connection_found" -> {
-        o.requireKeys("kind", "at", "inquiryId", "found")
-        AwayItem.ConnectionFound(o.datetime("at"), o.uuid("inquiryId"), parseInquiryFound(o.obj("found")))
+        o.requireKeys("kind", "at", "inquiryId", "found", "seemsWrong")
+        AwayItem.ConnectionFound(o.datetime("at"), o.uuid("inquiryId"), parseInquiryFound(o.obj("found")), o.bool("seemsWrong"))
     }
     "connection_did_not_hold_up" -> {
         o.requireKeys("kind", "at", "inquiryId", "pairs", "reasons")
@@ -121,12 +133,12 @@ internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
         AwayItem.RoomChanged(o.datetime("at"), o.uuid("deltaId"), o.uuid("roomId"), o.uuid("placeId"), change, correctionCause(o), chronicleLine(o))
     }
     "connection_corrected" -> {
-        o.requireKeys("kind", "at", "bridgeId", "status", "fromConcept", "toConcept")
+        o.requireKeys("kind", "at", "bridgeId", "status", "fromConcept", "toConcept", "seemsWrong")
         val status = o.string("status")
         require(status in AWAY_CORRECTION_STATUSES) { "Unknown correction status" }
         AwayItem.ConnectionCorrected(
             o.datetime("at"), o.uuid("bridgeId"), status,
-            parseInquiryConcept(o.obj("fromConcept")), parseInquiryConcept(o.obj("toConcept")),
+            parseInquiryConcept(o.obj("fromConcept")), parseInquiryConcept(o.obj("toConcept")), o.bool("seemsWrong"),
         )
     }
     else -> throw IllegalArgumentException("Unknown away item kind")

@@ -46,8 +46,8 @@ import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
-import com.knowscroll.mobile.ui.keep.ConnectionState
 import com.knowscroll.mobile.ui.keep.FoundConnectionSheet
+import com.knowscroll.mobile.ui.keep.KeepControls
 import com.knowscroll.mobile.ui.keep.ReturnSheet
 import com.knowscroll.mobile.ui.theme.Cosmos
 
@@ -63,6 +63,9 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  *
  * #163 (ADR-0045): a place's Idea Rooms open over its sheet ([RoomSheet]); [rooms] is defaulted
  * the same way.
+ *
+ * #165 (ADR-0044): a place's sheet offers Keep too; [keeps] carries what the reader already kept or
+ * doubted and the choices, for places and found connections alike.
  */
 @Composable
 fun SystemScreen(
@@ -84,6 +87,8 @@ fun SystemScreen(
     onCloseEvidence: () -> Unit = {},
     away: AwayControls? = null,
     rooms: RoomControls? = null,
+    /** #165: Keep on a place and on a found connection, and what the reader already kept or doubted. */
+    keeps: KeepControls = KeepControls(),
 ) {
     val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var inspection by rememberSaveable { mutableStateOf(false) }
@@ -112,8 +117,6 @@ fun SystemScreen(
     // #134: the found connection whose evidence sheet is open, while the list still carries it.
     var openConnectionId by rememberSaveable { mutableStateOf<String?>(null) }
     val openConnection = away?.let { controls -> openConnectionId?.let { awayFound(controls.state, it) } }
-    // Recording paused: nothing is kept, and no room is set aside, until the reader resumes.
-    val paused = (away?.state as? com.knowscroll.mobile.ui.keep.AwayState.Loaded)?.response?.recordingPaused == true
     val openRoom = rooms?.takeIf { it.state !is RoomState.Closed }
     // The place's sheet and a room open over it close together.
     fun closeInspection() { inspection = false; rooms?.onClose?.invoke() }
@@ -222,7 +225,8 @@ fun SystemScreen(
                                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                             ) {
                                 com.knowscroll.mobile.ui.theme.PosterTheme {
-                                    if (openRoom != null) RoomSheet(openRoom, paused)
+                                    // Recording paused: no room is set aside until the reader resumes.
+                                    if (openRoom != null) RoomSheet(openRoom, keeps.paused)
                                     else
                                         PlaceDetail(
                                             place = focusedPlace,
@@ -236,18 +240,13 @@ fun SystemScreen(
                                             onOpenEvidence = onOpenEvidence,
                                             onCloseEvidence = onCloseEvidence,
                                             onOpenRoom = { rooms?.onOpen?.invoke(it) },
+                                            keeps = keeps,
                                         )
                                 }
                             }
-                        } else if (openConnection != null && away != null) {
+                        } else if (openConnection != null) {
                             ReturnSheet(onDismiss = { openConnectionId = null }) {
-                                FoundConnectionSheet(
-                                    found = openConnection,
-                                    state = away.connections[openConnection.bridgeId] ?: ConnectionState(),
-                                    actions = away.connection,
-                                    onClose = { openConnectionId = null },
-                                    paused = paused,
-                                )
+                                FoundConnectionSheet(found = openConnection, keeps = keeps, onClose = { openConnectionId = null })
                             }
                         }
                     }

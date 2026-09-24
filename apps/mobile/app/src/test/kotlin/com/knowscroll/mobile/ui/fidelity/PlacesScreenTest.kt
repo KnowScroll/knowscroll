@@ -2,6 +2,7 @@ package com.knowscroll.mobile.ui.fidelity
 
 import android.provider.Settings
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasContentDescription
@@ -31,6 +32,7 @@ import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.AtlasScrollCounts
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.data.WorldSummary
 import com.knowscroll.mobile.data.WorldSystem
 import com.knowscroll.mobile.data.WorldSystemResponse
@@ -39,6 +41,8 @@ import com.knowscroll.mobile.ui.AtlasState
 import com.knowscroll.mobile.ui.PlaceRejectState
 import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.assertNoSourceShown
+import com.knowscroll.mobile.ui.keep.KeepControls
+import com.knowscroll.mobile.ui.keep.KeepableState
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import org.junit.Assert.assertEquals
@@ -103,7 +107,8 @@ class PlacesScreenTest {
 
     private fun content(atlasState: AtlasState = AtlasState.Loaded(atlas), rejectState: PlaceRejectState = PlaceRejectState.Idle,
                          evidenceState: AtlasEvidenceState = AtlasEvidenceState.Idle, onRequestSetAside: (String) -> Unit = {},
-                         onCancelSetAside: () -> Unit = {}, onConfirmSetAside: () -> Unit = {}, onOpenEvidence: (String) -> Unit = {}) {
+                         onCancelSetAside: () -> Unit = {}, onConfirmSetAside: () -> Unit = {}, onOpenEvidence: (String) -> Unit = {},
+                         keeps: KeepControls = KeepControls()) {
         // Deterministic, immediate camera/level transitions -- the reduced-motion path
         // (docs/product/ui-system.md sec.4b) never sets `travelling`, so a level change is visible
         // the moment the click that caused it settles, with no animation timing to race against.
@@ -115,7 +120,7 @@ class PlacesScreenTest {
                     state = loadedWorlds, atlasState = atlasState, placeRejectState = rejectState, evidenceState = evidenceState,
                     onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
                     onRequestSetAside = onRequestSetAside, onCancelSetAside = onCancelSetAside, onConfirmSetAside = onConfirmSetAside,
-                    onOpenEvidence = onOpenEvidence,
+                    onOpenEvidence = onOpenEvidence, keeps = keeps,
                 )
             }
         }
@@ -269,6 +274,37 @@ class PlacesScreenTest {
         composeRule.onNodeWithText("Info").performClick()
         composeRule.onNodeWithText("Formed from 3 readings across 2 days.").assertExists()
         composeRule.assertNoSourceShown(*sources)
+    }
+
+    /** #165 (ADR-0044): a place is kept from its own sheet; "Set aside" is how the reader doubts it. */
+    @Test
+    fun keepKeepsThePlace() {
+        val kept = mutableListOf<RelicTarget>()
+        content(keeps = KeepControls(onKeep = { kept += it }))
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onNodeWithContentDescription("Keep this place").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(listOf<RelicTarget>(RelicTarget.Place(planetId)), kept)
+        composeRule.onNodeWithContentDescription("Set Gravity aside").performScrollTo().assertExists()
+        composeRule.assertNoSourceShown(*sources)
+    }
+
+    @Test
+    fun aKeptPlaceSaysSoAndIsNotOfferedAgain() {
+        content(keeps = KeepControls(states = mapOf(RelicTarget.Place(planetId) to KeepableState(kept = true))))
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onNodeWithText("Kept in your Relics").performScrollTo().assertExists()
+        composeRule.onAllNodesWithContentDescription("Keep this place").assertCountEquals(0)
+    }
+
+    @Test
+    fun whileRecordingIsPausedAPlaceIsNotKept() {
+        content(keeps = KeepControls(paused = true))
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onNodeWithText("Recording is paused, so nothing new is kept.").performScrollTo().assertExists()
+        composeRule.onAllNodesWithContentDescription("Keep this place").assertCountEquals(0)
     }
 
     @Test

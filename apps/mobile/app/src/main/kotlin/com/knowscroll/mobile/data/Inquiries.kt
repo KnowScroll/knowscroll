@@ -26,7 +26,8 @@ data class InquiryConcept(val code: String, val name: String)
 
 data class InquiryPair(val a: InquiryConcept, val b: InquiryConcept)
 
-data class InquiryEvidence(val claimKey: String, val statement: String, val supports: String, val sourceTitle: String, val sourceUrl: String)
+/** [withdrawn]: the claim has lost its current support since (ADR-0044 M4), never said by which source. */
+data class InquiryEvidence(val claimKey: String, val statement: String, val supports: String, val sourceTitle: String, val sourceUrl: String, val withdrawn: Boolean)
 
 /** The admitted bridge a `found` inquiry produced. [bridgeStatus] can later be `revoked` or
  * `superseded` by a source correction; the list still says what was found. */
@@ -136,12 +137,12 @@ internal fun parseInquiryFound(o: JSONObject): InquiryFound {
     val sentence = o.string("sentence")
     require(sentence.isNotEmpty() && sentence.length <= 600) { "A found bridge carries its sentence" }
     val evidence = o.array("evidence").strictObjects().map { e ->
-        e.requireKeys("claimKey", "statement", "supports", "sourceTitle", "sourceUrl")
+        e.requireKeys("claimKey", "statement", "supports", "sourceTitle", "sourceUrl", "withdrawn")
         val supports = e.string("supports")
         require(supports in INQUIRY_EVIDENCE_ROLES) { "Unknown evidence role" }
         val url = e.string("sourceUrl")
         require(URL.matches(url)) { "Evidence source is not a URL" }
-        InquiryEvidence(e.nonEmpty("claimKey"), e.nonEmpty("statement"), supports, e.nonEmpty("sourceTitle"), url)
+        InquiryEvidence(e.nonEmpty("claimKey"), e.nonEmpty("statement"), supports, e.nonEmpty("sourceTitle"), url, e.bool("withdrawn"))
     }
     require(evidence.size in 1..12) { "A found bridge cites its evidence" }
     return InquiryFound(o.uuid("bridgeId"), bridgeStatus, relationType, parseInquiryConcept(o.obj("fromConcept")), parseInquiryConcept(o.obj("toConcept")), sentence, evidence)

@@ -25,10 +25,11 @@ class AnswersTest {
         reasons: String = "[]",
         requestedAt: String = "2026-09-24T00:00:00.000Z",
         answeredAt: String? = "2026-09-24T00:01:00.000Z",
+        kept: Boolean = false, seemsWrong: Boolean = false,
     ) = JSONObject(
         """{"askId":"$askId","status":"$status","answer":${answer?.let { "\"$it\"" } ?: "null"},
             "basis":$basis,"limits":${limits?.let { "\"$it\"" } ?: "null"},"reasons":$reasons,
-            "requestedAt":"$requestedAt","answeredAt":${answeredAt?.let { "\"$it\"" } ?: "null"}}""",
+            "requestedAt":"$requestedAt","answeredAt":${answeredAt?.let { "\"$it\"" } ?: "null"},"kept":$kept,"seemsWrong":$seemsWrong}""",
     )
 
     private fun queuedJson() = answerJson(status = "queued", answer = null, basis = "[]", limits = null, reasons = "[]", answeredAt = null)

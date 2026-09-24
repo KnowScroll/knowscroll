@@ -32,7 +32,7 @@ import com.knowscroll.mobile.ui.RoomState
 import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.assertNoSourceShown
 import com.knowscroll.mobile.ui.keep.AwayState
-import com.knowscroll.mobile.ui.keep.ConnectionActions
+import com.knowscroll.mobile.ui.keep.KeepControls
 import com.knowscroll.mobile.ui.keep.ReturnActionState
 import com.knowscroll.mobile.ui.system.AwayControls
 import com.knowscroll.mobile.ui.system.RoomControls
@@ -102,9 +102,10 @@ class IdeaRoomsScreenTest {
                     atlasState = AtlasState.Loaded(atlas),
                     onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
                     away = AwayControls(
-                        state = AwayState.Loaded(AwayResponse(4, null, emptyList(), 0, paused)), acknowledge = ReturnActionState.Idle, connections = emptyMap(),
-                        onMarkSeen = {}, onRetryMarkSeen = {}, connection = ConnectionActions({}, {}, {}, {}),
+                        state = AwayState.Loaded(AwayResponse(4, null, emptyList(), 0, null, paused)), acknowledge = ReturnActionState.Idle,
+                        onMarkSeen = {}, onRetryMarkSeen = {},
                     ),
+                    keeps = KeepControls(paused = paused),
                     rooms = RoomControls(
                         state = state, setAside = setAside, onOpen = onOpen, onClose = {},
                         onRequestSetAside = onRequestSetAside, onCancelSetAside = {}, onConfirmSetAside = onConfirmSetAside,

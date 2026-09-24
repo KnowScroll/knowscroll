@@ -3,20 +3,42 @@
  * marker. It only orders, caps and counts; it never words anything or decides what counts as away
  * (the queries do: only what the reader did not cause).
  */
+import { AWAY_CURSOR_PATTERN, type AWAY_KINDS } from '../../contracts/src/away.ts';
 
 export type AwayCandidate = { kind: string; at: string; key: string };
 
+/** Byte-wise, as SQL compares under `COLLATE "C"`, so a page ends where the queries' order ends. */
+const bytewise = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 /**
- * Newest first; equal times fall back to kind and key so the order never depends on the queries'
- * own. Anything at or before `since` is dropped (a marker is exclusive). `total` is how many
- * unacknowledged items exist in all, which may exceed the candidates passed when a source was
- * itself capped (each source passes at least `limit + 1`). A list that is not full therefore left
- * nothing out, and says so even if a source counted a row it could not show.
+ * The list's one total order (ADR-0044 M7): newest first by the wire's millisecond, then kind, then
+ * key. The queries order the same way, so a page cursor neither repeats nor skips an item.
+ */
+export function compareAway(a: AwayCandidate, b: AwayCandidate): number {
+  return Date.parse(b.at) - Date.parse(a.at) || bytewise(a.kind, b.kind) || bytewise(a.key, b.key);
+}
+
+/** The cursor of a page's last item: the next page is everything after it in [compareAway]'s order. */
+export function awayCursor(item: AwayCandidate): string {
+  return `${item.at}|${item.kind}|${item.key}`;
+}
+
+export function parseAwayCursor(cursor: string): { at: string; kind: (typeof AWAY_KINDS)[number]; key: string } | null {
+  const m = AWAY_CURSOR_PATTERN.exec(cursor);
+  return m ? { at: m[1]!, kind: m[2] as (typeof AWAY_KINDS)[number], key: m[3]! } : null;
+}
+
+/**
+ * Newest first, in [compareAway]'s order. Anything at or before `since` is dropped (a marker is
+ * exclusive). `total` is how many unacknowledged items exist in all (from the page's start on),
+ * which may exceed the candidates passed when a source was itself capped (each source passes at
+ * least `limit + 1`). A list that is not full therefore left nothing out, and says so even if a
+ * source counted a row it could not show.
  */
 export function selectAway<T extends AwayCandidate>(candidates: readonly T[], since: string | null, limit: number, total: number): { items: T[]; more: number } {
   if (!Number.isInteger(limit) || limit < 1) throw new Error('limit must be a positive integer');
   const after = since === null ? [...candidates] : candidates.filter(c => Date.parse(c.at) > Date.parse(since));
-  after.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || a.kind.localeCompare(b.kind) || a.key.localeCompare(b.key));
+  after.sort(compareAway);
   const items = after.slice(0, limit);
   return { items, more: items.length < limit ? 0 : Math.max(0, Math.max(total, after.length) - items.length) };
 }
