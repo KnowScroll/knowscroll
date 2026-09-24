@@ -4,6 +4,7 @@ import com.knowscroll.mobile.data.AnswerBasisQuote
 import com.knowscroll.mobile.data.AnswerStatus
 import com.knowscroll.mobile.data.AnswerView
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.WatchedAnswer
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,6 +34,15 @@ class AskPresentationTest {
         assertEquals(AnswerRequestConflict.NotAsker, answerRequestConflict(ApiException.Server(409, """{"error":"Only the session that asked can request its answer"}""")))
         assertNull("an unrecognized 409 is not silently mapped to one of the four", answerRequestConflict(ApiException.Server(409, "{}")))
         assertNull("only a 409 is a request-answer conflict", answerRequestConflict(ApiException.Server(503, """{"error":"Answers are not enabled on this deployment"}""")))
+    }
+
+    @Test
+    fun aPanelLostWithTheProcessReopensOnTheAnswerItWasWaitingFor() {
+        val watched = WatchedAnswer("a1", "scroll-1", 3, "Why?")
+        assertEquals(AskPanel("scroll-1", AskStage.Waiting("a1", "queued"), "Why?"), reopenedAskPanel("scroll-1", 3, watched))
+        assertEquals("another Scroll starts fresh", AskPanel("scroll-2"), reopenedAskPanel("scroll-2", 3, watched))
+        assertEquals("another epoch never shows it", AskPanel("scroll-1"), reopenedAskPanel("scroll-1", 4, watched))
+        assertEquals(AskPanel("scroll-1"), reopenedAskPanel("scroll-1", 3, null))
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.knowscroll.mobile.ui.ask
 import com.knowscroll.mobile.data.AnswerStatus
 import com.knowscroll.mobile.data.AnswerView
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.WatchedAnswer
 
 /**
  * #132 — ADR-0033: authorized answers to a reader's Ask about the Scroll on screen. Recording a
@@ -39,6 +40,14 @@ internal fun stageAfterPoll(askId: String, view: AnswerView): AskStage = when (v
     AnswerStatus.Running -> AskStage.Waiting(askId, "running")
     else -> AskStage.Final(askId, view)
 }
+
+/** #166: the panel the Ask sheet opens with for [assetId] when none is in memory -- after the process
+ * was killed, the answer it was waiting for (the next poll reads its real status), and otherwise a fresh
+ * one. Another Scroll or another epoch never picks it up. */
+internal fun reopenedAskPanel(assetId: String, epoch: Long, watched: WatchedAnswer?): AskPanel =
+    watched?.takeIf { it.assetId == assetId && it.expectedPrivacyEpoch == epoch }
+        ?.let { AskPanel(assetId, AskStage.Waiting(it.askId, "queued"), it.question) }
+        ?: AskPanel(assetId)
 
 enum class AnswerRequestConflict { Paused, NotAsker, AlreadyRequested, StaleEpoch }
 

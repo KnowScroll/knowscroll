@@ -150,6 +150,22 @@ class StateStore(context: Context) {
     }
     fun clearPendingAnswerRequest() { check(prefs.edit().remove("pendingAnswerRequest").commit()) { "Could not clear the answer request" } }
 
+    /** #166: the answer being waited for, so it survives the process (see [WatchedAnswer]). */
+    fun writeWatchedAnswer(w: WatchedAnswer) {
+        val json = JSONObject().apply {
+            put("askId", w.askId); put("assetId", w.assetId); put("expectedPrivacyEpoch", w.expectedPrivacyEpoch); put("question", w.question)
+        }
+        check(prefs.edit().putString("watchedAnswer", json.toString()).commit()) { "Could not save the answer being waited for" }
+    }
+    fun readWatchedAnswer(): WatchedAnswer? {
+        val raw = prefs.getString("watchedAnswer", null) ?: return null
+        return runCatching {
+            val o = JSONObject(raw)
+            WatchedAnswer(o.getString("askId"), o.getString("assetId"), o.getLong("expectedPrivacyEpoch"), o.getString("question"))
+        }.getOrNull()
+    }
+    fun clearWatchedAnswer() { check(prefs.edit().remove("watchedAnswer").commit()) { "Could not clear the answer being waited for" } }
+
     /** #132/ADR-0038: the persisted retry envelope for `PUT /v1/inquiries/consent` -- the client
      * request id with the exact content and the epoch it was sent with, written before dispatch.
      * Personal history: [purgePrivateState] drops it. */
@@ -317,7 +333,7 @@ class StateStore(context: Context) {
         check(prefs.edit()
             .remove("session").remove("session_Scroll").remove("session_Reel").remove("readingAssetId").remove("readingPosition")
             .remove("branchTrail").remove("pendingBranch")
-            .remove("pendingAsk").remove("pendingAnswerRequest")
+            .remove("pendingAsk").remove("pendingAnswerRequest").remove("watchedAnswer")
             .remove("pendingInquiryConsent")
             .remove("revisit")
             .remove("visited").remove("pendingHistoryClear")
