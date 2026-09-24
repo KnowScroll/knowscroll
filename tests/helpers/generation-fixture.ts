@@ -20,3 +20,18 @@ export async function drainStrayJobs(db: pg.Pool, owner: string): Promise<void> 
     if (!claimed) return;
   }
 }
+
+/** Registers a Cutroom engine nothing listens on, for rows that only need one to point at. An
+ * origin belongs to at most one active engine (`cutroom_engine_one_active_origin`), and every file's
+ * engines stay active in the shared database, so the port is the lowest one no active engine holds
+ * -- #169: a random port collided with an earlier file's engine often enough to fail CI. */
+export async function insertFakeEngine(db: pg.Pool, engine: {id: string; artifactRoot: string; providerMode: 'standin' | 'live'}): Promise<void> {
+  const inserted = await db.query(
+    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
+     SELECT $1,'http://127.0.0.1:'||port,$2,$3,$4,'test' FROM generate_series(20000,49999) AS port
+     WHERE NOT EXISTS (SELECT 1 FROM cutroom_engine WHERE origin='http://127.0.0.1:'||port AND retired_at IS NULL)
+     ORDER BY port LIMIT 1`,
+    [engine.id, storage.CUTROOM_CONTRACT_REVISION, engine.artifactRoot, engine.providerMode],
+  );
+  if (inserted.rowCount !== 1) throw new Error('every fixture engine origin is held by an active engine');
+}

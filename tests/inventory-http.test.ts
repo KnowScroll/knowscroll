@@ -17,6 +17,7 @@ import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
 import { generationBrief } from '../packages/contracts/src/generation.ts';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
+import { insertFakeEngine } from './helpers/generation-fixture.ts';
 import { mintReelAsset, withdrawGeneratedReel } from '../apps/worker/src/publication/mint.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
@@ -81,12 +82,7 @@ async function seedMintedReel(tag: string): Promise<{ assetId: string; mediaSha2
   );
 
   const engineId = randomUUID();
-  const port = 20000 + Math.floor(Math.random() * 30000);
-  await pool.query(
-    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
-     VALUES($1,$2,$3,'/tmp/inventory-http-fixtures','standin','test')`,
-    [engineId, `http://127.0.0.1:${port}`, REVISION],
-  );
+  await insertFakeEngine(pool, { id: engineId, artifactRoot: '/tmp/inventory-http-fixtures', providerMode: 'standin' });
   const grantId = randomUUID();
   await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`, [grantId]);
   await pool.query('UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1', [grantId]);

@@ -17,6 +17,7 @@ import type { AddressInfo } from 'node:net';
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
+import { insertFakeEngine } from './helpers/generation-fixture.ts';
 import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts';
 import { generationBrief } from '../packages/contracts/src/generation.ts';
 import { MEDIA_SIMULATED_HEADER } from '../apps/api/src/media.ts';
@@ -106,13 +107,8 @@ async function seedMediaFixture(options: MediaFixtureOptions): Promise<MediaFixt
   );
 
   const engineId = randomUUID();
-  const port = 20000 + Math.floor(Math.random() * 30000);
   const budgetCents = providerMode === 'live' ? 100 : 500;
-  await pool.query(
-    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
-     VALUES($1,$2,$3,'/tmp/publication-http-fixtures',$4,'test')`,
-    [engineId, `http://127.0.0.1:${port}`, REVISION, providerMode],
-  );
+  await insertFakeEngine(pool, { id: engineId, artifactRoot: '/tmp/publication-http-fixtures', providerMode });
   const grantId = randomUUID();
   if (providerMode === 'live') {
     await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,authorization_ref,expires_at) VALUES($1,'live',200,'test fixture',now()+interval '1 day')`, [grantId]);
@@ -184,6 +180,23 @@ async function seedMediaFixture(options: MediaFixtureOptions): Promise<MediaFixt
 }
 
 // -------------------------------------------------------------------------------------------
+
+test('a fixture engine never takes an origin an engine registered earlier in this run still holds', async (t) => {
+  // #169: every file's engines stay active in the one shared database, and an origin belongs to at
+  // most one active engine. A random fixture port that landed on one of them failed this file on CI.
+  const held = 'http://127.0.0.1:20000';
+  await pool.query(
+    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
+     VALUES($1,$2,$3,'/tmp/publication-http-fixtures','standin','test') ON CONFLICT (origin) WHERE retired_at IS NULL DO NOTHING`,
+    [randomUUID(), held, REVISION],
+  );
+  t.mock.method(Math, 'random', () => 0); // where a random pick would land: on the held origin
+  const fixture = await seedMediaFixture({ availability: 'eligible' });
+  const engine = await pool.query(
+    'SELECT e.origin FROM generated_reel r JOIN cutroom_engine e ON e.id=r.engine_id WHERE r.id=$1', [fixture.generatedReelId],
+  );
+  assert.notEqual(engine.rows[0]?.origin, held);
+});
 
 test('GET|HEAD /v1/media/:sha256', async (t) => {
   await t.test('401 without a session', async () => {

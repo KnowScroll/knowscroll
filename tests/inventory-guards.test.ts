@@ -15,6 +15,7 @@ import pg from 'pg';
 import { runMigrations } from '../packages/db/src/migrations.ts';
 import { generationBrief } from '../packages/contracts/src/generation.ts';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
+import { insertFakeEngine } from './helpers/generation-fixture.ts';
 
 // -------------------------------------------------------------------------------------------
 // Disposable-database plumbing (same shape as tests/publication-guards.test.ts).
@@ -107,12 +108,7 @@ async function seedGeneratedReel(pool: pg.Pool, options: SeedOptions = {}): Prom
   );
 
   const engineId = randomUUID();
-  const port = 20000 + Math.floor(Math.random() * 30000);
-  await pool.query(
-    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
-     VALUES($1,$2,$3,'/tmp/inventory-guard-fixtures',$4,'test')`,
-    [engineId, `http://127.0.0.1:${port}`, REVISION, providerMode],
-  );
+  await insertFakeEngine(pool, { id: engineId, artifactRoot: '/tmp/inventory-guard-fixtures', providerMode });
 
   const grantId = randomUUID();
   const budgetCents = providerMode === 'live' ? 100 : 500;
