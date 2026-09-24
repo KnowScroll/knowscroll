@@ -14,6 +14,7 @@ import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { awayResponse } from '../packages/contracts/src/away.ts';
+import { compareAway } from '../packages/core/src/away.ts';
 import { roomDeltaResponse, roomResponse } from '../packages/contracts/src/rooms.ts';
 import type { SubstrateSeed } from '../packages/contracts/src/semantic.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
@@ -209,6 +210,33 @@ test('two readings disagree: a qualified claim seats the doubter, and a correcti
   assert.ok(item && item.kind === 'room_changed', 'the change is away news');
   assert.deepEqual([item.deltaId, item.roomId, item.change, item.cause, item.line],
     [left.deltaId, room.roomId, 'inhabitant_unseated', 'source_correction', 'The doubter left: what its claims were based on changed.']);
+});
+
+test('pages reach room and place changes exactly once, even inside one millisecond at a page\'s edge (ADR-0044 M7)', async () => {
+  const { r, place, room } = await gravityRoom();
+  const away = async (page?: string) => {
+    const response = await app.inject({ url: page ? `/v1/away?page=${encodeURIComponent(page)}` : '/v1/away', headers: r.headers });
+    assert.equal(response.statusCode, 200, response.body);
+    return awayResponse.parse(response.json());
+  };
+  assert.deepEqual((await away()).items, [], 'nothing yet that the reader did not cause');
+  // 24 source corrections a second apart, places and the room alternating, except six that share one
+  // millisecond across the first page's edge, so that page ends on a room's change.
+  for (let i = 24; i >= 1; i -= 1) {
+    const at = `date_trunc('milliseconds', clock_timestamp()) - make_interval(secs => $3) + make_interval(secs => $4::double precision / 1000000)`;
+    const secs = i >= 7 && i <= 12 ? 7 : i;
+    if (i % 2) await pool.query(`INSERT INTO atlas_delta(id,universe_id,place_id,kind,causal_class,policy_version,evidence,before,after,created_at)
+      VALUES(gen_random_uuid(),$1,$2,'place_released','source_correction','cartographer-v2','{}','{}','{}',${at})`, [r.universeId, place.placeId, secs, i]);
+    else await pool.query(`INSERT INTO room_delta(id,universe_id,room_id,kind,causal_class,policy_version,evidence,after,created_at)
+      VALUES(gen_random_uuid(),$1,$2,'room_retired','source_correction','keeper-v1','{}','{}',${at})`, [r.universeId, room.roomId, secs, i]);
+  }
+  const pages = [await away()];
+  while (pages.at(-1)!.nextPage) pages.push(await away(pages.at(-1)!.nextPage!));
+  assert.match(pages[0]!.nextPage!, /\|room_changed\|/);
+  assert.deepEqual(pages.map(p => [p.items.length, p.more]), [[10, 14], [10, 4], [4, 0]]);
+  const items = pages.flatMap(p => p.items).map(i => ({ kind: i.kind, at: i.at, key: 'deltaId' in i ? i.deltaId : '' }));
+  assert.equal(new Set(items.map(i => i.key)).size, 24, 'no item twice, none skipped');
+  assert.deepEqual(items, [...items].sort(compareAway), 'one order across pages');
 });
 
 test('the reader sets a room aside: never while paused or on a stale epoch, once, and its Asks never reopen a room', async () => {

@@ -158,6 +158,14 @@ class AwayTest {
     }
 
     @Test
+    fun aPageMayEndOnEveryKindTheListCarries() {
+        for (kind in listOf("connection_found", "connection_did_not_hold_up", "nothing_found", "place_changed", "room_changed", "connection_corrected")) {
+            val next = "2026-09-24T09:50:00.000Z|$kind|$inquiryId"
+            assertEquals(next, parseAwayResponse(response(*fullList(), more = 7, nextPage = next)).nextPage)
+        }
+    }
+
+    @Test
     fun aNextPageExactlyWhenThereIsMoreAndInTheContractsForm() {
         refused(response(*fullList(), more = 7, nextPage = null))
         refused(response(nothingFound(), nextPage = cursor))

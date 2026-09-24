@@ -17,13 +17,6 @@ const pairs = z.array(z.object({ a: conceptRef, b: conceptRef }).strict()).min(1
 
 export const AWAY_LIST_LIMIT = 10;
 
-export const AWAY_KINDS = ['connection_found', 'connection_did_not_hold_up', 'nothing_found', 'place_changed', 'connection_corrected'] as const;
-
-/** A page ends at `at|kind|id`: its last item in the list's one total order (ADR-0044 M7). */
-export const AWAY_CURSOR_PATTERN = new RegExp(
-  `^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)\\|(${AWAY_KINDS.join('|')})\\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`);
-export const awayPageCursor = z.string().regex(AWAY_CURSOR_PATTERN);
-
 /** Whether this reader marked the connection "seems wrong" (ADR-0031): it is then neither kept nor
  * marked again, even by a client that lost its own record of it (ADR-0044 M5). */
 const seemsWrong = z.boolean();
@@ -59,6 +52,14 @@ export const awayItem = z.discriminatedUnion('kind', [
   }).strict(),
 ]);
 export type AwayItem = z.infer<typeof awayItem>;
+
+/** Every kind the list carries, so a page may end on any of them. */
+export const AWAY_KINDS = awayItem.options.map(option => option.shape.kind.value);
+
+/** A page ends at `at|kind|id`: its last item in the list's one total order (ADR-0044 M7). */
+export const AWAY_CURSOR_PATTERN = new RegExp(
+  `^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)\\|(${AWAY_KINDS.join('|')})\\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`);
+export const awayPageCursor = z.string().regex(AWAY_CURSOR_PATTERN);
 
 export const awayResponse = z.object({
   privacyEpoch: epoch,

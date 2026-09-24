@@ -75,7 +75,8 @@ that readers never see a source).
    - **M5, "seems wrong" survives the process.** `connection_found` and `connection_corrected` away
      items carry `seemsWrong`: whether this reader objected to that bridge.
    - **M6, commit order.** Every away item's time is taken under a lock that `GET /v1/away` also
-     takes before it reads: inquiry outcomes and place changes are written under the universe lock,
+     takes before it reads: inquiry outcomes, place changes and room changes (ADR-0045) are written
+     under the universe lock,
      connection corrections under the substrate lock (exclusive), and the read takes the universe
      lock and then the substrate lock shared. So an item a read could not see is stamped after that
      read ended, and a marker moved from what the read showed can never pass it. No sequence is
@@ -83,7 +84,8 @@ that readers never see a source).
    - **M7, paging.** `GET /v1/away` returns the newest ten and `nextPage` when there are more;
      `GET /v1/away?page=<cursor>` returns the next older ten. The order is total (the item's
      millisecond, newest first, then kind, then id, compared byte-wise in both SQL and core), so
-     pages neither repeat nor skip an item, even inside one millisecond. "Mark as seen" still moves
+     pages neither repeat nor skip an item, even inside one millisecond. A page may end on any kind
+     the list carries: the cursor's kinds are the item union's own. "Mark as seen" still moves
      the marker to the newest item displayed (ADR-0039 §2); the reader can page through everything
      first, and the section says how many earlier items there are.
    - **M8, Relics.** `GET /v1/relics` pages the same way (newest first by keep time, then id), so
