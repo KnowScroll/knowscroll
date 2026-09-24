@@ -731,6 +731,36 @@ describe('Sign-out and account deletion (#135, ADR-0034/ADR-0035)', () => {
     expect(signedOut).toEqual([{ message: null, verify: false }]);
   });
 
+  it('signing out clears this browser\'s local reader traces (session, revisit, visited, last kept) like Android does', async () => {
+    for (const outcome of ['ok', new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' })] as const) {
+      const { api, storage, store, signedOut } = setup();
+      await openLoadedPrivacy(api, store);
+      storage.writeSession({
+        decisionId: 'd1', item: feedItem(), privacyEpoch: 0, universeId: universeOf().universeId, clientExposureId: 'c1',
+        clientEventId: 'c2', exposureId: 'exp-1', exposureEventId: 'evt-1', keepJobId: 'job-1', keepEventId: 'evt-2', readingPosition: 10,
+      });
+      storage.writeLastKept({ eventId: 'evt-2', title: 'Kept', reason: 'because', universeId: universeOf().universeId, privacyEpoch: 0 });
+      storage.writeVisited(new Set([feedItem().assetId]));
+      api.sessionRevokeQueue.push(outcome);
+      store.signOut();
+      await waitFor(() => signedOut.length === 1);
+      expect(storage.readSession()).toBeNull();
+      expect(storage.readLastKept()).toBeNull();
+      expect(storage.readRevisit()).toBeNull();
+      expect(storage.readVisited().size).toBe(0);
+    }
+  });
+
+  it('a failed sign-out keeps the local traces: nothing has ended yet', async () => {
+    const { api, storage, store } = setup();
+    await openLoadedPrivacy(api, store);
+    storage.writeLastKept({ eventId: 'evt-2', title: 'Kept', reason: 'because', universeId: universeOf().universeId, privacyEpoch: 0 });
+    api.sessionRevokeQueue.push(new ApiException({ kind: 'network', message: 'dropped' }));
+    store.signOut();
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    expect(storage.readLastKept()).not.toBeNull();
+  });
+
   it('a failed sign-out shows a real failure and a working retry, never a fabricated sign-out', async () => {
     const { api, store, signedOut } = setup();
     await openLoadedPrivacy(api, store);

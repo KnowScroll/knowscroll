@@ -445,17 +445,19 @@ export class ReaderStore {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
     this.busy = true;
     const version = this.navigationVersion;
+    const universeId = this.observedUniverseId;
+    const epoch = this.observedPrivacyEpoch;
     this.setPrivacyAction({ status: 'pending', kind: 'sign-out', requestId: '' });
     this.api
       .postSessionRevoke()
       .then(() => {
         if (version !== this.navigationVersion) return;
-        this.onSignedOut?.(null, false);
+        this.finishSignOut(universeId, epoch);
       })
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
         if (isUnauthorized(error)) {
-          this.onSignedOut?.(null, false); // already gone -- the same outcome the caller asked for
+          this.finishSignOut(universeId, epoch); // already gone -- the same outcome the caller asked for
           return;
         }
         this.setPrivacyAction({ status: 'failed', kind: 'sign-out', requestId: '', message: describeApiError(error) });
@@ -463,6 +465,13 @@ export class ReaderStore {
       .finally(() => {
         if (version === this.navigationVersion) this.busy = false;
       });
+  }
+
+  /** The session this browser held is over: its local reading traces (session, revisit, visited,
+   * last kept) go with it, as Android's sign-out already does; the observed epoch is kept. */
+  private finishSignOut(universeId: string, epoch: number): void {
+    this.storage.purgePrivateState(universeId, epoch);
+    this.onSignedOut?.(null, false);
   }
 
   /** Behind an explicit typed word (#135, ADR-0035): this only opens the confirmation UI. Nothing
