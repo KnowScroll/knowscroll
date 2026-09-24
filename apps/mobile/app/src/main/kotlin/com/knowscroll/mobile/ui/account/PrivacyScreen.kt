@@ -183,8 +183,8 @@ private fun RecordingSection(recordingPausedAt: String?, pause: PrivacyOperation
                 modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Resume recording" },
             ) { Text(stringResource(R.string.privacy_resume_action)) }
         }
-        operationStatus(pause, actions.onRetryPause, "Retry pause recording")
-        operationStatus(resume, actions.onRetryResume, "Retry resume recording")
+        OperationStatus(pause, actions.onRetryPause, "Retry pause recording")
+        OperationStatus(resume, actions.onRetryResume, "Retry resume recording")
     }
 }
 
@@ -228,7 +228,7 @@ private fun ResetSection(reset: PrivacyOperationState, actions: PrivacyActions) 
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Coral),
             modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Reset my personal history" },
         ) { Text(stringResource(R.string.privacy_reset_action)) }
-        operationStatus(reset, actions.onRetryReset, "Retry reset my personal history")
+        OperationStatus(reset, actions.onRetryReset, "Retry reset my personal history")
     }
     if (reset is PrivacyOperationState.Confirming) DestructiveConfirmation(
         title = stringResource(R.string.privacy_reset_title), body = stringResource(R.string.privacy_reset_effects),
@@ -248,7 +248,7 @@ private fun DeleteSection(delete: PrivacyOperationState, actions: PrivacyActions
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Coral),
             modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Delete my account" },
         ) { Text(stringResource(R.string.privacy_delete_action)) }
-        operationStatus(delete, actions.onRetryDelete, "Retry delete my account")
+        OperationStatus(delete, actions.onRetryDelete, "Retry delete my account")
     }
     if (delete is PrivacyOperationState.Confirming) DestructiveConfirmation(
         title = stringResource(R.string.privacy_delete_title), body = stringResource(R.string.privacy_delete_effects),
@@ -267,7 +267,7 @@ private fun SignOutSection(signOut: PrivacyOperationState, actions: PrivacyActio
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
             modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Sign out this device from Privacy" },
         ) { Text(stringResource(R.string.privacy_sign_out_action)) }
-        operationStatus(signOut, actions.onRetrySignOut, "Retry sign out this device from Privacy")
+        OperationStatus(signOut, actions.onRetrySignOut, "Retry sign out this device from Privacy")
     }
     if (signOut is PrivacyOperationState.Confirming) DestructiveConfirmation(
         title = stringResource(R.string.sign_out_title), body = stringResource(R.string.sign_out_effects),
@@ -278,7 +278,7 @@ private fun SignOutSection(signOut: PrivacyOperationState, actions: PrivacyActio
 }
 
 @Composable
-private fun operationStatus(state: PrivacyOperationState, onRetry: () -> Unit, retryDescription: String) {
+private fun OperationStatus(state: PrivacyOperationState, onRetry: () -> Unit, retryDescription: String) {
     when (state) {
         is PrivacyOperationState.Working -> Text(stringResource(R.string.privacy_working), color = Cosmos.MutedOnDark)
         is PrivacyOperationState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
