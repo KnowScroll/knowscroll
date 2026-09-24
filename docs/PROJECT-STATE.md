@@ -1,5 +1,16 @@
 # Project state
 
+## 2026-09-25 Android: sources hidden, corrections reach you while away, model-written Scrolls, Reels that explain themselves (#72)
+
+On the Android test app, readers no longer see any source. A source correction now reaches your
+places while you are away, and "While you were away" says what changed. The Cable serves Scrolls a
+model wrote in its own words from public-domain pages; each claim was checked word for word against
+the page, which is kept privately. Reels explain why they appeared and continue into related Scrolls.
+If you close the Ask sheet, or the app is killed, a pending answer is picked up again. Background
+connection-finding can repair a refused proposal once, keeping its reasoning private. Still ahead:
+Idea Rooms (#163, in review), typed Relics (#165), inventory (#164), release readiness (#168) and
+the acceptance matrix (#170).
+
 ## 2026-09-24 What is left, and how the next session works (#72)
 
 Six phases: #131 is done. #132–#136 continue as twelve concrete issues (#160–#171). The next

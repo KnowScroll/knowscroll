@@ -1,5 +1,49 @@
 # Shared delivery checkpoint
 
+## 2026-09-25 Android-first continuation, Waves 0–2 (coordinator)
+
+Main moved from `485faf7` to `d009225`. Every slice was used by hand on the API36 emulator as
+`com.knowscroll.mobile.journeytest`. After each run PreviewWatch confirmed the owner's preview was
+unchanged.
+
+- **Wave 0:**
+  - #172: the continuation handoff.
+  - #173: `scripts/android-hands-on.py`, a disposable stack that stays up for hands-on use: `up`,
+    `shot`, `sql`, `exec`, `restart`, `reinstall`, `down`.
+- **#160 correction refresh** (#174, ADR-0040, migration 0034):
+  - The worker's catch-up pass refreshes readers behind the correction log, keyed on the log's row
+    count.
+  - A universe whose refresh fails is deferred to the back of the next pass.
+  - Seen by hand: a correction while away is shown on return, a pause holds the catch-up, Clear
+    erases it.
+- **#161 hidden sources** (#176): no source name, URL, publisher, licence or count on any Android
+  surface.
+  - The world layer is removed; the reader's places are the map.
+  - The specs record the owner decision.
+  - All touched journeys pass. `trace-revisit` had been stale on main since #130 and was repaired.
+- **#169 CI flakes** (#175): pg-pool-end, generation-runtime leases, engine origin collisions and a
+  view-model race were root-caused and fixed. Unestablished causes are in #177.
+- **#162 model-written Scrolls** (#178, ADR-0041, migration 0035):
+  - Allowlisted public-domain material is stored privately; MiniMax-M3 writes in its own words; the
+    deterministic `scroll-checks-v2` decide admission.
+  - Live batch: 35 requests, 18 admitted.
+  - Read on the emulator with no source visible. Follow-ups are in #181.
+- **#166 reasoning** (#179, ADR-0042, migration 0036):
+  - Native continuation as a bounded repair, with the thinking blocks as protected data.
+  - Optional children on one budget, two new triggers, #153 done.
+  - Android Ask recovers after a kill, and reopening the sheet resumes watching.
+  - Live: two runs, 2 requests; the continuation step itself was not observed live. Follow-ups are
+    in #182.
+- **#167 Reels** (#180, ADR-0043, migration 0037):
+  - Reels carry their Scroll's concepts and have a Why sheet and continuations.
+  - `composer-semantic-v4` runs in shadow, fixing v3's cold-start clustering (20/40 → 2/40).
+  - Follow-ups are in #183.
+- **Process.**
+  - Migration numbers were reassigned to merge order (`RELEASED.txt` forbids inserting a number
+    behind a released one).
+  - The MiniMax session ledger stands at 72 of 190.
+  - Agent runs so far: 15 of 30.
+
 ## 2026-09-24 Wave 0: a hands-on stack for the test app (lane `72-hands-on`)
 
 `scripts/android-hands-on.py up` creates a `knowscroll_test_hands_*` database (migrated, seeded), starts
