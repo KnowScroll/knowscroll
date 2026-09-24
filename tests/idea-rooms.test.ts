@@ -221,14 +221,16 @@ test('pages reach room and place changes exactly once, even inside one milliseco
   };
   assert.deepEqual((await away()).items, [], 'nothing yet that the reader did not cause');
   // 24 source corrections a second apart, places and the room alternating, except six that share one
-  // millisecond across the first page's edge, so that page ends on a room's change.
+  // millisecond across the first page's edge, so that page ends on a room's change. One base time for
+  // all: each insert reading the clock itself could split the six across two milliseconds.
+  const base = (await pool.query<{ t: Date }>("SELECT date_trunc('milliseconds', clock_timestamp()) AS t")).rows[0]!.t;
   for (let i = 24; i >= 1; i -= 1) {
-    const at = `date_trunc('milliseconds', clock_timestamp()) - make_interval(secs => $3) + make_interval(secs => $4::double precision / 1000000)`;
+    const at = `$5::timestamptz - make_interval(secs => $3) + make_interval(secs => $4::double precision / 1000000)`;
     const secs = i >= 7 && i <= 12 ? 7 : i;
     if (i % 2) await pool.query(`INSERT INTO atlas_delta(id,universe_id,place_id,kind,causal_class,policy_version,evidence,before,after,created_at)
-      VALUES(gen_random_uuid(),$1,$2,'place_released','source_correction','cartographer-v2','{}','{}','{}',${at})`, [r.universeId, place.placeId, secs, i]);
+      VALUES(gen_random_uuid(),$1,$2,'place_released','source_correction','cartographer-v2','{}','{}','{}',${at})`, [r.universeId, place.placeId, secs, i, base]);
     else await pool.query(`INSERT INTO room_delta(id,universe_id,room_id,kind,causal_class,policy_version,evidence,after,created_at)
-      VALUES(gen_random_uuid(),$1,$2,'room_retired','source_correction','keeper-v1','{}','{}',${at})`, [r.universeId, room.roomId, secs, i]);
+      VALUES(gen_random_uuid(),$1,$2,'room_retired','source_correction','keeper-v1','{}','{}',${at})`, [r.universeId, room.roomId, secs, i, base]);
   }
   const pages = [await away()];
   while (pages.at(-1)!.nextPage) pages.push(await away(pages.at(-1)!.nextPage!));
