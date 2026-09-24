@@ -1635,6 +1635,24 @@
           "supportKind": "supports"
         }
       ]
+    },
+    {
+      "key": "clm.energy_budget.definition",
+      "statement": "Earth's energy budget is the flow of energy coming into and going out of the Earth system.",
+      "truthState": "documented",
+      "concepts": [
+        {
+          "code": "earth.climate.energy_budget",
+          "role": "subject"
+        }
+      ],
+      "support": [
+        {
+          "sourceKey": "nasa.energy_budget",
+          "quote": "This flow of incoming and outgoing energy is Earth’s energy budget.",
+          "supportKind": "supports"
+        }
+      ]
     }
   ],
   "relations": [
@@ -2164,6 +2182,10 @@
           {
             "claimKey": "clm.tides.waves",
             "supports": "to"
+          },
+          {
+            "claimKey": "clm.gravity.definition",
+            "supports": "from"
           }
         ],
         "counterevidence": {
@@ -2210,6 +2232,10 @@
           {
             "claimKey": "clm.orbits.gravity_unknown_to_kepler",
             "supports": "to"
+          },
+          {
+            "claimKey": "clm.gravity.definition",
+            "supports": "from"
           }
         ],
         "counterevidence": {
@@ -2256,6 +2282,10 @@
           {
             "claimKey": "clm.star.birth_gravity",
             "supports": "to"
+          },
+          {
+            "claimKey": "clm.gravity.definition",
+            "supports": "from"
           }
         ],
         "counterevidence": {
@@ -2302,6 +2332,10 @@
           {
             "claimKey": "clm.sun.life_dependency",
             "supports": "from"
+          },
+          {
+            "claimKey": "clm.energy_budget.definition",
+            "supports": "to"
           }
         ],
         "counterevidence": {
@@ -2348,6 +2382,14 @@
           {
             "claimKey": "clm.homeo.neg_feedback",
             "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.sun.core_fusion_pressure",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.homeo.components",
+            "supports": "to"
           }
         ],
         "counterevidence": {
@@ -2398,6 +2440,14 @@
           {
             "claimKey": "clm.energy_budget.radiative_cooling",
             "supports": "mechanism"
+          },
+          {
+            "claimKey": "clm.energy_budget.disturbance",
+            "supports": "from"
+          },
+          {
+            "claimKey": "clm.homeo.components",
+            "supports": "to"
           }
         ],
         "counterevidence": {

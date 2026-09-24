@@ -104,6 +104,39 @@ class BranchesTest {
     }
 
     @Test
+    fun aPausedBranchCarriesNoDecisionAndMayNotClaimToBeRecorded() = runBlocking {
+        fun reply(decision: String, recorded: Boolean) = """{"decisionId":$decision,"universeId":"u","accountRevision":0,"privacyEpoch":0,
+            "items":[{"assetId":"a2","revision":1,"kind":"Scroll","title":"t","summary":"s","body":"b","sourceTitle":"st","sourceUrl":"https://x","truthState":"documented","reason":"A connection you chose"}],
+            "branch":{"branchOpenId":null,"recorded":$recorded,"bridgeId":"br1","relationType":"explains","direction":"reverse"}}"""
+        ServerSocket(0).use { server ->
+            val replies = listOf(reply("null", false), reply("null", true), reply("\"d2\"", false))
+            val worker = thread {
+                replies.forEach { body ->
+                    server.accept().use { socket ->
+                        val input = socket.getInputStream().bufferedReader()
+                        var length = 0
+                        while (true) {
+                            val line = input.readLine()
+                            if (line.isNullOrEmpty()) break
+                            if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
+                        }
+                        input.read(CharArray(length), 0, length)
+                        socket.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n$body").toByteArray())
+                    }
+                }
+            }
+            val api = ApiClient("http://127.0.0.1:${server.localPort}", "fixture-token", maxAttempts = 1)
+            val request = BranchOpenRequest("k1", "e1", "br1", "a2", 0, "u")
+            val paused = api.openBranch(request)
+            assertEquals("", paused.feed.decisionId)
+            assertFalse(paused.recorded)
+            assertTrue(runCatching { api.openBranch(request) }.exceptionOrNull() is ApiException.Protocol)
+            assertTrue(runCatching { api.openBranch(request) }.exceptionOrNull() is ApiException.Protocol)
+            worker.join(2_000)
+        }
+    }
+
+    @Test
     fun theReturnTrailAndPendingEnvelopeSurviveAndArePurgedWithPrivateState() {
         val store = StateStore(ApplicationProvider.getApplicationContext())
         val origin = ScrollSession("d1", parent, 0, "u", exposureId = "e1", exposureEventId = "ev1", readingPosition = 640)

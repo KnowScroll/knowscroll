@@ -111,9 +111,23 @@ test('the database refuses an admitted bridge without evidence, a bridge without
   const forged = randomUUID();
   await assert.rejects(transaction(async client => {
     await client.query(`INSERT INTO semantic_proposal(id,kind,scope_kind,proposer_kind,proposer_ref,payload,payload_sha256,read_set,status,decision,validator_version)
-      VALUES($1,'bridge_candidate','shared','editorial','forged-test','{}',$2,'{}','admitted','{}','test')`, [forged, randomBytes(32).toString('hex')]);
+      VALUES($1,'bridge_candidate','shared','editorial','forged-test','{}',$2,'{}','admitted','{"outcome":"admitted","validatorVersion":"test"}','test')`, [forged, randomBytes(32).toString('hex')]);
     await insert(client, forged);
   }), /needs currently supported evidence for: from, to, mechanism/);
+  // A proposal row cannot claim an admission its own recorded decision does not contain.
+  await assert.rejects(pool.query(`INSERT INTO semantic_proposal(id,kind,scope_kind,proposer_kind,proposer_ref,payload,payload_sha256,read_set,status,decision,validator_version)
+    VALUES($1,'bridge_candidate','shared','editorial','forged-test-2','{}',$2,'{}','admitted','{"outcome":"rejected","validatorVersion":"test"}','test')`,
+    [randomUUID(), randomBytes(32).toString('hex')]), /semantic_proposal_check|violates check constraint/);
+
+  // Evidence is immutable while its bridge exists: it cannot be moved to another bridge or removed.
+  const evidenceBridge = fixture.proposals[0]!.result.bridgeId!;
+  await assert.rejects(pool.query('UPDATE bridge_evidence SET supports=supports WHERE bridge_id=$1', [evidenceBridge]), /Bridge evidence is immutable/);
+  await assert.rejects(pool.query('DELETE FROM bridge_evidence WHERE bridge_id=$1', [evidenceBridge]), /removed only with its bridge/);
+
+  // A raw snapshot correction that skips revalidation is refused at commit.
+  await assert.rejects(transaction(client => client.query(
+    `UPDATE source_snapshot SET status='revoked', status_reason='raw update without propagation', status_changed_at=clock_timestamp()
+     WHERE source_id=(SELECT id FROM semantic_source WHERE key=$1)`, [fixture.sources.physics])), /still cites a claim this correction left unsupported/);
 
   const bridgeId = fixture.proposals[0]!.result.bridgeId!;
   await assert.rejects(pool.query(`UPDATE bridge SET mechanism=repeat('z',60) WHERE id=$1`, [bridgeId]), /validated content is immutable/);
@@ -221,8 +235,12 @@ test('while recording is paused a branch is served but nothing personal is kept'
   assert.equal(opened.statusCode, 201, opened.body);
   assert.equal(opened.json().branch.recorded, false);
   assert.equal(opened.json().branch.branchOpenId, null);
-  const counts = (await pool.query(`SELECT (SELECT count(*) FROM branch_open WHERE universe_id=$1)::int AS opens, (SELECT count(*) FROM ledger WHERE universe_id=$1 AND kind='branch')::int AS events`, [reader.scope.universeId])).rows[0];
-  assert.deepEqual(counts, { opens: 0, events: 0 });
+  assert.equal(opened.json().decisionId, null, 'not even a decision naming the choice is stored');
+  assert.equal(opened.json().items[0].assetId, branch.target.assetId, 'the continuation is still served for reading');
+  const counts = (await pool.query(`SELECT (SELECT count(*) FROM branch_open WHERE universe_id=$1)::int AS opens,
+    (SELECT count(*) FROM ledger WHERE universe_id=$1 AND kind='branch')::int AS events,
+    (SELECT count(*) FROM decision WHERE universe_id=$1 AND policy_version='branch-bridge-v1')::int AS decisions`, [reader.scope.universeId])).rows[0];
+  assert.deepEqual(counts, { opens: 0, events: 0, decisions: 0 });
 });
 
 test('"seems wrong" suppresses a connection for this reader only and is not a retraction', async () => {
@@ -274,3 +292,95 @@ for (const operation of ['clear', 'reset'] as const) {
     assert.deepEqual(await shared(), sharedBefore);
   });
 }
+
+// --- Review of PR #140 --------------------------------------------------------------------------
+
+test('proposal replay is per scope: the same ref and payload in another universe is its own proposal', async () => {
+  const fixture = await makeSemanticFixture(pool, { personal: ['balance_homeostasis'] });
+  await transaction(client => loadSubstrateSeed(client, fixture.raw));
+  const [a, b] = [await provisionIdentity(), await provisionIdentity()];
+  const submit = (who: typeof a) => transaction(async client => {
+    await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [who.scope.universeId]);
+    return submitBridgeProposal(client, { scope: { kind: 'universe', universeId: who.scope.universeId, privacyEpoch: 0 }, proposerKind: 'person', proposerRef: 'same-ref', payload: fixture.personal.balance_homeostasis });
+  });
+  const first = await submit(a), second = await submit(b);
+  assert.equal(first.status, 'admitted');
+  assert.equal(second.replayed, false);
+  assert.notEqual(second.proposalId, first.proposalId);
+  assert.equal((await submit(a)).proposalId, first.proposalId, 'the same universe replays');
+});
+
+for (const operation of ['clear', 'reset'] as const) {
+  test(`${operation} erases a universe's own admitted bridge, its evidence, proposal and the branch taken through it`, async () => {
+    const fixture = await makeSemanticFixture(pool, { personal: ['balance_homeostasis'] });
+    await transaction(client => loadSubstrateSeed(client, fixture.raw));
+    const reader = await provisionIdentity();
+    const neighbor = await provisionIdentity();
+    const own = await transaction(async client => {
+      await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [reader.scope.universeId]);
+      return submitBridgeProposal(client, { scope: { kind: 'universe', universeId: reader.scope.universeId, privacyEpoch: 0 }, proposerKind: 'person', proposerRef: `own-${operation}`, payload: fixture.personal.balance_homeostasis });
+    });
+    assert.equal(own.status, 'admitted');
+    assert.equal((await branches(neighbor.token, fixture.assets.body)).emptyReason, 'no_admitted_bridge', 'another universe never sees it');
+    const origin = await exposeDirect(reader.token, reader.scope.universeId, 0, fixture.assets.body);
+    const branch = (await branches(reader.token, fixture.assets.body)).branches[0]!;
+    assert.equal(branch.bridgeId, own.bridgeId);
+    const opened = await app.inject({ method: 'POST', url: '/v1/branches', headers: headers(reader.token), payload: {
+      clientBranchId: randomUUID(), fromExposureId: origin.exposureId, bridgeId: branch.bridgeId, targetAssetId: branch.target.assetId, expectedPrivacyEpoch: 0 } });
+    assert.equal(opened.statusCode, 201, opened.body);
+
+    const result = await app.inject({ method: 'POST', url: operation === 'clear' ? '/v1/history/clear' : '/v1/privacy/reset', headers: headers(reader.token),
+      payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: operation === 'clear' ? 'clear-scroll-history' : 'reset-personal-universe' } });
+    assert.equal(result.statusCode, 200, result.body);
+    const left = (await pool.query(`SELECT (SELECT count(*) FROM branch_open WHERE universe_id=$1)::int AS opens,
+      (SELECT count(*) FROM bridge WHERE universe_id=$1)::int AS bridges, (SELECT count(*) FROM bridge_evidence WHERE bridge_id=$2)::int AS evidence,
+      (SELECT count(*) FROM semantic_proposal WHERE universe_id=$1)::int AS proposals`, [reader.scope.universeId, own.bridgeId])).rows[0];
+    assert.deepEqual(left, { opens: 0, bridges: 0, evidence: 0, proposals: 0 });
+  });
+}
+
+test('a later seed may not add links to existing knowledge, and new knowledge revalidates admitted bridges', async () => {
+  const fixture = await loaded();
+  const tidesBridge = fixture.proposals[0]!.result.bridgeId!;
+  const next = (over: object) => JSON.stringify({ ...fixture.seed, version: `${fixture.seed.version}9`, bridgeProposals: [], ...over });
+  const extraLink = fixture.seed.claims.map((c, i) => i === 0 ? { ...c, concepts: [...c.concepts, { code: fixture.codes.tides, role: 'object' as const }] } : c);
+  await assert.rejects(transaction(client => loadSubstrateSeed(client, next({ claims: extraLink }))), /stored links differ from the seed/);
+
+  // A new seed records that the sources contradict "gravity explains tides": the admitted bridge is
+  // revalidated against it and revoked, with the seed named as the cause.
+  const contradiction = { from: fixture.codes.gravity, to: fixture.codes.tides, kind: 'contradicts' as const, claimKey: fixture.seed.claims[0]!.key };
+  const result = await transaction(client => loadSubstrateSeed(client, next({ relations: [...fixture.seed.relations, contradiction] })));
+  assert.equal(result.status, 'loaded');
+  const bridge = (await pool.query('SELECT status, status_reason FROM bridge WHERE id=$1', [tidesBridge])).rows[0];
+  assert.equal(bridge.status, 'revoked');
+  assert.ok(bridge.status_reason.reasons.includes('contradicted_by_substrate'));
+  assert.equal(bridge.status_reason.seedVersion, `${fixture.seed.version}9`);
+  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM semantic_correction c JOIN semantic_correction_effect e ON e.correction_id=c.id
+    WHERE c.target_kind='seed_load' AND e.target_id=$1`, [tidesBridge])).rows[0].n, 1);
+});
+
+test('a session that expires while waiting for the substrate lock cannot open a branch', async () => {
+  const fixture = await loaded();
+  const reader = await provisionIdentity();
+  const origin = await exposeDirect(reader.token, reader.scope.universeId, 0, fixture.assets.gravity);
+  const branch = (await branches(reader.token, fixture.assets.gravity)).branches[0]!;
+  const holder = await pool.connect();
+  try {
+    await holder.query('BEGIN');
+    await holder.query('SELECT pg_advisory_xact_lock($1)', [0x5ea_0131]);
+    await pool.query("UPDATE device_session SET expires_at=clock_timestamp()+interval '400 milliseconds' WHERE id=$1", [reader.scope.sessionId]);
+    const pending = app.inject({ method: 'POST', url: '/v1/branches', headers: headers(reader.token), payload: {
+      clientBranchId: randomUUID(), fromExposureId: origin.exposureId, bridgeId: branch.bridgeId, targetAssetId: branch.target.assetId, expectedPrivacyEpoch: 0 } });
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype='advisory' AND NOT granted`)).rows[0].n;
+      const expired = (await pool.query('SELECT expires_at <= clock_timestamp() AS e FROM device_session WHERE id=$1', [reader.scope.sessionId])).rows[0].e;
+      if (waiting > 0 && expired) break;
+      await new Promise(r => setTimeout(r, 20));
+    }
+    await holder.query('COMMIT');
+    const response = await pending;
+    assert.equal(response.statusCode, 401, response.body);
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM ledger WHERE universe_id=$1 AND kind='branch'`, [reader.scope.universeId])).rows[0].n, 0);
+  } finally { holder.release(); }
+});

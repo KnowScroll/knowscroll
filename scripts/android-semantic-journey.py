@@ -4,11 +4,13 @@ substrate, the separate .journey app, no provider call and no owner-database acc
 Source scripts/env.sh first. The .journey app is also the owner's running preview (its APK carries
 that preview's API address and token), so this runner pulls the installed APK and archives its app
 data before replacing it, and in `finally` reinstalls that exact APK, restores the data and
-relaunches it. Receipts go to ignored artifacts/semantic-journey; reviewed copies are committed.
+relaunches it. Each run keeps its own timestamped backup, the runner refuses to replace the preview
+unless that backup is a readable archive, and the restore is verified against the backup's listing.
+Receipts go to ignored artifacts/semantic-journey; reviewed copies are committed.
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
-import datetime, hashlib, json, os, secrets, signal, socket, subprocess, time, urllib.request
+import datetime, hashlib, io, json, os, secrets, signal, socket, subprocess, tarfile, time, urllib.request
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
@@ -19,7 +21,8 @@ assert port not in (4310, 4320, 4322), 'never reuse an owner/preview port'
 name = 'knowscroll_test_semantic_' + secrets.token_hex(8)
 package = 'com.knowscroll.mobile.journey'
 out = root / 'artifacts/semantic-journey'
-backup = out / 'preview-backup'
+# Never shared between runs: a failed run must not overwrite the last good backup.
+backup = out / 'preview-backup' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 out.mkdir(parents=True, exist_ok=True); backup.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
            'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
@@ -29,22 +32,35 @@ env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)), KS_DEV_TOK
            PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_MEDIA_ROOT=str(out / 'media'))
 args = ['-h', source.hostname, '-p', str(source.port or 5432), '-U', source.username]
 admin = {**env, 'PGPASSWORD': source.password or ''}
-processes, created, preview_apk = [], False, None
+processes, created, preview_apk, preview_listing = [], False, None, []
 
 def run(command, **kwargs): return subprocess.run(command, check=True, **kwargs)
 def adb(*command): return subprocess.check_output(['adb', *command], text=True).strip()
 def sql(query):
     return subprocess.check_output(['psql', *args, '-d', name, '-Atqc', query], env=admin, text=True).strip()
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+def archive_listing(data):
+    # Names and sizes of regular files; raises on anything that is not a complete tar archive.
+    with tarfile.open(fileobj=io.BytesIO(data), mode='r:') as archive:
+        return sorted((m.name, m.size) for m in archive.getmembers() if m.isfile())
+def pull_preview_data():
+    data = subprocess.run(['adb', 'exec-out', 'run-as', package, 'tar', '-cf', '-', 'shared_prefs', 'files'], capture_output=True)
+    if data.returncode != 0: raise RuntimeError('could not archive the preview app data; the preview was not touched')
+    listing = archive_listing(data.stdout)
+    if not any(name.startswith('shared_prefs/') for name, _ in listing):
+        raise RuntimeError('preview app data archive has no preferences; the preview was not touched')
+    return data.stdout, listing
 
 try:
     # 1. Preserve the owner's preview exactly as it is.
     installed = subprocess.run(['adb', 'shell', 'pm', 'path', package], capture_output=True, text=True).stdout.strip()
     if installed.startswith('package:'):
-        preview_apk = backup / 'preview-base.apk'
-        run(['adb', 'pull', installed.splitlines()[0].split(':', 1)[1], str(preview_apk)], stdout=subprocess.DEVNULL)
-        data = subprocess.run(['adb', 'exec-out', 'run-as', package, 'tar', '-cf', '-', 'shared_prefs', 'files'], capture_output=True)
-        (backup / 'preview-data.tar').write_bytes(data.stdout if data.returncode == 0 else b'')
+        pulled = backup / 'preview-base.apk'
+        run(['adb', 'pull', installed.splitlines()[0].split(':', 1)[1], str(pulled)], stdout=subprocess.DEVNULL)
+        data, preview_listing = pull_preview_data()
+        (backup / 'preview-data.tar').write_bytes(data)
+        # Only now is the preview recoverable, so only now may anything replace it.
+        preview_apk = pulled
 
     # 2. Disposable stack with the editorial substrate.
     with socket.socket() as probe: probe.bind(('127.0.0.1', port))
@@ -107,8 +123,12 @@ finally:
         run(['adb', 'install', '-r', str(preview_apk)], stdout=subprocess.DEVNULL)
         subprocess.run(['adb', 'shell', 'pm', 'clear', package], stdout=subprocess.DEVNULL)
         data = (backup / 'preview-data.tar').read_bytes()
-        if data: subprocess.run(['adb', 'shell', f'run-as {package} tar -xf -'], input=data, check=True)
+        subprocess.run(['adb', 'shell', f'run-as {package} tar -xf -'], input=data, check=True)
+        _, restored_listing = pull_preview_data()
         subprocess.run(['adb', 'shell', 'am', 'start', '-n', package + '/com.knowscroll.mobile.MainActivity'], stdout=subprocess.DEVNULL)
         restored = subprocess.run(['adb', 'shell', 'pm', 'path', package], capture_output=True, text=True).stdout.strip()
-        (out / 'preview-restored.json').write_text(json.dumps({'apkSha256': sha(preview_apk), 'restoredPath': restored,
-            'dataBytes': len(data), 'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
+        verified = restored_listing == preview_listing
+        (out / 'preview-restored.json').write_text(json.dumps({'apkSha256': sha(preview_apk), 'restoredPath': restored, 'backup': backup.name,
+            'dataBytes': len(data), 'files': len(preview_listing), 'dataVerified': verified,
+            'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
+        if not verified: raise RuntimeError(f'preview data restore differs from its backup; the backup is kept at {backup}')

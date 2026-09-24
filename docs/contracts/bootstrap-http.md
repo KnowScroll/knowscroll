@@ -131,8 +131,10 @@ unrelated inventory. `Cache-Control: no-store`. 404 for an unknown asset.
 `branch.{branchOpenId, recorded, bridgeId, relationType, direction}`. The server re-checks the
 branch against the current substrate; a revoked or suppressed one is 409. Stale epoch 409; key
 reuse with a different payload 409; an exposure from another universe 422. Exact retry returns
-the original decision. While recording is paused, `recorded` is false and no Ledger/branch row is
-written. Expose the target with the returned `decisionId` exactly like a feed item.
+the original decision. While recording is paused the target is still served, but `recorded` is
+false, `decisionId` and `branch.branchOpenId` are null, and no decision, Ledger event or branch row
+is written; a client must not try to expose that target. Otherwise expose the target with the
+returned `decisionId` exactly like a feed item.
 
 `POST /v1/connections/feedback` `{clientFeedbackId, bridgeId, expectedPrivacyEpoch, objection:
 not_useful|seems_wrong}` → 201 receipt. Suppresses that connection for this universe only; never a

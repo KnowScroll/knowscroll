@@ -12,6 +12,7 @@ import type pg from 'pg';
 import { substrateSeed, type SubstrateSeed } from '../../../contracts/src/semantic.ts';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { submitBridgeProposal, type ProposalResult } from './proposals.ts';
+import { revalidateAdmittedBridges } from './corrections.ts';
 
 export class SubstrateSeedConflict extends Error {
   constructor(message: string) { super(message); this.name = 'SubstrateSeedConflict'; }
@@ -99,19 +100,38 @@ export async function loadSubstrateSeed(client: pg.PoolClient, rawText: string):
     }, ['name', 'description', 'kind', 'parent_id']));
   }
 
+  // Knowledge links are part of a claim's identity: a later seed may not quietly add a concept, a
+  // quote or an annotation to something a reader was already shown. After insert-if-absent, what is
+  // stored must equal exactly what this seed says.
+  const sameSet = async (label: string, sql: string, params: unknown[], expected: string[]) => {
+    const stored = (await client.query<{ k: string }>(sql, params)).rows.map(r => r.k).sort();
+    if (JSON.stringify(stored) !== JSON.stringify([...expected].sort())) {
+      throw new SubstrateSeedConflict(`${label}: stored links differ from the seed; add a new key or record a correction`);
+    }
+  };
+
   const claimIds = new Map<string, string>();
   for (const claim of seed.claims) {
+    // An existing claim is only compared, never extended: inserting first would let a later seed
+    // add a link and then find it "already there".
+    const existed = ((await client.query('SELECT 1 FROM claim WHERE key=$1', [claim.key])).rowCount ?? 0) > 0;
     const id = await ensureRow(client, 'claim', 'key', { key: claim.key, statement: claim.statement, truth_state: claim.truthState, created_by: 'editorial' }, ['statement', 'truth_state']);
     claimIds.set(claim.key, id);
-    for (const link of claim.concepts) {
+    if (!existed) for (const link of claim.concepts) {
       await client.query('INSERT INTO claim_concept(claim_id,concept_id,role) VALUES($1,$2,$3) ON CONFLICT DO NOTHING', [id, conceptIds.get(link.code), link.role]);
     }
-    for (const support of claim.support) {
+    if (!existed) for (const support of claim.support) {
       await client.query(
         'INSERT INTO claim_support(id,claim_id,snapshot_id,quote,support_kind) VALUES($1,$2,$3,$4,$5) ON CONFLICT (claim_id,snapshot_id,quote) DO NOTHING',
         [randomUUID(), id, snapshotIds.get(support.sourceKey), support.quote, support.supportKind],
       );
     }
+    await sameSet(`claim ${claim.key} concepts`,
+      `SELECT c.code || ':' || cc.role AS k FROM claim_concept cc JOIN concept c ON c.id = cc.concept_id WHERE cc.claim_id = $1`, [id],
+      claim.concepts.map(l => `${l.code}:${l.role}`));
+    await sameSet(`claim ${claim.key} support`,
+      `SELECT s.snapshot_id || ':' || s.support_kind || ':' || s.quote AS k FROM claim_support s WHERE s.claim_id = $1`, [id],
+      claim.support.map(q => `${snapshotIds.get(q.sourceKey)}:${q.supportKind}:${q.quote}`));
   }
 
   for (const r of seed.relations) {
@@ -120,16 +140,42 @@ export async function loadSubstrateSeed(client: pg.PoolClient, rawText: string):
        ON CONFLICT (from_concept_id,to_concept_id,kind) DO NOTHING`,
       [randomUUID(), conceptIds.get(r.from), conceptIds.get(r.to), r.kind, claimIds.get(r.claimKey)],
     );
+    const stored = (await client.query<{ claim_id: string }>('SELECT claim_id FROM concept_relation WHERE from_concept_id=$1 AND to_concept_id=$2 AND kind=$3',
+      [conceptIds.get(r.from), conceptIds.get(r.to), r.kind])).rows[0]!;
+    if (stored.claim_id !== claimIds.get(r.claimKey)) throw new SubstrateSeedConflict(`relation ${r.from} ${r.kind} ${r.to} is already backed by another claim`);
   }
 
   for (const annotation of seed.assets) {
     const present = (await client.query('SELECT 1 FROM asset WHERE id=$1', [annotation.assetId])).rowCount;
     if (!present) throw new SubstrateSeedConflict(`annotated asset ${annotation.assetId} is not installed; seed editorial Scrolls first`);
-    for (const c of annotation.concepts) {
+    const annotated = ((await client.query('SELECT 1 FROM asset_concept WHERE asset_id=$1 LIMIT 1', [annotation.assetId])).rowCount ?? 0) > 0;
+    if (!annotated) for (const c of annotation.concepts) {
       await client.query('INSERT INTO asset_concept(asset_id,concept_id,role) VALUES($1,$2,$3) ON CONFLICT DO NOTHING', [annotation.assetId, conceptIds.get(c.code), c.role]);
     }
-    for (const key of annotation.claims) {
+    if (!annotated) for (const key of annotation.claims) {
       await client.query('INSERT INTO asset_claim(asset_id,claim_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [annotation.assetId, claimIds.get(key)]);
+    }
+    await sameSet(`asset ${annotation.assetId} concepts`,
+      `SELECT c.code || ':' || ac.role AS k FROM asset_concept ac JOIN concept c ON c.id = ac.concept_id WHERE ac.asset_id = $1`, [annotation.assetId],
+      annotation.concepts.map(c => `${c.code}:${c.role}`));
+    await sameSet(`asset ${annotation.assetId} claims`,
+      `SELECT cl.key AS k FROM asset_claim x JOIN claim cl ON cl.id = x.claim_id WHERE x.asset_id = $1`, [annotation.assetId], annotation.claims);
+  }
+
+  // New knowledge can invalidate an existing connection (a later contradiction, say): revalidate
+  // every admitted bridge against the substrate as this seed leaves it, and record what changed.
+  const revoked = await revalidateAdmittedBridges(client, null, { seedVersion: seed.version });
+  if (revoked.length > 0) {
+    const correctionId = randomUUID();
+    await client.query(
+      `INSERT INTO semantic_correction(id,target_kind,target_id,action,reason,actor_kind) VALUES($1,'seed_load',NULL,'revalidated',$2,'editorial')`,
+      [correctionId, `Editorial seed ${seed.version} changed the substrate`],
+    );
+    for (const r of revoked.filter(x => x.universeId === null)) {
+      await client.query(
+        `INSERT INTO semantic_correction_effect(correction_id,target_kind,target_id,before_status,after_status,reasons) VALUES($1,'bridge',$2,'admitted','revoked',$3)`,
+        [correctionId, r.id, JSON.stringify(r.reasons)],
+      );
     }
   }
 

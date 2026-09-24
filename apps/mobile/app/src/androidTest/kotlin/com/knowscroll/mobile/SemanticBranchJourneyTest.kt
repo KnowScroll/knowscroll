@@ -90,9 +90,6 @@ class SemanticBranchJourneyTest {
         compose.waitUntil(10_000) { textShown("How these connect") }
         for (heading in listOf("The connection", "Where it stops", "Evidence")) assertTrue(heading, textShown(heading))
         screenshot("semantic-connections.png")
-        val relationSentence: String = compose.onAllNodes(isHeading(), useUnmergedTree = true).fetchSemanticsNodes()
-            .mapNotNull { node -> node.config.getOrElseNullable(SemanticsProperties.Text) { null }?.firstOrNull()?.text }
-            .firstOrNull { it != "How these connect" } ?: ""
 
         compose.waitForIdle()
         // Exact return means where the reader was when they branched (the rail), not an earlier point.
@@ -121,14 +118,13 @@ class SemanticBranchJourneyTest {
         val expectedDescription = instrumentation.targetContext.getString(R.string.reader_position_description, originPosition)
         compose.waitUntil(10_000) {
             compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes()
-                .any { it.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.StateDescription) { null } == expectedDescription }
+                .any { it.config.getOrElseNullable(SemanticsProperties.StateDescription) { null } == expectedDescription }
         }
         assertEquals(origin.exposureId, store().read()!!.exposureId)
         assertNull(store().read()!!.branchFrom)
         screenshot("semantic-branch-return.png")
 
         // Hide the connection for this reader: it disappears from the rail, sources unchanged.
-        val before = compose.onAllNodesWithText("Follow this connection").fetchSemanticsNodes().size
         compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasText("Why these connections?"))
         compose.onNodeWithText("Why these connections?").performClick()
         compose.waitUntil(10_000) { textShown("How these connect") }
@@ -159,8 +155,8 @@ class SemanticBranchJourneyTest {
             put("targetAssetId", target.item.assetId); put("targetTitle", target.item.title)
             put("branchDecisionId", target.decisionId); put("targetExposureId", target.exposureId)
             put("bridgeId", target.branchFrom!!.bridgeId); put("recorded", target.branchFrom!!.recorded)
-            put("relationSentence", target.branchFrom!!.relationSentence); put("sheetHeading", relationSentence)
-            put("skippedBeforeConnected", skipped.size); put("offeredAtObjection", offered); put("offeredAfterObjection", remainingAfter); put("offeredBefore", before)
+            put("relationSentence", target.branchFrom!!.relationSentence)
+            put("skippedBeforeConnected", skipped.size); put("offeredAtObjection", offered); put("offeredAfterObjection", remainingAfter)
         }.toString(2))
     }
 }

@@ -53,14 +53,15 @@ export async function submitBridgeProposal(
   const payloadSha = sha256(canonicalJson(payload));
 
   await lockForScope(client, input.scope);
+  const universeId = input.scope.kind === 'universe' ? input.scope.universeId : null;
+  // Replay identity is per scope: another universe's identical proposal is not this one.
   const existing = (await client.query(
     `SELECT id, status, decision, (SELECT id FROM bridge WHERE proposal_id = p.id) AS bridge_id
-     FROM semantic_proposal p WHERE proposer_kind=$1 AND proposer_ref=$2 AND payload_sha256=$3`,
-    [input.proposerKind, input.proposerRef, payloadSha],
+     FROM semantic_proposal p WHERE proposer_kind=$1 AND proposer_ref=$2 AND payload_sha256=$3 AND universe_id IS NOT DISTINCT FROM $4`,
+    [input.proposerKind, input.proposerRef, payloadSha, universeId],
   )).rows[0];
   if (existing) return { proposalId: existing.id, status: existing.status, decision: existing.decision, bridgeId: existing.bridge_id, replayed: true };
 
-  const universeId = input.scope.kind === 'universe' ? input.scope.universeId : null;
   const privacyEpoch = input.scope.kind === 'universe' ? input.scope.privacyEpoch : null;
   const readSet = await loadBridgeReadSet(client, universeId);
   const decision = validateBridgeProposal(payload, readSet);

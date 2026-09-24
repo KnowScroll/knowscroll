@@ -33,7 +33,21 @@ async function insertScroll(client: pg.Pool | pg.PoolClient, title: string, sour
   return id;
 }
 
-export async function makeSemanticFixture(client: pg.Pool | pg.PoolClient): Promise<SemanticFixture> {
+/** `personal` names bridge proposals (by suffix, e.g. 'balance_homeostasis') to hold out of the
+ * shared seed so a test can admit them in one universe's own scope. */
+export async function makeSemanticFixture(client: pg.Pool | pg.PoolClient, options: { personal?: string[] } = {}): Promise<SemanticFixture & { personal: Record<string, SubstrateSeed['bridgeProposals'][number]['payload']> }> {
+  const built = await buildFixture(client);
+  const personal: Record<string, SubstrateSeed['bridgeProposals'][number]['payload']> = {};
+  for (const suffix of options.personal ?? []) {
+    const held = built.seed.bridgeProposals.find(p => p.key === `brg.${built.tag}.${suffix}`);
+    if (!held) throw new Error(`unknown fixture proposal ${suffix}`);
+    personal[suffix] = held.payload;
+  }
+  const seed = { ...built.seed, bridgeProposals: built.seed.bridgeProposals.filter(p => !Object.keys(personal).some(s => p.key === `brg.${built.tag}.${s}`)) };
+  return { ...built, seed, raw: JSON.stringify(seed), personal };
+}
+
+async function buildFixture(client: pg.Pool | pg.PoolClient): Promise<SemanticFixture> {
   const tag = `t${randomBytes(5).toString('hex')}`;
   const c = (s: string) => `${tag}.${s}`;
   const codes = {
@@ -92,6 +106,10 @@ export async function makeSemanticFixture(client: pg.Pool | pg.PoolClient): Prom
         concepts: [{ code: codes.balance, role: 'subject' }, { code: codes.equilibrium, role: 'mechanism' }], support: [{ sourceKey: sources.stars, quote, supportKind: 'supports' }] },
       { key: k('body_stable'), statement: 'A body keeps its internal conditions within a stable range despite change.', truthState: 'documented',
         concepts: [{ code: codes.homeostasis, role: 'subject' }, { code: codes.equilibrium, role: 'mechanism' }], support: [{ sourceKey: sources.biology, quote, supportKind: 'supports' }] },
+      { key: k('star_hot_gas'), statement: 'A star is a large ball of hot gas held together by its own gravity.', truthState: 'documented',
+        concepts: [{ code: codes.star, role: 'subject' }], support: [{ sourceKey: sources.stars, quote, supportKind: 'supports' }] },
+      { key: k('body_definition'), statement: 'Homeostasis is how a body keeps its internal conditions steady.', truthState: 'documented',
+        concepts: [{ code: codes.homeostasis, role: 'subject' }], support: [{ sourceKey: sources.biology, quote, supportKind: 'supports' }] },
     ],
     relations: [
       { from: codes.ellipse, to: codes.seasons, kind: 'contradicts', claimKey: k('seasons_tilt') },
@@ -118,7 +136,7 @@ export async function makeSemanticFixture(client: pg.Pool | pg.PoolClient): Prom
         mechanism: 'Both are steady states held by opposing effects: inward gravity against outward pressure in a star, and changes pushed back toward a stable range in a body.',
         prerequisites: [{ statement: 'A steady state can come from two effects that cancel' }],
         limitations: [{ kind: 'analogy_limit', statement: 'A star has no sensor, set point or control centre; its balance is passive' }],
-        evidence: [{ claimKey: k('star_balance'), supports: 'from' }, { claimKey: k('body_stable'), supports: 'to' },
+        evidence: [{ claimKey: k('star_hot_gas'), supports: 'from' }, { claimKey: k('body_definition'), supports: 'to' },
           { claimKey: k('star_balance'), supports: 'mechanism' }, { claimKey: k('body_stable'), supports: 'mechanism' }],
         counterevidence: { disposition: 'searched_none_found', searchedScope: 'fixture substrate', claimKeys: [] },
       } },

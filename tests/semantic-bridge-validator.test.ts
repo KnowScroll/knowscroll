@@ -55,6 +55,9 @@ function readSet(overrides: { claims?: ReadSetClaim[]; relations?: ReadSetRelati
     claim('clm.body.feedback', [{ code: 'bio.homeostasis.negative_feedback', role: 'mechanism' }, { code: 'bio.homeostasis', role: 'subject' }]),
     claim('clm.star.lifetime', [{ code: 'astro.star.lifetime_mass', role: 'subject' }]),
     claim('clm.orbit.period', [{ code: 'astro.orbit.period_distance', role: 'subject' }]),
+    claim('clm.star.hot_gas', [{ code: 'astro.star', role: 'subject' }]),
+    claim('clm.body.definition', [{ code: 'bio.homeostasis', role: 'subject' }]),
+    claim('clm.orbit.path', [{ code: 'astro.orbit', role: 'subject' }]),
   ];
   const relations = overrides.relations ?? [
     { from: 'astro.orbit.ellipse', to: 'earth.seasons', kind: 'contradicts', claimKey: 'clm.seasons.not_distance', active: true },
@@ -94,8 +97,8 @@ const equilibriumAnalogy = () => proposal({
   mechanism: 'Both are steady states held by opposing effects: inward gravity against outward pressure in a star, and changes pushed back toward a stable range in a body.',
   limitations: [{ kind: 'analogy_limit', statement: 'A star has no sensor, set point or control centre; its balance is passive' }],
   evidence: [
-    { claimKey: 'clm.star.balance', supports: 'from' },
-    { claimKey: 'clm.body.stable', supports: 'to' },
+    { claimKey: 'clm.star.hot_gas', supports: 'from' },
+    { claimKey: 'clm.body.definition', supports: 'to' },
     { claimKey: 'clm.star.balance', supports: 'mechanism' },
     { claimKey: 'clm.body.stable', supports: 'mechanism' },
   ],
@@ -144,8 +147,8 @@ test('tempting: size-and-time scaling words without a shared mechanism are refus
     mechanism: 'In both, being bigger means a different pace of time: a heavier star lives a shorter life and a wider orbit takes a longer year, so size sets the clock in each case.',
     limitations: [{ kind: 'analogy_limit', statement: 'One is about fuel and the other about motion' }],
     evidence: [
-      { claimKey: 'clm.star.lifetime', supports: 'from' },
-      { claimKey: 'clm.orbit.period', supports: 'to' },
+      { claimKey: 'clm.star.hot_gas', supports: 'from' },
+      { claimKey: 'clm.orbit.path', supports: 'to' },
       { claimKey: 'clm.star.lifetime', supports: 'mechanism' },
       { claimKey: 'clm.orbit.period', supports: 'mechanism' },
     ],
@@ -161,7 +164,7 @@ test('tempting: claiming the star regulates itself by feedback cites no star-sid
     limitations: [{ kind: 'analogy_limit', statement: 'The timescales differ enormously' }],
     evidence: [
       { claimKey: 'clm.star.balance', supports: 'from' },
-      { claimKey: 'clm.body.feedback', supports: 'to' },
+      { claimKey: 'clm.body.definition', supports: 'to' },
       { claimKey: 'clm.body.feedback', supports: 'mechanism' },
     ],
   });
@@ -230,4 +233,74 @@ test('the recorded read-set slice re-derives exactly the decision the full subst
     assert.deepEqual(validateBridgeProposal(p, readSetFromRecord(record)), validateBridgeProposal(p, full));
     assert.ok(record.concepts.length < full.concepts.size, 'the slice is smaller than the substrate');
   }
+});
+
+// --- Review of PR #140: loopholes a sound validator must close ------------------------------------
+
+test('evidence never generalises upward: a claim about star birth cannot admit a bridge to stars in general', () => {
+  const rs = readSet({ claims: [
+    ...[...readSet().claims.values()],
+    claim('clm.gravity.star_birth', [{ code: 'physics.gravity', role: 'mechanism' }, { code: 'astro.star.equilibrium', role: 'subject' }]),
+  ] });
+  const p = proposal({
+    fromConcept: 'physics.gravity', toConcept: 'astro.star', relationType: 'explains',
+    mechanism: 'Gravity pulls a cloud of gas inward until it is dense and hot enough, and that inward pull is what shapes every star from then on.',
+    limitations: [{ kind: 'scope_limit', statement: 'Only the gravitational part of the story' }],
+    evidence: [{ claimKey: 'clm.gravity.attraction', supports: 'from' }, { claimKey: 'clm.star.hot_gas', supports: 'to' }, { claimKey: 'clm.gravity.star_birth', supports: 'mechanism' }],
+  });
+  const d = validateBridgeProposal(p, rs);
+  assert.ok(d.outcome === 'rejected' && d.reasons.includes('mechanism_unsupported'), JSON.stringify(d));
+});
+
+test('a claim that argues against the connection cannot also be cited for it', () => {
+  const p = proposal({
+    fromConcept: 'astro.orbit.ellipse', toConcept: 'earth.seasons', relationType: 'compares_mechanism',
+    mechanism: 'Both the changing distance along an elliptical orbit and the seasons are yearly cycles, so the one might be read as the rhythm of the other.',
+    limitations: [{ kind: 'analogy_limit', statement: 'The source says distance does not cause the seasons' }],
+    evidence: [
+      { claimKey: 'clm.orbit.ellipse', supports: 'from' }, { claimKey: 'clm.seasons.tilt', supports: 'to' },
+      { claimKey: 'clm.seasons.not_distance', supports: 'mechanism' },
+    ],
+    counterevidence: { disposition: 'listed', searchedScope: 'synthetic substrate', claimKeys: ['clm.seasons.not_distance'] },
+  });
+  const d = validateBridgeProposal(p, readSet());
+  assert.ok(d.outcome === 'rejected' && d.reasons.includes('counterevidence_cited_as_support'), JSON.stringify(d));
+});
+
+test('a contradiction stored in the opposite orientation still refuses a directional bridge', () => {
+  const reversed = readSet({ relations: [{ from: 'earth.seasons', to: 'astro.orbit.ellipse', kind: 'contradicts', claimKey: 'clm.seasons.not_distance', active: true }] });
+  const p = proposal({
+    fromConcept: 'astro.orbit.ellipse', toConcept: 'earth.seasons', relationType: 'prerequisite_for',
+    mechanism: 'Knowing that the distance to the Sun changes along the orbit would come first, and then the warmer and cooler months would follow from it.',
+    limitations: [{ kind: 'scope_limit', statement: 'Only for the orbit of Earth' }],
+    evidence: [{ claimKey: 'clm.orbit.ellipse', supports: 'from' }, { claimKey: 'clm.seasons.tilt', supports: 'to' }, { claimKey: 'clm.seasons.tilt', supports: 'mechanism' }],
+    counterevidence: { disposition: 'listed', searchedScope: 'synthetic substrate', claimKeys: ['clm.seasons.not_distance'] },
+  });
+  const d = validateBridgeProposal(p, reversed);
+  assert.ok(d.outcome === 'rejected' && d.reasons.includes('contradicted_by_substrate'), JSON.stringify(d));
+});
+
+test('"applies to" needs a typed relation of that kind; claim roles alone cannot say which direction was meant', () => {
+  const claims = [...readSet().claims.values(), claim('clm.feedback.setpoint', [{ code: 'bio.homeostasis.negative_feedback', role: 'subject' }, { code: 'earth.tides', role: 'object' }])];
+  const p = proposal({
+    fromConcept: 'bio.homeostasis.negative_feedback', toConcept: 'earth.tides', relationType: 'applies_to',
+    mechanism: 'The corrective loop of sensing a change and acting against it is used to describe how a coastline returns toward its usual water level.',
+    limitations: [{ kind: 'scope_limit', statement: 'An illustration of the pattern, not a measured loop' }],
+    evidence: [{ claimKey: 'clm.body.definition', supports: 'from' }, { claimKey: 'clm.tides.cycle', supports: 'to' }, { claimKey: 'clm.feedback.setpoint', supports: 'mechanism' }],
+  });
+  const without = validateBridgeProposal(p, readSet({ claims }));
+  assert.ok(without.outcome === 'rejected' && without.reasons.includes('direction_unsupported'), JSON.stringify(without));
+  const typed = readSet({ claims, relations: [
+    { from: 'astro.orbit.ellipse', to: 'earth.seasons', kind: 'contradicts', claimKey: 'clm.seasons.not_distance', active: true },
+    { from: 'bio.homeostasis', to: 'earth', kind: 'applies_to', claimKey: 'clm.feedback.setpoint', active: true },
+  ] });
+  assert.equal(validateBridgeProposal(p, typed).outcome, 'admitted');
+});
+
+test('one claim cannot be the whole case: each side needs a claim of its own besides the connecting one', () => {
+  const lone = { ...gravityExplainsTides(), evidence: [
+    { claimKey: 'clm.gravity.tides', supports: 'from' as const }, { claimKey: 'clm.gravity.tides', supports: 'to' as const }, { claimKey: 'clm.gravity.tides', supports: 'mechanism' as const },
+  ] };
+  const d = validateBridgeProposal(lone, readSet());
+  assert.ok(d.outcome === 'rejected' && d.reasons.includes('from_side_unsupported') && d.reasons.includes('to_side_unsupported'), JSON.stringify(d));
 });

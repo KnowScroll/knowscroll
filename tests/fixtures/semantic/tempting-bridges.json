@@ -5,8 +5,8 @@
     "whyUnsupported": "The one claim that mechanically ties astro.orbit.distance to earth.seasons (clm.seasons.distance_not_cause) is being cited here as if it supported a distance-causes-seasons mechanism, but its actual statement says the opposite: winter in the Northern Hemisphere occurs when Earth is closest to the Sun and summer when it is farthest away, which the source gives specifically to rule out distance as the cause. The substrate also carries an explicit `contradicts` relation from astro.orbit.distance to earth.seasons backed by this same claim, and this proposal's counterevidence disposition claims none was found, silently ignoring it.",
     "expectedReasons": [
       "contradicted_by_substrate",
-      "counterevidence_ignored",
-      "direction_unsupported"
+      "counterevidence_cited_as_support",
+      "mechanism_unsupported"
     ],
     "payload": {
       "fromConcept": "astro.orbit.distance",

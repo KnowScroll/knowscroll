@@ -25,7 +25,7 @@ import {
   type EncounterBranchWire,
 } from '../../../contracts/src/semantic.ts';
 import { isWithin } from '../../../core/src/semantic/bridge-validator.ts';
-import type { AuthScope } from '../identity.ts';
+import { recheckScope, type AuthScope } from '../identity.ts';
 import { lockSubstrateShared } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
 import { SemanticNotFound } from './corrections.ts';
@@ -72,7 +72,11 @@ async function conceptTree(client: pg.PoolClient) {
   return { concepts: new Map(rows.map(r => [r.code, { code: r.code, name: '', description: '', parentCode: r.parent_code }])) };
 }
 
-export async function listEncounterBranches(client: pg.PoolClient, scope: AuthScope, assetId: string): Promise<EncounterBranchesResponse> {
+/** `pin` checks one exact (bridge, target) pair for validity instead of ranking: an opened branch
+ * must still be a valid continuation, not still be among the top-ranked ones. */
+export async function listEncounterBranches(
+  client: pg.PoolClient, scope: AuthScope, assetId: string, pin?: { bridgeId: string; targetAssetId: string },
+): Promise<EncounterBranchesResponse> {
   const asset = (await client.query<{ id: string; revision: number }>('SELECT id, revision FROM asset WHERE id=$1', [assetId])).rows[0];
   if (!asset) throw new SemanticNotFound('Encounter not found');
   const base = { assetId, revision: asset.revision, privacyEpoch: scope.privacyEpoch };
@@ -101,6 +105,7 @@ export async function listEncounterBranches(client: pg.PoolClient, scope: AuthSc
 
   const travels: { bridge: BridgeRow; direction: 'forward' | 'reverse'; destination: string }[] = [];
   for (const bridge of bridges) {
+    if (pin && bridge.id !== pin.bridgeId) continue;
     const symmetric = SYMMETRIC_BRIDGE_TYPES.includes(bridge.relation_type);
     if (touches(bridge.from_code)) travels.push({ bridge, direction: 'forward', destination: bridge.to_code });
     else if (touches(bridge.to_code)) travels.push({ bridge, direction: symmetric ? 'forward' : 'reverse', destination: bridge.from_code });
@@ -132,7 +137,7 @@ export async function listEncounterBranches(client: pg.PoolClient, scope: AuthSc
     const toward = travel.destination === travel.bridge.to_code;
     const destinationSide = toward ? 'to' : 'from';
     const citedForDestination = new Set(evidence.filter(e => e.supports === destinationSide || e.supports === 'mechanism').map(e => e.key));
-    const candidates = targets.filter(t => isWithin(tree, t.code, travel.destination));
+    const candidates = targets.filter(t => isWithin(tree, t.code, travel.destination) && (!pin || t.asset_id === pin.targetAssetId));
     if (candidates.length === 0) continue;
     const rank = (t: TargetRow) => [
       t.claim_keys.some(k => citedForDestination.has(k)) ? 0 : 1,
@@ -209,7 +214,9 @@ export async function openBranch(client: pg.PoolClient, scope: AuthScope, raw: u
   // Recheck against the substrate as it is now: the bridge may have been revoked, suppressed or
   // superseded since the list was shown.
   await lockSubstrateShared(client);
-  const current = await listEncounterBranches(client, scope, origin.asset_id);
+  // The shared lock can wait behind a seed load or a correction; the session may expire meanwhile.
+  if (await recheckScope(client, scope) === 'stale_epoch') throw new SemanticConflict('Branch privacy epoch is stale');
+  const current = await listEncounterBranches(client, scope, origin.asset_id, { bridgeId: input.bridgeId, targetAssetId: input.targetAssetId });
   const branch = current.branches.find(b => b.bridgeId === input.bridgeId && b.target.assetId === input.targetAssetId);
   if (!branch) throw new SemanticConflict('This continuation is no longer available');
 
@@ -219,35 +226,39 @@ export async function openBranch(client: pg.PoolClient, scope: AuthScope, raw: u
     [input.targetAssetId],
   )).rows[0]!;
   const items = [{ ...target, reason: reasonFor(branch) }];
+
+  // While recording is paused nothing is kept — not the choice, not a decision naming it. The
+  // continuation is served for reading only; its exposure and Keep are refused by the pause anyway.
+  const paused = (await client.query<{ paused: boolean }>('SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1', [scope.universeId])).rows[0]!.paused;
+  if (paused) {
+    return {
+      decisionId: null, universeId: scope.universeId, accountRevision: accountRow.revision, privacyEpoch: scope.privacyEpoch, items,
+      branch: { branchOpenId: null, recorded: false, bridgeId: input.bridgeId, relationType: branch.relationType, direction: branch.direction },
+    };
+  }
   const decisionId = randomUUID();
   await client.query(
     'INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6)',
     [decisionId, scope.universeId, accountRow.revision, BRANCH_POLICY_VERSION, JSON.stringify(items), scope.privacyEpoch],
   );
-
-  const paused = (await client.query<{ paused: boolean }>('SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1', [scope.universeId])).rows[0]!.paused;
-  let branchOpenId: string | null = null;
-  if (!paused) {
-    branchOpenId = randomUUID();
-    const eventId = randomUUID();
-    await client.query(
-      'INSERT INTO ledger(id,universe_id,kind,client_key,causation_id,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6,$7)',
-      [eventId, scope.universeId, 'branch', input.clientBranchId, origin.event_id,
-        JSON.stringify({ branchOpenId, fromExposureId: input.fromExposureId, bridgeId: input.bridgeId, targetAssetId: input.targetAssetId, decisionId, direction: branch.direction }),
-        scope.privacyEpoch],
-    );
-    await client.query(
-      `INSERT INTO branch_open(id,universe_id,privacy_epoch,client_key,event_id,from_exposure_id,bridge_id,decision_id,target_asset_id)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [branchOpenId, scope.universeId, scope.privacyEpoch, input.clientBranchId, eventId, input.fromExposureId, input.bridgeId, decisionId, input.targetAssetId],
-    );
-  }
+  const branchOpenId = randomUUID();
+  const eventId = randomUUID();
+  await client.query(
+    'INSERT INTO ledger(id,universe_id,kind,client_key,causation_id,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6,$7)',
+    [eventId, scope.universeId, 'branch', input.clientBranchId, origin.event_id,
+      JSON.stringify({ branchOpenId, fromExposureId: input.fromExposureId, bridgeId: input.bridgeId, targetAssetId: input.targetAssetId, decisionId, direction: branch.direction }),
+      scope.privacyEpoch],
+  );
+  await client.query(
+    `INSERT INTO branch_open(id,universe_id,privacy_epoch,client_key,event_id,from_exposure_id,bridge_id,decision_id,target_asset_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [branchOpenId, scope.universeId, scope.privacyEpoch, input.clientBranchId, eventId, input.fromExposureId, input.bridgeId, decisionId, input.targetAssetId],
+  );
   return {
     decisionId, universeId: scope.universeId, accountRevision: accountRow.revision, privacyEpoch: scope.privacyEpoch, items,
-    branch: { branchOpenId, recorded: !paused, bridgeId: input.bridgeId, relationType: branch.relationType, direction: branch.direction },
+    branch: { branchOpenId, recorded: true, bridgeId: input.bridgeId, relationType: branch.relationType, direction: branch.direction },
   };
 }
-
 /** A personal objection. Allowed while recording is paused: it is a correction control, not
  * attention evidence. It suppresses the connection for this universe only. */
 export async function recordConnectionFeedback(client: pg.PoolClient, scope: AuthScope, raw: unknown): Promise<ConnectionFeedbackReceipt> {

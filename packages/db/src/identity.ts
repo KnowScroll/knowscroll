@@ -113,3 +113,18 @@ export async function provisionIdentity(
  });
  return {token, scope};
 }
+
+/** Re-check an authenticated scope after a wait (a lock, a slow read): the universe epoch and the
+ * session's own epoch, revocation and expiry. Locked rows cannot change under the holder, but time
+ * advances and a session can expire during the wait (root AGENTS: recheck authority after waits). */
+export async function recheckScope(client: pg.PoolClient, scope: AuthScope): Promise<'live' | 'stale_epoch'> {
+ const row = (await client.query<{universe_epoch:number;session_epoch:number|null;live:boolean|null}>(
+  `SELECT u.privacy_epoch AS universe_epoch, s.privacy_epoch AS session_epoch,
+    (s.revoked_at IS NULL AND s.expires_at > clock_timestamp()) AS live
+   FROM universe u LEFT JOIN device_session s ON s.universe_id=u.id AND s.id=$2 AND s.device_id=$3
+   WHERE u.id=$1`, [scope.universeId, scope.sessionId, scope.deviceId],
+ )).rows[0];
+ if (!row || row.live !== true) throw new UnauthorizedSession();
+ if (row.universe_epoch !== scope.privacyEpoch || row.session_epoch !== scope.privacyEpoch) return 'stale_epoch';
+ return 'live';
+}

@@ -77,13 +77,33 @@ export async function correctSourceSnapshot(client: pg.PoolClient, raw: unknown,
   }
 
   // Re-validate every admitted bridge that cites an affected claim, in any role and any scope.
+  for (const revoked of await revalidateAdmittedBridges(client, affected.map(c => c.id), { correctionId, sourceKey: input.sourceKey })) {
+    // A universe's own bridge is private history: its reason lives on the bridge row (erased with it),
+    // never in the shared effect log.
+    if (revoked.universeId === null) await record({ targetKind: 'bridge', targetId: revoked.id, before: 'admitted', after: 'revoked', reasons: revoked.reasons });
+  }
+
+  return { correctionId, sourceKey: input.sourceKey, snapshotId: snapshot.id, action: input.action, effects };
+}
+
+/**
+ * Re-run the validator on admitted bridges — those citing `claimIds`, or all of them when null — and
+ * revoke those that no longer pass, with the cause recorded on the bridge. Used by corrections and by
+ * seed loads (new knowledge, such as a contradiction, can invalidate an existing connection).
+ */
+export async function revalidateAdmittedBridges(
+  client: pg.PoolClient,
+  claimIds: readonly string[] | null,
+  cause: Record<string, unknown>,
+): Promise<{ id: string; universeId: string | null; reasons: string[] }[]> {
   const bridges = (await client.query<{ id: string; universe_id: string | null; payload: unknown }>(
     `SELECT DISTINCT b.id, b.universe_id, p.payload FROM bridge b JOIN semantic_proposal p ON p.id = b.proposal_id
      JOIN bridge_evidence e ON e.bridge_id = b.id
-     WHERE b.status = 'admitted' AND e.claim_id = ANY($1::uuid[])
+     WHERE b.status = 'admitted' AND ($1::uuid[] IS NULL OR e.claim_id = ANY($1::uuid[]))
      ORDER BY b.id`,
-    [affected.map(c => c.id)],
+    [claimIds],
   )).rows;
+  const revoked: { id: string; universeId: string | null; reasons: string[] }[] = [];
   for (const bridge of bridges) {
     const readSet = await loadBridgeReadSet(client, bridge.universe_id);
     const withoutSelf = { ...readSet, admittedBridges: readSet.admittedBridges.filter(b => b.id !== bridge.id) };
@@ -91,10 +111,9 @@ export async function correctSourceSnapshot(client: pg.PoolClient, raw: unknown,
     if (decision.outcome === 'admitted') continue;
     await client.query(
       `UPDATE bridge SET status='revoked', status_reason=$2, status_changed_at=clock_timestamp() WHERE id=$1`,
-      [bridge.id, JSON.stringify({ correctionId, sourceKey: input.sourceKey, reasons: decision.reasons, validatorVersion: decision.validatorVersion })],
+      [bridge.id, JSON.stringify({ ...cause, reasons: decision.reasons, validatorVersion: decision.validatorVersion })],
     );
-    await record({ targetKind: 'bridge', targetId: bridge.id, before: 'admitted', after: 'revoked', reasons: decision.reasons });
+    revoked.push({ id: bridge.id, universeId: bridge.universe_id, reasons: decision.reasons });
   }
-
-  return { correctionId, sourceKey: input.sourceKey, snapshotId: snapshot.id, action: input.action, effects };
+  return revoked;
 }

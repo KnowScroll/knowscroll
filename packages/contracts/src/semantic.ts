@@ -91,6 +91,7 @@ export const bridgeRejectionReason = z.enum([
   'analogy_limit_missing',
   'counterevidence_unresolved',
   'counterevidence_ignored',
+  'counterevidence_cited_as_support',
   'duplicate_admitted',
   'stale_read_set',
   'foreign_scope',
@@ -222,7 +223,8 @@ export type BranchOpenInput = z.infer<typeof branchOpenInput>;
 
 /** `POST /v1/branches`: the same shape as a feed decision, plus what was (or was not) recorded. */
 export interface BranchOpenResponse {
-  decisionId: string;
+  /** Null while recording is paused: the target is served for reading only and nothing is stored. */
+  decisionId: string | null;
   universeId: string;
   accountRevision: number;
   privacyEpoch: number;

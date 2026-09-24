@@ -148,9 +148,9 @@ private fun ReadingSheet(
         if (!restoringPosition) return@LaunchedEffect
         kotlinx.coroutines.withTimeoutOrNull(3_000) {
             snapshotFlow { readingScroll.isScrollInProgress to readingScroll.maxValue }
-                .first { (scrolling, max) -> scrolling || max >= savedPosition }
+                .first { (scrolling, max) -> scrolling || documentCanHold(max, savedPosition) }
         }
-        if (!readingScroll.isScrollInProgress && readingScroll.value != savedPosition && readingScroll.maxValue >= savedPosition) {
+        if (!readingScroll.isScrollInProgress && readingScroll.value != savedPosition && documentCanHold(readingScroll.maxValue, savedPosition)) {
             readingScroll.scrollTo(savedPosition)
         }
         restoringPosition = false
@@ -478,3 +478,6 @@ internal fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** ScrollState reports `Int.MAX_VALUE` until its first layout, which is not a measured document. */
+internal fun documentCanHold(maxValue: Int, position: Int): Boolean = maxValue != Int.MAX_VALUE && maxValue >= position

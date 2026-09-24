@@ -347,21 +347,23 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     /** #131: a read of the live continuations; never blocks reading, never retried blindly. */
-    private fun refreshBranches(item:ScrollItem){
+    private fun refreshBranches(item:ScrollItem,message:String?=null){
         branchJob?.cancel()
         if(item.kind!="Scroll"){_branches.value=null;return}
         val epoch=observedPrivacyEpoch
         val universeId=observedUniverseId
         // A refresh of the same encounter keeps the current list until the answer arrives: flashing
         // the shorter Loading rail under a reader moves the document they are reading.
+        // A message (such as a withdrawn connection) rides through the refresh instead of being lost to it.
         if(_branches.value?.assetId!=item.assetId || _branches.value?.availability is BranchAvailability.Failed)
-            _branches.value=BranchPanel(item.assetId,BranchAvailability.Loading)
+            _branches.value=BranchPanel(item.assetId,BranchAvailability.Loading,message=message)
+        else _branches.value=_branches.value?.copy(opening=null,message=message)
         branchJob=viewModelScope.launch {
             try {
                 val result=api.getBranches(item.assetId)
                 if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_scroll.value as? ScrollState.Reading)?.item?.assetId!=item.assetId)return@launch
                 if(result.privacyEpoch!=epoch){reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true);return@launch}
-                _branches.value=BranchPanel(item.assetId,branchAvailabilityOf(result,item),result.branches)
+                _branches.value=BranchPanel(item.assetId,branchAvailabilityOf(result,item),result.branches,message=message)
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if((_scroll.value as? ScrollState.Reading)?.item?.assetId!=item.assetId)return@launch
@@ -418,8 +420,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     conflict==BranchOpenConflict.StaleEpoch -> {store.clearPendingBranch();reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
                     conflict==BranchOpenConflict.Unavailable -> {
                         store.clearPendingBranch()
-                        refreshBranches(current.item)
-                        _branches.value=_branches.value?.copy(message="That connection is no longer available.")
+                        refreshBranches(current.item,"That connection is no longer available.")
                     }
                     invalidatesReader(e) -> {purgeForScope(current.universeId,epoch);failClosed(message(e))}
                     else -> _branches.value=panel.copy(opening=null,message=message(e))
@@ -476,7 +477,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     fun onVisible(assetId:String){
         if(_screen.value is Screen.TraceRevisit)return
         val current=session ?: return
-        if(current.item.assetId!=assetId || current.exposureId.isNotEmpty() || busy || !ready)return
+        if(current.item.assetId!=assetId || current.exposureId.isNotEmpty() || current.decisionId.isEmpty() || busy || !ready)return
         val version=navigationVersion
         val epoch=observedPrivacyEpoch
         busy=true
@@ -497,6 +498,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
 
     private suspend fun recordExposure(value:ScrollSession,version:Long,epoch:Long):ScrollSession {
         if(value.exposureId.isNotEmpty())return value
+        // A continuation taken while recording was paused has no decision to record against.
+        if(value.decisionId.isEmpty())throw RecordingPaused()
         val receipt=api.postExposure(ExposureRequest(value.decisionId,value.item.assetId,value.clientExposureId))
         if(!operationIsCurrent(version,epoch,value))throw CancellationException("Stale exposure response")
         val latest=session?.takeIf{it.clientExposureId==value.clientExposureId && it.item.assetId==value.item.assetId} ?: value
@@ -929,6 +932,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private fun message(e:Exception):String {
         if(e is CancellationException)throw e
         return when(e){
+            is RecordingPaused -> "Recording was paused when you opened this, so it is not being kept in your history."
             is ApiException.MissingToken -> "This development build is not connected yet."
             is ApiException.InteractionConflict -> "This action could not be matched. Your existing keep has not been changed."
             is ApiException.Server -> if(e.statusCode==401) "This device session is no longer available."
@@ -976,3 +980,6 @@ internal suspend fun continueReconcilingAfterSignOutRetry(
     retrySignOut()
     return !isSignedOutNow()
 }
+
+/** The reader holds a Scroll served while recording was paused: nothing personal may be written for it. */
+private class RecordingPaused : Exception("Recording is paused")

@@ -69,8 +69,11 @@ function onOneBranch(readSet: BridgeReadSet, a: string, b: string): boolean {
   return isWithin(readSet, a, b) || isWithin(readSet, b, a);
 }
 
+/** A claim supports a side when it names that concept or a broader one: what holds for gravity
+ * holds for a narrower aspect of it, but a claim about star birth says nothing about stars in
+ * general. Evidence never generalises upward. */
 function sideLinks(readSet: BridgeReadSet, claim: ReadSetClaim, side: string) {
-  return claim.concepts.filter(link => link.role !== 'context' && isWithin(readSet, link.code, side));
+  return claim.concepts.filter(link => link.role !== 'context' && isWithin(readSet, side, link.code));
 }
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'its', 'are', 'was', 'what', 'how', 'why', 'not', 'one', 'can', 'more', 'than', 'their', 'they', 'which', 'when', 'about']);
@@ -127,10 +130,11 @@ export function sliceReadSet(payload: BridgeProposalPayload, readSet: BridgeRead
   };
   addWithAncestors(payload.fromConcept);
   addWithAncestors(payload.toConcept);
-  const claimKeys = new Set([...payload.evidence.map(e => e.claimKey), ...payload.counterevidence.claimKeys]);
+  // Contradictions, and typed relations of the proposal's own kind (the direction rule reads them).
+  const relations = readSet.relations.filter(r => r.active && (r.kind === 'contradicts' || r.kind === payload.relationType));
+  const claimKeys = new Set([...payload.evidence.map(e => e.claimKey), ...payload.counterevidence.claimKeys, ...relations.map(r => r.claimKey)]);
   const claims = [...claimKeys].sort().map(k => readSet.claims.get(k)).filter((c): c is ReadSetClaim => c !== undefined);
   for (const claim of claims) for (const link of claim.concepts) addWithAncestors(link.code);
-  const relations = readSet.relations.filter(r => r.active && r.kind === 'contradicts');
   for (const r of relations) { addWithAncestors(r.from); addWithAncestors(r.to); }
   const admittedBridges = readSet.admittedBridges.filter(b => b.relationType === payload.relationType
     && [b.fromConcept, b.toConcept].some(c => c === payload.fromConcept || c === payload.toConcept));
@@ -173,12 +177,26 @@ export function validateBridgeProposal(payload: BridgeProposalPayload, readSet: 
     .map(ref => cited(ref.claimKey))
     .filter((claim): claim is ReadSetClaim => claim !== undefined && claim.status === 'supported');
 
-  // 3. Each side has its own evidence.
-  if (!usable('from').some(claim => sideLinks(readSet, claim, from).length > 0)) reject('from_side_unsupported');
-  if (!usable('to').some(claim => sideLinks(readSet, claim, to).length > 0)) reject('to_side_unsupported');
+  // Contradictions between the two sides, in either stored orientation.
+  const contradictions = readSet.relations.filter(r => r.active && r.kind === 'contradicts'
+    && ((onOneBranch(readSet, r.from, from) && onOneBranch(readSet, r.to, to))
+      || (onOneBranch(readSet, r.from, to) && onOneBranch(readSet, r.to, from))));
+
+  // A claim that argues against the connection can never also count for it.
+  const refuting = new Set([...payload.counterevidence.claimKeys, ...contradictions.map(c => c.claimKey)]);
+  for (const ref of payload.evidence) {
+    if (refuting.has(ref.claimKey)) reject('counterevidence_cited_as_support', `claim ${ref.claimKey} argues against this connection`);
+  }
+
+  // 3. Each side has its own evidence, beyond the claim that connects them: the source must
+  // describe both ideas, not only assert the link.
+  const mechanismKeys = new Set(payload.evidence.filter(e => e.supports === 'mechanism').map(e => e.claimKey));
+  const independent = (side: 'from' | 'to', code: string) => usable(side).some(claim => !mechanismKeys.has(claim.key) && !refuting.has(claim.key) && sideLinks(readSet, claim, code).length > 0);
+  if (!independent('from', from)) reject('from_side_unsupported', 'the from side needs a supported claim of its own, besides the connecting one');
+  if (!independent('to', to)) reject('to_side_unsupported', 'the to side needs a supported claim of its own, besides the connecting one');
 
   // 4–5. The mechanism is evidenced, and a directional relation carries its direction.
-  const mechanismClaims = usable('mechanism');
+  const mechanismClaims = usable('mechanism').filter(claim => !refuting.has(claim.key));
   const bridging = mechanismClaims.filter(claim => sideLinks(readSet, claim, from).length > 0 && sideLinks(readSet, claim, to).length > 0);
   let sharedMechanism = false;
   if (symmetric && bridging.length === 0) {
@@ -196,13 +214,18 @@ export function validateBridgeProposal(payload: BridgeProposalPayload, readSet: 
       ? 'no cited claim connects both sides, and no pair of cited claims names one shared mechanism'
       : 'a directional bridge needs one cited claim that itself connects both sides');
   } else if (!symmetric && bridging.length > 0) {
-    const directed = bridging.some(claim => {
-      const fromRoles = sideLinks(readSet, claim, from).map(l => l.role);
-      const toRoles = sideLinks(readSet, claim, to).map(l => l.role);
-      if (relationType === 'explains') return fromRoles.includes('mechanism') && toRoles.some(r => r !== 'mechanism');
-      return fromRoles.some(r => r === 'mechanism' || r === 'subject') && toRoles.some(r => r === 'subject' || r === 'object');
-    });
-    if (!directed) reject('direction_unsupported', `no connecting claim carries the ${relationType} direction from ${from} to ${to}`);
+    // `explains` is carried by claim roles (the explaining side is the mechanism). Roles cannot tell
+    // "applies to" from "comes before", so those need a typed substrate relation of that kind,
+    // backed by its own claim, from the same or a broader concept on each side.
+    const directed = relationType === 'explains'
+      ? bridging.some(claim => {
+        const fromRoles = sideLinks(readSet, claim, from).map(l => l.role);
+        const toRoles = sideLinks(readSet, claim, to).map(l => l.role);
+        return fromRoles.includes('mechanism') && toRoles.some(r => r !== 'mechanism');
+      })
+      : readSet.relations.some(r => r.active && r.kind === relationType && isWithin(readSet, from, r.from) && isWithin(readSet, to, r.to)
+        && readSet.claims.get(r.claimKey)?.status === 'supported');
+    if (!directed) reject('direction_unsupported', `nothing in the evidence carries the ${relationType} direction from ${from} to ${to}`);
   }
 
   // 6. Analogies say where they stop.
@@ -211,9 +234,6 @@ export function validateBridgeProposal(payload: BridgeProposalPayload, readSet: 
   // 7. Counterevidence.
   for (const key of payload.counterevidence.claimKeys) if (!cited(key)) reject('counterevidence_unresolved', `unknown counterevidence ${key}`);
   if (payload.counterevidence.disposition === 'listed' && payload.counterevidence.claimKeys.length === 0) reject('counterevidence_unresolved', 'listed disposition names no claim');
-  const contradictions = readSet.relations.filter(r => r.active && r.kind === 'contradicts'
-    && ((onOneBranch(readSet, r.from, from) && onOneBranch(readSet, r.to, to))
-      || (symmetric && onOneBranch(readSet, r.from, to) && onOneBranch(readSet, r.to, from))));
   for (const c of contradictions) {
     if (!payload.counterevidence.claimKeys.includes(c.claimKey)) reject('counterevidence_ignored', `substrate records ${c.from} contradicts ${c.to} (${c.claimKey})`);
     if (!symmetric) reject('contradicted_by_substrate', `the substrate says ${c.from} does not ${relationType.replace(/_/g, ' ')} ${c.to}`);

@@ -1,7 +1,7 @@
 /**
  * #131 — assembling the validator's read set from PostgreSQL, and the substrate lock.
  *
- * Lock order (docs/operations/semantic-substrate.md): the universe row lock, when a request holds
+ * Lock order (ADR-0031 §7): the universe row lock, when a request holds
  * one, always comes first; the substrate advisory lock second. Writers of shared knowledge
  * (seed loads, shared proposals, corrections) take it exclusively; anything that must see a
  * stable substrate while writing private rows (universe proposals, branch opens, erasure) takes

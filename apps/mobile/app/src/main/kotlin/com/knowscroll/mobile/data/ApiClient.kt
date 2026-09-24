@@ -150,8 +150,13 @@ class ApiClient(
         post("/v1/branches", body, setOf(200, 201), false) { obj ->
             try {
                 val branch = obj.getJSONObject("branch")
+                // While recording is paused the server serves the target but stores no decision, so
+                // there is nothing to record an exposure against: the session carries an empty id.
+                val recorded = branch.getBoolean("recorded")
+                val decisionId = if (obj.isNull("decisionId")) "" else obj.getString("decisionId")
+                protocol(recorded == decisionId.isNotEmpty()) { "Branch receipt disagrees about what was recorded" }
                 val feed = FeedResponse(
-                    decisionId = obj.getString("decisionId"), universeId = obj.getString("universeId"),
+                    decisionId = decisionId, universeId = obj.getString("universeId"),
                     accountRevision = obj.getLong("accountRevision"), privacyEpoch = obj.getLong("privacyEpoch"),
                     items = parseItems(obj.getJSONArray("items")),
                 )
@@ -159,7 +164,7 @@ class ApiClient(
                 protocol(branch.getString("bridgeId") == req.bridgeId) { "Branch receipt names another connection" }
                 BranchOpenReceipt(
                     feed, if (branch.isNull("branchOpenId")) null else branch.getString("branchOpenId"),
-                    branch.getBoolean("recorded"), branch.getString("bridgeId"), branch.getString("relationType"), branch.getString("direction"),
+                    recorded, branch.getString("bridgeId"), branch.getString("relationType"), branch.getString("direction"),
                 )
             } catch (e: JSONException) { throw ApiException.Protocol("Branch receipt was malformed") }
         }

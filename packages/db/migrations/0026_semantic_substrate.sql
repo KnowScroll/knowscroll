@@ -188,10 +188,16 @@ CREATE TABLE semantic_proposal (
  decision jsonb NOT NULL CHECK (jsonb_typeof(decision) = 'object'),
  validator_version text NOT NULL CHECK (validator_version ~ '^[a-z0-9.-]{3,64}$'),
  decided_at timestamptz NOT NULL DEFAULT clock_timestamp(),
- UNIQUE (proposer_kind, proposer_ref, payload_sha256),
  CHECK ((scope_kind = 'shared' AND universe_id IS NULL AND privacy_epoch IS NULL)
-     OR (scope_kind = 'universe' AND universe_id IS NOT NULL AND privacy_epoch IS NOT NULL))
+     OR (scope_kind = 'universe' AND universe_id IS NOT NULL AND privacy_epoch IS NOT NULL)),
+ -- The recorded decision is the authority for the status; a row cannot claim an admission its
+ -- own decision does not record.
+ CHECK (decision->>'outcome' = status AND decision->>'validatorVersion' = validator_version)
 );
+-- Replay identity is per scope: the same proposer ref and payload in another universe is another
+-- proposal, never a replay of this one.
+CREATE UNIQUE INDEX semantic_proposal_replay ON semantic_proposal(proposer_kind, proposer_ref, payload_sha256,
+ COALESCE(universe_id, '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE INDEX semantic_proposal_universe ON semantic_proposal(universe_id) WHERE universe_id IS NOT NULL;
 
 CREATE TABLE bridge (
@@ -286,10 +292,42 @@ BEGIN
  END IF;
  RETURN NULL;
 END $$;
+-- Evidence is part of what was validated: never edited, and removed only with its bridge (the
+-- ON DELETE CASCADE from a universe bridge's erasure, when the parent row is already gone).
+CREATE FUNCTION bridge_evidence_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP = 'UPDATE' THEN RAISE EXCEPTION 'Bridge evidence is immutable'; END IF;
+ IF EXISTS (SELECT 1 FROM bridge WHERE id = OLD.bridge_id) THEN
+  RAISE EXCEPTION 'Bridge evidence is removed only with its bridge';
+ END IF;
+ RETURN OLD;
+END $$;
+CREATE TRIGGER bridge_evidence_guard BEFORE UPDATE OR DELETE ON bridge_evidence
+ FOR EACH ROW EXECUTE FUNCTION bridge_evidence_guard();
+
 CREATE CONSTRAINT TRIGGER bridge_admitted_evidence_on_bridge AFTER INSERT OR UPDATE ON bridge
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION bridge_admitted_evidence_guard();
 CREATE CONSTRAINT TRIGGER bridge_admitted_evidence_on_evidence AFTER INSERT OR UPDATE OR DELETE ON bridge_evidence
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION bridge_admitted_evidence_guard();
+
+-- A snapshot correction must be propagated in the same transaction: at commit, no admitted bridge
+-- may cite (in any role) a claim that this snapshot's change left without current support. A raw
+-- status UPDATE that skips revalidation is refused rather than leaving stale connections live.
+CREATE FUNCTION snapshot_correction_propagated() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE stale uuid;
+BEGIN
+ IF NEW.status = 'current' THEN RETURN NULL; END IF;
+ SELECT b.id INTO stale FROM bridge b JOIN bridge_evidence e ON e.bridge_id = b.id
+  WHERE b.status = 'admitted' AND NOT claim_is_supported(e.claim_id)
+    AND e.claim_id IN (SELECT claim_id FROM claim_support WHERE snapshot_id = NEW.id)
+  LIMIT 1;
+ IF stale IS NOT NULL THEN
+  RAISE EXCEPTION 'Bridge % still cites a claim this correction left unsupported; revalidate it in the same transaction', stale;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE CONSTRAINT TRIGGER source_snapshot_correction_propagated AFTER UPDATE ON source_snapshot
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION snapshot_correction_propagated();
 
 -- A proposal is history: never edited; universe-scoped proposals leave only with erasure.
 CREATE FUNCTION semantic_proposal_guard() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -305,9 +343,11 @@ CREATE TRIGGER semantic_proposal_guard BEFORE UPDATE OR DELETE ON semantic_propo
 
 CREATE TABLE semantic_correction (
  id uuid PRIMARY KEY,
- target_kind text NOT NULL CHECK (target_kind IN ('source_snapshot')),
- target_id uuid NOT NULL,
- action text NOT NULL CHECK (action IN ('corrected','revoked')),
+ target_kind text NOT NULL CHECK (target_kind IN ('source_snapshot','seed_load')),
+ -- A snapshot id, or NULL for a seed load (named by `reason`).
+ target_id uuid,
+ action text NOT NULL CHECK (action IN ('corrected','revoked','revalidated')),
+ CHECK ((target_kind = 'source_snapshot') = (target_id IS NOT NULL)),
  reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 8 AND 400),
  actor_kind text NOT NULL CHECK (actor_kind IN ('editorial','operator')),
  created_at timestamptz NOT NULL DEFAULT clock_timestamp()

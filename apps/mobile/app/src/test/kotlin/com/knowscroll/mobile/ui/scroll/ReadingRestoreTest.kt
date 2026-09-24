@@ -40,6 +40,14 @@ class ReadingRestoreTest {
     )
 
     @Test
+    fun anUnmeasuredDocumentCannotHoldASavedPosition() {
+        // ScrollState reports Int.MAX_VALUE before its first layout; that is not a document.
+        assertEquals(false, documentCanHold(Int.MAX_VALUE, 500))
+        assertEquals(false, documentCanHold(400, 500))
+        assertEquals(true, documentCanHold(500, 500))
+    }
+
+    @Test
     fun aSavedPositionSurvivesContinuationsArrivingAfterFirstLayout() = runComposeUiTest {
         val written = mutableListOf<Pair<String, Int>>()
         val state = mutableStateOf(reading("first", 0))

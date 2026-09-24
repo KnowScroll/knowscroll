@@ -42,8 +42,11 @@ co-exposure or a model's confidence: it would look like understanding and prove 
 6. **Personal consumers are private history.** Branch opens (a `branch` Ledger event caused by the
    exposure it started from, plus a `decision` serving the target) and connection feedback are
    universe-scoped, erased by Clear/Reset before the rows they reference, and exported. While
-   recording is paused a branch is served but nothing personal is kept. A person's "seems wrong"
-   suppresses the connection for that universe and never retracts shared knowledge.
+   recording is paused a branch is served but nothing personal is kept: no decision, no Ledger
+   event and no branch row, so the response's `decisionId` is null and the target cannot be
+   exposed. Connection feedback stays allowed while paused, because it is a correction control
+   rather than attention. A person's "seems wrong" suppresses the connection for that universe and
+   never retracts shared knowledge.
 7. **Locks.** Universe row lock first, substrate advisory lock second (exclusive for shared
    writes and corrections, shared for private writes and erasure). Corrections never take a
    universe lock, so the orders cannot cycle.

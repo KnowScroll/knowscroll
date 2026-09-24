@@ -1,8 +1,8 @@
 {
-  "checkedAt": "2026-09-23T20:36:14.973Z",
+  "checkedAt": "2026-09-23T21:23:27.588Z",
   "seedVersion": "editorial-substrate-2026-09-24",
   "counts": {
-    "verified": 70,
+    "verified": 71,
     "unverified": 0,
     "missing": 0
   },
@@ -393,6 +393,11 @@
     },
     {
       "claimKey": "clm.energy_budget.radiative_cooling",
+      "sourceKey": "nasa.energy_budget",
+      "status": "verified"
+    },
+    {
+      "claimKey": "clm.energy_budget.definition",
       "sourceKey": "nasa.energy_budget",
       "status": "verified"
     }
