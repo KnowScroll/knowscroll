@@ -91,14 +91,25 @@ class AtlasProfileTest {
                     "sync" to FrameMetrics.SYNC_DURATION,
                     "gpu" to FrameMetrics.GPU_DURATION,
                     "queue" to FrameMetrics.UNKNOWN_DELAY_DURATION,
+                    // #136: the phases the first profiles did not record, where most of the
+                    // regression turned out to sit (input, animation/recomposition, RenderThread
+                    // command issue, buffer swap).
+                    "input" to FrameMetrics.INPUT_HANDLING_DURATION,
+                    "animation" to FrameMetrics.ANIMATION_DURATION,
+                    "commandIssue" to FrameMetrics.COMMAND_ISSUE_DURATION,
+                    "swap" to FrameMetrics.SWAP_BUFFERS_DURATION,
                 )
             val timings =
                 phases.associate { it.first to Collections.synchronizedList(mutableListOf<Long>()) }
             val drops = java.util.concurrent.atomic.AtomicInteger()
+            // One row per frame with its intended vsync, so flight frames and idle frames can be told apart.
+            val rows = Collections.synchronizedList(mutableListOf<LongArray>())
             val thread = HandlerThread("frame-profile").apply { start() }
             val listener =
                 android.view.Window.OnFrameMetricsAvailableListener { _, metrics, dropped ->
                     durations.add(metrics.getMetric(FrameMetrics.TOTAL_DURATION))
+                    rows.add(longArrayOf(metrics.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP), metrics.getMetric(FrameMetrics.TOTAL_DURATION)) +
+                        LongArray(phases.size) { metrics.getMetric(phases[it].second) })
                     phases.forEach { (name, id) ->
                         timings.getValue(name).add(metrics.getMetric(id))
                     }
@@ -122,6 +133,12 @@ class AtlasProfileTest {
                     android.os.Debug.MemoryInfo().also { android.os.Debug.getMemoryInfo(it) }
                 val samples = synchronized(durations) { durations.toList().sorted() }
                 check(samples.isNotEmpty())
+                File(context.filesDir, "atlas-frames.json").writeText(
+                    JSONObject()
+                        .put("columns", org.json.JSONArray(listOf("intendedVsyncNs", "totalNs") + phases.map { it.first + "Ns" }))
+                        .put("rows", org.json.JSONArray(synchronized(rows) { rows.map { org.json.JSONArray(it.toList()) } }))
+                        .toString()
+                )
                 File(context.filesDir, "atlas-profile.json")
                     .writeText(
                         JSONObject()
