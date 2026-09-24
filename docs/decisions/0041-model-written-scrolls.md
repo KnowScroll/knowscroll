@@ -124,6 +124,12 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
    and the prose is not copied; the prose's other sentences are the model's and are not checked one
    by one. Presenting these Scrolls as `synthesis` with a generated label (product definition §12)
    needs a contract change and is left to a later slice.
+10. **Not inquiry evidence** (#181, review of #178). A model-written Scroll's claims (`created_by =
+    'model_proposal'`) are the model's statements, checked only in that each quote is on the page.
+    Background inquiries (ADR-0038) neither offer them as evidence nor count a claim of theirs that
+    names two places as a reason to ask about the pair (`readInquiryInputs` leaves them out), so a
+    model-found connection never rests on another model's prose. Admitting them after a review is a
+    later decision.
 
 ## Not in this version
 
@@ -149,4 +155,5 @@ fetch tests with a mocked network (the allowlist, OpenStax, redirects, no cookie
 tests (fixture transport): admission and its lineage, idempotence, a refused reply storing no text,
 the database's hash guard, `GET /v1/feed` serving the admitted Scroll, and no API response or export
 carrying the material; CLI tests: the database guard, the key prefix, the ledger lock and cap, and
-stopping at the first route refusal. The live batch is the coordinator's.
+stopping at the first route refusal; a model-written Scroll's claims never offered to an inquiry
+(§10). The live batch is the coordinator's.

@@ -4,8 +4,9 @@
  * whole lineage (source, snapshot, private material, claims with their quotes, annotations, the
  * writing record); the same material and request are never sent twice; a refused reply keeps reason
  * codes and no text; a page that changed, OpenStax, an unknown concept or a refusing route sends
- * nothing; the database guards the material's hash; and the Composer serves the Scroll while no
- * response or export ever carries the material. The page text here is a hand-written fixture.
+ * nothing; the database guards the material's hash; the Composer serves the Scroll while no
+ * response or export ever carries the material; and its claims are never offered to a background
+ * inquiry. The page text here is a hand-written fixture.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,11 +16,14 @@ import { buildApp } from '../apps/api/src/app.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
 import { createFixtureScrollTransport, type ScrollFixtureMode } from '../apps/worker/src/providers/scroll-fixture.ts';
 import { writeScroll, type WriteScrollDeps } from '../apps/worker/src/scrolls/write-scroll.ts';
+import { selectInquiryPairs } from '../packages/core/src/reasoning/bridge-inquiry.ts';
 import { extractVisibleText } from '../packages/core/src/scrolls/material.ts';
 import { SCROLL_LIMITS } from '../packages/core/src/scrolls/writing.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
+import { readInquiryInputs } from '../packages/db/src/reasoning-inquiry-context.ts';
 import { admitModelScroll } from '../packages/db/src/semantic/model-scrolls.ts';
 import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { formPlaces, loadInquiryFixture } from './helpers/inquiry-fixture.ts';
 import { makeSemanticFixture, type SemanticFixture } from './helpers/semantic-fixture.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
@@ -278,4 +282,25 @@ test('GET /v1/feed serves the written Scroll, and no response or export ever car
   assert.ok(exported.body.includes(written.assetId!), 'the export carries the reader\'s own history of the Scroll');
   for (const body of bodies) for (const secret of secrets) assert.ok(!body.includes(secret), `a response carried material: ${secret.slice(0, 30)}…`);
   assert.equal((await pool.query('SELECT 1 FROM source_material m JOIN scroll_writing w ON w.snapshot_id = m.snapshot_id WHERE w.id=$1', [written.writingId])).rowCount, 1);
+});
+
+test('a model-written Scroll\'s claims are never offered to a background inquiry (#181, ADR-0041 §10)', async () => {
+  const own = await loadInquiryFixture(pool);
+  const url = `https://science.nasa.gov/fixture/${own.tag}/gravity/`;
+  // Its claims are about Gravity, one side of the reader's candidate pair with the Sun.
+  const written = await writeScroll(deps({ [url]: pageHtml() }).deps, { url, conceptCodes: [own.codes.gravity] });
+  assert.equal(written.status, 'admitted', JSON.stringify(written));
+  const modelClaims = (await pool.query<{ key: string }>('SELECT cl.key FROM asset_claim x JOIN claim cl ON cl.id = x.claim_id WHERE x.asset_id=$1', [written.assetId])).rows.map(r => r.key);
+  assert.equal(modelClaims.length, 2);
+
+  const identity = await provisionIdentity();
+  await formPlaces(identity.scope.universeId, [own.codes.gravity, own.codes.sun]);
+  const inputs = await transaction(async client => {
+    await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [identity.scope.universeId]);
+    return readInquiryInputs(client, identity.scope.universeId, identity.scope.privacyEpoch);
+  });
+  assert.deepEqual(inputs.claims.filter(c => modelClaims.includes(c.key)), [], 'model prose is not inquiry evidence until reviewed');
+  const [pair] = selectInquiryPairs(inputs).filter(p => p.a.code === own.codes.gravity || p.b.code === own.codes.gravity);
+  assert.ok(pair, 'the pair is still offered, on its editorial claims');
+  assert.deepEqual([...pair.claimsA, ...pair.claimsB, ...pair.both].map(c => c.key).filter(key => key.startsWith('clm.model.')), []);
 });

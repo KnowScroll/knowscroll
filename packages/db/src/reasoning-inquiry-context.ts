@@ -55,11 +55,13 @@ export async function readInquiryInputs(client: pg.PoolClient, universeId: strin
   const parentOf = new Map((await client.query<{ code: string; parent: string | null }>(
     'SELECT c.code, p.code AS parent FROM concept c LEFT JOIN concept p ON p.id = c.parent_id',
   )).rows.map(r => [r.code, r.parent]));
+  // A model-written Scroll's claims (ADR-0041 §10) are model prose checked only for their quote: they are
+  // neither offered as evidence nor make a candidate pair until a review admits them.
   const claims = (await client.query<{ key: string; statement: string; supported: boolean; source_title: string | null; links: InquiryCandidateInput['claims'][number]['links'] }>(
     `SELECT cl.key, cl.statement, claim_is_supported(cl.id) AS supported, ${CLAIM_SOURCE} AS source_title,
        COALESCE(json_agg(json_build_object('code', co.code, 'role', cc.role) ORDER BY co.code, cc.role) FILTER (WHERE co.code IS NOT NULL), '[]') AS links
      FROM claim cl LEFT JOIN claim_concept cc ON cc.claim_id = cl.id LEFT JOIN concept co ON co.id = cc.concept_id
-     GROUP BY cl.id, cl.key, cl.statement ORDER BY cl.key`,
+     WHERE cl.created_by <> 'model_proposal' GROUP BY cl.id, cl.key, cl.statement ORDER BY cl.key`,
   )).rows.map(r => ({ key: r.key, statement: r.statement, sourceTitle: r.source_title ?? '', supported: r.supported && r.source_title !== null, links: r.links }));
   const connections = (await client.query<{ from: string; to: string }>(
     `SELECT f.code AS from, t.code AS to FROM concept_relation r JOIN concept f ON f.id = r.from_concept_id JOIN concept t ON t.id = r.to_concept_id
