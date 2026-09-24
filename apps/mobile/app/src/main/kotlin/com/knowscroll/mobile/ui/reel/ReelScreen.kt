@@ -108,7 +108,7 @@ fun ReelScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
                 ReelPlayer(
-                    BuildConfig.KS_DEBUG_API_BASE.trimEnd('/') + media.path,
+                    BuildConfig.KS_API_BASE.trimEnd('/') + media.path,
                     mediaToken?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap(),
                     Modifier.weight(1f).fillMaxWidth(),
                     onVisible,

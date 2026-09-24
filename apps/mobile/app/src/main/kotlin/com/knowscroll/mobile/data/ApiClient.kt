@@ -31,7 +31,7 @@ sealed class ApiException(message: String) : Exception(message) {
 }
 
 class ApiClient(
-    private val baseUrl: String = BuildConfig.KS_DEBUG_API_BASE,
+    private val baseUrl: String = BuildConfig.KS_API_BASE,
     token: String = BuildConfig.KS_DEV_TOKEN,
     private val connectTimeoutMs: Int = 5_000,
     private val readTimeoutMs: Int = DEFAULT_READ_TIMEOUT_MS,

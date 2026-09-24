@@ -177,7 +177,7 @@ class ReaderJourneyTest {
         reachThreshold()
         compose.waitUntil(10_000) { (store().read()?.readingPosition ?: 0) > 0 }
         val before = store().read()!!
-        val connection = URL(BuildConfig.KS_DEBUG_API_BASE + "/__journey/feed-mode").openConnection() as HttpURLConnection
+        val connection = URL(BuildConfig.KS_API_BASE + "/__journey/feed-mode").openConnection() as HttpURLConnection
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 5_000
