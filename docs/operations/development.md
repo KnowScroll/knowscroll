@@ -74,7 +74,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.knowscroll.mobile/.MainActivity
 ```
 
-Emulator API URL is `http://10.0.2.2:4310`, forwarding to host loopback. On a USB device, use `adb reverse tcp:4310 tcp:4310` and build with `KS_DEBUG_API_BASE=http://127.0.0.1:4310` in local.properties. Never bind this development API publicly. Cleartext is allowed only in debug. Release variants are disabled until real identity and deployment controls exist.
+Emulator API URL is `http://10.0.2.2:4310`, forwarding to host loopback. On a USB device, use `adb reverse tcp:4310 tcp:4310` and build with `KS_DEBUG_API_BASE=http://127.0.0.1:4310` in local.properties. Never bind this development API publicly. Cleartext is allowed only in debug. A release build refuses until the owner's signing and API inputs are given; see [release inputs](release-inputs.md).
 
 Run `./scripts/studio.sh` for the IDE with SSD indexes/plugins/logs and the same Gradle/SDK environment. Android Studio may show first-run setup; point it at the existing SSD SDK rather than installing another SDK internally.
 

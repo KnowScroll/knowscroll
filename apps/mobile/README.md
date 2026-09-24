@@ -6,7 +6,7 @@ Universe privacy controls include a confirmed **Clear Scroll history** action. I
 
 Build: `./gradlew :app:assembleDebug :app:lintDebug`. Real emulator journey tests are under app/src/androidTest; they require the running local API/worker and consume an unkept starting asset. They are not fake network tests.
 
-Not built: account deletion, backup-erasure guarantees, production login/recovery, full cosmic pan/zoom/world entry, video, horizontal branches, rich Scroll registry, or full offline sync. Cached current Scroll restores only after online privacy reconciliation; an uncertain clear or unavailable reconciliation fails closed. System sans temporarily substitutes for the visual reference fonts. Release variants are disabled.
+Not built: account deletion, backup-erasure guarantees, production login/recovery, full cosmic pan/zoom/world entry, video, horizontal branches, rich Scroll registry, or full offline sync. Cached current Scroll restores only after online privacy reconciliation; an uncertain clear or unavailable reconciliation fails closed. System sans temporarily substitutes for the visual reference fonts. A release build refuses until the owner's signing and API inputs are given ([release inputs](../../docs/operations/release-inputs.md), ADR-0047); release App Links open the sign-in field once the owner's domain is verified.
 
 ## Reader navigation (#74)
 
