@@ -13,12 +13,14 @@ import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
 import { answerFairnessPolicy, installAskAnswerRoute } from '../packages/db/src/reasoning-answers.ts';
 import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { FAIRNESS_CLASSES } from '../packages/db/src/reasoning-fairness-policy.ts';
 import { installBackgroundInquiryRoute, openDueInquiries, sharedReasoningAuthority } from '../packages/db/src/reasoning-inquiries.ts';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import { executeInquiryClaim, runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
 import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
-import { formPlaces, loadInquiryFixture, type InquiryFixture } from './helpers/inquiry-fixture.ts';
+import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+import { formPlaces, gravitySunPayload, loadInquiryFixture, type InquiryFixture } from './helpers/inquiry-fixture.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Inquiry tests require a disposable knowscroll_test_* database');
 
@@ -104,4 +106,32 @@ test('a queue of background inquiries never starves a direct Ask on the shared s
   for (const token of readers) {
     await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers: headers(token), payload: { enabled: false, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
   }
+});
+
+test('a background inquiry gone stale at the head of the shared scheduler never breaks the answer loop', async () => {
+  const identity = await provisionIdentity();
+  const consent = await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers: headers(identity.token), payload: { enabled: true, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
+  assert.equal(consent.statusCode, 200, consent.body);
+  await formPlaces(identity.scope.universeId, [f.codes.gravity, f.codes.sun]);
+  assert.equal((await openDueInquiries(pool, { limit: 50 })).opened, 1);
+  // The reader's universe connects the pair itself while the inquiry waits in the queue.
+  await transaction(async client => {
+    await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [identity.scope.universeId]);
+    await submitBridgeProposal(client, { scope: { kind: 'universe', universeId: identity.scope.universeId, privacyEpoch: 0 }, proposerKind: 'person', proposerRef: `person-${f.tag}`, payload: gravitySunPayload(f) });
+  });
+  const ask = await askForAnswer();
+  // Stand-in for the round having reached the background lane while the Ask waits: the scheduler's
+  // next probe meets the stale inquiry first.
+  await pool.query(`UPDATE reasoning_fairness_scheduler SET class_cursor=$2, generation=generation+1 WHERE policy_version=$1`,
+    [POLICY, FAIRNESS_CLASSES.indexOf('background_inquiry')]);
+  const seen: string[] = [];
+  for (let i = 0; i < 6 && (await answerStatus(ask)) === 'queued'; i += 1) {
+    const pass = await answerPass();
+    seen.push(pass.kind === 'idle' ? pass.reason : pass.kind);
+  }
+  assert.equal(await answerStatus(ask), 'answered', JSON.stringify(seen));
+  assert.equal(seen[0], 'stale_context_queued', 'the answer loop yields once instead of failing');
+  const inquiry = (await pool.query('SELECT status, reasons FROM background_inquiry WHERE universe_id=$1', [identity.scope.universeId])).rows[0];
+  assert.deepEqual([inquiry.status, inquiry.reasons], ['failed', ['stale_context', 'pair_connected']]);
+  assert.equal(Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE universe_id=$1', [identity.scope.universeId])).rows[0].count), 0, 'never admitted, never sent');
 });

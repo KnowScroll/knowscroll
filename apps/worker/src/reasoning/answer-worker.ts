@@ -12,7 +12,8 @@ import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-
 import { applyAskAnswer, failAskAnswer, giveBackUnsentAnswer, loadAnswerWork, type AnswerOutcome, type AnswerWork } from '../../../../packages/db/src/reasoning-answers.ts';
 import { createReasoningFairness, type FairnessScheduled } from '../../../../packages/db/src/reasoning-fairness.ts';
 import { jobFamily, sharedReasoningAuthority } from '../../../../packages/db/src/reasoning-inquiries.ts';
-import type { ReasoningAuthority } from '../../../../packages/db/src/reasoning-runtime-policy.ts';
+import { settleInquiries } from '../../../../packages/db/src/reasoning-inquiry-execution.ts';
+import { ReasoningDenied, type ReasoningAuthority } from '../../../../packages/db/src/reasoning-runtime-policy.ts';
 import { createReasoningReconciliation } from '../../../../packages/db/src/reasoning-reconciliation.ts';
 import { invokeReasoningOnce, type SingleInvocationTransport } from './invoke.ts';
 import type { z } from 'zod';
@@ -86,7 +87,14 @@ export async function runAnswerPass(deps: {
 
   // Resolves either family: a scheduler shared with background inquiries may admit one of theirs.
   const authority = sharedReasoningAuthority();
-  const scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version });
+  let scheduled: Awaited<ReturnType<ReturnType<typeof createReasoningFairness>['schedule']>>;
+  try { scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version }); }
+  catch (error) {
+    // On a shared scheduler a background inquiry whose sealed facts went stale while queued can be
+    // at the head: the inquiry sweep withdraws it (never sent) and this pass yields.
+    if (error instanceof ReasoningDenied && error.code.startsWith('context_')) { await settleInquiries(pool, { owner }); return { kind: 'idle', reason: 'stale_context_queued' }; }
+    throw error;
+  }
   if (scheduled.kind !== 'admitted') return { kind: 'idle', reason: scheduled.kind };
   if (await jobFamily(pool, scheduled.claim.jobId) !== 'answer') {
     if (deps.otherFamily) return { kind: 'other_family', jobId: scheduled.claim.jobId, result: await deps.otherFamily(scheduled, signal) };
