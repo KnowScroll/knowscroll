@@ -196,3 +196,32 @@ and continue with other slices.
 **Done** means #160–#170 are merged with evidence, or honestly recorded as blocked. #72 is then
 updated with exactly what remains: Cutroom #9, the web catch-up #171, the owner's release inputs,
 the owner's acceptance, and physical-phone evidence.
+
+## 8. Goal, quality bar and the end state of the tracker
+
+**The coordinator is the orchestrator.** Its goal is to complete all of #160–#170: working
+functionality a person can use on the Android app, built from clean and maintainable code that reads
+like the code around it. A slice whose tests pass but whose feature does not work by hand on the
+emulator is not done. Neither is a feature that works but leaves rushed code behind: no dead
+branches, no copy-paste, no test-only paths in product code, no hidden retries, and no weakened
+tests.
+
+**The tracker is driven to empty.** As each slice lands, its issue is closed with evidence. At the
+end, the coordinator audits **every** open issue in the repository and on Project 1, including the
+older component epics (#2–#8, #10, #12, #123) and every review follow-up (#153, #159, the ones this
+session opens). Each one is then:
+- closed because its acceptance is evidenced, with a comment linking the PRs and evidence;
+- closed as explicitly superseded, naming the issue that carries what is left; or
+- left open with one line saying exactly what it is waiting for.
+
+Every Project 1 item's Status must match its issue.
+
+The only issues that may stay open at the end are:
+- #9 (Cutroom, owner-led, last);
+- #171 (the web catch-up, with #156 inside it);
+- #137 (Social/Blend, deferred);
+- #72 (the release umbrella, until Cutroom, the web and the owner's acceptance are done);
+- anything blocked on something only the owner can provide (the release inputs, a physical phone,
+  the usefulness review), labelled as such.
+
+An issue is never closed just to reach zero; it closes because the work is done.
