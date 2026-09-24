@@ -17,7 +17,9 @@ on a free, never-owner port and the worker, runs any `--seed` scripts against th
 and installs `com.knowscroll.mobile.journeytest` (never the owner's `.journey` preview), clears it
 and launches it. It then stays in the foreground until `down` or Ctrl-C; run it in the background.
 The worker gets only the environment it is given: no provider key reaches it, so every transport
-is the labelled fixture unless a `--worker-env` says otherwise.
+is the labelled fixture unless a `--worker-env` says otherwise. The owner address is the fixed test
+address `hands-on@knowscroll.test`, never the one in `.env`, so signing in by link works: the link
+goes to the development sink, `$KS_DEV_ROOT/sign-in/magic-link.txt`.
 
 Everything goes to the ignored `artifacts/hands-on/<run>/`: `runtime.json` (no secrets), the API
 and worker logs, `shots/`, and on the way down `preview-untouched.json` from PreviewWatch. The
@@ -34,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from android_preview import PREVIEW_PACKAGE, PreviewWatch  # noqa: E402
 
 OWNER_PORTS = {4310, 4320, 4322, 4325, *range(4392, 4396)}
+OWNER_ADDRESS = 'hands-on@knowscroll.test'
 PACKAGE = 'com.knowscroll.mobile.journeytest'
 ALLOWED = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
            'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
@@ -112,7 +115,7 @@ def up(options):
     env.update({key: '' for key in config})
     env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)), KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test',
                PORT=str(options.port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{options.port}', KS_APP_ID_SUFFIX='.journeytest',
-               KS_MEDIA_ROOT=str(directory / 'media'))
+               KS_MEDIA_ROOT=str(directory / 'media'), KS_OWNER_EMAIL=OWNER_ADDRESS)
     worker_extra = dict(pair.split('=', 1) for pair in options.worker_env)
     stack_file = directory / 'stack.env'
     stack_file.touch(mode=0o600)
