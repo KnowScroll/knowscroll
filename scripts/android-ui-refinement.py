@@ -1,4 +1,4 @@
-"""Real UI verification against a disposable demo library and separate .journey application.
+"""Real UI verification against a disposable demo library and separate .journeytest application (never the owner's .journey preview, #136).
 
 Run after sourcing scripts/env.sh. No provider calls, owner app changes, or owner history reset.
 """
@@ -17,7 +17,7 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.dont_write_bytecode = True
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines()
@@ -26,7 +26,7 @@ source = urlparse(config['DATABASE_URL'])
 if source.hostname not in ('127.0.0.1', 'localhost', '::1'):
     raise RuntimeError('UI verification requires loopback PostgreSQL')
 name = 'knowscroll_demo_ui_' + secrets.token_hex(8)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 out = root / 'artifacts/android-ui-refinement'
 out.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME',
@@ -36,7 +36,7 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test', PORT='4317',
-           KS_JOURNEY_API_URL='http://10.0.2.2:4317')
+           KS_JOURNEY_API_URL='http://10.0.2.2:4317', KS_APP_ID_SUFFIX='.journeytest')
 processes = []
 
 
@@ -60,7 +60,7 @@ sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
 _preview_error = None
-_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
     _guard.preserve()
     import socket

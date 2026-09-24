@@ -42,7 +42,7 @@ fun AuthoredPreview(
     credential: CredentialProvider,
 ) {
     val context = LocalContext.current
-    if (!BuildConfig.DEBUG || !context.packageName.endsWith(".journey")) return
+    if (!BuildConfig.DEBUG || !com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)) return
     var mode by rememberSaveable { mutableStateOf(if (initialReel == null) "Scroll" else "Reel") }
     var scrollId by rememberSaveable { mutableIntStateOf(initialScroll) }
     var reelId by rememberSaveable { mutableStateOf<String?>(initialReel) }

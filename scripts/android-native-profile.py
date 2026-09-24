@@ -1,8 +1,8 @@
-"""Repeatable frame metrics for 12 world-entry/source/Back cycles, disposable demo and .journey only.
+"""Repeatable frame metrics for 12 world-entry/source/Back cycles, disposable demo and .journeytest only.
 
 Run after sourcing scripts/env.sh. No provider calls, owner app changes, or owner history reset.
-The `.journey` app is also the owner's running preview: it is preserved before anything replaces it
-and restored (verified) first in `finally` (scripts/android_preview.py). Each run writes to its own
+The owner's running preview is the separate `.journey` app (#136): this runner never installs it,
+and its APKs are verified unchanged first in `finally` (scripts/android_preview.py). Each run writes to its own
 folder, `artifacts/android-spatial/profile/<KS_PROFILE_LABEL or timestamp>/`, with every frame phase
 and per-frame rows (#136), and records the exact source with `git describe --dirty`.
 """
@@ -21,7 +21,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402
+from android_preview import PreviewWatch  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines()
@@ -30,7 +30,7 @@ source = urlparse(config['DATABASE_URL'])
 if source.hostname not in ('127.0.0.1', 'localhost', '::1'):
     raise RuntimeError('UI verification requires loopback PostgreSQL')
 name = 'knowscroll_demo_ui_' + secrets.token_hex(8)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 out = root / 'artifacts/android-spatial/profile' / (os.environ.get('KS_PROFILE_LABEL') or datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
 out.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME',
@@ -40,7 +40,7 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test', PORT='4317',
-           KS_JOURNEY_API_URL='http://10.0.2.2:4317')
+           KS_JOURNEY_API_URL='http://10.0.2.2:4317', KS_APP_ID_SUFFIX='.journeytest')
 processes = []
 
 
@@ -63,7 +63,7 @@ motion = adb('shell', 'settings', 'get', 'global', 'animator_duration_scale')
 sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
-guard = PreviewGuard(package, out)
+guard = PreviewWatch('com.knowscroll.mobile.journey', out)
 try:
     guard.preserve()
     import socket

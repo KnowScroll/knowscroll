@@ -8,12 +8,12 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.dont_write_bytecode = True
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 root=Path.cwd();config=dict(l.split('=',1) for l in Path('.env').read_text().splitlines() if '=' in l and not l.startswith('#'))
 u=urlparse(config['DATABASE_URL']);name='knowscroll_test_'+uuid.uuid4().hex
 adminenv={**os.environ,'PGPASSWORD':u.password or ''}
 args=['-h',u.hostname,'-p',str(u.port or 5432),'-U',u.username]
-env={**os.environ,**config,'DATABASE_URL':urlunparse(u._replace(path='/'+name)),'PORT':'4311','KS_JOURNEY_API_URL':'http://10.0.2.2:4311'}
+env={**os.environ,**config,'DATABASE_URL':urlunparse(u._replace(path='/'+name)),'PORT':'4311','KS_JOURNEY_API_URL':'http://10.0.2.2:4311','KS_APP_ID_SUFFIX':'.journeytest'}
 out=root/'artifacts/android-journey';out.mkdir(parents=True,exist_ok=True)
 processes=[]
 def run(cmd,**kw):return subprocess.run(cmd,check=True,**kw)
@@ -21,7 +21,7 @@ def service(script):
  log=(out/(script.replace(':','-')+'.log')).open('w')
  p=subprocess.Popen(['pnpm',script],env=env,stdout=log,stderr=log,start_new_session=True);processes.append((p,log));return p
 _preview_error = None
-_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
  _guard.preserve()
  run(['createdb',*args,name],env=adminenv)
@@ -35,7 +35,7 @@ try:
  else:raise RuntimeError('Journey API did not start')
  run(['./gradlew',':app:assembleDebug',':app:assembleDebugAndroidTest','--console','plain'],cwd='apps/mobile',env=env)
  for apk in ['app/build/outputs/apk/debug/app-debug.apk','app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk']:run(['adb','install','-r','apps/mobile/'+apk])
- package='com.knowscroll.mobile.journey'
+ package='com.knowscroll.mobile.journeytest'
  run(['adb','shell','pm','clear',package])
  def instrument(method):
   result=subprocess.check_output(['adb','shell','am','instrument','-w','-e','class','com.knowscroll.mobile.RealJourneyTest#'+method,package+'.test/androidx.test.runner.AndroidJUnitRunner'],text=True)

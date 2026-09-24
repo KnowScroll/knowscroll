@@ -17,7 +17,7 @@ class OwnerPreviewSetupTest {
     @Test
     fun prepareVisibleWorlds() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        check(context.packageName.endsWith(".journey"))
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName))
         val store = StateStore(context)
         compose.waitUntil(20_000) {
             compose

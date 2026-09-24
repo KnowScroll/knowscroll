@@ -69,7 +69,7 @@ class ReaderPrivacyJourneyTest {
     }
 
     @Test fun sourceSheetClearOnForeground() = runBlocking {
-        assumeTrue("This journey requires the disposable .journey application", BuildConfig.APPLICATION_ID.endsWith(".journey"))
+        assumeTrue("This journey requires the disposable .journey application", com.knowscroll.mobile.JourneyBuild.isJourney(BuildConfig.APPLICATION_ID))
 
         val api = ApiClient()
         waitText("Your universe")

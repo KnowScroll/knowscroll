@@ -1,4 +1,11 @@
-"""Keeps the owner's running `.journey` preview intact around any device run that replaces it.
+"""Keeps the owner's running `.journey` preview intact around device runs.
+
+Two tools. `PreviewWatch` is for the device test runners, which since #136 build and install their
+own app (`…journeytest`) and never the preview: it records the preview's installed APKs before the
+run and verifies after it that they are still the same, byte for byte. It reads no data, refuses
+nothing for a signed-in preview, and never reinstalls or clears anything: if the preview changed,
+the run fails and says so. `PreviewGuard` (below) is for the one tool that really replaces the
+preview (`scripts/android-living-preview.py` without `--keep`):
 
 The `.journey` app is also the owner's preview (its APK carries that preview's API address and
 token). `preserve()` runs before anything may replace it: it pulls the installed APK (every split)
@@ -55,6 +62,49 @@ def _listing(data):
 
 def _sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+PREVIEW_PACKAGE = 'com.knowscroll.mobile.journey'
+
+
+class PreviewWatch:
+    """Verifies that a run which never installs the preview left it exactly as it was."""
+
+    def __init__(self, package, out):
+        self.package = package
+        self.out = Path(out)
+        self.out.mkdir(parents=True, exist_ok=True)
+        self.before = None
+
+    def _hashes(self):
+        # A failed query is retried, and never read as "absent" or "replaced": it is reported as
+        # unverifiable, so the run fails without anything being done to the preview.
+        for _ in range(3):
+            listed = subprocess.run(['adb', 'shell', 'pm', 'list', 'packages', self.package], capture_output=True, text=True)
+            if listed.returncode == 0:
+                if f'package:{self.package}' not in listed.stdout.split():
+                    return []
+                found = subprocess.run(['adb', 'shell', 'pm', 'path', self.package], capture_output=True, text=True)
+                paths = [line.split(':', 1)[1].strip() for line in found.stdout.splitlines() if line.startswith('package:')]
+                sums = [subprocess.run(['adb', 'shell', 'sha256sum', path], capture_output=True, text=True) for path in paths]
+                if found.returncode == 0 and paths and all(r.returncode == 0 for r in sums):
+                    return sorted(r.stdout.split()[0] for r in sums)
+        raise RuntimeError('could not read the preview\'s installed APKs; nothing was done to the preview')
+
+    def preserve(self):
+        self.before = self._hashes()
+        return bool(self.before)
+
+    def restore(self):
+        if self.before is None: return
+        after = self._hashes()
+        unchanged = after == self.before
+        (self.out / 'preview-untouched.json').write_text(json.dumps({
+            'previewInstalled': bool(self.before), 'apkSha256': self.before, 'unchanged': unchanged,
+            'watch': 'scripts/android_preview.py', 'watchSha256': _sha(Path(__file__)),
+            'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
+        if not unchanged:
+            raise RuntimeError('The owner\'s preview changed during a run that must never install it; nothing was restored over it')
 
 
 class PreviewGuard:

@@ -58,7 +58,7 @@ class DirectAtlasJourneyTest {
 
     @Test
     fun ownerRouteAndExactReturn() {
-        check(instrumentation.targetContext.packageName.endsWith(".journey"))
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName))
         try {
             waitText("Authored Atlas")
             shot("universe")
