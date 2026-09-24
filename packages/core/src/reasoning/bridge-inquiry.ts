@@ -6,7 +6,9 @@
  * anchors and the claims that name both, in a deterministic order.
  *
  * `serializeBridgeInquiryRequest` turns the sealed pairs into the exact request bytes. Admission
- * reserves their hash; the worker rebuilds the same bytes from the same sealed context.
+ * reserves their hash; the worker rebuilds the same bytes from the same sealed context. A continuation
+ * (ADR-0042 §1) is the same request followed by each refused assistant turn, exactly as the provider
+ * returned it, and the validator's reasons for refusing it.
  *
  * `parseBridgeInquiryReply` decides what provider text may become: one bridge proposal for an offered
  * pair that cites only offered claims (still only a proposal — bridge-validator-v1 decides), an honest
@@ -16,7 +18,7 @@ import { z } from 'zod';
 import { bridgeProposalPayload, semanticKey, type BridgeProposalPayload } from '../../../contracts/src/semantic.ts';
 import { canonical, wholeObject } from './wire.ts';
 
-export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v1', prompt: 'bridge-inquiry-prompt-v4', reply: 'bridge-inquiry-reply-v2' });
+export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v2', prompt: 'bridge-inquiry-prompt-v4', reply: 'bridge-inquiry-reply-v2', continuation: 'bridge-inquiry-continuation-v1' });
 export const BRIDGE_INQUIRY_LIMITS = Object.freeze({ maxPairs: 3, claimsPerAnchor: 8, claimsBoth: 8 });
 
 export interface InquiryPlace { placeId: string; code: string; name: string }
@@ -105,8 +107,13 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
         const ownA = [...aboutA.keys()].filter(code => !aboutB.has(code));
         const ownB = [...aboutB.keys()].filter(code => !aboutA.has(code));
         if (ownA.length > 0 && ownB.length > 0) { both.push(claim); continue; }
-        if (aboutA.size > 0) sideA.push({ claim, distance: Math.min(...aboutA.values()) });
-        if (aboutB.size > 0) sideB.push({ claim, distance: Math.min(...aboutB.values()) });
+        // Otherwise it is offered to one side only, the nearer (ties to A), so the reply's citation of it
+        // is credited where it was offered, never guessed (#153).
+        const distanceA = aboutA.size > 0 ? Math.min(...aboutA.values()) : Infinity;
+        const distanceB = aboutB.size > 0 ? Math.min(...aboutB.values()) : Infinity;
+        if (distanceA === Infinity && distanceB === Infinity) continue;
+        if (distanceA <= distanceB) sideA.push({ claim, distance: distanceA });
+        else sideB.push({ claim, distance: distanceB });
       }
       const rank = (list: typeof sideA) => list.sort((x, y) => x.distance - y.distance || byCode(x.claim.key, y.claim.key))
         .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor).map(x => offered(x.claim));
@@ -115,10 +122,8 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
       const named = both.sort((x, y) => byCode(x.key, y.key)).slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
         .map(c => ({ ...offered(c), roles: { [a.code]: roleOn(c, chainA) ?? 'subject', [b.code]: roleOn(c, chainB) ?? 'subject' } }));
       // Only a pair the validator could admit is worth a paid request (review I1): the connecting claim
-      // must name both sides, and each side needs a claim of its own that the offer gives to that side
-      // (a claim listed for both sides is given to A, so B needs one that is only B's).
-      const ownB = claimsB.filter(c => !claimsA.some(x => x.key === c.key));
-      if (named.length === 0 || claimsA.length === 0 || ownB.length === 0) continue;
+      // must name both sides, and each side needs a claim the offer gives to that side.
+      if (named.length === 0 || claimsA.length === 0 || claimsB.length === 0) continue;
       // What the validator could admit for this pair (prompt v3): "explains" only in a direction a
       // claim naming both carries (the explaining side has the mechanism role, the other does not);
       // the symmetric comparisons either way. "applies_to"/"prerequisite_for" need a recorded
@@ -160,7 +165,18 @@ const SYSTEM = [
 
 export const INQUIRY_PAIRS_MARKER = 'Offered pairs (JSON):';
 
-export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], route: { model: string; maxOutputTokens: number }): Uint8Array {
+/** One native content block of an assistant turn, exactly as the provider returned it (ADR-0042 §1). */
+export type AssistantBlock = { readonly type: string; readonly [field: string]: unknown };
+/** A refused turn a continuation carries: the assistant's blocks in their original order, and the validator's reason codes. */
+export interface ContinuationTurn { assistant: readonly AssistantBlock[]; reasons: readonly string[] }
+export interface InquiryRequestRoute { model: string; maxOutputTokens: number; thinking: 'disabled' | 'adaptive' }
+
+const continuationPrompt = (reasons: readonly string[]) => [
+  `The system checked that proposal and refused it for these reasons: ${reasons.join(', ')}.`,
+  'Reply again with exactly one JSON object, as specified: a corrected proposal for an offered pair, or {"none": true} if the offered claims cannot support one.',
+].join('\n');
+
+export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], route: InquiryRequestRoute, turns: readonly ContinuationTurn[] = []): Uint8Array {
   const claim = (c: OfferedClaim) => ({ key: c.key, statement: c.statement, source: c.sourceTitle, ...(c.roles ? { roles: c.roles } : {}) });
   // Codes, names and claims only: no place, universe or reader identifier leaves the process.
   const offeredPairs = pairs.map((p, index) => ({
@@ -171,10 +187,14 @@ export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], rou
   return new TextEncoder().encode(canonical({
     model: route.model,
     max_tokens: route.maxOutputTokens,
-    // A single JSON reply; hidden reasoning would spend the bounded output budget.
-    thinking: { type: 'disabled' },
+    // Disabled: a single JSON reply, and hidden reasoning would spend the bounded output budget. A route
+    // that accepts that cost may think; its thinking blocks then travel back, in place, in a continuation.
+    thinking: { type: route.thinking },
     system: SYSTEM,
-    messages: [{ role: 'user', content: `${INQUIRY_PAIRS_MARKER}\n${canonical(offeredPairs)}` }],
+    messages: [
+      { role: 'user', content: `${INQUIRY_PAIRS_MARKER}\n${canonical(offeredPairs)}` },
+      ...turns.flatMap(t => [{ role: 'assistant', content: t.assistant }, { role: 'user', content: continuationPrompt(t.reasons) }]),
+    ],
   }));
 }
 

@@ -32,6 +32,7 @@ export type InquiryRoute = {
   max_input_tokens: number; max_output_tokens: number; global_bucket_id: string; provider_account_bucket_id: string;
   route_quota_bucket_id: string; remote_concurrency_bucket_id: string; owner_capacity: string; job_capacity: string;
   coalescing_delay_seconds: number; job_ttl_seconds: number; enabled: boolean;
+  thinking: 'disabled' | 'adaptive'; max_continuation_steps: number; max_children: number;
 };
 export type InquiryRow = {
   id: string; universe_id: string; privacy_epoch: number; kind: string; status: string; first_mail_at: Date;
@@ -74,6 +75,9 @@ export async function installBackgroundInquiryRoute(client: pg.PoolClient, input
 export async function inquiryRouteFor(client: pg.PoolClient | pg.Pool, policyVersion: string): Promise<InquiryRoute | undefined> {
   return (await client.query<InquiryRoute>('SELECT * FROM background_inquiry_route WHERE policy_version=$1', [policyVersion])).rows[0];
 }
+
+/** What of the route shapes the request bytes. */
+export const requestRoute = (route: InquiryRoute) => ({ model: route.model, maxOutputTokens: route.max_output_tokens, thinking: route.thinking });
 
 /** The same resolved shape as an answer Job's: the route's shared buckets plus its owner and Job buckets. */
 function policyOf(route: InquiryRoute, universeId: string, jobId: string, ownerBucket: string, jobBucket: string): ResolvedReasoningPolicy {
@@ -177,13 +181,21 @@ export async function setInquiryConsent(client: pg.PoolClient, scope: AuthScope,
 
 // Mail ----------------------------------------------------------------------------------------
 
+/** Why a look is worth it (ADR-0042 §5): a planet or region formed, a bridge between two live places
+ * revoked, or a personal hypothesis about a live place created or changed. */
+export type InquiryMailCause =
+  | { kind: 'place_formed'; deltaId: string }
+  | { kind: 'bridge_revoked'; bridgeId: string }
+  | { kind: 'hypothesis_changed'; hypothesisId: string; revision: number };
+
 /**
- * ADR-0038 §3: called by `applyDeltas` for each planet or region the Cartographer forms, in its
- * transaction and under its universe lock. Only with consent in this epoch and while recording;
- * later mail joins the pending inquiry (at most 16 causes: the inquiry reads every live place when
- * it runs anyway). Nothing formed earlier is ever mailed (the schema requires this transaction's delta).
+ * ADR-0038 §3: called for each cause, in its transaction and under its universe lock (`applyDeltas` for
+ * a place the Cartographer forms). Only with consent in this epoch and while recording; later mail joins
+ * the pending inquiry (at most 16 causes: the inquiry reads every live place when it runs anyway).
+ * Nothing earlier is ever mailed: the schema requires this transaction's delta, or a revocation or
+ * hypothesis revision since consent was turned on (ADR-0042 §5).
  */
-export async function postInquiryMail(client: pg.PoolClient, universeId: string, causeDeltaId: string): Promise<boolean> {
+export async function postInquiryMail(client: pg.PoolClient, universeId: string, cause: InquiryMailCause): Promise<boolean> {
   const state = (await client.query<{ privacy_epoch: number; recording: boolean; enabled: boolean | null }>(
     `SELECT u.privacy_epoch, u.recording_paused_at IS NULL AS recording, c.enabled FROM universe u
      LEFT JOIN background_inquiry_consent c ON c.universe_id = u.id AND c.privacy_epoch = u.privacy_epoch WHERE u.id=$1`, [universeId])).rows[0];
@@ -197,8 +209,12 @@ export async function postInquiryMail(client: pg.PoolClient, universeId: string,
       [pending.id, universeId, state.privacy_epoch, INQUIRY_KIND]);
   }
   if (pending.causes >= INQUIRY_CONTEXT_LIMITS.maxCausesPerInquiry) return false;
-  await client.query('INSERT INTO inquiry_mail(id,universe_id,privacy_epoch,kind,inquiry_id,cause_delta_id) VALUES($1,$2,$3,$4,$5,$6)',
-    [randomUUID(), universeId, state.privacy_epoch, INQUIRY_KIND, pending.id, causeDeltaId]);
+  await client.query(
+    `INSERT INTO inquiry_mail(id,universe_id,privacy_epoch,kind,inquiry_id,cause_kind,cause_delta_id,cause_bridge_id,cause_hypothesis_id,cause_hypothesis_revision)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [randomUUID(), universeId, state.privacy_epoch, INQUIRY_KIND, pending.id, cause.kind, cause.kind === 'place_formed' ? cause.deltaId : null,
+      cause.kind === 'bridge_revoked' ? cause.bridgeId : null, cause.kind === 'hypothesis_changed' ? cause.hypothesisId : null,
+      cause.kind === 'hypothesis_changed' ? cause.revision : null]);
   return true;
 }
 
@@ -291,7 +307,7 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
 
   let pairs = selectInquiryPairs(await readInquiryInputs(client, inquiry.universe_id, inquiry.privacy_epoch));
   if (pairs.length === 0) { await close('nothing_to_ask', ['no_candidate_pair']); return 'nothing_to_ask'; }
-  const bytesFor = (offered: readonly InquiryPair[]) => serializeBridgeInquiryRequest(offered, { model: route.model, maxOutputTokens: route.max_output_tokens });
+  const bytesFor = (offered: readonly InquiryPair[]) => serializeBridgeInquiryRequest(offered, requestRoute(route));
   // The request must fit the route's input bound: the last pairs give way first.
   while (pairs.length > 1 && bytesFor(pairs).byteLength > route.max_input_tokens) pairs = pairs.slice(0, -1);
   if (bytesFor(pairs).byteLength > route.max_input_tokens) { await close('failed', ['request_too_large']); return 'failed'; }
@@ -408,7 +424,8 @@ export async function exportInquiries(client: pg.PoolClient, universeId: string)
   return {
     consent: await q('SELECT privacy_epoch, enabled, daily_limit, revision, changed_at FROM background_inquiry_consent WHERE universe_id=$1 ORDER BY privacy_epoch'),
     consentRequests: await q('SELECT id, privacy_epoch, enabled, daily_limit, requested_at FROM background_inquiry_consent_request WHERE universe_id=$1 ORDER BY requested_at, id'),
-    mail: await q('SELECT id, privacy_epoch, kind, inquiry_id, cause_delta_id, sequence, created_at FROM inquiry_mail WHERE universe_id=$1 ORDER BY sequence'),
+    mail: await q(`SELECT id, privacy_epoch, kind, inquiry_id, cause_kind, cause_delta_id, cause_bridge_id, cause_hypothesis_id, cause_hypothesis_revision, sequence, created_at
+      FROM inquiry_mail WHERE universe_id=$1 ORDER BY sequence`),
     inquiries: await q(`SELECT id, privacy_epoch, kind, status, first_mail_at, opened_at, closed_at, pairs, input_bytes, reasons, proposal_id
       FROM background_inquiry WHERE universe_id=$1 ORDER BY first_mail_at, id`),
   };

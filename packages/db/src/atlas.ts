@@ -96,7 +96,7 @@ async function applyDeltas(client: pg.PoolClient, universeId: string, substrate:
       const deltaId = await insertDelta(client, universeId, id, d, null, snapshot({ kind, state: 'live', parentPlaceId: parent }));
       // ADR-0038 §3: a new planet or region may be worth a look for a connection, if the reader
       // consented; the mail joins this same transaction (and nothing is mailed while paused).
-      if (kind !== 'sighting') await postInquiryMail(client, universeId, deltaId);
+      if (kind !== 'sighting') await postInquiryMail(client, universeId, { kind: 'place_formed', deltaId });
       const row: PlaceRow = { placeId: id, anchor: d.anchor, anchorId: substrate.ids.get(d.anchor)!, kind, parentAnchor: d.parentAnchor, parentPlaceId: parent, state: 'live',
         basis: d.kind === 'sighting_appeared' ? d.evidence.relation : null };
       liveByAnchor.set(d.anchor, row); byId.set(id, row);

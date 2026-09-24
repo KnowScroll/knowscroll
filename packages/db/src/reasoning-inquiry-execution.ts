@@ -13,7 +13,7 @@ import type pg from 'pg';
 import { parseBridgeInquiryReply, serializeBridgeInquiryRequest } from '../../core/src/reasoning/bridge-inquiry.ts';
 import { createReasoningAdmission, type ReasoningAdmission } from './reasoning-admission.ts';
 import { withdrawIdleBackgroundJob } from './reasoning-idle-lifecycle.ts';
-import { inquiryAuthority, inquiryRouteFor, resolveInquiryPolicy, type InquiryRow } from './reasoning-inquiries.ts';
+import { inquiryAuthority, inquiryRouteFor, requestRoute, resolveInquiryPolicy, type InquiryRow } from './reasoning-inquiries.ts';
 import { readInquiryPayload, validateInquiryContext } from './reasoning-inquiry-context.ts';
 import { ReasoningDenied, type ReasoningAuthority } from './reasoning-runtime-policy.ts';
 import { submitBridgeProposal } from './semantic/proposals.ts';
@@ -33,7 +33,7 @@ export async function loadInquiryWork(db: pg.Pool | pg.PoolClient, jobId: string
   const attempt = (await db.query<{ request_hash: string }>('SELECT request_hash FROM reasoning_attempt WHERE id=$1 AND job_id=$2', [attemptId, jobId])).rows[0];
   if (!route || !attempt) throw new Error('Inquiry work is incomplete');
   const payload = await readInquiryPayload(db, inquiry.context_id);
-  const body = serializeBridgeInquiryRequest(payload.pairs, { model: route.model, maxOutputTokens: route.max_output_tokens });
+  const body = serializeBridgeInquiryRequest(payload.pairs, requestRoute(route));
   const hash = createHash('sha256').update(body).digest('hex');
   if (hash !== inquiry.request_hash || hash !== attempt.request_hash) throw new Error('Rebuilt inquiry request does not match its reservation');
   return {
