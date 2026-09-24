@@ -87,6 +87,9 @@ fun PrivacyScreen(
     signOut: PrivacyOperationState,
     actions: PrivacyActions,
     modifier: Modifier = Modifier,
+    /** #132 (ADR-0038): the "Look for connections between my places" section ([InquiriesSection]),
+     * shown once the privacy state is loaded, told whether recording is paused. */
+    inquiries: (@Composable (recordingPaused: Boolean) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
@@ -148,6 +151,10 @@ fun PrivacyScreen(
                 is PrivacyState.Loaded -> Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     RecordingSection(privacy.recordingPausedAt, pause, resume, actions)
                     HorizontalDivider(color = Cosmos.Sea2)
+                    if (inquiries != null) {
+                        inquiries(privacy.recordingPausedAt != null)
+                        HorizontalDivider(color = Cosmos.Sea2)
+                    }
                     ExportSection(export, actions, onSaveExport)
                     HorizontalDivider(color = Cosmos.Sea2)
                     ResetSection(reset, actions)

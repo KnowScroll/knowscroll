@@ -10,6 +10,7 @@ import {eraseReasoningForHistoryClear} from './reasoning-storage.ts';
 import {eraseSemanticHistory, exportSemanticHistory} from './semantic/branches.ts';
 import {erasePersonalModel, exportPersonalModel} from './semantic/personal-model.ts';
 import {eraseAskAnswers, exportAskAnswers} from './reasoning-answers.ts';
+import {eraseInquiries, exportInquiries, withdrawInquiries} from './reasoning-inquiries.ts';
 
 export class HistoryClearConflict extends Error {
  readonly statusCode = 409;
@@ -41,6 +42,8 @@ async function eraseEncounterSystem(client:pg.PoolClient,universeId:string):Prom
 async function erasePersonalHistory(client:pg.PoolClient,universeId:string,epochBefore:number,epochAfter:number):Promise<void> {
  // #132: answers and their requests go first; they reference the Ask facts erased below.
  await eraseAskAnswers(client,universeId);
+ // #132 (ADR-0038): inquiry mail, inquiries and consent go before the atlas deltas and proposals they name.
+ await eraseInquiries(client,universeId);
  await eraseReasoningForHistoryClear(client,{universeId,epochBefore,epochAfter});
  await client.query('DELETE FROM job WHERE universe_id=$1',[universeId]);
  await client.query('DELETE FROM trace WHERE universe_id=$1',[universeId]);
@@ -154,6 +157,8 @@ async function setRecordingPaused(
    VALUES($1,$2,$3,$4,$5,clock_timestamp()) RETURNING id,action,privacy_epoch,applied_at`,
   [randomUUID(), scope.universeId, input.requestId, action, scope.privacyEpoch],
  )).rows[0];
+ // ADR-0038 §8: pausing stops every background inquiry not yet sent; a call in flight is discarded at apply.
+ if (action === 'pause') await withdrawInquiries(client, scope.universeId, scope.privacyEpoch, 'recording_paused');
  return recordingReceiptFromRow(receipt);
 }
 
@@ -222,6 +227,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
  const semantic = await exportSemanticHistory(client, scope.universeId);
  const personalModel = await exportPersonalModel(client, scope.universeId);
  const askAnswers = await exportAskAnswers(client, scope.universeId);
+ const inquiries = await exportInquiries(client, scope.universeId);
 
  const rowCounts = {
   decisions: decisions.length, ledger: ledger.length, exposures: exposures.length,
@@ -233,6 +239,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   attentionAccounts: personalModel.attentionAccounts.length, hypotheses: personalModel.hypotheses.length,
   encounterFeedback: personalModel.encounterFeedback.length,
   askAnswers: askAnswers.length,
+  inquiries: inquiries.inquiries.length,
  };
 
  const existing = (await client.query(
@@ -261,6 +268,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   semantic,
   personalModel,
   askAnswers,
+  inquiries,
  };
 }
 

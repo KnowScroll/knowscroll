@@ -3,12 +3,17 @@
  * answer attempt; the reserved bytes are rebuilt from the sealed context and proven; exactly one
  * provider call goes through `invokeReasoningOnce`; the reply is applied only through
  * the answer validator (ask-answer-v2), or the answer fails honestly. Nothing here is reachable from the API process.
+ * When background inquiries share this route's scheduler (ADR-0038 §4), the class-aware fairness may
+ * admit one of theirs here; it is handed to the inquiry executor the caller supplies.
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-admission.ts';
-import { answerAuthority, applyAskAnswer, failAskAnswer, giveBackUnsentAnswer, loadAnswerWork, type AnswerOutcome, type AnswerWork } from '../../../../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../../../../packages/db/src/reasoning-fairness.ts';
+import { applyAskAnswer, failAskAnswer, giveBackUnsentAnswer, loadAnswerWork, type AnswerOutcome, type AnswerWork } from '../../../../packages/db/src/reasoning-answers.ts';
+import { createReasoningFairness, type FairnessScheduled } from '../../../../packages/db/src/reasoning-fairness.ts';
+import { jobFamily, sharedReasoningAuthority } from '../../../../packages/db/src/reasoning-inquiries.ts';
+import { settleInquiries } from '../../../../packages/db/src/reasoning-inquiry-execution.ts';
+import { ReasoningDenied, type ReasoningAuthority } from '../../../../packages/db/src/reasoning-runtime-policy.ts';
 import { createReasoningReconciliation } from '../../../../packages/db/src/reasoning-reconciliation.ts';
 import { invokeReasoningOnce, type SingleInvocationTransport } from './invoke.ts';
 import type { z } from 'zod';
@@ -31,7 +36,11 @@ export interface AnswerTransport {
 
 export type AnswerPass =
   | { kind: 'idle'; reason: string }
-  | { kind: 'done'; askId: string; invocation: 'recorded' | 'unknown' | 'not_invoked'; outcome: AnswerOutcome };
+  | { kind: 'done'; askId: string; invocation: 'recorded' | 'unknown' | 'not_invoked'; outcome: AnswerOutcome }
+  /** ADR-0038 §4: the shared scheduler admitted a background inquiry; its own executor ran it. */
+  | { kind: 'other_family'; jobId: string; result: unknown };
+/** Runs a claim of another family that a shared scheduler admitted on this pass. */
+export type OtherFamilyExecutor = (scheduled: FairnessScheduled, signal: AbortSignal) => Promise<unknown>;
 
 async function inTransaction<T>(pool: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
@@ -60,6 +69,8 @@ export async function runAnswerPass(deps: {
   pool: pg.Pool; owner: string; leaseMs: number; transports: Partial<Record<'fixture' | 'minimax', AnswerTransport>>; signal: AbortSignal;
   /** Cached readiness per transport; without one, readiness is asked on this pass. */
   readiness?: Partial<Record<'fixture' | 'minimax', ReturnType<typeof createReadinessGate>>>;
+  /** Executes a background inquiry this pass's shared scheduler admitted (ADR-0038 §4). */
+  otherFamily?: OtherFamilyExecutor;
 }): Promise<AnswerPass> {
   const { pool, owner, leaseMs, transports, signal } = deps;
   const route = (await pool.query<{ policy_version: string; transport: 'fixture' | 'minimax' }>('SELECT policy_version,transport FROM ask_answer_route WHERE enabled')).rows[0];
@@ -74,10 +85,33 @@ export async function runAnswerPass(deps: {
   const readiness = await gate(signal);
   if (!readiness.ok) return { kind: 'idle', reason: readiness.reason };
 
-  const authority = answerAuthority();
-  const admission = createReasoningAdmission(pool, authority);
-  const scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version });
+  // Resolves either family: a scheduler shared with background inquiries may admit one of theirs.
+  const authority = sharedReasoningAuthority();
+  let scheduled: Awaited<ReturnType<ReturnType<typeof createReasoningFairness>['schedule']>>;
+  try { scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version }); }
+  catch (error) {
+    // On a shared scheduler a background inquiry whose sealed facts went stale while queued can be
+    // at the head: the inquiry sweep withdraws it (never sent) and this pass yields.
+    if (error instanceof ReasoningDenied && error.code.startsWith('context_')) { await settleInquiries(pool, { owner }); return { kind: 'idle', reason: 'stale_context_queued' }; }
+    throw error;
+  }
   if (scheduled.kind !== 'admitted') return { kind: 'idle', reason: scheduled.kind };
+  if (await jobFamily(pool, scheduled.claim.jobId) !== 'answer') {
+    if (deps.otherFamily) return { kind: 'other_family', jobId: scheduled.claim.jobId, result: await deps.otherFamily(scheduled, signal) };
+    // Never strand another family's admitted attempt: give it back unsent at once (its sweep closes it).
+    const { claim } = scheduled;
+    await createReasoningAdmission(pool, authority).withdrawJob({ universeId: claim.universeId, privacyEpoch: claim.privacyEpoch, jobId: claim.jobId,
+      owner, leaseFence: claim.leaseFence, reason: 'cancelled' }).catch(() => undefined);
+    return { kind: 'idle', reason: 'other_family_returned' };
+  }
+  return executeAnswerClaim({ pool, owner, transport, signal, authority }, scheduled);
+}
+
+/** The admitted answer attempt, from rebuilding its bytes to its applied or failed outcome. */
+export async function executeAnswerClaim(deps: { pool: pg.Pool; owner: string; transport: AnswerTransport; signal: AbortSignal; authority: ReasoningAuthority },
+  scheduled: FairnessScheduled): Promise<AnswerPass> {
+  const { pool, owner, transport, signal, authority } = deps;
+  const admission = createReasoningAdmission(pool, authority);
   const { claim, reserved } = scheduled;
   const request = (await pool.query<{ ask_id: string; step_id: string }>('SELECT ask_id, step_id FROM ask_answer_request WHERE job_id=$1', [claim.jobId])).rows[0]!;
   const fence = { universeId: claim.universeId, privacyEpoch: claim.privacyEpoch, jobId: claim.jobId, stepId: request.step_id, attemptId: reserved.attemptId, owner, leaseFence: claim.leaseFence };
