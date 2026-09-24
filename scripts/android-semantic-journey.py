@@ -16,9 +16,15 @@ fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live req
 instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
 real second day), `foundation` (#131/#134 ADR-0037: as `places`, after Tides, Orbit and Star
 formation are placed from supplied accounts by `scripts/atlas/seed-held-up-places.ts`; the reading
-forms Gravity, which is recognised as their foundation and withdrawn when Tides is set aside) and
-`owner` (#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own
-section 3 below).
+forms Gravity, which is recognised as their foundation and withdrawn when Tides is set aside),
+`inquiry` (#132 ADR-0038 background bridge inquiries: `scripts/inquiries/seed-journey.ts` installs a
+FIXTURE inquiry route with a short coalescing delay (KS_INQUIRY_COALESCING_SECONDS, default 3) and
+places The Sun from a supplied account before consent; the worker runs with
+KS_INQUIRY_TRANSPORT=fixture; the device turns consent on in Privacy & account, reads its way to
+Gravity as in `places`, sees the inquiry found and the new continuation; SQL verifies the Job,
+attempt, model proposal, admitted universe bridge and the mail's place_formed cause) and `owner`
+(#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own section 3
+below).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -51,6 +57,9 @@ JOURNEYS = {
     # #131/#134: a place that holds others up (ADR-0037) is recognised, inspected and withdrawn.
     'foundation': {'test': 'com.knowscroll.mobile.FoundationJourneyTest', 'receipt': 'foundation-journey.json',
                    'captures': ('foundation-system.png', 'foundation-sheet.png', 'foundation-evidence.png', 'foundation-marker.png', 'foundation-withdrawn.png', 'foundation-failure.png')},
+    # #132 (ADR-0038): consent, a place formation that mails an inquiry, a fixture-found bridge, its continuation.
+    'inquiry': {'test': 'com.knowscroll.mobile.BackgroundInquiryJourneyTest', 'receipt': 'inquiry-journey.json',
+                'captures': ('inquiry-consent-off.png', 'inquiry-consent-on.png', 'inquiry-found.png', 'inquiry-continuation.png', 'inquiry-failure.png')},
     # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
     'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
               'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
@@ -142,6 +151,10 @@ try:
             key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
             if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
             worker_env['MINIMAX_API_KEY'] = key
+    if journey_name == 'inquiry':
+        # ADR-0038 section 2: fixture transport only (labelled; never a provider call). The route itself is
+        # installed by scripts/inquiries/seed-journey.ts once the API is up (it needs the reader's universe).
+        worker_env.update(KS_INQUIRY_TRANSPORT='fixture', KS_INQUIRY_FIXTURE_MODE='proposal')
     for role in ('api', 'worker'):
         log = (out / (role + '.log')).open('w')
         processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=worker_env if role == 'worker' else env, stdout=log, stderr=log, start_new_session=True), log))
@@ -160,9 +173,13 @@ try:
     # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
     # `foundation` first places Tides, Orbit and Star formation from supplied accounts (labelled;
     # see scripts/atlas/seed-held-up-places.ts), then takes the same day-old keep.
-    if journey_name in ('places', 'foundation'):
-        seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}'}
-        seeds = (['scripts/atlas/seed-held-up-places.ts'] if journey_name == 'foundation' else []) + ['scripts/atlas/seed-day-old-history.ts']
+    # `inquiry` first installs the fixture inquiry route and places The Sun from a supplied account,
+    # BEFORE the device turns consent on (so it mails nothing), then takes the same day-old keep.
+    if journey_name in ('places', 'foundation', 'inquiry'):
+        seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}',
+                    'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3')}
+        seeds = ({'foundation': ['scripts/atlas/seed-held-up-places.ts'], 'inquiry': ['scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
+                 + ['scripts/atlas/seed-day-old-history.ts'])
         for seed in seeds:
             seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', seed], env=seed_env, text=True, cwd=root)
             print(seeded, flush=True)
@@ -319,6 +336,48 @@ try:
                   'Tides, Orbit and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because '
                   'the library cannot anchor Orbit or Star formation from two source families; Gravity formed from this run\'s reading.',
                   'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.']
+    elif journey_name == 'inquiry':
+        i, b, formed, sun = journey['inquiryId'], journey['bridgeId'], journey['deltaIds']['gravityFormed'], journey['sunPlaceId']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'inquiryAdmitted', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND status='admitted'),
+      'jobBackgroundDirtyCompleted', (SELECT count(*) FROM background_inquiry q JOIN reasoning_job j ON j.id=q.job_id WHERE q.id='{i}'
+          AND j.class='background_inquiry' AND j.wake_kind='dirty' AND j.dirty_scope='inquiry:bridge_between_places' AND j.status='completed'
+          AND j.through_sequence=(SELECT max(m.sequence) FROM inquiry_mail m WHERE m.inquiry_id='{i}')),
+      'attempts', (SELECT count(*) FROM background_inquiry q JOIN reasoning_attempt at ON at.job_id=q.job_id WHERE q.id='{i}'),
+      'dispatches', (SELECT count(*) FROM background_inquiry q JOIN reasoning_attempt at ON at.id=q.attempt_id AND at.job_id=q.job_id
+          JOIN reasoning_accounting ac ON ac.attempt_id=at.id WHERE q.id='{i}' AND ac.dispatch_id IS NOT NULL),
+      'modelProposalAdmitted', (SELECT count(*) FROM background_inquiry q JOIN semantic_proposal p ON p.id=q.proposal_id WHERE q.id='{i}'
+          AND p.proposer_kind='model' AND p.proposer_ref=q.attempt_id::text AND p.scope_kind='universe' AND p.universe_id=q.universe_id
+          AND p.privacy_epoch=q.privacy_epoch AND p.status='admitted'),
+      'universeBridgeAdmitted', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}'
+          AND br.id='{b}' AND br.scope_kind='universe' AND br.universe_id=q.universe_id AND br.status='admitted'),
+      'mailCausedByGravityFormed', (SELECT count(*) FROM inquiry_mail m JOIN atlas_delta d ON d.id=m.cause_delta_id WHERE m.inquiry_id='{i}'
+          AND d.id='{formed}' AND d.kind='place_formed' AND d.causal_class='personal_exploration'),
+      'mailOnInquiry', (SELECT count(*) FROM inquiry_mail WHERE inquiry_id='{i}'),
+      'gravityFormedFromReading', (SELECT count(*) FROM atlas_delta WHERE id='{formed}' AND jsonb_array_length(evidence->'account'->'episodeIds') >= 3
+          AND (evidence->'account'->>'daysActive')::int >= 2),
+      'suppliedSunUnread', (SELECT count(*) FROM atlas_delta WHERE place_id='{sun}' AND kind='place_formed'
+          AND jsonb_array_length(evidence->'account'->'episodeIds') = 0),
+      'suppliedSunMailed', (SELECT count(*) FROM inquiry_mail m JOIN atlas_delta d ON d.id=m.cause_delta_id WHERE d.place_id='{sun}'),
+      'consentRequestsBeforeMail', (SELECT count(*) FROM background_inquiry_consent_request r WHERE r.enabled
+          AND r.requested_at < (SELECT min(m.created_at) FROM inquiry_mail m WHERE m.inquiry_id='{i}')),
+      'consentEnabled', (SELECT bool_and(enabled) FROM background_inquiry_consent),
+      'routeTransport', (SELECT transport FROM background_inquiry_route WHERE enabled),
+      'requestHash', (SELECT request_hash FROM background_inquiry WHERE id='{i}'),
+      'inputBytes', (SELECT input_bytes FROM background_inquiry WHERE id='{i}'),
+      'inquiryStatuses', (SELECT json_agg(status ORDER BY first_mail_at) FROM background_inquiry))"""))
+        ok = (lineage['inquiryAdmitted'] == 1 and lineage['jobBackgroundDirtyCompleted'] == 1 and lineage['attempts'] == 1
+              and lineage['dispatches'] == 1 and lineage['modelProposalAdmitted'] == 1 and lineage['universeBridgeAdmitted'] == 1
+              and lineage['mailCausedByGravityFormed'] == 1 and lineage['gravityFormedFromReading'] == 1 and lineage['suppliedSunUnread'] == 1
+              and lineage['suppliedSunMailed'] == 0 and lineage['consentRequestsBeforeMail'] >= 1 and lineage['consentEnabled'] is True
+              and lineage['routeTransport'] == 'fixture' and journey['consent']['usedToday'] == 1)
+        assert ok, lineage
+        limits = ['Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
+                  'Editorial substrate; cartographer and validator as shipped, bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'The Sun was formed by the real Cartographer from a supplied account (zero readings), before consent, because the library '
+                  'cannot anchor it from reading (one source family); Gravity formed from this run\'s reading after consent.',
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
+                  f"Coalescing delay shortened to {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3')} s for the journey route."]
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),
