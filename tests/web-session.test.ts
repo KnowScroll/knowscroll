@@ -34,7 +34,11 @@ async function signInToken(): Promise<string> {
   const requested = await app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email: resolveOwnerEmail() } });
   assert.equal(requested.statusCode, 202);
   const link = (await readFile(join(scratch, 'sign-in', 'magic-link.txt'), 'utf8')).trim();
-  return new URL(link).searchParams.get('token')!;
+  // With a web origin the link opens the sign-in page and carries the token in the fragment.
+  const url = new URL(link);
+  assert.equal(`${url.origin}${url.pathname}`, `${ORIGIN}/sign-in`);
+  assert.equal(url.search, '', 'the token never travels in a query string');
+  return new URLSearchParams(url.hash.slice(1)).get('token')!;
 }
 async function webSession(): Promise<{ cookie: string; csrf: string; setCookie: string; body: Record<string, unknown> }> {
   const response = await app.inject({ method: 'POST', url: '/v1/auth/web-session', payload: { token: await signInToken() } });

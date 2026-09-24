@@ -42,7 +42,12 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
       requesterFingerprint: fingerprint,
     }, limits));
     if (issued) {
-      const link = `${resolveApiBaseUrl()}/v1/auth/confirm?token=${encodeURIComponent(issued.token)}`;
+      // ADR-0034: with a web origin configured the link opens the web sign-in page and carries the
+      // token in the fragment, which no server log or Referer ever receives; the page posts it.
+      const webOrigin = process.env.KS_WEB_ORIGIN?.replace(/\/+$/, '');
+      const link = webOrigin
+        ? `${webOrigin}/sign-in#token=${encodeURIComponent(issued.token)}`
+        : `${resolveApiBaseUrl()}/v1/auth/confirm?token=${encodeURIComponent(issued.token)}`;
       // Best-effort delivery, exactly like a real mail provider: a send failure (including a
       // misconfigured sink or a rejected AgentMail request) never distinguishes this response from
       // any other — it is swallowed here rather than surfaced as a 500 only reachable on the

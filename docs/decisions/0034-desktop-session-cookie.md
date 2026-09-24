@@ -38,6 +38,11 @@ a credential, and a cookie that authenticates on its own must not let another si
    bytes) are required when `NODE_ENV=production`; in development a random secret per process is
    used and the development proxy keeps working unchanged. `Secure` cookies require HTTPS, so the
    production web and API are served same-site over HTTPS.
+6. **The link.** With `KS_WEB_ORIGIN` set, the emailed link is `<KS_WEB_ORIGIN>/sign-in#token=<token>`:
+   the fragment never reaches a server log or a `Referer`. The page removes it from the address
+   bar at once and posts it to `/v1/auth/web-session` only when the person presses "Sign in on this
+   browser", so a mail scanner that fetches the page consumes nothing. Without a web origin
+   (development without the web app), the link stays the API's read-only confirm URL.
 
 ## Alternatives rejected
 

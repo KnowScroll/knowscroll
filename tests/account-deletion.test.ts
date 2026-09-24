@@ -37,7 +37,7 @@ const CONFIRM = 'delete-my-account-and-history';
 async function signInToken(): Promise<string> {
   const requested = await app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email: resolveOwnerEmail() } });
   assert.equal(requested.statusCode, 202);
-  return new URL((await readFile(join(scratch, 'sign-in', 'magic-link.txt'), 'utf8')).trim()).searchParams.get('token')!;
+  return new URLSearchParams(new URL((await readFile(join(scratch, 'sign-in', 'magic-link.txt'), 'utf8')).trim()).hash.slice(1)).get('token')!;
 }
 async function bearerSession(): Promise<{ authorization: string; universeId: string; accountId: string }> {
   const response = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token: await signInToken() } });
