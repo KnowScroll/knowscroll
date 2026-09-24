@@ -29,6 +29,9 @@ JOURNEYS = {
                'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
     'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
             'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
+    # #132: an authorized Ask answer through the worker, with the labelled fixture transport.
+    'ask': {'test': 'com.knowscroll.mobile.AskAnswerJourneyTest', 'receipt': 'ask-answer.json',
+            'captures': ('ask-recorded.png', 'ask-answer.png', 'ask-answer-failure.png')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
@@ -80,9 +83,13 @@ try:
     run(['pnpm', 'db:migrate'], env=env, stdout=subprocess.DEVNULL)
     seeded = subprocess.check_output(['pnpm', 'db:seed'], env=env, text=True)
     assert 'editorial bridges admitted' in seeded, seeded
+    worker_env = dict(env)
+    if journey_name == 'ask':
+        run(['pnpm', 'exec', 'tsx', 'scripts/answers/install-route.ts'], env={**env, 'KS_ANSWER_TRANSPORT': 'fixture'}, stdout=subprocess.DEVNULL)
+        worker_env['KS_ANSWER_TRANSPORT'] = 'fixture'
     for role in ('api', 'worker'):
         log = (out / (role + '.log')).open('w')
-        processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=env, stdout=log, stderr=log, start_new_session=True), log))
+        processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=worker_env if role == 'worker' else env, stdout=log, stderr=log, start_new_session=True), log))
     for attempt in range(100):
         try:
             with urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=1): break
@@ -105,7 +112,20 @@ try:
 
     # 4. Verify the causal lineage the UI claimed, in the database itself.
     journey = json.loads((out / spec['receipt']).read_text())
-    if journey_name == 'why':
+    if journey_name == 'ask':
+        a = journey['askId']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'answerStatus', (SELECT status FROM ask_answer WHERE ask_id='{a}'),
+      'basisQuotes', (SELECT jsonb_array_length(basis) FROM ask_answer WHERE ask_id='{a}'),
+      'jobCompleted', (SELECT count(*) FROM ask_answer_request r JOIN reasoning_job j ON j.id=r.job_id WHERE r.ask_id='{a}' AND j.status='completed'),
+      'dispatches', (SELECT count(*) FROM ask_answer_request r JOIN reasoning_attempt at ON at.job_id=r.job_id
+          JOIN reasoning_accounting ac ON ac.attempt_id=at.id WHERE r.ask_id='{a}' AND ac.dispatch_id IS NOT NULL),
+      'askLedgerEvents', (SELECT count(*) FROM ledger WHERE kind='ask'))"""))
+        ok = (lineage['answerStatus'] == journey['status'] and lineage['answerStatus'] in ('answered', 'not_in_source')
+              and lineage['basisQuotes'] == journey['basisQuotes'] and lineage['jobCompleted'] == 1 and lineage['dispatches'] == 1)
+        assert ok, lineage
+        limits = ['Fixture answer transport (labelled); no provider call.', 'Debug API36 emulator, not a physical device.']
+    elif journey_name == 'why':
         d, a = journey['decisionId'], journey['assetId']
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'servedByV3', (SELECT count(*) FROM decision d JOIN decision_candidate dc ON dc.decision_id=d.id

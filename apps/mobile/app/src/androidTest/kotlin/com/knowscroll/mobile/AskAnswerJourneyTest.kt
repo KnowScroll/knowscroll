@@ -111,7 +111,8 @@ class AskAnswerJourneyTest {
             JSONObject().apply {
                 put("askId", askId)
                 put("status", status)
-                put("basisQuotes", JSONArray(basisQuotes))
+                // Counts only: on a live run the quotes are model output, which receipts never carry.
+                put("basisQuotes", basisQuotes.size)
                 put("scrollAssetId", scroll.item.assetId)
             }.toString(2),
         )
