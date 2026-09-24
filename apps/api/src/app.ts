@@ -34,6 +34,7 @@ import { registerComposerRoutes } from './composer-routes.ts';
 import { registerAnswerRoutes } from './answer-routes.ts';
 import { registerAtlasRoutes } from './atlas-routes.ts';
 import { registerInquiryRoutes } from './inquiry-routes.ts';
+import { registerReturnRoutes } from './return-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -155,6 +156,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   registerAtlasRoutes(app, authenticated);
   // #132: background bridge inquiries — standing consent and what was looked for (ADR-0038); no provider here.
   registerInquiryRoutes(app, authenticated);
+  // #134: what changed while the reader was away, and the Relics they keep (ADR-0039).
+  registerReturnRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 

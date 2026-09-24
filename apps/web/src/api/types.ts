@@ -139,6 +139,8 @@ export const privacyExportRowCountsSchema = z
     encounterFeedback: z.number().int().nonnegative(),
     askAnswers: z.number().int().nonnegative(),
     inquiries: z.number().int().nonnegative(),
+    awayAcknowledgements: z.number().int().nonnegative(),
+    relics: z.number().int().nonnegative(),
   })
   .strict();
 export type PrivacyExportRowCounts = z.infer<typeof privacyExportRowCountsSchema>;
@@ -220,6 +222,8 @@ export const privacyExportResultSchema = z
         inquiries: z.array(exportRowSchema),
       })
       .strict(),
+    /** ADR-0039: return markers and Relics. */
+    returns: z.object({ acknowledgements: z.array(exportRowSchema), relics: z.array(exportRowSchema) }).strict(),
   })
   .strict();
 export type PrivacyExportResult = z.infer<typeof privacyExportResultSchema>;
