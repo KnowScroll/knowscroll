@@ -76,13 +76,13 @@ class AtlasTest {
     fun acceptsASightingRetiredByTheReadersOwnExplorationAndItsParent() {
         val retirement = """[{"deltaId":"$deltaId","placeId":"$sightingId","parentPlaceId":"$gravityId",
             "kind":"sighting_retired","causalClass":"personal_exploration",
-            "at":"2026-09-24T00:00:00.000Z","line":"You reached Star formation."}]"""
+            "at":"2026-09-24T00:00:00.000Z","line":"You came across Star formation."}]"""
         val atlas = parseAtlasResponse(atlasJson(chronicle = retirement))
         val entry = atlas.chronicle.single()
         assertEquals("sighting_retired", entry.kind)
         assertEquals("personal_exploration", entry.causalClass)
         assertEquals(gravityId, entry.parentPlaceId)
-        assertEquals("You reached Star formation.", entry.line)
+        assertEquals("You came across Star formation.", entry.line)
     }
 
     @Test
@@ -135,6 +135,22 @@ class AtlasTest {
         assertEquals("Formed from 3 readings across 2 days and 2 source families.", evidenceSummary(parsed))
         // Structural, not identity, equality -- two independent parses of the same JSON match.
         assertEquals(parseAtlasDelta(JSONObject(delta.toString())), parsed)
+    }
+
+    /** Review 2: a sighting retired by the reader's own exploration is honestly described as met
+     * ("evidence.met" -- `packages/core/src/atlas/cartographer.ts`), never as a dead connection. */
+    @Test
+    fun evidenceSummaryHonestlyDescribesASightingTheReaderCameAcross() {
+        val delta = JSONObject(
+            """{"deltaId":"$deltaId","placeId":"$sightingId","kind":"sighting_retired","causalClass":"personal_exploration",
+                "policyVersion":"cartographer-v1","at":"2026-09-24T00:00:00.000Z",
+                "anchor":{"code":"astro.star-formation","name":"Star formation"},"before":null,
+                "after":{"kind":"sighting","state":"retired","parentPlaceId":"$gravityId"},
+                "evidence":{"met":{"state":"seen","episodes":2}}}""",
+        )
+        val summary = evidenceSummary(parseAtlasDelta(delta))
+        assertEquals("You came across it (2 readings), so it is no longer on the horizon.", summary)
+        assertFalse("never claims the connection itself is inactive", summary.contains("no longer active"))
     }
 
     @Test

@@ -154,14 +154,19 @@ fun SystemScreen(
                                 color = Cosmos.Cream,
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
-                            Text(
-                                // #134 review M2: Places counts its own live places/sightings, never
-                                // the Sources world/Scroll counts -- the two layers show different data.
-                                if (layer == AtlasLayer.Places) placesSubtitle(places) else systemSubtitle(loadedWorlds),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Cosmos.MutedOnDark,
-                                modifier = Modifier.padding(horizontal = 20.dp),
-                            )
+                            // #134 review I4: never a subtitle derived from an atlas that has not
+                            // actually loaded -- while a first load/refresh is in flight or has
+                            // failed, `places` is empty and this would otherwise read a false
+                            // "0 PLACES · 0 SIGHTINGS". Sources' own subtitle is unaffected.
+                            if (layer == AtlasLayer.Sources || atlas != null)
+                                Text(
+                                    // #134 review M2: Places counts its own live places/sightings, never
+                                    // the Sources world/Scroll counts -- the two layers show different data.
+                                    if (layer == AtlasLayer.Places) placesSubtitle(places) else systemSubtitle(loadedWorlds),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Cosmos.MutedOnDark,
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                )
                             AtlasLayerToggle(
                                 layer = layer,
                                 onSelect = { manualLayer = if (it == AtlasLayer.Places) "places" else "sources" },
@@ -194,7 +199,13 @@ fun SystemScreen(
                                     modifier = Modifier.padding(horizontal = 20.dp),
                                 )
                             cameraStates.SaveableStateProvider("camera:${layer.name}") {
-                                if (layer == AtlasLayer.Places)
+                                if (layer == AtlasLayer.Places && atlas == null)
+                                    // #134 review I4: never mount the Places map with empty data --
+                                    // that fires SpatialAtlas's own deselect effect and clears a
+                                    // perfectly good selection/sheet for nothing. A loading line, or
+                                    // the real error with Retry.
+                                    PlacesUnavailable(atlasState, onRetry, Modifier.weight(1f).fillMaxWidth())
+                                else if (layer == AtlasLayer.Places)
                                     SpatialAtlas(
                                         markers = planetMarkersOf(places),
                                         selectedId = selectedWorldId,
@@ -350,6 +361,32 @@ private fun AtlasLayerToggle(layer: AtlasLayer, onSelect: (AtlasLayer) -> Unit, 
                 Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
                     Text(label, fontWeight = FontWeight(700), style = MaterialTheme.typography.labelMedium)
                 }
+            }
+        }
+    }
+}
+
+/** #134 review I4: shown in place of the Places map itself while the atlas has not (yet, or not
+ * currently) loaded -- a loading line, or the real error with a Retry that reuses the same
+ * [onRetry] the rest of this screen already offers (re-fetches worlds and the atlas together). */
+@Composable
+private fun PlacesUnavailable(atlasState: AtlasState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (atlasState is AtlasState.Unavailable) {
+            val retryDescription = "Retry loading your places"
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Your places are unavailable", style = MaterialTheme.typography.titleMedium, color = Cosmos.Coral)
+                Text(atlasState.message, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+                OutlinedButton(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = retryDescription },
+                ) { Text("Retry") }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                Text("Loading your places…", style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
             }
         }
     }

@@ -109,7 +109,7 @@ class AtlasPresentationTest {
                 chronicleEntry("d2", "p2", null, "place_formed", "personal_exploration", "A place formed around Tides."),
                 // A sighting's own line: its placeId is the sighting's, parentPlaceId is p1's.
                 chronicleEntry("d3", "s1", "p1", "sighting_appeared", "substrate_neighbourhood", "Star formation appeared near Gravity."),
-                chronicleEntry("d4", "s1", "p1", "sighting_retired", "personal_exploration", "You reached Star formation."),
+                chronicleEntry("d4", "s1", "p1", "sighting_retired", "personal_exploration", "You came across Star formation."),
                 // p1's own rejection: placeId is p1's, no parent (it is a planet).
                 chronicleEntry("d5", "p1", null, "place_rejected", "reader_correction", "You set Gravity aside."),
             ),
@@ -135,6 +135,16 @@ class AtlasPresentationTest {
         )
         assertEquals("Sighting", rows.single { it.name == "Star formation" }.detail)
         assertEquals("region", rows.single { it.name == "Neap tides" }.kind)
+    }
+
+    /** Review 3: a place naming a parent this payload does not itself carry (paged, stale, or a
+     * foreign reference) is a top-level row, never silently dropped. */
+    @Test
+    fun placeListRowsTreatsAnOrphanedParentAsTopLevel() {
+        val orphan = region("r1", "Tides", "gone")
+        val rows = placeListRows(listOf(planet("p1", "Gravity"), orphan))
+        assertEquals(setOf("Gravity", "Tides"), rows.map { it.name }.toSet())
+        assertEquals(0, rows.single { it.name == "Tides" }.depth)
     }
 
     @Test

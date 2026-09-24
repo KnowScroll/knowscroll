@@ -949,7 +949,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     /** #134: the reader's live places, independent of [enterSystem]'s worlds fetch above -- a
      * failure here leaves the System screen usable via Sources, never failing the whole screen. */
     private fun refreshAtlas(version:Long,epoch:Long,universeId:String){
-        _atlas.value=AtlasState.Loading
+        // #134 review I4: keep showing the last loaded atlas while this same-scope refresh is in
+        // flight -- only Loading when nothing is loaded yet. A purge/scope change already resets
+        // _atlas to Idle before this runs again, so a Loaded value here is always this scope's own.
+        // Replacing it with Loading on every refresh (e.g. on return from the reader) would
+        // otherwise mount the Places map with no markers, firing its own deselect and reading a
+        // false "0 PLACES" until the new response lands.
+        if(_atlas.value !is AtlasState.Loaded)_atlas.value=AtlasState.Loading
         viewModelScope.launch {
             try {
                 val response=api.getAtlas()
