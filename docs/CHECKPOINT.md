@@ -22,6 +22,44 @@ device, whose journey now accepts any validated live outcome and checks the scre
 [evidence](journeys/evidence/background-inquiries-2026-09-24/README.md). No prompt or reply text
 is in Git.
 
+## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
+
+`AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
+installs the `.journey` app (the semantic, profile and #91 explain runners, the six older ones and
+`android-living-preview.py` in its verification mode) now goes through
+`scripts/android_preview.py`. Only `android-living-preview.py --keep`, the preview's own setup,
+installs it deliberately. The guard:
+- it refuses, touching nothing, if the preview cannot be backed up or holds a keystore-sealed
+  signed-in session;
+- it restores only if the run actually replaced the preview;
+- it verifies every file by hash.
+
+Matched profiles on a quiet host, baseline `81431cc` against main at `a9b5e1c`, interleaved (see the
+[profile evidence](journeys/evidence/frame-profile-2026-09-24/README.md)): equal p95 (67.6 vs
+67.4 ms) and better p50 (33.8 → 29.5 ms). One early baseline run under a different host state
+matched the old 47.40 ms, so host state moves absolute numbers by about 50%.
+Recomposition p95 roughly doubled (10.1 → 19.7 ms), with more draw and swap; that is the next
+target. Smoothness is not accepted: almost every emulator frame is over 16.67 ms.
+
+The #91 reader-explain journey was failing on main from harness rot. Its proxy missed
+`/v1/feed?kinds=`, and it looked for saved Traces on the universe screen instead of in Keep by
+title. It now passes 9/9 ([evidence](journeys/evidence/reader-explain-2026-09-24/README.md)).
+
+## 2026-09-24 #133 "What led here" on the desktop web (lane `133-web-why`)
+
+This reaches parity with Android's journey G on the web reader. "Why this appeared" now loads the
+recorded explanation for the Scroll being read (`GET /v1/decisions/:id/why`). It shows the family
+that chose it, one line per recorded step, and the corrections that path supports: "Less like
+this", and "Wrong connection" where a connection was crossed. Each correction says what it does
+before and after, is idempotent under its request id across retries and reopening, and goes
+through the CSRF-aware client. A path that was never recorded (404, or a saved Trace) is shown
+honestly. Parsing is strict, and the web's zod schemas are guarded against the contracts by
+`contractsDrift`. Web units 199 (15 → 18 files). A new journey, `run-web-why-journey.ts`, uses a
+real cookie sign-in and a disposable database with the substrate, and checks lineage in SQL (the
+v3 decision, the cited keep, exactly one `less_like_this` under the page's request id, bridges
+unchanged). The reader journey passes 50/50. CI's web-journey job now also runs the owner (#135)
+and why journeys. [Evidence](journeys/evidence/web-why/last-run-receipt.json).
+
 ## 2026-09-24 #131/#134 foundation Stars (lane `131-foundation-stars`)
 
 ADR-0037, migration 0031, `cartographer-v2`. A live planet or region whose anchor explains, or

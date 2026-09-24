@@ -48,6 +48,14 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(reasonText.length).toBeGreaterThan(0);
     await expect(page.getByText('DOCUMENTED', { exact: false }).first()).toBeVisible();
     await expect(page.getByText(/Directly supported by strong cited evidence/).first()).toBeVisible();
+    // #133: "What led here" reads the recorded explanation back from the API. This fixture library
+    // carries no substrate (no concepts, no bridges), so the Composer could only serve this Scroll
+    // as an unmapped fallback: an honest empty path, and nothing offered to correct. The full path
+    // and its correction are journey G (e2e-why/, scripts/run-web-why-journey.ts).
+    const whatLedHere = page.getByRole('region', { name: 'What led here' });
+    await expect(whatLedHere.getByText('Nothing you did led here; it was offered so nothing in the library stays hidden.')).toBeVisible();
+    await expect(whatLedHere.getByText('fallback', { exact: true })).toBeVisible();
+    await expect(whatLedHere.getByRole('group', { name: 'Correct this route' })).toHaveCount(0);
 
     // Source rail: keyboard toggle ('s'), attributes on the outbound link.
     await stage.focus();

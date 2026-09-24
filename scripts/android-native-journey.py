@@ -4,6 +4,11 @@ Run sourced env with KS_NATIVE_VIDEO pointing to an authorized local MP4. Media 
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 import datetime, hashlib, json, os, secrets, signal, socket, subprocess, time, urllib.request
+import sys as _sys
+from pathlib import Path as _Path
+_sys.dont_write_bytecode = True
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
 root=Path.cwd()
 config=dict(line.split('=',1) for line in (root/'.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
 source=urlparse(config['DATABASE_URL'])
@@ -29,7 +34,10 @@ def run(command,**kwargs): return subprocess.run(command,check=True,**kwargs)
 def adb(*command): return subprocess.check_output(['adb',*command],text=True).strip()
 font=adb('shell','settings','get','system','font_scale')
 motion=adb('shell','settings','get','global','animator_duration_scale')
+_preview_error = None
+_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
+    _guard.preserve()
     with socket.socket() as probe: probe.bind(('127.0.0.1',port))
     run(['createdb',*args,name],env=admin);created=True
     run(['pnpm','db:migrate'],env=env);run(['pnpm','db:seed'],env=env)
@@ -72,9 +80,13 @@ try:
     receipt={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'result':'passed','database':name,'counts':json.loads(counts),'mediaSha256':hashlib.sha256(video.read_bytes()).hexdigest(),'mediaBytes':video.stat().st_size,'providerCalls':0,'limits':['Synthetic test-only generation lineage. Supplied video proves playback only.','Debug API36 emulator, not physical-device performance.','Live branch/rich block transport is unavailable.']}
     (out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
 finally:
+    # Restore the owner's preview first (only if this run replaced it), so no later cleanup can hide it.
+    try: _guard.restore()
+    except Exception as _error: _preview_error = _error; print(f'PREVIEW RESTORE FAILED: {_error}', flush=True)
     for child,log in processes:
         if child.poll() is None: os.killpg(child.pid,signal.SIGTERM);child.wait(timeout=15)
         log.close()
     adb('shell','settings','put','system','font_scale',font if font!='null' else '1.0')
     adb('shell','settings','put','global','animator_duration_scale',motion if motion!='null' else '1.0')
     if created: run(['dropdb','--if-exists',*args,name],env=admin)
+if _preview_error is not None: raise _preview_error

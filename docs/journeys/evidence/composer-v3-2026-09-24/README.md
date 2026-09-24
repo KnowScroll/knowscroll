@@ -9,8 +9,8 @@ Decision: [ADR-0032](../../../decisions/0032-attention-hypotheses-and-semantic-c
 The feed is chosen by `composer-semantic-v3`, a deterministic policy over the reader's own
 recorded acts and the admitted substrate. It can continue a thread, go deeper, cross a sourced
 bridge, meet a challenge, revisit, step outside, or fall back honestly. Every candidate it
-considered is recorded with its family, gate, terms and evidence path. On Android the reader opens
-**Why this appeared** and sees **What led here**: the act that led to the encounter and the
+considered is recorded with its family, gate, terms and evidence path. On Android and in the
+desktop web reader, the reader opens **Why this appeared** and sees **What led here**: the act that led to the encounter and the
 connection crossed. They can say **Less like this** (or **Wrong connection** on a connection),
 which suppresses that route for them for 14 days and changes nothing shared. Attention accounts
 and rule hypotheses are recomputed in the same transaction as the evidence, erased by Clear/Reset,
@@ -25,6 +25,7 @@ and exported. `composer-signals-v2` stays registered, immutable and selectable.
 | Mutation checks | each applied alone, then reverted | dropping the keep-time refresh, the route suppression, the served-only "why" filter, the Clear erasure, the export, or the Ask-time refresh each turns a test red |
 | Android units | `./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest` | 107/107; new `WhyTest` 3 (strict parsing, wire shapes) and `ExplainWhyTest` 2 (path, corrections, sending guard); removing the corrected filter or the sending guard turns the sheet test red |
 | Real emulator journey | `KS_SEMANTIC_JOURNEY=why scripts/android-semantic-journey.py` → `SemanticWhyJourneyTest`, emulator-5554 (API36), `.journey` app, disposable API/worker/PostgreSQL on 4333 | `OK (1 test)`; lineage below |
+| Real web journey (added later) | `pnpm exec tsx scripts/run-web-why-journey.ts` → `apps/web/e2e-why/why-journey.spec.ts`: Chromium, real magic-link cookie session, disposable API/worker/PostgreSQL with the editorial substrate | passed; the correction made by keyboard after a reload, accepted only with the page's CSRF token; SQL lineage in [../web-why/last-run-receipt.json](../web-why/last-run-receipt.json) |
 | Offline comparison | `./scripts/test.sh scripts/composer-compare.ts` | [comparison.md](comparison.md), below |
 | Live provider | none | No model or provider call; MiniMax budget 0/40 |
 
@@ -120,6 +121,7 @@ for ranked rows (the only rows any invariant reads), ~10 / ~13 / ~20 ms.
   their policy versions, not tuned on real use.
 - Direction hypotheses need voluntary acts on separate days from separate source families, so a
   one-session journey produces question hypotheses, not directions (covered by pure tests).
-- The Scroll reader has the why sheet; the Reel reader and the web client show the served reason
-  only.
-- Emulator only (API36 debug); not a physical device.
+- The Android Scroll reader and the desktop web reader have the why sheet; the Reel reader shows
+  the served reason only. On the web the sheet lives in the context rail, which is hidden below
+  700px wide, so a narrow window has no way to open it.
+- Emulator only (API36 debug); not a physical device. The web journey is desktop Chromium only.

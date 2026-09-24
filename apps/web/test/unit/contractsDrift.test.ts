@@ -1,6 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import { feedResponse, universe, worldSystemResponseSchema } from '../../src/api/types.ts';
-import { feedItem, universeOf, worldSystemOf } from './fakeApi.ts';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type {
+  EncounterFeedbackInput,
+  EncounterFeedbackReceipt as ContractFeedbackReceipt,
+  EvidenceStepWire,
+  WhyResponseWire,
+} from '../../../../packages/contracts/src/composer.ts';
+import {
+  encounterFeedbackReceiptSchema,
+  feedResponse,
+  universe,
+  whyResponseSchema,
+  worldSystemResponseSchema,
+  type EncounterFeedbackReceipt,
+  type EncounterFeedbackRequest,
+  type EvidenceStep,
+  type WhyResponse,
+} from '../../src/api/types.ts';
+import { encounterFeedbackReceiptOf, feedItem, universeOf, whyOf, worldSystemOf } from './fakeApi.ts';
 
 /**
  * #115: the web client's parsing schemas (apps/web/src/api/types.ts) and its hand-written unit
@@ -39,5 +55,31 @@ describe('web bootstrap fixtures cannot drift from packages/contracts/src/web-bo
       items: [feedItem()],
     };
     expect(() => feedResponse.parse(response)).not.toThrow();
+  });
+});
+
+/**
+ * #133: `packages/contracts/src/composer.ts` names the "why" response and the feedback receipt as
+ * plain TypeScript interfaces only (no zod schema to import), so apps/web writes its strict schemas
+ * field-for-field (src/api/types.ts). Two guards keep them from drifting apart: the type-level
+ * equalities below fail `pnpm typecheck:web` the moment a field is added, removed or retyped on
+ * either side (in either direction -- an extra field the web accepts fails as surely as a missing
+ * one), and the strict `.parse()` of each fixture fails at runtime when a fixture and its schema
+ * disagree.
+ */
+describe('composer v3 "why" shapes cannot drift from packages/contracts/src/composer.ts (#133)', () => {
+  it('the web schemas have exactly the contract types', () => {
+    expectTypeOf<WhyResponse>().toEqualTypeOf<WhyResponseWire>();
+    expectTypeOf<EvidenceStep>().toEqualTypeOf<EvidenceStepWire>();
+    expectTypeOf<EncounterFeedbackReceipt>().toEqualTypeOf<ContractFeedbackReceipt>();
+    expectTypeOf<EncounterFeedbackRequest>().toEqualTypeOf<EncounterFeedbackInput>();
+  });
+
+  it('whyOf() strictly satisfies the why schema', () => {
+    expect(() => whyResponseSchema.parse(whyOf())).not.toThrow();
+  });
+
+  it('encounterFeedbackReceiptOf() strictly satisfies the receipt schema', () => {
+    expect(() => encounterFeedbackReceiptSchema.parse(encounterFeedbackReceiptOf())).not.toThrow();
   });
 });

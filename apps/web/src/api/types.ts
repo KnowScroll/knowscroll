@@ -18,6 +18,7 @@
 import { z } from 'zod';
 import { traceRevisitReceipt, traceRevisitScroll } from '../../../../packages/contracts/src/trace-revisit.ts';
 import { accountDeletionInput, privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
+import { ENCOUNTER_SUPPRESSION_DAYS, encounterFeedbackInput, encounterFeedbackKind } from '../../../../packages/contracts/src/composer.ts';
 import {
   capabilitiesSchema,
   traceSchema,
@@ -281,6 +282,82 @@ export const webSessionResponseSchema = z
 export type WebSessionResponse = z.infer<typeof webSessionResponseSchema>;
 
 export const sessionCsrfSchema = z.object({ csrfToken: z.string() }).strict();
+
+/**
+ * #133, ADR-0032 §4–§5: "What led here" -- `GET /v1/decisions/:decisionId/why?assetId=` and the
+ * reader's correction, `POST /v1/encounters/feedback`. `packages/contracts/src/composer.ts` names
+ * the response and receipt as plain TypeScript interfaces only (its one zod schema is the request,
+ * `encounterFeedbackInput`, reused below), so these strict schemas are written field-for-field
+ * against it; test/unit/contractsDrift.test.ts holds the two type-equal in both directions, so a
+ * field added, removed or retyped on either side fails `pnpm typecheck:web`.
+ *
+ * Beyond the shape, the same recorded-truth rules Android's `parseWhy` enforces
+ * (apps/mobile/.../data/Why.kt): an unmapped (fallback) encounter offers no correction, "wrong
+ * connection" is offered only where the recorded path crossed a connection, and nothing is marked
+ * corrected that the encounter never supported. A payload breaking any of them is one the server
+ * could not have recorded, so it is refused rather than rendered.
+ */
+export type EncounterFeedbackKind = z.infer<typeof encounterFeedbackKind>;
+export type EncounterFeedbackRequest = z.infer<typeof encounterFeedbackInput>;
+export { ENCOUNTER_SUPPRESSION_DAYS };
+
+export const evidenceStepSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('mark'),
+      markKind: z.enum(['keep', 'branch', 'ask']),
+      assetId: z.string(),
+      title: z.string(),
+      at: z.string(),
+      eventId: z.string().min(1),
+    })
+    .strict(),
+  z.object({ kind: z.literal('bridge'), bridgeId: z.string(), sentence: z.string() }).strict(),
+  z.object({ kind: z.literal('question'), concept: z.string() }).strict(),
+  z.object({ kind: z.literal('outside'), domain: z.string() }).strict(),
+]);
+export type EvidenceStep = z.infer<typeof evidenceStepSchema>;
+
+export const composerFamilySchema = z.enum(['continue', 'deepen', 'bridge', 'challenge', 'revisit', 'frontier', 'seed', 'fallback']);
+export type ComposerFamily = z.infer<typeof composerFamilySchema>;
+
+export const whyResponseSchema = z
+  .object({
+    decisionId: z.string(),
+    assetId: z.string(),
+    policyVersion: z.string(),
+    family: composerFamilySchema,
+    reason: z.string(),
+    evidence: z.array(evidenceStepSchema),
+    terms: z.record(z.string(), z.number()),
+    quotas: z.array(z.string()),
+    corrections: z.array(encounterFeedbackKind),
+    corrected: z.array(encounterFeedbackKind),
+  })
+  .strict()
+  .superRefine((why, ctx) => {
+    if (why.family === 'fallback' && why.corrections.length > 0) {
+      ctx.addIssue({ code: 'custom', message: 'An unmapped encounter has no route to correct' });
+    }
+    if (why.corrections.includes('wrong_connection') && !why.evidence.some(step => step.kind === 'bridge')) {
+      ctx.addIssue({ code: 'custom', message: 'Only a connection can be wrong' });
+    }
+    if (why.corrected.some(kind => !why.corrections.includes(kind))) {
+      ctx.addIssue({ code: 'custom', message: 'A correction the encounter does not support' });
+    }
+  });
+export type WhyResponse = z.infer<typeof whyResponseSchema>;
+
+export const encounterFeedbackReceiptSchema = z
+  .object({
+    feedbackId: z.string(),
+    kind: encounterFeedbackKind,
+    suppressed: z
+      .object({ family: z.string(), concept: z.string().nullable(), bridgeId: z.string().nullable(), until: z.string() })
+      .strict(),
+  })
+  .strict();
+export type EncounterFeedbackReceipt = z.infer<typeof encounterFeedbackReceiptSchema>;
 
 /** Documented truth states and their required presentation (definition.md section 12). */
 export const TRUTH_STATE_MEANING: Record<string, string> = {

@@ -13,8 +13,8 @@
     "orientationAngle": 0,
     "orientationType": "landscape-primary"
   },
-  "timestamp": "2026-09-23T20:44:42.893Z",
-  "url": "http://127.0.0.1:62451/",
+  "timestamp": "2026-09-24T09:18:36.832Z",
+  "url": "http://127.0.0.1:60973/",
   "toolOptions": {
     "reporter": "v1"
   },
@@ -4264,16 +4264,16 @@
             {
               "id": "color-contrast",
               "data": {
-                "fgColor": "#fdfbf1",
+                "fgColor": "#fcfbf0",
                 "bgColor": "#061a27",
-                "contrastRatio": 17.08,
+                "contrastRatio": 17.04,
                 "fontSize": "10.5pt (14px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 17.08"
+              "message": "Element has sufficient color contrast of 17.04"
             }
           ],
           "all": [],
@@ -4290,15 +4290,15 @@
               "id": "color-contrast",
               "data": {
                 "fgColor": "#15302a",
-                "bgColor": "#33c3b3",
-                "contrastRatio": 6.44,
+                "bgColor": "#33c2b2",
+                "contrastRatio": 6.38,
                 "fontSize": "9.8pt (13px)",
                 "fontWeight": "bold",
                 "expectedContrastRatio": "4.5:1"
               },
               "relatedNodes": [],
               "impact": "serious",
-              "message": "Element has sufficient color contrast of 6.44"
+              "message": "Element has sufficient color contrast of 6.38"
             }
           ],
           "all": [],

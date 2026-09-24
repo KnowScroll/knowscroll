@@ -22,6 +22,7 @@
 import { z, type ZodType } from 'zod';
 import {
   accountDeletionReceiptSchema,
+  encounterFeedbackReceiptSchema,
   eventStatus,
   exposureResponse,
   feedResponse,
@@ -34,9 +35,12 @@ import {
   traceRevisit,
   universe,
   webSessionResponseSchema,
+  whyResponseSchema,
   worldSystemResponseSchema,
   type AccountDeletionReceipt,
   type AccountDeletionRequest,
+  type EncounterFeedbackReceipt,
+  type EncounterFeedbackRequest,
   type EventStatus,
   type ExposureResponse,
   type FeedResponse,
@@ -49,6 +53,7 @@ import {
   type TraceRevisit,
   type Universe,
   type WebSessionResponse,
+  type WhyResponse,
   type WorldSystemResponse,
 } from './types.ts';
 
@@ -147,6 +152,12 @@ export interface ReaderApi {
   postSessionRevoke(): Promise<void>;
   /** ADR-0035: one transaction, its own confirmation literal -- see `ACCOUNT_DELETE_CONFIRMATION`. */
   postAccountDelete(body: AccountDeletionRequest): Promise<AccountDeletionReceipt>;
+  /** #133: the recorded explanation of one served encounter, or `null` when its decision recorded
+   * none (the server's 404 -- honest absence, not a failure). */
+  getWhy(decisionId: string, assetId: string): Promise<WhyResponse | null>;
+  /** #133 journey G: "less like this" / "wrong connection". Replay-keyed on `clientFeedbackId`, so
+   * a retry of one intent must resend the same one. */
+  postEncounterFeedback(body: EncounterFeedbackRequest): Promise<EncounterFeedbackReceipt>;
 }
 
 export class ApiClient implements ReaderApi {
@@ -238,6 +249,40 @@ export class ApiClient implements ReaderApi {
 
   async postAccountDelete(body: AccountDeletionRequest): Promise<AccountDeletionReceipt> {
     return this.request('POST', '/account/delete', body, [200], false, accountDeletionReceiptSchema);
+  }
+
+  /**
+   * #133 (ADR-0032 §5): "why this appeared", read back exactly as the Composer recorded it. Only
+   * the 404 ("No recorded explanation for this encounter": a branch target, a gated or another
+   * reader's candidate) becomes `null`; every other refusal stays an error. An explanation that
+   * names some other encounter than the one asked about is a protocol failure, never rendered.
+   */
+  async getWhy(decisionId: string, assetId: string): Promise<WhyResponse | null> {
+    const path = `/decisions/${encodeURIComponent(decisionId)}/why?assetId=${encodeURIComponent(assetId)}`;
+    let why: WhyResponse;
+    try {
+      why = await this.request('GET', path, undefined, [200], false, whyResponseSchema);
+    } catch (error) {
+      if (error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 404) return null;
+      throw error;
+    }
+    if (why.decisionId !== decisionId || why.assetId !== assetId) {
+      throw new ApiException({ kind: 'protocol', message: 'Explanation names another encounter' });
+    }
+    return why;
+  }
+
+  /**
+   * #133 journey G: the reader corrects the route that chose this encounter. A mutating request, so
+   * it goes through `request()`'s CSRF path like every other (ADR-0034). `treat409AsConflict` stays
+   * `false` like the privacy routes: a 409 here is a stale `expectedPrivacyEpoch` (or a reused key,
+   * which one-key-per-intent never produces), the same "your view is stale" fact `invalidatesReader`
+   * already handles. The server answers 201 for a first write and for a replay alike.
+   */
+  async postEncounterFeedback(body: EncounterFeedbackRequest): Promise<EncounterFeedbackReceipt> {
+    const receipt = await this.request('POST', '/encounters/feedback', body, [201], false, encounterFeedbackReceiptSchema);
+    if (receipt.kind !== body.kind) throw new ApiException({ kind: 'protocol', message: 'Feedback receipt names another correction' });
+    return receipt;
   }
 
   /** ADR-0026: `POST /v1/auth/magic-link` -- one fixed 202, deliberately indistinguishable

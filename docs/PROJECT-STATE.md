@@ -11,6 +11,23 @@ one real connection got through ("Gravity explains The Sun"), and it now appears
 where either side is read. Suggestions are still often refused, and with today's small library
 there are few pairs to look at.
 
+## 2026-09-24 Frame timing re-measured, and a broken device check repaired (#136)
+
+Measured side by side on the same emulator, the current app is as fast as PR130's baseline at the
+slow end and faster in the middle. It does redraw more work per frame, which is the next thing to
+cut. It is still not smooth on the emulator, and there is no phone measurement yet. A device check
+for the "why this appeared" sheet and sign-out, broken since the reader's feed changed, works
+again. Every device check now protects the owner's running preview (only the command that sets up
+the preview replaces it on purpose): it refuses to start rather
+than risk it, and leaves it alone unless the run actually replaced it. If the preview is signed in
+with an emailed link, the owner has to sign out first, or accept signing in again afterwards.
+
+## 2026-09-24 The desktop reader explains why a Scroll appeared (#133)
+
+On the web, "Why this appeared" now shows the recorded reason and the steps that led to the Scroll,
+as the phone app does. The reader can say "less like this" or "wrong connection", and the page says
+what each one changes. It works by keyboard. The panel is hidden in very narrow windows.
+
 ## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
 
 When one of the reader's places explains several of their other places, and sources say so, it

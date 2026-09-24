@@ -1,0 +1,63 @@
+{
+  "journey": "web-why-133",
+  "startedAt": "2026-09-24T09:19:46.929Z",
+  "database": "knowscroll_test_79205cc37a15d5a2",
+  "apiPort": 62094,
+  "webPort": 62095,
+  "cookieModeSmokeCheck": "passed (unauthenticated /v1/session via the cookie-mode proxy returned 401)",
+  "feedPolicy": "composer-semantic-v3 (apps/api default)",
+  "library": "content/editorial-scrolls.json + content/substrate.json",
+  "playwright": {
+    "result": "passed"
+  },
+  "journeyReceipt": {
+    "journey": "web-why-133",
+    "result": "passed",
+    "decisionId": "ef8b6d52-2f36-4c26-aa99-cd82e5c7c1e4",
+    "assetId": "20000000-0000-4000-8000-000000000002",
+    "title": "One force, many jobs",
+    "family": "bridge",
+    "citedKeepTitle": "A rhythm the ocean keeps",
+    "citedKeepEventIds": [
+      "bb105bbf-6cbe-43e3-8d70-2da3ca201a7c"
+    ],
+    "keepsBeforeCited": 1,
+    "clientFeedbackId": "d5186fc6-5469-441c-92a9-8e8efe0b5a59",
+    "feedbackAttempts": [
+      {
+        "status": 403,
+        "carriedCsrfToken": false
+      },
+      {
+        "status": 201,
+        "carriedCsrfToken": true
+      }
+    ],
+    "correctedAfter": [
+      "less_like_this"
+    ],
+    "axeSeriousOrCritical": 0,
+    "seen": [
+      "One force, many jobs: You kept “A rhythm the ocean keeps” / Tides is explained by Gravity"
+    ],
+    "finishedAt": "2026-09-24T09:19:53.834Z"
+  },
+  "databaseLineage": {
+    "servedByV3": 1,
+    "citedKeepRecorded": 1,
+    "feedbackRows": 1,
+    "lessLikeThis": 1,
+    "recordedUnderPageKey": 1,
+    "feedbackRowsAnywhere": 1,
+    "connectionFeedbackRows": 0,
+    "attentionAccounts": 4,
+    "sharedBridgesStillAdmitted": 6,
+    "sharedBridgesBefore": 6
+  },
+  "screenshots": [
+    "screenshots/why-path.png",
+    "screenshots/why-corrected.png"
+  ],
+  "finishedAt": "2026-09-24T09:19:53.960Z",
+  "databaseDropped": true
+}
