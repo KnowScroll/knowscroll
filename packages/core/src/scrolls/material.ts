@@ -85,6 +85,12 @@ function tagEnd(html: string, from: number): number {
   return html.length;
 }
 
+/** A missing page some hosts serve with HTTP 200 (NOAA's "Page Not Found: Error 404"): its title says
+ * so. It is refused as material however much navigation text surrounds it. */
+export function titleSaysNotFound(title: string | null): boolean {
+  return title !== null && /\b(?:404|page not found|not found)\b/i.test(title);
+}
+
 export interface VisibleText {
   /** The whole page's visible text, normalized: what is stored and hashed. */
   text: string;

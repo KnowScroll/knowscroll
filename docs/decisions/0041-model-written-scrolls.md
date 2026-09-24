@@ -27,6 +27,9 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
    never leave the allowlist. No cookie or credential is ever sent; at most 2 MB is read; only HTML
    is accepted. The policy defines its families the way the substrate does (`key`, `kind`,
    `description`); one the substrate already loaded must match it exactly.
+   A page with too little visible text, or whose `<title>` says it was not found (some hosts serve a
+   missing page as HTTP 200: NOAA's "Page Not Found: Error 404", seen in the live batch), is refused
+   (`too_little_text`, `page_not_found`) before any request.
 2. **The material is the page's visible text, stored privately and bound to a snapshot.** The visible
    text follows `scripts/substrate/snapshot_source.py`'s rules (skip `script`, `style`, `noscript`,
    `svg`, `template`, `head`; block elements separate words) and the one shared normalization, which

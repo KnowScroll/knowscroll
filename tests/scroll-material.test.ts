@@ -145,6 +145,10 @@ test('fetch: a failed, non-HTML, oversized or near-empty page is refused', async
   assert.deepEqual(await refusal(() => new Response('gone', { status: 404, headers: { 'content-type': 'text/html' } })), { ok: false, reason: 'http_status', httpStatus: 404 });
   assert.deepEqual(await refusal(() => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })), { ok: false, reason: 'not_html' });
   assert.deepEqual(await refusal(() => html(page(words(20)))), { ok: false, reason: 'too_little_text' });
+  // A missing page served as HTTP 200 (NOAA's live site does this) is not material, however much
+  // navigation text surrounds it.
+  const soft404 = `<html><head><title>Page Not Found: Error 404</title></head><body><main><p>${words(120)}</p></main></body></html>`;
+  assert.deepEqual(await refusal(() => html(soft404)), { ok: false, reason: 'page_not_found' });
   // A declared length over the bound is refused unread; an undeclared one is cut off while streaming.
   assert.deepEqual(await refusal(() => html(page(words(120)), { 'content-length': String(MATERIAL_LIMITS.maxBytes + 1) })), { ok: false, reason: 'too_large' });
   let pulled = 0;

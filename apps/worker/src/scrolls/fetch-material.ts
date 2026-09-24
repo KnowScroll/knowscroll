@@ -8,7 +8,7 @@
  * Nothing is logged or persisted here.
  */
 import { createHash } from 'node:crypto';
-import { checkMaterialUrl, extractVisibleText, MATERIAL_LIMITS, type MaterialHost, type MaterialUrlRefusal } from '../../../../packages/core/src/scrolls/material.ts';
+import { checkMaterialUrl, extractVisibleText, MATERIAL_LIMITS, titleSaysNotFound, type MaterialHost, type MaterialUrlRefusal } from '../../../../packages/core/src/scrolls/material.ts';
 
 const USER_AGENT = 'KnowScroll-material/1 (+personal non-commercial)';
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -25,7 +25,7 @@ export interface FetchedMaterial {
   contentSha256: string;
   retrievedAt: string;
 }
-export type MaterialFetchRefusal = MaterialUrlRefusal | 'too_many_redirects' | 'http_status' | 'not_html' | 'too_large' | 'too_little_text' | 'fetch_failed';
+export type MaterialFetchRefusal = MaterialUrlRefusal | 'too_many_redirects' | 'http_status' | 'not_html' | 'too_large' | 'too_little_text' | 'page_not_found' | 'fetch_failed';
 export type MaterialFetch =
   | { ok: true; material: FetchedMaterial }
   | { ok: false; reason: Exclude<MaterialFetchRefusal, 'http_status'> }
@@ -80,6 +80,7 @@ export async function fetchMaterial(url: string, options: { fetchImpl?: typeof f
     if (bytes === null) return { ok: false, reason: 'too_large' };
     const page = extractVisibleText(decoderFor(contentType).decode(bytes));
     if (page.text.length < MATERIAL_LIMITS.minTextChars) return { ok: false, reason: 'too_little_text' };
+    if (titleSaysNotFound(page.title)) return { ok: false, reason: 'page_not_found' };
     return {
       ok: true,
       material: {
