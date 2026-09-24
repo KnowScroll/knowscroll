@@ -226,7 +226,7 @@ export async function validateInquiryContext(client: pg.PoolClient, scope: Reaso
     `SELECT wake_kind, class, dirty_scope, through_sequence::text, policy_version, deadline > clock_timestamp() AS live FROM reasoning_job
      WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3`, [scope.jobId, scope.universeId, scope.privacyEpoch])).rows[0];
   if (!job || job.wake_kind !== 'dirty' || job.class !== 'background_inquiry' || job.dirty_scope !== INQUIRY_DIRTY_SCOPE || job.through_sequence !== payload.throughSequence) return { valid: false, reason: 'corrupt_seal' };
-  if (!job.live) return { valid: false, reason: 'unsupported' };
+  if (!job.live) return { valid: false, reason: 'expired' };
   if (job.policy_version !== scope.policyVersion) return { valid: false, reason: 'changed_policy' };
   if (phase === 'lock') await lockSubstrateShared(client);
   let policy: { version: string; hash: string };

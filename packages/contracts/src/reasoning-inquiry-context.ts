@@ -80,5 +80,5 @@ export const inquiryContextPayload = z.object({
 });
 export type InquiryContextPayload = z.infer<typeof inquiryContextPayload>;
 export type InquiryContextRefusal =
-  | 'missing' | 'foreign' | 'unsupported' | 'obsolete_epoch' | 'corrupt_seal' | 'changed_policy' | 'bounds_exceeded'
+  | 'missing' | 'foreign' | 'unsupported' | 'obsolete_epoch' | 'corrupt_seal' | 'changed_policy' | 'bounds_exceeded' | 'expired'
   | 'consent_inactive' | 'recording_paused' | 'route_disabled' | 'inquiry_closed' | 'place_changed' | 'claim_changed' | 'pair_connected';

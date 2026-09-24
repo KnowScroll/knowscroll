@@ -311,12 +311,13 @@
     <string name="inquiry_found_revoked">A later source correction withdrew this connection.</string>
     <string name="inquiry_found_superseded">A later source correction replaced this connection.</string>
     <string name="inquiry_status_waiting">Waiting to look (it gathers a few changes first).</string>
+    <string name="inquiry_status_waiting_unavailable">Waiting, but this deployment has no background route enabled, so it will not look.</string>
     <string name="inquiry_status_waiting_limit">Waiting: today\'s limit is reached, so it looks again tomorrow.</string>
     <string name="inquiry_status_looking">Looking now for a sourced connection.</string>
     <string name="inquiry_status_found">Found a connection.</string>
     <string name="inquiry_status_nothing_found">Looked, and the sources offered no connection between these places.</string>
     <string name="inquiry_status_did_not_hold_up">A connection was proposed but did not hold up: %1$s.</string>
-    <string name="inquiry_status_nothing_to_ask">Nothing to ask: every pair of your places is already connected or was already asked about.</string>
+    <string name="inquiry_status_nothing_to_ask">Nothing to ask: no two of your places were left to ask about. A pair needs sources on both sides, and is skipped once connected or asked about.</string>
     <string name="inquiry_status_failed">Could not finish: %1$s.</string>
     <string name="inquiry_status_withdrawn_consent_off">Stopped: you turned this off, so nothing from it was kept.</string>
     <string name="inquiry_status_withdrawn_recording_paused">Stopped: recording was paused, so nothing from it was kept.</string>
@@ -352,6 +353,7 @@
     <string name="inquiry_reason_reply_form">the reply was not one answer in the expected form</string>
     <string name="inquiry_reason_payload_invalid">the proposal was incomplete</string>
     <string name="inquiry_reason_pair_not_offered">it named places that were not asked about</string>
+    <string name="inquiry_reason_relation_not_admissible">it chose a kind of connection that was not offered</string>
     <string name="inquiry_reason_claim_not_offered">it cited a claim that was not offered</string>
     <string name="inquiry_reason_storage_refused">it could not be stored</string>
     <string name="inquiry_reason_no_candidate_pair">no two of your places were left to ask about</string>

@@ -236,6 +236,13 @@ class InquiriesSectionTest {
     }
 
     @Test
+    fun waitingWithoutARouteDoesNotPromiseToLook() {
+        render(loaded(consent(enabled = true, available = false), inquiries = listOf(inquiry("waiting", pairs = emptyList()))))
+        shown("Waiting, but this deployment has no background route enabled, so it will not look.")
+        composeRule.onAllNodesWithText("Waiting to look (it gathers a few changes first).").assertCountEquals(0)
+    }
+
+    @Test
     fun lookingNamesThePairsItIsLookingBetween() {
         val tidesOrbit = InquiryPair(InquiryConcept("astro.orbit", "Orbit"), InquiryConcept("earth.tides", "Tides"))
         render(loaded(inquiries = listOf(inquiry("looking", pairs = listOf(sunGravity, tidesOrbit)))))
@@ -279,6 +286,12 @@ class InquiriesSectionTest {
     }
 
     @Test
+    fun didNotHoldUpWhenItChoseAConnectionThatWasNotOffered() {
+        render(loaded(inquiries = listOf(inquiry("did_not_hold_up", listOf("shape", "relation_not_admissible")))))
+        shown("A connection was proposed but did not hold up: it chose a kind of connection that was not offered.")
+    }
+
+    @Test
     fun anUnknownReasonIsNamedRatherThanHidden() {
         render(loaded(inquiries = listOf(inquiry("did_not_hold_up", listOf("brand_new_rule")))))
         shown("A connection was proposed but did not hold up: a check it did not pass (brand_new_rule).")
@@ -287,13 +300,19 @@ class InquiriesSectionTest {
     @Test
     fun nothingToAsk() {
         render(loaded(inquiries = listOf(inquiry("nothing_to_ask", listOf("no_candidate_pair"), pairs = emptyList()))))
-        shown("Nothing to ask: every pair of your places is already connected or was already asked about.")
+        shown("Nothing to ask: no two of your places were left to ask about. A pair needs sources on both sides, and is skipped once connected or asked about.")
     }
 
     @Test
     fun failedSaysWhyAndThatNothingIsSentTwice() {
         render(loaded(inquiries = listOf(inquiry("failed", listOf("outcome_unknown")))))
         shown("Could not finish: the answer never arrived, and a request is never sent twice.")
+    }
+
+    @Test
+    fun failedAfterTheDeadlineSaysItExpired() {
+        render(loaded(inquiries = listOf(inquiry("failed", listOf("expired")))))
+        shown("Could not finish: it waited too long and expired.")
     }
 
     @Test

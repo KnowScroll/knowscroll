@@ -113,8 +113,11 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
       // A claim naming both says which role each side plays in it: "explains" is carried by those roles.
       const named = both.sort((x, y) => byCode(x.key, y.key)).slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
         .map(c => ({ ...offered(c), roles: { [a.code]: roleOn(c, chainA) ?? 'subject', [b.code]: roleOn(c, chainB) ?? 'subject' } }));
-      // Each side needs a supported claim of its own, or no proposal could ever be admitted.
-      if (claimsA.length + named.length === 0 || claimsB.length + named.length === 0) continue;
+      // Only a pair the validator could admit is worth a paid request (review I1): the connecting claim
+      // must name both sides, and each side needs a claim of its own that the offer gives to that side
+      // (a claim listed for both sides is given to A, so B needs one that is only B's).
+      const ownB = claimsB.filter(c => !claimsA.some(x => x.key === c.key));
+      if (named.length === 0 || claimsA.length === 0 || ownB.length === 0) continue;
       // What the validator could admit for this pair (prompt v3): "explains" only in a direction a
       // claim naming both carries (the explaining side has the mechanism role, the other does not);
       // the symmetric comparisons either way. "applies_to"/"prerequisite_for" need a recorded

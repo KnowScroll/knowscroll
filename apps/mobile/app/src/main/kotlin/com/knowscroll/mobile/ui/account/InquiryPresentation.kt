@@ -45,6 +45,7 @@ internal fun inquiryReasonRes(code: String): Int? = when (code) {
     "payload_invalid" -> R.string.inquiry_reason_payload_invalid
     "pair_not_offered" -> R.string.inquiry_reason_pair_not_offered
     "claim_not_offered" -> R.string.inquiry_reason_claim_not_offered
+    "relation_not_admissible" -> R.string.inquiry_reason_relation_not_admissible
     "storage_refused" -> R.string.inquiry_reason_storage_refused
     // Execution
     "no_candidate_pair" -> R.string.inquiry_reason_no_candidate_pair
@@ -85,13 +86,17 @@ internal fun inquiryPairsTitle(pairs: List<InquiryPair>, context: Context): Stri
     if (pairs.isEmpty()) context.getString(R.string.inquiry_pairs_none)
     else pairs.joinToString(" · ") { context.getString(R.string.inquiry_pair, it.a.name, it.b.name) }
 
-/** The one status line under each inquiry. A `waiting` inquiry is waiting either for its
- * coalescing delay or, once today's limit is used, for tomorrow (ADR-0038 §3-4). */
+/** The one status line under each inquiry. A `waiting` inquiry is waiting for its coalescing
+ * delay, for tomorrow once today's limit is used, or for a route this deployment lacks (ADR-0038 §2-4). */
 internal fun inquiryStatusLine(inquiry: Inquiry, consent: InquiryConsent, context: Context): String {
     val reasons = { inquiryReasonPhrases(inquiry.reasons, context::getString).joinToString("; ") }
     return when (inquiry.status) {
         "waiting" -> context.getString(
-            if (consent.enabled && consent.usedToday >= consent.dailyLimit) R.string.inquiry_status_waiting_limit else R.string.inquiry_status_waiting,
+            when {
+                !consent.available -> R.string.inquiry_status_waiting_unavailable
+                consent.enabled && consent.usedToday >= consent.dailyLimit -> R.string.inquiry_status_waiting_limit
+                else -> R.string.inquiry_status_waiting
+            },
         )
         "looking" -> context.getString(R.string.inquiry_status_looking)
         "found" -> context.getString(R.string.inquiry_status_found)

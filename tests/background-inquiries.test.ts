@@ -16,8 +16,9 @@ import { inquiriesResponse, inquiryConsentResponse } from '../packages/contracts
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
 import { answerFairnessPolicy } from '../packages/db/src/reasoning-answers.ts';
 import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { inquiryAuthority, installBackgroundInquiryRoute, openDueInquiries, openInquiry } from '../packages/db/src/reasoning-inquiries.ts';
+import { inquiryAuthority, installBackgroundInquiryRoute, openDueInquiries, openInquiry, resolveInquiryPolicy } from '../packages/db/src/reasoning-inquiries.ts';
 import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
+import { validateInquiryContext } from '../packages/db/src/reasoning-inquiry-context.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
 import { executeInquiryClaim, runInquiryPass, type InquiryTransport } from '../apps/worker/src/reasoning/inquiry-worker.ts';
@@ -29,16 +30,17 @@ if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
 const app = buildApp(randomBytes(32).toString('hex'));
 const POLICY = 'inquiries-test-v1';
 const DELAYED = 'inquiries-test-delay-v1';
+const SHORT = 'inquiries-test-short-ttl-v1';
 let mode: InquiryFixtureMode = 'proposal';
 const calls = { count: 0 };
 const fixture = createFixtureInquiryTransport(() => mode, calls);
 let f: InquiryFixture;
 
-async function installRoute(policyVersion: string, coalescingDelaySeconds: number) {
+async function installRoute(policyVersion: string, coalescingDelaySeconds: number, jobTtlSeconds = 600) {
   await createReasoningFairness(pool, inquiryAuthority()).installPolicy(answerFairnessPolicy(policyVersion, { maxInputTokens: 16384, maxOutputTokens: 2048 }));
   await transaction(client => installBackgroundInquiryRoute(client, { policyVersion, routeId: `fixture-${policyVersion}`, routeProfileVersion: 'fixture-v1',
     transport: 'fixture', model: 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 2048, requestCap: 200, tokenBudget: 10_000_000,
-    ownerCapacity: 1_000_000, jobCapacity: 100_000, coalescingDelaySeconds, jobTtlSeconds: 600, remoteSlots: 16 }));
+    ownerCapacity: 1_000_000, jobCapacity: 100_000, coalescingDelaySeconds, jobTtlSeconds, remoteSlots: 16 }));
 }
 const useRoute = async (policyVersion: string) => {
   await pool.query('UPDATE background_inquiry_route SET enabled=false WHERE enabled');
@@ -48,6 +50,7 @@ const useRoute = async (policyVersion: string) => {
 before(async () => {
   f = await loadInquiryFixture(pool);
   await installRoute(DELAYED, 2);
+  await installRoute(SHORT, 0, 30);
   await installRoute(POLICY, 0);
 });
 after(async () => { await app.close(); await pool.end(); });
@@ -270,8 +273,10 @@ test('the daily limit holds an inquiry as waiting; raising it lets it run', asyn
   await drain(r);
   mode = 'proposal';
   const after = await list(r);
-  assert.equal(after.consent.usedToday, 2);
-  assert.notEqual(after.inquiries[0]!.status, 'waiting');
+  // Released, it ran: Body's pairs have no claim naming both sides, so nothing could be admitted and
+  // it closed as nothing_to_ask without a Job -- spending none of today's limit (review I1).
+  assert.equal(after.inquiries[0]!.status, 'nothing_to_ask');
+  assert.equal(after.consent.usedToday, 1);
 });
 
 /** Opens this reader's inquiry into a queued Job without running it. */
@@ -314,8 +319,10 @@ function gated() {
   return { transport, release, started: () => started };
 }
 
-for (const stop of ['consent_off', 'pause', 'clear'] as const) {
-  test(`${stop.replace('_', ' ')} during a call discards the reply: nothing is admitted`, async () => {
+// consent_off_on / pause_resume (review #5): turned back on before the reply lands, the seal still
+// tells: the reply was asked under consent (or recording) that has since ended, so it never applies.
+for (const stop of ['consent_off', 'pause', 'clear', 'consent_off_on', 'pause_resume'] as const) {
+  test(`${stop.replaceAll('_', ' ')} during a call discards the reply: nothing is admitted`, async () => {
     mode = 'proposal';
     await quiesce();
     const r = await reader();
@@ -325,8 +332,10 @@ for (const stop of ['consent_off', 'pause', 'clear'] as const) {
     const deadline = Date.now() + 10_000;
     while (!g.started() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
     assert.ok(g.started(), 'the call is in flight');
-    if (stop === 'consent_off') await consent(r, false);
-    if (stop === 'pause') await app.inject({ method: 'POST', url: '/v1/privacy/pause', headers: headers(r), payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0 } });
+    if (stop === 'consent_off' || stop === 'consent_off_on') await consent(r, false);
+    if (stop === 'consent_off_on') await consent(r, true);
+    if (stop === 'pause' || stop === 'pause_resume') await app.inject({ method: 'POST', url: '/v1/privacy/pause', headers: headers(r), payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0 } });
+    if (stop === 'pause_resume') assert.equal((await app.inject({ method: 'POST', url: '/v1/privacy/resume', headers: headers(r), payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0 } })).statusCode, 200);
     if (stop === 'clear') await app.inject({ method: 'POST', url: '/v1/history/clear', headers: headers(r), payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'clear-scroll-history' } });
     g.release();
     const done = await running;
@@ -337,7 +346,7 @@ for (const stop of ['consent_off', 'pause', 'clear'] as const) {
       assert.deepEqual(done.outcome, { kind: 'discarded', reason: 'stale_epoch' });
       assert.equal(await count('background_inquiry', r), 0);
     } else {
-      assert.deepEqual(done.outcome, { kind: 'withdrawn', reason: stop === 'pause' ? 'recording_paused' : 'consent_off' });
+      assert.deepEqual(done.outcome, { kind: 'withdrawn', reason: stop.startsWith('pause') ? 'recording_paused' : 'consent_off' });
       const after = await inquiryOf(r);
       assert.deepEqual([after.status, after.job_status, after.proposal_id], ['withdrawn', 'failed', null]);
     }
@@ -345,6 +354,40 @@ for (const stop of ['consent_off', 'pause', 'clear'] as const) {
     assert.equal(await count('bridge', r), 0);
   });
 }
+
+// Review #7: a reply that lands after its Job's deadline says so ("it waited too long and expired"),
+// not that the sealed inputs could not be verified. The shortest route time-to-live is 30 s.
+test('a reply that lands after the Job deadline is discarded as expired', { timeout: 60_000 }, async () => {
+  mode = 'proposal';
+  await quiesce();
+  await useRoute(SHORT);
+  try {
+    const r = await reader();
+    await queued(r);
+    const g = gated();
+    const running = pass(g.transport);
+    const until = Date.now() + 10_000;
+    while (!g.started() && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.ok(g.started(), 'the call is in flight');
+    const job = await inquiryOf(r);
+    while ((await pool.query('SELECT deadline > clock_timestamp() AS live FROM reasoning_job WHERE id=$1', [job.job_id])).rows[0].live) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    g.release();
+    const done = await running;
+    assert.equal(done.kind, 'done');
+    if (done.kind !== 'done') return;
+    assert.deepEqual(done.outcome, { kind: 'failed', reason: 'expired' }, 'closed now, not left looking until the lease-expiry sweep');
+    const after = await inquiryOf(r);
+    assert.deepEqual([after.status, after.reasons, after.proposal_id, after.job_status], ['failed', ['expired'], null, 'failed']);
+    assert.equal((await list(r)).inquiries[0]!.status, 'failed');
+    // The sealed context names the same cause if it is rechecked after the deadline.
+    const check = await transaction(client => validateInquiryContext(client, { universeId: r.universeId, privacyEpoch: 0, jobId: after.job_id,
+      stepId: after.step_id, contextId: after.context_id, policyVersion: SHORT }, resolveInquiryPolicy, 'recheck'));
+    assert.deepEqual(check, { valid: false, reason: 'expired' });
+    assert.equal(await count('semantic_proposal', r), 0, 'the reply never became a proposal');
+  } finally { await useRoute(POLICY); }
+});
 
 test('a pair connected before admission makes the context stale: discarded, never sent, never re-sent', async () => {
   const r = await reader();

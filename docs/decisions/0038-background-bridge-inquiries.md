@@ -58,7 +58,8 @@ editor wrote down. A model can look for one; only `bridge-validator-v1` can admi
    applying. Any change discards the inquiry as stale; it is never re-sent.
 6. **One call, no replay.** The worker sends exactly the reserved bytes once through
    `invokeReasoningOnce`. An unconfirmed outcome is held (ADR-0012) and never retried; a provider
-   error fails the inquiry. Leases, fences, retirement and the recovery sweep are the existing
+   error fails the inquiry, and a reply that lands after the Job's deadline is not applied: the
+   inquiry fails as `expired` at once. Leases, fences, retirement and the recovery sweep are the existing
    ADR-0019 machinery.
 7. **Provider text is never authority.** The reply must be exactly one JSON object: either a
    proposal for one offered pair, citing only offered claim keys (its structured form is in the
@@ -94,6 +95,9 @@ claims' roles. Every one was refused, correctly. §7 therefore changes shape but
   the `bridgeProposalPayload`: relation and direction from the chosen entry, and each cited claim's
   side from where it was offered. It is then decided by `bridge-validator-v1` exactly as before.
   `relation_not_admissible` joins the shape reasons.
+
+An offered pair also needs a claim naming both and a supported claim of each side's own (not merely
+a claim listed under both), so the validator's side checks can be met at all (review, same day).
 
 The model still writes every word and chooses which evidence to cite; the validator still decides.
 The live results are in `docs/journeys/evidence/background-inquiries-2026-09-24/`.

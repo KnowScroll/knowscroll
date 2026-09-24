@@ -39,13 +39,25 @@ const claims: InquirySubstrateClaim[] = [
 ];
 const base: InquiryCandidateInput = { places, parentOf, claims, connections: [{ from: 'x.gravity', to: 'x.tides' }], suppressed: [], asked: [] };
 const codes = (pairs: InquiryPair[]) => pairs.map(p => `${p.a.code}~${p.b.code}`);
+// A second admissible pair: Body explains Moon, and Moon has a claim of its own.
+const withMoon: InquiryCandidateInput = { ...base, places: [...places, place('x.moon', 'Moon')],
+  claims: [...claims, claim('c.body.moon', [['x.body', 'mechanism'], ['x.moon', 'subject']]), claim('c.moon.own', [['x.moon', 'subject']])] };
 const keys = (list: { key: string }[]) => list.map(c => c.key);
 
-test('pairs that name both anchors come first, then concept codes; never more than three', () => {
+test('only pairs the validator could admit are offered: a claim naming both, and each side a claim of its own (review I1)', () => {
   const pairs = selectInquiryPairs(base);
-  assert.deepEqual(codes(pairs), ['x.gravity~x.sun', 'x.body~x.gravity', 'x.body~x.sun']);
+  // Body has claims of its own but none naming it with anyone: its pairs could only ever be refused.
+  assert.deepEqual(codes(pairs), ['x.gravity~x.sun']);
+  // A naming claim alone is not enough: The Sun also needs a claim that is its own.
+  const noSunOwn = selectInquiryPairs({ ...base, claims: claims.filter(c => !['c.sun.identity', 'c.star.hot'].includes(c.key)) });
+  assert.ok(!codes(noSunOwn).includes('x.gravity~x.sun'));
+});
+
+test('pairs that name both anchors come first, then concept codes; never more than three', () => {
+  const pairs = selectInquiryPairs(withMoon);
+  assert.deepEqual(codes(pairs), ['x.body~x.moon', 'x.gravity~x.sun']);
   assert.ok(pairs.length <= BRIDGE_INQUIRY_LIMITS.maxPairs);
-  const [first] = pairs;
+  const first = pairs.find(p => p.a.code === 'x.gravity');
   // Claims about each anchor (exact concept first, then broader), supported only, never a context mention.
   assert.deepEqual(keys(first!.claimsA), ['c.gravity.def', 'c.gravity.tides']);
   assert.deepEqual(keys(first!.claimsB), ['c.sun.identity', 'c.star.hot']);
@@ -99,7 +111,7 @@ test('at most eight claims per anchor and eight naming both', () => {
 const route = { model: 'MiniMax-M3', maxOutputTokens: 2048 };
 
 test('the request bytes are a deterministic function of the sealed pairs and the route, and carry no identifiers', () => {
-  const pairs = selectInquiryPairs(base);
+  const pairs = selectInquiryPairs(withMoon);
   const a = serializeBridgeInquiryRequest(pairs, route);
   const b = serializeBridgeInquiryRequest(structuredClone(pairs), { ...route });
   assert.equal(createHash('sha256').update(a).digest('hex'), createHash('sha256').update(b).digest('hex'));
