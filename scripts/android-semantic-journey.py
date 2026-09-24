@@ -201,6 +201,9 @@ try:
         run(['adb', 'install', '-r', str(root / 'apps/mobile/app/build/outputs/apk' / apk)], stdout=subprocess.DEVNULL)
     adb('shell', 'pm', 'clear', package)
     instrument_args = ['-e', 'class', spec['test']]
+    if journey_name == 'inquiry' and inquiry_transport == 'minimax':
+        # A live model may honestly find nothing or propose what the validator refuses: any validated outcome.
+        instrument_args += ['-e', 'inquiryExpect', 'any']
     watcher = None
     if journey_name == 'owner':
         instrument_args += ['-e', 'ownerEmail', owner_email]
@@ -349,6 +352,8 @@ try:
                   'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.']
     elif journey_name == 'inquiry':
         i, b, formed, sun = journey['inquiryId'], journey['bridgeId'], journey['deltaIds']['gravityFormed'], journey['sunPlaceId']
+        # The bridge exists only for a found outcome (a live run may end otherwise; see instrument_args).
+        bridge_match = f"br.id='{b}'" if b else 'false'
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'inquiryAdmitted', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND status='admitted'),
       'jobBackgroundDirtyCompleted', (SELECT count(*) FROM background_inquiry q JOIN reasoning_job j ON j.id=q.job_id WHERE q.id='{i}'
@@ -361,7 +366,9 @@ try:
           AND p.proposer_kind='model' AND p.proposer_ref=q.attempt_id::text AND p.scope_kind='universe' AND p.universe_id=q.universe_id
           AND p.privacy_epoch=q.privacy_epoch AND p.status='admitted'),
       'universeBridgeAdmitted', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}'
-          AND br.id='{b}' AND br.scope_kind='universe' AND br.universe_id=q.universe_id AND br.status='admitted'),
+          AND {bridge_match} AND br.scope_kind='universe' AND br.universe_id=q.universe_id AND br.status='admitted'),
+      'universeBridges', (SELECT count(*) FROM bridge WHERE scope_kind='universe'),
+      'inquiryStatus', (SELECT status FROM background_inquiry WHERE id='{i}'),
       'mailCausedByGravityFormed', (SELECT count(*) FROM inquiry_mail m JOIN atlas_delta d ON d.id=m.cause_delta_id WHERE m.inquiry_id='{i}'
           AND d.id='{formed}' AND d.kind='place_formed' AND d.causal_class='personal_exploration'),
       'mailOnInquiry', (SELECT count(*) FROM inquiry_mail WHERE inquiry_id='{i}'),
@@ -377,11 +384,15 @@ try:
       'requestHash', (SELECT request_hash FROM background_inquiry WHERE id='{i}'),
       'inputBytes', (SELECT input_bytes FROM background_inquiry WHERE id='{i}'),
       'inquiryStatuses', (SELECT json_agg(status ORDER BY first_mail_at) FROM background_inquiry))"""))
-        ok = (lineage['inquiryAdmitted'] == 1 and lineage['jobBackgroundDirtyCompleted'] == 1 and lineage['attempts'] == 1
-              and lineage['dispatches'] == 1 and lineage['modelProposalAdmitted'] == 1 and lineage['universeBridgeAdmitted'] == 1
-              and lineage['mailCausedByGravityFormed'] == 1 and lineage['gravityFormedFromReading'] == 1 and lineage['suppliedSunUnread'] == 1
-              and lineage['suppliedSunMailed'] == 0 and lineage['consentRequestsBeforeMail'] >= 1 and lineage['consentEnabled'] is True
-              and lineage['routeTransport'] == inquiry_transport and journey['consent']['usedToday'] == 1)
+        found = journey.get('status', 'found') == 'found'
+        path_ok = (lineage['attempts'] == 1 and lineage['dispatches'] == 1 and lineage['mailCausedByGravityFormed'] == 1
+                   and lineage['gravityFormedFromReading'] == 1 and lineage['suppliedSunUnread'] == 1 and lineage['suppliedSunMailed'] == 0
+                   and lineage['consentRequestsBeforeMail'] >= 1 and lineage['consentEnabled'] is True
+                   and lineage['routeTransport'] == inquiry_transport and journey['consent']['usedToday'] == 1)
+        # Found: the model's proposal was admitted and is the reader's own bridge. Anything else: nothing admitted.
+        outcome_ok = ((lineage['inquiryAdmitted'] == 1 and lineage['jobBackgroundDirtyCompleted'] == 1 and lineage['modelProposalAdmitted'] == 1
+                       and lineage['universeBridgeAdmitted'] == 1) if found else (lineage['inquiryAdmitted'] == 0 and lineage['universeBridges'] == 0))
+        ok = path_ok and outcome_ok
         assert ok, lineage
         limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
                    'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else

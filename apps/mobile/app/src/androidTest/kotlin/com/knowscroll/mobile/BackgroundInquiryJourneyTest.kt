@@ -2,11 +2,13 @@ package com.knowscroll.mobile
 
 import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.InquiriesResponse
 import com.knowscroll.mobile.data.InquiryConcept
 import com.knowscroll.mobile.data.InquiryPair
+import com.knowscroll.mobile.ui.account.inquiryStatusLine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -116,10 +118,37 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
         val gravity = atlas.places.single { it.anchor.code == "physics.gravity" && it.kind != "sighting" }
         val formed = atlas.chronicle.first { it.kind == "place_formed" && it.placeId == gravity.placeId }
 
-        // 4. The inquiry that formation mailed: waiting (coalescing), looking, then found.
+        // 4. The inquiry that formation mailed: waiting (coalescing), looking, then its outcome. The fixture
+        // run insists on "found"; a live run (-e inquiryExpect any) accepts any validated outcome, since a
+        // real model may honestly find nothing or propose what the validator refuses -- the path is the
+        // same, and the screen must say which.
+        val expectAny = InstrumentationRegistry.getArguments().getString("inquiryExpect") == "any"
+        val terminal = setOf("found", "nothing_found", "did_not_hold_up", "nothing_to_ask", "failed", "withdrawn")
         val statuses = mutableListOf<String>()
-        val list = awaitInquiries(api, statuses, "the inquiry is found") { l -> l.inquiries.any { it.status == "found" } }
-        val inquiry = list.inquiries.first { it.status == "found" }
+        val list = if (expectAny) awaitInquiries(api, statuses, "the inquiry reaches an outcome") { l -> l.inquiries.any { it.status in terminal } }
+            else awaitInquiries(api, statuses, "the inquiry is found") { l -> l.inquiries.any { it.status == "found" } }
+        val inquiry = list.inquiries.first { it.status in terminal }
+        if (inquiry.status != "found") {
+            compose.onNodeWithContentDescription("Return to the universe").performClick()
+            openPrivacy()
+            compose.onNodeWithContentDescription("Refresh what KnowScroll looked for").performScrollTo().performClick()
+            val line = inquiryStatusLine(inquiry, list.consent, instrumentation.targetContext)
+            compose.waitUntil(20_000) { shown(line) }
+            compose.onAllNodesWithText(line).onFirst().performScrollTo().assertExists()
+            screenshot("inquiry-outcome.png")
+            File(instrumentation.targetContext.filesDir, "inquiry-journey.json").writeText(
+                JSONObject().apply {
+                    put("inquiryId", inquiry.inquiryId); put("status", inquiry.status); put("reasons", JSONArray(inquiry.reasons))
+                    put("bridgeId", JSONObject.NULL); put("statusesSeen", JSONArray(statuses))
+                    put("consent", JSONObject().apply {
+                        put("enabled", list.consent.enabled); put("dailyLimit", list.consent.dailyLimit); put("usedToday", list.consent.usedToday)
+                    })
+                    put("sunPlaceId", sun.placeId); put("gravityPlaceId", gravity.placeId)
+                    put("deltaIds", JSONObject().apply { put("gravityFormed", formed.deltaId) })
+                }.toString(2)
+            )
+            return
+        }
         // (The Sun, Gravity) is the pair this seed leaves open (tests/inquiry-journey-editorial.test.ts);
         // should the reading also have formed another place, the pair list may be longer.
         assertTrue("${inquiry.pairs}", InquiryPair(InquiryConcept("astro.sun", "The Sun"), InquiryConcept("physics.gravity", "Gravity")) in inquiry.pairs)
@@ -174,6 +203,7 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
         File(instrumentation.targetContext.filesDir, "inquiry-journey.json").writeText(
             JSONObject().apply {
                 put("inquiryId", inquiry.inquiryId)
+                put("status", inquiry.status)
                 put("bridgeId", found.bridgeId)
                 put("relationType", found.relationType)
                 put("pairs", JSONArray(inquiry.pairs.map { JSONArray().put(it.a.code).put(it.b.code) }))
