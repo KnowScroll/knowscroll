@@ -112,6 +112,11 @@ export class ReaderStore {
   private observedPrivacyEpoch: number;
   private observedUniverseId: string;
   private busy = false;
+  /** The exposure being recorded for the Scroll on screen, so a Keep tapped meanwhile joins it
+   * instead of being dropped as "busy" (#123). */
+  private exposing: { clientExposureId: string; promise: Promise<ScrollSession> } | null = null;
+  /** True while a Keep that joined `exposing` owns `busy` and what the reader sees next. */
+  private keepJoinedExposure = false;
   private reconciling = false;
   private ready = false;
   private navigationVersion = 0;
@@ -580,11 +585,15 @@ export class ReaderStore {
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
     this.busy = true;
-    this.recordExposure(current, version, epoch)
+    const exposing = this.recordExposure(current, version, epoch);
+    this.exposing = { clientExposureId: current.clientExposureId, promise: exposing };
+    exposing
       .then(next => {
         if (this.operationIsCurrent(version, epoch, next)) {
           this.session = next;
-          this.show(next);
+          // A Keep that joined this exposure shows its own result; showing this one would
+          // briefly put its "Keeping…" back to idle.
+          if (!this.keepJoinedExposure) this.show(next);
         }
       })
       .catch((error: unknown) => {
@@ -597,7 +606,8 @@ export class ReaderStore {
         }
       })
       .finally(() => {
-        if (version === this.navigationVersion) this.busy = false;
+        if (this.exposing?.promise === exposing) this.exposing = null;
+        if (version === this.navigationVersion && !this.keepJoinedExposure) this.busy = false;
       });
   }
 
@@ -616,7 +626,10 @@ export class ReaderStore {
   }
 
   keep(): void {
-    if (this.busy || !this.ready) return;
+    // A reader who taps Keep while this Scroll's exposure is still being recorded is not ignored:
+    // the Keep waits for that same exposure (#123). Anything else busy still refuses the tap.
+    const inFlight = this.exposing && this.session?.clientExposureId === this.exposing.clientExposureId ? this.exposing.promise : null;
+    if ((this.busy && !inFlight) || !this.ready) return;
     if (this.state.scroll.status === 'reading' && this.state.scroll.origin.type === 'saved-trace') return;
     const currentSession = this.session;
     if (!currentSession || currentSession.keepJobId !== '') return;
@@ -625,8 +638,9 @@ export class ReaderStore {
     this.busy = true;
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
+    if (inFlight) this.keepJoinedExposure = true;
     this.set({ scroll: { ...currentState, keep: { status: 'saving' } } });
-    this.recordExposure(currentSession, version, epoch)
+    (inFlight ?? this.recordExposure(currentSession, version, epoch))
       .then(exposed => {
         if (!this.operationIsCurrent(version, epoch, exposed)) return Promise.reject(new StaleOperationError());
         this.session = exposed;
@@ -665,6 +679,7 @@ export class ReaderStore {
         }
       })
       .finally(() => {
+        this.keepJoinedExposure = false;
         if (version === this.navigationVersion) this.busy = false;
       });
   }

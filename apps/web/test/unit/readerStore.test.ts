@@ -111,6 +111,27 @@ describe('ReaderStore', () => {
     expect(scroll.keep).toEqual({ status: 'kept', jobId: 'job-1' });
   });
 
+  it('a Keep tapped while the exposure is still being recorded joins it instead of being dropped (#123)', async () => {
+    await enterReadingScroll();
+    let release!: () => void;
+    api.exposureGate = new Promise<void>(resolve => { release = resolve; });
+    api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });
+    api.interactionQueue.push({ eventId: 'keep-evt-1', jobId: 'job-1', status: 'accepted' });
+    store.onVisible(feedItem().assetId);
+    await waitFor(() => api.exposureCalls.length === 1);
+    store.keep();
+    const saving = store.getState().scroll;
+    expect(saving.status === 'reading' && saving.keep.status).toBe('saving');
+    release();
+    await waitFor(() => {
+      const scroll = store.getState().scroll;
+      return scroll.status === 'reading' && scroll.keep.status === 'kept';
+    });
+    expect(api.exposureCalls).toHaveLength(1);
+    expect(api.interactionCalls).toHaveLength(1);
+    expect(api.interactionCalls[0]?.exposureId).toBe('exp-1');
+  });
+
   it('keep persists the real why-this-appeared reason for the Universe screen, scoped to this universe/epoch', async () => {
     await enterReadingScroll();
     api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });

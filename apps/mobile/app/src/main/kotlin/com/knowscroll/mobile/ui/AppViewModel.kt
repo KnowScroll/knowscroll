@@ -32,6 +32,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 sealed interface Screen {
@@ -108,6 +109,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
     private var observedUniverseId=store.readObservedUniverseId()
     private var busy=false
+    /** #123: the exposure being recorded for the Scroll on screen, keyed by its clientExposureId,
+     * so a Keep tapped meanwhile joins it instead of being dropped as busy. */
+    private var exposing:Pair<String,kotlinx.coroutines.Deferred<ScrollSession>>?=null
+    /** True while a Keep that joined [exposing] owns [busy] and what the reader sees next. */
+    private var keepJoinedExposure=false
     private var signOutBusy=false
     private var reconciling=false
     private var reconcileAfterCurrent:Boolean?=null
@@ -550,10 +556,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val version=navigationVersion
         val epoch=observedPrivacyEpoch
         busy=true
+        val recording=viewModelScope.async { recordExposure(current,version,epoch) }
+        exposing=current.clientExposureId to recording
         viewModelScope.launch {
             try {
-                val next=recordExposure(current,version,epoch)
-                if(operationIsCurrent(version,epoch)){session=next;show(next)}
+                val next=recording.await()
+                // A Keep that joined this exposure shows its own result instead.
+                if(operationIsCurrent(version,epoch)){session=next;if(!keepJoinedExposure)show(next)}
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(version==navigationVersion){
@@ -561,7 +570,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     else _toast.value=message(e)
                 }
             }
-            finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+            finally{
+                if(exposing?.second===recording)exposing=null
+                if(version==navigationVersion && !keepJoinedExposure){busy=false;drainCableMode()}
+            }
         }
     }
 
@@ -579,18 +591,21 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun keep(){
-        if(busy || !ready)return
+        if(!ready)return
+        val start=keepStart(busy,exposing,session?.clientExposureId)
+        if(start is KeepStart.Refuse)return
         if((_scroll.value as? ScrollState.Reading)?.origin is ReaderOrigin.SavedTrace)return
         val currentSession=session ?: return
         if(currentSession.keepJobId.isNotEmpty())return
         val currentState=_scroll.value as? ScrollState.Reading ?: return
         busy=true
+        if(start is KeepStart.Join)keepJoinedExposure=true
         val version=navigationVersion
         val epoch=observedPrivacyEpoch
         _scroll.value=currentState.copy(keep=KeepState.Saving)
         viewModelScope.launch {
             try {
-                val exposed=recordExposure(currentSession,version,epoch)
+                val exposed=(start as? KeepStart.Join)?.exposure?.await() ?: recordExposure(currentSession,version,epoch)
                 if(!operationIsCurrent(version,epoch,currentSession))return@launch
                 session=exposed
                 val receipt=api.postInteraction(InteractionRequest(exposed.clientEventId,exposed.exposureId,exposed.item.assetId,"keep"))
@@ -613,7 +628,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     if(invalidatesReader(e)){purgeForScope(currentSession.universeId,epoch);failClosed(message(e))}
                     else (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(keep=KeepState.Failed(message(e)))}
                 }
-            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+            } finally{keepJoinedExposure=false;if(version==navigationVersion){busy=false;drainCableMode()}}
         }
     }
 
@@ -1053,3 +1068,17 @@ internal suspend fun continueReconcilingAfterSignOutRetry(
 
 /** The reader holds a Scroll served while recording was paused: nothing personal may be written for it. */
 private class RecordingPaused : Exception("Recording is paused")
+
+/** #123: how a Keep tap starts. */
+sealed interface KeepStart<out T> {
+    data object Refuse : KeepStart<Nothing>
+    data object Fresh : KeepStart<Nothing>
+    data class Join<T>(val exposure: T) : KeepStart<T>
+}
+
+/** A Keep tapped while this Scroll's exposure is being recorded joins it; anything else busy refuses it. */
+internal fun <T> keepStart(busy: Boolean, inFlight: Pair<String, T>?, clientExposureId: String?): KeepStart<T> = when {
+    inFlight != null && clientExposureId != null && inFlight.first == clientExposureId -> KeepStart.Join(inFlight.second)
+    busy -> KeepStart.Refuse
+    else -> KeepStart.Fresh
+}
