@@ -1,13 +1,13 @@
 {
-  "at": "2026-09-24T08:12:49.754603+00:00",
+  "at": "2026-09-24T08:40:41.558238+00:00",
   "result": "passed",
-  "database": "knowscroll_test_semantic_a22ea58c5284bd47",
+  "database": "knowscroll_test_semantic_389e19eca1d75a4d",
   "apiPort": 4333,
-  "source": "d676fe6d99f3da54f9f549e078e2de4e5e510c61",
+  "source": "ea273fb42342afbbbde7309825847d4383e75122-dirty",
   "package": "com.knowscroll.mobile.journey",
   "journeyName": "owner",
   "journey": {
-    "scenario": "ownerSignsInReadsPausesExportsResetsAndDeletesTheirAccount",
+    "scenario": "ownerSignsInReadsPausesResumesExportsAndDeletesTheirAccount",
     "signedInViaPastedMagicLink": true,
     "readARealScroll": true,
     "pausedRecording": true,

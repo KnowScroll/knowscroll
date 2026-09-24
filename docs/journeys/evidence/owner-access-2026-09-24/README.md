@@ -49,9 +49,19 @@ test-first before these runs:
 - Deleting the account let the development session come back on the next API restart.
 - The web client never refreshed a CSRF token it already held.
 
-Runs on `d676fe6` (review fixes, main merged): backend 13 + 844, web 136, Android 261 + lint, the
-`owner` journey (SQL: 0 accounts, 1 deletion receipt, 0 device sessions, 0 sign-in tokens) and the
-`places` journey on a development-token build, each restoring the owner's preview.
+A verification review then found nothing blocking. Its important finding, fixed test-first: a
+Delete or Reset refused outright (the epoch changed on another device) kept a request that every
+Retry re-sent with the stale epoch, surviving restarts and sign-ins. Now a refusal keeps nothing,
+reloads, and offers a fresh confirmation, and a sign-in or sign-out clears an earlier session's
+pending request. Also fixed: the Authored Atlas/Preview sandboxes used a bare development-token
+client whose 401 could sign the owner out; a web CSRF refresh race; web "may have landed" tracked
+per request id.
+
+Runs on `ea273fb`: web 138, Android 266 + lint, the web owner journey
+(`../web-owner/last-run-receipt.json`), the `owner` journey (SQL: 0 accounts, 1 deletion receipt,
+0 device sessions, 0 sign-in tokens) and the `places` journey on a development-token build
+(`android-places-devtoken-receipt.json`), each restoring the owner's preview. Backend 13 + 844 on
+`d676fe6` (the server is unchanged since).
 
 ## Limits
 
