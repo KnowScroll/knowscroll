@@ -24,9 +24,13 @@ attempt, model proposal, admitted universe bridge and the mail's place_formed ca
 (#134 ADR-0039: as `inquiry`, but the app is in the background while the worker finds the
 connection; on return the Atlas's "While you were away" shows it, the reader inspects its evidence,
 keeps it as a Relic, marks it "seems wrong" and marks what changed as seen, then leaves again while
-the runner applies a real operator source correction; on return the Relic shows it corrected; SQL
-verifies the inquiry closed while away, the Relic's provenance, the doubt, the revoked bridge and the
-forward marker) and `owner`
+the runner applies real operator source corrections -- the connection's mechanism source, and the
+source one of the reader's sightings rests on alone (#160, ADR-0040: `scripts/atlas/seed-unread-sighting.ts`
+supplies Solar wind on The Sun's horizon, which no reading can meet) -- and the worker's correction
+catch-up (every 2 s here) reaches the reader's places; on return the Atlas shows the correction and
+the place change, and the Relic shows it corrected; SQL verifies the inquiry closed while away, the
+Relic's provenance, the doubt, the revoked bridge, the forward marker, and a sighting retired as a
+source correction after the corrections with no reader action since) and `owner`
 (#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own section 3
 below).
 """
@@ -159,6 +163,10 @@ try:
             key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
             if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
             worker_env['MINIMAX_API_KEY'] = key
+    if journey_name == 'return':
+        # ADR-0040: the worker catches a reader up with the correction log every 2 s here (60 s by
+        # default), well within the device's wait while it is away.
+        worker_env['KS_CORRECTION_REFRESH_INTERVAL_MS'] = '2000'
     for role in ('api', 'worker'):
         log = (out / (role + '.log')).open('w')
         processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=worker_env if role == 'worker' else env, stdout=log, stderr=log, start_new_session=True), log))
@@ -179,12 +187,13 @@ try:
     # see scripts/atlas/seed-held-up-places.ts), then takes the same day-old keep.
     # `inquiry` first installs the fixture inquiry route and places The Sun from a supplied account,
     # BEFORE the device turns consent on (so it mails nothing), then takes the same day-old keep.
+    # `return` does the same after loading Solar wind, supplied journey knowledge on The Sun's horizon.
     if journey_name in ('places', 'foundation', 'inquiry', 'return'):
         seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}',
                     'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '20' if journey_name == 'return' else '3'),
                     'KS_INQUIRY_TRANSPORT': inquiry_transport}
         seeds = ({'foundation': ['scripts/atlas/seed-held-up-places.ts'], 'inquiry': ['scripts/inquiries/seed-journey.ts'],
-                  'return': ['scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
+                  'return': ['scripts/atlas/seed-unread-sighting.ts', 'scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
                  + ['scripts/atlas/seed-day-old-history.ts'])
         for seed in seeds:
             seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', seed], env=seed_env, text=True, cwd=root)
@@ -205,7 +214,13 @@ try:
         # ADR-0039: the second time away, the publisher of the kept connection's mechanism source withdraws
         # it -- an operator correction through the real tool, applied only once the device has kept the
         # connection, doubted it, marked what changed as seen and then written, from the background, that it
-        # left. Shared knowledge in this disposable database only.
+        # left. ADR-0040: then the source one of the reader's live sightings rests on alone is withdrawn too,
+        # so the worker's catch-up changes a place while the app is away. Shared knowledge in this
+        # disposable database only.
+        def withdraw(source_key):
+            return subprocess.run(['pnpm', 'exec', 'tsx', 'scripts/substrate/correct-source.ts', '--source', source_key, '--action', 'revoked',
+                                   '--reason', 'Journey: the publisher withdrew this page while the reader was away', '--apply'],
+                                  env=env, cwd=root, capture_output=True, text=True)
         def correct_when_away(deadline=time.time() + 300):
             while time.time() < deadline:
                 ready = sql("""SELECT (SELECT count(*) FROM relic) > 0 AND (SELECT count(*) FROM connection_feedback WHERE objection='seems_wrong') > 0
@@ -216,10 +231,23 @@ try:
                         JOIN claim_support cs ON cs.claim_id=e.claim_id AND cs.support_kind='supports'
                         JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='current' JOIN semantic_source s ON s.id=ss.source_id
                         ORDER BY (e.supports='mechanism') DESC, s.key LIMIT 1""")
-                    applied = subprocess.run(['pnpm', 'exec', 'tsx', 'scripts/substrate/correct-source.ts', '--source', key, '--action', 'revoked',
-                                              '--reason', 'Journey: the publisher withdrew this page while the reader was away', '--apply'],
-                                             env=env, cwd=root, capture_output=True, text=True)
+                    applied = withdraw(key)
                     correction.update(sourceKey=key, applied=applied.returncode == 0, at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                    if applied.returncode != 0:
+                        correction['error'] = applied.stderr.strip()[-300:]
+                        return
+                    sighting_key = sql("""SELECT s.key FROM atlas_place p
+                        JOIN claim_support cs ON cs.claim_id=(p.basis->'ref'->>'claimId')::uuid AND cs.support_kind='supports'
+                        JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='current' JOIN semantic_source s ON s.id=ss.source_id
+                        WHERE p.kind='sighting' AND p.state='live' AND NOT EXISTS (SELECT 1 FROM claim_support o
+                          JOIN source_snapshot os ON os.id=o.snapshot_id AND os.status='current'
+                          WHERE o.claim_id=cs.claim_id AND o.support_kind='supports' AND os.source_id<>ss.source_id)
+                        ORDER BY s.key LIMIT 1""")
+                    if not sighting_key:
+                        correction.update(applied=False, error='no live sighting rests on one current source alone')
+                        return
+                    applied = withdraw(sighting_key)
+                    correction.update(sightingSourceKey=sighting_key, applied=applied.returncode == 0)
                     if applied.returncode != 0: correction['error'] = applied.stderr.strip()[-300:]
                     return
                 time.sleep(0.5)
@@ -426,6 +454,15 @@ try:
                   f"Coalescing delay shortened to {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3')} s for the journey route."]
     elif journey_name == 'return':
         i, b, rid = journey['inquiryId'], journey['bridgeId'], journey['relicId']
+        found = journey['inquiryStatus'] == 'found'
+        # The device saw the inquiry still open when it left, and found when it came back: the work
+        # happened while it was away (the device's clock is never compared with the database's).
+        away_work = journey['statusWhenLeft'] == 'waiting'
+        assert found and away_work and correction.get('applied') is True, (journey['inquiryStatus'], journey['statusWhenLeft'], correction)
+        change = journey['placeChange']
+        withdrawn = f"('{correction['sourceKey']}','{correction['sightingSourceKey']}')"
+        corrections_at = f"""(SELECT min(c.created_at) FROM semantic_correction c JOIN source_snapshot ss ON ss.id=c.target_id
+          JOIN semantic_source s ON s.id=ss.source_id WHERE s.key IN {withdrawn})"""
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'inquiryAdmitted', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND status='admitted'),
       'inquiryFoundTheBridge', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}' AND br.id='{b}'),
@@ -439,23 +476,33 @@ try:
       'markers', (SELECT count(*) FROM away_acknowledgement),
       'markerAfterFound', (SELECT count(*) FROM away_acknowledgement a JOIN background_inquiry q ON q.id='{i}'
           WHERE a.through >= date_trunc('milliseconds', q.closed_at)),
-      'sharedBridgesStillAdmittedOrRevoked', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status IN ('admitted','revoked')))"""))
-        found = journey['inquiryStatus'] == 'found'
-        # The device saw the inquiry still open when it left, and found when it came back: the work
-        # happened while it was away (the device's clock is never compared with the database's).
-        away_work = journey['statusWhenLeft'] == 'waiting'
-        assert found and away_work and correction.get('applied') is True, (journey['inquiryStatus'], journey['statusWhenLeft'], correction)
+      'sharedBridgesStillAdmittedOrRevoked', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status IN ('admitted','revoked')),
+      'sightingRetiredByCorrection', (SELECT count(*) FROM atlas_delta d JOIN atlas_place p ON p.id=d.place_id WHERE d.id='{change['deltaId']}'
+          AND p.id='{change['placeId']}' AND d.kind='sighting_retired' AND d.causal_class='source_correction' AND p.kind='sighting' AND p.state='retired'),
+      'sightingBasisWithdrawn', (SELECT count(*) FROM atlas_place p WHERE p.id='{change['placeId']}' AND EXISTS (SELECT 1 FROM claim_support cs
+          JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='revoked' JOIN semantic_source s ON s.id=ss.source_id
+          WHERE cs.claim_id=(p.basis->'ref'->>'claimId')::uuid AND s.key IN {withdrawn})),
+      'placeChangedAfterTheCorrections', (SELECT count(*) FROM atlas_delta WHERE id='{change['deltaId']}' AND created_at > {corrections_at}),
+      'readerEventsSinceTheCorrections', (SELECT count(*) FROM ledger WHERE created_at > {corrections_at}),
+      'caughtUp', (SELECT count(*) FROM correction_catch_up WHERE corrections_seen=(SELECT count(*) FROM semantic_correction)))"""))
+        # ADR-0040: a sighting the corrections took away, retired by the worker's catch-up with no reader action.
         expected = {'inquiryAdmitted': 1, 'inquiryFoundTheBridge': 1, 'jobBackgroundDirtyCompleted': 1,
-                    'relicKeptWithProvenance': 1, 'relics': 1, 'seemsWrong': 1, 'bridgeRevokedByCorrection': 1}
+                    'relicKeptWithProvenance': 1, 'relics': 1, 'seemsWrong': 1, 'bridgeRevokedByCorrection': 1,
+                    'sightingRetiredByCorrection': 1, 'sightingBasisWithdrawn': 1, 'placeChangedAfterTheCorrections': 1,
+                    'readerEventsSinceTheCorrections': 0, 'caughtUp': 1}
         assert {k: lineage[k] for k in expected} == expected and lineage['markers'] == 1 and lineage['markerAfterFound'] == 1, lineage
         assert journey['relicStates'] == ['current', 'doubted', 'corrected'], journey['relicStates']
-        lineage['correction'] = {'sourceKey': correction['sourceKey'], 'applied': correction['applied']}
+        lineage['correction'] = {'sourceKey': correction['sourceKey'], 'sightingSourceKey': correction['sightingSourceKey'], 'applied': correction['applied']}
         limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
                    'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else
                   'Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
-                  '"Away" is the app in the background (Home) while the worker and the operator correction run; not days away.',
-                  'The source correction is an operator action through scripts/substrate/correct-source.ts in the disposable database.',
+                  '"Away" is the app in the background (Home) while the worker and the operator corrections run; not days away.',
+                  'The source corrections are operator actions through scripts/substrate/correct-source.ts in the disposable database: '
+                  'the kept connection\'s mechanism source, then the source a live sighting rests on alone.',
                   'The Sun was formed from a supplied account (labelled), as in the inquiry journey.',
+                  'Solar wind is supplied journey knowledge (labelled; scripts/atlas/seed-unread-sighting.ts): one concept, claim and '
+                  'relation from The Sun on a journey-only source. No Scroll is about it, so the walk cannot meet it.',
+                  'The worker\'s correction catch-up runs every 2 s in this journey (60 s by default).',
                   f"Coalescing delay {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '20')} s, so the inquiry runs after the app has left.",
                   'Debug API36 emulator, not a physical device.']
     else:

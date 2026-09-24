@@ -11,11 +11,11 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { projectOne } from '../apps/worker/src/project.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { atlasDeltaSchema, atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
+import { readFirstOffered, readScroll } from './helpers/reading.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Atlas tests require a disposable knowscroll_test_* database');
 const app = buildApp('atlas-places-development-token-1234567890');
@@ -34,31 +34,8 @@ type Identity = Awaited<ReturnType<typeof provisionIdentity>>;
 const h = (i: Identity) => ({ authorization: `Bearer ${i.token}` });
 const epoch = async (i: Identity) => (await app.inject({ url: '/v1/universe', headers: h(i) })).json().privacyEpoch as number;
 
-/** Asks the feed for more, skipping what this trip already saw, until the target is offered; exposes only it. */
-async function read(i: Identity, assetId: string, keep: boolean): Promise<void> {
-  const skipped: string[] = [];
-  for (let step = 0; step < 30; step += 1) {
-    const feed = (await app.inject({ url: `/v1/feed?kinds=Scroll${skipped.length ? `&exclude=${skipped.join(',')}` : ''}`, headers: h(i) })).json();
-    const target = (feed.items as { assetId: string }[]).find(x => x.assetId === assetId);
-    if (!target) { skipped.push(...(feed.items as { assetId: string }[]).map(x => x.assetId)); continue; }
-    const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers: h(i), payload: { decisionId: feed.decisionId, assetId, clientExposureId: randomUUID() } });
-    assert.equal(exposure.statusCode, 201, exposure.body);
-    if (!keep) return;
-    const kept = await app.inject({ method: 'POST', url: '/v1/interactions', headers: h(i), payload: { clientEventId: randomUUID(), exposureId: exposure.json().exposureId, assetId, kind: 'keep' } });
-    assert.equal(kept.statusCode, 202, kept.body);
-    await pool.query("UPDATE job SET available_at='1990-01-01T00:00:00Z' WHERE id=$1", [kept.json().jobId]);
-    assert.equal((await projectOne())?.status, 'completed');
-    return;
-  }
-  throw new Error(`The feed never offered ${assetId}`);
-}
-
-/** Reads whatever the feed offers first: any new exposure refreshes the personal model and the atlas. */
-async function readAnything(i: Identity): Promise<void> {
-  const feed = (await app.inject({ url: '/v1/feed?kinds=Scroll', headers: h(i) })).json();
-  const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers: h(i), payload: { decisionId: feed.decisionId, assetId: feed.items[0].assetId, clientExposureId: randomUUID() } });
-  assert.equal(exposure.statusCode, 201, exposure.body);
-}
+const read = (i: Identity, assetId: string, keep: boolean) => readScroll(app, h(i), assetId, keep);
+const readAnything = (i: Identity) => readFirstOffered(app, h(i));
 
 /** Two days of reading, compressed: yesterday's rows are moved back a day in this disposable database. */
 async function anchorGravity(): Promise<Identity> {

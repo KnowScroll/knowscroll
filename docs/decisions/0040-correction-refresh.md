@@ -1,7 +1,7 @@
 # ADR-0040 — A source correction reaches the reader's places while they are away
 
-Date: 2026-09-24. Status: **proposed** (designed, not built) for [#134](https://github.com/KnowScroll/knowscroll/issues/134),
-parent #72. Builds on ADR-0031 (corrections revoke dependent bridges), ADR-0032 (the personal model),
+Date: 2026-09-24. Status: **accepted** (built for [#160](https://github.com/KnowScroll/knowscroll/issues/160)),
+parent #134 under #72. Builds on ADR-0031 (corrections revoke dependent bridges), ADR-0032 (the personal model),
 ADR-0036/0037 (places, foundations, deltas and their causes) and ADR-0039 (the return).
 
 ## Context
@@ -36,9 +36,13 @@ obligatory idle model call").
    (ADR-0039). Anything else the same refresh records keeps its usual cause.
 5. **It is idempotent.** After a refresh the recorded count equals the count that refresh saw, so a
    second pass does nothing until another correction is committed.
-6. **The record is part of the personal model.** Clear and Reset erase it (`erasePersonalModel`).
-   Account deletion removes it with the universe. It is bookkeeping, not history, so export leaves
-   it out.
+6. **The record is part of the personal model.** Clear, Reset and account deletion erase it
+   (`erasePersonalModel`; ADR-0035 keeps the universe row, so nothing cascades). It is bookkeeping,
+   not history, so export leaves it out.
+7. **A failure holds no one back** (review, same day). A universe whose refresh fails is rolled back,
+   records nothing and so stays longest-behind; the worker passes that pass's failures to the next
+   one, which takes them after everyone else. The log names the universe and the error's code or
+   name, never its message.
 
 ### Why a count and not timestamps
 
@@ -52,7 +56,7 @@ it up. The tests include this interleaving.
 ## Consequences
 
 - Migration `0034_correction_catch_up.sql`: `correction_catch_up(universe_id uuid PRIMARY KEY
-  REFERENCES universe(id) ON DELETE CASCADE, corrections_seen integer NOT NULL CHECK (corrections_seen
+  REFERENCES universe(id), corrections_seen integer NOT NULL CHECK (corrections_seen
   >= 0), refreshed_at timestamptz NOT NULL)`.
 - `packages/db/src/semantic/correction-refresh.ts`: `findBehindUniverses(client, limit)`,
   `catchUpUniverse(client, universeId)` (lock, re-check, refresh) and `runCorrectionRefreshPass(pool, opts)`

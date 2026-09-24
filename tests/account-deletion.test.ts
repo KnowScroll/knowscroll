@@ -81,6 +81,7 @@ async function footprint(universeId: string, accountId: string) {
      + (SELECT count(*)::int FROM privacy_recording_receipt WHERE universe_id=$1)
      + (SELECT count(*)::int FROM privacy_export_receipt WHERE universe_id=$1)
      + (SELECT count(*)::int FROM privacy_reset_receipt WHERE universe_id=$1) receipts,
+    (SELECT count(*)::int FROM correction_catch_up WHERE universe_id=$1) "catchUp",
     (SELECT account_id FROM universe WHERE id=$1) bound`, [universeId, accountId])).rows[0];
 }
 
@@ -88,7 +89,7 @@ test('deletion needs its own confirmation and the current epoch, then removes th
   const s = await bearerSession();
   await createHistory(s.authorization);
   const before = await footprint(s.universeId, s.accountId);
-  assert.ok(before.accounts === 1 && before.tokens > 0 && before.exposures > 0 && before.receipts >= 3, JSON.stringify(before));
+  assert.ok(before.accounts === 1 && before.tokens > 0 && before.exposures > 0 && before.receipts >= 3 && before.catchUp === 1, JSON.stringify(before));
   const epoch = await epochOf({ authorization: s.authorization });
   const post = (payload: Record<string, unknown>) => app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload });
   assert.equal((await post({ requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: 'reset-personal-universe' })).statusCode, 400, 'Reset\'s literal is not enough');
@@ -103,7 +104,7 @@ test('deletion needs its own confirmation and the current epoch, then removes th
   assert.ok(receipt.sessionsDeleted >= 1);
 
   assert.equal((await app.inject({ url: '/v1/session', headers: { authorization: s.authorization } })).statusCode, 401, 'the calling session is gone');
-  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, bound: null });
+  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, catchUp: 0, bound: null });
   const tomb = (await pool.query('SELECT * FROM account_deletion_receipt WHERE id=$1', [receipt.receiptId])).rows[0];
   assert.equal(tomb.account_id, s.accountId);
   assert.ok(!JSON.stringify(tomb).includes(resolveOwnerEmail()), 'the tombstone keeps no address');
@@ -208,7 +209,7 @@ test('a sign-in link requested while the deletion runs never turns it into a 500
   } finally {
     racing.release();
   }
-  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, bound: null });
+  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, catchUp: 0, bound: null });
 });
 
 test('deletion erases the reader\'s Relics and return marker too, even while recording is paused (#134, ADR-0039)', async () => {

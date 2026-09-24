@@ -1,0 +1,60 @@
+{
+  "at": "2026-09-24T17:59:50.751043+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_297291148cb53e0e",
+  "apiPort": 4333,
+  "source": "b57c8bfd89c6a26ffad7a8d8f021c5dce0440d87",
+  "package": "com.knowscroll.mobile.journeytest",
+  "journeyName": "return",
+  "journey": {
+    "inquiryId": "e243813a-057c-475c-aa72-944c4f4a948f",
+    "inquiryStatus": "found",
+    "bridgeId": "6766743d-7938-4354-a477-e23fd89f3c43",
+    "relicId": "29f75415-8b9c-4c75-8926-a82b76054f7e",
+    "relicStates": [
+      "current",
+      "doubted",
+      "corrected"
+    ],
+    "statusWhenLeft": "waiting",
+    "evidenceCount": 3,
+    "placeChange": {
+      "deltaId": "be7abf3b-b034-4e5e-ba52-4afc91636382",
+      "placeId": "fbe76413-b188-442d-b9f5-94c74be49d97",
+      "change": "sighting_retired"
+    }
+  },
+  "lineage": {
+    "inquiryAdmitted": 1,
+    "inquiryFoundTheBridge": 1,
+    "jobBackgroundDirtyCompleted": 1,
+    "relicKeptWithProvenance": 1,
+    "relics": 1,
+    "seemsWrong": 1,
+    "bridgeRevokedByCorrection": 1,
+    "markers": 1,
+    "markerAfterFound": 1,
+    "sharedBridgesStillAdmittedOrRevoked": 6,
+    "sightingRetiredByCorrection": 1,
+    "sightingBasisWithdrawn": 1,
+    "placeChangedAfterTheCorrections": 1,
+    "readerEventsSinceTheCorrections": 0,
+    "caughtUp": 1,
+    "correction": {
+      "sourceKey": "nasa.gravity",
+      "sightingSourceKey": "journey.solar-wind",
+      "applied": true
+    }
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Fixture inquiry transport (labelled): the proposal is the fixture's, the admission is bridge-validator-v1's; no provider call.",
+    "\"Away\" is the app in the background (Home) while the worker and the operator corrections run; not days away.",
+    "The source corrections are operator actions through scripts/substrate/correct-source.ts in the disposable database: the kept connection's mechanism source, then the source a live sighting rests on alone.",
+    "The Sun was formed from a supplied account (labelled), as in the inquiry journey.",
+    "Solar wind is supplied journey knowledge (labelled; scripts/atlas/seed-unread-sighting.ts): one concept, claim and relation from The Sun on a journey-only source. No Scroll is about it, so the walk cannot meet it.",
+    "The worker's correction catch-up runs every 2 s in this journey (60 s by default).",
+    "Coalescing delay 20 s, so the inquiry runs after the app has left.",
+    "Debug API36 emulator, not a physical device."
+  ]
+}
