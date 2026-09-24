@@ -76,6 +76,20 @@ Scroll rests on does not reach the reader who was waiting for it.
    waiters, never shared requests), export carries them, deletion removes them. Supply requests and the
    Scrolls they produce are shared library, like the editorial library.
 
+## Amendment (implementation)
+
+Built as decided, with four adaptations the code required. A request whose one send failed or was
+lost may still have reached the provider, so its demand is not funded again: `cannot_meet` also has
+the reason `request_failed` (a request refused before it was sent, because its page could not be
+fetched or had changed, settles `refused` and counts toward the two refusals). A funded request holds
+one unit of its route's bucket until it is sent (consumed) or settles unsent (released), kept by the
+migration's `supply_request_budget`, so `no_budget` is decided when funding and a join never waits on
+a request the route cannot pay for. There is no feed per place: the Composer serves a bound Scroll
+first in the reader's feed, the binding records its place, and Android opens it from the place sheet
+through that feed. An offered continuation is observed when `GET /v1/assets/:assetId/branches` lists
+one whose target the reader was already shown; its origin is their latest exposure to that encounter
+in the epoch.
+
 ## Not in this version
 
 Adapt, Reel generation and Cutroom (#9), cross-scope cost sharing (one sponsor: the operator route),

@@ -4,4 +4,4 @@ Three real, hand-selected sourced Scrolls for the bootstrap journey; not generat
 
 Changing published text requires a new asset revision and provenance migration. The seed command never overwrites an existing asset.
 
-Model-written Scrolls (ADR-0041) are not here: they live only in the database, written by `scripts/scrolls/write-scrolls.ts` from allowlisted public-domain pages and admitted by deterministic checks. No model text is committed to Git.
+Model-written Scrolls (ADR-0041) are not here: they live only in the database, written by `scripts/scrolls/write-scrolls.ts` or the worker's writing loop (ADR-0046) from allowlisted public-domain pages and admitted by deterministic checks. No model text is committed to Git.
