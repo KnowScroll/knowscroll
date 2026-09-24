@@ -26,8 +26,8 @@ import org.junit.runner.RunWith
 
 /**
  * Runs only against the disposable .journey application and its real API.
- * It proves that a foreground privacy reconciliation removes a source sheet
- * and its private reader envelope before stale content can reappear.
+ * It proves that a foreground privacy reconciliation removes an open reader sheet
+ * (why the Scroll appeared) and its private reader envelope before stale content can reappear.
  */
 @RunWith(AndroidJUnit4::class)
 class ReaderPrivacyJourneyTest {
@@ -53,7 +53,7 @@ class ReaderPrivacyJourneyTest {
         .joinToString("") { "%02x".format(it) }
         .take(16)
 
-    private fun captureSourceSheet() {
+    private fun captureWhySheet() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.waitForIdleSync()
         val bitmap: Bitmap = instrumentation.uiAutomation.takeScreenshot()
@@ -68,7 +68,7 @@ class ReaderPrivacyJourneyTest {
             .writeText(receipt.toString(2))
     }
 
-    @Test fun sourceSheetClearOnForeground() = runBlocking {
+    @Test fun whySheetClearOnForeground() = runBlocking {
         assumeTrue("This journey requires the disposable .journey application", com.knowscroll.mobile.JourneyBuild.isJourney(BuildConfig.APPLICATION_ID))
 
         val api = ApiClient()
@@ -81,22 +81,23 @@ class ReaderPrivacyJourneyTest {
         val opened = store().read() ?: error("Scroll retry envelope was not persisted")
         waitText(opened.item.title)
 
-        compose.onAllNodesWithContentDescription("Sources for this Scroll").onFirst().performClick()
-        waitText(opened.item.sourceTitle)
+        compose.onAllNodesWithContentDescription("Why this Scroll appeared").onFirst().performClick()
+        waitText("Why this appeared")
         waitTruthState(opened.item.truthState)
-        val sheetEnvelope = store().read() ?: error("Source sheet changed the reader envelope")
+        compose.onAllNodesWithText(opened.item.sourceTitle, substring = true).assertCountEquals(0)
+        val sheetEnvelope = store().read() ?: error("The why sheet changed the reader envelope")
         assertEquals(opened.item.assetId, sheetEnvelope.item.assetId)
         assertEquals(opened.clientExposureId, sheetEnvelope.clientExposureId)
         assertEquals(opened.clientEventId, sheetEnvelope.clientEventId)
         assertEquals(opened.exposureId, sheetEnvelope.exposureId)
         assertEquals(opened.readingPosition, sheetEnvelope.readingPosition)
-        captureSourceSheet()
+        captureWhySheet()
 
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         waitDescription("Scroll reading content")
-        waitDescription("Sources for this Scroll")
-        compose.onAllNodesWithContentDescription("Sources for this Scroll").onFirst().performClick()
-        waitText(opened.item.sourceTitle)
+        waitDescription("Why this Scroll appeared")
+        compose.onAllNodesWithContentDescription("Why this Scroll appeared").onFirst().performClick()
+        waitText("Why this appeared")
         waitTruthState(opened.item.truthState)
 
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
@@ -116,7 +117,7 @@ class ReaderPrivacyJourneyTest {
                 store().readObservedPrivacyEpoch() >= clearReceipt.privacyEpoch
         }
         compose.onAllNodesWithText(opened.item.title).assertCountEquals(0)
-        compose.onAllNodesWithContentDescription("Sources for this Scroll").assertCountEquals(0)
+        compose.onAllNodesWithText("Why this appeared").assertCountEquals(0)
         assertEquals("universe", store().readScreen())
         assertNull(store().readPendingClear())
         assertNull(store().read())
@@ -130,13 +131,13 @@ class ReaderPrivacyJourneyTest {
             put("application", "journey")
             put("assetFingerprint", fingerprint(opened.item.assetId))
             put("universeFingerprint", fingerprint(opened.universeId))
-            put("sourceShown", true)
+            put("sourceShown", false)
             put("truthState", opened.item.truthState)
             put("retryEnvelopePreservedBeforeClear", true)
             put("privacyEpochBefore", opened.privacyEpoch)
             put("privacyEpochAfter", clearReceipt.privacyEpoch)
             put("foregroundPurgedReader", true)
-            put("sourceSheetRemoved", true)
+            put("whySheetRemoved", true)
             put("visitedRemoved", true)
             put("result", "passed")
         })

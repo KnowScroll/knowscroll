@@ -6,7 +6,9 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.StateStore
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Rule
@@ -19,7 +21,7 @@ import java.io.File
  * worker and PostgreSQL loaded with the editorial substrate (scripts/android-semantic-journey.py).
  *
  * A reader reaches, by ordinary deliberate discovery, a Scroll with live continuations; inspects
- * why it connects (mechanism, limits, cited evidence); follows one; survives recreation on the
+ * why it connects (mechanism, limits, cited claims -- #161: never their sources); follows one; survives recreation on the
  * target; returns with system Back to the origin at its exact reading position; and hides the
  * connection for themselves. The runner then verifies the causal lineage in the database.
  */
@@ -29,7 +31,7 @@ class SemanticBranchJourneyTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private fun store() = StateStore(instrumentation.targetContext)
     private val emptyReasons = listOf(
-        "This Scroll has not been mapped", "No sourced connection leads on", "A connection exists, but no Scroll", "No sourced connection is available",
+        "This Scroll has not been mapped", "No connection leads on", "A connection exists, but no Scroll", "No connection is available",
     )
 
     private fun screenshot(name: String) {
@@ -54,7 +56,7 @@ class SemanticBranchJourneyTest {
     }
 
     @Test
-    fun followsASourcedConnectionInspectsItReturnsExactlyAndHidesIt() {
+    fun followsAConnectionInspectsItReturnsExactlyAndHidesIt() {
         try { journey() } catch (failure: Throwable) { runCatching { screenshot("semantic-failure.png") }; throw failure }
     }
 
@@ -89,6 +91,14 @@ class SemanticBranchJourneyTest {
         compose.onNodeWithText("Why these connections?").performClick()
         compose.waitUntil(10_000) { textShown("How these connect") }
         for (heading in listOf("The connection", "Where it stops", "Evidence")) assertTrue(heading, textShown(heading))
+        // Each claim is shown; where it came from never is.
+        val evidence = runBlocking { ApiClient().getBranches(origin.item.assetId) }.branches.flatMap { it.evidence }
+        assertTrue(evidence.isNotEmpty())
+        for (claim in evidence) {
+            assertTrue(claim.statement, textShown(claim.statement))
+            assertFalse(claim.sourceTitle, textShown(claim.sourceTitle, substring = true))
+            assertFalse(claim.sourceUrl, textShown(claim.sourceUrl, substring = true))
+        }
         screenshot("semantic-connections.png")
 
         compose.waitForIdle()
@@ -124,7 +134,7 @@ class SemanticBranchJourneyTest {
         assertNull(store().read()!!.branchFrom)
         screenshot("semantic-branch-return.png")
 
-        // Hide the connection for this reader: it disappears from the rail, sources unchanged.
+        // Hide the connection for this reader: it disappears from the rail, unchanged for everyone else.
         compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasText("Why these connections?"))
         compose.onNodeWithText("Why these connections?").performClick()
         compose.waitUntil(10_000) { textShown("How these connect") }

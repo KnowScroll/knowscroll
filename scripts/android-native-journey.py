@@ -64,7 +64,7 @@ try:
         failure=subprocess.run(['adb','exec-out','run-as',package,'cat','files/native-failure.png'],capture_output=True)
         if failure.returncode==0: (out/'failure.png').write_bytes(failure.stdout)
         raise RuntimeError('Native joined journey failed')
-    for file in ('spatial-map.png','spatial-world.png','real-reel.png','spatial-return.png','native-journey.json'):
+    for file in ('spatial-map.png','real-reel.png','spatial-return.png','native-journey.json'):
         (out/file).write_bytes(subprocess.check_output(['adb','exec-out','run-as',package,'cat','files/'+file]))
     run(['adb','shell',f"run-as {package} sh -c 'cat > files/native-video.mp4'"],input=video.read_bytes())
     for scenario, receipt_file in [('NativePreviewJourneyTest','rich-preview.json'),('NativeMediaFaultTest','media-faults.json'),('NativeAtlasStressTest','atlas-stress.json')]:

@@ -19,7 +19,7 @@ import java.io.File
  * The reader reaches, by ordinary bounded discovery, "The pull you can't see" and "A rhythm the
  * ocean keeps" and keeps both (a second day, a second source family, exactly the runner's seeded
  * account's third keep) -- the same anchoring `tests/atlas-places.test.ts` already proves forms a
- * planet. It opens the System, sees Places is now the default, opens Gravity's sheet, and -- when
+ * planet. It opens the System, sees Gravity on the map, opens Gravity's sheet, and -- when
  * the walk has left one of Gravity's neighbours unread (a sighting is only ever something not yet
  * met; one read along the way retires on its own and is honestly not there to show) -- reads that
  * sighting's sentence and support; opens the formation delta's evidence, then sets Gravity aside
@@ -57,10 +57,12 @@ class PlacesJourneyTest : AtlasJourneySupport() {
         if (sightingPlace != null) {
             val basis = sightingPlace.basis!!
             val expectedSentence = com.knowscroll.mobile.ui.system.basisSentence(basis)
-            val expectedSupport = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
+            val expectedSupport = com.knowscroll.mobile.ui.system.supportLine(basis.claim, basis.bridge)
             assertNotNull("a sighting shows what connects it", expectedSupport)
             compose.waitUntil(10_000) { compose.onAllNodesWithText(expectedSentence).fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText(expectedSupport!!).assertExists()
+            // #161: the claim, never where it came from.
+            basis.claim?.let { compose.onAllNodesWithText(it.sourceTitle, substring = true).assertCountEquals(0) }
         } else {
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A place formed around Gravity.").fetchSemanticsNodes().isNotEmpty() }
         }

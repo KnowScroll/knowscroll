@@ -1,6 +1,5 @@
 package com.knowscroll.mobile
 
-import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -42,10 +41,10 @@ class ReaderJourneyTest {
         store().read()?.exposureId?.isNotEmpty() == true &&
             compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isNotEmpty()
     }
-    private fun waitReaderOrSources() = compose.waitUntil(15_000) {
+    private fun waitReaderOrWhy() = compose.waitUntil(15_000) {
         store().read()?.exposureId?.isNotEmpty() == true &&
             (compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithText("Sources and truth").fetchSemanticsNodes().isNotEmpty())
+                compose.onAllNodesWithText("Why this appeared").fetchSemanticsNodes().isNotEmpty())
     }
     private fun openReader() {
         guardJourneyApp()
@@ -93,16 +92,20 @@ class ReaderJourneyTest {
         assertEquals(position, renderedReadingPosition())
     }
 
-    @Test fun readerSourcesThresholdAndRest() = runBlocking {
+    /** #161: the reader offers no Sources control and never shows the Scroll's source; its sheets
+     * (here, why it appeared) survive recreation over the same reading session and position. */
+    @Test fun readerThresholdAndRest() = runBlocking {
         openReader()
         val first = store().read() ?: error("Expected durable reading session")
         compose.onNodeWithContentDescription("Get the next Scroll").assertIsNotDisplayed()
+        compose.onAllNodesWithContentDescription("Sources for this Scroll").assertCountEquals(0)
+        compose.onAllNodesWithText(first.item.sourceTitle, substring = true).assertCountEquals(0)
         screenshot("reader-navigation.png")
-        val sourceLabelLayouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText("Sources", useUnmergedTree = true)
-            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(sourceLabelLayouts) }
-        assertEquals(1, sourceLabelLayouts.single().lineCount)
-        for (description in listOf("Sources for this Scroll", "Keep this Scroll", "Return to the universe")) {
+        val whyLabelLayouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("Why", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(whyLabelLayouts) }
+        assertEquals(1, whyLabelLayouts.single().lineCount)
+        for (description in listOf("Why this Scroll appeared", "Keep this Scroll", "Return to the universe")) {
             compose.onNodeWithContentDescription(description).assertHeightIsAtLeast(48.dp)
         }
         compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasText(first.item.body))
@@ -110,65 +113,28 @@ class ReaderJourneyTest {
             val persisted = store().read()?.readingPosition ?: 0
             persisted > 0 && renderedReadingPosition() == persisted
         }
-        val beforeSource = store().read()!!
+        val beforeWhy = store().read()!!
         compose.activityRule.scenario.recreate()
         waitReading()
-        assertSameSession(beforeSource, store().read()!!)
-        assertRenderedPosition(beforeSource.readingPosition)
+        assertSameSession(beforeWhy, store().read()!!)
+        assertRenderedPosition(beforeWhy.readingPosition)
         val closedRecreationPosition = renderedReadingPosition()
-        compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
-        waitText("Sources and truth")
-        screenshot("reader-source.png")
+        compose.onNodeWithContentDescription("Why this Scroll appeared").performClick()
+        waitText("Why this appeared")
+        screenshot("reader-why.png")
         compose.activityRule.scenario.recreate()
-        waitReaderOrSources()
-        val sourceSheetRestored = compose.onAllNodesWithText("Sources and truth").fetchSemanticsNodes().isNotEmpty()
-        if (!sourceSheetRestored) {
-            compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
-            waitText("Sources and truth")
+        waitReaderOrWhy()
+        val whySheetRestored = compose.onAllNodesWithText("Why this appeared").fetchSemanticsNodes().isNotEmpty()
+        if (!whySheetRestored) {
+            compose.onNodeWithContentDescription("Why this Scroll appeared").performClick()
+            waitText("Why this appeared")
         }
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Sources and truth").fetchSemanticsNodes().isEmpty() }
-        assertSameSession(beforeSource, store().read()!!)
-        assertRenderedPosition(beforeSource.readingPosition)
-        val sourceOpenRecreationPosition = renderedReadingPosition()
-        compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
-        waitText("Sources and truth")
-        val journeyPackage = instrumentation.targetContext.packageName
-        compose.waitUntil(15_000) {
-            instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString() == journeyPackage
-        }
-        compose.onNodeWithContentDescription("Open ${first.item.sourceTitle} in browser").performClick()
-        var externalWindowObserved = false
-        var externalWindowPackage: String? = null
-        var browserUnavailableObserved = false
-        compose.waitUntil(15_000) {
-            val activePackage = instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString()
-            if (activePackage != null && activePackage != journeyPackage) {
-                externalWindowObserved = true
-                externalWindowPackage = activePackage
-            } else if (activePackage == journeyPackage) {
-                browserUnavailableObserved = runCatching { compose.onAllNodesWithText(
-                    "A browser could not open this source. You can still read its address above."
-                ).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
-            }
-            externalWindowObserved || browserUnavailableObserved
-        }
-        var lifecycleBeforeReturn = "unknown"
-        compose.activityRule.scenario.onActivity { lifecycleBeforeReturn = it.lifecycle.currentState.name }
-        // Return only this journey package to foreground, including when no browser is installed.
-        val returnIntent = instrumentation.targetContext.packageManager
-            .getLaunchIntentForPackage(instrumentation.targetContext.packageName)!!
-        returnIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-        instrumentation.targetContext.startActivity(returnIntent)
-        compose.waitUntil(15_000) {
-            instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString() == journeyPackage
-        }
-        waitReaderOrSources()
-        val close = compose.onAllNodesWithContentDescription("Close sources")
-        if (close.fetchSemanticsNodes().isNotEmpty()) close[0].performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Why this appeared").fetchSemanticsNodes().isEmpty() }
         waitReading()
-        assertSameSession(beforeSource, store().read()!!)
-        assertRenderedPosition(beforeSource.readingPosition)
+        assertSameSession(beforeWhy, store().read()!!)
+        assertRenderedPosition(beforeWhy.readingPosition)
+        val whyOpenRecreationPosition = renderedReadingPosition()
         val discovered = mutableListOf(first.item.assetId)
         repeat(4) {
             reachThreshold()
@@ -191,19 +157,13 @@ class ReaderJourneyTest {
         compose.onNodeWithContentDescription("Return to the universe").performClick()
         waitText("Your universe")
         writeReceipt("reader-navigation.json", JSONObject().apply {
-            put("scenario", "readerSourcesThresholdAndRest")
-            put("sourceSessionPreserved", true)
+            put("scenario", "readerThresholdAndRest")
+            put("sourceShown", false)
             put("closedRecreationReadingPosition", closedRecreationPosition)
-            put("sourceOpenRecreationReadingPosition", sourceOpenRecreationPosition)
-            put("sourceOpenRecreationRetryEnvelopePreserved", true)
-            put("sourceSheetRestoredAfterRecreation", sourceSheetRestored)
-            put("sourceLaunchReturnSessionPreserved", true)
-            put("externalWindowObserved", externalWindowObserved)
-            put("externalWindowPackage", externalWindowPackage ?: JSONObject.NULL)
-            put("browserUnavailableObserved", browserUnavailableObserved)
-            put("readerLifecycleBeforeReturn", lifecycleBeforeReturn)
-            put("browserContentLoaded", JSONObject.NULL)
-            put("sourceBackStayedInReader", true)
+            put("whyOpenRecreationReadingPosition", whyOpenRecreationPosition)
+            put("whyOpenRecreationRetryEnvelopePreserved", true)
+            put("whySheetRestoredAfterRecreation", whySheetRestored)
+            put("whyBackStayedInReader", true)
             put("visitedAssetIds", JSONArray(discovered))
             put("lastAssetId", last.item.assetId)
             put("finiteLibraryRest", true)

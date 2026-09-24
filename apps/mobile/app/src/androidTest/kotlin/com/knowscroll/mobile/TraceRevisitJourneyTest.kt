@@ -1,6 +1,7 @@
 package com.knowscroll.mobile
 
 import android.graphics.Bitmap
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import org.junit.Assert.assertNotEquals
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -134,7 +136,7 @@ class TraceRevisitJourneyTest {
         val selected=runBlocking { ApiClient().getTraceRevisit(trace.eventId) }
         compose.onNodeWithText(selected.scroll.title).assertExists()
         compose.onNodeWithText(selected.scroll.body).assertExists()
-        compose.onNodeWithText(selected.scroll.sourceTitle).assertExists()
+        compose.onAllNodesWithText(selected.scroll.sourceTitle, substring=true).assertCountEquals(0)
         assertEquals(selected.scroll.revision,store().readRevisit()?.revision)
         compose.onNodeWithContentDescription("Scroll reading content")
             .performScrollToNode(hasContentDescription("Get the next Scroll"))
@@ -169,17 +171,19 @@ class TraceRevisitJourneyTest {
         }
     }
 
-    @Test fun reopensVerifiedTraceShowsSourcesAndReturns() {
+    /** #161: a reopened Trace offers no Sources control; why it appeared names its kept date, never a source. */
+    @Test fun reopensVerifiedTraceWithoutASourceAndReturns() {
         val trace=projectedTrace()
         open(trace.eventId)
-        compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
-        waitUntil { compose.onAllNodesWithText("Sources and truth").fetchSemanticsNodes().isNotEmpty() }
-        screenshot("trace-revisit-sources.png")
-        compose.onNodeWithContentDescription("Close sources").performClick()
+        compose.onAllNodesWithContentDescription("Sources for this Scroll").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Why this Scroll appeared").performClick()
+        waitUntil { compose.onAllNodesWithText("This is a saved Trace you kept",substring=true).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("trace-revisit-reader.png")
+        compose.onNodeWithContentDescription("Close why this appeared").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Return to the universe").performClick()
         waitUntil { compose.onAllNodesWithContentDescription(traceDescription(trace.eventId)).fetchSemanticsNodes().isNotEmpty() }
-        receipt("trace-revisit-sources.json","reopensVerifiedTraceShowsSourcesAndReturns",trace.eventId) {
-            put("sourcesVisible",true);put("returnedToUniverse",true)
+        receipt("trace-revisit-reader.json","reopensVerifiedTraceWithoutASourceAndReturns",trace.eventId) {
+            put("sourceShown",false);put("savedOriginExplained",true);put("returnedToUniverse",true)
         }
     }
 

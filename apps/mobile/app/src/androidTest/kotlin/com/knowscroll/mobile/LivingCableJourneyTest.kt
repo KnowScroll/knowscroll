@@ -162,11 +162,8 @@ class LivingCableJourneyTest {
             compose.onNodeWithContentDescription("Reel video").performTouchInput { swipeUp() }
             compose.onNodeWithText("Next ↑").performClick()
             compose.onNodeWithText("Previous ↓").performClick()
-            compose.onNodeWithText("Sources & truth").performClick()
-            waitText("Sources")
-            instrumentation.uiAutomation.performGlobalAction(
-                android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
-            )
+            // #161: a Reel offers no sources.
+            compose.onAllNodesWithText("Sources", substring = true).assertCountEquals(0)
             compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
             compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
             waitFor("Reel video")

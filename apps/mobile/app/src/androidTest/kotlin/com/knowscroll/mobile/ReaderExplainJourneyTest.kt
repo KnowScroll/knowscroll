@@ -75,7 +75,8 @@ class ReaderExplainJourneyTest {
     private fun writeReceipt(name: String, value: JSONObject) =
         File(instrumentation.targetContext.filesDir, name).writeText(value.toString(2))
 
-    @Test fun explainSheetShowsDiscoveryReasonTruthAndSourcesNote() = runBlocking {
+    /** #161: the sheet explains the truth state without ever pointing at a source. */
+    @Test fun explainSheetShowsDiscoveryReasonAndTruthButNoSource() = runBlocking {
         openReaderFresh()
         val opened = store().read() ?: error("Expected a persisted reading session")
         // Accessible, thumb-sized control per Law 13.
@@ -84,16 +85,17 @@ class ReaderExplainJourneyTest {
         assertVisible(opened.item.reason)
         assertVisible("DOCUMENTED")
         assertVisible("Directly supported by strong cited evidence.")
-        assertVisible("Sources below show this evidence.")
+        compose.onAllNodesWithText("Sources below show this evidence.").assertCountEquals(0)
+        compose.onAllNodesWithText(opened.item.sourceTitle, substring = true).assertCountEquals(0)
         assertVisible("You opened this Scroll through deliberate discovery from your universe.")
         screenshot("explain-discovery.png")
         compose.onNodeWithContentDescription("Close why this appeared").assertHeightIsAtLeast(48.dp).performClick()
         waitReading()
         writeReceipt("explain-discovery.json", JSONObject().apply {
-            put("scenario", "explainSheetShowsDiscoveryReasonTruthAndSourcesNote")
+            put("scenario", "explainSheetShowsDiscoveryReasonAndTruthButNoSource")
             put("assetId", opened.item.assetId); put("reason", opened.item.reason)
             put("truthState", opened.item.truthState); put("originDiscovery", true)
-            put("sourcesNoteShown", true)
+            put("sourceShown", false)
         })
     }
 
@@ -162,7 +164,7 @@ class ReaderExplainJourneyTest {
         openExplainSheet()
         val before = store().read() ?: error("Expected a persisted reading session")
         compose.activityRule.scenario.recreate()
-        // Mirrors the existing Sources sheet: recreation may or may not keep the sheet
+        // Mirrors the other reader sheets: recreation may or may not keep the sheet
         // open (rememberSaveable through the same key), so both outcomes are handled
         // and the observed one is reported rather than assumed.
         waitReading()

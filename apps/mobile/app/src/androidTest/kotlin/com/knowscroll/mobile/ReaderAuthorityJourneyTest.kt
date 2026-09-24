@@ -105,7 +105,7 @@ class ReaderAuthorityJourneyTest {
         compose.waitUntil(15_000) {
             store().read() == null && store().readVisited().isEmpty() &&
                 compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isEmpty() &&
-                compose.onAllNodesWithContentDescription("Sources for this Scroll").fetchSemanticsNodes().isEmpty()
+                compose.onAllNodesWithContentDescription("Why this Scroll appeared").fetchSemanticsNodes().isEmpty()
         }
         compose.onAllNodesWithText(before.item.title).assertCountEquals(0)
         assertEquals("universe", store().readScreen())
@@ -125,7 +125,7 @@ class ReaderAuthorityJourneyTest {
             put("nextFeed401FailedClosed", true)
             put("readerCachePurged", true)
             put("visitedPurged", true)
-            put("sourceControlRemoved", true)
+            put("readerControlsRemoved", true)
             put("oldPageAbsent", true)
             put("result", "passed")
         })

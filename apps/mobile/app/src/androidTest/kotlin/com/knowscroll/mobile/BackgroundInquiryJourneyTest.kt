@@ -31,7 +31,7 @@ import java.io.File
  * Gravity exactly as in [PlacesJourneyTest]: that place_formed, after consent, is what mails the
  * inquiry. The worker opens it once the coalescing delay passes, the fixture proposes a bridge for
  * (The Sun, Gravity), bridge-validator-v1 admits it, and Privacy & account shows it found, with the
- * bridge's sentence and sources. Finally, where Gravity (or The Sun) is read, the Connections sheet
+ * bridge's sentence and its claims (#161: never their sources). Finally, where Gravity (or The Sun) is read, the Connections sheet
  * offers the new connection. The runner then verifies the lineage in SQL. The receipt this test
  * writes holds ids, counts and statuses only -- no bridge sentence, no claim, no provider text.
  */
@@ -40,7 +40,7 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
     private val consentSwitch = "Look for connections between my places"
 
     @Test
-    fun consentThenAPlaceFormationFindsASourcedConnectionThatBecomesAContinuation() {
+    fun consentThenAPlaceFormationFindsAConnectionThatBecomesAContinuation() {
         try { journey() } catch (failure: Throwable) { runCatching { screenshot("inquiry-failure.png") }; throw failure }
     }
 
@@ -157,7 +157,7 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
         assertTrue("the bridge joins an offered pair", inquiry.pairs.any { setOf(it.a.code, it.b.code) == setOf(found.fromConcept.code, found.toConcept.code) })
         assertEquals(1, list.consent.usedToday)
 
-        // 5. Privacy & account says so: the pair, "found", the bridge's sentence and its sources.
+        // 5. Privacy & account says so: the pair, "found", the bridge's sentence and its claims, never their sources.
         compose.onNodeWithContentDescription("Return to the universe").performClick()
         openPrivacy()
         compose.onNodeWithContentDescription("Refresh what KnowScroll looked for").performScrollTo().performClick()
@@ -165,7 +165,11 @@ class BackgroundInquiryJourneyTest : AtlasJourneySupport() {
         compose.onAllNodesWithText("Found a connection.").onFirst().performScrollTo()
         compose.onAllNodesWithText("The Sun and Gravity", substring = true).onFirst().performScrollTo().assertExists()
         compose.onAllNodesWithText(found.sentence).onFirst().performScrollTo().assertExists()
-        compose.onAllNodesWithText(found.evidence.first().sourceTitle).onFirst().performScrollTo().assertExists()
+        compose.onAllNodesWithText(found.evidence.first().statement).onFirst().performScrollTo().assertExists()
+        for (claim in found.evidence) {
+            assertFalse(claim.sourceTitle, shown(claim.sourceTitle, substring = true))
+            assertFalse(claim.sourceUrl, shown(claim.sourceUrl, substring = true))
+        }
         compose.onNodeWithText("Up to 3 a day · 1 used today").performScrollTo()
         screenshot("inquiry-found.png")
         closePrivacy()

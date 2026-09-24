@@ -286,7 +286,7 @@ try:
         raise RuntimeError('Cold restoration did not refetch trace authority')
     if private_snapshot() != baseline_snapshot:
         raise RuntimeError('Cold restoration mutated private domain rows')
-    for method, label in [('reopensVerifiedTraceShowsSourcesAndReturns', 'sources'),
+    for method, label in [('reopensVerifiedTraceWithoutASourceAndReturns', 'reader'),
                           ('traceReadDropRetriesSameIdentity', 'retry'),
                           ('changedSourceDiscardsTraceReader', 'drift')]:
         before = counts()

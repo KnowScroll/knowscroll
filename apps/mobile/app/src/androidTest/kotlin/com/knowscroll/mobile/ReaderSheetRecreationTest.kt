@@ -15,8 +15,8 @@ import org.junit.runner.RunWith
 
 /**
  * #97 — with the reader open and a bottom sheet showing, an Activity recreation (rotation,
- * configuration change) used to leave the sheet closed, even though `sourcesOpen`/`explainOpen`/
- * `connectionsOpen` are `rememberSaveable`. Root cause: `AppViewModel.onForeground()` runs
+ * configuration change) used to leave the sheet closed, even though `explainOpen`/`connectionsOpen`/
+ * `askOpen` are `rememberSaveable`. Root cause: `AppViewModel.onForeground()` runs
  * `reconcilePrivacy(restoreStoredScroll = true)` on every `Lifecycle.State.STARTED` re-entry --
  * including the one right after `Activity.recreate()`, since `KnowScrollApp`'s
  * `repeatOnLifecycle(Lifecycle.State.STARTED)` restarts fresh on every `onStart` -- which briefly
@@ -29,6 +29,8 @@ import org.junit.runner.RunWith
  * `AppViewModel`, real `onForeground()`), following `ReaderExplainJourneyTest`/
  * `SemanticBranchJourneyTest`'s launch/wait patterns, and is a joined-runtime journey on the
  * separate `journey` app: `KS_SEMANTIC_JOURNEY=sheets python3 scripts/android-semantic-journey.py`.
+ * #161: every reader it opens shows no source -- no "Sources" control and not the Scroll's own
+ * source title.
  */
 @RunWith(AndroidJUnit4::class)
 class ReaderSheetRecreationTest {
@@ -65,6 +67,13 @@ class ReaderSheetRecreationTest {
             compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
         }
         waitReading()
+        assertNoSourceShown()
+    }
+
+    private fun assertNoSourceShown() {
+        val item = store().read()!!.item
+        compose.onAllNodesWithText(item.sourceTitle, substring = true).assertCountEquals(0)
+        compose.onAllNodesWithContentDescription("Sources for this Scroll").assertCountEquals(0)
     }
 
     private fun screenshot(name: String) {
@@ -76,23 +85,24 @@ class ReaderSheetRecreationTest {
     private fun writeReceipt(name: String, value: JSONObject) =
         File(instrumentation.targetContext.filesDir, name).writeText(value.toString(2))
 
-    @Test fun sourcesSheetSurvivesRecreation() {
+    @Test fun askSheetSurvivesRecreation() {
         openReader()
         val before = store().read() ?: error("Expected a persisted reading session")
-        compose.onNodeWithContentDescription("Sources for this Scroll").performClick()
-        waitText("Sources and truth")
+        compose.onNodeWithContentDescription("Ask about this Scroll").performClick()
+        waitText("Ask about this Scroll")
 
         compose.activityRule.scenario.recreate()
-        waitText("Sources and truth")
+        waitText("Ask about this Scroll")
 
         val after = store().read() ?: error("Reading session lost across recreation")
         assertEquals(before.item.assetId, after.item.assetId)
         assertEquals(before.exposureId, after.exposureId)
-        screenshot("sources-sheet-recreate.png")
-        writeReceipt("sources-sheet-recreate.json", JSONObject().apply {
-            put("scenario", "sourcesSheetSurvivesRecreation")
+        screenshot("ask-sheet-recreate.png")
+        writeReceipt("ask-sheet-recreate.json", JSONObject().apply {
+            put("scenario", "askSheetSurvivesRecreation")
             put("assetId", after.item.assetId); put("exposureId", after.exposureId)
             put("sheetRestoredAfterRecreation", true)
+            put("sourceShown", false)
         })
     }
 

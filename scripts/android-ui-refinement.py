@@ -90,29 +90,28 @@ try:
         adb('shell', 'settings', 'put', 'global', 'animator_duration_scale', duration)
         adb('shell', 'pm', 'clear', package)
         result = subprocess.check_output(['adb', 'shell', 'am', 'instrument', '-w', '-e', 'class',
-            'com.knowscroll.mobile.WorldInspectionJourneyTest#worldBackRecreationAndCollection',
+            'com.knowscroll.mobile.SystemViewJourneyTest#systemNamesNoSourceAcrossRecreationAndBack',
             package + '.test/androidx.test.runner.AndroidJUnitRunner'], text=True, timeout=120)
         (out / (label + '.txt')).write_text(result)
         print(result, flush=True)
         if 'OK (1 test)' not in result:
-            raise RuntimeError(label + ' world inspection failed')
-        for file in ['atlas-ui.png', 'system-ui.png', 'world-ui.png', 'world-source-ui.png',
-                     'keep-ui.png', 'world-ui-receipt.json']:
+            raise RuntimeError(label + ' system view failed')
+        for file in ['atlas-ui.png', 'system-ui.png', 'keep-ui.png', 'system-ui-receipt.json']:
             data = subprocess.check_output(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + file])
             (out / (label + '-' + file)).write_bytes(data)
         scenarios.append({'name': label, 'size': size, 'fontScale': scale, 'animatorDurationScale': duration,
                           'result': 'passed'})
     adb('shell', 'pm', 'clear', package)
     result = subprocess.check_output(['adb', 'shell', 'am', 'instrument', '-w', '-e', 'class',
-        'com.knowscroll.mobile.WorldInspectionJourneyTest#clearedWorldIsNotRestoredOnForeground',
+        'com.knowscroll.mobile.SystemViewJourneyTest#clearedSystemIsNotRestoredOnForeground',
         package + '.test/androidx.test.runner.AndroidJUnitRunner'], text=True, timeout=120)
     (out / 'privacy.txt').write_text(result)
     print(result, flush=True)
     if 'OK (1 test)' not in result:
-        raise RuntimeError('World privacy-fence test failed')
-    (out / 'world-privacy-receipt.json').write_bytes(subprocess.check_output(
-        ['adb', 'exec-out', 'run-as', package, 'cat', 'files/world-privacy-receipt.json']))
-    scenarios.append({'name': 'world-privacy-fence', 'result': 'passed'})
+        raise RuntimeError('System privacy-fence test failed')
+    (out / 'system-privacy-receipt.json').write_bytes(subprocess.check_output(
+        ['adb', 'exec-out', 'run-as', package, 'cat', 'files/system-privacy-receipt.json']))
+    scenarios.append({'name': 'system-privacy-fence', 'result': 'passed'})
     files = list((root / 'apps/mobile/app/src').rglob('*.kt'))
     files += [root / 'apps/mobile/app/src/main/res/values/strings.xml', Path(__file__).resolve(),
               root / 'packages/db/src/privacy.ts',
