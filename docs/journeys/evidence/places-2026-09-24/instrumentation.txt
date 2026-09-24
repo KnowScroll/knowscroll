@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.PlacesJourneyTest:.
 
-Time: 16.359
+Time: 16.982
 
 OK (1 test)
 

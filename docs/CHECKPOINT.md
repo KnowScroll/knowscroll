@@ -15,8 +15,10 @@ planets, regions and sightings on the accepted Atlas visuals, and a place sheet 
 Scroll counts, sightings with their claims, chronicle lines that open their evidence, and "Set
 aside". Authored geography stays for Sources and the labelled preview.
 
-Verification (merged with main at `79be40e`): pure 8 (4 mutants), HTTP 5, backend 827+13, web 82,
-Android 161 units + lint, and the emulator places journey with SQL lineage; see the
+A fresh-context review found 1 blocking defect (a sighting whose subject the reader then read stayed
+live with attention; Android refused the atlas) and 4 important ones; all fixed test-first.
+Verification (merged with main at `95f7481`): pure 11 (4 mutants), HTTP 6, backend 831+13, web 87,
+Android 178 units + lint, and the emulator places journey with SQL lineage; see the
 [evidence](journeys/evidence/places-2026-09-24/README.md). Preview restored; no provider call.
 
 ## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)
