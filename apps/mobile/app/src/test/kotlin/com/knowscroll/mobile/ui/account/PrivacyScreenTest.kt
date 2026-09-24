@@ -20,6 +20,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.core.app.ActivityOptionsCompat
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import java.io.File
+import com.knowscroll.mobile.ui.keep.humanDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -122,7 +123,9 @@ class PrivacyScreenTest {
         render(PrivacyState.Loaded("u1", recordingPausedAt = "2026-09-24T00:00:00Z", privacyEpoch = 1))
         composeRule.onNodeWithContentDescription("Resume recording").assertHeightIsAtLeast(48.dp)
         composeRule.onAllNodesWithContentDescription("Pause recording").assertCountEquals(0)
-        composeRule.onAllNodesWithText("Recording is paused since 2026-09-24T00:00:00Z. Nothing new is written to your history.").assertCountEquals(1)
+        // A date the reader reads, never the server's timestamp.
+        composeRule.onAllNodesWithText("Recording is paused since ${humanDate("2026-09-24T00:00:00Z")}. Nothing new is written to your history.").assertCountEquals(1)
+        composeRule.onAllNodesWithText("2026-09-24T00:00:00Z", substring = true).assertCountEquals(0)
     }
 
     @Test

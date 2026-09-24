@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.common.CosmosBackground
+import com.knowscroll.mobile.ui.keep.humanDate
 import com.knowscroll.mobile.ui.theme.Cosmos
 import java.io.OutputStream
 import java.text.SimpleDateFormat
@@ -169,7 +170,7 @@ private fun RecordingSection(recordingPausedAt: String?, pause: PrivacyOperation
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.privacy_recording_heading), style = MaterialTheme.typography.titleLarge, color = Cosmos.Cream)
         Text(
-            if (recordingPausedAt != null) stringResource(R.string.privacy_recording_paused, recordingPausedAt)
+            if (recordingPausedAt != null) stringResource(R.string.privacy_recording_paused, humanDate(recordingPausedAt))
             else stringResource(R.string.privacy_recording_active),
             color = Cosmos.MutedOnDark,
         )
