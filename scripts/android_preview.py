@@ -25,6 +25,17 @@ import subprocess
 import tarfile
 
 VAULT_PREFS = 'shared_prefs/ks_session_vault_v1.xml'
+# SessionVault's ciphertext key: present only while a session is stored (sign-out removes it but
+# leaves the file behind, so the file alone proves nothing).
+VAULT_SESSION_KEY = b'name="token_ciphertext"'
+
+
+def _holds_session(data):
+    with tarfile.open(fileobj=io.BytesIO(data), mode='r:') as archive:
+        for member in archive.getmembers():
+            if member.isfile() and member.name == VAULT_PREFS:
+                return VAULT_SESSION_KEY in archive.extractfile(member).read()
+    return False
 
 
 def _listing(data):
@@ -80,7 +91,7 @@ class PreviewGuard:
                 'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
             return False
         data, listing = self._pull_data()
-        if any(name == VAULT_PREFS for name, _, _ in listing):
+        if _holds_session(data):
             if os.environ.get('KS_PREVIEW_ACCEPT_SIGN_OUT') != '1':
                 raise RuntimeError('The preview holds a signed-in session sealed by its Android keystore, which a data restore '
                                    'cannot bring back. Sign out in the preview first, or set KS_PREVIEW_ACCEPT_SIGN_OUT=1 to '
@@ -115,7 +126,8 @@ class PreviewGuard:
     def _receipt(self, **fields):
         (self.out / 'preview-restored.json').write_text(json.dumps({
             'apkSha256': [_sha(apk) for apk in self.apks], 'backup': self.backup.name, 'files': len(self.listing),
-            'sessionLost': self.session_lost, **fields,
+            'sessionLost': self.session_lost, 'guard': 'scripts/android_preview.py',
+            'guardSha256': _sha(Path(__file__)), **fields,
             'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}, indent=2) + '\n')
 
     def _discard_backup(self):
@@ -133,8 +145,13 @@ class PreviewGuard:
 
     def _restore(self):
         if not self._replaced():
-            self._receipt(replaced=False, dataVerified=True)
-            self._discard_backup()
+            # The run never installed over the preview (runners install before any `pm clear`), so
+            # it is left exactly as it is. Its data is compared too: if it changed meanwhile (the
+            # owner used the preview), the backup is kept rather than restored over their changes.
+            _, current = self._pull_data()
+            unchanged = current == self.listing
+            self._receipt(replaced=False, dataUnchanged=unchanged, sessionLost=False)
+            if unchanged: self._discard_backup()
             return
         if len(self.apks) == 1:
             subprocess.run(['adb', 'install', '-r', '-d', str(self.apks[0])], check=True, stdout=subprocess.DEVNULL)

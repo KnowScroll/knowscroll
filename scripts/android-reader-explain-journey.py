@@ -374,6 +374,7 @@ try:
 
     paths = [p for p in Path('apps/mobile').rglob('*') if p.is_file() and not {'build', '.gradle', '.kotlin'}.intersection(p.parts) and p.name != 'local.properties']
     paths.append(Path('scripts/android-reader-explain-journey.py'))
+    paths.append(Path('scripts/android_preview.py'))
     receipt = {'check': 'android-reader-explain-91', 'result': 'passed',
                'observedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
                'source': {'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),

@@ -31,7 +31,7 @@ All values are in ms. The medians use the four baseline runs 2–5 (runs 3–5 i
 after runs, run 2 just before them) and the three after runs. Baseline run 1 is kept in
 `summary.json` and not in the medians, and that choice matters. Run 1 came first, before the
 series, and why the host behaved differently then is not known. It is the one run near the recorded 47.40 ms (p95 44.15,
-p50 25.89) and it drew noticeably fewer frames (446 against 605–666). No after run was made in
+p50 25.89) and it drew noticeably fewer frames (446, against 561–666 in every other run). No after run was made in
 that host state. So host state alone moved the p95 by about 50% within the hour, and the evidence
 here is the interleaved runs. Dropping run 2 as well changes nothing (baseline p95 67.74, animation
 10.48).
