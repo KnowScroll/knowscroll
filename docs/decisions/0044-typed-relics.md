@@ -108,7 +108,7 @@ a new epoch, and away items for corrections of the new kinds (their state alread
 
 ## Consequences
 
-- Migration `0038_typed_relics.sql`: `relic` gains `place_id`, `formation_delta_id`, `asset_id`,
+- Migration `0039_typed_relics.sql`: `relic` gains `place_id`, `formation_delta_id`, `asset_id`,
   `asset_revision`, `scroll_title`, `exposure_id`, `ask_id`; `kind` widens; the connection columns
   become per-kind; `cited_claim_keys` is what the Relic rests on (a passage's claim, the answer's
   Scroll claims); one-per-thing indexes; the keep guard covers each kind. `reader_objection` (passage
