@@ -10,6 +10,12 @@
  * - A sighting whose relation is no longer active retires; a rejection is the reader's and is final.
  */
 export const CARTOGRAPHER_V1 = 'cartographer-v1';
+/** v2 (ADR-0037) adds foundation Stars; everything v1 decides is unchanged. */
+export const CARTOGRAPHER_V2 = 'cartographer-v2';
+export const CARTOGRAPHER_POLICY = CARTOGRAPHER_V2;
+const FOUNDATION_KINDS: ReadonlySet<RelationKind> = new Set(['explains', 'prerequisite_for']);
+const FOUNDATION_MIN_CONNECTIONS = 3;
+const FOUNDATION_MIN_PLACES = 2;
 const MAX_PARENT_HOPS = 2;
 const MAX_SIGHTINGS_PER_PLACE = 5;
 
@@ -28,6 +34,9 @@ export interface PlaceView {
   state: 'live' | 'promoted' | 'rejected' | 'retired';
   /** A sighting's relation; null for planets and regions. */
   basis: TypedRelation | null;
+  /** v2: whether this place is a foundation, and the connections its recognition cited. */
+  loadBearing?: boolean;
+  foundationBasis?: readonly TypedRelation[] | null;
 }
 export interface CartographerInput {
   concepts: readonly ConceptNode[];
@@ -45,7 +54,9 @@ export type PlaceDelta =
   | Common & { kind: 'sighting_appeared'; parentAnchor: string; evidence: { relation: TypedRelation } }
   | Common & { kind: 'sighting_retired'; placeId: string; evidence: { relation: TypedRelation } | { rejectedPlaceId: string } | { met: { state: PlaceAccount['state']; episodes: number } } }
   | Common & { kind: 'place_rejected'; placeId: string; evidence: Record<string, never> }
-  | Common & { kind: 'place_released'; placeId: string; evidence: { rejectedPlaceId: string } };
+  | Common & { kind: 'place_released'; placeId: string; evidence: { rejectedPlaceId: string } }
+  | Common & { kind: 'foundation_recognised'; evidence: { relations: TypedRelation[]; holdsUp: string[] } }
+  | Common & { kind: 'foundation_withdrawn'; evidence: { relations: TypedRelation[] } };
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const relationKey = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `c:${r.ref.claimId}` : `b:${r.ref.bridgeId}`}`;
@@ -58,7 +69,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
   const rejected = new Set(input.rejectedAnchors);
   const accounts = new Map(input.accounts.map(a => [a.concept, a]));
   const active = new Set(input.relations.map(relationKey));
-  const common = (anchor: string, causalClass: CausalClass) => ({ anchor, causalClass, policyVersion: CARTOGRAPHER_V1 });
+  const common = (anchor: string, causalClass: CausalClass) => ({ anchor, causalClass, policyVersion: CARTOGRAPHER_POLICY });
   const deltas: PlaceDelta[] = [];
 
   // Anchors that currently have a live place, by kind, as the plan unfolds.
@@ -131,6 +142,30 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
       live.set(other, { placeId: '', anchor: other, kind: 'sighting', parentAnchor: anchor, state: 'live', basis: relation });
     }
   }
+
+  // 4. Foundation Stars (ADR-0037): a planet or region whose anchor explains, or is a prerequisite
+  // for, at least three things across at least two of the reader's other live places, each
+  // connection sourced (active claim or admitted bridge; a pair counts once). Edge count only
+  // triggers it; attention plays no part. Withdrawn, with its cause, when that stops being true.
+  const places = [...live.values()].filter(p => p.kind === 'planet' || p.kind === 'region').sort((a, b) => byCode(a.anchor, b.anchor));
+  for (const p of places) {
+    const counted = new Map<string, TypedRelation>();
+    for (const r of relations) {
+      if (r.from !== p.anchor || !FOUNDATION_KINDS.has(r.kind) || r.to === p.anchor) continue;
+      const target = live.get(r.to);
+      if (!target || (target.kind !== 'planet' && target.kind !== 'region')) continue;
+      if (!counted.has(`${r.to}|${r.kind}`)) counted.set(`${r.to}|${r.kind}`, r);
+    }
+    const holdsUp = [...new Set([...counted.values()].map(r => r.to))].sort(byCode);
+    const foundation = counted.size >= FOUNDATION_MIN_CONNECTIONS && holdsUp.length >= FOUNDATION_MIN_PLACES;
+    if (foundation && !p.loadBearing) {
+      deltas.push({ ...common(p.anchor, 'substrate_neighbourhood'), kind: 'foundation_recognised', evidence: { relations: [...counted.values()], holdsUp } });
+    } else if (!foundation && p.loadBearing) {
+      const previous = [...(p.foundationBasis ?? [])];
+      const sourceChanged = previous.some(r => !active.has(relationKey(r)));
+      deltas.push({ ...common(p.anchor, sourceChanged ? 'source_correction' : 'reader_correction'), kind: 'foundation_withdrawn', evidence: { relations: previous } });
+    }
+  }
   return deltas;
 }
 
@@ -138,7 +173,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
 export function planRejection(places: readonly PlaceView[], placeId: string): PlaceDelta[] {
   const target = places.find(p => p.placeId === placeId && p.state === 'live' && p.kind !== 'sighting');
   if (!target) throw new Error('That is not a live place');
-  const common = (anchor: string) => ({ anchor, causalClass: 'reader_correction' as const, policyVersion: CARTOGRAPHER_V1 });
+  const common = (anchor: string) => ({ anchor, causalClass: 'reader_correction' as const, policyVersion: CARTOGRAPHER_POLICY });
   const children = places.filter(p => p.state === 'live' && p.parentAnchor === target.anchor).sort((a, b) => byCode(a.anchor, b.anchor));
   return [
     { ...common(target.anchor), kind: 'place_rejected', placeId: target.placeId, evidence: {} },

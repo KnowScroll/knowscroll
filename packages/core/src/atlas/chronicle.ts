@@ -17,6 +17,8 @@ export function relationPhrase(r: { kind: RelationKind; fromName: string; toName
 export function chronicleLine(d: {
   kind: string; causalClass: string; name: string; parentName: string | null;
   relation: { kind: RelationKind; fromName: string; toName: string } | null;
+  /** foundation_recognised: the names of the places it holds up. */
+  holdsUp?: readonly string[];
 }): string {
   switch (d.kind) {
     case 'place_formed':
@@ -31,7 +33,16 @@ export function chronicleLine(d: {
       return `You set ${d.name} aside.`;
     case 'place_released':
       return `${d.name} now stands on its own.`;
+    case 'foundation_recognised':
+      return `${d.name} holds up ${listNames(d.holdsUp ?? [])}.`;
+    case 'foundation_withdrawn':
+      return `${d.name} no longer holds up the places around it.`;
     default:
       return `${d.name} changed.`;
   }
+}
+
+function listNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? 'the places around it';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }

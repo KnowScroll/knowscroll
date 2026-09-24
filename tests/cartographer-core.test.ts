@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CARTOGRAPHER_V1, planPlaces, planRejection,
+  CARTOGRAPHER_POLICY, planPlaces, planRejection,
   type CartographerInput, type ConceptNode, type PlaceView, type PlaceAccount, type TypedRelation,
 } from '../packages/core/src/atlas/cartographer.ts';
 
@@ -39,7 +39,7 @@ test('an anchored concept with no anchored ancestor becomes a free planet, with 
   const plan = planPlaces(input({ accounts: [anchored('earth.ocean.tides')] }));
   const formed = plan.filter(d => d.kind === 'place_formed');
   assert.equal(formed.length, 1);
-  assert.deepEqual({ ...formed[0], evidence: undefined }, { kind: 'place_formed', causalClass: 'personal_exploration', anchor: 'earth.ocean.tides', placeKind: 'planet', parentAnchor: null, evidence: undefined, policyVersion: CARTOGRAPHER_V1 });
+  assert.deepEqual({ ...formed[0], evidence: undefined }, { kind: 'place_formed', causalClass: 'personal_exploration', anchor: 'earth.ocean.tides', placeKind: 'planet', parentAnchor: null, evidence: undefined, policyVersion: CARTOGRAPHER_POLICY });
   assert.deepEqual(formed[0]!.evidence, { account: { state: 'anchored', episodes: 4, daysActive: 2, voluntary: 2, sourceFamilies: 2, mass: 5.2, episodeIds: ['e-earth.ocean.tides-1', 'e-earth.ocean.tides-2'], markIds: ['m-earth.ocean.tides'] } });
 });
 
