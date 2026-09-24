@@ -6,6 +6,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.AtlasDelta
+import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.ExposureRequest
 import com.knowscroll.mobile.data.HistoryClearRequest
 import com.knowscroll.mobile.data.HistoryClearReceipt
@@ -27,6 +29,8 @@ import com.knowscroll.mobile.ui.why.WhyPanel
 import com.knowscroll.mobile.ui.why.correctedText
 import com.knowscroll.mobile.ui.branch.branchAvailabilityOf
 import com.knowscroll.mobile.ui.branch.branchOpenConflict
+import com.knowscroll.mobile.ui.system.RejectPlaceConflict
+import com.knowscroll.mobile.ui.system.rejectPlaceConflict
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -97,6 +101,34 @@ sealed interface SystemState {
     data class Unavailable(val message:String):SystemState
 }
 
+/** #134: the reader's live places (ADR-0036, `GET /v1/atlas`). Loaded alongside [SystemState] but
+ * independent of it -- a failure here never blocks the System screen, which falls back to Sources
+ * (`ui/system/AtlasPresentation.kt`'s `defaultAtlasLayer`). Never restored across process death,
+ * same as [SystemState]: a fresh entry always re-reads the atlas. */
+sealed interface AtlasState {
+    data object Idle:AtlasState
+    data object Loading:AtlasState
+    data class Loaded(val response:AtlasResponse):AtlasState
+    data class Unavailable(val message:String):AtlasState
+}
+
+/** #134: "Set aside" on a planet/region, mirroring [HistoryClearState]/[SignOutState]'s own
+ * confirm/cancel/confirm shape. */
+sealed interface PlaceRejectState {
+    data object Idle:PlaceRejectState
+    data class Confirming(val placeId:String):PlaceRejectState
+    data class Sending(val placeId:String):PlaceRejectState
+    data class Failed(val placeId:String,val message:String):PlaceRejectState
+}
+
+/** #134: a chronicle line's evidence (`GET /v1/atlas/deltas/:deltaId`), opened on demand. */
+sealed interface AtlasEvidenceState {
+    data object Idle:AtlasEvidenceState
+    data class Loading(val deltaId:String):AtlasEvidenceState
+    data class Loaded(val deltaId:String,val delta:AtlasDelta):AtlasEvidenceState
+    data class Failed(val deltaId:String,val message:String):AtlasEvidenceState
+}
+
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
     private val api=ApiClient()
     private val store=StateStore(application)
@@ -122,6 +154,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val _historyClear=MutableStateFlow<HistoryClearState>(HistoryClearState.Idle); val historyClear=_historyClear.asStateFlow()
     private val _signOut=MutableStateFlow<SignOutState>(SignOutState.Idle); val signOut=_signOut.asStateFlow()
     private val _system=MutableStateFlow<SystemState>(SystemState.Idle); val system=_system.asStateFlow()
+    /** #134: the reader's live places, alongside [_system] -- see [refreshAtlas]. */
+    private val _atlas=MutableStateFlow<AtlasState>(AtlasState.Idle); val atlas=_atlas.asStateFlow()
+    private val _placeReject=MutableStateFlow<PlaceRejectState>(PlaceRejectState.Idle); val placeReject=_placeReject.asStateFlow()
+    private val _atlasEvidence=MutableStateFlow<AtlasEvidenceState>(AtlasEvidenceState.Idle); val atlasEvidence=_atlasEvidence.asStateFlow()
+    private var evidenceJob:kotlinx.coroutines.Job?=null
     private val _toast=MutableStateFlow<String?>(null); val toast=_toast.asStateFlow()
     /** #131: live continuations for the Scroll being read (null when none apply). */
     private val _branches=MutableStateFlow<BranchPanel?>(null); val branches=_branches.asStateFlow()
@@ -681,6 +718,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val universeId=observedUniverseId
         _screen.value=Screen.System
         _system.value=SystemState.Loading
+        refreshAtlas(version,epoch,universeId)
         viewModelScope.launch {
             try {
                 val response=api.getWorldSystem()
@@ -699,6 +737,28 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
     }
 
+    /** #134: the reader's live places, independent of [enterSystem]'s worlds fetch above -- a
+     * failure here leaves the System screen usable via Sources, never failing the whole screen. */
+    private fun refreshAtlas(version:Long,epoch:Long,universeId:String){
+        _atlas.value=AtlasState.Loading
+        viewModelScope.launch {
+            try {
+                val response=api.getAtlas()
+                if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _atlas.value=AtlasState.Loaded(response)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                if(invalidatesReader(e)){
+                    purgeForScope(universeId,epoch)
+                    failClosed(message(e))
+                } else {
+                    _atlas.value=AtlasState.Unavailable(message(e))
+                }
+            }
+        }
+    }
+
     fun retrySystem(){
         if(_screen.value is Screen.System)enterSystem()
     }
@@ -707,11 +767,83 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
      * universe -- unlike `returnToUniverse()`, nothing private was ever held here to purge. */
     fun returnFromSystem(){
         if(_screen.value !is Screen.System)return
-        navigationVersion++ // invalidates any in-flight getWorldSystem() so a stale response cannot land
+        navigationVersion++ // invalidates any in-flight getWorldSystem()/getAtlas() so a stale response cannot land
         busy=false
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
         _system.value=SystemState.Idle
+        _atlas.value=AtlasState.Idle
+        _placeReject.value=PlaceRejectState.Idle
+        evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
+    }
+
+    /** #134: "Set aside" on a live planet or region (not a sighting -- the server refuses that). */
+    fun requestSetAside(placeId:String){
+        if(reconciling || !ready)return
+        val atlas=(_atlas.value as? AtlasState.Loaded)?.response ?: return
+        if(atlas.places.none{it.placeId==placeId && it.kind!="sighting"})return
+        _placeReject.value=PlaceRejectState.Confirming(placeId)
+    }
+
+    fun cancelSetAside(){
+        if(_placeReject.value is PlaceRejectState.Confirming)_placeReject.value=PlaceRejectState.Idle
+    }
+
+    fun confirmSetAside(){
+        val confirming=_placeReject.value as? PlaceRejectState.Confirming ?: return
+        if(!ready || reconciling)return
+        val placeId=confirming.placeId
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _placeReject.value=PlaceRejectState.Sending(placeId)
+        viewModelScope.launch {
+            try {
+                val response=api.rejectPlace(placeId,epoch)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _atlas.value=AtlasState.Loaded(response)
+                _placeReject.value=PlaceRejectState.Idle
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                val conflict=(e as? ApiException.Server)?.let(::rejectPlaceConflict)
+                when {
+                    conflict==RejectPlaceConflict.StaleEpoch -> {
+                        _placeReject.value=PlaceRejectState.Idle
+                        reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
+                    }
+                    conflict==RejectPlaceConflict.Paused ->
+                        _placeReject.value=PlaceRejectState.Failed(placeId,"Recording was paused, so nothing was set aside.")
+                    invalidatesReader(e) -> {purgeForScope(universeId,epoch);failClosed(message(e))}
+                    else -> _placeReject.value=PlaceRejectState.Failed(placeId,message(e))
+                }
+            }
+        }
+    }
+
+    /** #134: a chronicle line's evidence. A second tap on the same, already-open line closes it. */
+    fun openEvidence(deltaId:String){
+        val current=_atlasEvidence.value
+        if(current is AtlasEvidenceState.Loaded && current.deltaId==deltaId){_atlasEvidence.value=AtlasEvidenceState.Idle;return}
+        if(current is AtlasEvidenceState.Loading && current.deltaId==deltaId)return
+        evidenceJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _atlasEvidence.value=AtlasEvidenceState.Loading(deltaId)
+        evidenceJob=viewModelScope.launch {
+            try {
+                val delta=api.getAtlasDelta(deltaId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_atlasEvidence.value as? AtlasEvidenceState.Loading)?.deltaId!=deltaId)return@launch
+                _atlasEvidence.value=AtlasEvidenceState.Loaded(deltaId,delta)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e));return@launch}
+                if((_atlasEvidence.value as? AtlasEvidenceState.Loading)?.deltaId==deltaId)_atlasEvidence.value=AtlasEvidenceState.Failed(deltaId,message(e))
+            }
+        }
+    }
+
+    fun closeEvidence(){
+        evidenceJob?.cancel()
+        _atlasEvidence.value=AtlasEvidenceState.Idle
     }
 
     fun requestHistoryClearConfirmation(){
@@ -904,6 +1036,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         if(version==navigationVersion && observedUniverseId==retainedUniverse && observedPrivacyEpoch==retainedEpoch){
                             _system.value=SystemState.Loaded(response)
                         }
+                        // #134: refreshes the reader's places on return to the System screen too,
+                        // e.g. after a keep off-screen formed or changed one (own coroutine: a
+                        // failure here must not fail the worlds refresh above).
+                        refreshAtlas(version,retainedEpoch,retainedUniverse)
                     }
                 }
             } catch(e:Exception){
@@ -973,6 +1109,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         whyJob?.cancel();_why.value=null;pendingCorrections.clear()
         _scroll.value=ScrollState.Idle
         _system.value=SystemState.Idle
+        _atlas.value=AtlasState.Idle
+        _placeReject.value=PlaceRejectState.Idle
+        evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
         _screen.value=Screen.Universe
         savedState["screen"]="universe"
     }
@@ -980,6 +1119,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private fun failClosed(reason:String){
         ready=false;session=null
         _system.value=SystemState.Idle
+        _atlas.value=AtlasState.Idle
+        _placeReject.value=PlaceRejectState.Idle
+        evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
         _screen.value=Screen.Universe
         _scroll.value=ScrollState.Idle
         _universe.value=UniverseState.Unavailable(reason)
