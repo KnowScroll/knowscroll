@@ -59,7 +59,11 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
    Scroll reader's own why sheet (the same composable, the same recorded data and the same
    corrections), worded for a Reel. Its continuations are the same live `GET …/branches` list, shown in
    the existing "Continue →" rail and taken by the horizontal swipe; a continuation opens its Scroll
-   with the Reel as its origin, and Back returns to the Reel at its position. Per the owner's decision
+   with the Reel as its origin, and Back returns to the Reel at its position. The "Continue →" chooser
+   is the Scroll reader's own continuation section (`BranchSection`, without its connection sheet;
+   #183): while a chosen continuation opens it says so and offers nothing else to choose, a list that
+   could not be loaded offers Retry, an opening that failed says why there, and a Reel the reader
+   comes back to from an opened continuation has its chooser closed. Per the owner's decision
    of 2026-09-24, the sheet shows no source: no source names, publishers, URLs, licences or counts.
    The authored preview has no recorded decision, so it shows no "Why".
 6. **Policy tuning is evidence-led and versioned.** `scripts/composer-compare.ts` walks golden and

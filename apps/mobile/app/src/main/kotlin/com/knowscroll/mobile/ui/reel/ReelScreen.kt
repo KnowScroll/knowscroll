@@ -20,8 +20,10 @@ import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.BuildConfig
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.*
+import com.knowscroll.mobile.ui.branch.BranchPanel
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
+import com.knowscroll.mobile.ui.scroll.BranchSection
 import com.knowscroll.mobile.ui.scroll.ExplainSheet
 import com.knowscroll.mobile.ui.scroll.WhyControls
 import com.knowscroll.mobile.ui.theme.Cosmos
@@ -39,10 +41,10 @@ fun ReelScreen(
     onVisible: () -> Unit,
     onAuthorityFailure: () -> Unit,
     onPosition: (String, Int) -> Unit,
-    branches: BranchAvailability = BranchAvailability.Unavailable,
+    /** #167: the live continuations, their opening and why one failed; #183: the Scroll reader's own. */
+    branches: BranchPanel? = null,
     onBranch: (EncounterBranch) -> Unit = {},
-    /** #167: why a continuation could not be opened (e.g. it was withdrawn), shown until it settles. */
-    branchMessage: String? = null,
+    onRetryBranches: () -> Unit = {},
     preview: Boolean = false,
     onPrevious: (() -> Unit)? = null,
     /** #167 (ADR-0043): the recorded "why" and its corrections, through the Scroll reader's own sheet.
@@ -55,12 +57,22 @@ fun ReelScreen(
     mediaToken: String? = BuildConfig.KS_DEV_TOKEN.takeIf { it.isNotBlank() },
 ) {
     val media = requireNotNull(state.item.media)
+    val availability = branches?.availability ?: BranchAvailability.Unavailable
     var branchHelp by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
+    // #183: a continuation chosen in the chooser, until it settles. The chooser shows it opening, and
+    // says there why one failed; one that opened took the reader away, so the Reel they come back to
+    // has its chooser closed.
+    var chosen by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
+    val chooser = branchHelp && !(chosen && branches?.opening == null && branches?.message == null)
+    val openChooser = {
+        chosen = false
+        branchHelp = true
+    }
     var explain by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
     var drag by remember { mutableStateOf(Offset.Zero) }
     val threshold = with(LocalDensity.current) { 72.dp.toPx() }
     val canNext = state.exposureId.isNotEmpty() && canRequestDiscovery(state.keep, state.discovery)
-    BackHandler(enabled = branchHelp || explain) {
+    BackHandler(enabled = chooser || explain) {
         branchHelp = false
         explain = false
     }
@@ -101,9 +113,9 @@ fun ReelScreen(
                         )
                     },
                     state.readingPosition.toLong(),
-                    active = !branchHelp && !explain,
+                    active = !chooser && !explain,
                     gestureModifier =
-                        Modifier.pointerInput(state.item.assetId, canNext, branches) {
+                        Modifier.pointerInput(state.item.assetId, canNext, availability) {
                             detectDragGestures(
                                 onDragStart = { drag = Offset.Zero },
                                 onDragCancel = { drag = Offset.Zero },
@@ -113,10 +125,10 @@ fun ReelScreen(
                                             kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)
                                     ) {
                                         val choices =
-                                            (branches as? BranchAvailability.Ready)
+                                            (availability as? BranchAvailability.Ready)
                                                 ?.branches
                                                 .orEmpty()
-                                        if (choices.isEmpty()) branchHelp = true
+                                        if (choices.isEmpty()) openChooser()
                                         else
                                             onBranch(
                                                 if (drag.x < 0) choices.first() else choices.last()
@@ -153,7 +165,7 @@ fun ReelScreen(
                                     else "Save Relic"
                                 )
                             }
-                        OutlinedButton(onClick = { branchHelp = true }) { Text("Continue →") }
+                        OutlinedButton(onClick = openChooser) { Text("Continue →") }
                         if (onPrevious != null)
                             TextButton(onClick = onPrevious) { Text("Previous ↓") }
                         TextButton(onClick = onNext, enabled = canNext) { Text("Next ↑") }
@@ -181,7 +193,7 @@ fun ReelScreen(
                             Text("You have reached the end of this library.", color = Poster.Ink)
                         else -> Unit
                     }
-                    branchMessage?.let { Text(it, color = Poster.Ink) }
+                    branches?.message?.let { Text(it, color = Poster.Ink) }
                     if (state.keep is KeepState.Failed || state.keep is KeepState.Conflict)
                         Text(
                             "This Relic could not be saved. Retry keeps the same request.",
@@ -202,7 +214,7 @@ fun ReelScreen(
             ) {
                 explain = false
             }
-        if (branchHelp)
+        if (chooser)
             AlertDialog(
                 containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,
                 titleContentColor = com.knowscroll.mobile.ui.theme.Cosmos.InkOnCream,
@@ -210,12 +222,14 @@ fun ReelScreen(
                 onDismissRequest = { branchHelp = false },
                 title = { Text("Continue this idea") },
                 text = {
-                    BranchRail(
+                    BranchSection(
                         branches,
                         {
-                            branchHelp = false
+                            chosen = true
                             onBranch(it)
                         },
+                        onRetryBranches,
+                        onWhy = null,
                     )
                 },
                 confirmButton = {

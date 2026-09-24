@@ -16,6 +16,7 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.data.LiveBranch
 import com.knowscroll.mobile.ui.BranchAvailability
 import com.knowscroll.mobile.ui.BranchRail
+import com.knowscroll.mobile.ui.EncounterBranch
 import com.knowscroll.mobile.ui.branch.BranchPanel
 import com.knowscroll.mobile.ui.theme.Cosmos
 
@@ -24,30 +25,32 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * Everything shown comes from the server's admitted bridges; the sheet shows the mechanism,
  * where the connection stops and each claim it rests on (#161: never where a claim came from),
  * and lets the reader hide a connection for themselves without changing it for anyone else.
+ * #183: the Reel's "Continue this idea" chooser is this same section, without [onWhy] (a Reel has
+ * no connection sheet of its own).
  */
 @Composable
 internal fun BranchSection(
     panel: BranchPanel?,
-    onOpenBranch: (String) -> Unit,
+    onOpenBranch: (EncounterBranch) -> Unit,
     onRetry: () -> Unit,
-    onWhy: () -> Unit,
+    onWhy: (() -> Unit)?,
 ) {
     val availability = panel?.availability ?: BranchAvailability.Unavailable
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BranchRail(
             availability = availability,
-            onBranch = { onOpenBranch(it.id) },
+            onBranch = onOpenBranch,
             enabled = panel?.opening == null,
         )
         if (panel?.opening != null) Text(stringResource(R.string.branch_opening), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
         panel?.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream) }
-        when (availability) {
-            is BranchAvailability.Ready -> TextButton(
+        when {
+            availability is BranchAvailability.Ready && onWhy != null -> TextButton(
                 onClick = onWhy,
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream),
                 modifier = Modifier.heightIn(min = 48.dp),
             ) { Text(stringResource(R.string.branch_why_action)) }
-            BranchAvailability.Failed -> TextButton(
+            availability == BranchAvailability.Failed -> TextButton(
                 onClick = onRetry,
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream),
                 modifier = Modifier.heightIn(min = 48.dp),
