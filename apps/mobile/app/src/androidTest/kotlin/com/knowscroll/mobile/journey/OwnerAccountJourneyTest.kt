@@ -44,7 +44,7 @@ class OwnerAccountJourneyTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") {
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) {
             "The owner account journey requires the separate journey app"
         }
     }

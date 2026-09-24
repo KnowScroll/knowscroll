@@ -25,7 +25,7 @@ class AtlasProfileTest {
     fun profile() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        check(context.packageName == "com.knowscroll.mobile.journey")
+        check(context.packageName.startsWith("com.knowscroll.mobile.journey"))
         val automation = instrumentation.uiAutomation
         fun find(predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
             fun walk(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {

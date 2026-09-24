@@ -40,7 +40,7 @@ class TraceRevisitJourneyTest {
     private fun store() = StateStore(instrumentation.targetContext)
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") {
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) {
             "Trace revisit verification requires the separate journey app"
         }
     }

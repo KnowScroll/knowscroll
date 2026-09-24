@@ -24,12 +24,12 @@ for prior in ('receipt.json','native-journey.json','rich-preview.json','media-fa
 allowed=('PATH','HOME','LANG','LC_ALL','KS_DEV_ROOT','ANDROID_HOME','ANDROID_SDK_ROOT','ANDROID_AVD_HOME','ANDROID_USER_HOME','GRADLE_USER_HOME','JAVA_HOME','npm_config_cache','COREPACK_HOME','TMPDIR')
 env={key:os.environ[key] for key in allowed if key in os.environ}
 env.update({key:'' for key in config})
-env.update(DATABASE_URL=urlunparse(source._replace(path='/'+name)),KS_DEV_TOKEN=secrets.token_hex(32),NODE_ENV='test',PORT=str(port),KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}',KS_MEDIA_ROOT=str(out/'media'),KS_NATIVE_VIDEO=str(video))
+env.update(DATABASE_URL=urlunparse(source._replace(path='/'+name)),KS_DEV_TOKEN=secrets.token_hex(32),NODE_ENV='test',PORT=str(port),KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_APP_ID_SUFFIX='.journeytest',KS_MEDIA_ROOT=str(out/'media'),KS_NATIVE_VIDEO=str(video))
 args=['-h',source.hostname,'-p',str(source.port or 5432),'-U',source.username]
 admin={**env,'PGPASSWORD':source.password or ''}
 processes=[]
 created=False
-package='com.knowscroll.mobile.journey'
+package='com.knowscroll.mobile.journeytest'
 def run(command,**kwargs): return subprocess.run(command,check=True,**kwargs)
 def adb(*command): return subprocess.check_output(['adb',*command],text=True).strip()
 font=adb('shell','settings','get','system','font_scale')

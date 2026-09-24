@@ -1,6 +1,6 @@
 """Issue78: saved Trace read, HTTP/worker/PostgreSQL and real Android restoration.
 
-Only disposable data and the separate .journey Android package are mutated.
+Only disposable data and the separate .journeytest Android package are mutated.
 The proxy drops trace-read sockets and applies declared disposable source/session
 faults. Every successful response comes from the actual API and PostgreSQL.
 """
@@ -41,10 +41,10 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=config['KS_DEV_TOKEN'], PORT='4316', NODE_ENV='test',
-           KS_JOURNEY_API_URL='http://10.0.2.2:4311')
+           KS_JOURNEY_API_URL='http://10.0.2.2:4311', KS_APP_ID_SUFFIX='.journeytest')
 out = root / 'artifacts/android-trace-revisit-journey'
 out.mkdir(parents=True, exist_ok=True)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 processes = []
 created = False
 proxy = None

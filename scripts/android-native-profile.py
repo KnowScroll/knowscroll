@@ -30,7 +30,7 @@ source = urlparse(config['DATABASE_URL'])
 if source.hostname not in ('127.0.0.1', 'localhost', '::1'):
     raise RuntimeError('UI verification requires loopback PostgreSQL')
 name = 'knowscroll_demo_ui_' + secrets.token_hex(8)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 out = root / 'artifacts/android-spatial/profile' / (os.environ.get('KS_PROFILE_LABEL') or datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
 out.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME',
@@ -40,7 +40,7 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test', PORT='4317',
-           KS_JOURNEY_API_URL='http://10.0.2.2:4317')
+           KS_JOURNEY_API_URL='http://10.0.2.2:4317', KS_APP_ID_SUFFIX='.journeytest')
 processes = []
 
 
@@ -63,7 +63,7 @@ motion = adb('shell', 'settings', 'get', 'global', 'animator_duration_scale')
 sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
-guard = PreviewGuard(package, out)
+guard = PreviewGuard('com.knowscroll.mobile.journey', out)
 try:
     guard.preserve()
     import socket

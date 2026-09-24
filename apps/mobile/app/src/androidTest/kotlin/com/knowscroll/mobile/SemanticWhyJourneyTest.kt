@@ -47,7 +47,7 @@ class SemanticWhyJourneyTest {
     }
 
     private fun journey() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") { "Semantic journey requires the separate journey app" }
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) { "Semantic journey requires the separate journey app" }
         compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Enter Scroll").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
         waitReadingExposed()

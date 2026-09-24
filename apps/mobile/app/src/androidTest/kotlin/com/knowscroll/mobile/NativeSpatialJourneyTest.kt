@@ -58,7 +58,7 @@ class NativeSpatialJourneyTest {
 
     @Test
     fun worldToRealReelAndBack() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey")
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey"))
         val frames = Collections.synchronizedList(mutableListOf<Long>())
         val thread = HandlerThread("native-frame-metrics").apply { start() }
         val listener =

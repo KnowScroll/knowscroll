@@ -31,7 +31,7 @@ class SignOutJourneyTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") {
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) {
             "Sign-out verification requires the separate journey app"
         }
     }

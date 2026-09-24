@@ -31,7 +31,7 @@ class NativeMediaFaultTest {
     @Test
     fun bufferingRetryRedirectAndRelease() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        check(context.packageName == "com.knowscroll.mobile.journey")
+        check(context.packageName.startsWith("com.knowscroll.mobile.journey"))
         val bytes = File(context.filesDir, "native-video.mp4").readBytes()
         val server = ServerSocket(0)
         val pool = Executors.newCachedThreadPool()

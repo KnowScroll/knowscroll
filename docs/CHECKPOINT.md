@@ -1,5 +1,14 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #136 device test runs no longer install over the owner's preview (lane `136-test-app-id`)
+
+Every device test runner now builds and installs its own app, `com.knowscroll.mobile.journeytest`
+(`KS_APP_ID_SUFFIX=.journeytest`). The owner's preview, `com.knowscroll.mobile.journey`, is built only
+by `scripts/android-living-preview.py`, which sets no suffix. The instrumented tests accept either
+package. `scripts/android_preview.py` still watches the preview as a second line of defence. Proven
+by the emulator `places` journey passing as `journeytest` while the preview's APK hash stayed the
+same and the guard reported `replaced: false`.
+
 ## 2026-09-24 #131 decorative Places art labelled (lane `131-illustrative-art`)
 
 The Places layer's line now reads "Positions, orbits, moons and land art are illustrative — what's

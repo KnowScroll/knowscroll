@@ -34,7 +34,7 @@ abstract class AtlasJourneySupport {
     }
 
     protected fun openReader() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") { "Atlas journeys require the separate journey app" }
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) { "Atlas journeys require the separate journey app" }
         compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Enter Scroll").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Enter Scroll").assertIsEnabled().performClick()
         waitReading()

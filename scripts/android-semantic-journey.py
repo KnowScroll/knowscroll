@@ -33,7 +33,7 @@ assert source.hostname in ('127.0.0.1', 'localhost')
 port = int(os.environ.get('KS_SEMANTIC_PORT', '4333'))
 assert port not in (4310, 4320, 4322), 'never reuse an owner/preview port'
 name = 'knowscroll_test_semantic_' + secrets.token_hex(8)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 journey_name = os.environ.get('KS_SEMANTIC_JOURNEY', 'branch')
 JOURNEYS = {
     'branch': {'test': 'com.knowscroll.mobile.SemanticBranchJourneyTest', 'receipt': 'semantic-branch.json',
@@ -72,13 +72,13 @@ if journey_name == 'ask' and ask_transport == 'minimax':
 out = root / 'artifacts/semantic-journey' / journey_name
 out.mkdir(parents=True, exist_ok=True)
 # The owner's preview: preserved before anything replaces it, restored first in `finally` (#136).
-guard = PreviewGuard(package, out)
+guard = PreviewGuard('com.knowscroll.mobile.journey', out)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
            'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
 env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)), KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test',
-           PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_MEDIA_ROOT=str(out / 'media'))
+           PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_APP_ID_SUFFIX='.journeytest', KS_MEDIA_ROOT=str(out / 'media'))
 owner_email = 'owner-journey@knowscroll.test'
 if journey_name == 'owner':
     # ADR-0026 section 2 / ADR-0034 section 6: the API needs an owner address to accept a

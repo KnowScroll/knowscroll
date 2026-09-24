@@ -26,7 +26,7 @@ source = urlparse(config['DATABASE_URL'])
 if source.hostname not in ('127.0.0.1', 'localhost', '::1'):
     raise RuntimeError('UI verification requires loopback PostgreSQL')
 name = 'knowscroll_demo_ui_' + secrets.token_hex(8)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 out = root / 'artifacts/android-ui-refinement'
 out.mkdir(parents=True, exist_ok=True)
 allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME',
@@ -36,7 +36,7 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test', PORT='4317',
-           KS_JOURNEY_API_URL='http://10.0.2.2:4317')
+           KS_JOURNEY_API_URL='http://10.0.2.2:4317', KS_APP_ID_SUFFIX='.journeytest')
 processes = []
 
 

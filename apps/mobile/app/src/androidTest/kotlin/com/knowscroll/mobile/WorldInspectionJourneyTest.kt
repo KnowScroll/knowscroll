@@ -37,7 +37,7 @@ class WorldInspectionJourneyTest {
         }
     }
     @Test fun worldBackRecreationAndCollection() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey")
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey"))
         compose.waitUntil(15_000) {
             compose.onAllNodesWithContentDescription("Open the system view").fetchSemanticsNodes().isNotEmpty()
         }
@@ -73,7 +73,7 @@ class WorldInspectionJourneyTest {
         )
     }
     @Test fun clearedWorldIsNotRestoredOnForeground() = runBlocking {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey")
+        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey"))
         compose.waitUntil(15_000) {
             compose.onAllNodesWithContentDescription("Open the system view").fetchSemanticsNodes().isNotEmpty()
         }
