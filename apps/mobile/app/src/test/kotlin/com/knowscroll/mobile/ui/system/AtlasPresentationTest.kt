@@ -3,6 +3,7 @@ package com.knowscroll.mobile.ui.system
 import com.knowscroll.mobile.data.AtlasAnchor
 import com.knowscroll.mobile.data.AtlasAttention
 import com.knowscroll.mobile.data.AtlasBasis
+import com.knowscroll.mobile.data.AtlasFoundation
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
@@ -47,6 +48,41 @@ class AtlasPresentationTest {
         assertEquals("2 of 3 Scrolls read", markers.single().detail)
         assertEquals("ANCHORED", markers.single().status)
         assertNull(markers.single().parentId)
+    }
+
+    /** ADR-0037: a foundation is a property of its place -- marked on the marker, and named with
+     * the live places it holds up (an id no longer among them is dropped, never guessed). */
+    @Test
+    fun aFoundationIsMarkedAndNamedWithTheLivePlacesItHoldsUp() {
+        val gravity = planet("p1", "Gravity").copy(
+            foundation = AtlasFoundation(listOf("p2", "p3", "gone"), listOf(AtlasBasis("explains", "Gravity", "Tides", null, null))),
+        )
+        val tides = planet("p2", "Tides")
+        val places = listOf(gravity, tides, region("p3", "Orbits", "p2"))
+        val markers = planetMarkersOf(places)
+        assertTrue(markers.single { it.id == "p1" }.foundation)
+        assertFalse(markers.single { it.id == "p2" }.foundation)
+        assertEquals("Holds up Tides and Orbits", holdsUpLine(gravity, places))
+        assertNull("not a foundation: nothing to say", holdsUpLine(tides, places))
+        assertNull("holds up nothing still live: nothing to say", holdsUpLine(gravity, listOf(gravity)))
+        assertEquals("2 of 3 Scrolls read · Foundation", placeListRows(places).single { it.placeId == "p1" }.detail)
+        assertEquals("2 of 3 Scrolls read", placeListRows(places).single { it.placeId == "p2" }.detail)
+    }
+
+    @Test
+    fun aPlacesConnectionsLeaveOutWhatItsFoundationAlreadyLists() {
+        val gravity = planet("p1", "Gravity").copy(
+            foundation = AtlasFoundation(listOf("p2"), listOf(AtlasBasis("explains", "Gravity", "Tides", null, null))),
+        )
+        val places = listOf(gravity, planet("p2", "Tides"), planet("p3", "Light"), planet("p4", "Orbits"))
+        val atlas = AtlasResponse("cartographer-v2", places, listOf(
+            AtlasRelation("p1", "p2", "explains", null, null),
+            AtlasRelation("p1", "p3", "explains", null, null),
+            AtlasRelation("p4", "p1", "applies_to", null, null),
+        ), emptyList())
+        assertEquals(listOf("Gravity explains Light", "Orbits applies to Gravity"), placeConnections(gravity, atlas).map { it.first })
+        // Tides is not a foundation: from its own side the same relation is an ordinary connection.
+        assertEquals(listOf("Gravity explains Tides"), placeConnections(places[1], atlas).map { it.first })
     }
 
     @Test

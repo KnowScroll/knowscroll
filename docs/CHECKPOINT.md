@@ -23,6 +23,43 @@ The #91 reader-explain journey was failing on main from harness rot. Its proxy m
 `/v1/feed?kinds=`, and it looked for saved Traces on the universe screen instead of in Keep by
 title. It now passes 9/9 ([evidence](journeys/evidence/reader-explain-2026-09-24/README.md)).
 
+## 2026-09-24 #133 "What led here" on the desktop web (lane `133-web-why`)
+
+This reaches parity with Android's journey G on the web reader. "Why this appeared" now loads the
+recorded explanation for the Scroll being read (`GET /v1/decisions/:id/why`). It shows the family
+that chose it, one line per recorded step, and the corrections that path supports: "Less like
+this", and "Wrong connection" where a connection was crossed. Each correction says what it does
+before and after, is idempotent under its request id across retries and reopening, and goes
+through the CSRF-aware client. A path that was never recorded (404, or a saved Trace) is shown
+honestly. Parsing is strict, and the web's zod schemas are guarded against the contracts by
+`contractsDrift`. Web units 199 (15 → 18 files). A new journey, `run-web-why-journey.ts`, uses a
+real cookie sign-in and a disposable database with the substrate, and checks lineage in SQL (the
+v3 decision, the cited keep, exactly one `less_like_this` under the page's request id, bridges
+unchanged). The reader journey passes 50/50. CI's web-journey job now also runs the owner (#135)
+and why journeys. [Evidence](journeys/evidence/web-why/last-run-receipt.json).
+
+## 2026-09-24 #131/#134 foundation Stars (lane `131-foundation-stars`)
+
+ADR-0037, migration 0031, `cartographer-v2`. A live planet or region whose anchor explains, or
+comes before, at least three things across at least two of the reader's other live places, each
+connection sourced, is recognised as a foundation. Attention plays no part. Recognition and
+withdrawal are deltas (`foundation_recognised`/`substrate_neighbourhood`; `foundation_withdrawn`
+with `source_correction` or `reader_correction`), and setting a place aside re-evaluates in the
+same transaction. The schema refuses the flag on a sighting and any flag change without a delta.
+The atlas returns `foundation: {holdsUp, relations}` per place. Android parses it strictly, draws
+the marker brighter and says "Foundation", adds "· Foundation" in the list, shows what it holds up
+with each connection's claim in the sheet, and explains both deltas' evidence.
+
+Verification on `d51af5b` (main merged, review fixes in): pure 7 (a kind mutant killed), HTTP 5,
+backend 844+13, Android 194 + lint (web 87 on `6f8a910`, untouched since), and the emulator `foundation` journey with SQL lineage,
+plus the places journey again. A fresh review found stale foundation connections, a rejection that
+re-ran the whole Cartographer, and an unsupported screenshot claim; all fixed test-first. Gravity formed from the device's reading and was recognised in the same transaction;
+setting Tides aside withdrew it. Tides, Orbit and Star formation were placed from supplied accounts
+(labelled; the library cannot anchor the last two from reading). The first device run showed each
+connection twice on the sheet, fixed test-first. See the
+[evidence](journeys/evidence/foundation-2026-09-24/README.md). Preview restored; no provider call.
+Merge after #147 (0030 before 0031).
+
 ## 2026-09-24 #135 owner access, privacy and release clients (lane `135-owner-access`)
 
 ADR-0034, ADR-0035, migration 0030. Server: a desktop session cookie (HttpOnly, Secure,

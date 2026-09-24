@@ -93,6 +93,11 @@ export function App({ apiClient, onSignedOut }: AppProps) {
           onReturn={() => store.returnToUniverse()}
           onRetry={() => store.retryScrollLoad()}
           onReadingPosition={(assetId, position) => store.updateReadingPosition(assetId, position)}
+          why={state.why}
+          onOpenWhy={() => store.openWhy()}
+          onCloseWhy={() => store.closeWhy()}
+          onRetryWhy={() => store.retryWhy()}
+          onCorrect={kind => store.correctEncounter(kind)}
         />
       )}
     </div>

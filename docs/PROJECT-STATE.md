@@ -11,6 +11,21 @@ the preview replaces it on purpose): it refuses to start rather
 than risk it, and leaves it alone unless the run actually replaced it. If the preview is signed in
 with an emailed link, the owner has to sign out first, or accept signing in again afterwards.
 
+## 2026-09-24 The desktop reader explains why a Scroll appeared (#133)
+
+On the web, "Why this appeared" now shows the recorded reason and the steps that led to the Scroll,
+as the phone app does. The reader can say "less like this" or "wrong connection", and the page says
+what each one changes. It works by keyboard. The panel is hidden in very narrow windows.
+
+## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
+
+When one of the reader's places explains several of their other places, and sources say so, it
+becomes a foundation. On Android it is drawn brighter, and its sheet lists what it holds up and the
+claims behind each connection. It stops being one, with the reason recorded, when a source is
+corrected or the reader sets one of those places aside. Reading alone never makes a foundation. With
+today's small library this happens only around Gravity, and only if Orbits and Star formation become
+places, which needs more Scrolls from a second source.
+
 ## 2026-09-24 Owner sign-in, privacy and account deletion on both clients (#135)
 
 The Android app no longer needs a baked-in development token: the owner signs in with an emailed

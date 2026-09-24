@@ -41,6 +41,8 @@ data class AtlasMarker(
     /** #134: set only for a sighting, naming the live place it neighbours. `null` for a planet/
      * source world, which is laid out on its own orbit by [atlasLayout] instead. */
     val parentId: String? = null,
+    /** ADR-0037: this place holds others up; drawn brighter, and said aloud. */
+    val foundation: Boolean = false,
 )
 
 /** #134: a tappable land area at the continents level -- the reader's own region place (Places) in
@@ -387,7 +389,7 @@ fun SpatialAtlas(
                             .semantics {
                                 contentDescription = "$actionLabel${marker.title}"
                                 this[SemanticsProperties.Text] =
-                                    listOf(marker.title, marker.detail, marker.status)
+                                    listOf(marker.title, marker.detail, marker.status, if (marker.foundation) "Foundation" else "")
                                         .filter { it.isNotBlank() }
                                         .map { androidx.compose.ui.text.AnnotatedString(it) }
                             }
@@ -406,8 +408,9 @@ fun SpatialAtlas(
                         .size(300.dp)
                         .clickable { continents() }
                         .semantics {
-                            contentDescription =
-                                "Enter continents on ${markers.firstOrNull { it.id==selectedId }?.title}"
+                            val selected = markers.firstOrNull { it.id == selectedId }
+                            contentDescription = "Enter continents on ${selected?.title}"
+                            if (selected?.foundation == true) stateDescription = "Foundation"
                         }
                 )
             } else if (level == "continents" && point != null) {

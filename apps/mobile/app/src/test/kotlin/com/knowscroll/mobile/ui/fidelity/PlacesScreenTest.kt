@@ -3,6 +3,8 @@ package com.knowscroll.mobile.ui.fidelity
 import android.provider.Settings
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasStateDescription
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -24,6 +26,7 @@ import com.knowscroll.mobile.data.AtlasBridgeSupport
 import com.knowscroll.mobile.data.AtlasChronicleEntry
 import com.knowscroll.mobile.data.AtlasClaim
 import com.knowscroll.mobile.data.AtlasDelta
+import com.knowscroll.mobile.data.AtlasFoundation
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
@@ -198,6 +201,42 @@ class PlacesScreenTest {
         composeRule.onNodeWithText("\"Gravity pulls gas clouds together.\" — NASA · Star formation").assertExists()
         composeRule.onNodeWithText("Gravity explains Light").assertExists()
         composeRule.onNodeWithText("A place formed around Gravity.").assertExists()
+    }
+
+    /** ADR-0037: a foundation's marker says so, and its sheet names what it holds up and each
+     * sourced connection behind that, never more than the atlas response carries. */
+    @Test
+    fun aFoundationsMarkerAndSheetShowWhatItHoldsUpAndTheClaimsThatSaySo() {
+        val foundation = planet.copy(
+            foundation = AtlasFoundation(
+                listOf(otherPlanetId, regionId),
+                listOf(
+                    AtlasBasis("explains", "Gravity", "Light", AtlasClaim("Gravity bends light.", "NASA · Lensing"), null),
+                    AtlasBasis("explains", "Gravity", "Tides", AtlasClaim("The Moon's gravity pulls on the ocean.", "NOAA · Tides"), null),
+                ),
+            ),
+        )
+        content(atlasState = AtlasState.Loaded(atlas.copy(places = listOf(foundation, region, sighting, otherPlanet))))
+        composeRule.onNodeWithText("Foundation").assertExists()
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        // Selected, the planet still says so (review I3: the device journey checks it this way).
+        composeRule.onNode(hasContentDescription("Enter continents on Gravity") and hasStateDescription("Foundation")).assertExists()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onNodeWithText("Holds up Light and Tides").performScrollTo().assertExists()
+        composeRule.onNodeWithText("Gravity explains Tides").performScrollTo().assertExists()
+        composeRule.onNodeWithText("\"The Moon's gravity pulls on the ocean.\" — NOAA · Tides").performScrollTo().assertExists()
+        // Gravity → Light is both a foundation connection and a relation between live places: it
+        // is listed once, under the foundation, not again under Connections (device run 1).
+        composeRule.onAllNodesWithText("Gravity explains Light").assertCountEquals(1)
+    }
+
+    @Test
+    fun aPlaceThatIsNotAFoundationShowsNoHoldsUpSection() {
+        content()
+        composeRule.onAllNodesWithText("Foundation").assertCountEquals(0)
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onAllNodesWithText("Holds up", substring = true).assertCountEquals(0)
     }
 
     @Test
