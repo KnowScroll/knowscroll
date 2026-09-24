@@ -173,12 +173,13 @@ class AccountApiTest {
 
     // ---- #135 review: whether a failed call may still have been applied ----
 
-    private fun deletingClient(server: TestHttpServer) = ApiClient(
-        server.baseUrl, "", readTimeoutMs = 700, maxAttempts = 2, credential = CredentialProvider { "session-1" }, onUnauthorized = {},
+    /** The app's read timeout, or a short one where a test serves `TestHttpServer.HANG` (#177). */
+    private fun deletingClient(server: TestHttpServer, readTimeoutMs: Int) = ApiClient(
+        server.baseUrl, "", readTimeoutMs = readTimeoutMs, maxAttempts = 2, credential = CredentialProvider { "session-1" }, onUnauthorized = {},
     )
 
-    private suspend fun deletionFailure(server: TestHttpServer): ApiException.Server {
-        val error = runCatching { deletingClient(server).deleteAccount(AccountDeletionRequest("req-1", 5)) }.exceptionOrNull()
+    private suspend fun deletionFailure(server: TestHttpServer, readTimeoutMs: Int = ApiClient.DEFAULT_READ_TIMEOUT_MS): ApiException.Server {
+        val error = runCatching { deletingClient(server, readTimeoutMs).deleteAccount(AccountDeletionRequest("req-1", 5)) }.exceptionOrNull()
         server.join()
         assertTrue("expected a 401, got $error", error is ApiException.Server && error.statusCode == 401)
         return error as ApiException.Server
@@ -196,7 +197,7 @@ class AccountApiTest {
     fun a401AfterALostResponseInTheSameCallMayHaveLanded() = runBlocking {
         TestHttpServer.open().use { server ->
             server.serve(TestHttpServer.HANG to "", 401 to """{"error":"Unauthorized"}""")
-            assertTrue(deletionFailure(server).mayHaveLanded)
+            assertTrue(deletionFailure(server, readTimeoutMs = 700).mayHaveLanded)
         }
     }
 
