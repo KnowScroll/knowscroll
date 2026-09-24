@@ -20,15 +20,16 @@ and keep what matters as a Relic that never hides a later correction.
 
 | Proof | How | Result |
 | --- | --- | --- |
-| Pure | `tests/return-relics-core.test.ts` (7) | newest-first order with deterministic ties; the marker exclusive; the cap and the count of the rest; the marker only forward; the strict contracts (items after the marker and newest first; a Relic `corrected` exactly when its connection is no longer admitted) |
-| Database, API, worker | `tests/return-relics.test.ts` (7; fixture inquiry transport) | a fresh reader has nothing; a found connection is away news and the reader's own place formations are not; keep with provenance; acknowledge; a real source correction then appears as away news and turns the Relic `corrected`, its kept sentence readable; release; nothing-found and did-not-hold-up items; the marker's rules (stale epoch, future, paused, replay, key reuse, behind); keep's rules (unknown, stale, paused, one per connection, another universe's personal connection, doubted then refused); Clear erases both, export carries both; SQL guards (current epoch, immutable, never while paused, marker forward only, only an admitted connection) |
-| Android | 425 unit and Robolectric tests, lint | strict parsers for every contract refinement; the view model's retry-the-same-request versus definitive refusal; each item's wording; the section absent when nothing is waiting; "Mark as seen" replaced while paused; Keep / Seems wrong / Let go and the Relic states |
+| Pure | `tests/return-relics-core.test.ts` (8) | newest-first order with deterministic ties; the marker exclusive; the cap and the count of the rest; the marker only forward; the strict contracts (items after the marker and newest first; a Relic `corrected` exactly when its connection is no longer admitted); a too-long chronicle line shortened at a word, never dropped |
+| Database, API, worker | `tests/return-relics.test.ts` (9; fixture inquiry transport) | a fresh reader has nothing; a found connection is away news and the reader's own place formations are not; keep with provenance; acknowledge; a real source correction then appears as away news and turns the Relic `corrected`, its kept sentence readable; release; nothing-found and did-not-hold-up items; the marker's rules (stale epoch, future, paused, replay, key reuse, behind); keep's rules (unknown, stale, paused, one per connection, another universe's personal connection, doubted then refused); another reader sees none of it; the marker covers an item at its millisecond, so the count of the rest is exact on a full list (a mutant without it fails); Clear, Reset and account deletion (even while paused) erase both, export carries both; SQL guards (current epoch, immutable, never while paused, marker forward only, only an admitted connection) |
+| Android | 429 unit and Robolectric tests, lint | strict parsers for every contract refinement; the view model's retry-the-same-request versus definitive refusal; each item's wording; the section absent when nothing is waiting; "Mark as seen" replaced while paused, and no Keep while paused; a keep the Relic list confirms is settled, so a later retry never brings back a Relic the reader let go; Keep / Seems wrong / Let go and the Relic states |
 | Device | `KS_SEMANTIC_JOURNEY=return` (below) | passed, with the SQL lineage verified |
 
 ## The device journey
 
-On the API36 emulator, against a disposable stack. The labelled fixture inquiry route and The Sun
-(placed from a supplied account) are seeded as in the `inquiry` journey.
+On the API36 emulator, against a disposable stack, as the separate test app
+`com.knowscroll.mobile.journeytest` (#157). The labelled fixture inquiry route and The Sun (placed
+from a supplied account) are seeded as in the `inquiry` journey.
 
 1. The reader turns on "Look for connections between my places" and reads their way to Gravity.
 2. **They leave.** The app goes to the background while the inquiry is still `waiting`. The worker,
@@ -41,8 +42,9 @@ On the API36 emulator, against a disposable stack. The labelled fixture inquiry 
 5. **Keep**: "Kept in your Relics" (`return-relic.png`).
 6. **Seems wrong**. Keep shows the Relic "You marked this as seeming wrong" (`return-doubted.png`).
    They mark what changed as seen, and the section goes.
-7. **They leave again.** Through the real operator tool (`scripts/substrate/correct-source.ts`), the
-   runner revokes the kept connection's mechanism source (`nasa.gravity`) in the disposable database.
+7. **They leave again.** Only after the device writes, from the background, that it has left does the
+   runner revoke the kept connection's mechanism source (`nasa.gravity`), through the real operator
+   tool (`scripts/substrate/correct-source.ts`), in the disposable database.
 8. **They return.** The Atlas says "A source correction withdrew the connection between The Sun and
    Gravity." (`return-corrected-away.png`). Keep shows the Relic "Corrected — a source changed after
    you kept it", with its kept sentence still readable (`return-corrected-relic.png`).
@@ -50,12 +52,14 @@ On the API36 emulator, against a disposable stack. The labelled fixture inquiry 
 SQL lineage (`receipt.json`; each value is 1 unless stated):
 - the inquiry admitted, found this bridge, through a completed `background_inquiry` / `dirty` Job;
 - the inquiry was `waiting` on the device when it left, and found when it came back;
+- the Relic's states as the device observed them, in order: current, doubted, corrected;
 - the Relic kept with its provenance: the bridge, the inquiry, `bridge-validator-v1`, ≥ 3 cited claims;
 - one "seems wrong" on that bridge;
 - the bridge revoked by the correction;
 - one marker, covering the found item.
 
-The owner's preview was replaced for the run and restored, verified (`preview-restored.json`).
+The owner's preview was never touched: its APKs were the same before and after
+(`preview-untouched.json`).
 
 ## Found while proving it
 
@@ -67,6 +71,15 @@ The owner's preview was replaced for the run and restored, verified (`preview-re
   - The check "closed while away" compared the device's clock with the database's. It now uses
     what the device saw: the inquiry still `waiting` when it left.
 - The dock covered the connection sheet's second button; the sheet now scrolls it clear.
+- The fresh review (PR #158) found, and this branch fixes:
+  - a too-long chronicle line would have made the whole list unreadable to the strict client;
+  - the millisecond fix had no test that failed without it;
+  - no tests for other readers, Reset or account deletion;
+  - a keep racing a source correction answered 500;
+  - a stale retry could bring back a Relic that had been let go;
+  - Keep was offered while paused;
+  - the journey applied the correction on a timer rather than after the device left.
+  Deferred items are in #159.
 
 ## Limits
 

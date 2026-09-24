@@ -210,3 +210,21 @@ test('a sign-in link requested while the deletion runs never turns it into a 500
   }
   assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, bound: null });
 });
+
+test('deletion erases the reader\'s Relics and return marker too, even while recording is paused (#134, ADR-0039)', async () => {
+  const s = await bearerSession();
+  const headers = { authorization: s.authorization };
+  const epoch = await epochOf(headers);
+  const bridge = (await pool.query(`SELECT id FROM bridge WHERE scope_kind='shared' AND status='admitted' ORDER BY id LIMIT 1`)).rows[0].id as string;
+  const kept = await app.inject({ method: 'POST', url: '/v1/relics', headers, payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, kind: 'connection', bridgeId: bridge } });
+  assert.equal(kept.statusCode, 201, kept.body);
+  const marked = await app.inject({ method: 'POST', url: '/v1/away/acknowledge', headers,
+    payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, through: new Date(Date.now() - 1000).toISOString() } });
+  assert.equal(marked.statusCode, 200, marked.body);
+  assert.equal((await app.inject({ method: 'POST', url: '/v1/privacy/pause', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch } })).statusCode, 200);
+  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  for (const table of ['relic', 'away_acknowledgement']) {
+    assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [s.universeId])).rows[0].count), 0, table);
+  }
+});

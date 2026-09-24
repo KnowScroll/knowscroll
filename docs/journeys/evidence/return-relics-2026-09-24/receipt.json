@@ -1,16 +1,16 @@
 {
-  "at": "2026-09-24T11:42:21.875334+00:00",
+  "at": "2026-09-24T12:07:26.082153+00:00",
   "result": "passed",
-  "database": "knowscroll_test_semantic_3ec8f3d71d09458e",
+  "database": "knowscroll_test_semantic_449c4b4a4e0a46ee",
   "apiPort": 4333,
-  "source": "acd909f1383f1282aaa9bfb7a81062fca5136166-dirty",
-  "package": "com.knowscroll.mobile.journey",
+  "source": "86884311dfc826285453258303b001ff5bf8dab8",
+  "package": "com.knowscroll.mobile.journeytest",
   "journeyName": "return",
   "journey": {
-    "inquiryId": "ede7f316-4345-4a28-a247-afd66df406c1",
+    "inquiryId": "2b7d9af7-6113-4087-886c-b2c1477a7881",
     "inquiryStatus": "found",
-    "bridgeId": "4eb9879b-3a61-4da6-b131-3abc7528fc86",
-    "relicId": "edf239c3-ec38-43cb-9c8d-6ed7e9f983cf",
+    "bridgeId": "dc6c4002-6c14-47be-ad56-3583ae30d116",
+    "relicId": "363fec4e-9776-4693-9dd1-78406e9d5b15",
     "relicStates": [
       "current",
       "doubted",
@@ -27,7 +27,7 @@
     "relics": 1,
     "seemsWrong": 1,
     "bridgeRevokedByCorrection": 1,
-    "markersForward": 1,
+    "markers": 1,
     "markerAfterFound": 1,
     "sharedBridgesStillAdmittedOrRevoked": 6,
     "correction": {

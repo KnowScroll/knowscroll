@@ -16,7 +16,6 @@ import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.t
 import { inquiryAuthority, installBackgroundInquiryRoute } from '../packages/db/src/reasoning-inquiries.ts';
 import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { deleteAccount } from '../packages/db/src/privacy.ts';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureInquiryTransport, type InquiryFixtureMode } from '../apps/worker/src/providers/inquiry-fixture.ts';
 import { formPlaces, loadInquiryFixture, type InquiryFixture } from './helpers/inquiry-fixture.ts';
@@ -295,31 +294,16 @@ test('the marker covers an item at its millisecond, so the count of the rest is 
   assert.deepEqual([after.items.length, after.more], [10, 1], 'the oldest is covered by a marker at its millisecond');
 });
 
-test('Reset and account deletion erase Relics and markers too, even while paused (review I3)', async () => {
+test('Reset erases Relics and markers too (review I3; account deletion: tests/account-deletion.test.ts)', async () => {
   mode = 'proposal';
-  const reset = await reader();
-  const foundOnReset = await foundWhileAway(reset);
-  assert.equal((await keep(reset, foundOnReset.found.bridgeId)).statusCode, 201);
-  assert.equal((await acknowledge(reset, foundOnReset.at)).statusCode, 200);
-  const done = await app.inject({ method: 'POST', url: '/v1/privacy/reset', headers: headers(reset),
+  const r = await reader();
+  const found = await foundWhileAway(r);
+  assert.equal((await keep(r, found.found.bridgeId)).statusCode, 201);
+  assert.equal((await acknowledge(r, found.at)).statusCode, 200);
+  const done = await app.inject({ method: 'POST', url: '/v1/privacy/reset', headers: headers(r),
     payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'reset-personal-universe' } });
   assert.equal(done.statusCode, 200, done.body);
-  const deleting = await reader();
-  const foundOnDelete = await foundWhileAway(deleting);
-  assert.equal((await keep(deleting, foundOnDelete.found.bridgeId)).statusCode, 201);
-  assert.equal((await acknowledge(deleting, foundOnDelete.at)).statusCode, 200);
-  assert.equal((await privacy(deleting, 'pause')).statusCode, 200);
-  const accountId = randomUUID();
-  await pool.query(`INSERT INTO account(id,email) VALUES($1,$2)`, [accountId, `return-${accountId}@knowscroll.test`]);
-  await pool.query('UPDATE universe SET account_id=$2 WHERE id=$1', [deleting.universeId, accountId]);
-  const scope = { sessionId: '', deviceId: '', universeId: deleting.universeId, privacyEpoch: 0, expiresAt: '' };
-  await transaction(async client => {
-    await client.query('SELECT 1 FROM universe WHERE id=$1 FOR UPDATE', [deleting.universeId]);
-    return deleteAccount(client, scope, { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'delete-my-account-and-history' });
-  });
-  for (const r of [reset, deleting]) {
-    for (const table of ['relic', 'away_acknowledgement', 'background_inquiry']) {
-      assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [r.universeId])).rows[0].count), 0, table);
-    }
+  for (const table of ['relic', 'away_acknowledgement', 'background_inquiry']) {
+    assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [r.universeId])).rows[0].count), 0, table);
   }
 });
