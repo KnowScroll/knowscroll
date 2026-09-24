@@ -14,6 +14,7 @@ import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { atlasDeltaSchema, atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
+import { mintGatedTestReel } from '../scripts/fixtures/gated-reel.ts';
 import { EDITORIAL, anchorGravity as anchorGravityIn, readFirstOffered, readScroll, type Identity } from './helpers/reading.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Atlas tests require a disposable knowscroll_test_* database');
@@ -171,4 +172,12 @@ test('review B1/I2/M3: reading a sighting\'s subject retires it as the reader\'s
   assert.equal(reached.parentPlaceId, planet.placeId);
   const evidence = atlasDeltaSchema.parse((await app.inject({ url: `/v1/atlas/deltas/${reached.deltaId}`, headers: h(i) })).json()) as any;
   assert.equal(evidence.evidence.met.state, 'seen');
+});
+
+test('#167: a Reel carries its Scroll\'s concepts but is never counted among a place\'s Scrolls', async () => {
+  const i = await anchorGravity();
+  const gravity = async () => (await atlasOf(i)).places.find((p: { anchor: { code: string } }) => p.anchor.code === 'physics.gravity').scrolls;
+  const before = await gravity();
+  await mintGatedTestReel(pool, ONE_FORCE, { tag: 'atlas-count', title: 'Reel atlas-count', summary: 'A test Reel over a gravity Scroll.' });
+  assert.deepEqual(await gravity(), before);
 });

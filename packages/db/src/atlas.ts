@@ -207,9 +207,11 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
     }
     return null;
   };
+  // Scrolls only: a Reel carries its Scroll's concepts (ADR-0043) but is not one of its Scrolls.
   const primaries = (await client.query<{ asset_id: string; code: string; seen: boolean }>(
     `SELECT ac.asset_id, c.code, EXISTS (SELECT 1 FROM exposure e WHERE e.universe_id = $1 AND e.asset_id = ac.asset_id) AS seen
-     FROM asset_concept ac JOIN concept c ON c.id = ac.concept_id WHERE ac.role = 'primary'`, [universeId],
+     FROM asset_concept ac JOIN concept c ON c.id = ac.concept_id JOIN asset a ON a.id = ac.asset_id
+     WHERE ac.role = 'primary' AND a.kind = 'Scroll'`, [universeId],
   )).rows;
   const counts = new Map<string, { total: number; seen: number }>();
   const add = (placeId: string, seen: boolean) => { const c = counts.get(placeId) ?? { total: 0, seen: 0 }; c.total += 1; if (seen) c.seen += 1; counts.set(placeId, c); };

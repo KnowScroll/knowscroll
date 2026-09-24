@@ -83,9 +83,11 @@ export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Pro
 
   const assetId = randomUUID();
   const simulated = reel.provider_mode === 'standin';
+  const client = await pool.connect();
   let inserted;
   try {
-    inserted = await pool.query<{ id: string }>(
+    await client.query('BEGIN');
+    inserted = await client.query<{ id: string }>(
       `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order,
                           media_sha256,generated_reel_id,simulated)
        VALUES($1,1,'Reel',$2,$3,'',$4,$5,$6,NULL,$7,$8,$9)
@@ -93,8 +95,21 @@ export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Pro
        RETURNING id`,
       [assetId, brief.title, brief.summary, source.title, source.url, reel.truth_state, reel.media_sha256, generatedReelId, simulated],
     );
+    // ADR-0043: a Reel is about what its one source Scroll is about, so it carries that Scroll's
+    // concepts with the same roles, in the transaction that mints it. Not its claims: a Reel may
+    // state only some of them.
+    if (inserted.rowCount === 1) {
+      await client.query(
+        'INSERT INTO asset_concept(asset_id,concept_id,role) SELECT $1, concept_id, role FROM asset_concept WHERE asset_id=$2',
+        [assetId, briefRow.source_asset_id],
+      );
+    }
+    await client.query('COMMIT');
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     throw new MintError('mint_refused', error instanceof Error ? error.message : String(error));
+  } finally {
+    client.release();
   }
   if (inserted.rowCount === 1) return { assetId, created: true };
   // Lost a race to a concurrent minter for the same generated Reel: return the row that won.

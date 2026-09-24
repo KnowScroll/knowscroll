@@ -58,7 +58,11 @@ export interface V3State {
   /** Deterministic tie-break salt: universe id + the number of v3 windows already served. */
   seed: string;
   concepts: ReadonlyMap<string, V3Concept>;
+  /** What this composition may offer: the kinds the client asked for. */
   assets: readonly V3Asset[];
+  /** Encounters the reader's exposures and marks name that are not offered here (another kind than
+   * the client asked for, ADR-0043): read for what they are about, never offered. */
+  history: readonly V3Asset[];
   kept: ReadonlySet<string>;
   exposures: ReadonlyMap<string, { count: number; lastAtMs: number }>;
   sourceExposures: ReadonlyMap<string, number>;
@@ -156,7 +160,7 @@ export function renderReason(template: string, facts: Facts): string {
 export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   const tree = { concepts: new Map([...state.concepts].map(([k, v]) => [k, { code: v.code, name: v.name, description: '', parentCode: v.parentCode }])) };
   const name = (code: string) => state.concepts.get(code)?.name ?? code;
-  const assetById = new Map(state.assets.map(a => [a.assetId, a]));
+  const assetById = new Map([...state.history, ...state.assets].map(a => [a.assetId, a]));
   const markedConcepts = (m: V3Mark) => (assetById.get(m.assetId)?.concepts ?? []).filter(c => c.role !== 'mentioned').map(c => c.code);
   const raw: Omit<V3Candidate, 'gate' | 'terms' | 'score' | 'rank'>[] = [];
   const offer = (asset: V3Asset, family: Family, concept: string | null, explanationKey: string, facts: Facts, evidence: EvidenceStep[], bridgeId: string | null = null) =>

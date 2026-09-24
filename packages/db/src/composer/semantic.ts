@@ -39,13 +39,11 @@ export async function loadReasonTemplates(client: pg.PoolClient): Promise<Map<st
   return new Map((await client.query<{ explanation_key: string; template: string }>('SELECT explanation_key, template FROM composer_reason_template')).rows.map(r => [r.explanation_key, r.template]));
 }
 
-/** Everything the pure policy reads, for one universe and the requested kinds. */
-export async function loadV3State(client: pg.PoolClient, universeId: string, eligible: readonly FeedAsset[], nowMs: number, excluded: ReadonlySet<string> = new Set()): Promise<V3State> {
-  const concepts = new Map((await client.query<{ code: string; name: string; parent_code: string | null }>(
-    'SELECT c.code, c.name, p.code AS parent_code FROM concept c LEFT JOIN concept p ON p.id = c.parent_id',
-  )).rows.map(r => [r.code, { code: r.code, name: r.name, parentCode: r.parent_code }]));
+type AssetIdentity = Pick<FeedAsset, 'assetId' | 'title' | 'kind' | 'sourceUrl'>;
 
-  const ids = eligible.map(a => a.assetId);
+/** What each asset is about and which claims it presents, as the pure policy reads them. */
+async function describeAssets(client: pg.PoolClient, rows: readonly AssetIdentity[]): Promise<V3Asset[]> {
+  const ids = rows.map(a => a.assetId);
   const annotations = new Map<string, V3Asset['concepts'][number][]>();
   const claims = new Map<string, string[]>();
   if (ids.length) {
@@ -57,11 +55,19 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
     )).rows) claims.set(r.asset_id, [...(claims.get(r.asset_id) ?? []), r.key]);
   }
   const editorial = new Map((await client.query<{ id: string; editorial_order: number }>('SELECT id, editorial_order FROM asset WHERE id = ANY($1::uuid[])', [ids])).rows.map(r => [r.id, r.editorial_order]));
-  const assets: V3Asset[] = eligible.map(a => {
+  return rows.map(a => {
     const own = annotations.get(a.assetId) ?? [];
     return { assetId: a.assetId, title: a.title, kind: a.kind, sourceKey: a.sourceUrl, editorialOrder: editorial.get(a.assetId) ?? 0,
       primary: own.find(c => c.role === 'primary')?.code ?? null, concepts: own, claimKeys: claims.get(a.assetId) ?? [] };
   });
+}
+
+/** Everything the pure policy reads, for one universe and the requested kinds. */
+export async function loadV3State(client: pg.PoolClient, universeId: string, eligible: readonly FeedAsset[], nowMs: number, excluded: ReadonlySet<string> = new Set()): Promise<V3State> {
+  const concepts = new Map((await client.query<{ code: string; name: string; parent_code: string | null }>(
+    'SELECT c.code, c.name, p.code AS parent_code FROM concept c LEFT JOIN concept p ON p.id = c.parent_id',
+  )).rows.map(r => [r.code, { code: r.code, name: r.name, parentCode: r.parent_code }]));
+  const assets = await describeAssets(client, eligible);
 
   const kept = new Set<string>(((await client.query('SELECT kept_asset_ids FROM accounts WHERE universe_id=$1', [universeId])).rows[0]?.kept_asset_ids as string[]) ?? []);
   const exposureRows = (await client.query<Row>(
@@ -90,6 +96,13 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
      WHERE q.universe_id = $1
      ORDER BY created_at DESC, id`, [universeId],
   )).rows.map(r => ({ eventId: String(r.id), assetId: String(r.asset_id), kind: r.kind as 'keep' | 'branch' | 'ask', atMs: ms(r.created_at) }));
+  // ADR-0043: what the reader did with a kind this client did not ask for (a Reel kept in Reel mode,
+  // read now in Scroll mode) still grounds this composition; it is described, never offered.
+  const offered = new Set(eligible.map(a => a.assetId));
+  const elsewhere = [...new Set([...exposureRows.map(r => String(r.asset_id)), ...marks.map(m => m.assetId)])].filter(id => !offered.has(id));
+  const history = await describeAssets(client, (await client.query<AssetIdentity>(
+    'SELECT id AS "assetId", title, kind, source_url AS "sourceUrl" FROM asset WHERE id = ANY($1::uuid[]) ORDER BY id', [elsewhere],
+  )).rows);
 
   const accounts = new Map((await client.query<Row>(
     'SELECT c.code, a.mass, a.mass_at, a.exposure_share FROM attention_account a JOIN concept c ON c.id = a.concept_id WHERE a.universe_id = $1', [universeId],
@@ -124,7 +137,7 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
   )).rows[0]!.n);
 
   return {
-    nowMs, seed: `${universeId}:${windows}`, concepts, assets, kept, exposures, sourceExposures, marks, served, accounts, bridges, contradictions,
+    nowMs, seed: `${universeId}:${windows}`, concepts, assets, history, kept, exposures, sourceExposures, marks, served, accounts, bridges, contradictions,
     openQuestionConcepts: hypotheses.filter(h => h.kind === 'open_question' && (h.permitted_uses as string[]).includes('composer.continuity')).map(h => String(h.code)),
     directionPriors: hypotheses.filter(h => h.kind === 'direction' && (h.permitted_uses as string[]).includes('composer.family_prior')).map(h => String(h.code)),
     suppressedRoutes, excluded,
