@@ -320,19 +320,32 @@ class AccountViewModelTest {
     }
 
     @Test
-    fun aDefinitiveRefusalThenA401IsNotReportedAsDeleted() {
+    fun aDefinitiveRefusalThenAnEndedSessionIsNeverReportedAsDeleted() {
         TestHttpServer.open().use { server ->
+            // The refusal reloads Privacy (verification N1); that reload meets the ended session.
             server.serve(universeAt5, 409 to """{"error":"stale epoch"}""", unauthorized)
             val model = viewModel(server, FakeSessionVault("session-1"))
             openLoadedPrivacy(model)
 
             model.requestDeleteConfirmation()
             model.confirmDelete()
-            awaitUntil { model.delete.value is PrivacyOperationState.Failed }
-            model.retryDelete()
             awaitUntil { model.authState.value is AuthState.SignedOut }
             server.join()
-            assertEquals(SignedOutReason.SESSION_ENDED_BEFORE_DELETE, model.signedOutReason.value)
+            assertEquals(SignedOutReason.SESSION_EXPIRED, model.signedOutReason.value)
+        }
+    }
+
+    @Test
+    fun retryAfterARefusalReopensTheConfirmationInsteadOfDoingNothing() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, 409 to """{"error":"stale epoch"}""", universeAt6)
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            openLoadedPrivacy(model)
+            model.requestDeleteConfirmation()
+            model.confirmDelete()
+            awaitUntil { model.delete.value is PrivacyOperationState.Failed }
+            model.retryDelete()
+            assertEquals(PrivacyOperationState.Confirming, model.delete.value)
         }
     }
 
@@ -511,4 +524,88 @@ class AccountViewModelTest {
         val created = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(application).create(AccountViewModel::class.java)
         assertNotNull(created)
     }
+
+    // ---- Verification review N1: a refused Delete/Reset never leaves a stuck, stale request ----
+
+    private val universeAt6 = 200 to """{"universeId":"u1","revision":2,"privacyEpoch":6,"traces":[],"capabilities":{},"recordingPausedAt":null}"""
+    private val epochChanged = 409 to """{"error":"Privacy epoch changed"}"""
+
+    @Test
+    fun aRefusedDeletionIsNotRetriedWithItsStaleEpochAndCanBeConfirmedAgainAtTheCurrentOne() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, epochChanged, universeAt6,
+                200 to """{"receiptId":"r1","epochBefore":6,"epochAfter":7,"sessionsDeleted":1,"deletedAt":"2026-09-24T00:00:00Z"}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestDeleteConfirmation()
+            model.confirmDelete()
+            awaitUntil { model.delete.value is PrivacyOperationState.Failed }
+            assertNull("a definitive refusal applied nothing: no request is kept to retry", store.readPendingPrivacyRequest("delete"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.requestDeleteConfirmation()
+            assertEquals(PrivacyOperationState.Confirming, model.delete.value)
+            model.confirmDelete()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertEquals(SignedOutReason.ACCOUNT_DELETED, model.signedOutReason.value)
+        }
+    }
+
+    @Test
+    fun aRefusedResetIsNotRetriedWithItsStaleEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, epochChanged, universeAt6)
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+            model.requestResetConfirmation()
+            model.confirmReset()
+            awaitUntil { model.reset.value is PrivacyOperationState.Failed }
+            assertNull(store.readPendingPrivacyRequest("reset"))
+            model.requestResetConfirmation()
+            assertEquals(PrivacyOperationState.Confirming, model.reset.value)
+        }
+    }
+
+    @Test
+    fun aDeletionStillInFlightWhenTheProcessDiedThenAnEndedSessionIsReportedAsDeleted() {
+        TestHttpServer.open().use { server ->
+            val store = StateStore(freshContext())
+            store.writePendingPrivacyRequest("delete", "req-1", 5, mayHaveLanded = false, inFlight = true)
+            val vault = FakeSessionVault("session-1")
+            val model = viewModel(server, vault, store)
+            // The reader's first request after the restart meets a 401 (the deletion landed).
+            SessionInvalidation.reportUnauthorized()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            assertEquals(SignedOutReason.ACCOUNT_DELETED, model.signedOutReason.value)
+            assertNull(store.readPendingPrivacyRequest("delete"))
+        }
+    }
+
+    @Test
+    fun aNewSignInClearsAnEarlierSessionsPendingResetAndDelete() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u1",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a1","origin":"magic_link"}""",
+            )
+            val store = StateStore(freshContext())
+            store.writePendingPrivacyRequest("delete", "req-1", 5, mayHaveLanded = true, inFlight = false)
+            store.writePendingPrivacyRequest("reset", "req-2", 5, mayHaveLanded = false, inFlight = false)
+            store.writeSignedOut()
+            val model = viewModel(server, FakeSessionVault(), store)
+            model.submitPastedLink("https://knowscroll.test/sign-in#token=raw-token")
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+            assertNull(store.readPendingPrivacyRequest("delete"))
+            assertNull(store.readPendingPrivacyRequest("reset"))
+            assertEquals(PrivacyOperationState.Idle, model.delete.value)
+            assertEquals(PrivacyOperationState.Idle, model.reset.value)
+        }
+    }
+
 }

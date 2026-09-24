@@ -301,13 +301,17 @@ export class ApiClient implements ReaderApi {
     treat409AsConflict: boolean,
     schema: ZodType<T>,
   ): Promise<T> {
+    // The token this call goes out with, read now: by the time its 403 arrives another request may
+    // already have refreshed it (verification N2), and then the retry needs no fetch of its own.
+    const sent = this.csrfToken;
     try {
       return await this.attempt(method, path, body, expected, treat409AsConflict, schema);
     } catch (error) {
       if (method === 'GET' || !isCsrfRefusal(error)) throw error;
-      const sent = this.csrfToken;
-      await this.refreshCsrfToken();
-      if (sent !== null && this.csrfToken === sent) throw error;
+      if (this.csrfToken === sent) {
+        await this.refreshCsrfToken();
+        if (sent !== null && this.csrfToken === sent) throw error;
+      }
       return this.attempt(method, path, body, expected, treat409AsConflict, schema, error.earlierAttemptMayHaveLanded);
     }
   }

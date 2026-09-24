@@ -177,6 +177,11 @@ class AccountViewModel @JvmOverloads constructor(
                 // crash in between can never leave a live session behind a stale mark.
                 store.clearSignedOut()
                 store.clearPendingSignOut()
+                // An earlier session's Reset or Delete is not this session's to retry (verification N1).
+                store.clearPendingPrivacyRequest(INTENT_RESET)
+                store.clearPendingPrivacyRequest(INTENT_DELETE)
+                _reset.value = PrivacyOperationState.Idle
+                _delete.value = PrivacyOperationState.Idle
                 vault.writeToken(receipt.sessionToken)
                 _tokenSubmit.value = TokenSubmitState.Idle
                 _linkRequest.value = LinkRequestState.Idle
@@ -329,8 +334,9 @@ class AccountViewModel @JvmOverloads constructor(
 
     // ---- Reset (ADR-0028/0030): deliberate confirmation, ends every session including this one --
 
+    /** From Idle, or after a failure: a fresh confirmation at the current epoch (verification N1). */
     fun requestResetConfirmation() {
-        if (_reset.value is PrivacyOperationState.Idle) _reset.value = PrivacyOperationState.Confirming
+        if (_reset.value is PrivacyOperationState.Idle || _reset.value is PrivacyOperationState.Failed) _reset.value = PrivacyOperationState.Confirming
     }
 
     fun cancelReset() {
@@ -343,8 +349,9 @@ class AccountViewModel @JvmOverloads constructor(
         beginReset(UUID.randomUUID().toString(), loaded.privacyEpoch)
     }
 
+    /** The same request again -- or, when nothing is kept (it was refused), a fresh confirmation. */
     fun retryReset() {
-        val pending = store.readPendingPrivacyRequest(INTENT_RESET) ?: return
+        val pending = store.readPendingPrivacyRequest(INTENT_RESET) ?: return requestResetConfirmation()
         beginReset(pending.requestId, pending.expectedPrivacyEpoch)
     }
 
@@ -362,8 +369,9 @@ class AccountViewModel @JvmOverloads constructor(
 
     // ---- Delete account (ADR-0035): its own literal, removes more than Reset -------------------
 
+    /** From Idle, or after a failure: a fresh confirmation at the current epoch (verification N1). */
     fun requestDeleteConfirmation() {
-        if (_delete.value is PrivacyOperationState.Idle) _delete.value = PrivacyOperationState.Confirming
+        if (_delete.value is PrivacyOperationState.Idle || _delete.value is PrivacyOperationState.Failed) _delete.value = PrivacyOperationState.Confirming
     }
 
     fun cancelDelete() {
@@ -376,8 +384,9 @@ class AccountViewModel @JvmOverloads constructor(
         beginDelete(UUID.randomUUID().toString(), loaded.privacyEpoch)
     }
 
+    /** The same request again -- or, when nothing is kept (it was refused), a fresh confirmation. */
     fun retryDelete() {
-        val pending = store.readPendingPrivacyRequest(INTENT_DELETE) ?: return
+        val pending = store.readPendingPrivacyRequest(INTENT_DELETE) ?: return requestDeleteConfirmation()
         beginDelete(pending.requestId, pending.expectedPrivacyEpoch)
     }
 
@@ -406,7 +415,9 @@ class AccountViewModel @JvmOverloads constructor(
         intent: String, requestId: String, epoch: Long, state: MutableStateFlow<PrivacyOperationState>,
         send: suspend () -> Long, done: SignedOutReason, endedBeforeSent: SignedOutReason,
     ) {
-        val earlier = store.readPendingPrivacyRequest(intent)?.takeIf { it.requestId == requestId }
+        // Any earlier attempt of this intent that may have landed counts, whatever its request id: a
+        // fresh confirmation after a lost response must not read a 401 as "never sent".
+        val earlier = store.readPendingPrivacyRequest(intent)
         val earlierMayHaveLanded = earlier != null && (earlier.mayHaveLanded || earlier.inFlight)
         store.writePendingPrivacyRequest(intent, requestId, epoch, mayHaveLanded = earlierMayHaveLanded, inFlight = true)
         viewModelScope.launch {
@@ -422,6 +433,13 @@ class AccountViewModel @JvmOverloads constructor(
                     store.clearPendingPrivacyRequest(intent)
                     signOutLocally(if (earlierMayHaveLanded || e.mayHaveLanded) done else endedBeforeSent)
                     state.value = PrivacyOperationState.Idle
+                } else if (e is ApiException.Server && e.statusCode in 400..499 && e.statusCode != 408 && e.statusCode != 429) {
+                    // A definitive refusal (e.g. the epoch changed on another device) applied nothing,
+                    // and this live session proves no earlier attempt did either: nothing is kept to
+                    // retry with its stale epoch. The screen reloads and offers a fresh confirmation.
+                    store.clearPendingPrivacyRequest(intent)
+                    state.value = PrivacyOperationState.Failed(transportMessage(e))
+                    if (e.statusCode == 409) openPrivacy()
                 } else {
                     // Anything but a definitive refusal may have been applied: a later 401 for this
                     // same request then means it was.
@@ -477,6 +495,20 @@ class AccountViewModel @JvmOverloads constructor(
      * [epoch], when known (Reset/Delete both return a fresh one), keeps the local watermark
      * correctly advanced; otherwise the last locally observed epoch is kept as-is. */
     private fun signOutLocally(reason: SignedOutReason, epoch: Long? = null) {
+        // A session found ended while a Delete or Reset may have landed (a lost response, or the
+        // process died with it in flight) ended because of it: ADR-0035 section 5, as in
+        // [runSelfEndingRequest]. Either record belongs to the session now gone.
+        val mayHaveLanded = { intent: String -> store.readPendingPrivacyRequest(intent)?.let { it.mayHaveLanded || it.inFlight } == true }
+        val honest = when {
+            reason != SignedOutReason.SESSION_EXPIRED -> reason
+            mayHaveLanded(INTENT_DELETE) -> SignedOutReason.ACCOUNT_DELETED
+            mayHaveLanded(INTENT_RESET) -> SignedOutReason.RESET
+            else -> reason
+        }
+        store.clearPendingPrivacyRequest(INTENT_RESET)
+        store.clearPendingPrivacyRequest(INTENT_DELETE)
+        _reset.value = PrivacyOperationState.Idle
+        _delete.value = PrivacyOperationState.Idle
         vault.clear()
         val universeId = store.readObservedUniverseId()
         store.purgePrivateState(universeId, epoch ?: store.readObservedPrivacyEpoch())
@@ -484,7 +516,7 @@ class AccountViewModel @JvmOverloads constructor(
         // would fall back to as well; see [deriveAuthState].
         store.writeSignedOut()
         clearPrivacyViews()
-        _signedOutReason.value = reason
+        _signedOutReason.value = honest
         _authState.value = AuthState.SignedOut
     }
 

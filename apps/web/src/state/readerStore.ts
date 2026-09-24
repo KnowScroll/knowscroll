@@ -128,9 +128,10 @@ export class ReaderStore {
   private ready = false;
   private navigationVersion = 0;
   private readonly visited: Set<string>;
-  /** #135 review: deletion requestIds with an attempt that may have been applied without an answer
-   * (see `mayHaveLanded`). Only these turn a later 401 into "deleted" -- see `confirmDeleteAccount`. */
-  private readonly deletionMayHaveLanded = new Set<string>();
+  /** #135 review: whether any deletion attempt in this page may have been applied without an answer
+   * (see `mayHaveLanded`) -- whatever its requestId, so Cancel and a fresh confirmation after a lost
+   * response still read a 401 as "deleted" (verification N3). See `confirmDeleteAccount`. */
+  private deletionMayHaveLanded = false;
 
   /**
    * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
@@ -520,7 +521,7 @@ export class ReaderStore {
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
         if (isUnauthorized(error)) {
-          if (this.deletionMayHaveLanded.has(requestId) || mayHaveLanded(error)) {
+          if (this.deletionMayHaveLanded || mayHaveLanded(error)) {
             // ADR-0035 sec.5: the calling session is deleted inside the same transaction, so a
             // retry after a lost response gets 401 -- and an earlier attempt of this very request
             // may be what deleted it. The exact new epoch is unknown (the receipt never arrived),
@@ -534,7 +535,7 @@ export class ReaderStore {
           }
           return;
         }
-        if (mayHaveLanded(error)) this.deletionMayHaveLanded.add(requestId);
+        if (mayHaveLanded(error)) this.deletionMayHaveLanded = true;
         this.setPrivacyAction({ status: 'failed', kind: 'delete-account', requestId, message: describeApiError(error) });
       })
       .finally(() => {

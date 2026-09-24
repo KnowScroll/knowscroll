@@ -119,6 +119,30 @@ describe('ApiClient CSRF (ADR-0034)', () => {
     expect(headerValue(calls[2]!, 'X-CSRF-Token')).toBe('d'.repeat(64));
   });
 
+  it('two requests sent with a stale token: the one whose 403 arrives after the other refreshed it retries with the current token (verification N2)', async () => {
+    let releaseB: () => void = () => {};
+    const bHeld = new Promise<void>(resolve => { releaseB = resolve; });
+    const { calls, fetchImpl } = fakeFetch((call, index) => {
+      if (String(call.input) === '/v1/session/csrf') return jsonResponse(200, { csrfToken: 'n'.repeat(64) });
+      const token = headerValue(call, 'X-CSRF-Token');
+      if (token === 'stale-token') {
+        // B's refusal (the second stale send) is held until A has refreshed and succeeded.
+        if (index === 1) return bHeld.then(() => jsonResponse(403, { error: 'stale token' })) as unknown as Response;
+        return jsonResponse(403, { error: 'stale token' });
+      }
+      return emptyResponse(204);
+    });
+    const client = new ApiClient({ fetchImpl: async (input, init) => fetchImpl(input, init), delaysMs: [0, 0] });
+    client.setCsrfToken('stale-token');
+    const a = client.postSessionRevoke();
+    const b = client.postSessionRevoke();
+    await a;
+    releaseB();
+    await b;
+    const retried = calls.filter(c => headerValue(c, 'X-CSRF-Token') === 'n'.repeat(64));
+    expect(retried).toHaveLength(2);
+  });
+
   it('a 403 whose refreshed token is unchanged is a real refusal: no retry of the same doomed request', async () => {
     const { calls, fetchImpl } = fakeFetch((_call, index) => {
       if (index === 1) return jsonResponse(200, { csrfToken: 'known-token' });

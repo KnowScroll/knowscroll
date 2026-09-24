@@ -90,7 +90,7 @@ class OwnerAccountJourneyTest {
     }
 
     @Test
-    fun ownerSignsInReadsPausesExportsResetsAndDeletesTheirAccount() {
+    fun ownerSignsInReadsPausesResumesExportsAndDeletesTheirAccount() {
         guardJourneyApp()
 
         // 1. No dev token on this build: the sign-in screen is what greets the owner, not the
@@ -160,7 +160,7 @@ class OwnerAccountJourneyTest {
         writeReceipt(
             "owner-account.json",
             JSONObject()
-                .put("scenario", "ownerSignsInReadsPausesExportsResetsAndDeletesTheirAccount")
+                .put("scenario", "ownerSignsInReadsPausesResumesExportsAndDeletesTheirAccount")
                 .put("signedInViaPastedMagicLink", true)
                 .put("readARealScroll", true)
                 .put("pausedRecording", true)

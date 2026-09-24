@@ -40,8 +40,8 @@ fun ReelScreen(
     onPrevious: (() -> Unit)? = null,
     /** #135: the resolved bearer credential for this media request (the signed-in session, or
      * the development token in a debug build). `null` sends no `Authorization` header at all --
-     * the default preserves the exact previous debug/journey behaviour for every caller (such as
-     * the Authored Preview/Atlas sandboxes) that does not pass one explicitly. */
+     * the default preserves the exact previous debug behaviour for any caller that does not pass
+     * one explicitly (the reader and the Authored Preview both pass the reader's credential). */
     mediaToken: String? = BuildConfig.KS_DEV_TOKEN.takeIf { it.isNotBlank() },
 ) {
     val media = requireNotNull(state.item.media)

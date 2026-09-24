@@ -857,6 +857,21 @@ describe('Sign-out and account deletion (#135, ADR-0034/ADR-0035)', () => {
     expect(api.accountDeleteCalls[1]!.requestId).toBe(api.accountDeleteCalls[0]!.requestId);
   });
 
+  it('a lost response, then Cancel and a fresh confirmation (a new requestId), then a 401 is still reported as deleted (verification N3)', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.accountDeleteQueue.push(new ApiException({ kind: 'network', message: 'timed out' }));
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    store.cancelDeleteAccount();
+    store.beginDeleteAccount();
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: DELETED, verify: false }]);
+  });
+
   it('a 401 that follows an uncertain attempt inside the same call (the client\'s own retry) is reported as deleted', async () => {
     const { api, store, signedOut } = setup();
     await openLoadedPrivacy(api, store);

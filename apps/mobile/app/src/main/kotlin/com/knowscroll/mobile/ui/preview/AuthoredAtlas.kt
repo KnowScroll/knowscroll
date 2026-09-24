@@ -21,7 +21,14 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 
 /** A versioned authored graph, never a projection of the reader's interests. Scope owned by app. */
 @Composable
-fun AuthoredAtlas(authority: Universe, onClose: () -> Unit, onAuthorityFailure: () -> Unit) {
+fun AuthoredAtlas(
+    authority: Universe,
+    onClose: () -> Unit,
+    onAuthorityFailure: () -> Unit,
+    /** #135 verification N4: the reader's own credential (a signed-in session first), never a bare
+     * development-token client whose 401 would sign a valid session out. */
+    credential: CredentialProvider,
+) {
     var system by rememberSaveable { mutableStateOf(false) }
     var planet by rememberSaveable { mutableStateOf<String?>(null) }
     var content by rememberSaveable { mutableStateOf<String?>(null) }
@@ -30,7 +37,7 @@ fun AuthoredAtlas(authority: Universe, onClose: () -> Unit, onAuthorityFailure: 
     val places = rememberSaveableStateHolder()
     LaunchedEffect(authority.universeId, authority.privacyEpoch) {
         try {
-            val feed = ApiClient().getFeed("Reel")
+            val feed = ApiClient(credential = credential).getFeed("Reel")
             if (
                 feed.universeId != authority.universeId ||
                     feed.privacyEpoch != authority.privacyEpoch
@@ -111,6 +118,7 @@ fun AuthoredAtlas(authority: Universe, onClose: () -> Unit, onAuthorityFailure: 
                 authority,
                 { content = null },
                 onAuthorityFailure,
+                credential = credential,
                 initialScroll =
                     if (target.startsWith("reel:")) 0 else target.substringAfterLast(':').toInt(),
                 initialReel =

@@ -360,12 +360,14 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                 atlasPreview = false
                             },
                             viewModel::onMediaAuthorityFailure,
+                            viewModel.credentialProvider,
                         )
                     else
                         com.knowscroll.mobile.ui.preview.AuthoredPreview(
                             confirmed,
                             { previewOpen = false },
                             viewModel::onMediaAuthorityFailure,
+                            credential = viewModel.credentialProvider,
                         )
                 }
             } else if (previewOpen && !authorityReady) {
