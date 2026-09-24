@@ -206,4 +206,34 @@
     <string name="connection_feedback_note">Hiding a connection affects only your universe. The cited sources are not changed.</string>
     <string name="connection_hidden">Hidden for you. The sources are unchanged.</string>
     <string name="connection_close">Back to reading</string>
+
+    <!-- Ask about this Scroll (#132, ADR-0033): an authorized answer over this Scroll's own text.
+         Recording a question and requesting its answer are two separate reader actions; an
+         answer is never requested automatically. (XML comments cannot contain the double-hyphen sequence.) -->
+    <string name="ask_action">Ask</string>
+    <string name="reader_ask_description">Ask about this Scroll</string>
+    <string name="ask_sheet_title">Ask about this Scroll</string>
+    <string name="ask_question_label">Your question</string>
+    <string name="ask_submit_action">Ask</string>
+    <string name="ask_submit_description">Send this question</string>
+    <string name="ask_recording">Recording your question…</string>
+    <string name="ask_recorded_explanation">Getting an answer sends your question and this Scroll\'s text to an outside AI model. Its reply is shown only if it holds up against this Scroll. Clearing your history removes the question and answer; a content-free record of the request\'s size and timing is kept for billing checks.</string>
+    <string name="ask_get_answer_action">Get an answer</string>
+    <string name="ask_requesting">Requesting an answer…</string>
+    <string name="ask_waiting_queued">Your question is queued for an answer.</string>
+    <string name="ask_waiting_running">Checking the answer against this Scroll…</string>
+    <string name="ask_cancel_action">Cancel</string>
+    <string name="ask_basis_heading">FROM THIS SCROLL</string>
+    <string name="ask_limits_heading">WHERE IT STOPS</string>
+    <string name="ask_not_in_source">This Scroll doesn\'t say.</string>
+    <string name="ask_rejected">The answer didn\'t hold up against the Scroll, so it isn\'t shown.</string>
+    <string name="ask_failed">The answer couldn\'t be completed. Nothing from it was kept.</string>
+    <string name="ask_cancelled">You cancelled this question\'s answer.</string>
+    <string name="ask_unavailable">No answer arrived in time.</string>
+    <string name="ask_paused_request">Recording is paused, so questions aren\'t recorded.</string>
+    <string name="ask_not_asker">Only the session that asked can request its answer.</string>
+    <string name="ask_answers_disabled">Answers aren\'t available on this setup.</string>
+    <string name="ask_answer_not_found">The answer request could not be found.</string>
+    <string name="ask_close">Back to reading</string>
+    <string name="ask_close_description">Close ask</string>
 </resources>

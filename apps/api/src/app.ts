@@ -29,6 +29,7 @@ import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
 import { registerSignInRoutes } from './sign-in-routes.ts';
 import { registerSemanticRoutes } from './semantic-routes.ts';
 import { registerComposerRoutes } from './composer-routes.ts';
+import { registerAnswerRoutes } from './answer-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -116,8 +117,10 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof UnauthorizedSession) return reply.code(401).send({ error: 'Unauthorized' });
     const status = error instanceof Error && 'statusCode' in error ? Number(error.statusCode) : 500;
-    const code = Number.isInteger(status) && status >= 400 && status < 500 ? status : 500;
-    return reply.code(code).send({ error: code >= 500 ? 'Internal operation failed' : (error as Error).message });
+    // A deliberately unavailable capability (503, e.g. answers not enabled) keeps its safe message;
+    // every other 5xx stays generic so internal failures never leak details.
+    const code = Number.isInteger(status) && ((status >= 400 && status < 500) || status === 503) ? status : 500;
+    return reply.code(code).send({ error: code === 500 ? 'Internal operation failed' : (error as Error).message });
   });
 
   app.addHook('onReady', async () => { await ensureDevelopmentSession(developmentToken); });
@@ -138,6 +141,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   // #131: semantic continuations and connection feedback, through the same authenticated path.
   registerSemanticRoutes(app, authenticated);
   registerComposerRoutes(app, authenticated);
+  // #132: Ask answers — the reader's fresh authority, state and cancellation; no provider in this process.
+  registerAnswerRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 

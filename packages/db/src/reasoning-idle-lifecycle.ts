@@ -171,3 +171,29 @@ export async function cancelIdleDirectJob(client:pg.PoolClient,authScope:AuthSco
 export async function expireIdleDirectJob(client:pg.PoolClient,scope:IdleDirectJobScope):Promise<IdleWithdrawalResult> {
  return withdraw(client,scope,'expired');
 }
+
+/** Trusted worker maintenance (#132 review B2). A direct Job whose worker lost its lease, and whose
+ * attempts `recoverAttempt` has already closed (leaseless `waiting`, none active), is cancelled the
+ * way a reader's idle cancel is: never-sent attempts release everything they held, possibly-sent
+ * ones stay `unknown`. ADR-0018 allows `cancelled` only while the original session is live; for a
+ * signed-out reader this refuses (`idle_session_authority`) and the Job waits for its deadline,
+ * when `expireIdleDirectJob` needs no session. Caller owns the transaction. */
+export async function withdrawRecoveredDirectJob(client:pg.PoolClient,scope:IdleDirectJobScope):Promise<IdleWithdrawalResult> {
+ validateScope(scope);
+ const row=(await client.query<{status:string;lease_owner:string|null;attempts:number;active:number;live:boolean}>(
+  `SELECT j.status,j.lease_owner,
+    (SELECT count(*) FROM reasoning_attempt a WHERE a.job_id=j.id)::int AS attempts,
+    (SELECT count(*) FROM reasoning_attempt a WHERE a.job_id=j.id AND a.active)::int AS active,
+    EXISTS(SELECT 1 FROM reasoning_context_job_session b
+      JOIN device_session s ON (s.id,s.universe_id)=(b.session_id,b.universe_id)
+      JOIN universe u ON u.id=b.universe_id AND u.privacy_epoch=b.privacy_epoch
+      WHERE (b.job_id,b.universe_id,b.privacy_epoch)=(j.id,j.universe_id,j.privacy_epoch)
+       AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.privacy_epoch=u.privacy_epoch) AS live
+   FROM reasoning_job j WHERE (j.id,j.universe_id,j.privacy_epoch)=($1,$2,$3)`,
+  [scope.jobId,scope.universeId,scope.privacyEpoch],
+ )).rows[0];
+ if(!row) deny('idle_unknown_job');
+ if(row.status!=='waiting'||row.lease_owner!==null||row.attempts<1||row.active>0) deny('idle_job_ineligible');
+ if(!row.live) deny('idle_session_authority');
+ return withdraw(client,scope,'cancelled');
+}
