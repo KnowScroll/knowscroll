@@ -17,11 +17,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
@@ -50,6 +58,10 @@ import java.util.Locale
  * label rather than the raw ISO timestamp and the underlying event id. The persisted Trace id
  * (the contract's primary key for the saved event) is unchanged -- only what is drawn above it
  * changed.
+ *
+ * #134 (ADR-0039 §6): the reader's Relics are listed above the Traces, each with its state, and
+ * open their kept form in a sheet with "Let go" -- see [RelicsSection]. Defaulted, so every call
+ * site that only knows Traces is unchanged.
  */
 @Composable
 fun KeepScreen(
@@ -57,10 +69,13 @@ fun KeepScreen(
     onOpenTrace: (Trace) -> Unit,
     onSelectAtlas: () -> Unit,
     onSelectCable: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    relics: RelicControls? = null,
 ) {
+    var openRelicId by rememberSaveable { mutableStateOf<String?>(null) }
+    val openRelic = openRelicId?.let { id -> (relics?.state as? RelicsState.Loaded)?.response?.relics?.firstOrNull { it.relicId == id } }
     PosterTheme { Box(modifier = modifier.fillMaxSize().background(Poster.Paper)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().then(if (openRelic != null) Modifier.clearAndSetSemantics {} else Modifier)) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
@@ -69,6 +84,15 @@ fun KeepScreen(
                     Text(stringResource(R.string.keep_kicker), style = MaterialTheme.typography.labelMedium, color = Poster.Muted)
                     Text(stringResource(R.string.keep_title), style = MaterialTheme.typography.displayLarge, color = Poster.Ink)
                     Text(stringResource(R.string.keep_subtitle), style = MaterialTheme.typography.bodyMedium, color = Poster.Muted)
+                    if (relics != null) {
+                        RelicsSection(relics, onOpen = { openRelicId = it })
+                        // Named only when there are Relics above them to tell apart.
+                        if ((relics.state as? RelicsState.Loaded)?.response?.relics?.isNotEmpty() == true)
+                            Text(
+                                stringResource(R.string.relics_traces_heading), style = MaterialTheme.typography.titleLarge, color = Poster.Ink,
+                                modifier = Modifier.semantics { heading() },
+                            )
+                    }
                     when (state) {
                         is UniverseState.Loading -> Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -131,8 +155,24 @@ fun KeepScreen(
                 onSelectKeep = {}, poster = true
             )
         }
+        if (openRelic != null && relics != null)
+            ReturnSheet(onDismiss = { openRelicId = null }, bordered = true) {
+                RelicSheet(
+                    relic = openRelic,
+                    release = relics.releases[openRelic.relicId] ?: ReturnActionState.Idle,
+                    onLetGo = relics.onLetGo,
+                    onRetryLetGo = relics.onRetryLetGo,
+                    onClose = { openRelicId = null },
+                )
+            }
     }
     }
+    // A Relic that is gone (let go, or a new epoch) closes its sheet; Back closes an open one first.
+    val relicsLoaded = relics?.state is RelicsState.Loaded
+    LaunchedEffect(relicsLoaded, openRelic == null) {
+        if (relicsLoaded && openRelic == null) openRelicId = null
+    }
+    BackHandler(enabled = openRelic != null) { openRelicId = null }
 }
 
 /** Strict ISO parsing preserves the original value if a server timestamp is malformed. */

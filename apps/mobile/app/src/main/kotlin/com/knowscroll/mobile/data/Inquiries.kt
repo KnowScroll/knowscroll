@@ -90,7 +90,7 @@ private const val MAX_EPOCH = 2147483647L
 
 internal fun parseInquiriesResponse(o: JSONObject): InquiriesResponse {
     o.requireKeys("privacyEpoch", "consent", "inquiries")
-    val inquiries = o.array("inquiries").objects().map(::parseInquiry)
+    val inquiries = o.array("inquiries").strictObjects().map(::parseInquiry)
     require(inquiries.size <= INQUIRY_LIST_LIMIT) { "The inquiry list exceeds its $INQUIRY_LIST_LIMIT-row cap" }
     return InquiriesResponse(o.epoch("privacyEpoch"), parseInquiryConsent(o.obj("consent")), inquiries)
 }
@@ -113,17 +113,11 @@ internal fun parseInquiry(o: JSONObject): Inquiry {
     o.requireKeys("inquiryId", "status", "requestedAt", "closedAt", "pairs", "reasons", "found")
     val status = o.string("status")
     require(status in INQUIRY_STATUSES) { "Unknown inquiry status" }
-    val pairs = o.array("pairs").objects().map { p ->
-        p.requireKeys("a", "b")
-        InquiryPair(parseConcept(p.obj("a")), parseConcept(p.obj("b")))
-    }
+    val pairs = o.array("pairs").strictObjects().map(::parseInquiryPair)
     require(pairs.size <= 3) { "An inquiry offers at most three pairs" }
-    val reasonsArray = o.array("reasons")
-    val reasons = List(reasonsArray.length()) { i ->
-        (reasonsArray.get(i) as? String)?.takeIf { REASON_CODE.matches(it) } ?: throw IllegalArgumentException("Invalid reason code")
-    }
+    val reasons = o.array("reasons").reasonCodes()
     require(reasons.size <= 24) { "Too many reasons" }
-    val found = if (o.isNull("found")) null else parseFound(o.obj("found"))
+    val found = if (o.isNull("found")) null else parseInquiryFound(o.obj("found"))
     val closedAt = o.nullableDatetime("closedAt")
     // The contract's own refinements (`inquiryWire.superRefine`).
     require((status == "found") == (found != null)) { "Only a found inquiry carries a bridge" }
@@ -132,7 +126,8 @@ internal fun parseInquiry(o: JSONObject): Inquiry {
     return Inquiry(o.uuid("inquiryId"), status, o.datetime("requestedAt"), closedAt, pairs, reasons, found)
 }
 
-private fun parseFound(o: JSONObject): InquiryFound {
+/** Also a Relic's connection and a found item on the return (`data/Relics.kt`, `data/Away.kt`). */
+internal fun parseInquiryFound(o: JSONObject): InquiryFound {
     o.requireKeys("bridgeId", "bridgeStatus", "relationType", "fromConcept", "toConcept", "sentence", "evidence")
     val bridgeStatus = o.string("bridgeStatus")
     require(bridgeStatus in INQUIRY_BRIDGE_STATUSES) { "Unknown bridge status" }
@@ -140,7 +135,7 @@ private fun parseFound(o: JSONObject): InquiryFound {
     require(relationType in INQUIRY_RELATION_TYPES) { "Unknown relation type" }
     val sentence = o.string("sentence")
     require(sentence.isNotEmpty() && sentence.length <= 600) { "A found bridge carries its sentence" }
-    val evidence = o.array("evidence").objects().map { e ->
+    val evidence = o.array("evidence").strictObjects().map { e ->
         e.requireKeys("claimKey", "statement", "supports", "sourceTitle", "sourceUrl")
         val supports = e.string("supports")
         require(supports in INQUIRY_EVIDENCE_ROLES) { "Unknown evidence role" }
@@ -149,10 +144,15 @@ private fun parseFound(o: JSONObject): InquiryFound {
         InquiryEvidence(e.nonEmpty("claimKey"), e.nonEmpty("statement"), supports, e.nonEmpty("sourceTitle"), url)
     }
     require(evidence.size in 1..12) { "A found bridge cites its evidence" }
-    return InquiryFound(o.uuid("bridgeId"), bridgeStatus, relationType, parseConcept(o.obj("fromConcept")), parseConcept(o.obj("toConcept")), sentence, evidence)
+    return InquiryFound(o.uuid("bridgeId"), bridgeStatus, relationType, parseInquiryConcept(o.obj("fromConcept")), parseInquiryConcept(o.obj("toConcept")), sentence, evidence)
 }
 
-private fun parseConcept(o: JSONObject): InquiryConcept {
+internal fun parseInquiryPair(o: JSONObject): InquiryPair {
+    o.requireKeys("a", "b")
+    return InquiryPair(parseInquiryConcept(o.obj("a")), parseInquiryConcept(o.obj("b")))
+}
+
+internal fun parseInquiryConcept(o: JSONObject): InquiryConcept {
     o.requireKeys("code", "name")
     val code = o.string("code")
     require(CONCEPT_CODE.matches(code)) { "Invalid concept code" }
@@ -161,29 +161,36 @@ private fun parseConcept(o: JSONObject): InquiryConcept {
     return InquiryConcept(code, name)
 }
 
-// ---- strict JSON reading: no coercion (org.json would turn "3" into 3 and 3 into "3") ----
+/** Validator reasons and the like: `^[a-z][a-z0-9_]{1,63}$` codes, never free text. */
+internal fun JSONArray.reasonCodes(): List<String> = List(length()) { i ->
+    (get(i) as? String)?.takeIf { REASON_CODE.matches(it) } ?: throw IllegalArgumentException("Invalid reason code")
+}
 
-private fun JSONObject.requireKeys(vararg names: String) {
+// ---- strict JSON reading: no coercion (org.json would turn "3" into 3 and 3 into "3") ----
+// Internal: `data/Away.kt` and `data/Relics.kt` read their contracts with the same accessors.
+
+internal fun JSONObject.requireKeys(vararg names: String) {
     val actual = mutableSetOf<String>()
     keys().forEach { actual += it }
     require(actual == names.toSet()) { "Unexpected shape: ${actual.sorted()}" }
 }
 
-private fun JSONObject.string(name: String): String = get(name) as? String ?: throw IllegalArgumentException("$name is not a string")
-private fun JSONObject.nonEmpty(name: String): String = string(name).also { require(it.isNotEmpty()) { "$name is empty" } }
-private fun JSONObject.bool(name: String): Boolean = get(name) as? Boolean ?: throw IllegalArgumentException("$name is not a boolean")
-private fun JSONObject.obj(name: String): JSONObject = get(name) as? JSONObject ?: throw IllegalArgumentException("$name is not an object")
-private fun JSONObject.array(name: String): JSONArray = get(name) as? JSONArray ?: throw IllegalArgumentException("$name is not an array")
-private fun JSONObject.uuid(name: String): String = string(name).also { require(UUID.matches(it)) { "$name is not a UUID" } }
-private fun JSONObject.datetime(name: String): String = string(name).also { require(DATETIME.matches(it)) { "$name is not a UTC datetime" } }
-private fun JSONObject.nullableDatetime(name: String): String? = if (isNull(name)) null else datetime(name)
+internal fun JSONObject.string(name: String): String = get(name) as? String ?: throw IllegalArgumentException("$name is not a string")
+internal fun JSONObject.nonEmpty(name: String): String = string(name).also { require(it.isNotEmpty()) { "$name is empty" } }
+internal fun JSONObject.bool(name: String): Boolean = get(name) as? Boolean ?: throw IllegalArgumentException("$name is not a boolean")
+internal fun JSONObject.obj(name: String): JSONObject = get(name) as? JSONObject ?: throw IllegalArgumentException("$name is not an object")
+internal fun JSONObject.array(name: String): JSONArray = get(name) as? JSONArray ?: throw IllegalArgumentException("$name is not an array")
+internal fun JSONObject.uuid(name: String): String = string(name).also { require(UUID.matches(it)) { "$name is not a UUID" } }
+internal fun JSONObject.datetime(name: String): String = string(name).also { require(DATETIME.matches(it)) { "$name is not a UTC datetime" } }
+internal fun JSONObject.nullableDatetime(name: String): String? = if (isNull(name)) null else datetime(name)
 
-private fun JSONObject.long(name: String): Long = when (val v = get(name)) {
+internal fun JSONObject.long(name: String): Long = when (val v = get(name)) {
     is Int -> v.toLong()
     is Long -> v
     else -> throw IllegalArgumentException("$name is not an integer")
 }
-private fun JSONObject.int(name: String): Int = long(name).also { require(it in Int.MIN_VALUE..Int.MAX_VALUE) { "$name out of range" } }.toInt()
-private fun JSONObject.epoch(name: String): Long = long(name).also { require(it in 0..MAX_EPOCH) { "Invalid privacy epoch" } }
+internal fun JSONObject.int(name: String): Int = long(name).also { require(it in Int.MIN_VALUE..Int.MAX_VALUE) { "$name out of range" } }.toInt()
+internal fun JSONObject.epoch(name: String): Long = long(name).also { require(it in 0..MAX_EPOCH) { "Invalid privacy epoch" } }
 
-private fun JSONArray.objects(): List<JSONObject> = List(length()) { get(it) as? JSONObject ?: throw IllegalArgumentException("Expected an object") }
+/** Named apart from the lenient private `objects()` in `Atlas.kt`/`Branches.kt`, which it would clash with. */
+internal fun JSONArray.strictObjects(): List<JSONObject> = List(length()) { get(it) as? JSONObject ?: throw IllegalArgumentException("Expected an object") }

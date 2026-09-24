@@ -18,31 +18,43 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
     /** Serves each `(status, jsonBody)` reply, in order, to one accepted connection. */
     fun serve(vararg replies: Pair<Int, String>) {
         worker = thread {
-            replies.forEach { (status, body) ->
-                server.accept().use { socket ->
-                    val input = socket.getInputStream().bufferedReader()
-                    val requestLine = input.readLine() ?: ""
-                    var length = 0
-                    while (true) {
-                        val line = input.readLine()
-                        if (line.isNullOrEmpty()) break
-                        if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
-                    }
-                    val requestBody = if (length > 0) String(CharArray(length).also { input.read(it, 0, length) }) else ""
-                    requests += Recorded(requestLine, requestBody)
-                    if (status == HANG) {
-                        // Received in full, never answered: hold the connection until the client
-                        // gives up (its read timeout) and closes it -- a genuinely lost response.
-                        socket.soTimeout = 15_000
-                        runCatching { while (input.read() != -1) Unit }
-                        return@use
-                    }
-                    socket.getOutputStream().write(
-                        ("HTTP/1.1 $status X\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n" + body)
-                            .toByteArray()
-                    )
-                }
+            replies.forEach { reply -> answerNext { reply } }
+        }
+    }
+
+    /** #134: serves [count] connections, each answered by [route] from its own request -- for reads
+     * a client sends concurrently, which arrive in no fixed order. */
+    fun serveBy(count: Int, route: (Recorded) -> Pair<Int, String>) {
+        worker = thread {
+            repeat(count) { answerNext(route) }
+        }
+    }
+
+    private fun answerNext(reply: (Recorded) -> Pair<Int, String>) {
+        server.accept().use { socket ->
+            val input = socket.getInputStream().bufferedReader()
+            val requestLine = input.readLine() ?: ""
+            var length = 0
+            while (true) {
+                val line = input.readLine()
+                if (line.isNullOrEmpty()) break
+                if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
             }
+            val requestBody = if (length > 0) String(CharArray(length).also { input.read(it, 0, length) }) else ""
+            val recorded = Recorded(requestLine, requestBody)
+            requests += recorded
+            val (status, body) = reply(recorded)
+            if (status == HANG) {
+                // Received in full, never answered: hold the connection until the client
+                // gives up (its read timeout) and closes it -- a genuinely lost response.
+                socket.soTimeout = 15_000
+                runCatching { while (input.read() != -1) Unit }
+                return@use
+            }
+            socket.getOutputStream().write(
+                ("HTTP/1.1 $status X\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n" + body)
+                    .toByteArray()
+            )
         }
     }
 

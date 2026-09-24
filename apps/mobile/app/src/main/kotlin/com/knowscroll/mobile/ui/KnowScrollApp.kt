@@ -29,7 +29,11 @@ import com.knowscroll.mobile.ui.account.InquiryActions
 import com.knowscroll.mobile.ui.account.PrivacyActions
 import com.knowscroll.mobile.ui.account.PrivacyScreen
 import com.knowscroll.mobile.ui.account.SignInScreen
+import com.knowscroll.mobile.ui.keep.ConnectionActions
 import com.knowscroll.mobile.ui.keep.KeepScreen
+import com.knowscroll.mobile.ui.keep.RelicControls
+import com.knowscroll.mobile.ui.keep.ReturnViewModel
+import com.knowscroll.mobile.ui.system.AwayControls
 import com.knowscroll.mobile.ui.scroll.ScrollScreen
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
@@ -220,6 +224,24 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                 awaitCancellation()
             }
         }
+        // #134 (ADR-0039): the return and Relics share one small view model, one per universe and
+        // epoch (so nothing of another account or a cleared history carries over), read afresh
+        // each time the reader opens the Atlas or Keep and each time the app comes back to it.
+        val returnViewModel: ReturnViewModel = viewModel(key = "return:$scopeKey")
+        val away by returnViewModel.away.collectAsStateWithLifecycle()
+        val relics by returnViewModel.relics.collectAsStateWithLifecycle()
+        val acknowledge by returnViewModel.acknowledge.collectAsStateWithLifecycle()
+        val connections by returnViewModel.connections.collectAsStateWithLifecycle()
+        val releases by returnViewModel.releases.collectAsStateWithLifecycle()
+        val onAtlas = screen is Screen.System
+        val onKeep = screen is Screen.Keep
+        LaunchedEffect(onAtlas, onKeep, returnViewModel, lifecycle) {
+            if (onAtlas || onKeep)
+                lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    if (onAtlas) returnViewModel.openAtlas() else returnViewModel.openKeep()
+                    awaitCancellation()
+                }
+        }
         val reading = scroll as? ScrollState.Reading
         val activeReelKey =
             reading
@@ -344,6 +366,11 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                             onOpenTrace = viewModel::openTrace,
                             onSelectAtlas = viewModel::returnToUniverse,
                             onSelectCable = viewModel::enterScroll,
+                            relics = RelicControls(
+                                state = relics, releases = releases,
+                                onLetGo = returnViewModel::letGo, onRetryLetGo = returnViewModel::retryLetGo,
+                                onRetryLoad = returnViewModel::retryRelics,
+                            ),
                         )
                     is Screen.System ->
                         atlasStates.SaveableStateProvider("system:$scopeKey") {
@@ -361,6 +388,14 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                 onConfirmSetAside = viewModel::confirmSetAside,
                                 onOpenEvidence = viewModel::openEvidence,
                                 onCloseEvidence = viewModel::closeEvidence,
+                                away = AwayControls(
+                                    state = away, acknowledge = acknowledge, connections = connections,
+                                    onMarkSeen = returnViewModel::markSeen, onRetryMarkSeen = returnViewModel::retryMarkSeen,
+                                    connection = ConnectionActions(
+                                        onKeep = returnViewModel::keep, onRetryKeep = returnViewModel::retryKeep,
+                                        onSeemsWrong = returnViewModel::seemsWrong, onRetrySeemsWrong = returnViewModel::retrySeemsWrong,
+                                    ),
+                                ),
                             )
                         }
                 }

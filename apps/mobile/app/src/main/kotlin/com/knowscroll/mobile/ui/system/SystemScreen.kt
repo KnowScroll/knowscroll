@@ -52,6 +52,9 @@ import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
+import com.knowscroll.mobile.ui.keep.ConnectionState
+import com.knowscroll.mobile.ui.keep.FoundConnectionSheet
+import com.knowscroll.mobile.ui.keep.ReturnSheet
 import com.knowscroll.mobile.ui.theme.Cosmos
 
 /**
@@ -61,6 +64,10 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * #134: the reader's own live places (ADR-0036) share this screen as a second, default layer --
  * see [AtlasLayer]. Sources is unchanged; Places reuses the same spatial engine (`SpatialAtlas`)
  * with the reader's planets/regions/sightings in place of the source worlds/authored geography.
+ *
+ * #134 (ADR-0039 §6): the Places layer opens with a quiet "While you were away" when something
+ * changed that the reader did not cause ([AwaySection]); a found connection opens its evidence in a
+ * sheet with "Keep" and "Seems wrong". [away] is defaulted so every other call site is unchanged.
  */
 @Composable
 fun SystemScreen(
@@ -80,6 +87,7 @@ fun SystemScreen(
     onConfirmSetAside: () -> Unit = {},
     onOpenEvidence: (String) -> Unit = {},
     onCloseEvidence: () -> Unit = {},
+    away: AwayControls? = null,
 ) {
     val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var inspection by rememberSaveable { mutableStateOf(false) }
@@ -131,6 +139,9 @@ fun SystemScreen(
         inspection = true
     }
     val selected = worlds.firstOrNull { it.worldId == selectedWorldId }
+    // #134: the found connection whose evidence sheet is open, while the list still carries it.
+    var openConnectionId by rememberSaveable { mutableStateOf<String?>(null) }
+    val openConnection = if (layer == AtlasLayer.Places && away != null) openConnectionId?.let { awayFound(away.state, it) } else null
     BackHandler { if (selectedWorldId != null) selectedWorldId = null else onReturn() }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -145,7 +156,7 @@ fun SystemScreen(
                         Column(
                             Modifier.fillMaxSize()
                                 .then(
-                                    if (inspection) Modifier.clearAndSetSemantics {} else Modifier
+                                    if (inspection || openConnection != null) Modifier.clearAndSetSemantics {} else Modifier
                                 )
                         ) {
                             Text(
@@ -199,6 +210,13 @@ fun SystemScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Cosmos.MutedOnDark,
                                     modifier = Modifier.padding(horizontal = 20.dp),
+                                )
+                            // #134 (ADR-0039): under the labels, above the map; absent unless there
+                            // is something unacknowledged.
+                            if (layer == AtlasLayer.Places && away != null)
+                                AwaySection(
+                                    away, onOpenConnection = { openConnectionId = it },
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                                 )
                             cameraStates.SaveableStateProvider("camera:${layer.name}") {
                                 if (layer == AtlasLayer.Places && atlas == null)
@@ -283,6 +301,15 @@ fun SystemScreen(
                                     )
                                 }
                             }
+                        } else if (openConnection != null && away != null) {
+                            ReturnSheet(onDismiss = { openConnectionId = null }) {
+                                FoundConnectionSheet(
+                                    found = openConnection,
+                                    state = away.connections[openConnection.bridgeId] ?: ConnectionState(),
+                                    actions = away.connection,
+                                    onClose = { openConnectionId = null },
+                                )
+                            }
                         } else if (selected != null && inspection) {
                             // Consume taps above inspection as a dismissal, never through to the
                             // map.
@@ -341,6 +368,10 @@ fun SystemScreen(
         }
     }
     BackHandler(enabled = inspection) { inspection = false }
+    // #134: a connection gone from the list (marked as seen, a new epoch) closes its sheet; Back
+    // closes an open one first.
+    LaunchedEffect(openConnection == null) { if (openConnection == null) openConnectionId = null }
+    BackHandler(enabled = openConnection != null) { openConnectionId = null }
 }
 
 /** The reader's own choice between the two layers of the same system: places formed from their
