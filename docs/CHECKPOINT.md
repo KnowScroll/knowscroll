@@ -11,9 +11,9 @@ relation and cites offered claims; the system composes the typed proposal; `brid
 unchanged, decides. An admitted bridge is the reader's own continuation. Android's Privacy &
 account has the switch, the limit, and the list of what was looked for.
 
-Verification: pure 13, DB/API/worker 32 (fixture: coalescing, limit, consent/pause/Clear queued and
-in flight, stale context, crash without replay, fairness against a direct Ask), backend suite,
-Android 344 + lint. The emulator `inquiry` journey passed with the fixture: consent, reading forms
+Verification: pure 14, DB/API/worker 35 (fixture: coalescing, limit, consent/pause/Clear queued and
+in flight, off-then-on and pause-then-resume during a call, a reply after the deadline, stale
+context, crash without replay, fairness against a direct Ask), backend suite, Android 347 + lint. The emulator `inquiry` journey passed with the fixture: consent, reading forms
 Gravity, the inquiry is found, the continuation appears, and SQL lineage matches. Live MiniMax-M3
 (owner authorisation, subscription route, preflight, ledger): 7 requests, 29 → 35/40. The first
 four were refused by the validator, which led to the structured reply. Then one admitted bridge
@@ -21,6 +21,10 @@ four were refused by the validator, which led to the structured reply. Then one 
 device, whose journey now accepts any validated live outcome and checks the screen for it. See the
 [evidence](journeys/evidence/background-inquiries-2026-09-24/README.md). No prompt or reply text
 is in Git.
+
+The fresh review's fix pass: pairs are offered only when each side has a claim of its own, the
+since-sealing guards are proven by mutants, a late reply fails as `expired` at once (found while
+testing), and the Android wording is fixed. The deferred items are in #153.
 
 ## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
 
