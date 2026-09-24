@@ -10,7 +10,7 @@ import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
 
-/**
+/*
  * #134 — pure mapping from the reader's places (ADR-0036) to the existing `AtlasMarker`/region
  * seams `SpatialAtlas` already renders, and the copy shown for a place's basis/evidence. Kept out
  * of the ViewModel and out of Compose so the mapping, wording and conflict rules are unit-testable

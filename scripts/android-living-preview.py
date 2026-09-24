@@ -106,9 +106,9 @@ try:
         if recording:
             recording.wait(timeout=65)
             run(['adb', 'pull', '/sdcard/knowscroll-living.mp4', str(out / 'living-motion.mp4')])
-        for filename in ('living-cable.json', 'living-scroll-top.png', 'living-scroll.png', 'living-reel.png', 'living-worlds.png', 'living-failure.png',
+        for filename in ('living-cable.json', 'living-scroll-top.png', 'living-scroll.png', 'living-reel.png', 'living-failure.png',
                          'direct-atlas.json', 'direct-media.json', 'direct-motion.json', 'atlas-stress.json', 'direct-universe.png', 'direct-preview-universe.png', 'direct-system.png', 'direct-planet.png', 'direct-continents.png', 'direct-region.png', 'direct-topic.png', 'direct-scroll.png', 'direct-return.png', 'direct-failure.png',
-                         'living-atlas.json', 'living-system.png', 'living-continents.png', 'living-local.png', 'living-station.png'):
+                         'living-atlas.json', 'living-system.png', 'living-station.png'):
             capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
             # exec-out can return zero for remote cat failure. Validate before publishing receipts.
             if capture.returncode != 0: continue

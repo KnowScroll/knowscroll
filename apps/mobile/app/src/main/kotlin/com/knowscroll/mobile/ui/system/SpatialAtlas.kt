@@ -474,7 +474,7 @@ fun SpatialAtlas(
                     modifier =
                         Modifier.size(48.dp).semantics {
                             contentDescription =
-                                if (level == "planet") "Close world detail and return to the system"
+                                if (level == "planet") "Close place detail and return to the system"
                                 else "Back one atlas level"
                         },
                 ) {
