@@ -6,8 +6,9 @@
  * decided are never sent again. Only then is the caller's `beforeSend` gate asked, and exactly one
  * request sent, never retried. The reply is judged by scroll-checks-v2 and either admitted (the
  * Scroll, its claims and the private material, in one transaction) or recorded as refused with its
- * reason codes, each refused quote's diagnosis after them (#181). The operator CLI (`scripts/scrolls/write-scrolls.ts`) supplies the transport and a
- * gate of quota preflight plus the session ledger; a worker loop supplies its own route's.
+ * reason codes, each refused quote's diagnosis after them (#181). The operator CLI
+ * (`scripts/scrolls/write-scrolls.ts`) supplies the transport and a gate of quota preflight plus the
+ * session ledger; a worker loop supplies its own route's.
  */
 import { createHash } from 'node:crypto';
 import { MATERIAL_POLICY_VERSION, offeredText } from '../../../../packages/core/src/scrolls/material.ts';
