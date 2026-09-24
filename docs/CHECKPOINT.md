@@ -8,16 +8,19 @@ fresh reader action (`POST /v1/asks/:askId/answer`) from the Ask's own session, 
 not paused and an answer route is enabled. The API only records the request; the worker schedules
 it fairly (ADR-0019 plane: fairness, admission, one invocation, reconciliation), sends exactly the
 reserved bytes once through the worker-only transport (fixture or MiniMax-M3 subscription route
-with quota preflight), and applies provider text only through the answer validator: one JSON
+with quota preflight), and applies provider text only through the answer validator (v2): one JSON
 object, every basis quote verbatim in the sealed Scroll, bounded, nothing about the reader.
 Otherwise the answer is `rejected` with content-free reason codes. Unknown outcomes hold their
 remote slot and are never retried. Clear/Reset erase requests and answers; export carries them.
 Android: Ask sheet with "Get an answer", answered/not-in-source/rejected/failed states, cancel.
 
-Live, bounded (16 of 40 authorized requests): v1 rejected every reply to the Android journey's
+Live, bounded (22 of 40 authorized requests): v1 rejected every reply to the Android journey's
 yes/no question because MiniMax wrapped basis quotes differently; v2 projects items to their quote
 and keeps every other rule; 0/5 → 5/5 answered with verified quotes, then answered on the emulator.
-Verification: core 7, lifecycle 11, crash 1, transport 4, backend 802+13, web 82, Android 124
+A fresh-context review found 2 blocking defects (all-space quotes passed; an attempt admitted but
+never sent left the Job and its remote slot stuck) and 8 important ones; all were fixed test-first,
+including a recovery sweep for Jobs whose worker died, and the evidence was regenerated from the
+clean commit. Verification: core 8, lifecycle 12, recovery 2, crash 1, transport 7, Android 125
 units, fixture and live emulator journeys with DB lineage; see the
 [evidence](journeys/evidence/ask-answers-2026-09-24/README.md). Preview restored after every run;
 owner database untouched.

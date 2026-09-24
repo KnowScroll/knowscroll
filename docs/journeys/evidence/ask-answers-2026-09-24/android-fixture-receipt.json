@@ -1,27 +1,27 @@
 {
-  "at": "2026-09-24T04:26:36.123094+00:00",
+  "at": "2026-09-24T05:05:31.929456+00:00",
   "result": "passed",
-  "database": "knowscroll_test_semantic_41cdd8a3192a5b56",
+  "database": "knowscroll_test_semantic_9a18996a7966bb2f",
   "apiPort": 4333,
-  "source": "c6a51b7c525e4ba88c6983b0f6c6d48f7870c6a4",
+  "source": "5ad8db793d8efce2bf4980113b576947a5f2b047",
   "package": "com.knowscroll.mobile.journey",
   "journeyName": "ask",
   "journey": {
-    "askId": "ba879f94-780f-4e2d-a056-c876a0dbb432",
+    "askId": "925f8568-0ec7-4215-a518-887a0ab169e8",
     "status": "answered",
-    "basisQuotes": 3,
+    "basisQuotes": 1,
     "scrollAssetId": "20000000-0000-4000-8000-000000000004"
   },
   "lineage": {
     "answerStatus": "answered",
-    "basisQuotes": 3,
+    "basisQuotes": 1,
     "jobCompleted": 1,
     "dispatches": 1,
     "askLedgerEvents": 1
   },
-  "providerCalls": 1,
+  "providerCalls": 0,
   "limits": [
-    "Live MiniMax-M3 through the subscription route, one request; the answer text stays in the dropped database.",
+    "Fixture answer transport (labelled); no provider call.",
     "Debug API36 emulator, not a physical device."
   ]
 }
