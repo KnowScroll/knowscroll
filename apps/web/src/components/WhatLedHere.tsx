@@ -39,6 +39,8 @@ export function whyStepText(step: EvidenceStep): string {
       return 'A question you asked that has no answer yet';
     case 'outside':
       return 'Somewhere you have not been shown before';
+    case 'demand':
+      return 'You had already seen everything here';
   }
 }
 
@@ -52,6 +54,8 @@ function stepKey(step: EvidenceStep, index: number): string {
       return `${index}:question:${step.concept}`;
     case 'outside':
       return `${index}:outside:${step.domain}`;
+    case 'demand':
+      return `${index}:demand:${step.bindingId}`;
   }
 }
 

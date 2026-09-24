@@ -117,6 +117,7 @@ describe('What led here (#133)', () => {
         { kind: 'mark', markKind: 'ask', assetId: 'a2', title: 'Tides', at: '2026-09-24T10:00:00.000Z', eventId: 'e2' },
         { kind: 'question', concept: 'physics.gravity' },
         { kind: 'outside', domain: 'life' },
+        { kind: 'demand', demandId: 'd1', bindingId: 'b1', concept: 'earth.tides', placeId: null, origin: null },
       ],
       corrections: ['less_like_this'],
     });
@@ -128,6 +129,7 @@ describe('What led here (#133)', () => {
       'You asked about “Tides”',
       'A question you asked that has no answer yet',
       'Somewhere you have not been shown before',
+      'You had already seen everything here',
     ]);
   });
 

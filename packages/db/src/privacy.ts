@@ -13,6 +13,7 @@ import {eraseAskAnswers, exportAskAnswers} from './reasoning-answers.ts';
 import {eraseInquiries, exportInquiries, withdrawInquiries} from './reasoning-inquiries.ts';
 import {eraseAway, exportAway} from './away.ts';
 import {eraseRelics, exportRelics} from './relics.ts';
+import {cancelDemands, eraseInventory, exportInventory} from './inventory/demand.ts';
 
 export class HistoryClearConflict extends Error {
  readonly statusCode = 409;
@@ -42,6 +43,9 @@ async function eraseEncounterSystem(client:pg.PoolClient,universeId:string):Prom
  * the caller's universe lock and after its epoch has advanced. Semantic rows (#131) go before the
  * exposures/decisions/ledger events they reference. Shared knowledge and other universes survive. */
 async function erasePersonalHistory(client:pg.PoolClient,universeId:string,epochBefore:number,epochAfter:number):Promise<void> {
+ // #164 (ADR-0046): demands, waiters and bindings name places, bridges and exposures, so they go
+ // before all three. Shared requests stay: another universe may be waiting on them.
+ await eraseInventory(client,universeId);
  // #134/#165 (ADR-0039/0044): Relics and objections name answers, places, exposures, inquiries and
  // personal bridges, so they go first; markers with them.
  await eraseRelics(client,universeId);
@@ -164,7 +168,11 @@ async function setRecordingPaused(
   [randomUUID(), scope.universeId, input.requestId, action, scope.privacyEpoch],
  )).rows[0];
  // ADR-0038 §8: pausing stops every background inquiry not yet sent; a call in flight is discarded at apply.
- if (action === 'pause') await withdrawInquiries(client, scope.universeId, scope.privacyEpoch, 'recording_paused');
+ // ADR-0046 §3: it cancels this universe's waiters and open demands too, never another's or a shared request.
+ if (action === 'pause') {
+  await withdrawInquiries(client, scope.universeId, scope.privacyEpoch, 'recording_paused');
+  await cancelDemands(client, scope.universeId, scope.privacyEpoch, 'recording_paused');
+ }
  return recordingReceiptFromRow(receipt);
 }
 
@@ -235,6 +243,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
  const askAnswers = await exportAskAnswers(client, scope.universeId);
  const inquiries = await exportInquiries(client, scope.universeId);
  const returns = { acknowledgements: await exportAway(client, scope.universeId), ...await exportRelics(client, scope.universeId) };
+ const inventory = await exportInventory(client, scope.universeId);
 
  const rowCounts = {
   decisions: decisions.length, ledger: ledger.length, exposures: exposures.length,
@@ -248,6 +257,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   askAnswers: askAnswers.length,
   inquiries: inquiries.inquiries.length,
   awayAcknowledgements: returns.acknowledgements.length, relics: returns.relics.length, objections: returns.objections.length,
+  demands: inventory.demands.length,
  };
 
  const existing = (await client.query(
@@ -278,6 +288,7 @@ export async function exportUniverse(client: pg.PoolClient, scope: AuthScope, in
   askAnswers,
   inquiries,
   returns,
+  inventory,
  };
 }
 
