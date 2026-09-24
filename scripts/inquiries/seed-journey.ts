@@ -55,7 +55,9 @@ try {
     policyVersion: POLICY, routeId: live ? 'minimax-subscription' : 'fixture-inquiries', routeProfileVersion: live ? 'minimax-m3-anthropic-v1' : 'fixture-v1',
     transport, model: live ? 'MiniMax-M3' : 'fixture-model', maxInputTokens: 16384, maxOutputTokens,
     requestCap: live ? 1 : 4, tokenBudget: live ? 24_000 : 1_000_000, ownerCapacity: live ? 24_000 : 1_000_000, jobCapacity: live ? 24_000 : 100_000,
-    coalescingDelaySeconds: delay, jobTtlSeconds: 600, remoteSlots: 1,
+    // The journey's bound is one request per inquiry, so no continuation (ADR-0042 §1): a live one is
+    // measured by `scripts/run-live-inquiry-experiment.ts --continuation`.
+    coalescingDelaySeconds: delay, jobTtlSeconds: 600, remoteSlots: 1, maxContinuationSteps: 0,
   }));
   const consent = (await pool.query('SELECT 1 FROM background_inquiry_consent WHERE universe_id=$1 AND enabled', [universeId])).rowCount;
   if (consent) throw new Error('seed-journey: consent is already on; the supplied place would be mailed');

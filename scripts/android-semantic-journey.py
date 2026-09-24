@@ -95,9 +95,15 @@ live_ledger_path = Path(os.environ['KS_DEV_ROOT']) / 'minimax-answer-session-led
 inquiry_transport = os.environ.get('KS_INQUIRY_TRANSPORT', 'fixture')
 if inquiry_transport not in ('fixture', 'minimax'): sys.exit('KS_INQUIRY_TRANSPORT is fixture or minimax')
 live_run = (journey_name == 'ask' and ask_transport == 'minimax') or (journey_name in ('inquiry', 'return') and inquiry_transport == 'minimax')
+# #153: a live run holds the ledger from this check until its count is written, through the same lock file
+# scripts/lib/live-ledger.ts takes; a run whose requests cannot be counted keeps it for counting by hand.
+live_ledger_lock = live_ledger_path.with_name(live_ledger_path.name + '.lock')
 if live_run:
+    try: lock_fd = os.open(live_ledger_lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError: sys.exit(f'Refusing: another live run holds {live_ledger_lock}; remove it only once no live run is active.')
+    os.write(lock_fd, str(os.getpid()).encode()); os.close(lock_fd)
     live_ledger = json.loads(live_ledger_path.read_text()) if live_ledger_path.exists() else {'sessionCap': 40, 'used': 0, 'runs': []}
-    if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live allowance is spent')
+    if live_ledger['used'] + 1 > live_ledger['sessionCap']: live_ledger_lock.unlink(); sys.exit('Refusing: the live allowance is spent')
 out = root / 'artifacts/semantic-journey' / journey_name
 out.mkdir(parents=True, exist_ok=True)
 # The owner's preview is never installed here; its APKs are checked unchanged at the end (#136).
@@ -549,8 +555,10 @@ finally:
     if created and live_run:
         before_count = len(cleanup_errors)
         attempt('count live requests', count_live)
-        # A live request that cannot be counted keeps its database, so it can be counted by hand.
+        # A live request that cannot be counted keeps its database and the ledger lock, so it can be counted by hand.
         if len(cleanup_errors) > before_count: created = False
+        else: live_ledger_lock.unlink()
+    elif live_run: live_ledger_lock.unlink()  # no database was created, so nothing was sent
     # Outcome codes only (status, validator reasons, usage counts), never question or answer text.
     def record_outcome():
         (out / 'answer-outcome.json').write_text(sql("""SELECT coalesce(json_agg(json_build_object('status', a.status, 'reasons', a.reasons,
