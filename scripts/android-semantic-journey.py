@@ -165,9 +165,10 @@ try:
             while time.time() < deadline and not push_done.is_set():
                 if sink_path.exists():
                     content = sink_path.read_text()
-                    if content.strip():
-                        subprocess.run(['adb', 'shell', f'run-as {package} sh -c "cat > files/magic-link.txt"'],
-                                        input=content.encode(), check=True)
+                    # A freshly installed app may not have created its files dir yet: create it, and
+                    # keep retrying until the push lands rather than letting one early failure end it.
+                    if content.strip() and subprocess.run(['adb', 'shell', f'run-as {package} sh -c "mkdir -p files && cat > files/magic-link.txt"'],
+                                                          input=content.encode(), capture_output=True).returncode == 0:
                         push_done.set()
                         return
                 time.sleep(0.5)
