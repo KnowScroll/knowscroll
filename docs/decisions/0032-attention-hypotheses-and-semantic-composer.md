@@ -69,7 +69,11 @@ family, gate outcome, terms, score, rank and the facts its explanation may cite;
 bound quotas are recorded on the decision. Explanations are rendered only from registered
 `composer_reason_template` rows whose placeholders are whitelisted recorded facts; the evidence path
 ("you kept …", "you followed …") is built from recorded ids, never prose authored per item. Replaying
-the recorded state through the same policy reproduces the slate (tested). ADR-0029's commit-time
+the same state through the same policy reproduces the slate (tested on the pure policy). The rows
+record what was considered, how each candidate scored and why, the seed and the composing clock;
+they are an audit of the decision, not a complete state snapshot (per-source exposure counts and the
+account/hypothesis values at that moment are not stored), so an independent recomputation from rows
+alone is not claimed. Every term size lives in the immutable policy row. ADR-0029's commit-time
 invariants are kept for v3 by equivalent triggers on `decision_candidate`; `composer-signals-v2` stays
 registered and immutable.
 

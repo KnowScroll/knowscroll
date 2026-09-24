@@ -35,6 +35,8 @@ export interface WhyResponseWire {
   quotas: string[];
   /** The corrections this encounter supports; an unmapped fallback supports none. */
   corrections: EncounterFeedbackKind[];
+  /** Corrections this reader already made here; a client does not offer them again. */
+  corrected: EncounterFeedbackKind[];
 }
 
 /** `POST /v1/encounters/feedback` → 201 */

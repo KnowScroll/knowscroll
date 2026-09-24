@@ -23,6 +23,8 @@ data class EncounterWhy(
     val steps: List<WhyStep>,
     /** The corrections this encounter supports: `less_like_this`, `wrong_connection`, or none. */
     val corrections: List<String>,
+    /** Corrections this reader already made here (any device, any earlier visit). */
+    val corrected: List<String> = emptyList(),
 )
 
 data class EncounterFeedbackReceipt(val feedbackId: String, val kind: String, val suppressedUntil: String)
@@ -52,5 +54,8 @@ internal fun parseWhy(o: JSONObject): EncounterWhy {
     require(corrections.all { it in ENCOUNTER_CORRECTIONS }) { "Unknown correction" }
     require(family != "fallback" || corrections.isEmpty()) { "An unmapped encounter has no route to correct" }
     require("wrong_connection" !in corrections || steps.any { it is WhyStep.Bridge }) { "Only a connection can be wrong" }
-    return EncounterWhy(o.getString("decisionId"), o.getString("assetId"), family, o.getString("reason"), steps, corrections)
+    val correctedJson = o.optJSONArray("corrected")
+    val corrected = if (correctedJson == null) emptyList() else (0 until correctedJson.length()).map { correctedJson.getString(it) }
+    require(corrected.all { it in corrections }) { "A correction the encounter does not support" }
+    return EncounterWhy(o.getString("decisionId"), o.getString("assetId"), family, o.getString("reason"), steps, corrections, corrected)
 }

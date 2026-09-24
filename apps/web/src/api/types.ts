@@ -200,6 +200,7 @@ export const privacyExportResultSchema = z
     personalModel: z
       .object({
         attentionAccounts: z.array(exportRowSchema),
+        attentionTransitions: z.array(exportRowSchema),
         hypotheses: z.array(exportRowSchema),
         encounterFeedback: z.array(exportRowSchema),
       })

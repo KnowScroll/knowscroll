@@ -14,8 +14,8 @@ correction; Clear/Reset erase them and export carries them. `GET /v1/decisions/:
 
 Ruling recorded in ADR-0032 §3: a *seen* encounter is reranked below every unseen one, never gated.
 Seen-gating broke the established exhaustion contract (7 of 48 web-journey specs failed), and a
-soft penalty made readers run out early in the offline comparison. Verification: pure 14+9,
-HTTP 9 with 6 mutation checks, backend 774+13, Android 107 units, the web journey and the emulator
+soft penalty made readers run out early in the offline comparison. Verification: pure 15+9,
+HTTP 11 with 6 mutation checks, backend 778+13, Android 107 units, the web journey and the emulator
 why journey with DB lineage checked, and an offline v2-vs-v3 comparison (behaviour, not
 usefulness). Feed latency is ~20 ms at 500 Scrolls (was ~225 ms). See the
 [evidence](journeys/evidence/composer-v3-2026-09-24/README.md). No provider call; MiniMax 0/40.

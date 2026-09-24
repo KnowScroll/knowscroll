@@ -113,7 +113,7 @@ export async function loadV3State(client: pg.PoolClient, universeId: string, eli
      WHERE r.kind = 'contradicts' AND r.status = 'active' AND claim_is_supported(cl.id) ORDER BY cl.key`,
   )).rows.map(r => ({ from: String(r.from_code), to: String(r.to_code), claimKey: String(r.key) }));
   const hypotheses = (await client.query<Row>(
-    `SELECT h.kind, c.code, h.permitted_uses FROM personal_hypothesis h JOIN concept c ON c.id = h.concept_id WHERE h.universe_id = $1 AND h.status = 'active'`, [universeId],
+    `SELECT h.kind, c.code, h.permitted_uses FROM personal_hypothesis h JOIN concept c ON c.id = h.concept_id WHERE h.universe_id = $1 AND h.status = 'active' ORDER BY h.kind, c.code`, [universeId],
   )).rows;
   const suppressedRoutes = (await client.query<Row>(
     `SELECT f.family, c.code FROM encounter_feedback f JOIN concept c ON c.id = f.concept_id
@@ -154,8 +154,8 @@ export async function composeAndRecordV3(client: pg.PoolClient, scope: AuthScope
     [decisionId, scope.universeId, accountRevision, 'semantic-retrieval-v3', JSON.stringify(items), scope.privacyEpoch, policy.version],
   );
   await client.query(
-    'INSERT INTO decision_context(decision_id,universe_id,policy_version,seed,served_window,quotas,exploration_due) VALUES($1,$2,$3,$4,$5,$6,$7)',
-    [decisionId, scope.universeId, policy.version, state.seed, JSON.stringify(result.window.served), JSON.stringify(result.quotas), result.window.explorationDue],
+    'INSERT INTO decision_context(decision_id,universe_id,policy_version,seed,composed_at,served_window,quotas,exploration_due) VALUES($1,$2,$3,$4,to_timestamp($5/1000.0),$6,$7,$8)',
+    [decisionId, scope.universeId, policy.version, state.seed, nowMs, JSON.stringify(result.window.served), JSON.stringify(result.quotas), result.window.explorationDue],
   );
   // One statement for every considered candidate: a library-sized slate record is one round trip.
   // Scores cross as JSON numbers, which PostgreSQL float8 reads back exactly.
@@ -177,6 +177,8 @@ export type WhyResponse = {
   decisionId: string; assetId: string; policyVersion: string; family: Family; reason: string;
   evidence: unknown[]; terms: Record<string, number>; quotas: string[];
   corrections: ('less_like_this' | 'wrong_connection')[];
+  /** Corrections this reader already made to this encounter, so a client never offers them twice. */
+  corrected: ('less_like_this' | 'wrong_connection')[];
 };
 
 /** The recorded explanation for one served candidate, exactly as decided. */
@@ -188,10 +190,14 @@ export async function readWhy(client: pg.PoolClient, scope: AuthScope, decisionI
      WHERE dc.decision_id = $2 AND dc.asset_id = $3 AND dc.rank IS NOT NULL`, [scope.universeId, decisionId, assetId],
   )).rows[0];
   if (!row) return null;
+  const corrected = (await client.query<{ kind: 'less_like_this' | 'wrong_connection' }>(
+    'SELECT kind FROM encounter_feedback WHERE universe_id=$1 AND decision_id=$2 AND asset_id=$3 ORDER BY kind', [scope.universeId, decisionId, assetId],
+  )).rows.map(r => r.kind);
   return {
     decisionId, assetId, policyVersion: String(row.policy_version), family: row.family as Family,
     reason: renderReason(String(row.template), row.facts as Record<string, string>), evidence: row.evidence as unknown[],
     terms: row.terms as Record<string, number>, quotas: row.quotas as string[],
     corrections: row.bridge_id ? ['less_like_this', 'wrong_connection'] : (row.family === 'fallback' ? [] : ['less_like_this']),
+    corrected,
   };
 }

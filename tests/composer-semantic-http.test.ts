@@ -18,6 +18,9 @@ import { pool, provisionIdentity, transaction } from '../packages/db/src/index.t
 import type { EncounterFeedbackReceipt, WhyResponseWire } from '../packages/contracts/src/composer.ts';
 import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
 import { makeSemanticFixture, type SemanticFixture } from './helpers/semantic-fixture.ts';
+import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+import { loadV3Policy } from '../packages/db/src/composer/semantic.ts';
+import { COMPOSER_V3_POLICY } from '../packages/core/src/composer/semantic.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('Composer v3 tests require an isolated knowscroll_test_* database');
@@ -92,6 +95,11 @@ async function feedback(r: Reader, body: { decisionId: string; assetId: string; 
     payload: { clientFeedbackId: body.clientFeedbackId ?? randomUUID(), decisionId: body.decisionId, assetId: body.assetId, kind: body.kind, expectedPrivacyEpoch: body.expectedPrivacyEpoch ?? 0 } });
 }
 
+
+test('the registered composer-semantic-v3 row is exactly the policy the code runs', async () => {
+  // Term sizes live in the immutable policy row (packages/core/AGENTS.md); a code-only change fails here.
+  assert.deepEqual(await transaction(client => loadV3Policy(client)), COMPOSER_V3_POLICY);
+});
 
 test('a v3 feed records every candidate it considered, and "why" reads back exactly what was served', async () => {
   const r = await reader();
@@ -212,6 +220,9 @@ test('"less like this" suppresses that route for this reader only; retries repla
   const retry = await feedback(r, { decisionId: next.decisionId, assetId: head.assetId, kind: 'less_like_this', clientFeedbackId: key });
   assert.equal(retry.statusCode, 201);
   assert.equal((retry.json() as EncounterFeedbackReceipt).feedbackId, receipt.feedbackId, 'an exact retry replays the receipt');
+  const again = await feedback(r, { decisionId: next.decisionId, assetId: head.assetId, kind: 'less_like_this' });
+  assert.equal((again.json() as EncounterFeedbackReceipt).feedbackId, receipt.feedbackId, 'the same correction under a new key is the same act');
+  assert.deepEqual(((await why(r, next.decisionId, head.assetId)).json() as WhyResponseWire).corrected, ['less_like_this'], 'why says what was already corrected');
   assert.equal((await feedback(r, { decisionId: next.decisionId, assetId: head.assetId, kind: 'wrong_connection', clientFeedbackId: key })).statusCode, 409);
   assert.equal((await feedback(r, { decisionId: next.decisionId, assetId: head.assetId, kind: 'less_like_this', expectedPrivacyEpoch: 1 })).statusCode, 409);
   assert.equal((await feedback(r, { decisionId: randomUUID(), assetId: head.assetId, kind: 'less_like_this' })).statusCode, 422);
@@ -254,17 +265,19 @@ test('the database refuses a v3 decision that contradicts itself', async () => {
   const items = [await assetRow(f.assets.gravity), await assetRow(f.assets.star)];
   const attempt = async (build: (client: import('pg').PoolClient, decisionId: string) => Promise<void>) => transaction(async client => {
     const decisionId = randomUUID();
+    honest ??= decisionId;
     await client.query(`INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch,ranking_version) VALUES($1,$2,0,'semantic-retrieval-v3',$3,0,'composer-semantic-v3')`,
       [decisionId, r.universeId, JSON.stringify(items)]);
     await build(client, decisionId);
   });
   const context = (client: import('pg').PoolClient, decisionId: string, quotas: string[] = []) => client.query(
-    `INSERT INTO decision_context(decision_id,universe_id,policy_version,seed,served_window,quotas,exploration_due) VALUES($1,$2,'composer-semantic-v3','s','[]',$3,false)`,
+    `INSERT INTO decision_context(decision_id,universe_id,policy_version,seed,composed_at,served_window,quotas,exploration_due) VALUES($1,$2,'composer-semantic-v3','s',clock_timestamp(),'[]',$3,false)`,
     [decisionId, r.universeId, JSON.stringify(quotas)]);
   const withClient = (client: import('pg').PoolClient) => (decisionId: string, assetId: string, extra: { rank: number | null; score: number; gate?: string | null }) => client.query(
     `INSERT INTO decision_candidate(id,decision_id,universe_id,asset_id,family,gate,terms,score,rank,explanation_key,facts,evidence)
      VALUES($1,$2,$3,$4,'seed',$5,'{}',$6,$7,'v3_seed','{}','[]')`, [randomUUID(), decisionId, r.universeId, assetId, extra.gate ?? null, extra.score, extra.rank]);
 
+  let honest: string | undefined;
   // The honest shape commits.
   await attempt(async (client, id) => { await context(client, id); await withClient(client)(id, f.assets.gravity, { rank: 1, score: 2 }); await withClient(client)(id, f.assets.star, { rank: 2, score: 1 }); });
   await assert.rejects(attempt(async (client, id) => { await withClient(client)(id, f.assets.gravity, { rank: 1, score: 2 }); await withClient(client)(id, f.assets.star, { rank: 2, score: 1 }); }),
@@ -278,14 +291,25 @@ test('the database refuses a v3 decision that contradicts itself', async () => {
   await assert.rejects(attempt(async (client, id) => { await context(client, id); await withClient(client)(id, f.assets.gravity, { rank: 1, score: 1 }); await withClient(client)(id, f.assets.star, { rank: 2, score: 2 }); }),
     /must record the quota that chose it/);
   // A quota may put a lower-scoring head first, and says so.
-  await attempt(async (client, id) => { await context(client, id, ['exploration_floor:bridge']); await withClient(client)(id, f.assets.gravity, { rank: 1, score: 1 }); await withClient(client)(id, f.assets.star, { rank: 2, score: 2 }); });
+  // …but only a quota that could have chosen that head: the floor for its own family.
+  await assert.rejects(attempt(async (client, id) => { await context(client, id, ['exploration_floor:bridge']); await withClient(client)(id, f.assets.gravity, { rank: 1, score: 1 }); await withClient(client)(id, f.assets.star, { rank: 2, score: 2 }); }),
+    /must record the quota that chose it/);
+  await attempt(async (client, id) => { await context(client, id, ['exploration_floor:seed']); await withClient(client)(id, f.assets.gravity, { rank: 1, score: 1 }); await withClient(client)(id, f.assets.star, { rank: 2, score: 2 }); });
+  // A recorded decision stays consistent: editing what it returned or removing its context is refused.
+  await assert.rejects(transaction(client => client.query(`UPDATE decision SET candidates='[]' WHERE id=$1`, [honest])), /rank exactly the candidates it returned/);
+  await assert.rejects(transaction(client => client.query('DELETE FROM decision_context WHERE decision_id=$1', [honest])), /must record its served window and quotas/);
 });
 
 test('while recording is paused the feed is still composed and explained, but the private model does not move', async () => {
   const r = await reader();
   const f = await substrate();
   await keepDirect(r, f.assets.gravity);
-  const before = (await pool.query('SELECT concept_id, mass, episodes FROM attention_account WHERE universe_id=$1 ORDER BY concept_id', [r.universeId])).rows;
+  const model = async () => ({
+    accounts: (await pool.query('SELECT concept_id, mass, mass_at, episodes, state, computed_at FROM attention_account WHERE universe_id=$1 ORDER BY concept_id', [r.universeId])).rows,
+    transitions: Number((await pool.query('SELECT count(*) FROM attention_transition WHERE universe_id=$1', [r.universeId])).rows[0].count),
+    hypotheses: (await pool.query('SELECT id, revision, revised_at FROM personal_hypothesis WHERE universe_id=$1 ORDER BY id', [r.universeId])).rows,
+  });
+  const before = await model();
   assert.equal((await app.inject({ method: 'POST', url: '/v1/privacy/pause', headers: headers(r.token), payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0 } })).statusCode, 200);
 
   const served = await feed(r);
@@ -294,8 +318,27 @@ test('while recording is paused the feed is still composed and explained, but th
   assert.notEqual(refused.statusCode, 201, 'no exposure is recorded while paused');
   // A correction is not attention, so it stays available while paused.
   assert.equal((await feedback(r, { decisionId: served.decisionId, assetId: served.items[0]!.assetId, kind: 'less_like_this' })).statusCode, 201);
-  const afterPause = (await pool.query('SELECT concept_id, mass, episodes FROM attention_account WHERE universe_id=$1 ORDER BY concept_id', [r.universeId])).rows;
-  assert.deepEqual(afterPause.map(a => [a.concept_id, a.episodes]), before.map(a => [a.concept_id, a.episodes]));
+  // Nothing is recomputed or dated inside the pause; the correction is counted when recording resumes.
+  assert.deepEqual(await model(), before);
+});
+
+test('Clear succeeds after a v3 decision recorded a candidate reached through the reader\'s own bridge', async () => {
+  const r = await reader();
+  const f = await makeSemanticFixture(pool, { personal: ['balance_homeostasis'] });
+  assert.equal((await transaction(client => loadSubstrateSeed(client, f.raw))).status, 'loaded');
+  const own = await transaction(async client => {
+    await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [r.universeId]);
+    return submitBridgeProposal(client, { scope: { kind: 'universe', universeId: r.universeId, privacyEpoch: 0 }, proposerKind: 'person', proposerRef: 'own-v3', payload: f.personal.balance_homeostasis });
+  });
+  assert.equal(own.status, 'admitted');
+  await keepDirect(r, f.assets.star);
+  const next = await feed(r);
+  const recorded = (await pool.query('SELECT count(*) FROM decision_candidate WHERE decision_id=$1 AND bridge_id=$2', [next.decisionId, own.bridgeId])).rows[0].count;
+  assert.ok(Number(recorded) >= 1, 'the personal bridge shaped a recorded candidate');
+  const cleared = await app.inject({ method: 'POST', url: '/v1/history/clear', headers: headers(r.token),
+    payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0, confirmation: 'clear-scroll-history' } });
+  assert.equal(cleared.statusCode, 200, cleared.body);
+  assert.equal(Number((await pool.query('SELECT count(*) FROM bridge WHERE id=$1', [own.bridgeId])).rows[0].count), 0);
 });
 
 for (const operation of ['clear', 'reset'] as const) {

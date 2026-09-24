@@ -20,8 +20,8 @@ and exported. `composer-signals-v2` stays registered, immutable and selectable.
 
 | Level | What ran | Result |
 |---|---|---|
-| Pure policy | `tests/composer-semantic.test.ts`, `tests/attention-hypotheses.test.ts` | 14 + 9 pass: cold start, continuity citing the act, challenge, deepen, rolling exploration floor, no adjacent repeat, "less like this", named gates, seen ranked below unseen (never gated), whole library before any repeat, exhaustion only when everything is kept, fatigue/redundancy, saturation, replay; watching never anchors, separate-day/family anchoring, decay, correction contests a hypothesis, validator refuses character claims |
-| Real PostgreSQL / HTTP | `tests/composer-semantic-http.test.ts` | 9 pass: recorded candidates and context; "why" equals the served reason, 404 for gated/foreign; a keep updates the model in the same request and the next encounter crosses the bridge citing that keep; an Ask opens a question hypothesis that cites it; "less like this" suppresses the route for that reader only (replay, 409, 422); the database refuses a self-contradicting v3 decision (missing context, undense ranks, gated rank, head not best without a quota); pause; Clear and Reset erase everything after export carried it |
+| Pure policy | `tests/composer-semantic.test.ts`, `tests/attention-hypotheses.test.ts` | 15 + 9 pass: cold start, continuity citing the act, challenge, deepen, rolling exploration floor, no adjacent repeat, "less like this", named gates, seen in strict tiers (never gated; revisits included), whole library before any repeat, no false end on a second pass, exhaustion only when everything is kept, fatigue/redundancy, saturation, replay; watching never anchors, separate-day/family anchoring, decay, correction contests a hypothesis, validator refuses character claims |
+| Real PostgreSQL / HTTP | `tests/composer-semantic-http.test.ts` | 11 pass: the policy row equals the code's policy; recorded candidates and context; "why" equals the served reason, 404 for gated/foreign; a keep updates the model in the same request and the next encounter crosses the bridge citing that keep; an Ask opens a question hypothesis that cites it; "less like this" suppresses the route for that reader only (replay, 409, 422); the database refuses a self-contradicting v3 decision (missing context, undense ranks, gated rank, head not best without its own quota, later edits, deleted context); pause leaves the model untouched; Clear succeeds with a personal bridge; Clear and Reset erase everything after export carried it |
 | Mutation checks | each applied alone, then reverted | dropping the keep-time refresh, the route suppression, the served-only "why" filter, the Clear erasure, the export, or the Ask-time refresh each turns a test red |
 | Android units | `./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest` | 107/107; new `WhyTest` 3 (strict parsing, wire shapes) and `ExplainWhyTest` 2 (path, corrections, sending guard); removing the corrected filter or the sending guard turns the sheet test red |
 | Real emulator journey | `KS_SEMANTIC_JOURNEY=why scripts/android-semantic-journey.py` → `SemanticWhyJourneyTest`, emulator-5554 (API36), `.journey` app, disposable API/worker/PostgreSQL on 4333 | `OK (1 test)`; lineage below |
@@ -57,9 +57,9 @@ session, as the Android client does ([comparison.md](comparison.md) has every se
 | Reader | Policy | Keeps in first 10 | All interest kept by step | Grounded in own acts | Ran out early |
 |---|---|---|---|---|---|
 | sky reader | v2 | 4 | — | 0 | no |
-| sky reader | v3 | 8 (7–9) | — | 0.93 (0.9–0.95) | no |
+| sky reader | v3 | 7.67 (7–8) | — | 0.92 (0.85–0.95) | no |
 | living-systems reader | v2 | 3 | 17 | 0 | no |
-| living-systems reader | v3 | 4.67 (2–6) | 11.33 (10–14) | 0.3 (0.25–0.35) | no |
+| living-systems reader | v3 | 5 (4–6) | 10.33 (8–12) | 0.3 (0.25–0.35) | no |
 | watcher | v2 / v3 | 0 / 0 | — | 0 / 0 | no |
 
 Both policies touched all four domains. v3 found each reader's interest sooner and explained most
@@ -71,8 +71,33 @@ reader who had seen everything reached "end of library" without keeping anything
 established contract (exhausted only when everything is kept) and failed 7 of 48 web-journey specs. A soft
 seen penalty fixed the web journey, but the comparison then showed the living-systems reader
 running out at step 13 in all three runs, with unseen Scrolls left: relevant *seen* Scrolls filled
-the slate. The shipped rule keeps seen Scrolls available but below every unseen one, including
-under the exploration floor (ADR-0032 §3). Tests pin each step.
+the slate. The independent review then showed the remaining gap: a penalty that grows by 0.5 per
+showing still let a twice-seen relevant Scroll beat a once-seen one, so a reader on a *second*
+pass could still hit a false end. The shipped rule puts every showing (revisits included) in a
+strict tier of 10, larger than any relevance difference, so the least-seen Scrolls always come
+first (ADR-0032 §3). A second-pass walker test with several sourced connections fails on the old
+penalty and passes on this one.
+
+## Independent review and fix pass
+
+A fresh-context review of `a71ec16` found one blocking and four important defects. Each was fixed
+with a test that failed first:
+
+- **B1, false end of library on a second pass.** Fixed with the strict seen tiers above.
+- **I1, Clear/Reset returned 500** once a v3 candidate named the reader's own bridge. v3 decision
+  records are now erased before the semantic erase.
+- **I2, v3 invariants checked only on insert.** They now also run on decision update and context
+  delete, and a quota must name the head's own family.
+- **I3, replay overclaimed; term sizes were code constants.** Every term size now lives in the
+  immutable policy row, guarded by a drift test. The context records its composing clock, the
+  hypothesis order is deterministic, and ADR-0032 §4 now states what the rows do and do not allow.
+- **I4, the personal model moved while paused.** It no longer recomputes while paused; a correction
+  made meanwhile counts after resume.
+
+Also fixed from the review's minors: a correction repeated under a new key returns the same
+receipt, and "why" reports corrections already made, so Android never offers them twice. Also:
+transitions and feedback details are exported, sorting is locale-free, the core AGENTS doc is
+current, and only the 50 most recent acts shape families, so composition stays bounded.
 
 ## Performance
 

@@ -98,8 +98,12 @@ export interface PersonalModelResult { accounts: number; transitions: number; hy
 
 /** Recompute accounts and hypotheses for one universe. Caller holds the universe lock. */
 export async function refreshPersonalModel(client: pg.PoolClient, universeId: string): Promise<PersonalModelResult> {
-  const universe = (await client.query<{ privacy_epoch: number; now: Date }>('SELECT privacy_epoch, clock_timestamp() AS now FROM universe WHERE id=$1', [universeId])).rows[0];
+  const universe = (await client.query<{ privacy_epoch: number; now: Date; paused: boolean }>('SELECT privacy_epoch, clock_timestamp() AS now, recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1', [universeId])).rows[0];
   if (!universe) throw new Error('Universe not found');
+  // While recording is paused nothing personal is recomputed or dated inside the pause. A correction
+  // made meanwhile is already stored (its route suppression applies at once) and counts as
+  // counterevidence at the first refresh after recording resumes.
+  if (universe.paused) return { accounts: 0, transitions: 0, hypotheses: { upserted: 0, rejected: 0 } };
   const nowMs = universe.now.getTime();
   const evidence = await loadPersonalEvidence(client, universeId);
   const accounts = computeAttentionAccounts(evidence.episodes, evidence.negatives, nowMs, ATTENTION_V1);
@@ -170,6 +174,10 @@ async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch
 
 /** Clear/Reset: the personal model goes with the history it was computed from. */
 export async function erasePersonalModel(client: pg.PoolClient, universeId: string): Promise<void> {
+  // A v3 candidate may name the universe's own bridge, which the semantic erase removes next; the
+  // decision records go first (their decisions follow later in the same Clear).
+  await client.query('DELETE FROM decision_candidate WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM decision_context WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM encounter_feedback WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM personal_hypothesis WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM attention_transition WHERE universe_id=$1', [universeId]);
@@ -183,6 +191,9 @@ export async function exportPersonalModel(client: pg.PoolClient, universeId: str
       a.source_families, a.exposure_share, a.negatives, a.state, a.evidence FROM attention_account a JOIN concept c ON c.id = a.concept_id WHERE a.universe_id=$1 ORDER BY c.code`),
     hypotheses: await q(`SELECT h.id, h.kind, c.code AS concept, h.proposer_kind, h.rule_version, h.statement, h.confidence_label, h.status, h.permitted_uses,
       h.evidence, h.alternatives, h.counterevidence, h.decay, h.revision, h.created_at, h.revised_at FROM personal_hypothesis h JOIN concept c ON c.id = h.concept_id WHERE h.universe_id=$1 ORDER BY h.created_at`),
-    encounterFeedback: await q('SELECT id, privacy_epoch, decision_id, asset_id, kind, family, suppress_until, created_at FROM encounter_feedback WHERE universe_id=$1 ORDER BY created_at'),
+    attentionTransitions: await q(`SELECT c.code AS concept, t.from_state, t.to_state, t.policy_version, t.at FROM attention_transition t
+      JOIN concept c ON c.id = t.concept_id WHERE t.universe_id=$1 ORDER BY t.at, t.id`),
+    encounterFeedback: await q(`SELECT f.id, f.privacy_epoch, f.decision_id, f.asset_id, f.kind, f.family, c.code AS concept, f.bridge_id, f.suppress_until, f.created_at
+      FROM encounter_feedback f LEFT JOIN concept c ON c.id = f.concept_id WHERE f.universe_id=$1 ORDER BY f.created_at, f.id`),
   };
 }

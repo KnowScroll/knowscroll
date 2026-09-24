@@ -92,7 +92,7 @@ export function computeAttentionAccounts(
 ): Map<string, AttentionAccount> {
   type Working = AttentionAccount & { markDays: Set<number>; families: Set<string>; offered: number; lastEpisodeAtMs: number | null };
   const accounts = new Map<string, Working>();
-  const ordered = [...episodes].sort((a, b) => a.atMs - b.atMs || a.exposureId.localeCompare(b.exposureId));
+  const ordered = [...episodes].sort((a, b) => a.atMs - b.atMs || (a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0));
 
   for (const episode of ordered) {
     const kinds = new Set(episode.marks.map(m => m.kind));

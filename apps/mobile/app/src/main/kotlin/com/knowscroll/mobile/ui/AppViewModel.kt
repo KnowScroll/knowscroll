@@ -454,7 +454,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             try {
                 val result=api.getWhy(current.decisionId,current.item.assetId)
                 if(epoch!=observedPrivacyEpoch || _why.value?.decisionId!=current.decisionId)return@launch
-                _why.value=_why.value?.copy(availability=result?.let{WhyAvailability.Ready(it)} ?: WhyAvailability.Unrecorded)
+                _why.value=_why.value?.copy(availability=result?.let{WhyAvailability.Ready(it)} ?: WhyAvailability.Unrecorded,
+                    corrected=result?.corrected?.firstOrNull() ?: _why.value?.corrected)
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(invalidatesReader(e)){purgeForScope(current.universeId,epoch);failClosed(message(e));return@launch}

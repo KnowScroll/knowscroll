@@ -1,13 +1,13 @@
-# Composer comparison (2026-09-24T02:47:07.452Z)
+# Composer comparison (2026-09-24T03:19:52.103Z)
 
 Library: 23 Scrolls; 20 deliberate steps per reader; no provider call.
 
 | Reader | Policy | Keeps in 20 | Keeps in first 10 | All interest kept by step | Grounded in own acts | Domains touched | Adjacent same idea | Exhausted at step |
 |---|---|---|---|---|---|---|---|---|
 | sky reader | composer-signals-v2 | 11 | 4 | — | 0 | 4 | 0 | — |
-| sky reader | composer-semantic-v3 | 12 | 8 (7–9) | — | 0.93 (0.9–0.95) | 4 | 0 | — |
+| sky reader | composer-semantic-v3 | 12 | 7.67 (7–8) | — | 0.92 (0.85–0.95) | 4 | 0 | — |
 | living-systems reader | composer-signals-v2 | 6 | 3 | 17 | 0 | 4 | 0 | — |
-| living-systems reader | composer-semantic-v3 | 6 | 4.67 (2–6) | 11.33 (10–14) | 0.3 (0.25–0.35) | 4 | 0.67 (0–1) | — |
+| living-systems reader | composer-semantic-v3 | 6 | 5 (4–6) | 10.33 (8–12) | 0.3 (0.25–0.35) | 4 | 1 | — |
 | watcher | composer-signals-v2 | 0 | 0 | — | 0 | 4 | 0 | — |
 | watcher | composer-semantic-v3 | 0 | 0 | — | 0 | 4 | 0 | — |
 
@@ -36,25 +36,25 @@ Library: 23 Scrolls; 20 deliberate steps per reader; no provider call.
 
 ## sky reader — composer-semantic-v3 (first run)
 
-1. The Goldilocks temperature [earth.climate.greenhouse_effect · seed]
-2. ★ An orbit is not a perfect circle [astro.orbit.ellipse · seed]
+1. ★ An orbit is not a perfect circle [astro.orbit.ellipse · seed]
+2. ★ A pull with a range [physics.gravity.mass_dependence · bridge]
 3. ★ The pull you can't see [physics.gravity · bridge]
-4. ★ A pull with a range [physics.gravity.mass_dependence · bridge]
-5. ★ A star is born from a cloud [astro.star.birth · bridge]
-6. A rhythm the ocean keeps [earth.tides · bridge]
-7. ★ Closest to the Sun in January [astro.orbit.distance · bridge]
-8. ★ Farther out, a longer year [astro.orbit.period_distance · bridge]
-9. ★ One force, many jobs [physics.gravity · bridge]
-10. ★ The pressure that holds the Sun up [astro.sun.energy_output · deepen]
-11. Your body has a thermostat [bio.homeostasis.negative_feedback · bridge]
-12. Earth's energy has to balance [earth.climate.energy_budget.equilibrium · bridge]
-13. ★ It isn't about distance [astro.orbit.distance · bridge]
+4. A rhythm the ocean keeps [earth.tides · bridge]
+5. ★ It isn't about distance [astro.orbit.distance · bridge]
+6. ★ A star is born from a cloud [astro.star.birth · bridge]
+7. ★ Farther out, a longer year [astro.orbit.period_distance · bridge]
+8. ★ The pressure that holds the Sun up [astro.sun.energy_output · deepen]
+9. A blanket made of gas [earth.climate.greenhouse_effect · bridge]
+10. Your body has a thermostat [bio.homeostasis.negative_feedback · bridge]
+11. Tip the balance, shift the climate [earth.climate.energy_budget.equilibrium · bridge]
+12. ★ One force, many jobs [physics.gravity · bridge]
+13. ★ Closest to the Sun in January [astro.orbit.distance · bridge]
 14. A tilt that doesn't change [earth.seasons.axial_tilt · deepen]
-15. ★ An ordinary star with a big job [astro.sun · continue]
-16. A blanket made of gas [earth.climate.greenhouse_effect · bridge]
-17. ★ A star is a balancing act [astro.star.equilibrium · deepen]
-18. ★ Burn hot, live fast [astro.star.lifetime_mass · deepen]
-19. Tip the balance, shift the climate [earth.climate.energy_budget.equilibrium · bridge]
+15. ★ Halfway through a long life [astro.sun · continue]
+16. The Goldilocks temperature [earth.climate.greenhouse_effect · bridge]
+17. Earth's energy has to balance [earth.climate.energy_budget.equilibrium · bridge]
+18. ★ Burn hot, live fast [astro.star.lifetime_mass · continue]
+19. ★ A star is a balancing act [astro.star.equilibrium · continue]
 20. The Moon tugs at the sea [earth.tides · bridge]
 
 ## living-systems reader — composer-signals-v2 (first run)
@@ -82,26 +82,26 @@ Library: 23 Scrolls; 20 deliberate steps per reader; no provider call.
 
 ## living-systems reader — composer-semantic-v3 (first run)
 
-1. A star is a balancing act [astro.star.equilibrium · seed]
-2. The pull you can't see [physics.gravity · seed]
+1. One force, many jobs [physics.gravity · seed]
+2. Closest to the Sun in January [astro.orbit.distance · seed]
 3. A pull with a range [physics.gravity.mass_dependence · fallback]
-4. ★ When more becomes more [bio.homeostasis.positive_feedback · seed]
-5. ★ Your body has a thermostat [bio.homeostasis.negative_feedback · deepen]
-6. ★ Tip the balance, shift the climate [earth.climate.energy_budget.equilibrium · bridge]
-7. The pressure that holds the Sun up [astro.sun.energy_output · bridge]
+4. A tilt that doesn't change [earth.seasons.axial_tilt · seed]
+5. ★ When more becomes more [bio.homeostasis.positive_feedback · seed]
+6. A star is a balancing act [astro.star.equilibrium · frontier]
+7. ★ Your body has a thermostat [bio.homeostasis.negative_feedback · deepen]
 8. ★ Earth's energy has to balance [earth.climate.energy_budget.equilibrium · bridge]
-9. ★ A blanket made of gas [earth.climate.greenhouse_effect · deepen]
-10. ★ The Goldilocks temperature [earth.climate.greenhouse_effect · deepen]
-11. An orbit is not a perfect circle [astro.orbit.ellipse · frontier]
-12. A tilt that doesn't change [earth.seasons.axial_tilt · frontier]
+9. The pressure that holds the Sun up [astro.sun.energy_output · bridge]
+10. ★ Tip the balance, shift the climate [earth.climate.energy_budget.equilibrium · bridge]
+11. ★ A blanket made of gas [earth.climate.greenhouse_effect · deepen]
+12. ★ The Goldilocks temperature [earth.climate.greenhouse_effect · deepen]
 13. A rhythm the ocean keeps [earth.tides · frontier]
-14. One force, many jobs [physics.gravity · fallback]
-15. Halfway through a long life [astro.sun · fallback]
-16. Burn hot, live fast [astro.star.lifetime_mass · fallback]
-17. Farther out, a longer year [astro.orbit.period_distance · fallback]
-18. An ordinary star with a big job [astro.sun · fallback]
+14. The pull you can't see [physics.gravity · fallback]
+15. It isn't about distance [astro.orbit.distance · fallback]
+16. An orbit is not a perfect circle [astro.orbit.ellipse · fallback]
+17. An ordinary star with a big job [astro.sun · fallback]
+18. Farther out, a longer year [astro.orbit.period_distance · fallback]
 19. The Moon tugs at the sea [earth.tides · fallback]
-20. Closest to the Sun in January [astro.orbit.distance · fallback]
+20. Halfway through a long life [astro.sun · fallback]
 
 ## watcher — composer-signals-v2 (first run)
 
@@ -129,23 +129,23 @@ Library: 23 Scrolls; 20 deliberate steps per reader; no provider call.
 ## watcher — composer-semantic-v3 (first run)
 
 1. When more becomes more [bio.homeostasis.positive_feedback · seed]
-2. Halfway through a long life [astro.sun · seed]
-3. Burn hot, live fast [astro.star.lifetime_mass · fallback]
-4. Closest to the Sun in January [astro.orbit.distance · seed]
-5. A tilt that doesn't change [earth.seasons.axial_tilt · seed]
-6. The pressure that holds the Sun up [astro.sun.energy_output · fallback]
-7. One force, many jobs [physics.gravity · seed]
-8. The Goldilocks temperature [earth.climate.greenhouse_effect · seed]
-9. An ordinary star with a big job [astro.sun · fallback]
-10. A rhythm the ocean keeps [earth.tides · seed]
-11. It isn't about distance [astro.orbit.distance · fallback]
-12. A pull with a range [physics.gravity.mass_dependence · fallback]
-13. The pull you can't see [physics.gravity · fallback]
-14. A blanket made of gas [earth.climate.greenhouse_effect · fallback]
-15. A star is a balancing act [astro.star.equilibrium · fallback]
-16. The Moon tugs at the sea [earth.tides · fallback]
-17. Farther out, a longer year [astro.orbit.period_distance · fallback]
-18. An orbit is not a perfect circle [astro.orbit.ellipse · fallback]
-19. Your body has a thermostat [bio.homeostasis.negative_feedback · fallback]
+2. Closest to the Sun in January [astro.orbit.distance · seed]
+3. A tilt that doesn't change [earth.seasons.axial_tilt · fallback]
+4. The Goldilocks temperature [earth.climate.greenhouse_effect · seed]
+5. A star is a balancing act [astro.star.equilibrium · seed]
+6. One force, many jobs [physics.gravity · fallback]
+7. A rhythm the ocean keeps [earth.tides · seed]
+8. It isn't about distance [astro.orbit.distance · fallback]
+9. A pull with a range [physics.gravity.mass_dependence · fallback]
+10. The pull you can't see [physics.gravity · fallback]
+11. A blanket made of gas [earth.climate.greenhouse_effect · fallback]
+12. An orbit is not a perfect circle [astro.orbit.ellipse · fallback]
+13. The Moon tugs at the sea [earth.tides · fallback]
+14. An ordinary star with a big job [astro.sun · fallback]
+15. The pressure that holds the Sun up [astro.sun.energy_output · fallback]
+16. Halfway through a long life [astro.sun · fallback]
+17. Burn hot, live fast [astro.star.lifetime_mass · fallback]
+18. Your body has a thermostat [bio.homeostasis.negative_feedback · fallback]
+19. Farther out, a longer year [astro.orbit.period_distance · fallback]
 20. A star is born from a cloud [astro.star.birth · fallback]
 

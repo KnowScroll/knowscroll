@@ -33,6 +33,15 @@ class WhyTest {
     }
 
     @Test
+    fun aCorrectionAlreadyMadeIsCarriedSoItIsNotOfferedAgain() {
+        val made = why().put("corrected", org.json.JSONArray(listOf("less_like_this")))
+        assertEquals(listOf("less_like_this"), parseWhy(made).corrected)
+        assertEquals(emptyList<String>(), parseWhy(why()).corrected)
+        val foreign = why(family = "seed", corrections = "[\"less_like_this\"]", evidence = """[{"kind":"outside","domain":"astro"}]""").put("corrected", org.json.JSONArray(listOf("wrong_connection")))
+        assertThrows(IllegalArgumentException::class.java) { parseWhy(foreign) }
+    }
+
+    @Test
     fun refusesAnExplanationTheServerCouldNotHaveRecorded() {
         assertThrows(IllegalArgumentException::class.java) { parseWhy(why(family = "because_you_like_it")) }
         assertThrows(IllegalArgumentException::class.java) { parseWhy(why(corrections = "[\"delete_my_profile\"]")) }

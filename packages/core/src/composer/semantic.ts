@@ -31,6 +31,15 @@ export interface V3Policy {
   redundancyWindowDays: number;
   revisitMinGapDays: number;
   usefulSaturation: { exposureShare: number; cap: number };
+  /** Every term size, versioned with the policy (packages/core/AGENTS.md: no ranking by code constants). */
+  terms: {
+    continuity: number; questionContinuity: number; novelty: number; returnRelevance: number; prior: number;
+    redundancy: number; redundancyShare: number; fatigueStep: number; usefulScale: number; parentMassShare: number;
+    /** Per showing; larger than the largest relevance swing, so the least-seen tier always comes first. */
+    seenPerShowing: number;
+    /** Only the most recent acts shape families: composition stays bounded as history grows. */
+    maxMarks: number;
+  };
 }
 
 export interface V3Concept { code: string; name: string; parentCode: string | null }
@@ -110,6 +119,11 @@ export const COMPOSER_V3_POLICY: V3Policy = {
   redundancyWindowDays: 30,
   revisitMinGapDays: 3,
   usefulSaturation: { exposureShare: 0.8, cap: 0.5 },
+  terms: {
+    continuity: 0.3, questionContinuity: 0.2, novelty: 0.5, returnRelevance: 0.3, prior: 0.1,
+    redundancy: 0.6, redundancyShare: 0.5, fatigueStep: 0.15, usefulScale: 4, parentMassShare: 0.5,
+    seenPerShowing: 10, maxMarks: 50,
+  },
 };
 
 const HOUR = 3_600_000;
@@ -145,7 +159,8 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   const offer = (asset: V3Asset, family: Family, concept: string | null, explanationKey: string, facts: Facts, evidence: EvidenceStep[], bridgeId: string | null = null) =>
     raw.push({ assetId: asset.assetId, sourceKey: asset.sourceKey, family, concept, bridgeId, explanationKey, facts, evidence });
   const markStep = (m: V3Mark): EvidenceStep => ({ kind: 'mark', markKind: m.kind, assetId: m.assetId, title: assetById.get(m.assetId)?.title ?? '', at: new Date(m.atMs).toISOString(), eventId: m.eventId });
-  const recentMarks = state.marks.filter(m => state.nowMs - m.atMs <= policy.continuityWindowHours * HOUR);
+  const marks = state.marks.slice(0, policy.terms.maxMarks);
+  const recentMarks = marks.filter(m => state.nowMs - m.atMs <= policy.continuityWindowHours * HOUR);
 
   // --- Families -------------------------------------------------------------------------------
   // continue: the same idea as something the reader acted on recently.
@@ -166,7 +181,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     }
   }
   // deepen: narrower parts of an idea the reader acted on.
-  for (const mark of state.marks) {
+  for (const mark of marks) {
     for (const code of markedConcepts(mark)) {
       for (const asset of state.assets) {
         if (!asset.primary || asset.primary === code || !isWithin(tree, asset.primary, code)) continue;
@@ -175,7 +190,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     }
   }
   // bridge: admitted, non-suppressed sourced connections from something the reader acted on.
-  for (const mark of state.marks) {
+  for (const mark of marks) {
     for (const code of markedConcepts(mark)) {
       for (const bridge of state.bridges) {
         const forward = isWithin(tree, code, bridge.from);
@@ -193,7 +208,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     }
   }
   // challenge: a source that says a common idea near what the reader acted on does not hold.
-  for (const mark of state.marks) {
+  for (const mark of marks) {
     for (const code of markedConcepts(mark)) {
       for (const c of state.contradictions) {
         if (!isWithin(tree, code, c.from) && !isWithin(tree, code, c.to) && !isWithin(tree, c.from, code) && !isWithin(tree, c.to, code)) continue;
@@ -208,13 +223,13 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   for (const asset of state.assets) {
     const seen = state.exposures.get(asset.assetId);
     if (!seen || !asset.primary || state.nowMs - seen.lastAtMs < policy.revisitMinGapDays * DAY) continue;
-    const later = state.marks.find(m => m.atMs > seen.lastAtMs && m.assetId !== asset.assetId && markedConcepts(m).some(c => isWithin(tree, c, asset.primary!) || isWithin(tree, asset.primary!, c)));
+    const later = marks.find(m => m.atMs > seen.lastAtMs && m.assetId !== asset.assetId && markedConcepts(m).some(c => isWithin(tree, c, asset.primary!) || isWithin(tree, asset.primary!, c)));
     if (later) offer(asset, 'revisit', asset.primary, 'v3_revisit', { conceptName: name(asset.primary), markVerb: VERB[later.kind], markTitle: assetById.get(later.assetId)?.title ?? '' }, [markStep(later)]);
   }
   // frontier: a domain this universe has never been shown. seed: the same doors, at cold start.
   const shownDomains = new Set<string>();
   for (const [assetId] of state.exposures) { const p = assetById.get(assetId)?.primary; if (p) shownDomains.add(rootOf(state.concepts, p)); }
-  const coldStart = state.marks.length === 0;
+  const coldStart = marks.length === 0;
   for (const asset of state.assets) {
     if (!asset.primary) continue;
     const domain = rootOf(state.concepts, asset.primary);
@@ -245,22 +260,23 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     const seenCount = state.exposures.get(asset.assetId)?.count ?? 0;
     const account = primary ? state.accounts.get(primary) : undefined;
     const parentMass = primary ? ancestorMass(state, primary) : 0;
-    let useful = 1 - Math.exp(-((account?.mass ?? 0) + 0.5 * parentMass) / 4);
+    const t = policy.terms;
+    let useful = 1 - Math.exp(-((account?.mass ?? 0) + t.parentMassShare * parentMass) / t.usefulScale);
     if (account && account.exposureShare > policy.usefulSaturation.exposureShare) useful = Math.min(useful, policy.usefulSaturation.cap);
     const terms: Record<string, number> = {
-      continuity: c.family === 'continue' ? (c.explanationKey === 'v3_question' ? 0.2 : 0.3) : 0,
+      continuity: c.family === 'continue' ? (c.explanationKey === 'v3_question' ? t.questionContinuity : t.continuity) : 0,
       useful: round(useful),
       depth: policy.familyDepth[c.family],
-      novelty: c.family !== 'fallback' && primary !== null && ![...state.exposures.keys()].some(id => assetById.get(id)?.primary === primary) ? 0.5 : 0,
-      returnRelevance: c.family === 'revisit' ? 0.3 : 0,
-      prior: primary !== null && (c.family === 'continue' || c.family === 'deepen') && state.directionPriors.some(p => isWithin(tree, primary, p)) ? 0.1 : 0,
-      redundancy: asset.claimKeys.length > 0 && asset.claimKeys.filter(k => madeElsewhere(k, asset.assetId)).length / asset.claimKeys.length >= 0.5 ? 0.6 : 0,
-      fatigue: round(0.15 * servedRecent.filter(s => primary !== null && assetById.get(s.assetId)?.primary === primary).length),
-      // Exposure-aware reranking (ADR-0032 §3): a seen encounter stays available, but only below
-      // every unseen one (5 exceeds the largest possible unseen advantage, ~4.8), least-seen first.
-      // A softer penalty let relevant seen Scrolls fill the slate while unseen ones remained.
-      // Revisit is the family for a seen encounter made newly relevant, so it carries none.
-      seen: c.family === 'revisit' || !seenCount ? 0 : round(Math.min(10, 5 + 0.5 * (seenCount - 1))),
+      novelty: c.family !== 'fallback' && primary !== null && ![...state.exposures.keys()].some(id => assetById.get(id)?.primary === primary) ? t.novelty : 0,
+      returnRelevance: c.family === 'revisit' ? t.returnRelevance : 0,
+      prior: primary !== null && (c.family === 'continue' || c.family === 'deepen') && state.directionPriors.some(p => isWithin(tree, primary, p)) ? t.prior : 0,
+      redundancy: asset.claimKeys.length > 0 && asset.claimKeys.filter(k => madeElsewhere(k, asset.assetId)).length / asset.claimKeys.length >= t.redundancyShare ? t.redundancy : 0,
+      fatigue: round(t.fatigueStep * servedRecent.filter(s => primary !== null && assetById.get(s.assetId)?.primary === primary).length),
+      // Exposure-aware reranking (ADR-0032 §3): a seen encounter stays available, in tiers by how
+      // often it was seen, least-seen first. Each showing costs more than any relevance difference,
+      // so no seen Scroll (a revisit included) outranks a less-seen one. Softer penalties let
+      // relevant seen Scrolls fill the slate while less-seen ones waited: a false end of library.
+      seen: round(t.seenPerShowing * seenCount),
     };
     const w = policy.weights;
     const score = round(w.continuity * terms.continuity! + w.useful * terms.useful! + w.depth * terms.depth! + w.novelty * terms.novelty!
@@ -286,7 +302,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   const recent = state.served.slice(0, policy.explorationEvery - 1);
   const explorationDue = recent.length >= policy.explorationEvery - 1 && recent.every(s => !s.family || !EXPLORATION_FAMILIES.includes(s.family));
   const lastPrimary = state.served[0] ? assetById.get(state.served[0].assetId)?.primary ?? null : null;
-  const lastMarked = state.marks[0] && state.served[0] && state.marks[0].assetId === state.served[0].assetId;
+  const lastMarked = marks[0] && state.served[0] && marks[0].assetId === state.served[0].assetId;
 
   const selected: V3Candidate[] = [];
   const perSource = new Map<string, number>();
@@ -311,7 +327,7 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     // before a seen one, as everywhere else.
     const exploration = [...candidates]
       .filter(c => c.gate === null && EXPLORATION_FAMILIES.includes(c.family))
-      .sort((a, b) => Number(a.terms.seen! > 0) - Number(b.terms.seen! > 0)
+      .sort((a, b) => a.terms.seen! - b.terms.seen!
         || EXPLORATION_FAMILIES.indexOf(a.family) - EXPLORATION_FAMILIES.indexOf(b.family) || order(state, a, b));
     head = exploration[0];
     if (head) quotas.push(`exploration_floor:${head.family}`);

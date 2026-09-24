@@ -231,13 +231,17 @@ test('export contains exactly the rows the contract promises and no more', async
   assert.deepEqual(Object.keys(result.accounts).sort(), ['keptAssetIds', 'revision']);
   assert.equal(result.accounts.keptAssetIds.length, 1);
 
+  // The personal model is counted from the database itself, not from the export being checked.
+  const storedCount = async (table: string) => Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [owner.scope.universeId])).rows[0].count);
+  const modelAccounts = await storedCount('attention_account'), modelHypotheses = await storedCount('personal_hypothesis');
+  assert.equal(result.personalModel.attentionTransitions.length, await storedCount('attention_transition'));
   assert.deepEqual(result.rowCounts, {
     decisions: 1, ledger: 2, exposures: 1, traces: 1, jobs: 1, deviceSessions: 2,
     reasoningJobs: 0, reasoningSteps: 0, reasoningReceipts: 0, reasoningAccounting: 0,
     // ADR-0031: branch opens, connection feedback and personal proposals are exported too.
     branchOpens: 0, connectionFeedback: 0, semanticProposals: 0,
     // ADR-0032: the personal model derived from this history is exported with it.
-    attentionAccounts: result.rowCounts.attentionAccounts, hypotheses: result.rowCounts.hypotheses, encounterFeedback: 0,
+    attentionAccounts: modelAccounts, hypotheses: modelHypotheses, encounterFeedback: 0,
   });
   assert.equal(result.personalModel.attentionAccounts.length, result.rowCounts.attentionAccounts);
   assert.equal(result.decisions.length, 1);

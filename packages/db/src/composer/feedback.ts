@@ -37,6 +37,15 @@ export async function recordEncounterFeedback(client: pg.PoolClient, scope: Auth
     return receiptOf(old);
   }
 
+  // The same correction of the same encounter under another key is the same act: return it.
+  const same = (await client.query<Row>(
+    `SELECT f.id, f.kind, f.family, f.bridge_id, f.suppress_until, c.code
+     FROM encounter_feedback f LEFT JOIN concept c ON c.id = f.concept_id
+     WHERE f.universe_id = $1 AND f.decision_id = $2 AND f.asset_id = $3 AND f.kind = $4`,
+    [scope.universeId, input.decisionId, input.assetId, input.kind],
+  )).rows[0];
+  if (same) return receiptOf(same);
+
   // The route is what was recorded when this encounter was served — never re-derived now.
   const served = (await client.query<Row>(
     `SELECT dc.family, dc.concept_id, dc.bridge_id FROM decision_candidate dc JOIN decision d ON d.id = dc.decision_id

@@ -50,7 +50,7 @@ export function proposeHypotheses(input: RuleInputs, policy: HypothesisRulePolic
   const out: HypothesisProposal[] = [];
   const name = (code: string) => input.conceptNames.get(code) ?? code;
 
-  for (const [code, account] of [...input.accounts].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [code, account] of [...input.accounts].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     const recent = input.marks.filter(m => m.concepts.includes(code) && input.nowMs - m.atMs <= policy.directionWindowDays * DAY);
     const everMarked = input.marks.filter(m => m.concepts.includes(code));
     if (everMarked.length === 0) continue;
@@ -91,7 +91,7 @@ export function proposeHypotheses(input: RuleInputs, policy: HypothesisRulePolic
 
   const byConcept = new Map<string, RuleInputs['asks'][number][]>();
   for (const ask of input.asks) if (ask.concept) byConcept.set(ask.concept, [...(byConcept.get(ask.concept) ?? []), ask]);
-  for (const [code, asks] of [...byConcept].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [code, asks] of [...byConcept].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     const open = asks.filter(a => !a.resolved);
     const counter = input.feedback.filter(f => f.concepts.includes(code) && input.nowMs - f.atMs <= policy.contestWindowDays * DAY);
     const status: HypothesisStatus = open.length === 0 ? 'decayed' : counter.length > 0 ? 'contested' : 'active';

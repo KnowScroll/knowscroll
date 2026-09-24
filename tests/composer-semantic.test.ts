@@ -162,16 +162,56 @@ test('no encounter starves: the whole library is reached before anything returns
   assert.deepEqual([...second.order].sort(), library.map(a => a.assetId).sort(), 'a second pass also reaches every Scroll before a third showing');
 });
 
-test('a seen encounter never outranks an unseen one, however relevant, except as a revisit', () => {
-  // gravity-1 was kept, so tides-1 is a sourced bridge; tides-1 was also already seen.
+test('no seen encounter outranks a less-seen one, however relevant — a revisit included', () => {
+  // gravity-1 and tides-1 were seen four days ago; the reader has since kept gravity-2. gravity-1 is
+  // now a revisit (same idea, acted on since) and tides-1 a sourced bridge target, and both still
+  // wait behind every unseen Scroll.
+  const long = NOW - 4 * 24 * HOUR;
   const s = state({
-    kept: new Set(['gravity-1']), exposures: exposed('tides-1', 'gravity-1'),
-    marks: [{ eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }],
-    served: served(['gravity-1', null], ['tides-1', 'seed']),
+    kept: new Set(['gravity-2']),
+    exposures: new Map([['gravity-1', { count: 1, lastAtMs: long }], ['tides-1', { count: 1, lastAtMs: long }], ['gravity-2', { count: 1, lastAtMs: NOW - 2 * HOUR }]]),
+    marks: [{ eventId: 'e1', assetId: 'gravity-2', kind: 'keep', atMs: NOW - HOUR }],
+    served: served(['gravity-2', null], ['tides-1', 'seed'], ['gravity-1', 'seed']),
   });
-  const ranked = composeSemantic(s, COMPOSER_V3_POLICY).selected;
-  const firstSeen = ranked.findIndex(c => s.exposures.has(c.assetId) && c.family !== 'revisit');
-  assert.ok(firstSeen === -1 || ranked.slice(firstSeen).every(c => s.exposures.has(c.assetId)), ranked.map(c => `${c.assetId}:${c.family}`).join(', '));
+  const result = composeSemantic(s, COMPOSER_V3_POLICY);
+  assert.ok(result.candidates.some(c => c.assetId === 'gravity-1' && c.family === 'revisit'), 'the revisit exists');
+  assert.ok(result.candidates.some(c => c.assetId === 'tides-1' && c.family === 'bridge'), 'the bridge exists');
+  const seenCount = (id: string) => s.exposures.get(id)?.count ?? 0;
+  const ranked = result.selected;
+  for (let i = 1; i < ranked.length; i += 1) {
+    assert.ok(seenCount(ranked[i - 1]!.assetId) <= seenCount(ranked[i]!.assetId), ranked.map(c => `${c.assetId}:${c.family}`).join(', '));
+  }
+  assert.ok(ranked.every(c => seenCount(c.assetId) === 0), 'unseen Scrolls fill the slate while any remain');
+});
+
+test('a reader skipping what they opened this session never meets a false end while less-seen Scrolls remain', () => {
+  // Everything was seen once a day ago and gravity-1 was kept. A new session walks the feed and
+  // skips whatever it already opened, as the Android client does (the review's second-pass case).
+  const dayAgo = NOW - 24 * HOUR;
+  // Several sourced connections lead on from the kept idea, so relevant Scrolls could fill a slate.
+  const bridges = [...state().bridges,
+    { id: 'b.gravity.orbit', from: 'physics.gravity', to: 'astro.orbit', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Orbit' },
+    { id: 'b.gravity.seasons', from: 'physics.gravity', to: 'earth.seasons', symmetric: false, phraseForward: 'shapes', phraseReverse: 'is shaped by', fromName: 'Gravity', toName: 'Seasons' }];
+  let s = state({
+    bridges,
+    kept: new Set(['gravity-1']),
+    exposures: new Map(library.map(a => [a.assetId, { count: 1, lastAtMs: dayAgo }])),
+    marks: [{ eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: dayAgo }],
+    served: library.map((a, i) => ({ assetId: a.assetId, family: null, atMs: dayAgo - i * 1000 })),
+  });
+  const visited = new Set<string>();
+  const unkept = library.filter(a => a.assetId !== 'gravity-1').length;
+  for (let step = 0; step < unkept; step += 1) {
+    const slate = composeSemantic(s, COMPOSER_V3_POLICY).selected;
+    const next = slate.find(c => !visited.has(c.assetId));
+    assert.ok(next, `step ${step}: slate [${slate.map(c => c.assetId).join(', ')}] is all visited while ${unkept - visited.size} unkept remain`);
+    visited.add(next.assetId);
+    const prior = s.exposures.get(next.assetId)!;
+    s = { ...s, seed: `u1:${step + 10}`, nowMs: s.nowMs + HOUR,
+      exposures: new Map([...s.exposures, [next.assetId, { count: prior.count + 1, lastAtMs: s.nowMs }]]),
+      served: [{ assetId: next.assetId, family: next.family, atMs: s.nowMs }, ...s.served] };
+  }
+  assert.equal(visited.size, unkept, 'every unkept Scroll was reached in the second pass');
 });
 
 test('only keeping everything exhausts the library, as the established contract says', () => {

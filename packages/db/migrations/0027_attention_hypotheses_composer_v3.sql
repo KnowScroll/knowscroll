@@ -88,6 +88,8 @@ CREATE TABLE encounter_feedback (
  CHECK (kind <> 'wrong_connection' OR bridge_id IS NOT NULL)
 );
 CREATE INDEX encounter_feedback_universe ON encounter_feedback(universe_id, suppress_until);
+-- One correction of a kind per served encounter, whatever key a client retries with.
+CREATE UNIQUE INDEX encounter_feedback_once ON encounter_feedback(universe_id, decision_id, asset_id, kind);
 CREATE TRIGGER encounter_feedback_no_update BEFORE UPDATE ON encounter_feedback FOR EACH ROW EXECUTE FUNCTION generation_immutable();
 
 -- composer-semantic-v3 --------------------------------------------------------------------------
@@ -98,7 +100,7 @@ ALTER TABLE composer_policy ADD COLUMN record_kind text NOT NULL DEFAULT 'decisi
 
 INSERT INTO composer_policy(version, weights, slate_size, max_per_source, record_kind) VALUES (
  'composer-semantic-v3',
- '{"maxPerConcept":1,"weights":{"continuity":1,"useful":1,"depth":1,"novelty":1,"returnRelevance":1,"prior":1,"redundancy":1,"fatigue":1,"seen":1},"familyDepth":{"continue":0.3,"deepen":0.8,"bridge":1.2,"challenge":0.7,"revisit":0.2,"frontier":0.4,"seed":0.3,"fallback":0},"continuityWindowHours":72,"explorationEvery":3,"fatigueWindow":5,"redundancyWindowDays":30,"revisitMinGapDays":3,"usefulSaturation":{"exposureShare":0.8,"cap":0.5}}'::jsonb,
+ '{"maxPerConcept":1,"weights":{"continuity":1,"useful":1,"depth":1,"novelty":1,"returnRelevance":1,"prior":1,"redundancy":1,"fatigue":1,"seen":1},"familyDepth":{"continue":0.3,"deepen":0.8,"bridge":1.2,"challenge":0.7,"revisit":0.2,"frontier":0.4,"seed":0.3,"fallback":0},"continuityWindowHours":72,"explorationEvery":3,"fatigueWindow":5,"redundancyWindowDays":30,"revisitMinGapDays":3,"usefulSaturation":{"exposureShare":0.8,"cap":0.5},"terms":{"continuity":0.3,"questionContinuity":0.2,"novelty":0.5,"returnRelevance":0.3,"prior":0.1,"redundancy":0.6,"redundancyShare":0.5,"fatigueStep":0.15,"usefulScale":4,"parentMassShare":0.5,"seenPerShowing":10,"maxMarks":50}}'::jsonb,
  3, 2, 'decision_candidate'
 );
 
@@ -151,6 +153,8 @@ CREATE TABLE decision_context (
  universe_id uuid NOT NULL,
  policy_version text NOT NULL REFERENCES composer_policy(version),
  seed text NOT NULL,
+ -- The clock the policy composed against (terms such as decay and windows depend on it).
+ composed_at timestamptz NOT NULL,
  served_window jsonb NOT NULL CHECK (jsonb_typeof(served_window) = 'array'),
  quotas jsonb NOT NULL CHECK (jsonb_typeof(quotas) = 'array'),
  exploration_due boolean NOT NULL,
@@ -184,7 +188,7 @@ END $$;
 -- when the context records the quota that chose it).
 CREATE FUNCTION composer_candidate_invariants() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE target uuid; d record; kind text; returned uuid[]; ranked uuid[]; max_rank integer; ranked_count integer;
-  ctx record; cap integer; worst integer; inversions integer; head_score double precision; best double precision;
+  ctx record; cap integer; worst integer; inversions integer; head_score double precision; best double precision; head_family text;
 BEGIN
  IF TG_TABLE_NAME = 'decision' THEN target := COALESCE(NEW.id, OLD.id);
  ELSIF TG_TABLE_NAME = 'decision_context' THEN target := COALESCE(NEW.decision_id, OLD.decision_id);
@@ -208,9 +212,12 @@ BEGIN
  SELECT count(*) INTO inversions FROM decision_candidate x JOIN decision_candidate y ON x.decision_id = y.decision_id
   WHERE x.decision_id = target AND x.rank >= 2 AND y.rank > x.rank AND y.score > x.score;
  IF inversions > 0 THEN RAISE EXCEPTION 'After the head, a v3 decision''s recorded ranks must not contradict its scores'; END IF;
- SELECT score INTO head_score FROM decision_candidate WHERE decision_id = target AND rank = 1;
+ SELECT score, family INTO head_score, head_family FROM decision_candidate WHERE decision_id = target AND rank = 1;
  SELECT max(score) INTO best FROM decision_candidate WHERE decision_id = target AND rank IS NOT NULL;
- IF head_score IS NOT NULL AND head_score < best AND jsonb_array_length(ctx.quotas) = 0 THEN
+ -- The quota must be the one that could have chosen this head: the exploration floor for its family,
+ -- or the adjacent-repeat rule (which names no family).
+ IF head_score IS NOT NULL AND head_score < best
+    AND NOT (ctx.quotas ? ('exploration_floor:' || head_family) OR ctx.quotas ? 'no_adjacent_repeat') THEN
   RAISE EXCEPTION 'A v3 head that is not the best-scoring candidate must record the quota that chose it';
  END IF;
  RETURN NULL;
@@ -221,7 +228,9 @@ CREATE CONSTRAINT TRIGGER decision_candidate_invariants AFTER INSERT ON decision
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.rank IS NOT NULL) EXECUTE FUNCTION composer_candidate_invariants();
 CREATE CONSTRAINT TRIGGER decision_candidate_delete_invariants AFTER DELETE ON decision_candidate
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (OLD.rank IS NOT NULL) EXECUTE FUNCTION composer_candidate_invariants();
-CREATE CONSTRAINT TRIGGER decision_context_invariants AFTER INSERT ON decision_context
+-- A recorded decision stays consistent for its whole life: an edited decision row or a removed context
+-- is checked like a new one (a decision deleted in the same transaction, as Clear does, is skipped).
+CREATE CONSTRAINT TRIGGER decision_context_invariants AFTER INSERT OR DELETE ON decision_context
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION composer_candidate_invariants();
-CREATE CONSTRAINT TRIGGER decision_v3_invariants AFTER INSERT ON decision
+CREATE CONSTRAINT TRIGGER decision_v3_invariants AFTER INSERT OR UPDATE ON decision
  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION composer_candidate_invariants();
