@@ -87,23 +87,15 @@
     <string name="keep_failed">Could not keep this Scroll.</string>
     <!-- docs/product/ui-system.md section 5b: "keep going →" (teal action pill). -->
     <string name="action_next_pill">keep going →</string>
-    <!-- docs/product/ui-system.md section 5b: the reader's state pill carries the real source
-         count. This client's ScrollItem always carries exactly one source. -->
-    <string name="reader_state_pill_sources">%1$d SOURCE</string>
 
     <!-- Capabilities: the slice does not promise them. -->
 
     <!-- Decorative cosmos copy is intentionally absent; the cosmos is
          drawn, not narrated. Decorative-only labels are not shipped. -->
     <string name="action_home">Home</string>
-    <string name="action_sources">Sources</string>
     <string name="reader_origin">YOUR UNIVERSE / SCROLL</string>
     <string name="reader_saved_trace_origin">SAVED FROM YOUR KEEP</string>
     <string name="reader_truth_label">SCROLL · %1$s</string>
-    <string name="reader_source_marker">SOURCE</string>
-    <string name="reader_source_sheet_title">Sources and truth</string>
-    <string name="reader_attribution_note">Editorial source attribution. This pointer is not independent verification of every claim.</string>
-    <string name="reader_close_sources">Back to reading</string>
     <string name="reader_browser_unavailable">A browser could not open this source. You can still read its address above.</string>
     <string name="reader_threshold_title">Another discovery?</string>
     <string name="reader_threshold_detail">Stay with this idea, or deliberately open the next Scroll.</string>
@@ -120,9 +112,6 @@
     <string name="reader_home_description">Return to the universe</string>
     <string name="reader_keep_description">Keep this Scroll</string>
     <string name="reader_next_description">Get the next Scroll</string>
-    <string name="reader_sources_description">Sources for this Scroll</string>
-    <string name="reader_close_sources_description">Close sources</string>
-    <string name="reader_open_source_description">Open %1$s in browser</string>
 
     <!-- Why this appeared (#91) -->
     <string name="reader_explain_action">Why</string>
@@ -131,7 +120,6 @@
     <string name="reader_explain_reason_heading">REASON</string>
     <string name="reader_explain_truth_heading">TRUTH STATE</string>
     <string name="reader_explain_origin_heading">ORIGIN</string>
-    <string name="reader_explain_documented_sources_note">Sources below show this evidence.</string>
     <string name="reader_explain_close">Back to reading</string>
     <string name="reader_why_path_heading">WHAT LED HERE</string>
     <string name="reader_why_loading">Reading what was recorded…</string>
@@ -203,8 +191,8 @@
     <string name="connection_open">Follow this connection</string>
     <string name="connection_not_useful">Not useful to me</string>
     <string name="connection_seems_wrong">Seems wrong</string>
-    <string name="connection_feedback_note">Hiding a connection affects only your universe. The cited sources are not changed.</string>
-    <string name="connection_hidden">Hidden for you. The sources are unchanged.</string>
+    <string name="connection_feedback_note">Hiding a connection affects only your universe. The connection itself is not changed.</string>
+    <string name="connection_hidden">Hidden for you. Nothing shared changed.</string>
     <string name="connection_close">Back to reading</string>
 
     <!-- Ask about this Scroll (#132, ADR-0033): an authorized answer over this Scroll's own text.

@@ -42,10 +42,10 @@ fun railLabel(branch: LiveBranch): String =
     "${branch.relationPhrase.replaceFirstChar { it.uppercaseChar() }} ${branch.toName}"
 
 fun emptyReasonText(reason: String?): String = when (reason) {
-    "no_semantic_annotation" -> "This Scroll has not been mapped to sourced ideas yet, so no connection is offered."
-    "no_admitted_bridge" -> "No sourced connection leads on from this idea yet."
+    "no_semantic_annotation" -> "This Scroll has not been mapped to ideas yet, so no connection is offered."
+    "no_admitted_bridge" -> "No connection leads on from this idea yet."
     "no_eligible_target" -> "A connection exists, but no Scroll about the other side is available yet."
-    else -> "No sourced connection is available here."
+    else -> "No connection is available here."
 }
 
 enum class BranchOpenConflict { StaleEpoch, Unavailable }

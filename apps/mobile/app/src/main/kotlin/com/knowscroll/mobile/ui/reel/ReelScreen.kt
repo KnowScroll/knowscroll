@@ -18,7 +18,6 @@ import com.knowscroll.mobile.BuildConfig
 import com.knowscroll.mobile.ui.*
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
-import com.knowscroll.mobile.ui.scroll.SourceSheet
 import com.knowscroll.mobile.ui.theme.Cosmos
 import com.knowscroll.mobile.ui.theme.Poster
 import com.knowscroll.mobile.ui.theme.PosterTheme
@@ -45,26 +44,16 @@ fun ReelScreen(
     mediaToken: String? = BuildConfig.KS_DEV_TOKEN.takeIf { it.isNotBlank() },
 ) {
     val media = requireNotNull(state.item.media)
-    var sources by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
     var branchHelp by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
     var drag by remember { mutableStateOf(Offset.Zero) }
     val threshold = with(LocalDensity.current) { 72.dp.toPx() }
     val canNext = state.exposureId.isNotEmpty() && canRequestDiscovery(state.keep, state.discovery)
-    BackHandler(enabled = sources || branchHelp) {
-        sources = false
-        branchHelp = false
-    }
+    BackHandler(enabled = branchHelp) { branchHelp = false }
     PosterTheme {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val footerMax = (maxHeight * .30f).coerceIn(96.dp, 220.dp)
             Column(Modifier.fillMaxSize().background(Poster.Paper)) {
-                FlowRow(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    TextButton(onClick = onReturn) { Text("‹ Return to origin") }
-                    TextButton(onClick = { sources = true }) { Text("Sources & truth") }
-                }
+                TextButton(onClick = onReturn, modifier = Modifier.padding(horizontal = 16.dp)) { Text("‹ Return to origin") }
                 Text(
                     if (media.simulated) "TEST MEDIA · NOT GENERATED EVIDENCE"
                     else "GENERATED SYNTHESIS",
@@ -85,7 +74,7 @@ fun ReelScreen(
                         )
                     },
                     state.readingPosition.toLong(),
-                    active = !sources && !branchHelp,
+                    active = !branchHelp,
                     gestureModifier =
                         Modifier.pointerInput(state.item.assetId, canNext, branches) {
                             detectDragGestures(
@@ -175,7 +164,6 @@ fun ReelScreen(
                     BottomCompass(CompassTab.Cable, onReturn, {}, onOpenKeep, poster = true)
             }
         }
-        if (sources) SourceSheet(state.item) { sources = false }
         if (branchHelp)
             AlertDialog(
                 containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,

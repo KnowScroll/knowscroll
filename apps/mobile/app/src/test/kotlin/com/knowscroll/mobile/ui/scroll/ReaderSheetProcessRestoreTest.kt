@@ -45,14 +45,14 @@ class ReaderSheetProcessRestoreTest {
                 ScrollScreen(state = backing.value, onKeep = {}, onReturn = {}, onNext = {}, onRetry = {}, onReadingPosition = { _, _ -> }, onOpenKeep = {})
             }
         }
-        rule.onNodeWithContentDescription("Sources for this Scroll").performClick()
-        rule.onNodeWithText("Sources and truth").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Why this Scroll appeared").performClick()
+        rule.onNodeWithText("Why this appeared").assertIsDisplayed()
 
         backing.value = ScrollState.Loading
         tester.emulateSavedInstanceStateRestore()
         backing.value = reading("asset-1")
         rule.waitForIdle()
 
-        rule.onNodeWithText("Sources and truth").assertIsDisplayed()
+        rule.onNodeWithText("Why this appeared").assertIsDisplayed()
     }
 }

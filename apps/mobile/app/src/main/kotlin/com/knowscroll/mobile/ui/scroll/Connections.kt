@@ -22,8 +22,8 @@ import com.knowscroll.mobile.ui.theme.Cosmos
 /**
  * #131/#134 — the reader's live continuations, drawn in PR130's existing `BranchRail` seam.
  * Everything shown comes from the server's admitted bridges; the sheet shows the mechanism,
- * where the connection stops and the cited evidence, and lets the reader hide a connection for
- * themselves without claiming the sources are wrong.
+ * where the connection stops and each claim it rests on (#161: never where a claim came from),
+ * and lets the reader hide a connection for themselves without changing it for anyone else.
  */
 @Composable
 internal fun BranchSection(
@@ -102,10 +102,7 @@ private fun ConnectionCard(branch: LiveBranch, onOpenBranch: (String) -> Unit, o
             }
             Labeled(stringResource(R.string.connection_evidence_heading)) {
                 // One claim can support several roles (from, to, mechanism); show each claim once.
-                branch.evidence.distinctBy { it.statement }.forEach { e ->
-                    Text(e.statement, style = MaterialTheme.typography.bodyMedium)
-                    Text(e.sourceTitle, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
-                }
+                branch.evidence.distinctBy { it.statement }.forEach { Text(it.statement, style = MaterialTheme.typography.bodyMedium) }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(

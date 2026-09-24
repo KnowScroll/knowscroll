@@ -337,7 +337,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 when {
                     e is ApiException.Server && e.statusCode==409 -> {
                         discardRevisit()
-                        _scroll.value=ScrollState.Unavailable("This saved Scroll's source has changed and cannot be reopened.",retryable=false)
+                        _scroll.value=ScrollState.Unavailable("This saved Scroll has changed and cannot be reopened.",retryable=false)
                     }
                     e is ApiException.Protocol || e is ApiException.Server && e.statusCode in setOf(400,404,422) -> {
                         discardRevisit()

@@ -1,7 +1,5 @@
 package com.knowscroll.mobile.ui.scroll
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -17,7 +15,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.contentDescription
@@ -41,7 +38,6 @@ import com.knowscroll.mobile.ui.ScrollState
 import com.knowscroll.mobile.ui.canRequestDiscovery
 import com.knowscroll.mobile.ui.explainOriginText
 import com.knowscroll.mobile.ui.explainReasonText
-import com.knowscroll.mobile.ui.explainShowsSourcesNote
 import com.knowscroll.mobile.ui.NO_REASON_RECORDED
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
@@ -79,7 +75,7 @@ fun ScrollScreen(
     ask: AskControls = AskControls(),
 ) {
     PosterTheme { Column(modifier.fillMaxSize().background(Poster.Paper)) {
-        // #97 root cause: sourcesOpen/explainOpen/connectionsOpen used to be rememberSaveable
+        // #97 root cause: explainOpen/connectionsOpen used to be rememberSaveable
         // *inside* ReadingSheet, which the `when` below removes from composition whenever `state`
         // isn't Reading. AppViewModel.onForeground() runs reconcilePrivacy(restoreStoredScroll =
         // true) on every Lifecycle.State.STARTED re-entry -- including the one right after an
@@ -103,7 +99,6 @@ fun ScrollScreen(
         // Only a reload carries the sheets over; an unavailable or exhausted reader closes them.
         val sheetKey = readingId ?: stickyAssetId.takeIf { state is ScrollState.Loading }
         SideEffect { if (readingId != null) stickyAssetId = readingId }
-        var sourcesOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         var explainOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         var connectionsOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         var askOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
@@ -113,7 +108,7 @@ fun ScrollScreen(
                     ReadingSheet(
                         state, onKeep, onReturn, onNext, onReadingPosition,
                         branches?.takeIf { it.assetId == state.item.assetId }, onOpenBranch, onRetryBranches, onObjectConnection, onBack,
-                        sourcesOpen, { sourcesOpen = it }, explainOpen, { explainOpen = it }, connectionsOpen, { connectionsOpen = it },
+                        explainOpen, { explainOpen = it }, connectionsOpen, { connectionsOpen = it },
                         askOpen, { askOpen = it },
                         why.copy(panel = why.panel?.takeIf { it.assetId == state.item.assetId }),
                         ask.copy(panel = ask.panel?.takeIf { it.assetId == state.item.assetId }),
@@ -171,8 +166,6 @@ private fun ReadingSheet(
     onRetryBranches: () -> Unit,
     onObjectConnection: (String, String) -> Unit,
     onBack: () -> Unit,
-    sourcesOpen: Boolean,
-    onSourcesOpenChange: (Boolean) -> Unit,
     explainOpen: Boolean,
     onExplainOpenChange: (Boolean) -> Unit,
     connectionsOpen: Boolean,
@@ -211,7 +204,7 @@ private fun ReadingSheet(
         restoringPosition = false
     }
     val positionDescription = stringResource(R.string.reader_position_description, readingScroll.value)
-    // #97: sourcesOpen/explainOpen/connectionsOpen/askOpen are owned by ScrollScreen (see the
+    // #97: explainOpen/connectionsOpen/askOpen are owned by ScrollScreen (see the
     // comment there) so they survive a same-item Loading/Reading remount; they are threaded through here.
     LaunchedEffect(item.assetId, readingScroll) {
         snapshotFlow { readingScroll.value to restoringPosition }.distinctUntilChanged().collectLatest { (value, restoring) ->
@@ -224,8 +217,8 @@ private fun ReadingSheet(
     DisposableEffect(item.assetId, readingScroll) {
         onDispose { onReadingPosition(item.assetId, if (latestRestoring.value) savedPosition else readingScroll.value) }
     }
-    BackHandler(enabled = sourcesOpen || explainOpen || connectionsOpen || askOpen) {
-        onSourcesOpenChange(false); onExplainOpenChange(false); onConnectionsOpenChange(false)
+    BackHandler(enabled = explainOpen || connectionsOpen || askOpen) {
+        onExplainOpenChange(false); onConnectionsOpenChange(false)
         if (askOpen) { onAskOpenChange(false); ask.onClose() }
     }
 
@@ -272,7 +265,7 @@ private fun ReadingSheet(
         // repeating the title above the cream reading sheet. Removed: the Scroll's stage *is* its
         // reading content (audit D2 / ui-system.md section 5b table). The cream sheet below now
         // begins directly under the origin chip, with the title, truth pill and progress visible
-        // there -- the same reading surface, never a duplicated heading row. Source / Explain
+        // there -- the same reading surface, never a duplicated heading row. The reader's
         // sheets, kept reading position (readingScroll, the LaunchedEffect/DisposableEffect that
         // debounce it), and exposure recording (AppViewModel.onVisible) all continue to mount.
         Surface(
@@ -290,16 +283,8 @@ private fun ReadingSheet(
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     // docs/product/ui-system.md section 5b: the reader's state pill carries the
-                    // real truth state and real source count -- `DOCUMENTED · 3 SOURCES`. This
-                    // client's ScrollItem carries exactly one source, so the count is always 1;
-                    // real, not a placeholder.
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TruthPill(item.truthState, stringResource(R.string.reader_truth_label, item.truthState.uppercase()))
-                        Text(
-                            stringResource(R.string.reader_state_pill_sources, 1),
-                            style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream
-                        )
-                    }
+                    // real truth state. #161: readers never see a source, so it carries no count.
+                    TruthPill(item.truthState, stringResource(R.string.reader_truth_label, item.truthState.uppercase()))
                     Text(item.title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
                     if (item.reason.isNotBlank()) Text(item.reason, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
                     Text(item.summary, style = MaterialTheme.typography.titleMedium, color = Cosmos.MutedOnCream)
@@ -309,18 +294,12 @@ private fun ReadingSheet(
                     com.knowscroll.mobile.ui.scroll.content.ScrollBlocks(document)
                     BranchSection(branches, onOpenBranch, onRetryBranches) { onConnectionsOpenChange(true) }
                     HorizontalDivider(color = Cosmos.CreamDim)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.reader_source_marker), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
-                        Text(item.sourceTitle, style = MaterialTheme.typography.bodyMedium)
-                        Text(stringResource(R.string.reader_attribution_note), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
-                    }
                     DiscoveryThreshold(state.keep, state.discovery, onNext)
                 }
-                ReaderControls(state.keep, state.discovery, onKeep, onReturn, { onSourcesOpenChange(true) }, { onExplainOpenChange(true) }) { onAskOpenChange(true) }
+                ReaderControls(state.keep, state.discovery, onKeep, onReturn, { onExplainOpenChange(true) }) { onAskOpenChange(true) }
             }
         }
     }
-    if (sourcesOpen) SourceSheet(item) { onSourcesOpenChange(false) }
     LaunchedEffect(explainOpen, item.assetId) { if (explainOpen) why.onOpen() }
     if (explainOpen) ExplainSheet(item, state.origin, why.panel, why.onCorrect) { onExplainOpenChange(false) }
     if (connectionsOpen) {
@@ -407,11 +386,10 @@ private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: (
 @Composable
 private fun ReaderControls(
     keep: KeepState, discovery: DiscoveryState, onKeep: () -> Unit, onReturn: () -> Unit,
-    onSources: () -> Unit, onExplain: () -> Unit, onAsk: () -> Unit
+    onExplain: () -> Unit, onAsk: () -> Unit
 ) {
     val homeDescription = stringResource(R.string.reader_home_description)
     val keepDescription = stringResource(R.string.reader_keep_description)
-    val sourcesDescription = stringResource(R.string.reader_sources_description)
     val explainDescription = stringResource(R.string.reader_explain_description)
     val askDescription = stringResource(R.string.reader_ask_description)
     val keepLabel = stringResource(when (keep) {
@@ -443,11 +421,6 @@ private fun ReaderControls(
                 shape = RoundedCornerShape(percent = 50),
                 colors = ButtonDefaults.buttonColors(containerColor = Poster.Yellow, contentColor = Cosmos.InkOnCream)
             ) { Text(keepLabel) }
-            TextButton(
-                onClick = onSources,
-                modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = sourcesDescription },
-                colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
-            ) { Text(stringResource(R.string.action_sources)) }
             TextButton(
                 onClick = onExplain,
                 modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = explainDescription },
@@ -490,9 +463,6 @@ internal fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, why: WhyPanel?
                 Text(stringResource(R.string.reader_explain_truth_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
                 Text(item.truthState.uppercase(), style = MaterialTheme.typography.titleMedium)
                 truthStateMeaning(item.truthState)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                if (explainShowsSourcesNote(item.truthState)) {
-                    Text(stringResource(R.string.reader_explain_documented_sources_note), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
-                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.reader_explain_origin_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
@@ -504,48 +474,6 @@ internal fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, why: WhyPanel?
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = closeDescription }
             ) { Text(stringResource(R.string.reader_explain_close)) }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun SourceSheet(item: ScrollItem, onDismiss: () -> Unit) {
-    val openDescription = stringResource(R.string.reader_open_source_description, item.sourceTitle)
-    val closeDescription = stringResource(R.string.reader_close_sources_description)
-    val context = LocalContext.current
-    var browserUnavailable by remember { mutableStateOf(false) }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Cosmos.Cream, contentColor = Cosmos.InkOnCream
-    ) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(stringResource(R.string.reader_source_sheet_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            Text(item.title, style = MaterialTheme.typography.titleMedium)
-            Text("${item.kind.uppercase()} · ${item.truthState.uppercase()}", style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
-            Text(item.sourceTitle, style = MaterialTheme.typography.titleLarge)
-            Text(item.sourceUrl, style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(R.string.reader_attribution_note), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
-            Button(
-                onClick = {
-                    browserUnavailable = runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.sourceUrl)))
-                    }.isFailure
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Dark, contentColor = Cosmos.Cream),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .semantics { contentDescription = openDescription }
-            ) { Text(stringResource(R.string.action_open_source)) }
-            if (browserUnavailable) Text(stringResource(R.string.reader_browser_unavailable), color = Cosmos.InkOnCream)
-            OutlinedButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.InkOnCream),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = closeDescription }
-            ) { Text(stringResource(R.string.reader_close_sources)) }
         }
     }
 }
