@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.AskAnswerJourneyTest:.
 
-Time: 8.401
+Time: 12.196
 
 OK (1 test)
 

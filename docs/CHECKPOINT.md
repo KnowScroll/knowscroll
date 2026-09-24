@@ -14,14 +14,16 @@ Otherwise the answer is `rejected` with content-free reason codes. Unknown outco
 remote slot and are never retried. Clear/Reset erase requests and answers; export carries them.
 Android: Ask sheet with "Get an answer", answered/not-in-source/rejected/failed states, cancel.
 
-Live, bounded (22 of 40 authorized requests): v1 rejected every reply to the Android journey's
+Live, bounded (28 of 40 authorized requests): v1 rejected every reply to the Android journey's
 yes/no question because MiniMax wrapped basis quotes differently; v2 projects items to their quote
 and keeps every other rule; 0/5 → 5/5 answered with verified quotes, then answered on the emulator.
 A fresh-context review found 2 blocking defects (all-space quotes passed; an attempt admitted but
-never sent left the Job and its remote slot stuck) and 8 important ones; all were fixed test-first,
-including a recovery sweep for Jobs whose worker died, and the evidence was regenerated from the
-clean commit. Verification: core 8, lifecycle 12, recovery 2, crash 1, transport 7, Android 125
-units, fixture and live emulator journeys with DB lineage; see the
+never sent left the Job and its remote slot stuck) and 8 important ones; a verification review of
+those fixes found 3 more (a signed-out reader broke the recovery sweep; a reply recorded but never
+applied stayed open; the reader check let "you are curious" through). All were fixed test-first and
+the evidence regenerated from clean commits. Verification: core 10, lifecycle 12, recovery 3,
+signed-out 1, crash 1, transport 7, backend 814+13, Android 130 units, fixture and live emulator
+journeys with DB lineage; see the
 [evidence](journeys/evidence/ask-answers-2026-09-24/README.md). Preview restored after every run;
 owner database untouched.
 

@@ -1,13 +1,13 @@
 {
-  "at": "2026-09-24T05:06:19.028910+00:00",
+  "at": "2026-09-24T05:52:52.647018+00:00",
   "result": "passed",
-  "database": "knowscroll_test_semantic_badcea493ee64c79",
+  "database": "knowscroll_test_semantic_c91d8b2e2961b2da",
   "apiPort": 4333,
-  "source": "5ad8db793d8efce2bf4980113b576947a5f2b047",
+  "source": "d719b2e11f8d790531305fa8d417cc929501389f",
   "package": "com.knowscroll.mobile.journey",
   "journeyName": "ask",
   "journey": {
-    "askId": "5514057d-0144-46ae-baae-6c05a6ad8c43",
+    "askId": "d81142f9-3a3d-4fa8-9c2a-f60f2a5241c0",
     "status": "answered",
     "basisQuotes": 3,
     "scrollAssetId": "20000000-0000-4000-8000-000000000004"
