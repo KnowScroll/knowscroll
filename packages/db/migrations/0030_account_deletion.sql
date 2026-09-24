@@ -11,6 +11,11 @@ CREATE TABLE account_deletion_receipt (
  epoch_before integer NOT NULL CHECK (epoch_before >= 0),
  epoch_after integer NOT NULL CHECK (epoch_after = epoch_before + 1),
  sessions_deleted integer NOT NULL CHECK (sessions_deleted >= 1),
+ /** The development-token sessions this deletion ended (opaque ids, derived one-way from the token).
+   * `ensureDevelopmentSession` re-creates a missing development session on every API start; this is
+   * how it knows the row is missing because the account was deleted, so it stays ended exactly as a
+   * Reset's revocation does, instead of reviving on the next restart. */
+ development_session_ids uuid[] NOT NULL DEFAULT '{}',
  deleted_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE (universe_id, request_id)
 );

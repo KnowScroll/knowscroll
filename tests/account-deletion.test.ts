@@ -22,7 +22,7 @@ process.env.KS_DEV_ROOT = scratch;
 
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
-const { pool } = await import('../packages/db/src/index.ts');
+const { pool, ensureDevelopmentSession } = await import('../packages/db/src/index.ts');
 const { resolveOwnerEmail } = await import('../packages/db/src/sign-in.ts');
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Account deletion tests require a disposable knowscroll_test_* database');
@@ -156,4 +156,30 @@ test('outside a deletion, the schema refuses every deletion the account transact
   const earlier = (await pool.query('SELECT count(*)::int n FROM account_deletion_receipt WHERE universe_id=$1', [s.universeId])).rows[0].n;
   assert.ok(earlier >= 2, 'two earlier deletions exist in this file');
   await refuse('DELETE FROM sign_in_token WHERE account_id=$1', [s.accountId], /never deleted/);
+});
+
+test('a deletion ends the development session for good: an API restart does not revive it, and a later sign-in still starts clean', async () => {
+  const developmentToken = randomBytes(32).toString('hex');
+  await ensureDevelopmentSession(developmentToken);
+  const dev = { authorization: `Bearer ${developmentToken}` };
+  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 200, 'the development session works before');
+
+  const s = await bearerSession();
+  const epoch = await epochOf({ authorization: s.authorization });
+  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'the deletion ended it');
+
+  await ensureDevelopmentSession(developmentToken); // what every API start does (buildApp's onReady)
+  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'a restart must not revive the development session');
+
+  const again = await bearerSession();
+  const afterEpoch = await epochOf({ authorization: again.authorization });
+  const exported = await app.inject({ method: 'POST', url: '/v1/privacy/export', headers: { authorization: again.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: afterEpoch } });
+  assert.equal(exported.statusCode, 200, exported.body);
+  const counts = exported.json().rowCounts;
+  assert.deepEqual([counts.exposures, counts.ledger, counts.decisions, counts.traces, counts.deviceSessions], [0, 0, 0, 0, 1], 'only the new sign-in exists');
+
+  await ensureDevelopmentSession(developmentToken); // and a restart after the new sign-in
+  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'still ended, exactly as after a Reset');
 });

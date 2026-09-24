@@ -333,12 +333,15 @@ export async function deleteAccount(client: pg.PoolClient, scope: AuthScope, inp
  if (!universe.rowCount) throw new PrivacyLifecycleConflict();
  await erasePersonalHistory(client, scope.universeId, scope.privacyEpoch, nextEpoch);
 
- const sessions = Number((await client.query('SELECT count(*)::int AS n FROM device_session WHERE universe_id=$1', [scope.universeId])).rows[0].n);
+ const sessionRows = (await client.query<{ id: string; origin: string }>('SELECT id, origin FROM device_session WHERE universe_id=$1', [scope.universeId])).rows;
+ const sessions = sessionRows.length;
  if (sessions < 1) throw new Error('Account deletion must remove at least the calling session');
+ // Named in the tombstone so `ensureDevelopmentSession` never re-creates them on the next start.
+ const developmentSessionIds = sessionRows.filter(row => row.origin === 'development').map(row => row.id);
  const receipt = (await client.query(
-  `INSERT INTO account_deletion_receipt(id,universe_id,account_id,request_id,epoch_before,epoch_after,sessions_deleted)
-   VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,epoch_before,epoch_after,sessions_deleted,deleted_at`,
-  [randomUUID(), scope.universeId, accountId, input.requestId, scope.privacyEpoch, nextEpoch, sessions],
+  `INSERT INTO account_deletion_receipt(id,universe_id,account_id,request_id,epoch_before,epoch_after,sessions_deleted,development_session_ids)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8::uuid[]) RETURNING id,epoch_before,epoch_after,sessions_deleted,deleted_at`,
+  [randomUUID(), scope.universeId, accountId, input.requestId, scope.privacyEpoch, nextEpoch, sessions, developmentSessionIds],
  )).rows[0];
 
  // Order is the foreign keys': tokens name the sessions they minted; sessions and the universe

@@ -22,6 +22,10 @@ privacy receipts are immutable, and a universe "stays with the account that adop
    `account_deletion_receipt`; delete every sign-in token of the account, every `device_session`
    of the universe (not merely revoke), the four dated privacy receipt tables' rows for the
    universe and the `account` row; unbind the universe (`account_id = NULL`) and clear its pause.
+   The receipt names the development-token sessions it deleted (`development_session_ids`, opaque
+   ids derived one-way from the token): `ensureDevelopmentSession`, which re-creates a missing
+   development session on every API start, leaves those ended, exactly as a Reset's revoked row
+   stays ended, so a restart never revives the development token on the emptied universe.
 3. **Guards stay closed.** The receipt is written first. A single SQL predicate,
    `account_deletion_in_progress(universe, account)`, is true only when a receipt for that
    universe/account carries `deleted_at = now()` — the current transaction's start. The three guards
@@ -30,7 +34,8 @@ privacy receipts are immutable, and a universe "stays with the account that adop
 4. **What stays.** The empty universe row (the single-owner universe is fixed; a later sign-in with
    the owner address creates a new account that adopts it and starts from nothing); shared
    knowledge; minimal, content-free reasoning accounting under its existing retention (ADR-0019);
-   and the tombstone itself — ids, epochs, a session count and a time, never the address. It is
+   and the tombstone itself — ids, epochs, a session count, the ended development-session ids and a
+   time, never the address. It is
    immutable and cannot be deleted even inside the deletion transaction.
 5. **No replay.** The calling session is deleted, so a retry cannot authenticate. A client that
    sent a deletion and receives 401 treats itself as signed out either way and clears local state.
