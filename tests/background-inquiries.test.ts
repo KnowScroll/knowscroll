@@ -95,12 +95,14 @@ async function quiesce() {
     await settleInquiries(pool, { owner: 'inquiry-test-worker' });
   }
 }
-/** Runs the worker until nothing is left for this reader (other tests' queued work may come first). */
+/** Runs the worker loop, its passes and its periodic sweep, until nothing is left for this reader (other
+ * tests' queued work may come first). A stale queued inquiry is skipped by the scheduler and closed by the sweep. */
 async function drain(r: Reader, transport: InquiryTransport = fixture) {
   for (let i = 0; i < 12; i += 1) {
     const open = (await pool.query(`SELECT 1 FROM background_inquiry WHERE universe_id=$1 AND status IN ('pending','queued')`, [r.universeId])).rowCount;
     if (!open) return;
     await pass(transport);
+    await settleInquiries(pool, { owner: 'inquiry-test-worker' });
   }
 }
 

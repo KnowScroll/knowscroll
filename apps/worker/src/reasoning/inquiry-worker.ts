@@ -14,7 +14,7 @@ import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-
 import { createReasoningFairness, type FairnessScheduled } from '../../../../packages/db/src/reasoning-fairness.ts';
 import { inquiryAuthority, jobFamily, mailRevokedConnections, openDueInquiries, sharedReasoningAuthority, type OpenResult } from '../../../../packages/db/src/reasoning-inquiries.ts';
 import {
-  applyInquiryReply, failInquiry, giveBackUnsentInquiry, loadInquiryWork, settleInquiries, type InquiryOutcome, type InquiryReply, type InquiryWork,
+  applyInquiryReply, failInquiry, giveBackUnsentInquiry, loadInquiryWork, type InquiryOutcome, type InquiryReply, type InquiryWork,
 } from '../../../../packages/db/src/reasoning-inquiry-execution.ts';
 import { createReasoningReconciliation } from '../../../../packages/db/src/reasoning-reconciliation.ts';
 import { ReasoningDenied, type ReasoningAuthority } from '../../../../packages/db/src/reasoning-runtime-policy.ts';
@@ -75,14 +75,7 @@ export async function runInquiryPass(deps: {
     if (!ready.ok) return idle(ready.reason);
   }
   const authority = answerRoute ? sharedReasoningAuthority() : inquiryAuthority();
-  let scheduled: Awaited<ReturnType<ReturnType<typeof createReasoningFairness>['schedule']>>;
-  try { scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version }); }
-  catch (error) {
-    // A context that went stale while queued: the sweep withdraws it (never sent) before the
-    // scheduler meets it again, and this pass yields instead of failing the loop.
-    if (error instanceof ReasoningDenied && error.code.startsWith('context_')) { await settleInquiries(pool, { owner }); return idle('stale_context_queued'); }
-    throw error;
-  }
+  const scheduled = await createReasoningFairness(pool, authority).schedule({ owner, leaseMs, policyVersion: route.policy_version });
   if (scheduled.kind !== 'admitted') return idle(scheduled.kind);
   // Whatever was dispatched spent its transport's quota check: the next request asks again (ADR-0042 §3).
   if (await jobFamily(pool, scheduled.claim.jobId) === 'answer') {

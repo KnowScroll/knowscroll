@@ -15,6 +15,7 @@ import { answerFairnessPolicy, installAskAnswerRoute } from '../packages/db/src/
 import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
 import { FAIRNESS_CLASSES } from '../packages/db/src/reasoning-fairness-policy.ts';
 import { installBackgroundInquiryRoute, openDueInquiries, sharedReasoningAuthority } from '../packages/db/src/reasoning-inquiries.ts';
+import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import { executeInquiryClaim, runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
@@ -59,7 +60,7 @@ const answerStatus = async (a: { token: string; askId: string }) => (await app.i
 const queuedInquiries = async () => Number((await pool.query(`SELECT count(*) FROM background_inquiry WHERE status='queued' AND policy_version=$1`, [POLICY])).rows[0].count);
 const inquiryPass = () => runInquiryPass({ pool, owner: 'fair-worker', leaseMs: 60_000, transports: { fixture: inquiryFixture }, signal, answers: { transports: { fixture: answerFixture } } });
 const answerPass = () => runAnswerPass({ pool, owner: 'fair-worker', leaseMs: 60_000, transports: { fixture: answerFixture }, signal,
-  otherFamily: (scheduled, s) => executeInquiryClaim({ pool, owner: 'fair-worker', transport: inquiryFixture, signal: s, authority: sharedReasoningAuthority() }, scheduled) });
+  inquiries: { transports: { fixture: inquiryFixture }, execute: executeInquiryClaim } });
 
 test('a queue of background inquiries never starves a direct Ask on the shared scheduler', async () => {
   const readers: string[] = [];
@@ -130,7 +131,8 @@ test('a background inquiry gone stale at the head of the shared scheduler never 
     seen.push(pass.kind === 'idle' ? pass.reason : pass.kind);
   }
   assert.equal(await answerStatus(ask), 'answered', JSON.stringify(seen));
-  assert.equal(seen[0], 'stale_context_queued', 'the answer loop yields once instead of failing');
+  // The scheduler skipped the stale head (#153); its own sweep withdraws it, never sent.
+  await settleInquiries(pool, { owner: 'fair-worker' });
   const inquiry = (await pool.query('SELECT status, reasons FROM background_inquiry WHERE universe_id=$1', [identity.scope.universeId])).rows[0];
   assert.deepEqual([inquiry.status, inquiry.reasons], ['failed', ['stale_context', 'pair_connected']]);
   assert.equal(Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE universe_id=$1', [identity.scope.universeId])).rows[0].count), 0, 'never admitted, never sent');
@@ -150,7 +152,7 @@ test('families of child inquiries, each able to continue, never starve a direct 
   const continuing = createFixtureInquiryTransport(() => 'refused_then_valid', { count: 0 });
   const familyInquiryPass = () => runInquiryPass({ pool, owner: 'fair-worker', leaseMs: 60_000, transports: { fixture: continuing }, signal, answers: { transports: { fixture: answerFixture } } });
   const familyAnswerPass = () => runAnswerPass({ pool, owner: 'fair-worker', leaseMs: 60_000, transports: { fixture: answerFixture }, signal,
-    otherFamily: (scheduled, s) => executeInquiryClaim({ pool, owner: 'fair-worker', transport: continuing, signal: s, authority: sharedReasoningAuthority() }, scheduled) });
+    inquiries: { transports: { fixture: continuing }, execute: executeInquiryClaim } });
   const readers: string[] = [];
   for (let i = 0; i < 5; i += 1) {
     const identity = await provisionIdentity();
