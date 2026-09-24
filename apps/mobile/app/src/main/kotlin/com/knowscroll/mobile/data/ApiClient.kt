@@ -78,6 +78,33 @@ class ApiClient(
         }
     }
 
+    /** #134: the reader's live places (ADR-0036). Refuses an unknown kind or a shape the server
+     * contract does not describe -- see `data/Atlas.kt`. */
+    suspend fun getAtlas(): AtlasResponse = io {
+        get("/v1/atlas") { obj -> parseAtlasOrProtocol(obj) }
+    }
+
+    /** #134: one place change and its evidence. */
+    suspend fun getAtlasDelta(deltaId: String): AtlasDelta = io {
+        get("/v1/atlas/deltas/$deltaId") { obj ->
+            try { parseAtlasDelta(obj) }
+            catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid atlas delta") }
+            catch (e: JSONException) { throw ApiException.Protocol("Atlas delta returned malformed JSON") }
+        }
+    }
+
+    /** #134: the reader sets a planet or region aside. A 409 is either a stale privacy epoch or
+     * recording being paused (nothing personal is recorded then) -- see `rejectPlaceConflict`. */
+    suspend fun rejectPlace(placeId: String, expectedPrivacyEpoch: Long): AtlasResponse = io {
+        val body = jsonObj("expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
+        post("/v1/atlas/places/$placeId/reject", body, setOf(200), false) { obj -> parseAtlasOrProtocol(obj) }
+    }
+
+    private fun parseAtlasOrProtocol(obj: JSONObject): AtlasResponse =
+        try { parseAtlasResponse(obj) }
+        catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid atlas") }
+        catch (e: JSONException) { throw ApiException.Protocol("Atlas returned malformed JSON") }
+
     suspend fun postExposure(req: ExposureRequest): ExposureResponse = io {
         val body = jsonObj("decisionId" to req.decisionId, "assetId" to req.assetId,
             "clientExposureId" to req.clientExposureId).toString()
