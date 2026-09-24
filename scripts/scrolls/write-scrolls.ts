@@ -16,9 +16,9 @@
  * of the interval and weekly allowance), then counts the request in the session ledger
  * (`$KS_DEV_ROOT/minimax-answer-session-ledger.json`) under its lock; a missing ledger is refused.
  * The run stops at the first refusal of the route: the preflight, the ledger, a provider error or a
- * lost transport. A refused reply is not one; the run goes on. The receipt
- * (`artifacts/scroll-writing/`, ignored) holds counts, statuses, reason codes, hashes, input bytes
- * and token usage: never a prompt, a reply or a key.
+ * lost transport. A refused reply is not one; the run goes on. An unexpected error ends the run
+ * after its receipt is written. The receipt (`artifacts/scroll-writing/`, ignored) holds counts,
+ * statuses, reason codes, hashes, input bytes and token usage: never a prompt, a reply or a key.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -71,11 +71,16 @@ export async function runWriteScrolls(
   const { writeScroll } = await import('../../apps/worker/src/scrolls/write-scroll.ts');
   const items: WriteScrollsReceipt['items'] = [];
   let stopped: WriteScrollsReceipt['stopped'] = null;
+  // Anything unexpected (a database or ledger failure) still leaves a receipt of what was done.
+  let failure: unknown = null;
   for (const [index, item] of options.plan.entries()) {
-    const result = await writeScroll({
-      transport: deps.transport, model: deps.model, apply: options.apply, beforeSend: deps.beforeSend,
-      signal: options.signal ?? new AbortController().signal, fetchImpl: deps.fetchImpl,
-    }, item);
+    let result: ScrollItemResult;
+    try {
+      result = await writeScroll({
+        transport: deps.transport, model: deps.model, apply: options.apply, beforeSend: deps.beforeSend,
+        signal: options.signal ?? new AbortController().signal, fetchImpl: deps.fetchImpl,
+      }, item);
+    } catch (error) { failure = error; stopped = { index, reason: 'unexpected_error' }; break; }
     items.push({ index, ...result });
     if (result.status === 'not_sent' || result.status === 'failed') { stopped = { index, reason: result.reasons[0]! }; break; }
   }
@@ -93,6 +98,7 @@ export async function runWriteScrolls(
   mkdirSync(deps.receiptDir, { recursive: true });
   const path = resolve(deps.receiptDir, `${options.at.replace(/[:.]/g, '-')}-${options.database}.receipt.json`);
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
+  if (failure) throw failure;
   return { receipt, path };
 }
 

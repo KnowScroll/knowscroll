@@ -157,3 +157,17 @@ test('the run stops at the first refusal of the route', async () => {
   assert.deepEqual([provider.receipt.counts.failed, provider.receipt.counts.notAttempted], [1, 2]);
   assert.equal(JSON.parse(readFileSync(provider.ledgerPath, 'utf8')).used, 1, 'a sent request counts whatever came back');
 });
+
+test('an unexpected error still leaves a receipt, then surfaces', async () => {
+  const f = await makeSemanticFixture(pool);
+  await transaction(c => loadSubstrateSeed(c, f.raw));
+  const dir = mkdtempSync(join(tmpdir(), 'ks-scroll-run-'));
+  const url = `https://science.nasa.gov/fixture/${f.tag}/page-1/`;
+  const fetchImpl = (async () => new Response(page(1), { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch;
+  const transport = createMiniMaxAnswerTransport({ apiKey: KEY, fetchImpl });
+  const at = new Date().toISOString();
+  await assert.rejects(runWriteScrolls({ database, plan: [{ url, conceptCodes: [f.codes.tides] }], apply: true, at },
+    { transport, model: 'MiniMax-M3', beforeSend: async () => { throw new Error('EACCES: the ledger could not be written'); }, fetchImpl, receiptDir: dir }), /EACCES/);
+  const receipt = JSON.parse(readFileSync(join(dir, `${at.replace(/[:.]/g, '-')}-${database}.receipt.json`), 'utf8'));
+  assert.deepEqual([receipt.stopped, receipt.counts.notAttempted, receipt.items.length], [{ index: 0, reason: 'unexpected_error' }, 1, 0]);
+});
