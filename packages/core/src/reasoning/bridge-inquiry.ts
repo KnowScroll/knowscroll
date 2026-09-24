@@ -14,7 +14,7 @@
  */
 import { bridgeProposalPayload, type BridgeProposalPayload } from '../../../contracts/src/semantic.ts';
 
-export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v1', prompt: 'bridge-inquiry-prompt-v1', reply: 'bridge-inquiry-reply-v1' });
+export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v1', prompt: 'bridge-inquiry-prompt-v2', reply: 'bridge-inquiry-reply-v1' });
 export const BRIDGE_INQUIRY_LIMITS = Object.freeze({ maxPairs: 3, claimsPerAnchor: 8, claimsBoth: 8 });
 
 export interface InquiryPlace { placeId: string; code: string; name: string }
@@ -36,7 +36,8 @@ export interface InquiryCandidateInput {
   /** Pairs already put to an inquiry in this epoch. */
   asked: readonly (readonly [string, string])[];
 }
-export interface OfferedClaim { key: string; statement: string; sourceTitle: string }
+/** `roles` (claims naming both sides only): each side's role in the claim, in the validator's terms. */
+export interface OfferedClaim { key: string; statement: string; sourceTitle: string; roles?: Record<string, string> }
 export interface InquiryPair { a: InquiryPlace; b: InquiryPlace; claimsA: OfferedClaim[]; claimsB: OfferedClaim[]; both: OfferedClaim[] }
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -65,6 +66,17 @@ function linksAbout(claim: InquirySubstrateClaim, chain: readonly string[]): Map
 }
 
 const offered = (c: InquirySubstrateClaim): OfferedClaim => ({ key: c.key, statement: c.statement, sourceTitle: c.sourceTitle });
+
+/** The role a claim gives one side: that of its nearest non-context link on the side's chain. */
+function roleOn(claim: InquirySubstrateClaim, chain: readonly string[]): string | undefined {
+  let best: { distance: number; role: string } | undefined;
+  for (const link of claim.links) {
+    if (link.role === 'context') continue;
+    const distance = chain.indexOf(link.code);
+    if (distance >= 0 && (!best || distance < best.distance)) best = { distance, role: link.role };
+  }
+  return best?.role;
+}
 
 export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] {
   const places = [...input.places].sort((x, y) => byCode(x.code, y.code));
@@ -95,7 +107,9 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
       const rank = (list: typeof sideA) => list.sort((x, y) => x.distance - y.distance || byCode(x.claim.key, y.claim.key))
         .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor).map(x => offered(x.claim));
       const claimsA = rank(sideA), claimsB = rank(sideB);
-      const named = both.sort((x, y) => byCode(x.key, y.key)).slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth).map(offered);
+      // A claim naming both says which role each side plays in it: "explains" is carried by those roles.
+      const named = both.sort((x, y) => byCode(x.key, y.key)).slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
+        .map(c => ({ ...offered(c), roles: { [a.code]: roleOn(c, chainA) ?? 'subject', [b.code]: roleOn(c, chainB) ?? 'subject' } }));
       // Each side needs a supported claim of its own, or no proposal could ever be admitted.
       if (claimsA.length + named.length === 0 || claimsB.length + named.length === 0) continue;
       pairs.push({ a, b, claimsA, claimsB, both: named, named: named.length > 0 });
@@ -112,7 +126,7 @@ const SYSTEM = [
   'Reply with exactly one JSON object and nothing else.',
   'If no offered pair has a connection the offered claims support, reply {"none": true}.',
   'Otherwise reply {"proposal": P}, where P is:',
-  '{"fromConcept": code, "toConcept": code, "relationType": "explains" | "applies_to" | "prerequisite_for" | "analogous_in" | "compares_mechanism",',
+  '{"fromConcept": code, "toConcept": code, "relationType": "explains" | "analogous_in" | "compares_mechanism",',
   ' "mechanism": how the two actually connect (40 to 600 characters, not the relation word or the two names alone),',
   ' "prerequisites": [{"statement": 8 to 280 characters}] (1 to 5),',
   ' "limitations": [{"kind": "analogy_limit" | "scope_limit" | "evidence_limit", "statement": 8 to 280 characters}] (1 to 5),',
@@ -120,8 +134,11 @@ const SYSTEM = [
   ' "counterevidence": {"disposition": "listed" | "searched_none_found", "searchedScope": 4 to 200 characters, "claimKeys": [key]}}.',
   'fromConcept and toConcept are the two codes of one offered pair. Cite only claim keys offered for that pair.',
   'Each side needs a claim of its own ("from", "to") besides the one that connects them; the connecting claim, cited as "mechanism", must name both sides.',
-  'An "explains" bridge needs a connecting claim in which the explaining side is the mechanism. "analogous_in" and "compares_mechanism" need an analogy_limit.',
-  'List any offered claim that argues against the connection under counterevidence. Do not describe or guess anything about the reader.',
+  'Use "explains" only when a claim naming both gives fromConcept the role "mechanism" and toConcept a different role (see its "roles").',
+  '"analogous_in" and "compares_mechanism" need a limitation of kind "analogy_limit".',
+  'List under counterevidence only offered claims that argue against the connection, and never one you cite as evidence.',
+  'If none argues against it, use {"disposition": "searched_none_found", "searchedScope": "the offered claims", "claimKeys": []}.',
+  'Do not describe or guess anything about the reader.',
 ].join('\n');
 
 /** Stable key order, so equal inputs give equal bytes and therefore an equal reserved hash. */
@@ -136,7 +153,7 @@ function canonical(value: unknown): string {
 export const INQUIRY_PAIRS_MARKER = 'Offered pairs (JSON):';
 
 export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], route: { model: string; maxOutputTokens: number }): Uint8Array {
-  const claim = (c: OfferedClaim) => ({ key: c.key, statement: c.statement, source: c.sourceTitle });
+  const claim = (c: OfferedClaim) => ({ key: c.key, statement: c.statement, source: c.sourceTitle, ...(c.roles ? { roles: c.roles } : {}) });
   // Codes, names and claims only: no place, universe or reader identifier leaves the process.
   const offeredPairs = pairs.map(p => ({
     a: { code: p.a.code, name: p.a.name }, b: { code: p.b.code, name: p.b.name },

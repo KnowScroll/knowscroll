@@ -158,3 +158,15 @@ test('anything else is a shape rejection, and says which rule it broke', () => {
   assert.deepEqual(shape(reply({ proposal: proposal({ counterevidence: { disposition: 'listed', searchedScope: 'offered claims', claimKeys: ['c.body.stable'] } }) })), ['shape', 'claim_not_offered'],
     'a claim offered for another pair is not offered for this one');
 });
+
+test('prompt v2 tells the model what the validator judges: each side\'s role in a claim naming both, and only admissible relation types', () => {
+  const pair = selectInquiryPairs(base).find(p => p.a.code === 'x.gravity' && p.b.code === 'x.sun')!;
+  const held = pair.both.find(c => c.key === 'c.sun.held')!;
+  assert.deepEqual(held.roles, { 'x.gravity': 'mechanism', 'x.sun': 'subject' });
+  const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100 })));
+  const offered = JSON.parse(String(request.messages[0].content).split('\n').slice(1).join('\n'));
+  assert.deepEqual(offered[0].claimsNamingBoth.find((c: { key: string }) => c.key === 'c.sun.held').roles, { 'x.gravity': 'mechanism', 'x.sun': 'subject' });
+  // A new pair has no recorded relation, so "applies_to"/"prerequisite_for" could never be admitted.
+  assert.doesNotMatch(request.system, /applies_to|prerequisite_for/);
+  assert.match(request.system, /never one you cite as evidence/);
+});
