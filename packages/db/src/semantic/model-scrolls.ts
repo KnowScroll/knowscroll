@@ -15,6 +15,10 @@ import type { CheckedScroll, OfferedConcept } from '../../../core/src/scrolls/wr
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 
+/** Model-written Scrolls are ordered after this, clear of the editorial seed, which numbers its
+ * Scrolls by their index in content/editorial-scrolls.json (a seed with one more Scroll must not collide). */
+const MODEL_SCROLL_ORDER_FLOOR = 99_999;
+
 export interface WritingIdentity { materialSha256: string; requestSha256: string }
 export interface WritingRecord {
   transport: 'fixture' | 'minimax'; model: string; inputBytes: number;
@@ -120,8 +124,8 @@ export async function admitModelScroll(client: pg.PoolClient, input: { identity:
   const assetId = randomUUID();
   await client.query(
     `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
-     VALUES($1,1,'Scroll',$2,$3,$4,$5,$6,'documented',(SELECT COALESCE(MAX(editorial_order), -1) + 1 FROM asset))`,
-    [assetId, scroll.title, scroll.summary, scroll.body, `${source.publisher} · ${source.title}`, material.url],
+     VALUES($1,1,'Scroll',$2,$3,$4,$5,$6,'documented',(SELECT GREATEST(COALESCE(MAX(editorial_order), -1), $7) + 1 FROM asset))`,
+    [assetId, scroll.title, scroll.summary, scroll.body, `${source.publisher} · ${source.title}`, material.url, MODEL_SCROLL_ORDER_FLOOR],
   );
   for (const c of scroll.concepts) await client.query('INSERT INTO asset_concept(asset_id,concept_id,role) VALUES($1,$2,$3)', [assetId, conceptIds.get(c.code), c.role]);
   for (const claimId of claimIds) await client.query('INSERT INTO asset_claim(asset_id,claim_id) VALUES($1,$2)', [assetId, claimId]);

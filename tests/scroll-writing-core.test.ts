@@ -106,7 +106,7 @@ test('a good draft passes, normalized, with the beats as its paragraphs', () => 
   d.claims[0]!.quote = 'it pulls   hardest on the side that faces it';
   const verdict = checkScrollDraft(d, context);
   assert.ok(verdict.ok, JSON.stringify(verdict));
-  assert.equal(verdict.checksVersion, 'scroll-checks-v1');
+  assert.equal(verdict.checksVersion, 'scroll-checks-v2');
   assert.equal(verdict.scroll.title, 'Two bulges, one turning planet');
   assert.equal(verdict.scroll.claims[0]!.quote, 'it pulls hardest on the side that faces it', 'the stored quote is an exact passage');
   assert.equal(verdict.scroll.body, draft().beats.join('\n\n'));
@@ -132,6 +132,10 @@ test('copied_passage: more than 8 consecutive words of the material in the title
 test('mentions_web_address: readers never see a source', () => {
   assert.deepEqual(reasonsOf(d => { d.beats[1] = 'Read more at https://example.test/tides about the two swellings on each side.'; }), ['mentions_web_address']);
   assert.deepEqual(reasonsOf(d => { d.summary = 'See www.example.test for why coasts get two tides.'; }), ['mentions_web_address']);
+  // A bare domain names a source as surely as a URL does, and claim statements reach readers as
+  // evidence (review of #178).
+  assert.deepEqual(reasonsOf(d => { d.beats[1] = 'The two swellings on each side are explained at spaceplace.nasa.gov/tides for more.'; }), ['mentions_web_address']);
+  assert.deepEqual(reasonsOf(d => { d.claims[0]!.statement = 'Per science.nasa.gov, the Moon pulls hardest on the near side.'; }), ['mentions_web_address']);
 });
 
 test('length and shape limits', () => {

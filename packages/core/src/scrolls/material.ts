@@ -41,7 +41,8 @@ export function checkMaterialUrl(raw: string): { ok: true; url: string; host: Ma
   if (url.protocol !== 'https:') return { ok: false, reason: 'not_https' };
   if (url.username !== '' || url.password !== '') return { ok: false, reason: 'credentials_in_url' };
   if (url.port !== '') return { ok: false, reason: 'port_not_allowed' };
-  const host = HOSTS[url.hostname];
+  // An own key only: a host named like an Object.prototype key (`constructor`) is not allowlisted.
+  const host = Object.hasOwn(HOSTS, url.hostname) ? HOSTS[url.hostname] : undefined;
   if (!host) return { ok: false, reason: 'host_not_allowed' };
   url.hash = '';
   return { ok: true, url: url.href, host };
@@ -89,6 +90,12 @@ function tagEnd(html: string, from: number): number {
  * so. It is refused as material however much navigation text surrounds it. */
 export function titleSaysNotFound(title: string | null): boolean {
   return title !== null && /\b(?:404|page not found|not found)\b/i.test(title);
+}
+
+/** What the writer is offered (ADR-0041 §3): the `<main>` text when there is enough of it to quote
+ * from, else the whole page, so a page whose `<main>` is only a short hero still gets its article. */
+export function offeredText(page: Pick<VisibleText, 'text' | 'focus'>): string {
+  return page.focus !== null && page.focus.length >= MATERIAL_LIMITS.minTextChars ? page.focus : page.text;
 }
 
 export interface VisibleText {

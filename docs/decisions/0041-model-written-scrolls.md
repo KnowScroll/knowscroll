@@ -22,7 +22,7 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
    `spaceplace.nasa.gov`, `www.nasa.gov` (family `fam.nasa`); `oceanservice.noaa.gov`, `www.noaa.gov`,
    `www.weather.gov` (`fam.noaa`; the National Weather Service is part of NOAA, so its pages are not
    independent evidence from NOAA's); `www.usgs.gov` (`fam.usgs`, new). `openstax.org` and its
-   subdomains are refused by name. Only `https`, the default port and no credentials in the URL.
+   subdomains are refused by name. Only `https`, the default port and no credentials in the URL. A host matches only an allowlist entry of its own (review: a host named like an `Object.prototype` key is refused).
    Redirects are followed by hand, at most three, and every hop is checked again, so a redirect can
    never leave the allowlist. No cookie or credential is ever sent; at most 2 MB is read; only HTML
    is accepted. The policy defines its families the way the substrate does (`key`, `kind`,
@@ -44,8 +44,9 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
    and account deletion neither carry nor erase it.
 3. **One bounded request** (`scroll-writing-prompt-v1`, pure, `packages/core/src/scrolls/writing.ts`).
    It offers the plan's existing concept codes (one to eight, each with its name and description)
-   and the material. When the page has a `<main>` element, its text is offered first; it is always
-   a passage of the stored text. The material is trimmed at a word so that the whole request is at
+   and the material. When the page has a `<main>` element long enough to quote from (at least the
+   minimum page text), its text is offered; otherwise the whole page is. Either is a passage of the
+   stored text. The material is trimmed at a word so that the whole request is at
    most 16,384 bytes. `max_tokens` is 4,096 and thinking is disabled. The request never names a
    reader or a universe.
 4. **The reply is exactly one JSON object** (`scroll-reply-v1`): `{title, summary, beats[],
@@ -54,14 +55,16 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
    bare or as the only content of one fenced block, after `<think>` blocks are dropped (as the
    inquiry path does). Anything else is refused as `shape` with `not_one_json_object`, `reply_keys`
    or `shape_invalid`.
-5. **Deterministic checks decide admission** (`scroll-checks-v1`, pure; every number is a bench
+5. **Deterministic checks decide admission** (`scroll-checks-v2`, pure; every number is a bench
    value). Text is normalized before it is measured or compared. Reason codes:
    - `quote_not_in_material`: a claim's quote is not an exact passage of the stored material;
    - `copied_passage`: the title, the summary or a beat shares a run of more than 8 consecutive
      words (case-folded, punctuation ignored) with the material. The claims are exempt: their
      quotes are verbatim by design, and their statements are the facts checked beside them;
-   - `mentions_web_address`: the title, summary or a beat contains a URL or `www.` (readers never
-     see a source);
+   - `mentions_web_address`: the title, summary, a beat or a claim statement contains a URL, `www.`
+     or a bare domain on a public suffix such as `.gov` (readers never see a source; claim statements
+     reach readers as evidence). This is `scroll-checks-v2` (review, same day); the first live batch
+     ran under v1, which checked only URLs and `www.` in the prose;
    - `title_length` (8–90 characters), `summary_length` (20–240), `beat_count` (3–7),
      `beat_length` (40–700 each), `claim_count` (2–6), `statement_length` (12–400),
      `quote_length` (12–400);

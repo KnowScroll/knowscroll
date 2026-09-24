@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { checkMaterialUrl, extractVisibleText, MATERIAL_FAMILIES, MATERIAL_LIMITS } from '../packages/core/src/scrolls/material.ts';
+import { checkMaterialUrl, extractVisibleText, MATERIAL_FAMILIES, MATERIAL_LIMITS, offeredText } from '../packages/core/src/scrolls/material.ts';
 import { fetchMaterial } from '../apps/worker/src/scrolls/fetch-material.ts';
 
 test('the allowlist: US federal public-domain hosts over https, OpenStax refused by name', () => {
@@ -33,6 +33,9 @@ test('the allowlist: US federal public-domain hosts over https, OpenStax refused
   assert.equal(refused('https://science.nasa.gov:8443/sun/facts/'), 'port_not_allowed');
   assert.equal(refused('https://en.wikipedia.org/wiki/Tide'), 'host_not_allowed');
   assert.equal(refused('https://nasa.gov.example.test/x'), 'host_not_allowed');
+  // A host named like an Object.prototype key is not on the allowlist either (review of #178).
+  assert.equal(refused('https://constructor/x'), 'host_not_allowed');
+  assert.equal(refused('https://__proto__/x'), 'host_not_allowed');
   assert.equal(refused('not a url'), 'not_a_url');
 });
 
@@ -64,6 +67,13 @@ test('visible text: the snapshot tool\'s rules and the shared normalization; the
   assert.equal(extractVisibleText('<p>No main element here.</p>').focus, null);
   // An attribute value may contain ">" without ending the tag.
   assert.equal(extractVisibleText('<p title="a > b">Inside</p>').text, 'Inside');
+});
+
+test('the text offered to the writer: <main> first, the whole page when <main> is too short to quote from', () => {
+  const article = 'The Moon pulls on the ocean. '.repeat(20).trim();
+  assert.equal(offeredText({ text: `Nav ${article} Footer`, focus: article }), article);
+  assert.equal(offeredText({ text: `Nav ${article} Footer`, focus: 'A short hero line' }), `Nav ${article} Footer`);
+  assert.equal(offeredText({ text: `Nav ${article} Footer`, focus: null }), `Nav ${article} Footer`);
 });
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ');
@@ -118,6 +128,7 @@ test('fetch: a redirect is followed only within the allowlist, hop by hop', asyn
     ['https://openstax.org/books/x', 'openstax_excluded'],
     ['https://en.wikipedia.org/wiki/Tide', 'host_not_allowed'],
     ['http://science.nasa.gov/fixture/tides/', 'not_https'],
+    ['https://constructor/internal', 'host_not_allowed'],
   ] as const) {
     const net = network({ 'https://science.nasa.gov/fixture/moved/': () => redirect(target, 302) });
     assert.deepEqual(await fetchMaterial('https://science.nasa.gov/fixture/moved/', { fetchImpl: net.fetchImpl }), { ok: false, reason });

@@ -78,7 +78,7 @@ test('a fixture-written Scroll is admitted with its whole lineage', async () => 
   const asset = (await pool.query('SELECT * FROM asset WHERE id=$1', [result.assetId])).rows[0];
   assert.equal(asset.kind, 'Scroll');
   assert.equal(asset.truth_state, 'documented');
-  assert.equal(asset.editorial_order, before + 1, 'after the library\'s last');
+  assert.ok(asset.editorial_order > Math.max(before, 99_999), 'after the library\'s last, in a range of its own: the editorial seed numbers its Scrolls by index');
   assert.equal(asset.body.split('\n\n').length, 3, 'the beats are its paragraphs');
   assert.equal(asset.source_url, url);
   assert.equal(asset.source_title, 'NASA · What makes the tides');
@@ -105,7 +105,7 @@ test('a fixture-written Scroll is admitted with its whole lineage', async () => 
   const writing = (await pool.query('SELECT * FROM scroll_writing WHERE asset_id=$1', [result.assetId])).rows[0];
   assert.deepEqual([writing.status, writing.reasons, writing.transport, writing.model, writing.snapshot_id, writing.material_sha256, writing.request_sha256, writing.input_bytes],
     ['admitted', [], 'fixture', 'fixture-model', source.snapshot_id, result.materialSha256, result.requestSha256, result.inputBytes]);
-  assert.deepEqual(writing.versions, { prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v1', hosts: 'material-hosts-v1' });
+  assert.deepEqual(writing.versions, { prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v2', hosts: 'material-hosts-v1' });
 });
 
 test('the same material and request are decided once and never sent again', async () => {

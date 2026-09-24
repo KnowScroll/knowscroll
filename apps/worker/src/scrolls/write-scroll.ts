@@ -4,13 +4,13 @@
  * The plan's concepts must exist; the page must come from the allowlist and, if the substrate
  * already holds it, be unchanged. The request is built and hashed; a material and request already
  * decided are never sent again. Only then is the caller's `beforeSend` gate asked, and exactly one
- * request sent, never retried. The reply is judged by scroll-checks-v1 and either admitted (the
+ * request sent, never retried. The reply is judged by scroll-checks-v2 and either admitted (the
  * Scroll, its claims and the private material, in one transaction) or recorded as refused with its
  * reason codes. The operator CLI (`scripts/scrolls/write-scrolls.ts`) supplies the transport and a
  * gate of quota preflight plus the session ledger; a worker loop supplies its own route's.
  */
 import { createHash } from 'node:crypto';
-import { MATERIAL_POLICY_VERSION } from '../../../../packages/core/src/scrolls/material.ts';
+import { MATERIAL_POLICY_VERSION, offeredText } from '../../../../packages/core/src/scrolls/material.ts';
 import { judgeScrollReply, SCROLL_LIMITS, SCROLL_WRITING_VERSIONS, serializeScrollWritingRequest, type ScrollPlanItem } from '../../../../packages/core/src/scrolls/writing.ts';
 import { transaction } from '../../../../packages/db/src/index.ts';
 import { admitModelScroll, findScrollWriting, loadConceptOffer, recordRefusedScroll, sourceStanding } from '../../../../packages/db/src/semantic/model-scrolls.ts';
@@ -65,7 +65,7 @@ export async function writeScroll(deps: WriteScrollDeps, item: ScrollPlanItem): 
   if (!fetched.ok) return { ...nothing, reasons: [fetched.reason], httpStatus: fetched.reason === 'http_status' ? fetched.httpStatus : null };
   const material = fetched.material;
 
-  const { body } = serializeScrollWritingRequest({ material: material.focus ?? material.text, concepts: offered }, { model: deps.model, maxOutputTokens: SCROLL_LIMITS.maxOutputTokens });
+  const { body } = serializeScrollWritingRequest({ material: offeredText(material), concepts: offered }, { model: deps.model, maxOutputTokens: SCROLL_LIMITS.maxOutputTokens });
   const identity = { materialSha256: material.contentSha256, requestSha256: createHash('sha256').update(body).digest('hex') };
   const built: ScrollItemResult = { ...nothing, url: material.url, ...identity, inputBytes: body.length };
   const { standing, prior } = await transaction(async c => ({ standing: await sourceStanding(c, material.url, identity.materialSha256), prior: await findScrollWriting(c, identity) }));

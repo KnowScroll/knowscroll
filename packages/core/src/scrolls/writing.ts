@@ -16,7 +16,7 @@ import { claimConceptRole, conceptCode } from '../../../contracts/src/semantic.t
 import { canonical, wholeObject } from '../reasoning/wire.ts';
 import { normalizeSnapshotText } from '../semantic/source-text.ts';
 
-export const SCROLL_WRITING_VERSIONS = Object.freeze({ prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v1' });
+export const SCROLL_WRITING_VERSIONS = Object.freeze({ prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v2' });
 /** Bench values (ADR-0041 §3, §5): a changed number is a new checks version. Ranges are inclusive. */
 export const SCROLL_LIMITS = Object.freeze({
   requestBytes: 16_384, maxOutputTokens: 4_096, offeredConcepts: 8,
@@ -104,7 +104,10 @@ export function parseScrollReply(text: string): { kind: 'draft'; draft: ScrollDr
   return parsed.success ? { kind: 'draft', draft: parsed.data } : { kind: 'shape', reason: 'shape_invalid' };
 }
 
-/** scroll-checks-v1's closed vocabulary, in the order a refusal lists them. */
+/** A URL, `www.`, or a bare domain on a public suffix a source could live under. */
+const WEB_ADDRESS = /https?:\/\/|\bwww\.|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:gov|org|com|edu|net|mil|int|io|us)\b/i;
+
+/** scroll-checks-v2's closed vocabulary, in the order a refusal lists them. */
 const CHECK_ORDER = [
   'quote_not_in_material', 'copied_passage', 'mentions_web_address',
   'title_length', 'summary_length', 'beat_count', 'beat_length', 'claim_count', 'statement_length', 'quote_length',
@@ -158,7 +161,9 @@ export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext
   const copied = new Set(runs(words(context.material), L.maxSharedWords + 1));
   const prose = [title, summary, ...beats];
   if (prose.some(part => runs(words(part), L.maxSharedWords + 1).some(run => copied.has(run)))) found.add('copied_passage');
-  if (prose.some(part => /https?:\/\/|\bwww\./i.test(part))) found.add('mentions_web_address');
+  // v2 (review of #178): a bare domain names a source as surely as a URL, and claim statements reach
+  // readers as evidence, so both are checked.
+  if ([...prose, ...claims.map(c => c.statement)].some(part => WEB_ADDRESS.test(part))) found.add('mentions_web_address');
 
   if (!within(chars(title), L.titleChars)) found.add('title_length');
   if (!within(chars(summary), L.summaryChars)) found.add('summary_length');
