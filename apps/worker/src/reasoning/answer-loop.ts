@@ -6,9 +6,9 @@
  */
 import type { AnswerTransport } from './answer-worker.ts';
 import { createFixtureAnswerTransport, type FixtureMode } from '../providers/answer-fixture.ts';
-import { createMiniMaxAnswerTransport } from '../providers/minimax-answer.ts';
+import { createMiniMaxAnswerTransport, type MiniMaxTransport } from '../providers/minimax-answer.ts';
 
-export function answerTransportsFromEnvironment(env: NodeJS.ProcessEnv): Partial<Record<'fixture' | 'minimax', AnswerTransport>> | null {
+export function answerTransportsFromEnvironment(env: NodeJS.ProcessEnv): { fixture?: AnswerTransport; minimax?: MiniMaxTransport } | null {
   const kind = env.KS_ANSWER_TRANSPORT;
   if (!kind) return null;
   if (kind === 'fixture') {

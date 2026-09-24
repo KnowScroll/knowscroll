@@ -8,10 +8,15 @@
  * naming it with anything else.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
-import { transaction } from '../../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '../../packages/db/src/index.ts';
 import { runCartographer } from '../../packages/db/src/atlas.ts';
+import { answerFairnessPolicy } from '../../packages/db/src/reasoning-answers.ts';
+import { createReasoningFairness } from '../../packages/db/src/reasoning-fairness.ts';
+import { inquiryAuthority, installBackgroundInquiryRoute } from '../../packages/db/src/reasoning-inquiries.ts';
 import { loadSubstrateSeed } from '../../packages/db/src/semantic/seed.ts';
 
 export type InquiryFixture = {
@@ -103,4 +108,40 @@ export async function formPlaces(universeId: string, codes: string[], earlier: s
     await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [universeId]);
     return runCartographer(client, universeId, [...earlier, ...codes].map(anchored));
   });
+}
+
+/** A labelled fixture inquiry route and its fairness policy (ADR-0038 §2), with ADR-0042's options where a test sets them. */
+export async function installFixtureInquiryRoute(policyVersion: string, over: Partial<Parameters<typeof installBackgroundInquiryRoute>[1]> = {}): Promise<void> {
+  await createReasoningFairness(pool, inquiryAuthority()).installPolicy(answerFairnessPolicy(policyVersion, { maxInputTokens: 16384, maxOutputTokens: 2048 }));
+  await transaction(client => installBackgroundInquiryRoute(client, { policyVersion, routeId: `fixture-${policyVersion}`, routeProfileVersion: 'fixture-v1',
+    transport: 'fixture', model: 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 2048, requestCap: 200, tokenBudget: 10_000_000,
+    ownerCapacity: 1_000_000, jobCapacity: 100_000, coalescingDelaySeconds: 0, jobTtlSeconds: 600, remoteSlots: 16, ...over }));
+}
+
+/** Only this route is enabled. */
+export async function useInquiryRoute(policyVersion: string): Promise<void> {
+  await transaction(async client => {
+    await client.query('UPDATE background_inquiry_route SET enabled=false WHERE enabled');
+    await client.query('UPDATE background_inquiry_route SET enabled=true WHERE policy_version=$1', [policyVersion]);
+  });
+}
+
+export type InquiryReader = { token: string; universeId: string; headers: { authorization: string } };
+
+/** A new reader who has turned on "Look for connections between my places", through the real app. */
+export async function consentingReader(app: FastifyInstance): Promise<InquiryReader> {
+  const identity = await provisionIdentity();
+  const headers = { authorization: `Bearer ${identity.token}` };
+  const consent = await app.inject({ method: 'PUT', url: '/v1/inquiries/consent', headers, payload: { enabled: true, clientRequestId: randomUUID(), expectedPrivacyEpoch: 0 } });
+  assert.equal(consent.statusCode, 200, consent.body);
+  return { token: identity.token, universeId: identity.scope.universeId, headers };
+}
+
+/** The reader's newest top-level inquiry, with its Job's status and how many requests its Job has sent. */
+export async function newestInquiry(universeId: string) {
+  return (await pool.query(
+    `SELECT i.*, j.status AS job_status, (SELECT count(*)::int FROM reasoning_attempt a JOIN reasoning_accounting ac ON ac.attempt_id = a.id
+       WHERE a.job_id = i.job_id AND ac.dispatch_id IS NOT NULL) AS dispatched
+     FROM background_inquiry i LEFT JOIN reasoning_job j ON j.id = i.job_id WHERE i.universe_id=$1 AND i.parent_id IS NULL
+     ORDER BY i.first_mail_at DESC LIMIT 1`, [universeId])).rows[0];
 }

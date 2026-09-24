@@ -60,7 +60,8 @@ try {while(running) {
   try {const pass=await runInquiryPass({pool,owner:workerId,leaseMs:inquiryLeaseMs,transports:inquiryTransports,readiness:inquiryReadiness,signal:stop.signal,
     answers:answerTransports?{transports:answerTransports,readiness}:undefined});
    if(pass.opened.opened||pass.opened.nothing_to_ask) console.log(JSON.stringify({inquiriesOpened:pass.opened.opened,nothingToAsk:pass.opened.nothing_to_ask}));
-   if(pass.kind==='done') console.log(JSON.stringify({inquiry:pass.inquiryId,invocation:pass.invocation,outcome:pass.outcome.kind,status:'status' in pass.outcome?pass.outcome.status:pass.outcome.reason}));
+   if(pass.kind==='done') console.log(JSON.stringify({inquiry:pass.inquiryId,invocation:pass.invocation,outcome:pass.outcome.kind,
+    status:'status' in pass.outcome?pass.outcome.status:'ordinal' in pass.outcome?`step_${pass.outcome.ordinal}_queued`:pass.outcome.reason}));
    if(pass.kind==='answer'&&pass.pass.kind==='done') console.log(JSON.stringify({answer:pass.pass.askId,invocation:pass.pass.invocation,outcome:pass.pass.outcome.kind,via:'inquiry_scheduler'}));}
   catch {console.error(JSON.stringify({error:'inquiry_pass_failed'}));}
  }

@@ -4,12 +4,11 @@
  * `minimax` is the answer path's MiniMax transport — one provider client; when answers already use
  * it, the same instance (and so the same quota readiness window) serves both.
  */
-import type { AnswerTransport } from './answer-worker.ts';
 import type { InquiryTransport } from './inquiry-worker.ts';
 import { createFixtureInquiryTransport, INQUIRY_FIXTURE_MODES, type InquiryFixtureMode } from '../providers/inquiry-fixture.ts';
-import { createMiniMaxAnswerTransport } from '../providers/minimax-answer.ts';
+import { createMiniMaxAnswerTransport, type MiniMaxTransport } from '../providers/minimax-answer.ts';
 
-export function inquiryTransportsFromEnvironment(env: NodeJS.ProcessEnv, answers?: Partial<Record<'fixture' | 'minimax', AnswerTransport>> | null): Partial<Record<'fixture' | 'minimax', InquiryTransport>> | null {
+export function inquiryTransportsFromEnvironment(env: NodeJS.ProcessEnv, answers?: { minimax?: MiniMaxTransport } | null): Partial<Record<'fixture' | 'minimax', InquiryTransport>> | null {
   const kind = env.KS_INQUIRY_TRANSPORT;
   if (!kind) return null;
   if (kind === 'fixture') {

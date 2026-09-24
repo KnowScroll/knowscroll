@@ -48,6 +48,8 @@ export async function installBackgroundInquiryRoute(client: pg.PoolClient, input
   policyVersion: string; routeId: string; routeProfileVersion: string; transport: 'fixture' | 'minimax'; model: string;
   maxInputTokens: number; maxOutputTokens: number; requestCap: number; tokenBudget: number; ownerCapacity: number; jobCapacity: number;
   coalescingDelaySeconds: number; jobTtlSeconds: number; remoteSlots: number;
+  /** ADR-0042: the thinking mode its requests ask for (default disabled), and its bounds on continuation steps (default 1) and children (default none). */
+  thinking?: 'disabled' | 'adaptive'; maxContinuationSteps?: number; maxChildren?: 0 | 2 | 3;
 }): Promise<void> {
   const policy = (await client.query<{ config: unknown }>('SELECT config FROM reasoning_fairness_policy WHERE version=$1', [input.policyVersion])).rows[0];
   if (!policy) throw new Error('Install the fairness policy of this version first');
@@ -65,10 +67,11 @@ export async function installBackgroundInquiryRoute(client: pg.PoolClient, input
   await client.query(
     `INSERT INTO background_inquiry_route(policy_version,route_id,route_profile_version,transport,model,max_input_tokens,max_output_tokens,
        global_bucket_id,provider_account_bucket_id,route_quota_bucket_id,remote_concurrency_bucket_id,owner_capacity,job_capacity,
-       coalescing_delay_seconds,job_ttl_seconds,enabled)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,true)`,
+       coalescing_delay_seconds,job_ttl_seconds,thinking,max_continuation_steps,max_children,enabled)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,true)`,
     [input.policyVersion, input.routeId, input.routeProfileVersion, input.transport, input.model, input.maxInputTokens, input.maxOutputTokens,
-      global, account, quota, remote, input.ownerCapacity, input.jobCapacity, input.coalescingDelaySeconds, input.jobTtlSeconds],
+      global, account, quota, remote, input.ownerCapacity, input.jobCapacity, input.coalescingDelaySeconds, input.jobTtlSeconds,
+      input.thinking ?? 'disabled', input.maxContinuationSteps ?? 1, input.maxChildren ?? 0],
   );
 }
 
