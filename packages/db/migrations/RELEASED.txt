@@ -33,3 +33,4 @@
 0026_semantic_substrate.sql
 0027_attention_hypotheses_composer_v3.sql
 0028_ask_answers.sql
+0029_account_deletion.sql

@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { explicitAskInput, exposureInput, historyClearInput, interactionInput, privacyLifecycleInput, privacyResetInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
+import { explicitAskInput, exposureInput, historyClearInput, interactionInput, privacyLifecycleInput, privacyResetInput, accountDeletionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
 import { parseFeedKinds, type FeedAsset, type ReelAssetDisplay } from '../../../packages/contracts/src/inventory.ts';
 import {
   pool,
@@ -12,6 +12,7 @@ import {
   resumeRecording,
   exportUniverse,
   resetPersonalUniverse,
+  deleteAccount,
   revokeSession,
   UnauthorizedSession,
   type AuthScope,
@@ -214,6 +215,18 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       if (!parsed.success) throw new HttpError(400, 'Invalid reset request');
       return resetPersonalUniverse(client, scope, parsed.data);
     });
+    return reply.code(200).send(receipt);
+  });
+
+  // ADR-0035: delete the account and all personal history. The calling session is deleted with
+  // it, so a cookie session also gets its cookie cleared.
+  app.post('/v1/account/delete', async (req, reply) => {
+    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = accountDeletionInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid account deletion request');
+      return deleteAccount(client, scope, parsed.data);
+    });
+    if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
     return reply.code(200).send(receipt);
   });
 

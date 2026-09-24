@@ -3,6 +3,7 @@ import type pg from 'pg';
 import type {
  HistoryClearInput, HistoryClearReceipt, PrivacyLifecycleInput, PrivacyRecordingReceipt,
  PrivacyResetInput, PrivacyResetReceipt, PrivacyExportResult, PrivacyExportDeviceSession,
+ AccountDeletionInput, AccountDeletionReceipt,
 } from '../../contracts/src/index.ts';
 import type { AuthScope } from './identity.ts';
 import {eraseReasoningForHistoryClear} from './reasoning-storage.ts';
@@ -309,4 +310,52 @@ export async function resetPersonalUniverse(client: pg.PoolClient, scope: AuthSc
   [randomUUID(), scope.universeId, input.requestId, scope.privacyEpoch, nextEpoch, sessionsRevoked],
  )).rows[0];
  return resetReceiptFromRow(receipt);
+}
+
+/** ADR-0035: delete the owner account. Everything Reset erases, plus — in this same transaction —
+ * every session of the universe (not just revoked), every sign-in token and dated privacy receipt,
+ * and the account row; the universe is left empty and unbound, so a later sign-in with the owner
+ * address creates a new account that adopts it fresh. The receipt written first is what lets the
+ * schema guards (0029) permit exactly these deletions and nothing else, and it outlives the
+ * account: it holds epochs, a count and a time, never the address.
+ *
+ * There is no replay: the calling session is deleted, so a retry cannot authenticate, and the
+ * client treats a 401 after a sent deletion as "signed out" either way. */
+export async function deleteAccount(client: pg.PoolClient, scope: AuthScope, input: AccountDeletionInput): Promise<AccountDeletionReceipt> {
+ if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
+ const bound = (await client.query<{ account_id: string | null }>('SELECT account_id FROM universe WHERE id=$1', [scope.universeId])).rows[0];
+ if (!bound?.account_id) throw new PrivacyLifecycleConflict('This universe has no account to delete');
+ const accountId = bound.account_id;
+
+ const nextEpoch = scope.privacyEpoch + 1;
+ const universe = await client.query(`UPDATE universe SET privacy_epoch=$3,revision=revision+1,recording_paused_at=NULL
+  WHERE id=$1 AND privacy_epoch=$2 RETURNING privacy_epoch`, [scope.universeId, scope.privacyEpoch, nextEpoch]);
+ if (!universe.rowCount) throw new PrivacyLifecycleConflict();
+ await erasePersonalHistory(client, scope.universeId, scope.privacyEpoch, nextEpoch);
+
+ const sessions = Number((await client.query('SELECT count(*)::int AS n FROM device_session WHERE universe_id=$1', [scope.universeId])).rows[0].n);
+ if (sessions < 1) throw new Error('Account deletion must remove at least the calling session');
+ const receipt = (await client.query(
+  `INSERT INTO account_deletion_receipt(id,universe_id,account_id,request_id,epoch_before,epoch_after,sessions_deleted)
+   VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,epoch_before,epoch_after,sessions_deleted,deleted_at`,
+  [randomUUID(), scope.universeId, accountId, input.requestId, scope.privacyEpoch, nextEpoch, sessions],
+ )).rows[0];
+
+ // Order is the foreign keys': tokens name the sessions they minted; sessions and the universe
+ // name the account.
+ await client.query('DELETE FROM sign_in_token WHERE account_id=$1', [accountId]);
+ await client.query('DELETE FROM device_session WHERE universe_id=$1', [scope.universeId]);
+ await client.query('UPDATE universe SET account_id=NULL WHERE id=$1', [scope.universeId]);
+ for (const table of ['history_clear_receipt', 'privacy_recording_receipt', 'privacy_export_receipt', 'privacy_reset_receipt']) {
+  await client.query(`DELETE FROM ${table} WHERE universe_id=$1`, [scope.universeId]);
+ }
+ const account = await client.query('DELETE FROM account WHERE id=$1', [accountId]);
+ if (account.rowCount !== 1) throw new Error('Account row is missing');
+ return {
+  receiptId: String(receipt.id),
+  epochBefore: Number(receipt.epoch_before),
+  epochAfter: Number(receipt.epoch_after),
+  sessionsDeleted: Number(receipt.sessions_deleted),
+  deletedAt: isoDate(receipt.deleted_at),
+ };
 }
