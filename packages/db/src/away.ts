@@ -4,8 +4,8 @@
  *
  * Sources, each limited to the current epoch:
  *   - background inquiry outcomes (ADR-0038): found, nothing found, did not hold up;
- *   - atlas deltas caused by a source correction (ADR-0036/0037): every other cause follows the
- *     reader's own reading, so they saw it happen;
+ *   - atlas and room deltas caused by a source correction (ADR-0036/0037/0045): every other cause
+ *     follows the reader's own reading, so they saw it happen;
  *   - corrections to a bridge they were shown as found or kept as a Relic.
  * Nothing here calls a model or words anything but a delta's own chronicle line.
  */
@@ -15,6 +15,7 @@ import { AWAY_LIST_LIMIT, awayAcknowledgeInput, type AwayAcknowledgeResponse, ty
 import { clampLine, nextMarker, selectAway } from '../../core/src/away.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
 import type { RelationKind } from '../../core/src/atlas/cartographer.ts';
+import { roomChronicleLine, type RoomRole } from '../../core/src/rooms/keeper.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning-inquiries.ts';
 
@@ -88,6 +89,22 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope): Promise
     });
   }
 
+  // Room changes a source correction caused (ADR-0045): a position that lost a claim's support, an
+  // inhabitant that left, a room whose place went. Erased with the rooms by Clear/Reset.
+  const roomWhere = `d.universe_id=$1 AND d.causal_class='source_correction' AND date_trunc('milliseconds', d.created_at) > $2
+    AND d.kind IN ('position_changed','inhabitant_unseated','room_retired')`;
+  total += Number((await client.query(`SELECT count(*) FROM room_delta d WHERE ${roomWhere}`, [scope.universeId, after])).rows[0].count);
+  const roomDeltas = (await client.query<{ id: string; room_id: string; place_id: string; kind: RoomChange; role: RoomRole | null; created_at: Date; place_name: string }>(
+    `SELECT d.id, d.room_id, r.place_id, d.kind, d.role, d.created_at, c.name AS place_name
+     FROM room_delta d JOIN room r ON r.id = d.room_id JOIN atlas_place p ON p.id = r.place_id JOIN concept c ON c.id = p.anchor_concept_id
+     WHERE ${roomWhere} ORDER BY d.created_at DESC, d.id LIMIT $3`, [scope.universeId, after, take])).rows;
+  for (const d of roomDeltas) {
+    candidates.push({
+      kind: 'room_changed', at: iso(d.created_at), deltaId: d.id, roomId: d.room_id, placeId: d.place_id, change: d.kind, cause: 'source_correction', key: d.id,
+      line: clampLine(roomChronicleLine({ kind: d.kind, causalClass: 'source_correction', role: d.role, placeName: d.place_name })),
+    });
+  }
+
   // Corrections to a connection the reader was shown as found, or kept, in this epoch.
   const correctedWhere = `b.status IN ('revoked','superseded') AND date_trunc('milliseconds', b.status_changed_at) > $3 AND (
       EXISTS (SELECT 1 FROM background_inquiry i WHERE i.universe_id=$1 AND i.privacy_epoch=$2 AND i.status='admitted' AND i.proposal_id = b.proposal_id)
@@ -111,6 +128,7 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope): Promise
 }
 
 type AwayChange = Extract<AwayItem, { kind: 'place_changed' }>['change'];
+type RoomChange = Extract<AwayItem, { kind: 'room_changed' }>['change'];
 
 async function bridgeConnectionByProposal(client: pg.PoolClient, proposalId: string) {
   const bridge = (await client.query<{ id: string }>('SELECT id FROM bridge WHERE proposal_id=$1', [proposalId])).rows[0];

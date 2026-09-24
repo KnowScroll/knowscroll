@@ -12,8 +12,9 @@ import type pg from 'pg';
 import { ATTENTION_V1, computeAttentionAccounts, type EpisodeEvidence, type MarkKind, type NegativeEvidence } from '../../../core/src/semantic/attention.ts';
 import { proposeHypotheses, validateHypothesis, type HypothesisProposal } from '../../../core/src/semantic/hypotheses.ts';
 import { BRANCH_POLICY_VERSION } from './branches.ts';
-import { eraseAtlas, exportAtlas, runCartographer } from '../atlas.ts';
+import { eraseAtlas, exportAtlas, runCartographer, runKeeper } from '../atlas.ts';
 import { postInquiryMail } from '../reasoning-inquiries.ts';
+import { eraseRooms, exportRooms } from '../rooms.ts';
 
 type Row = Record<string, unknown>;
 const ms = (v: unknown) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
@@ -22,7 +23,8 @@ export interface PersonalEvidence {
   episodes: EpisodeEvidence[];
   negatives: NegativeEvidence[];
   marks: { eventId: string; atMs: number; assetId: string; exposureId: string; kind: MarkKind; concepts: string[] }[];
-  asks: { askEventId: string; exposureId: string; atMs: number; concept: string | null; resolved: boolean }[];
+  /** The reader's Asks; `concept` is the primary concept of the Scroll each was asked from. */
+  asks: { askId: string; askEventId: string; exposureId: string; assetId: string; atMs: number; concept: string | null; resolved: boolean }[];
   conceptNames: Map<string, string>;
   conceptIds: Map<string, string>;
 }
@@ -45,7 +47,6 @@ export async function loadPersonalEvidence(client: pg.PoolClient, universeId: st
     [universeId],
   )).rows;
   const byEvent = new Map(exposures.map(e => [String(e.event_id), e]));
-  const byExposure = new Map(exposures.map(e => [String(e.id), e]));
 
   const markRows = (await client.query<Row>(
     `SELECT l.id, l.kind, l.created_at, l.causation_id FROM ledger l
@@ -86,17 +87,17 @@ export async function loadPersonalEvidence(client: pg.PoolClient, universeId: st
   ];
 
   const asks = (await client.query<Row>(
-    `SELECT l.id AS event_id, a.exposure_id, l.created_at FROM explicit_ask a JOIN ledger l ON l.id = a.event_id WHERE a.universe_id = $1`, [universeId],
+    `SELECT a.id, l.id AS event_id, a.exposure_id, e.asset_id, l.created_at FROM explicit_ask a JOIN ledger l ON l.id = a.event_id
+     JOIN exposure e ON e.id = a.exposure_id WHERE a.universe_id = $1 ORDER BY l.created_at, a.id`, [universeId],
   )).rows.map(r => {
-    const exposure = byExposure.get(String(r.exposure_id));
-    const primary = exposure ? (annotations.get(String(exposure.asset_id)) ?? []).find(c => c.role === 'primary')?.code ?? null : null;
+    const primary = (annotations.get(String(r.asset_id)) ?? []).find(c => c.role === 'primary')?.code ?? null;
     // No answer path exists yet (#132): a recorded question stays open until one does.
-    return { askEventId: String(r.event_id), exposureId: String(r.exposure_id), atMs: ms(r.created_at), concept: primary, resolved: false };
+    return { askId: String(r.id), askEventId: String(r.event_id), exposureId: String(r.exposure_id), assetId: String(r.asset_id), atMs: ms(r.created_at), concept: primary, resolved: false };
   });
   return { episodes, negatives, marks, asks, conceptNames, conceptIds };
 }
 
-export interface PersonalModelResult { accounts: number; transitions: number; hypotheses: { upserted: number; rejected: number }; places: number }
+export interface PersonalModelResult { accounts: number; transitions: number; hypotheses: { upserted: number; rejected: number }; places: number; rooms: number }
 
 /** ADR-0040: how much of the correction log is committed. It is append-only, so this only grows, and
  * a count sees committed rows only (a correction's own time is taken before it commits). */
@@ -110,7 +111,7 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
   // While recording is paused nothing personal is recomputed or dated inside the pause. A correction
   // made meanwhile is already stored (its route suppression applies at once) and counts as
   // counterevidence at the first refresh after recording resumes.
-  if (universe.paused) return { accounts: 0, transitions: 0, hypotheses: { upserted: 0, rejected: 0 }, places: 0 };
+  if (universe.paused) return { accounts: 0, transitions: 0, hypotheses: { upserted: 0, rejected: 0 }, places: 0, rooms: 0 };
   // ADR-0040: what this refresh has seen of the correction log, read before anything else it loads,
   // so a correction committed from here on is still ahead of it and the worker catches it up.
   await client.query(
@@ -147,8 +148,10 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
     }
   }
 
-  // #134: places follow the accounts just written (ADR-0036); nothing runs while paused (above).
+  // #134: places follow the accounts just written (ADR-0036), and #163: rooms follow the places and
+  // the reader's Asks (ADR-0045); nothing runs while paused (above).
   const places = await runCartographer(client, universeId, [...accounts.values()]);
+  const rooms = await runKeeper(client, universeId, evidence.asks);
 
   const offeredEpisodes = new Map<string, string[]>();
   for (const e of evidence.episodes) if (e.systemOffered) for (const c of e.concepts) offeredEpisodes.set(c.code, [...(offeredEpisodes.get(c.code) ?? []), e.exposureId]);
@@ -176,7 +179,7 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
       await postInquiryMail(client, universeId, { kind: 'hypothesis_changed', hypothesisId: written.id, revision: written.revision });
     }
   }
-  return { accounts: accounts.size, transitions, hypotheses: { upserted, rejected }, places };
+  return { accounts: accounts.size, transitions, hypotheses: { upserted, rejected }, places, rooms };
 }
 
 /** Writes the hypothesis if it is new or what it says changed; returns the row then, and nothing otherwise. */
@@ -203,7 +206,9 @@ async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch
 /** Clear/Reset: the personal model goes with the history it was computed from. */
 export async function erasePersonalModel(client: pg.PoolClient, universeId: string): Promise<void> {
   // A v3 candidate may name the universe's own bridge, which the semantic erase removes next; the
-  // decision records go first (their decisions follow later in the same Clear).
+  // decision records go first (their decisions follow later in the same Clear). Rooms name places
+  // and Asks, so they go before both.
+  await eraseRooms(client, universeId);
   await eraseAtlas(client, universeId);
   await client.query('DELETE FROM decision_candidate WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM decision_context WHERE universe_id=$1', [universeId]);
@@ -225,6 +230,7 @@ export async function exportPersonalModel(client: pg.PoolClient, universeId: str
     attentionTransitions: await q(`SELECT c.code AS concept, t.from_state, t.to_state, t.policy_version, t.at FROM attention_transition t
       JOIN concept c ON c.id = t.concept_id WHERE t.universe_id=$1 ORDER BY t.at, t.id`),
     ...await exportAtlas(client, universeId),
+    ...await exportRooms(client, universeId),
     encounterFeedback: await q(`SELECT f.id, f.privacy_epoch, f.decision_id, f.asset_id, f.kind, f.family, c.code AS concept, f.bridge_id, f.suppress_until, f.created_at
       FROM encounter_feedback f LEFT JOIN concept c ON c.id = f.concept_id WHERE f.universe_id=$1 ORDER BY f.created_at, f.id`),
   };

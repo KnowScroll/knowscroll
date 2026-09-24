@@ -22,6 +22,7 @@ import { catchUpUniverse, runCorrectionRefreshPass } from '../packages/db/src/se
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
 import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { drain, withdraw } from './helpers/corrections.ts';
 import { insertScroll } from './helpers/inquiry-fixture.ts';
 import { readFirstOffered, readScroll } from './helpers/reading.ts';
 
@@ -103,10 +104,6 @@ async function anchoredReader(): Promise<Reader> {
   return { universeId: identity.scope.universeId, headers, aurorasSource: n.sources.auroras, planetId: planet.id, sightingId: sighting.id };
 }
 
-/** The publisher withdraws the page behind Auroras: an operator correction, committed. */
-const withdraw = (sourceKey: string) => transaction(client =>
-  correctSourceSnapshot(client, { sourceKey, action: 'revoked', reason: 'Test: the publisher withdrew this page' }, 'operator'));
-
 const committedCorrections = async () => Number((await pool.query('SELECT count(*) FROM semantic_correction')).rows[0].count);
 const record = async (r: Reader) => (await pool.query<{ corrections_seen: number; refreshed_at: Date }>(
   'SELECT corrections_seen, refreshed_at FROM correction_catch_up WHERE universe_id=$1', [r.universeId])).rows[0];
@@ -120,19 +117,6 @@ async function away(r: Reader) {
 }
 const privacy = (r: Reader, action: 'pause' | 'resume') =>
   app.inject({ method: 'POST', url: `/v1/privacy/${action}`, headers: r.headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: 0 } });
-
-/** The worker's pass, run until it refreshes no one (other files' readers may be behind too).
- * Returns everyone it refreshed and everyone whose refresh failed. */
-async function drain(): Promise<{ refreshed: Set<string>; failed: Set<string> }> {
-  const refreshed = new Set<string>(), failed = new Set<string>();
-  for (let pass = 0; pass < 100; pass += 1) {
-    const result = await runCorrectionRefreshPass(pool, { limit: 50 });
-    for (const f of result.failed) failed.add(f.universeId);
-    if (result.refreshed.length === 0) return { refreshed, failed };
-    for (const id of result.refreshed) refreshed.add(id);
-  }
-  throw new Error('the correction refresh never settled');
-}
 
 /** The place change the correction caused, as the reader sees it on the return. */
 async function assertAurorasLeft(r: Reader) {

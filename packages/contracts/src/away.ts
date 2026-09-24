@@ -18,7 +18,8 @@ export const AWAY_LIST_LIMIT = 10;
 
 /**
  * Only what the reader did not cause (ADR-0039 §1): a background inquiry's outcome, a change to a
- * place from a source correction, or a correction to a connection they were shown as found or kept. `at` is when it happened; the list is newest first.
+ * place or a room (ADR-0045) from a source correction, or a correction to a connection they were
+ * shown as found or kept. `at` is when it happened; the list is newest first.
  */
 export const awayItem = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('connection_found'), at, inquiryId: id, found: inquiryFound }).strict(),
@@ -30,6 +31,14 @@ export const awayItem = z.discriminatedUnion('kind', [
     /** Only a source correction changes a place without the reader: every other cause follows their own reading. */
     cause: z.literal('source_correction'),
     /** The chronicle's own deterministic line for the delta (ADR-0036), never model text. */
+    line: z.string().min(1).max(600),
+  }).strict(),
+  z.object({
+    kind: z.literal('room_changed'), at, deltaId: id, roomId: id, placeId: id,
+    change: z.enum(['position_changed', 'inhabitant_unseated', 'room_retired']),
+    /** ADR-0045: as for places, only a source correction changes a room without the reader. */
+    cause: z.literal('source_correction'),
+    /** The Keeper's own deterministic line for the delta, never model text. */
     line: z.string().min(1).max(600),
   }).strict(),
   z.object({
