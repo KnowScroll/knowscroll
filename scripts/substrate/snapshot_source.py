@@ -45,8 +45,9 @@ class VisibleText(HTMLParser):
 
 
 def normalize(text: str) -> str:
-    """The one normalization shared with verify-substrate.ts: NFC, then collapse all whitespace
-    (including no-break spaces) to single spaces. Typography is otherwise preserved exactly."""
+    """Mirrors the one shared normalization (packages/core/src/semantic/source-text.ts): NFC, then
+    collapse all whitespace (including no-break spaces) to single spaces. Typography is otherwise
+    preserved exactly."""
     text = unicodedata.normalize("NFC", html.unescape(text))
     return re.sub(r"\s+", " ", text.replace(" ", " ")).strip()
 

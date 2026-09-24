@@ -14,6 +14,7 @@
  */
 import { z } from 'zod';
 import { bridgeProposalPayload, semanticKey, type BridgeProposalPayload } from '../../../contracts/src/semantic.ts';
+import { canonical, wholeObject } from './wire.ts';
 
 export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v1', prompt: 'bridge-inquiry-prompt-v4', reply: 'bridge-inquiry-reply-v2' });
 export const BRIDGE_INQUIRY_LIMITS = Object.freeze({ maxPairs: 3, claimsPerAnchor: 8, claimsBoth: 8 });
@@ -157,15 +158,6 @@ const SYSTEM = [
   'Do not describe or guess anything about the reader.',
 ].join('\n');
 
-/** Stable key order, so equal inputs give equal bytes and therefore an equal reserved hash. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>).sort().map(k => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
 export const INQUIRY_PAIRS_MARKER = 'Offered pairs (JSON):';
 
 export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], route: { model: string; maxOutputTokens: number }): Uint8Array {
@@ -191,19 +183,6 @@ export type InquiryReply =
   | { kind: 'proposal'; payload: BridgeProposalPayload }
   | { kind: 'none' }
   | { kind: 'shape'; reasons: ['shape', InquiryShapeReason] };
-
-/** The whole reply, after dropping reasoning blocks, as one JSON object: bare, or as the only content
- * of a single fenced block. Prose around it is not "exactly one JSON object" (ADR-0038 §7). */
-function wholeObject(text: string): Record<string, unknown> | undefined {
-  let body = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-  const fenced = /^```(?:json)?[ \t]*\n([\s\S]*?)\n?```$/.exec(body);
-  if (fenced) body = fenced[1]!.trim();
-  if (!body.startsWith('{')) return undefined;
-  try {
-    const value: unknown = JSON.parse(body);
-    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
-  } catch { return undefined; }
-}
 
 /** Reply v2 (prompt v4): the model picks an offered pair and one of its admissible relations by
  * index, cites offered claims, and writes the prose; the system composes the typed proposal, so

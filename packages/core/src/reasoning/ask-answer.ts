@@ -11,6 +11,8 @@
  * "The Scroll does not say" is a valid, honest outcome.
  */
 
+import { canonical } from './wire.ts';
+
 // v2 (2026-09-24): basis items are projected to their quote (see the loop below). Measured live:
 // five of five replies to a yes/no question failed v1's exact item shape, with verbatim-checkable quotes.
 export const ASK_ANSWER_VERSIONS = Object.freeze({ prompt: 'ask-answer-prompt-v1', validator: 'ask-answer-v2' });
@@ -43,15 +45,6 @@ const SYSTEM = [
   'If the Scroll does not answer the question, reply {"answer": null, "basis": [], "limits": "<what the Scroll does not cover>"}.',
   'Say where the answer stops in "limits". Do not describe or guess anything about the reader.',
 ].join('\n');
-
-/** Stable key order, so equal inputs give equal bytes and therefore an equal reserved hash. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>).sort().map(k => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
 
 export function serializeAskAnswerRequest(source: AskAnswerSource, route: AskAnswerRoute): Uint8Array {
   const s = source.scroll;
