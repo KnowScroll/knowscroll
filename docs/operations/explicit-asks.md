@@ -29,3 +29,8 @@ session (`POST /v1/asks/:askId/answer`); the worker sends the sealed question an
 route once and applies the reply only through the answer validator. Clear and Reset erase answer
 requests and answers with the Ask; minimal content-free accounting keeps its ADR-0019 retention. See
 the [evidence](../journeys/evidence/ask-answers-2026-09-24/README.md).
+
+A request whose outcome is unknown (a lost connection, a worker killed mid-call, or a provider 502/504)
+keeps its remote-concurrency slot until an operator reconciles it (ADR-0012): with the one-slot route,
+answers wait until then. A dead worker's never-sent attempt is released by the worker's recovery sweep
+once its lease expires; a signed-out reader's Job waits for its deadline and then expires.

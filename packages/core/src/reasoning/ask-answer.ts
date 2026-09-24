@@ -76,11 +76,33 @@ export function serializeAskAnswerRequest(source: AskAnswerSource, route: AskAns
 }
 
 const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
-// Statements about the reader, not the subject: the product never characterises a person. A trait
-// or taste is refused ("you're clearly curious", "you seem…", "your curiosity"); plain second person
-// about the subject ("if you are near a coast") is not. Curly apostrophes are normalised first.
-const CHARACTERIZES = /\b(you(?: are|'re) (?:a|an|the|clearly|obviously|probably|really|so|very|such|someone|one of)\b|you(?: seem| must be| sound| strike me)\b|you(?: clearly| obviously| probably)? (?:love|like|prefer|enjoy|adore)\b|the (?:kind|sort|type) (?:of person )?who\b|your (?:personality|interests?|nature|curiosity|character|taste|tastes|passion|kind of person)\b)/i;
-const characterizes = (text: string) => CHARACTERIZES.test(text.replace(/[\u2018\u2019\u02bc]/g, "'"));
+// Statements about the reader, not the subject: the product never characterises a person. After
+// "you are / you're" only words about where the reader is or what they are doing pass ("near",
+// "standing"…); any trait or taste ("you're curious", "you seem…", "you love…", "your curiosity") is
+// refused unless it sits in a hypothetical clause of the same sentence ("if you are a sailor",
+// "whichever unit you prefer"). Third-person description ("Darwin was the sort who…") is not about
+// the reader. Curly apostrophes are normalised first.
+const SITUATION = new Set(['near', 'in', 'at', 'on', 'by', 'from', 'inside', 'outside', 'under', 'above', 'below', 'here', 'there', 'standing',
+  'looking', 'reading', 'walking', 'holding', 'using', 'watching', 'sailing', 'swimming', 'facing', 'measuring', 'counting', 'comparing', 'asking',
+  'trying', 'going', 'able', 'told', 'shown', 'asked', 'given', 'free', 'welcome', 'not', 'likely']);
+const HYPOTHETICAL = /\b(?:if|when|whenever|whether|whichever|whatever|however|once|suppose|supposing|imagine|unless|as long as)\b[^.!?;]*$/;
+const TRAITS = [
+  /\byou(?: are|'re)\s+([a-z]+)/g,
+  /\byou (?:seem|must be|sound|strike me)\b/g,
+  /\byou(?: clearly| obviously| probably| really)? (?:love|like|prefer|enjoy|adore)\b/g,
+  /\byour (?:personality|interests?|nature|curiosity|character|taste|tastes|passion|kind of person)\b/g,
+];
+function characterizes(text: string): boolean {
+  const t = text.replace(/[\u2018\u2019\u02bc]/g, "'").toLowerCase();
+  for (const pattern of TRAITS) {
+    for (const m of t.matchAll(pattern)) {
+      if (m[1] !== undefined && SITUATION.has(m[1])) continue;
+      if (HYPOTHETICAL.test(t.slice(0, m.index))) continue;
+      return true;
+    }
+  }
+  return false;
+}
 // Text the database would refuse is refused here, so a paid reply is never lost at storage.
 const hasNul = (text: string) => text.includes('\u0000');
 

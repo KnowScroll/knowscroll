@@ -43,8 +43,8 @@ export function createMiniMaxAnswerTransport(options: { apiKey: string; fetchImp
         let value: Record<string, unknown> | null = null;
         try { value = await response.json() as Record<string, unknown>; } catch { value = null; }
         const usage = (value?.usage ?? {}) as Record<string, unknown>;
-        // Cache counters follow the certified route (ADR-0012): MiniMax reports most prompt tokens as
-        // cache reads, so dropping them would under-charge the token budget.
+        // Cache counters follow the certified route (ADR-0012): MiniMax reports much of a repeated
+        // prompt as cache reads. They are recorded, not added to the input the budget charges.
         // A gateway timeout does not prove the provider stopped work: it stays unconfirmed.
         const observation = {
           remoteDisposition: response.status === 502 || response.status === 504 ? 'unconfirmed' as const : 'terminal' as const, httpStatus: response.status,

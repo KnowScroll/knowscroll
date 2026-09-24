@@ -125,3 +125,18 @@ test('review B1/I1/I6: whitespace quotes, empty limits, NUL bytes and second-per
   const ordinary = validateAskAnswerProposal(good({ answer: 'If you are near a coast, you would see two high tides a day because Earth rotates through two bulges of water.' }), source);
   assert.ok(ordinary.ok, JSON.stringify(ordinary));
 });
+
+test('verification review: statements about the reader are refused; hypothetical second person and third-person description are not', () => {
+  const tail = ' Earth rotates through two bulges of water.';
+  for (const answer of ['You are curious about the sea.', 'Since you are interested in tides, here it is.', "You're fascinated by this.", "You're thoughtful to ask.",
+    "You're clearly a curious person.", 'You\u2019re the kind who loves the sea.', 'You must be fascinated by the ocean.', 'Your curiosity shows.',
+    'You seem to love the ocean.', 'You love this kind of thing.']) {
+    assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: answer + tail }), source)), ['characterizes_reader'], answer);
+  }
+  for (const answer of ['If you are near a coast, you would see two high tides a day.', 'If you are a sailor, you plan around them.',
+    'Measure it in whichever unit you prefer.', 'If you like, think of it as two bulges.', 'Darwin was the sort who collected everything.',
+    'When you are standing on a beach you can watch it happen.']) {
+    const verdict = validateAskAnswerProposal(good({ answer: answer + tail }), source);
+    assert.ok(verdict.ok, `${answer} → ${JSON.stringify(verdict)}`);
+  }
+});

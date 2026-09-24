@@ -13,7 +13,7 @@ import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
 import { answerAuthority, answerFairnessPolicy, installAskAnswerRoute, settleAbandonedAnswers } from '../packages/db/src/reasoning-answers.ts';
 import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
+import { runAnswerPass, type AnswerTransport } from '../apps/worker/src/reasoning/answer-worker.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Ask answer tests require a disposable knowscroll_test_* database');
@@ -88,4 +88,33 @@ test('a worker that dies after admission is closed by the sweep once its lease e
   const next = await pass();
   assert.equal(next.kind === 'done' && next.outcome.kind, 'applied', JSON.stringify(next));
   assert.equal((await view(second)).status, 'answered');
+});
+
+test('a reply that lands after the lease expired is recorded but never applied; the sweep closes it as apply_failed', async () => {
+  const late = await askAndRequest();
+  // The reply is valid, but arrives after this worker's 1 s lease: it is recorded, never applied.
+  const slow: AnswerTransport = {
+    kind: 'fixture',
+    async send() {
+      await new Promise(resolve => setTimeout(resolve, 1_300));
+      return { remoteDisposition: 'terminal', outcome: 'success', httpStatus: 200, text: '{"answer":null,"basis":[],"limits":"Not covered."}',
+        usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: null, cacheWriteTokens: null, costMicroUsd: null } };
+    },
+  };
+  const result = await runAnswerPass({ pool, owner: 'answer-recovery-slow', leaseMs: 1_000, transports: { fixture: slow }, signal: new AbortController().signal });
+  assert.equal(result.kind, 'done');
+  if (result.kind === 'done') assert.deepEqual(result.outcome, { kind: 'discarded', reason: 'lease_lost' });
+  const accounting = (await pool.query(`SELECT ac.state FROM ask_answer_request r JOIN reasoning_attempt at ON at.job_id = r.job_id
+    JOIN reasoning_accounting ac ON ac.attempt_id = at.id WHERE r.ask_id=$1`, [late.askId])).rows[0].state;
+  assert.equal(accounting, 'responded');
+
+  assert.ok(await settleAbandonedAnswers(pool, { owner: 'answer-recovery-worker' }) >= 1);
+  const seen = await view(late);
+  assert.deepEqual([seen.status, seen.reasons], ['failed', ['apply_failed']]);
+  assert.equal(await heldFor(late), 0);
+
+  const next = await askAndRequest();
+  const answered = await pass();
+  assert.equal(answered.kind === 'done' && answered.outcome.kind, 'applied', JSON.stringify(answered));
+  assert.equal((await view(next)).status, 'answered');
 });

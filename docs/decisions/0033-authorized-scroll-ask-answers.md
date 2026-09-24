@@ -75,3 +75,8 @@ therefore takes a basis item given as a bare string or as an object whose `quote
 drops every other key unread (never stored or shown), and changes nothing else. Rejections now carry
 content-free sub-codes next to `shape_invalid` (`shape_keys`, `shape_types`, `shape_basis_item`, …)
 so a live failure can be diagnosed without recording provider text.
+
+The v2 validator also collapses whitespace before a quote's length and Scroll checks, refuses what
+the database would refuse (empty limits, NUL), and judges "nothing about the reader" by rule: after
+"you are / you're" only situation words pass, and a trait or taste is allowed only inside a
+hypothetical clause ("if you are a sailor"). v2 was never released before these changes.
