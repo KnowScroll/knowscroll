@@ -427,4 +427,5 @@
     <string name="passages_close">Back to reading</string>
     <string name="passages_close_description">Close the passages</string>
     <string name="passages_retry_description">Retry loading the passages</string>
+    <string name="bound_scroll_gone">That Scroll is no longer new for you: it was read, or what it was based on changed.</string>
 </resources>

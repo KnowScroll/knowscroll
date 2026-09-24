@@ -155,6 +155,7 @@ test('real reading exhausts a place: the feed records the demand, the worker wri
 
   // Once read, the need returns; the route's one request is spent, so it cannot be met, and says so.
   await expose(a, next.decisionId, assetId);
+  assert.equal((await placeOf(a, f.codes.tides)).demand, null, 'read, it is no longer new for this reader');
   await feed(a);
   const spent = await demandOf(a, f.codes.tides);
   assert.deepEqual([spent.status, spent.decision, spent.reason], ['cannot_meet', 'cannot_meet', 'no_budget']);

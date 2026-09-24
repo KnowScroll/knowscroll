@@ -418,6 +418,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         purgeForScope(feed.universeId,feed.privacyEpoch)
                         failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
                     }
+                    DiscoverySelection.PreferredGone ->
+                        _scroll.value=ScrollState.Unavailable(getApplication<Application>().getString(com.knowscroll.mobile.R.string.bound_scroll_gone),retryable=false)
                     DiscoverySelection.Exhausted -> {
                         if(reading!=null){
                             (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Exhausted)}
