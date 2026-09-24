@@ -96,10 +96,15 @@ class AccountViewModel @JvmOverloads constructor(
     /** Exactly the credential the reader's own requests will use ([selectCredential]): the signed-in
      * session, or -- only in a debug build -- a non-blank development token. A debug build with a
      * development token (every journey except the owner one, whose build deliberately has none)
-     * opens on the reader, as it did before sign-in existed. */
-    private fun deriveAuthState(): AuthState =
-        if (selectCredential(vault.readToken(), developmentToken, isDebugBuild) != null) AuthState.SignedIn
+     * opens on the reader, as it did before sign-in existed. Once this device has been signed out
+     * (either sign-out, Reset, deletion or an ended session -- [StateStore.readSignedOut]), the
+     * development token is no way back in: that ended its session too, or it would reopen the
+     * reader onto a session the owner just left. Only a new sign-in clears that. */
+    private fun deriveAuthState(): AuthState {
+        val developmentFallback = if (store.readSignedOut()) "" else developmentToken
+        return if (selectCredential(vault.readToken(), developmentFallback, isDebugBuild) != null) AuthState.SignedIn
         else AuthState.SignedOut
+    }
 
     private fun restoredOperationState(intent: String): PrivacyOperationState =
         if (store.readPendingPrivacyRequest(intent) != null) PrivacyOperationState.Failed(PRIVACY_RETRY_MESSAGE)
@@ -108,6 +113,20 @@ class AccountViewModel @JvmOverloads constructor(
     /** Call on foreground/resume: a vault write from elsewhere in this process (a fresh sign-in
      * completing, or the reader's 401 handler clearing it) becomes visible here. */
     fun refresh() {
+        _authState.value = deriveAuthState()
+    }
+
+    /** The reader's own "Sign out this device" (#91: its confirmation, persisted retry and all) has
+     * ended the session and recorded it ([com.knowscroll.mobile.ui.recordDeviceSignedOut]: vault
+     * cleared, device marked signed out). The app goes to the sign-in screen with the same reason
+     * the Privacy screen's sign-out gives -- never the reader's old dead-end screen. */
+    fun onReaderSignedOut() {
+        // A reader instance that outlived its sign-out re-enters composition after a newer sign-in
+        // still reporting it (until its own foreground revives it): the mark that sign-in cleared
+        // says this report is stale.
+        if (!store.readSignedOut()) return
+        clearPrivacyViews()
+        _signedOutReason.value = SignedOutReason.SIGNED_OUT
         _authState.value = deriveAuthState()
     }
 
@@ -152,6 +171,12 @@ class AccountViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             try {
                 val receipt = api.consumeSignInToken(token)
+                // A new session is not the signed-out device any more: clear the mark (so a fresh
+                // reader never opens on #91's dead end) and any pending revoke (which would
+                // otherwise be retried against this new session) -- before the vault write, so a
+                // crash in between can never leave a live session behind a stale mark.
+                store.clearSignedOut()
+                store.clearPendingSignOut()
                 vault.writeToken(receipt.sessionToken)
                 _tokenSubmit.value = TokenSubmitState.Idle
                 _linkRequest.value = LinkRequestState.Idle
@@ -436,12 +461,19 @@ class AccountViewModel @JvmOverloads constructor(
         vault.clear()
         val universeId = store.readObservedUniverseId()
         store.purgePrivateState(universeId, epoch ?: store.readObservedPrivacyEpoch())
+        // Every path here ended (or found ended) the session a debug build's development token
+        // would fall back to as well; see [deriveAuthState].
+        store.writeSignedOut()
+        clearPrivacyViews()
+        _signedOutReason.value = reason
+        _authState.value = AuthState.SignedOut
+    }
+
+    private fun clearPrivacyViews() {
         _privacy.value = PrivacyState.Loading
         _pause.value = PrivacyOperationState.Idle
         _resume.value = PrivacyOperationState.Idle
         _export.value = ExportState.Idle
-        _signedOutReason.value = reason
-        _authState.value = AuthState.SignedOut
     }
 
     private fun transportMessage(e: Exception): String = when {

@@ -295,8 +295,9 @@ private fun UniverseCanvasScreen(
                             onRetrySignOut,
                         )
                         // #135: the real, sign-in-backed Privacy & account screen (pause/resume/
-                        // export/reset/delete account) lives one tap from here, next to the
-                        // existing dev-token-era Clear/Sign-out disclosure above.
+                        // export/reset/delete account) lives one tap from here, next to Clear
+                        // History and #91's "Sign out this device" above -- which, like the
+                        // Privacy screen's own sign-out, now ends on the sign-in screen.
                         OutlinedButton(
                             onClick = onOpenPrivacy,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),

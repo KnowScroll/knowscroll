@@ -117,8 +117,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     // existing MissingToken refusal). Exposed so the reader can hand the exact same resolved
     // token to the media route (ReelScreen's `mediaToken`), which is authenticated outside
     // ApiClient's own request path.
+    private val vault = AndroidKeyStoreSessionVault(application)
     val credentialProvider: CredentialProvider =
-        VaultCredentialProvider(AndroidKeyStoreSessionVault(application), BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG)
+        VaultCredentialProvider(vault, BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG)
     private val api=ApiClient(credential=credentialProvider)
     private val store=StateStore(application)
     private var feedJob: kotlinx.coroutines.Job? = null
@@ -179,7 +180,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun consumeToast(){_toast.value=null}
-    fun onForeground(){if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)}
+    fun onForeground(){
+        // #135: this instance can outlive its own sign-out; a new sign-in cleared the mark.
+        _signOut.value=signOutStateOnForeground(_signOut.value,store.readSignedOut())
+        if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)
+    }
     fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen() in setOf("scroll","revisit"),queueIfBusy=true)
     fun retryScrollLoad(){
         val pending=revisit
@@ -1007,8 +1012,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
      * navigation and pending-clear state is removed, and no control here will ever
      * reuse the now-dead token. */
     private fun completeSignOut(){
-        store.clearPendingSignOut()
-        store.writeSignedOut()
+        // #135: also clears the vault, so the account gate hands the app to the sign-in screen.
+        recordDeviceSignedOut(store,vault)
         purgeForScope(observedUniverseId,observedPrivacyEpoch)
         ready=false
         _signOut.value=SignOutState.SignedOut

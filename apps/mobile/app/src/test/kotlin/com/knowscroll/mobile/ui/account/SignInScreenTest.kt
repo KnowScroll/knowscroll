@@ -94,9 +94,12 @@ class SignInScreenTest {
         composeRule.onAllNodesWithText("Your account and history were deleted.").assertCountEquals(1)
     }
 
+    /** An ordinary sign-out (the Privacy screen's, or the reader's own #91 "Sign out this device")
+     * lands here, on a screen that can sign back in -- saying only that, never a deletion/expiry. */
     @Test
-    fun noReasonBannerAppearsForAnOrdinarySignOut() {
+    fun anOrdinarySignOutSaysOnlyThatThisDeviceIsSignedOut() {
         render(reason = SignedOutReason.SIGNED_OUT)
+        composeRule.onAllNodesWithText("This device is signed out").assertCountEquals(1)
         composeRule.onAllNodesWithText("Your account and history were deleted.").assertCountEquals(0)
         composeRule.onAllNodesWithText("Your session ended. Sign in again to continue.").assertCountEquals(0)
     }

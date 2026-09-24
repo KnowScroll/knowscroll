@@ -112,11 +112,11 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
         }
         return
     }
-    AuthenticatedApp(onOpenPrivacy = { privacyOpen = true })
+    AuthenticatedApp(onOpenPrivacy = { privacyOpen = true }, onSignedOut = accountViewModel::onReaderSignedOut)
 }
 
 @Composable
-private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivacy: () -> Unit) {
+private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivacy: () -> Unit, onSignedOut: () -> Unit) {
     KnowScrollTheme {
         val authorityReady by viewModel.authorityReady.collectAsStateWithLifecycle()
         val cableMode by viewModel.cableMode.collectAsStateWithLifecycle()
@@ -165,6 +165,12 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                 savedReelKey?.let(atlasStates::removeState)
                 savedReelKey = null
             }
+        }
+
+        // #135: the reader's own "Sign out this device" ended the session and cleared the vault;
+        // the sign-in screen, not SignedOutScreen's dead end, is where this device goes now.
+        LaunchedEffect(signOut is SignOutState.SignedOut) {
+            if (signOut is SignOutState.SignedOut) onSignedOut()
         }
 
         LaunchedEffect(toast) {

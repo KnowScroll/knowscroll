@@ -9,8 +9,13 @@ import com.knowscroll.mobile.data.SessionInvalidation
 import com.knowscroll.mobile.data.StateStore
 import com.knowscroll.mobile.data.TestHttpServer
 import com.knowscroll.mobile.data.awaitUntil
+import com.knowscroll.mobile.data.selectCredential
+import com.knowscroll.mobile.ui.SignOutState
+import com.knowscroll.mobile.ui.recordDeviceSignedOut
+import com.knowscroll.mobile.ui.signOutRestoreState
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -44,7 +49,7 @@ class AccountViewModelTest {
         isDebugBuild: Boolean = true,
     ): AccountViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val credential = CredentialProvider { vault.readToken() ?: "" }
+        val credential = CredentialProvider { selectCredential(vault.readToken(), developmentToken, isDebugBuild) }
         val api = ApiClient(server.baseUrl, "", maxAttempts = 1, credential = credential, onUnauthorized = {})
         return AccountViewModel(application, vault, api, store, developmentToken, isDebugBuild)
     }
@@ -268,6 +273,111 @@ class AccountViewModelTest {
             awaitUntil { model.authState.value is AuthState.SignedOut }
             assertEquals(SignedOutReason.SESSION_EXPIRED, model.signedOutReason.value)
             assertNull(vault.readToken())
+        }
+    }
+
+    // ---- Finding 3: "Sign out this device" leaves the app on sign-in, and signing in again works ----
+
+    @Test
+    fun theReadersSignOutLeavesTheAppOnTheSignInScreenNotTheDeadEnd() {
+        TestHttpServer.open().use { server ->
+            val store = StateStore(freshContext())
+            val vault = FakeSessionVault("session-1")
+            val model = viewModel(server, vault, store)
+            assertEquals(AuthState.SignedIn, model.authState.value)
+
+            // Exactly what AppViewModel.completeSignOut records once its revoke is confirmed.
+            recordDeviceSignedOut(store, vault)
+            model.onReaderSignedOut()
+
+            assertNull("the revoked session must not stay in the vault", vault.readToken())
+            assertEquals(AuthState.SignedOut, model.authState.value)
+            assertEquals(SignedOutReason.SIGNED_OUT, model.signedOutReason.value)
+            model.refresh() // every foreground, and a restart, re-derive from the same storage
+            assertEquals(AuthState.SignedOut, model.authState.value)
+        }
+    }
+
+    @Test
+    fun aDebugBuildsRevokedDevelopmentTokenDoesNotReopenTheReadersDeadEnd() {
+        TestHttpServer.open().use { server ->
+            val store = StateStore(freshContext())
+            val vault = FakeSessionVault()
+            val model = viewModel(server, vault, store, developmentToken = "d".repeat(64))
+            assertEquals(AuthState.SignedIn, model.authState.value)
+
+            recordDeviceSignedOut(store, vault)
+            model.onReaderSignedOut()
+            assertEquals(AuthState.SignedOut, model.authState.value)
+            model.refresh()
+            assertEquals("the revoked development token is no way back in", AuthState.SignedOut, model.authState.value)
+        }
+    }
+
+    @Test
+    fun thePrivacyScreensSignOutInADebugBuildAlsoStaysOnSignIn() {
+        TestHttpServer.open().use { server ->
+            server.serve(204 to "")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault(), store, developmentToken = "d".repeat(64))
+            model.requestSignOutConfirmation()
+            model.confirmAccountSignOut()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            model.refresh()
+            assertEquals(AuthState.SignedOut, model.authState.value)
+        }
+    }
+
+    @Test
+    fun signingInAgainClearsTheStaleSignedOutFlagsSoTheReaderOpensNormally() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u1",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a1","origin":"magic_link"}""",
+            )
+            val store = StateStore(freshContext())
+            store.writeSignedOut()
+            store.writePendingSignOut()
+            val vault = FakeSessionVault()
+            val model = viewModel(server, vault, store, developmentToken = "d".repeat(64))
+            assertEquals(AuthState.SignedOut, model.authState.value)
+
+            model.submitPastedLink("https://knowscroll.test/sign-in#token=raw-token")
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+
+            assertEquals("session-2", vault.readToken())
+            assertFalse("a new sign-in is not the signed-out device any more", store.readSignedOut())
+            assertFalse("an old pending revoke must never be retried against the new session", store.readPendingSignOut())
+            // A reader created now (a cold start) opens normally, not on #91's dead end.
+            assertEquals(SignOutState.Idle, signOutRestoreState(store.readPendingSignOut(), store.readSignedOut()))
+        }
+    }
+
+    /** The reader's view model can outlive its sign-out; after a new sign-in it re-enters composition
+     * still holding its old SignedOut for a moment (until its foreground revives it). That stale
+     * report must not touch the new session. */
+    @Test
+    fun aStaleReaderSignOutReportAfterANewSignInLeavesTheNewSessionAlone() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u1",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a1","origin":"magic_link"}""",
+            )
+            val store = StateStore(freshContext())
+            val vault = FakeSessionVault("session-1")
+            val model = viewModel(server, vault, store)
+            recordDeviceSignedOut(store, vault)
+            model.onReaderSignedOut()
+            model.submitPastedLink("https://knowscroll.test/sign-in#token=raw-token")
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+
+            model.onReaderSignedOut() // the stale reader instance, recomposed
+            assertEquals(AuthState.SignedIn, model.authState.value)
+            assertNull("no sign-out reason is pending for a signed-in device", model.signedOutReason.value)
+            assertEquals("session-2", vault.readToken())
         }
     }
 

@@ -240,6 +240,10 @@ class StateStore(context: Context) {
         check(prefs.edit().putBoolean("signedOut", true).commit()) { "Could not save signed-out state" }
     }
     fun readSignedOut(): Boolean = prefs.getBoolean("signedOut", false)
+    /** #135: a new sign-in is not the signed-out device any more. */
+    fun clearSignedOut() {
+        check(prefs.edit().remove("signedOut").commit()) { "Could not clear signed-out state" }
+    }
 
     /** #135: one privacy-lifecycle intent's in-flight retry envelope (`pause`/`resume`/`export`/
      * `reset`/`delete`), persisted before dispatch so process death never silently drops or

@@ -143,14 +143,14 @@
     <!-- Sign out this device (#91) -->
     <string name="sign_out_action">Sign out this device</string>
     <string name="sign_out_title">Sign out this device?</string>
-    <string name="sign_out_effects">This device\'s session ends now. Your Scroll history is not erased — Clear History does that separately. Other devices are not affected. Using KnowScroll on this device again needs a new device session from the operator.</string>
+    <string name="sign_out_effects">This device\'s session ends now. Your Scroll history is not erased — Clear History does that separately. Other devices are not affected. You can sign in on this device again with a new sign-in link.</string>
     <string name="sign_out_confirm">Sign out</string>
     <string name="sign_out_cancel">Cancel</string>
     <string name="sign_out_progress">Signing out this device…</string>
     <string name="sign_out_retry">Retry sign out</string>
     <string name="sign_out_heading">Signed out</string>
     <string name="sign_out_done_title">This device is signed out</string>
-    <string name="sign_out_done_body">This device\'s session has ended. Your Scroll history was not erased. Other devices are not affected. Using KnowScroll on this device again needs a new device session from the operator.</string>
+    <string name="sign_out_done_body">This device\'s session has ended. Your Scroll history was not erased. Other devices are not affected. You can sign in on this device again with a new sign-in link.</string>
 
     <!-- System level (#116, ADR-0028/#113): the real, derived worlds/system geography
          (docs/product/ui-system.md sec.5b/5c). -->
