@@ -12,6 +12,7 @@ import com.knowscroll.mobile.data.AtlasDelta
 import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.RoomDetail
 import com.knowscroll.mobile.data.CredentialProvider
+import com.knowscroll.mobile.data.cableModeFor
 import com.knowscroll.mobile.data.VaultCredentialProvider
 import com.knowscroll.mobile.data.ExposureRequest
 import com.knowscroll.mobile.data.HistoryClearRequest
@@ -453,7 +454,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         // #132: an Ask flow belongs to the encounter that started it; leaving that Scroll stops
         // polling for it (the sheet itself is already hidden by the UI's own assetId filter).
         if(_ask.value?.assetId!=value.item.assetId){askPollJob?.cancel();askPollJob=null}
-        _cableMode.value=value.item.kind;store.writeCableMode(value.item.kind)
+        val mode=cableModeFor(value,_cableMode.value)
+        _cableMode.value=mode;store.writeCableMode(mode)
         _screen.value=Screen.Scroll(value.item.assetId)
         savedState["screen"]="scroll"
         store.writeScreen("scroll")

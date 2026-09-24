@@ -63,9 +63,15 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
    is the Scroll reader's own continuation section (`BranchSection`, without its connection sheet;
    #183): while a chosen continuation opens it says so and offers nothing else to choose, a list that
    could not be loaded offers Retry, an opening that failed says why there, and a Reel the reader
-   comes back to from an opened continuation has its chooser closed. Per the owner's decision
-   of 2026-09-24, the sheet shows no source: no source names, publishers, URLs, licences or counts.
-   The authored preview has no recorded decision, so it shows no "Why".
+   comes back to from an opened continuation has its chooser closed. **Reel mode survives a
+   continuation** (#183): the Cable mode is the reader's choice of what to discover, and a
+   continuation (always a Scroll, since a Reel is not yet a branch target) is a detour inside it.
+   The continuation is kept in the bank of the mode it was followed in, so a cold start reopens it in
+   Reel mode and the reader's Scroll-mode place is left alone; the next discovery from it is a Reel,
+   and Back returns to the Reel. Choosing Scroll mode there goes to the Scroll-mode place, as it does
+   from any Reel. Per the owner's decision of 2026-09-24, the why sheet shows no source: no source
+   names, publishers, URLs, licences or counts. The authored preview has no recorded decision, so it
+   shows no "Why".
 6. **Policy tuning is evidence-led and versioned.** `scripts/composer-compare.ts` walks golden and
    adversarial readers over a library that includes gated test Reels (one over several library
    Scrolls): the two interest readers, a Reel-heavy reader, a reader who only skips, a reader with one
@@ -114,4 +120,5 @@ over a library Scroll for a hands-on stack); Android `ui/reel/ReelScreen.kt`, th
 and the live reader's wiring; `scripts/composer-compare.ts`. Tests: pure Composer golden, adversarial
 and replay cases with Reels (and v4's fair tie-break); DB/API: a minted Reel's concepts, its why and path, a continuation from
 it, the atlas count, a Reel over a Scroll the seed annotates later, a mint that waits for a seed load, and a
-Reel's continuations after a source correction; Android: the Reel why sheet and that it renders no source text.
+Reel's continuations after a source correction; Android: the Reel why sheet and that it renders no source text,
+the Reel chooser's opening, Retry and failure states, and that Reel mode survives a continuation.
