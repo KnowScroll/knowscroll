@@ -8,8 +8,9 @@ relaunches it. Each run keeps its own timestamped backup, the runner refuses to 
 unless that backup is a readable archive, and the restore is verified against the backup's listing.
 Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
 
-Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations) and `why` (#133 the
-recorded path of a v3 encounter and the reader's "less like this").
+Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
+recorded path of a v3 encounter and the reader's "less like this") and `sheets` (#97 each reader
+sheet survives Activity recreation).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -29,6 +30,10 @@ JOURNEYS = {
                'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
     'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
             'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
+    # #97: each reader sheet stays open across Activity recreation, on the real stack.
+    'sheets': {'test': 'com.knowscroll.mobile.ReaderSheetRecreationTest', 'receipt': 'sources-sheet-recreate.json', 'tests': 3,
+               'captures': ('sources-sheet-recreate.png', 'explain-sheet-recreate.png', 'connections-sheet-recreate.png',
+                            'explain-sheet-recreate.json', 'connections-sheet-recreate.json')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
@@ -90,6 +95,10 @@ try:
             if attempt == 99: raise
             time.sleep(.1)
 
+    # A receipt or capture left by an earlier run must never be read as this run's.
+    for stale in (spec['receipt'], *spec['captures']):
+        if (out / stale).exists(): (out / stale).unlink()
+
     # 3. Separate journey build against this stack only.
     run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=env)
     for apk in ('debug/app-debug.apk', 'androidTest/debug/app-debug-androidTest.apk'):
@@ -101,11 +110,22 @@ try:
     for filename in (spec['receipt'], *spec['captures']):
         capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
         if capture.returncode == 0 and (filename.endswith('.json') or capture.stdout.startswith(b'\x89PNG')): (out / filename).write_bytes(capture.stdout)
-    if 'OK (1 test)' not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
+    expected = 'OK (1 test)' if spec.get('tests', 1) == 1 else f"OK ({spec['tests']} tests)"
+    if expected not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
 
     # 4. Verify the causal lineage the UI claimed, in the database itself.
     journey = json.loads((out / spec['receipt']).read_text())
-    if journey_name == 'why':
+    if journey_name == 'sheets':
+        receipts = [json.loads((out / f).read_text()) for f in (spec['receipt'], 'explain-sheet-recreate.json', 'connections-sheet-recreate.json') if (out / f).exists()]
+        # Tests that launch back into a persisted reading session share its exposure.
+        exposure_ids = sorted({r['exposureId'] for r in receipts if 'exposureId' in r})
+        lineage = {'sheetsRestored': sum(1 for r in receipts if r.get('sheetRestoredAfterRecreation') is True),
+                   'connectionsReached': any(r.get('scenario') == 'connectionsSheetSurvivesRecreationWhenAvailable' for r in receipts),
+                   'exposuresRecorded': int(sql("SELECT count(*) FROM exposure WHERE id IN (" + ",".join(f"'{e}'" for e in exposure_ids) + ")") if exposure_ids else 0)}
+        assert lineage['sheetsRestored'] >= 2 and lineage['exposuresRecorded'] == len(exposure_ids) >= 1, lineage
+        journey = {'receipts': receipts}
+        limits = ['Debug API36 emulator, not a physical device.', 'Recreation via ActivityScenario.recreate(), not a physical rotation.']
+    elif journey_name == 'why':
         d, a = journey['decisionId'], journey['assetId']
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'servedByV3', (SELECT count(*) FROM decision d JOIN decision_candidate dc ON dc.decision_id=d.id
@@ -140,7 +160,7 @@ try:
         limits = ['Editorial substrate and bridges; no model-proposed bridge.', 'Debug API36 emulator, not a physical device.',
                   'Continuations are Scroll-only; Reels carry no concept annotations yet.']
     receipt = {'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'result': 'passed', 'database': name, 'apiPort': port,
-               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'package': package,
+               'source': subprocess.check_output(['git', 'describe', '--always', '--dirty', '--abbrev=40'], text=True).strip(), 'package': package,
                'journeyName': journey_name, 'journey': journey, 'lineage': lineage, 'providerCalls': 0, 'limits': limits}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(lineage), flush=True)

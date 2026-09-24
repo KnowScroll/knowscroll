@@ -1,0 +1,42 @@
+{
+  "at": "2026-09-24T05:02:15.532321+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_e70210d86169f34b",
+  "apiPort": 4334,
+  "source": "0a742ab2e96655b1885c48ab3d625f919b73e758",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "sheets",
+  "journey": {
+    "receipts": [
+      {
+        "scenario": "sourcesSheetSurvivesRecreation",
+        "assetId": "20000000-0000-4000-8000-000000000004",
+        "exposureId": "afcad9ee-5218-4e6e-8948-2e499cc476fc",
+        "sheetRestoredAfterRecreation": true
+      },
+      {
+        "scenario": "explainSheetSurvivesRecreation",
+        "assetId": "20000000-0000-4000-8000-000000000004",
+        "exposureId": "afcad9ee-5218-4e6e-8948-2e499cc476fc",
+        "sheetRestoredAfterRecreation": true
+      },
+      {
+        "scenario": "connectionsSheetSurvivesRecreationWhenAvailable",
+        "assetId": "20000000-0000-4000-8000-000000000004",
+        "exposureId": "afcad9ee-5218-4e6e-8948-2e499cc476fc",
+        "hopsToReachContinuations": 0,
+        "sheetRestoredAfterRecreation": true
+      }
+    ]
+  },
+  "lineage": {
+    "sheetsRestored": 3,
+    "connectionsReached": true,
+    "exposuresRecorded": 1
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Debug API36 emulator, not a physical device.",
+    "Recreation via ActivityScenario.recreate(), not a physical rotation."
+  ]
+}
