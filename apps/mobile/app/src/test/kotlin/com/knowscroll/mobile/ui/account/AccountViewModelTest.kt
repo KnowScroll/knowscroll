@@ -33,6 +33,12 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AccountViewModelTest {
+    private companion object {
+        /** `TestHttpServer.HANG` stands for a response that never arrives; a short read timeout
+         * notices it quickly. Only the tests that serve one use it (#177). */
+        const val LOST_RESPONSE_READ_TIMEOUT_MS = 700
+    }
+
     private fun freshContext(): android.content.Context {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         context.getSharedPreferences("ks_session_v1", 0).edit().clear().commit()
@@ -40,7 +46,9 @@ class AccountViewModelTest {
     }
 
     /** [developmentToken] defaults to none -- the owner build's shape -- so no test here depends on
-     * whatever development token the local Gradle build happened to bake into BuildConfig. */
+     * whatever development token the local Gradle build happened to bake into BuildConfig.
+     * [readTimeoutMs] is the app's own unless a test serves a lost response: an answer a loaded
+     * host delays past a short timeout would otherwise fail as if it were lost (#177). */
     private fun viewModel(
         server: TestHttpServer,
         vault: FakeSessionVault = FakeSessionVault("session-1"),
@@ -48,11 +56,11 @@ class AccountViewModelTest {
         developmentToken: String = "",
         isDebugBuild: Boolean = true,
         maxAttempts: Int = 1,
+        readTimeoutMs: Int = ApiClient.DEFAULT_READ_TIMEOUT_MS,
     ): AccountViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val credential = CredentialProvider { selectCredential(vault.readToken(), developmentToken, isDebugBuild) }
-        // A short read timeout: `TestHttpServer.HANG` stands for a response that never arrives.
-        val api = ApiClient(server.baseUrl, "", readTimeoutMs = 700, maxAttempts = maxAttempts, credential = credential, onUnauthorized = {})
+        val api = ApiClient(server.baseUrl, "", readTimeoutMs = readTimeoutMs, maxAttempts = maxAttempts, credential = credential, onUnauthorized = {})
         return AccountViewModel(application, vault, api, store, developmentToken, isDebugBuild)
     }
 
@@ -269,7 +277,7 @@ class AccountViewModelTest {
             server.serve(universeAt5, lostResponse, unauthorized)
             val store = StateStore(freshContext())
             val vault = FakeSessionVault("session-1")
-            val model = viewModel(server, vault, store)
+            val model = viewModel(server, vault, store, readTimeoutMs = LOST_RESPONSE_READ_TIMEOUT_MS)
             openLoadedPrivacy(model)
 
             model.requestDeleteConfirmation()
@@ -291,7 +299,7 @@ class AccountViewModelTest {
     fun aLostResponseInsideTheSameCallThenA401IsReportedAsDeleted() {
         TestHttpServer.open().use { server ->
             server.serve(universeAt5, lostResponse, unauthorized)
-            val model = viewModel(server, FakeSessionVault("session-1"), maxAttempts = 2)
+            val model = viewModel(server, FakeSessionVault("session-1"), maxAttempts = 2, readTimeoutMs = LOST_RESPONSE_READ_TIMEOUT_MS)
             openLoadedPrivacy(model)
 
             model.requestDeleteConfirmation()
@@ -371,7 +379,7 @@ class AccountViewModelTest {
     fun aTimeoutThenA401OnTheResetRetryIsReportedAsReset() {
         TestHttpServer.open().use { server ->
             server.serve(universeAt5, lostResponse, unauthorized)
-            val model = viewModel(server, FakeSessionVault("session-1"))
+            val model = viewModel(server, FakeSessionVault("session-1"), readTimeoutMs = LOST_RESPONSE_READ_TIMEOUT_MS)
             openLoadedPrivacy(model)
 
             model.requestResetConfirmation()
@@ -511,6 +519,27 @@ class AccountViewModelTest {
             model.onReaderSignedOut() // the stale reader instance, recomposed
             assertEquals(AuthState.SignedIn, model.authState.value)
             assertNull("no sign-out reason is pending for a signed-in device", model.signedOutReason.value)
+            assertEquals("session-2", vault.readToken())
+        }
+    }
+
+    /** #177: under host load the fixture's answer can come later than a lost-response test's short
+     * read timeout; a sign-in that is answered, however late, must still sign in. */
+    @Test
+    fun aSignInAnsweredLateByALoadedHostStillSignsIn() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u1",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a1","origin":"magic_link"}""",
+            )
+            val vault = FakeSessionVault()
+            val model = viewModel(server, vault)
+            server.holdAnswers()
+            val lateAnswer = kotlin.concurrent.thread { Thread.sleep(LOST_RESPONSE_READ_TIMEOUT_MS + 300L); server.releaseAnswers() }
+            model.submitPastedLink("https://knowscroll.test/sign-in#token=raw-token")
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            lateAnswer.join()
+            server.join()
             assertEquals("session-2", vault.readToken())
         }
     }
