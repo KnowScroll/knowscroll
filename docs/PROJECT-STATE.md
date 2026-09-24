@@ -1,5 +1,16 @@
 # Project state
 
+## 2026-09-24 KnowScroll can look for connections between your places in the background (#132)
+
+The phone's Privacy & account screen now has a switch, "Look for connections between my places",
+with a daily limit. Each time a new place forms, KnowScroll asks the model once, showing it only
+the two places' names and their sourced claims. The model's suggestion becomes a connection only if
+KnowScroll's own checks confirm it; the screen lists what was looked for and what came of it. In
+live tests the checks refused every weak suggestion. After the request was made more structured,
+one real connection got through ("Gravity explains The Sun"), and it now appears as a continuation
+where either side is read. Suggestions are still often refused, and with today's small library
+there are few pairs to look at.
+
 ## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
 
 When one of the reader's places explains several of their other places, and sources say so, it

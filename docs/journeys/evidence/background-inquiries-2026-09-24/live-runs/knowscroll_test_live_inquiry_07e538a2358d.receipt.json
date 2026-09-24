@@ -1,0 +1,48 @@
+{
+  "at": "2026-09-24T09:53:36.231Z",
+  "mode": "live",
+  "database": "knowscroll_test_live_inquiry_07e538a2358d",
+  "model": "MiniMax-M3",
+  "simulated": "places formed from supplied anchored accounts (labelled), as in the inquiry journey; consent, mail, admission, the call and the validator are real",
+  "inquiries": [
+    {
+      "step": 1,
+      "placeFormed": [
+        "physics.gravity"
+      ],
+      "status": "found",
+      "reasons": [],
+      "pairs": 1,
+      "found": {
+        "relationType": "explains",
+        "evidence": 6,
+        "sentenceSha256": "f8722d817d64184aee7945bb4b015ebabbd22841c0406332d034fccc89fedaa1",
+        "bridgeStatus": "admitted",
+        "continuationsShowingIt": 3
+      },
+      "requestSha256": "0a94a82d0f9153c7db0375d456a1235794490736fd409dddcb908dd5e871b3fa",
+      "inputBytes": 5619,
+      "accounting": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1242,
+        "output": 301
+      }
+    }
+  ],
+  "consent": {
+    "status": 200,
+    "available": true
+  },
+  "proposals": [
+    {
+      "status": "admitted",
+      "n": 1
+    }
+  ],
+  "dispatched": 1,
+  "sessionLedger": {
+    "used": 33,
+    "cap": 40
+  }
+}

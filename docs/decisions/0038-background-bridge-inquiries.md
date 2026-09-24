@@ -60,9 +60,9 @@ editor wrote down. A model can look for one; only `bridge-validator-v1` can admi
    `invokeReasoningOnce`. An unconfirmed outcome is held (ADR-0012) and never retried; a provider
    error fails the inquiry. Leases, fences, retirement and the recovery sweep are the existing
    ADR-0019 machinery.
-7. **Provider text is never authority.** The reply must be exactly one JSON object: either
-   `{"proposal": <bridgeProposalPayload>}` for one offered pair, citing only offered claim keys, or
-   `{"none": true}`. Anything else closes the inquiry as `rejected` (`shape`). A proposal goes through
+7. **Provider text is never authority.** The reply must be exactly one JSON object: either a
+   proposal for one offered pair, citing only offered claim keys (its structured form is in the
+   amendment below), or `{"none": true}`. Anything else closes the inquiry as `rejected` (`shape`). A proposal goes through
    `submitBridgeProposal` (universe scope, `proposerKind = model`, `proposerRef` = the Attempt id) in
    the applying transaction, after the context recheck. The validator's decision is the outcome:
    `admitted` (a personal bridge, which the existing continuations and Composer already read, and
@@ -77,6 +77,26 @@ editor wrote down. A model can look for one; only `bridge-validator-v1` can admi
    `did_not_hold_up` with the validator's reasons, `nothing_to_ask`, `failed`, `withdrawn`) and, for
    `found`, the bridge's sentence and evidence. Android's Privacy & account screen gets the switch,
    its limit and this list; an admitted bridge appears as a continuation where either side is read.
+
+## Amendment, same day: a structured reply (live results)
+
+Four live MiniMax-M3 requests showed that when the reply was the whole bridge-proposal payload, the
+model would not reliably keep the direction, or the side each claim supports, consistent with the
+claims' roles. Every one was refused, correctly. §7 therefore changes shape but not authority:
+
+- **Request (prompt v4):** each offered pair lists its `admissible` relations, computed from the
+  pair's own claims. "explains" appears only in a direction some claim naming both carries (the
+  explaining side has the mechanism role). The symmetric comparisons appear either way.
+  "applies_to"/"prerequisite_for" are not offered, since they need a recorded relation that an
+  unconnected pair never has.
+- **Reply (v2):** `{"proposal": {pair, relation, mechanism, prerequisites, limitations, cite,
+  counterevidence}}`, where `pair` and `relation` are indexes into the offer. The system composes
+  the `bridgeProposalPayload`: relation and direction from the chosen entry, and each cited claim's
+  side from where it was offered. It is then decided by `bridge-validator-v1` exactly as before.
+  `relation_not_admissible` joins the shape reasons.
+
+The model still writes every word and chooses which evidence to cite; the validator still decides.
+The live results are in `docs/journeys/evidence/background-inquiries-2026-09-24/`.
 
 ## Not in this version
 

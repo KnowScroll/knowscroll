@@ -1,5 +1,27 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #132 background bridge inquiries (lane `132-background-inquiries`)
+
+ADR-0038 with a same-day amendment, migration 0032. This is the first consumer of the reasoning
+runtime's `background_inquiry` class and `dirty` wake. The reader's standing consent (with a daily
+limit) is the authority. A place the Cartographer forms mails one coalesced inquiry. The worker
+opens it with fresh authority and seals a small context: unconnected pairs of the reader's places
+and their supported claims. It sends one request, never replayed. The model picks an admissible
+relation and cites offered claims; the system composes the typed proposal; `bridge-validator-v1`,
+unchanged, decides. An admitted bridge is the reader's own continuation. Android's Privacy &
+account has the switch, the limit, and the list of what was looked for.
+
+Verification: pure 13, DB/API/worker 32 (fixture: coalescing, limit, consent/pause/Clear queued and
+in flight, stale context, crash without replay, fairness against a direct Ask), backend suite,
+Android 344 + lint. The emulator `inquiry` journey passed with the fixture: consent, reading forms
+Gravity, the inquiry is found, the continuation appears, and SQL lineage matches. Live MiniMax-M3
+(owner authorisation, subscription route, preflight, ledger): 7 requests, 29 → 35/40. The first
+four were refused by the validator, which led to the structured reply. Then one admitted bridge
+("Gravity explains The Sun", visible from 3 Scrolls), one honest "none", and one refusal on the
+device, whose journey now accepts any validated live outcome and checks the screen for it. See the
+[evidence](journeys/evidence/background-inquiries-2026-09-24/README.md). No prompt or reply text
+is in Git.
+
 ## 2026-09-24 #131/#134 foundation Stars (lane `131-foundation-stars`)
 
 ADR-0037, migration 0031, `cartographer-v2`. A live planet or region whose anchor explains, or

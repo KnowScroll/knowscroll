@@ -59,7 +59,7 @@ JOURNEYS = {
                    'captures': ('foundation-system.png', 'foundation-sheet.png', 'foundation-evidence.png', 'foundation-marker.png', 'foundation-withdrawn.png', 'foundation-failure.png')},
     # #132 (ADR-0038): consent, a place formation that mails an inquiry, a fixture-found bridge, its continuation.
     'inquiry': {'test': 'com.knowscroll.mobile.BackgroundInquiryJourneyTest', 'receipt': 'inquiry-journey.json',
-                'captures': ('inquiry-consent-off.png', 'inquiry-consent-on.png', 'inquiry-found.png', 'inquiry-continuation.png', 'inquiry-failure.png')},
+                'captures': ('inquiry-consent-off.png', 'inquiry-consent-on.png', 'inquiry-found.png', 'inquiry-continuation.png', 'inquiry-outcome.png', 'inquiry-failure.png')},
     # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
     'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
               'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
