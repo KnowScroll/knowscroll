@@ -667,6 +667,150 @@ describe('ReaderStore', () => {
   });
 });
 
+// ---------- Sign-out and account deletion (#135, ADR-0034/ADR-0035) ----------
+//
+// The store's third constructor argument, `onSignedOut`, is how it tells the app to show the
+// sign-in screen -- fired (a) on any 401 from an authenticated call, in *addition* to the
+// existing fail-closed Unavailable state above (never a replacement for it: every test above this
+// comment still passes with no callback at all, since it is optional), (b) after a real sign-out,
+// and (c) after a real account deletion, with the one deletion-specific message. These tests use
+// their own api/storage/store trio (never the outer `beforeEach` ones above, which never pass a
+// callback) so the callback's exact calls can be asserted directly.
+describe('Sign-out and account deletion (#135, ADR-0034/ADR-0035)', () => {
+  function setup() {
+    const api = new FakeApi();
+    const storage = new ReaderStorage(new MemoryStorageBackend());
+    const signedOut: Array<string | null> = [];
+    const store = new ReaderStore(api, storage, message => signedOut.push(message));
+    return { api, storage, store, signedOut };
+  }
+
+  async function openLoadedPrivacy(api: FakeApi, store: ReaderStore): Promise<void> {
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+    store.openPrivacy();
+  }
+
+  it('a 401 notifies onSignedOut, alongside the existing fail-closed Unavailable state', async () => {
+    const { api, store, signedOut } = setup();
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+
+    api.universeQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.retryUniverse();
+    await waitFor(() => store.getState().universe.status === 'unavailable');
+    expect(signedOut).toEqual([null]);
+  });
+
+  it('a non-401 invalidation (a moved epoch) never notifies onSignedOut', async () => {
+    const { api, store, signedOut } = setup();
+    api.universeQueue.push(universeOf());
+    store.init();
+    await waitFor(() => store.getState().universe.status === 'loaded');
+
+    api.universeQueue.push(new ApiException({ kind: 'server', statusCode: 409, body: 'stale' }));
+    store.retryUniverse();
+    await waitFor(() => store.getState().universe.status === 'unavailable');
+    expect(signedOut).toHaveLength(0);
+  });
+
+  it('signOut revokes the session and notifies onSignedOut with no message', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.sessionRevokeQueue.push('ok');
+    store.signOut();
+    await waitFor(() => signedOut.length === 1);
+    expect(api.sessionRevokeCalls).toBe(1);
+    expect(signedOut).toEqual([null]);
+  });
+
+  it('a failed sign-out shows a real failure and a working retry, never a fabricated sign-out', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.sessionRevokeQueue.push(new ApiException({ kind: 'network', message: 'dropped' }));
+    store.signOut();
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    expect(signedOut).toHaveLength(0);
+
+    api.sessionRevokeQueue.push('ok');
+    store.signOut();
+    await waitFor(() => signedOut.length === 1);
+  });
+
+  it('a sign-out that turns out already-401 is treated as already signed out', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.sessionRevokeQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.signOut();
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([null]);
+  });
+
+  it('account deletion is gated behind a typed word, distinct from the wire confirmation literal it sends', async () => {
+    const { api, store } = setup();
+    await openLoadedPrivacy(api, store);
+    store.beginDeleteAccount();
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'confirming-delete' } });
+
+    store.confirmDeleteAccount('delet');
+    expect(api.accountDeleteCalls).toHaveLength(0);
+    expect(privacyActionStatus(store)).toBe('confirming-delete');
+
+    store.cancelDeleteAccount();
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'idle' } });
+  });
+
+  it('a confirmed deletion sends the exact wire literal and the real epoch, purges local storage, and signs out with the deletion message', async () => {
+    const { api, storage, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    storage.writeSession({
+      decisionId: 'd1',
+      item: feedItem(),
+      privacyEpoch: 0,
+      universeId: universeOf().universeId,
+      clientExposureId: 'c1',
+      clientEventId: 'c2',
+      exposureId: 'exp-1',
+      exposureEventId: 'evt-1',
+      keepJobId: 'job-1',
+      keepEventId: 'evt-2',
+      readingPosition: 10,
+    });
+
+    const receipt = { receiptId: 'del-1', epochBefore: 0, epochAfter: 1, sessionsDeleted: 1, deletedAt: '2026-09-24T00:00:00.000Z' };
+    api.accountDeleteQueue.push(receipt);
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => signedOut.length === 1);
+
+    expect(api.accountDeleteCalls).toEqual([{ requestId: expect.any(String), expectedPrivacyEpoch: 0, confirmation: 'delete-my-account-and-history' }]);
+    expect(signedOut).toEqual(['Your account and history were deleted.']);
+    expect(storage.readSession()).toBeNull();
+  });
+
+  it('a 401 after the deletion request was sent (a lost-response retry) is also treated as deleted', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual(['Your account and history were deleted.']);
+  });
+
+  it('a stale-epoch refusal (409) shows a real failure, never a fabricated deletion', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 409, body: 'stale epoch' }));
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    expect(signedOut).toHaveLength(0);
+  });
+});
+
 describe('Keep navigation', () => {
   it('loads a fresh authorized collection, then can enter discovery', async () => {
     const api = new FakeApi();

@@ -229,6 +229,10 @@ export type PrivacyResetReceipt = z.infer<typeof privacyResetReceiptSchema>;
  */
 export type AccountDeletionRequest = z.infer<typeof accountDeletionInput>;
 export const ACCOUNT_DELETE_CONFIRMATION = 'delete-my-account-and-history' as const;
+/** The word the privacy panel asks the reader to type (short and legible), distinct from the wire
+ * literal above (which is always what is actually sent) -- the panel's own deliberate-confirmation
+ * gate, not a second copy of the server's contract. */
+export const ACCOUNT_DELETE_TYPED_WORD = 'delete' as const;
 
 export const accountDeletionReceiptSchema = z
   .object({
