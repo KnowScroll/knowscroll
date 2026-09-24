@@ -14,8 +14,11 @@ sheet survives Activity recreation), `ask` (#132 an authorized answer through th
 fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request), `places`
 (#134 the reader's own live places, ADR-0036: seeds one day-old keep through the real API before
 instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
-real second day) and `owner` (#135 the real, sign-in-backed owner identity and privacy-lifecycle
-screen -- see its own section 3 below).
+real second day), `foundation` (#131/#134 ADR-0037: as `places`, after Tides, Orbit and Star
+formation are placed from supplied accounts by `scripts/atlas/seed-held-up-places.ts`; the reading
+forms Gravity, which is recognised as their foundation and withdrawn when Tides is set aside) and
+`owner` (#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own
+section 3 below).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -45,6 +48,9 @@ JOURNEYS = {
     # #134: the reader's own places form, are inspected and set aside.
     'places': {'test': 'com.knowscroll.mobile.PlacesJourneyTest', 'receipt': 'places-journey.json',
                'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
+    # #131/#134: a place that holds others up (ADR-0037) is recognised, inspected and withdrawn.
+    'foundation': {'test': 'com.knowscroll.mobile.FoundationJourneyTest', 'receipt': 'foundation-journey.json',
+                   'captures': ('foundation-system.png', 'foundation-sheet.png', 'foundation-evidence.png', 'foundation-marker.png', 'foundation-withdrawn.png', 'foundation-failure.png')},
     # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
     'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
               'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
@@ -150,12 +156,16 @@ try:
     for stale in (spec['receipt'], *spec['captures']):
         if (out / stale).exists(): (out / stale).unlink()
 
-    # 2.5. `places` only: one day-old keep through the real API, before instrumenting -- the
+    # 2.5. `places`/`foundation`: one day-old keep through the real API, before instrumenting -- the
     # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
-    if journey_name == 'places':
+    # `foundation` first places Tides, Orbit and Star formation from supplied accounts (labelled;
+    # see scripts/atlas/seed-held-up-places.ts), then takes the same day-old keep.
+    if journey_name in ('places', 'foundation'):
         seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}'}
-        seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/atlas/seed-day-old-history.ts'], env=seed_env, text=True, cwd=root)
-        print(seeded, flush=True)
+        seeds = (['scripts/atlas/seed-held-up-places.ts'] if journey_name == 'foundation' else []) + ['scripts/atlas/seed-day-old-history.ts']
+        for seed in seeds:
+            seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', seed], env=seed_env, text=True, cwd=root)
+            print(seeded, flush=True)
 
     # 3. Separate journey build against this stack only (gradle_env: KS_DEV_TOKEN empty for `owner`).
     run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=gradle_env)
@@ -283,6 +293,32 @@ try:
         limits = ['Editorial substrate; cartographer-v1 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
                   'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
                   'One live planet inspected end to end; sightings appear only for neighbours this walk has not shown.']
+    elif journey_name == 'foundation':
+        g, t, ids = journey['gravityPlaceId'], journey['tidesPlaceId'], journey['deltaIds']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'gravityFormedFromReading', (SELECT count(*) FROM atlas_delta WHERE id='{ids['gravityFormed']}' AND place_id='{g}' AND kind='place_formed'
+          AND causal_class='personal_exploration' AND jsonb_array_length(evidence->'account'->'episodeIds') >= 3
+          AND (evidence->'account'->>'daysActive')::int >= 2),
+      'recognisedSubstrate', (SELECT count(*) FROM atlas_delta WHERE id='{ids['recognised']}' AND place_id='{g}'
+          AND kind='foundation_recognised' AND causal_class='substrate_neighbourhood'),
+      'recognisedConnections', (SELECT jsonb_array_length(evidence->'relations') FROM atlas_delta WHERE id='{ids['recognised']}'),
+      'recognisedInGravitysFormingTransaction', (SELECT count(*) FROM atlas_delta f JOIN atlas_delta r ON r.id='{ids['recognised']}'
+          WHERE f.id='{ids['gravityFormed']}' AND r.txid = f.txid),
+      'tidesRejectedReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{ids['tidesRejected']}' AND place_id='{t}'
+          AND kind='place_rejected' AND causal_class='reader_correction'),
+      'withdrawnReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{ids['withdrawn']}' AND place_id='{g}'
+          AND kind='foundation_withdrawn' AND causal_class='reader_correction'),
+      'gravityLoadBearingNow', (SELECT load_bearing FROM atlas_place WHERE id='{g}'),
+      'suppliedHeldUpPlaces', (SELECT count(*) FROM atlas_delta d JOIN atlas_place p ON p.id=d.place_id WHERE d.kind='place_formed'
+          AND p.id <> '{g}' AND jsonb_array_length(d.evidence->'account'->'episodeIds') = 0))"""))
+        ok = (lineage['gravityFormedFromReading'] == 1 and lineage['recognisedSubstrate'] == 1 and lineage['recognisedConnections'] == 3
+              and lineage['recognisedInGravitysFormingTransaction'] == 1 and lineage['tidesRejectedReaderCorrection'] == 1 and lineage['withdrawnReaderCorrection'] == 1
+              and lineage['gravityLoadBearingNow'] is False and lineage['suppliedHeldUpPlaces'] == 3)
+        assert ok, lineage
+        limits = ['Editorial substrate; cartographer-v2 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'Tides, Orbit and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because '
+                  'the library cannot anchor Orbit or Star formation from two source families; Gravity formed from this run\'s reading.',
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.']
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),

@@ -28,6 +28,10 @@ data class AtlasAttention(val state: String, val episodes: Int, val daysActive: 
 
 data class AtlasScrollCounts(val total: Int, val seen: Int)
 
+/** ADR-0037: a live planet or region that explains, or comes before, what the reader's other places
+ * are about -- [holdsUp] are those places' ids, [relations] the sourced connections that say so. */
+data class AtlasFoundation(val holdsUp: List<String>, val relations: List<AtlasBasis>)
+
 data class AtlasPlace(
     val placeId: String,
     /** `planet` | `region` | `sighting`. */
@@ -39,6 +43,8 @@ data class AtlasPlace(
     val scrolls: AtlasScrollCounts,
     val formedAt: String,
     val formedBy: String,
+    /** `null` unless the Cartographer recognised this place as a foundation; never on a sighting. */
+    val foundation: AtlasFoundation? = null,
 )
 
 data class AtlasRelation(
@@ -89,7 +95,10 @@ internal val ATLAS_RELATION_KINDS =
     setOf("prerequisite_for", "explains", "contradicts", "analogous_in", "applies_to", "compares_mechanism")
 internal val ATLAS_ATTENTION_STATES = setOf("seen", "anchored", "dormant")
 internal val ATLAS_CHRONICLE_KINDS =
-    setOf("place_formed", "sighting_appeared", "sighting_retired", "place_rejected", "place_released")
+    setOf(
+        "place_formed", "sighting_appeared", "sighting_retired", "place_rejected", "place_released",
+        "foundation_recognised", "foundation_withdrawn",
+    )
 internal val ATLAS_CAUSAL_CLASSES =
     setOf("personal_exploration", "substrate_neighbourhood", "source_correction", "reader_correction")
 
@@ -115,6 +124,10 @@ internal fun parseAtlasPlace(o: JSONObject): AtlasPlace {
         AtlasAttention(state, it.getInt("episodes"), it.getInt("daysActive"), it.getInt("sourceFamilies"))
     }
     require(kind != "sighting" || attention == null) { "A sighting is something the reader has not been shown" }
+    // Nullable, not optional: every place says whether it is a foundation (ADR-0037).
+    require(o.has("foundation")) { "A place must say whether it is a foundation" }
+    val foundation = if (o.isNull("foundation")) null else parseAtlasFoundation(o.getJSONObject("foundation"))
+    require(kind != "sighting" || foundation == null) { "A sighting holds nothing up: it has not been met" }
     val scrollsObj = o.getJSONObject("scrolls")
     val scrolls = AtlasScrollCounts(scrollsObj.getInt("total"), scrollsObj.getInt("seen"))
     return AtlasPlace(
@@ -123,7 +136,16 @@ internal fun parseAtlasPlace(o: JSONObject): AtlasPlace {
         anchor = anchor, basis = basis, attention = attention, scrolls = scrolls,
         formedAt = o.getString("formedAt").also { require(it.isNotBlank()) { "A place must carry when it formed" } },
         formedBy = o.getString("formedBy").also { require(it.isNotBlank()) { "A place must carry why it formed" } },
+        foundation = foundation,
     )
+}
+
+internal fun parseAtlasFoundation(o: JSONObject): AtlasFoundation {
+    val holdsUp = o.getJSONArray("holdsUp").let { a -> List(a.length()) { a.getString(it) } }
+    require(holdsUp.isNotEmpty() && holdsUp.all { it.isNotBlank() }) { "A foundation holds at least one place up" }
+    val relations = o.getJSONArray("relations").objects().map(::parseAtlasBasis)
+    require(relations.isNotEmpty()) { "A foundation cites the connections that make it one" }
+    return AtlasFoundation(holdsUp, relations)
 }
 
 internal fun parseAtlasBasis(o: JSONObject): AtlasBasis {
