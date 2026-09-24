@@ -68,9 +68,13 @@ fun placeRelationSentence(relation: AtlasRelation, thisPlaceId: String, places: 
     return if (forward) "$thisName $verb $otherName" else "$otherName $verb $thisName"
 }
 
-/** This place's own chronicle lines, newest first as the server already ordered them. */
+/** This place's own chronicle lines, newest first as the server already ordered them -- its own
+ * changes (formed, set aside) and the changes of what belonged to it at the time (a sighting
+ * appearing/retiring, a region released), never only a bare `placeId` match (review I2: a set-aside
+ * planet's own "You set X aside." line has `placeId == place`, but a sighting's own line about
+ * itself has `placeId` of the *sighting* and `parentPlaceId` of this place). */
 fun chronicleFor(response: AtlasResponse, placeId: String): List<AtlasChronicleEntry> =
-    response.chronicle.filter { it.placeId == placeId }
+    response.chronicle.filter { it.placeId == placeId || it.parentPlaceId == placeId }
 
 /** What a chronicle line's evidence says, honestly limited to the fields ADR-0036's Cartographer
  * actually records for that delta kind (`packages/core/src/atlas/cartographer.ts`). */
@@ -106,9 +110,55 @@ enum class RejectPlaceConflict { StaleEpoch, Paused }
 
 /** A 409 from `POST /v1/atlas/places/:placeId/reject` is either a stale privacy epoch (reconcile,
  * same as every other mutation) or recording being paused (an honest message; nothing to reconcile
- * since nothing personal was recorded) -- mirrors `ui/branch/BranchPresentation.kt`'s `branchOpenConflict`. */
+ * since nothing personal was recorded) -- mirrors `ui/branch/BranchPresentation.kt`'s
+ * `branchOpenConflict`. Review M6: matches the server's own two 409 reasons explicitly ("Privacy
+ * epoch changed" and "Recording is paused" -- `apps/api/src/atlas-routes.ts`); any other 409 (not
+ * a reason this endpoint is known to send) returns `null`, so the caller falls back to a generic
+ * message rather than assuming it must mean paused. */
 fun rejectPlaceConflict(error: ApiException.Server): RejectPlaceConflict? {
     if (error.statusCode != 409) return null
     val body = error.message ?: ""
-    return if (body.contains("privacy epoch", ignoreCase = true)) RejectPlaceConflict.StaleEpoch else RejectPlaceConflict.Paused
+    return when {
+        body.contains("privacy epoch", ignoreCase = true) -> RejectPlaceConflict.StaleEpoch
+        body.contains("paused", ignoreCase = true) -> RejectPlaceConflict.Paused
+        else -> null
+    }
+}
+
+/** One row in the reader's own places list (review I3): every live place, depth-first under its
+ * parent -- a planet at depth 0, its direct regions/sightings at depth 1, a region's own regions/
+ * sightings at depth 2, and so on. Alphabetical within a parent, for a deterministic order. Where
+ * `regionAreasOf`/`SpatialAtlas` only ever draw a planet's *direct* regions and sightings whose
+ * parent is a planet marker, this list is complete regardless of nesting depth or parent kind. */
+data class PlaceListRow(val placeId: String, val kind: String, val name: String, val depth: Int, val detail: String)
+
+fun placeListRows(places: List<AtlasPlace>): List<PlaceListRow> {
+    val byParent = places.groupBy { it.parentPlaceId }
+    val rows = mutableListOf<PlaceListRow>()
+    fun walk(parentId: String?, depth: Int) {
+        byParent[parentId].orEmpty().sortedBy { it.anchor.name }.forEach { p ->
+            rows += PlaceListRow(p.placeId, p.kind, p.anchor.name, depth, if (p.kind == "sighting") "Sighting" else placeMarkerDetail(p))
+            if (p.kind != "sighting") walk(p.placeId, depth + 1)
+        }
+    }
+    walk(null, 0)
+    return rows
+}
+
+/** The planet at the root of [placeId]'s own parent chain (itself, if it already is one) -- the
+ * only kind `SpatialAtlas`'s own camera/marker selection understands. */
+tailrec fun topmostAncestor(places: List<AtlasPlace>, placeId: String): String {
+    val place = places.firstOrNull { it.placeId == placeId } ?: return placeId
+    val parentId = place.parentPlaceId ?: return placeId
+    return topmostAncestor(places, parentId)
+}
+
+/** "$N PLACES · $M SIGHTINGS" -- Places' own subtitle, a straight count of the live atlas, never
+ * the Sources subtitle's world/Scroll counts (review M2: the two layers show different data). */
+fun placesSubtitle(places: List<AtlasPlace>): String {
+    val liveCount = places.count { it.kind == "planet" || it.kind == "region" }
+    val sightingCount = places.count { it.kind == "sighting" }
+    val placeWord = if (liveCount == 1) "PLACE" else "PLACES"
+    val sightingWord = if (sightingCount == 1) "SIGHTING" else "SIGHTINGS"
+    return "$liveCount $placeWord · $sightingCount $sightingWord"
 }

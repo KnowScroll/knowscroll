@@ -49,7 +49,7 @@ class AtlasTest {
     ]"""
 
     private fun defaultChronicle() = """[
-        {"deltaId":"$deltaId","placeId":"$gravityId","kind":"place_formed","causalClass":"personal_exploration",
+        {"deltaId":"$deltaId","placeId":"$gravityId","parentPlaceId":null,"kind":"place_formed","causalClass":"personal_exploration",
          "at":"2026-09-23T00:00:00.000Z","line":"A place formed around Gravity."}
     ]"""
 
@@ -67,6 +67,22 @@ class AtlasTest {
         assertEquals("Gravity", sighting.basis?.from)
         assertEquals("Gravity explains Star formation", basisSentence(sighting.basis!!))
         assertEquals("A place formed around Gravity.", atlas.chronicle.single().line)
+        assertNull("a planet's own delta carries no parent", atlas.chronicle.single().parentPlaceId)
+    }
+
+    /** A sighting the reader has now read retires as their own exploration (server review B1) --
+     * `sighting_retired` + `personal_exploration` together, and the parent it retired out of. */
+    @Test
+    fun acceptsASightingRetiredByTheReadersOwnExplorationAndItsParent() {
+        val retirement = """[{"deltaId":"$deltaId","placeId":"$sightingId","parentPlaceId":"$gravityId",
+            "kind":"sighting_retired","causalClass":"personal_exploration",
+            "at":"2026-09-24T00:00:00.000Z","line":"You reached Star formation."}]"""
+        val atlas = parseAtlasResponse(atlasJson(chronicle = retirement))
+        val entry = atlas.chronicle.single()
+        assertEquals("sighting_retired", entry.kind)
+        assertEquals("personal_exploration", entry.causalClass)
+        assertEquals(gravityId, entry.parentPlaceId)
+        assertEquals("You reached Star formation.", entry.line)
     }
 
     @Test
@@ -122,9 +138,12 @@ class AtlasTest {
     }
 
     @Test
-    fun rejectPlaceConflictDistinguishesAStaleEpochFromAPause() {
+    fun rejectPlaceConflictMatchesPausedExplicitlyAndLeavesAnyOtherReasonGeneric() {
         assertEquals(RejectPlaceConflict.StaleEpoch, rejectPlaceConflict(ApiException.Server(409, """{"error":"Privacy epoch changed"}""")))
         assertEquals(RejectPlaceConflict.Paused, rejectPlaceConflict(ApiException.Server(409, """{"error":"Recording is paused"}""")))
+        // Review M6: a 409 for neither known reason (e.g. a sighting refused set-aside) is not
+        // assumed to mean paused -- the caller maps it to a generic message instead.
+        assertNull(rejectPlaceConflict(ApiException.Server(409, """{"error":"Only a live planet or region can be set aside"}""")))
         assertNull(rejectPlaceConflict(ApiException.Server(404, "{}")))
     }
 

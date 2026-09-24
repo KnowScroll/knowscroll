@@ -56,8 +56,11 @@ export class FakeApi implements ReaderApi {
     this.feedExcludes.push([...exclude]);
     return this.take(this.feedQueue, 'getFeed');
   }
+  /** When set, `postExposure` stays in flight until this resolves (an exposure still being recorded). */
+  exposureGate: Promise<void> | null = null;
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {
     this.exposureCalls.push(body);
+    if (this.exposureGate) await this.exposureGate;
     return this.take(this.exposureQueue, 'postExposure');
   }
   async postInteraction(body: { clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }): Promise<InteractionResponse> {

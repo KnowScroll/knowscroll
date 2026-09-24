@@ -90,6 +90,11 @@ fun SpatialAtlas(
     /** #134: reports the region currently shown at the continents/region level (`null` at every
      * other level), so the caller can target its own "Info" sheet at the right place. */
     onFocusedRegionChanged: (String?) -> Unit = {},
+    /** #134 review I3: replaces the default flat marker list inside the "List" sheet when non-null
+     * -- Places supplies its own nested planets/regions/sightings list and a "Recent changes" list
+     * (`PlacesListSheet.kt`); Sources leaves this `null` and keeps today's flat marker list exactly.
+     * [onDismiss] closes the sheet, same as selecting a marker from the default list already does. */
+    listSheetContent: (@Composable (onDismiss: () -> Unit) -> Unit)? = null,
 ) {
     val points = remember(markers) { atlasLayout(markers.map { it.id }) }
     val point = points.firstOrNull { it.id == selectedId }
@@ -344,6 +349,34 @@ fun SpatialAtlas(
                     AuthoredGeography(::camera, point, region, Modifier.fillMaxSize())
                 }
             if (!land && (selectedId == null || travelling)) {
+                // #134: faint, next to their parent -- never their own orbit, never independently
+                // selectable. A tap reaches the same planet a tap on the planet itself would. The
+                // touch target is >=48dp (review M7) though the drawn dot stays small; the label is
+                // literally what a tap does -- opens the parent, not the sighting itself. Drawn (and
+                // hit-tested) *before* the planet markers below, so a planet's own touch target --
+                // which a nearby sighting's larger >=48dp target can otherwise overlap -- always wins.
+                sightingPoints.forEach { p ->
+                    val sighting = sightings.first { it.id == p.id }
+                    val parentTitle = markers.firstOrNull { it.id == sighting.parentId }?.title.orEmpty()
+                    Box(
+                        position(p.x, p.y, 24f)
+                            .size(48.dp)
+                            .clickable(onClickLabel = "Open $parentTitle") {
+                                sighting.parentId?.let(onSelect)
+                            }
+                            .semantics {
+                                contentDescription = "Sighting: ${sighting.title} — near $parentTitle"
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(26.dp),
+                            color = Cosmos.Cream.copy(alpha = .38f),
+                            contentColor = Cosmos.InkOnCream,
+                            shape = CircleShape,
+                        ) {}
+                    }
+                }
                 // Hit areas use the same deterministic collision policy as the renderer.
                 visiblePoints.forEach { p ->
                     val marker = markers.first { it.id == p.id }
@@ -367,26 +400,6 @@ fun SpatialAtlas(
                             .clickable { sheet = "Station" }
                             .semantics { contentDescription = "Station" }
                     )
-                // #134: faint, next to their parent -- never their own orbit, never independently
-                // selectable. A tap reaches the same planet a tap on the planet itself would.
-                sightingPoints.forEach { p ->
-                    val sighting = sightings.first { it.id == p.id }
-                    Surface(
-                        modifier =
-                            position(p.x, p.y, 13f)
-                                .size(26.dp)
-                                .clickable(onClickLabel = "Open ${sighting.title}") {
-                                    sighting.parentId?.let(onSelect)
-                                }
-                                .semantics {
-                                    contentDescription =
-                                        "Sighting near ${markers.firstOrNull { it.id == sighting.parentId }?.title.orEmpty()}: ${sighting.title}"
-                                },
-                        color = Cosmos.Cream.copy(alpha = .38f),
-                        contentColor = Cosmos.InkOnCream,
-                        shape = CircleShape,
-                    ) {}
-                }
             } else if (!land && point != null) {
                 Box(
                     position(point.x, point.y, 150f)
@@ -624,6 +637,7 @@ fun SpatialAtlas(
                                 Text(area.name)
                             }
                         }
+                    else if (listSheetContent != null) listSheetContent { sheet = null }
                     else
                         markers.forEach { marker ->
                             OutlinedButton(

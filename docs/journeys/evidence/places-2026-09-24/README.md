@@ -12,9 +12,9 @@ refuses a place change without one.
 
 | Proof | How | Result |
 | --- | --- | --- |
-| Pure Cartographer | `tests/cartographer-core.test.ts` (8, 4 mutants killed) | planet vs region within two hops, shallow first; only anchored accounts; rejected anchors never return; sightings capped, degree-ranked, never already-shown; promotion; a revoked relation retires its sighting; deterministic |
-| Database + API | `tests/atlas-places.test.ts` (5) | gravity anchored over two days forms a planet with its account as evidence and a claim-backed sighting; another universe sees nothing; setting a place aside retires its sightings, never re-forms, is refused while paused or on a stale epoch; a source correction retires a sighting (`source_correction`); Clear erases and export carries places and deltas; the schema refuses a place without a delta, an edited delta, and a change to a settled place. Every response is parsed by the strict contract (`packages/contracts/src/atlas.ts`) |
-| Android | unit + Robolectric tests, lint | strict parsing, presentation, Places/Sources choice, place sheet, set-aside confirmation |
+| Pure Cartographer | `tests/cartographer-core.test.ts` (11, 4 mutants killed) | planet vs region within two hops, shallow first; only anchored accounts; rejected anchors never return; sightings capped per place (existing ones count), ranked by distinct neighbours, claim before bridge, never already shown; a sighting the reader then reads retires ("You reached …"); promotion; a revoked relation retires its sighting; deterministic |
+| Database + API | `tests/atlas-places.test.ts` (6) | gravity anchored over two days forms a planet with its account as evidence and a claim-backed sighting; another universe sees nothing; setting a place aside retires its sightings, never re-forms, is refused while paused or on a stale epoch; a source correction retires a sighting (`source_correction`); Clear erases and export carries places and deltas; the schema refuses a place without a delta, an edited delta, and a change to a settled place. Every response is parsed by the strict contract (`packages/contracts/src/atlas.ts`) |
+| Android | 178 unit + Robolectric tests, lint | strict parsing, presentation, Places/Sources choice (and Sources' selection surviving a return), place sheet with its sightings' lines, a list of every live place at any depth plus recent changes, set-aside confirmation, ≥48 dp targets |
 | Emulator | `KS_SEMANTIC_JOURNEY=places` (`receipt.json`, `instrumentation.txt`, screenshots) | see below |
 
 ## The device journey
@@ -29,15 +29,20 @@ offers them. They open the System and Places is already chosen, showing a **Grav
 account's numbers and the episodes behind them (`places-evidence.png`). "Set aside" asks for
 confirmation, and the place is gone (`places-setaside.png`).
 
-SQL lineage afterwards: one `place_formed` delta with causal class `personal_exploration`, one
-`place_rejected` with `reader_correction`, the place's state `rejected`, and the six shared bridges
-still admitted. The owner's `.journey` preview was restored and verified (`preview-restored.json`).
+SQL lineage afterwards: one `place_formed` delta with causal class `personal_exploration` whose
+evidence cites 5 episodes, 3 marks and 2 active days (the seeded day and the device's), one
+`place_rejected` with `reader_correction`, and the place's state `rejected`. The owner's `.journey` preview was restored and verified (`preview-restored.json`).
 
 No sighting appeared on this run: the walk had already shown every one of Gravity's neighbours
 (tides, orbits, star birth). A sighting is by definition something the reader has not been shown,
 so that is correct, and the sighting sentence and its support are covered by the HTTP test and the
 Robolectric tests. Real output from the HTTP test: "Star formation appeared near Gravity: Gravity
 explains Star formation."
+
+A fresh-context review (PR #146) found that reading a sighting's own subject made the Android
+Places layer disappear (the server kept the sighting live with attention, which the strict parser
+rightly refused), plus a per-refresh sighting cap, missing chronicle lines, invisible nested regions
+and a selection reset; all were fixed test-first before merge.
 
 First device runs, retained: (1) the test scrolled the content for Keep, which lives in the fixed
 toolbar; (2) it walked past one target while looking for the other, and a trip never re-offers what

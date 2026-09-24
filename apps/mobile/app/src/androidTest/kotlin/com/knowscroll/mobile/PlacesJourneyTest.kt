@@ -25,8 +25,10 @@ import java.io.File
  * The reader reaches, by ordinary bounded discovery, "The pull you can't see" and "A rhythm the
  * ocean keeps" and keeps both (a second day, a second source family, exactly the runner's seeded
  * account's third keep) -- the same anchoring `tests/atlas-places.test.ts` already proves forms a
- * planet. It opens the System, sees Places is now the default, opens Gravity's sheet, reads its
- * sighting's sentence and support, opens the formation delta's evidence, then sets Gravity aside
+ * planet. It opens the System, sees Places is now the default, opens Gravity's sheet, and -- when
+ * the walk has left one of Gravity's neighbours unread (a sighting is only ever something not yet
+ * met; one read along the way retires on its own and is honestly not there to show) -- reads that
+ * sighting's sentence and support; opens the formation delta's evidence, then sets Gravity aside
  * and confirms it and its chronicle line disappear from the live atlas.
  */
 @RunWith(AndroidJUnit4::class)

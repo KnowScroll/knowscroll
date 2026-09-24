@@ -96,16 +96,71 @@ class AtlasPresentationTest {
         )
     }
 
+    /** Review I2: a place's sheet shows its own lines (`placeId == place`) and the lines of what
+     * belonged to it at the time (`parentPlaceId == place`) -- a sighting's own appearance/
+     * retirement, or a region's release -- never only a bare `placeId` match. */
     @Test
-    fun chronicleForFiltersToOnePlaceOnly() {
+    fun chronicleForShowsAPlacesOwnLinesAndTheLinesOfWhatBelongedToIt() {
         val response = AtlasResponse(
             "cartographer-v1", places = listOf(planet("p1", "Gravity"), planet("p2", "Tides")),
             relations = emptyList(),
             chronicle = listOf(
-                com.knowscroll.mobile.data.AtlasChronicleEntry("d1", "p1", "place_formed", "personal_exploration", "2026-09-23T00:00:00.000Z", "A place formed around Gravity."),
-                com.knowscroll.mobile.data.AtlasChronicleEntry("d2", "p2", "place_formed", "personal_exploration", "2026-09-23T00:00:00.000Z", "A place formed around Tides."),
+                chronicleEntry("d1", "p1", null, "place_formed", "personal_exploration", "A place formed around Gravity."),
+                chronicleEntry("d2", "p2", null, "place_formed", "personal_exploration", "A place formed around Tides."),
+                // A sighting's own line: its placeId is the sighting's, parentPlaceId is p1's.
+                chronicleEntry("d3", "s1", "p1", "sighting_appeared", "substrate_neighbourhood", "Star formation appeared near Gravity."),
+                chronicleEntry("d4", "s1", "p1", "sighting_retired", "personal_exploration", "You reached Star formation."),
+                // p1's own rejection: placeId is p1's, no parent (it is a planet).
+                chronicleEntry("d5", "p1", null, "place_rejected", "reader_correction", "You set Gravity aside."),
             ),
         )
-        assertEquals(listOf("d1"), chronicleFor(response, "p1").map { it.deltaId })
+        assertEquals(listOf("d1", "d3", "d4", "d5"), chronicleFor(response, "p1").map { it.deltaId })
+        assertEquals(listOf("d2"), chronicleFor(response, "p2").map { it.deltaId })
     }
+
+    @Test
+    fun placeListRowsWalksEveryLivePlaceRegardlessOfNestingDepth() {
+        val places = listOf(
+            planet("p1", "Gravity"),
+            region("r1", "Tides", "p1"),
+            // A region nested inside another region -- invisible to regionAreasOf/the map (review I3).
+            region("r2", "Neap tides", "r1"),
+            sighting("s1", "Star formation", "p1", "Gravity", "Star formation"),
+            sighting("s2", "Spin-orbit locking", "r2", "Neap tides", "Spin-orbit locking"),
+        )
+        val rows = placeListRows(places)
+        assertEquals(
+            listOf("Gravity" to 0, "Star formation" to 1, "Tides" to 1, "Neap tides" to 2, "Spin-orbit locking" to 3),
+            rows.map { it.name to it.depth },
+        )
+        assertEquals("Sighting", rows.single { it.name == "Star formation" }.detail)
+        assertEquals("region", rows.single { it.name == "Neap tides" }.kind)
+    }
+
+    @Test
+    fun topmostAncestorResolvesAnyDepthBackToItsOwnPlanet() {
+        val places = listOf(
+            planet("p1", "Gravity"), region("r1", "Tides", "p1"), region("r2", "Neap tides", "r1"),
+            sighting("s1", "Spin-orbit locking", "r2", "Neap tides", "Spin-orbit locking"),
+        )
+        assertEquals("p1", topmostAncestor(places, "p1"))
+        assertEquals("p1", topmostAncestor(places, "r1"))
+        assertEquals("p1", topmostAncestor(places, "r2"))
+        assertEquals("p1", topmostAncestor(places, "s1"))
+        // Defensive: an id the atlas does not carry resolves to itself, never throws.
+        assertEquals("gone", topmostAncestor(places, "gone"))
+    }
+
+    @Test
+    fun placesSubtitleCountsLivePlacesAndSightingsSeparately() {
+        val places = listOf(
+            planet("p1", "Gravity"), region("r1", "Tides", "p1"),
+            sighting("s1", "Star formation", "p1", "Gravity", "Star formation"),
+        )
+        assertEquals("2 PLACES · 1 SIGHTING", placesSubtitle(places))
+        assertEquals("0 PLACES · 0 SIGHTINGS", placesSubtitle(emptyList()))
+    }
+
+    private fun chronicleEntry(deltaId: String, placeId: String, parentPlaceId: String?, kind: String, causalClass: String, line: String) =
+        com.knowscroll.mobile.data.AtlasChronicleEntry(deltaId, placeId, parentPlaceId, kind, causalClass, "2026-09-23T00:00:00.000Z", line)
 }
