@@ -1,5 +1,15 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 Wave 0: a hands-on stack for the test app (lane `72-hands-on`)
+
+`scripts/android-hands-on.py up` creates a `knowscroll_test_hands_*` database (migrated, seeded), starts
+the API on a never-owner port (default 4341) and the worker, runs optional `--seed` scripts against
+the live API, adds optional `--reel` MP4s, builds and installs `com.knowscroll.mobile.journeytest`, and
+stays up until `down`. `shot`, `sql`, `exec`, `restart api|worker` and `reinstall` reach the same
+stack; `down` writes PreviewWatch's `preview-untouched.json`, stops the processes and drops the
+database. Smoke run: stack up, feed opened on the emulator, worker restarted, down with the preview
+unchanged and the database dropped.
+
 ## 2026-09-24 session stop: owner decisions, remaining work as issues, Android-first handoff (lane `72-continuation-handoff`)
 
 The owner stopped the first coordinator session after #158 merged (main `485faf7`). The next session

@@ -131,9 +131,10 @@ A slice is done only when all of the following hold:
 6. Merge, then update the issue, its phase, #72, Project 1 (Status), `docs/CHECKPOINT.md` and
    `docs/PROJECT-STATE.md`. Close an issue only when its acceptance is evidenced.
 
-There is no helper yet that keeps a disposable stack running for hands-on use with the test app.
-`android-living-preview.py --keep` belongs to the owner-preview path, so do not use it for this.
-Building one is Wave 0 (§7).
+`scripts/android-hands-on.py` (Wave 0) keeps a disposable stack running for hands-on use with the
+test app: `up` (in the background), `shot NAME [--ui]`, `sql`, `exec --`, `restart api|worker`,
+`reinstall`, `down`. `android-living-preview.py --keep` belongs to the owner-preview path, so do not
+use it for this.
 
 ## 7. Orchestration for the ultracode session (strict)
 
