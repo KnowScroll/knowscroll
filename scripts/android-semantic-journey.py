@@ -9,9 +9,12 @@ unless that backup is a readable archive, and the restore is verified against th
 Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
 
 Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
-recorded path of a v3 encounter and the reader's "less like this") and `places` (#134 the reader's
-own live places, ADR-0036: seeds one day-old keep through the real API before instrumenting, via
-`scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a real second day).
+recorded path of a v3 encounter and the reader's "less like this"), `sheets` (#97 each reader
+sheet survives Activity recreation), `ask` (#132 an authorized answer through the worker;
+fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request) and `places`
+(#134 the reader's own live places, ADR-0036: seeds one day-old keep through the real API before
+instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
+real second day).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -31,11 +34,27 @@ JOURNEYS = {
                'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
     'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
             'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
+    # #97: each reader sheet stays open across Activity recreation, on the real stack.
+    'sheets': {'test': 'com.knowscroll.mobile.ReaderSheetRecreationTest', 'receipt': 'sources-sheet-recreate.json', 'tests': 3,
+               'captures': ('sources-sheet-recreate.png', 'explain-sheet-recreate.png', 'connections-sheet-recreate.png',
+                            'explain-sheet-recreate.json', 'connections-sheet-recreate.json')},
+    # #132: an authorized Ask answer through the worker, with the labelled fixture transport.
+    'ask': {'test': 'com.knowscroll.mobile.AskAnswerJourneyTest', 'receipt': 'ask-answer.json',
+            'captures': ('ask-recorded.png', 'ask-answer.png', 'ask-answer-failure.png')},
+    # #134: the reader's own places form, are inspected and set aside.
     'places': {'test': 'com.knowscroll.mobile.PlacesJourneyTest', 'receipt': 'places-journey.json',
                'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
+# #132: the Ask journey is fixture-backed unless KS_ASK_TRANSPORT=minimax opts into one live request,
+# counted against the same bounded session ledger as scripts/run-live-answer-experiment.ts.
+ask_transport = os.environ.get('KS_ASK_TRANSPORT', 'fixture')
+if ask_transport not in ('fixture', 'minimax'): sys.exit('KS_ASK_TRANSPORT is fixture or minimax')
+live_ledger_path = Path(os.environ['KS_DEV_ROOT']) / 'minimax-answer-session-ledger.json'
+if journey_name == 'ask' and ask_transport == 'minimax':
+    live_ledger = json.loads(live_ledger_path.read_text()) if live_ledger_path.exists() else {'sessionCap': 40, 'used': 0, 'runs': []}
+    if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live answer allowance is spent')
 out = root / 'artifacts/semantic-journey' / journey_name
 # Never shared between runs: a failed run must not overwrite the last good backup.
 backup = out / 'preview-backup' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
@@ -84,15 +103,28 @@ try:
     run(['pnpm', 'db:migrate'], env=env, stdout=subprocess.DEVNULL)
     seeded = subprocess.check_output(['pnpm', 'db:seed'], env=env, text=True)
     assert 'editorial bridges admitted' in seeded, seeded
+    worker_env = dict(env)
+    if journey_name == 'ask':
+        # The route itself caps a live run at one request; the key reaches the worker's environment only.
+        run(['pnpm', 'exec', 'tsx', 'scripts/answers/install-route.ts'], env={**env, 'KS_ANSWER_TRANSPORT': ask_transport, 'KS_ANSWER_REQUEST_CAP': '1'}, stdout=subprocess.DEVNULL)
+        worker_env['KS_ANSWER_TRANSPORT'] = ask_transport
+        if ask_transport == 'minimax':
+            key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
+            if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
+            worker_env['MINIMAX_API_KEY'] = key
     for role in ('api', 'worker'):
         log = (out / (role + '.log')).open('w')
-        processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=env, stdout=log, stderr=log, start_new_session=True), log))
+        processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=worker_env if role == 'worker' else env, stdout=log, stderr=log, start_new_session=True), log))
     for attempt in range(100):
         try:
             with urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=1): break
         except Exception:
             if attempt == 99: raise
             time.sleep(.1)
+
+    # A receipt or capture left by an earlier run must never be read as this run's.
+    for stale in (spec['receipt'], *spec['captures']):
+        if (out / stale).exists(): (out / stale).unlink()
 
     # 2.5. `places` only: one day-old keep through the real API, before instrumenting -- the
     # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
@@ -112,11 +144,37 @@ try:
     for filename in (spec['receipt'], *spec['captures']):
         capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
         if capture.returncode == 0 and (filename.endswith('.json') or capture.stdout.startswith(b'\x89PNG')): (out / filename).write_bytes(capture.stdout)
-    if 'OK (1 test)' not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
+    expected = 'OK (1 test)' if spec.get('tests', 1) == 1 else f"OK ({spec['tests']} tests)"
+    if expected not in result: raise RuntimeError(f'Semantic {journey_name} journey failed')
 
     # 4. Verify the causal lineage the UI claimed, in the database itself.
     journey = json.loads((out / spec['receipt']).read_text())
-    if journey_name == 'why':
+    if journey_name == 'sheets':
+        receipts = [json.loads((out / f).read_text()) for f in (spec['receipt'], 'explain-sheet-recreate.json', 'connections-sheet-recreate.json') if (out / f).exists()]
+        # Tests that launch back into a persisted reading session share its exposure.
+        exposure_ids = sorted({r['exposureId'] for r in receipts if 'exposureId' in r})
+        lineage = {'sheetsRestored': sum(1 for r in receipts if r.get('sheetRestoredAfterRecreation') is True),
+                   'connectionsReached': any(r.get('scenario') == 'connectionsSheetSurvivesRecreationWhenAvailable' for r in receipts),
+                   'exposuresRecorded': int(sql("SELECT count(*) FROM exposure WHERE id IN (" + ",".join(f"'{e}'" for e in exposure_ids) + ")") if exposure_ids else 0)}
+        assert lineage['sheetsRestored'] >= 2 and lineage['exposuresRecorded'] == len(exposure_ids) >= 1, lineage
+        journey = {'receipts': receipts}
+        limits = ['Debug API36 emulator, not a physical device.', 'Recreation via ActivityScenario.recreate(), not a physical rotation.']
+    elif journey_name == 'ask':
+        a = journey['askId']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'answerStatus', (SELECT status FROM ask_answer WHERE ask_id='{a}'),
+      'basisQuotes', (SELECT jsonb_array_length(basis) FROM ask_answer WHERE ask_id='{a}'),
+      'jobCompleted', (SELECT count(*) FROM ask_answer_request r JOIN reasoning_job j ON j.id=r.job_id WHERE r.ask_id='{a}' AND j.status='completed'),
+      'dispatches', (SELECT count(*) FROM ask_answer_request r JOIN reasoning_attempt at ON at.job_id=r.job_id
+          JOIN reasoning_accounting ac ON ac.attempt_id=at.id WHERE r.ask_id='{a}' AND ac.dispatch_id IS NOT NULL),
+      'askLedgerEvents', (SELECT count(*) FROM ledger WHERE kind='ask'))"""))
+        ok = (lineage['answerStatus'] == journey['status'] and lineage['answerStatus'] in ('answered', 'not_in_source')
+              and lineage['basisQuotes'] == journey['basisQuotes'] and lineage['jobCompleted'] == 1 and lineage['dispatches'] == 1)
+        assert ok, lineage
+        limits = (['Live MiniMax-M3 through the subscription route, one request; the answer text stays in the dropped database.',
+                   'Debug API36 emulator, not a physical device.'] if ask_transport == 'minimax' else
+                  ['Fixture answer transport (labelled); no provider call.', 'Debug API36 emulator, not a physical device.'])
+    elif journey_name == 'why':
         d, a = journey['decisionId'], journey['assetId']
         lineage = json.loads(sql(f"""SELECT json_build_object(
       'servedByV3', (SELECT count(*) FROM decision d JOIN decision_candidate dc ON dc.decision_id=d.id
@@ -164,8 +222,9 @@ try:
         limits = ['Editorial substrate and bridges; no model-proposed bridge.', 'Debug API36 emulator, not a physical device.',
                   'Continuations are Scroll-only; Reels carry no concept annotations yet.']
     receipt = {'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'result': 'passed', 'database': name, 'apiPort': port,
-               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'package': package,
-               'journeyName': journey_name, 'journey': journey, 'lineage': lineage, 'providerCalls': 0, 'limits': limits}
+               'source': subprocess.check_output(['git', 'describe', '--always', '--dirty', '--abbrev=40'], text=True).strip(), 'package': package,
+               'journeyName': journey_name, 'journey': journey, 'lineage': lineage,
+               'providerCalls': lineage.get('dispatches', 0) if journey_name == 'ask' and ask_transport == 'minimax' else 0, 'limits': limits}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(lineage), flush=True)
 finally:
@@ -196,5 +255,22 @@ finally:
             if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)
         attempt('stop ' + ' '.join(child.args[-1:]), stop)
         log.close()
+    # A live request counts against the session allowance whether or not the journey passed.
+    def count_live():
+        dispatched = int(sql('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL') or 0)
+        live_ledger['used'] += dispatched
+        live_ledger['runs'].append({'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'dispatched': dispatched, 'database': name, 'via': 'android-ask-journey'})
+        live_ledger_path.write_text(json.dumps(live_ledger, indent=2))
+    if created and journey_name == 'ask' and ask_transport == 'minimax':
+        before_count = len(cleanup_errors)
+        attempt('count live requests', count_live)
+        # A live request that cannot be counted keeps its database, so it can be counted by hand.
+        if len(cleanup_errors) > before_count: created = False
+    # Outcome codes only (status, validator reasons, usage counts), never question or answer text.
+    def record_outcome():
+        (out / 'answer-outcome.json').write_text(sql("""SELECT coalesce(json_agg(json_build_object('status', a.status, 'reasons', a.reasons,
+          'validator', a.validator_version, 'httpStatus', rr.http_status, 'inputTokens', rr.input_tokens, 'outputTokens', rr.output_tokens)), '[]')
+          FROM ask_answer a LEFT JOIN reasoning_receipt rr ON rr.attempt_id=a.attempt_id""") + '\n')
+    if created and journey_name == 'ask': attempt('record answer outcome', record_outcome)
     if created: attempt('drop database', lambda: run(['dropdb', '--if-exists', *args, name], env=admin))
     if cleanup_errors: raise RuntimeError('cleanup incomplete: ' + '; '.join(cleanup_errors))

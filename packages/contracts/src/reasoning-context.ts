@@ -15,6 +15,13 @@ export const contextScroll=z.object({
  sourceTitle:z.string().max(65_536),sourceUrl:z.string().url().max(8192),
  truthState:z.enum(['documented','synthesis','interpretation','disputed','modelled','counterfactual','fictional']),
 }).strict();
+/** The Scroll's own fields of a served decision candidate. A served candidate may also carry display
+ * fields (a composer's `reason`, since ADR-0028) that are not part of the Scroll and never enter a
+ * context; comparing only these keys keeps real feed decisions compilable (#132). */
+export const CONTEXT_SCROLL_KEYS=Object.freeze(['assetId','revision','kind','title','summary','body','sourceTitle','sourceUrl','truthState'] as const);
+export function candidateScroll(candidate:Record<string,unknown>):Record<string,unknown> {
+ return Object.fromEntries(CONTEXT_SCROLL_KEYS.filter(key=>key in candidate).map(key=>[key,candidate[key]]));
+}
 export const directContextDependency=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('keep'),id,...scope,sequence:reasoningCounter,hash}).strict(),
  z.object({kind:z.literal('exposure_event'),id,...scope,sequence:reasoningCounter,hash}).strict(),
