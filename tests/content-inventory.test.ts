@@ -77,6 +77,12 @@ async function setup(options: { requestCap: number; material: { name: string; co
   };
 }
 
+/** Runs supply passes until nothing is left to write (bounded: each pass settles one request). */
+async function drain(s: Awaited<ReturnType<typeof setup>>) {
+  for (let i = 0; i < 10; i += 1) if ((await s.pass()).kind === 'idle') return;
+  assert.fail('the supply queue never emptied');
+}
+
 type DemandRow = { id: string; status: string; decision: string | null; reason: string | null; causes: Record<string, unknown>[]; decisions: Record<string, unknown>[] };
 async function demandOf(r: Pick<Reader, 'universeId'>, concept: string): Promise<DemandRow> {
   return (await pool.query<DemandRow>(
@@ -353,6 +359,9 @@ test('a real source correction withdraws the binding, reopens the demand, cancel
   const item = away.items.find(i => i.kind === 'scroll_withdrawn');
   assert.deepEqual(item && { ...item, at: undefined }, { kind: 'scroll_withdrawn', at: undefined, bindingId: withdrawn!.id, concept: { code: s.f.codes.tides, name: 'Tides' } });
   assert.ok(!(await get(a, '/v1/away')).body.includes('science.nasa.gov'));
+  // A page may end on it (ADR-0044 M7): the next page starts after it, never with it again.
+  const after = awayResponse.parse((await get(a, `/v1/away?page=${encodeURIComponent(`${item!.at}|scroll_withdrawn|${item!.bindingId}`)}`)).json());
+  assert.ok(!after.items.some(i => i.kind === 'scroll_withdrawn' && i.bindingId === item!.bindingId), 'not repeated after its own cursor');
 
   // The schema: a binding only to an eligible Scroll; decisions and causes only appended; shared
   // requests never deleted; private rows erased only after their epoch ends.
@@ -379,10 +388,14 @@ test('a lost transport is never retried: one call, the request failed, and the d
   assert.deepEqual([demand.status, demand.reason], ['cannot_meet', 'request_failed']);
   assert.deepEqual((await waitersOf(a)).map(w => w.status), ['released']);
   s.setMode('scroll');
-  assert.equal((await s.pass()).kind, 'idle');
+  // The queue is shared: a need an earlier test left waiting may be funded on this route and written
+  // now (its page is not on this test's network, so it never reaches the transport). Drain it, then
+  // read this need's own record.
+  await drain(s);
   await feed(a);
-  assert.equal((await s.pass()).kind, 'idle');
+  await drain(s);
   assert.deepEqual([s.calls.count, (await requestsFor(s.f.codes.tides)).length, (await demandOf(a, s.f.codes.tides)).reason], [1, 1, 'request_failed']);
+  assert.deepEqual(s.requested.filter(url => url.includes(s.f.tag)), [s.f.material('lost')], 'the failed request was never fetched again, nor the untouched page');
   // The route bucket counted the one request that may have reached the provider.
   assert.equal((await pool.query(`SELECT b.consumed::int AS n FROM scroll_writing_route r JOIN reasoning_bucket b ON b.id = r.request_bucket_id WHERE r.id=$1`, [`fixture-${s.f.tag}`])).rows[0].n, 1);
 });

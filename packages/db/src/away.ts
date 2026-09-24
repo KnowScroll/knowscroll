@@ -40,8 +40,8 @@ async function paused(client: pg.PoolClient, universeId: string): Promise<boolea
  * `GET /v1/away`, a page at a time (ADR-0044 M7): the newest page, or the one after `page`'s cursor.
  *
  * Commit order (M6): every item's time is taken under a lock this read also holds while it reads.
- * Inquiry outcomes and place changes are written under the universe lock (the caller's), and a
- * correction to a connection under the substrate lock, taken here shared. An item this read cannot
+ * Inquiry outcomes, place and room changes and withdrawn bindings are written under the universe
+ * lock (the caller's), and a correction to a connection under the substrate lock, taken here shared. An item this read cannot
  * see is therefore stamped after it, and a marker moved from what it showed never passes that item.
  */
 export async function readAway(client: pg.PoolClient, scope: AuthScope, page?: string): Promise<AwayResponse> {
@@ -131,12 +131,15 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope, page?: s
       fromConcept: { code: b.from_code, name: b.from_name }, toConcept: { code: b.to_code, name: b.to_name }, seemsWrong: await markedWrong(client, scope, b.id), key: b.id });
   }
 
-  // Scrolls bound to the reader's need, withdrawn because what they were based on changed.
-  const withdrawnWhere = `b.universe_id=$1 AND b.privacy_epoch=$2 AND b.status='withdrawn' AND date_trunc('milliseconds', b.withdrawn_at) > $3`;
-  total += Number((await client.query(`SELECT count(*) FROM encounter_binding b WHERE ${withdrawnWhere}`, [scope.universeId, scope.privacyEpoch, after])).rows[0].count);
+  // Scrolls bound to the reader's need, withdrawn because what they were based on changed (ADR-0046 §5).
+  const withdrawnPage = pageOf('b.withdrawn_at', `'scroll_withdrawn'::text`, 'b.id', 4);
+  const withdrawnWhere = `b.universe_id=$1 AND b.privacy_epoch=$2 AND b.status='withdrawn' AND date_trunc('milliseconds', b.withdrawn_at) > $3
+    AND ${withdrawnPage.after}`;
+  const withdrawnParams = paged([scope.universeId, scope.privacyEpoch, after]);
+  total += Number((await client.query(`SELECT count(*) FROM encounter_binding b WHERE ${withdrawnWhere}`, withdrawnParams.slice(0, -1))).rows[0].count);
   const withdrawn = (await client.query<{ id: string; withdrawn_at: Date; code: string; name: string }>(
     `SELECT b.id, b.withdrawn_at, c.code, c.name FROM encounter_binding b JOIN content_demand d ON d.id = b.demand_id JOIN concept c ON c.id = d.concept_id
-     WHERE ${withdrawnWhere} ORDER BY b.withdrawn_at DESC, b.id LIMIT $4`, [scope.universeId, scope.privacyEpoch, after, take])).rows;
+     WHERE ${withdrawnWhere} ${withdrawnPage.order} LIMIT $7`, withdrawnParams)).rows;
   for (const b of withdrawn) {
     candidates.push({ kind: 'scroll_withdrawn', at: iso(b.withdrawn_at), bindingId: b.id, concept: { code: b.code, name: b.name }, key: b.id });
   }

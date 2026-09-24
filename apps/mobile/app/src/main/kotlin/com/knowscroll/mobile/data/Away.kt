@@ -88,7 +88,7 @@ internal val AWAY_CORRECTION_STATUSES = setOf("revoked", "superseded")
 /** `at|kind|id`: a page's last item in the list's one total order (`AWAY_CURSOR_PATTERN`). */
 private val AWAY_CURSOR = Regex(
     "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z\\|" +
-        "(connection_found|connection_did_not_hold_up|nothing_found|place_changed|room_changed|connection_corrected)\\|" +
+        "(connection_found|connection_did_not_hold_up|nothing_found|place_changed|room_changed|connection_corrected|scroll_withdrawn)\\|" +
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
 )
 
