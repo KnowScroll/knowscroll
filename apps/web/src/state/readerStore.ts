@@ -7,7 +7,7 @@
  * A React hook subscribes via useSyncExternalStore (src/hooks/useReaderStore.ts);
  * this file has no DOM/React dependency so its logic is directly unit-testable.
  */
-import { ApiException, describeApiError, invalidatesReader, isUnauthorized, type ReaderApi } from '../api/client.ts';
+import { ApiException, describeApiError, invalidatesReader, isUnauthorized, mayHaveLanded, type ReaderApi } from '../api/client.ts';
 import { ACCOUNT_DELETE_CONFIRMATION, ACCOUNT_DELETE_TYPED_WORD, RESET_CONFIRMATION } from '../api/types.ts';
 import type {
   EventStatus,
@@ -128,13 +128,17 @@ export class ReaderStore {
   private ready = false;
   private navigationVersion = 0;
   private readonly visited: Set<string>;
+  /** #135 review: deletion requestIds with an attempt that may have been applied without an answer
+   * (see `mayHaveLanded`). Only these turn a later 401 into "deleted" -- see `confirmDeleteAccount`. */
+  private readonly deletionMayHaveLanded = new Set<string>();
 
   /**
    * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
    * working unchanged. It fires whenever this store learns the reader is no longer authenticated --
    * a 401 from any authenticated call (alongside the existing fail-closed Unavailable universe,
-   * never in place of it), a real `signOut()`, or a real `confirmDeleteAccount()` -- carrying the
-   * one deletion-specific message on the last of those and `null` otherwise.
+   * never in place of it), a real `signOut()`, or a real `confirmDeleteAccount()` -- carrying a
+   * deletion-specific message on the last of those ("deleted" only when a deletion was, or may have
+   * been, applied; otherwise that the session ended before it was sent) and `null` otherwise.
    *
    * Its second argument, `verify`, tells the caller whether this needs confirming before it acts
    * on it: `true` for an *ambient* 401 hit during ordinary reads (this store has no way to know
@@ -472,8 +476,15 @@ export class ReaderStore {
 
   cancelDeleteAccount(): void {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-delete') return;
+    if (!this.deleteConfirmationOpen()) return;
     this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** The typed-confirmation panel is showing: freshly opened, or after a failed attempt, whose own
+   * Confirm is the retry (same requestId, via `nextPrivacyRequestId`). */
+  private deleteConfirmationOpen(): boolean {
+    const action = this.currentPrivacyAction();
+    return action !== null && (action.status === 'confirming-delete' || (action.status === 'failed' && action.kind === 'delete-account'));
   }
 
   /** Refuses to send anything unless `typed` is exactly the panel's own short confirmation word
@@ -483,7 +494,7 @@ export class ReaderStore {
   confirmDeleteAccount(typed: string): void {
     if (this.busy || this.reconciling || !this.ready) return;
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-delete') return;
+    if (!this.deleteConfirmationOpen()) return;
     if (typed !== ACCOUNT_DELETE_TYPED_WORD) return;
     const requestId = this.nextPrivacyRequestId('delete-account');
     const epoch = this.observedPrivacyEpoch;
@@ -500,13 +511,21 @@ export class ReaderStore {
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
         if (isUnauthorized(error)) {
-          // ADR-0035 sec.5: the calling session is deleted inside the same transaction, so a retry
-          // after a lost response also gets 401 -- indistinguishable from success from here, and
-          // treated as one. The exact new epoch is unknown (the receipt never arrived), but the
-          // deletion transaction always advances it by exactly one (ADR-0035 sec.2/`epochAfter`).
-          this.finishAccountDeletion(universeId, epoch + 1);
+          if (this.deletionMayHaveLanded.has(requestId) || mayHaveLanded(error)) {
+            // ADR-0035 sec.5: the calling session is deleted inside the same transaction, so a
+            // retry after a lost response gets 401 -- and an earlier attempt of this very request
+            // may be what deleted it. The exact new epoch is unknown (the receipt never arrived),
+            // but the deletion always advances it by exactly one (ADR-0035 sec.2/`epochAfter`).
+            this.finishAccountDeletion(universeId, epoch + 1);
+          } else {
+            // Nothing of this request can have been applied: the session had already ended
+            // (expired, or signed out/reset elsewhere) before it was sent. The account remains.
+            this.storage.purgePrivateState(universeId, epoch);
+            this.onSignedOut?.('Your session ended before the deletion was sent. Sign in and try again.', false);
+          }
           return;
         }
+        if (mayHaveLanded(error)) this.deletionMayHaveLanded.add(requestId);
         this.setPrivacyAction({ status: 'failed', kind: 'delete-account', requestId, message: describeApiError(error) });
       })
       .finally(() => {
@@ -514,7 +533,7 @@ export class ReaderStore {
       });
   }
 
-  /** Shared by the ordinary-success and 401-after-sent paths above: clears every cached private
+  /** Shared by the ordinary-success and 401-after-a-possibly-applied-attempt paths above: clears every cached private
    * artifact this browser held (ADR-0035's "clear local reader storage") and hands off to the app's
    * sign-in screen with the one deletion-specific message. Nothing else in this store's own state
    * needs updating -- the app unmounts this whole reader tree the moment `onSignedOut` fires. */

@@ -60,10 +60,35 @@ export type ApiError =
 
 export class ApiException extends Error {
   readonly error: ApiError;
-  constructor(error: ApiError) {
+  /** #135 review: an *earlier* attempt of the same call (this client retries a network failure or
+   * a 5xx once) may have reached the server and been applied even though its response never
+   * arrived. A self-ending request (account deletion) needs this to tell "my earlier attempt may
+   * have landed and ended this session" from "this session had already ended before anything was
+   * sent" when the attempt that finally answers is a 401. See `mayHaveLanded`. */
+  readonly earlierAttemptMayHaveLanded: boolean;
+  constructor(error: ApiError, options: { earlierAttemptMayHaveLanded?: boolean } = {}) {
     super(apiErrorMessage(error));
     this.error = error;
+    this.earlierAttemptMayHaveLanded = options.earlierAttemptMayHaveLanded ?? false;
     this.name = 'ApiException';
+  }
+}
+
+/** #135 review: whether a failed call may nonetheless have been applied by the server -- its
+ * response was lost (a network failure), unreadable (a protocol error on an expected status), a
+ * 5xx (a proxy can answer 5xx after the API committed), or an earlier attempt of the same call was
+ * any of those. A definitive 4xx on the only attempt means nothing was applied. */
+export function mayHaveLanded(error: unknown): boolean {
+  if (!(error instanceof ApiException)) return true;
+  if (error.earlierAttemptMayHaveLanded) return true;
+  switch (error.error.kind) {
+    case 'network':
+    case 'protocol':
+      return true;
+    case 'server':
+      return error.error.statusCode >= 500;
+    case 'interaction-conflict':
+      return false;
   }
 }
 
@@ -283,7 +308,7 @@ export class ApiClient implements ReaderApi {
       const sent = this.csrfToken;
       await this.refreshCsrfToken();
       if (sent !== null && this.csrfToken === sent) throw error;
-      return this.attempt(method, path, body, expected, treat409AsConflict, schema);
+      return this.attempt(method, path, body, expected, treat409AsConflict, schema, error.earlierAttemptMayHaveLanded);
     }
   }
 
@@ -306,8 +331,13 @@ export class ApiClient implements ReaderApi {
     expected: number[],
     treat409AsConflict: boolean,
     schema: ZodType<T>,
+    earlierAttemptMayHaveLanded = false,
   ): Promise<T> {
     let lastError: ApiException | undefined;
+    // Becomes true once any attempt of this call may have been applied without an answer: a lost
+    // response or a 5xx. Every error thrown after that carries it (see `ApiException`).
+    let uncertain = earlierAttemptMayHaveLanded;
+    const fail = (error: ApiError) => new ApiException(error, { earlierAttemptMayHaveLanded: uncertain });
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
       try {
         const headers: Record<string, string> = body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' };
@@ -320,30 +350,32 @@ export class ApiClient implements ReaderApi {
         });
         const text = await response.text();
         if (response.status === 409 && treat409AsConflict) {
-          throw new ApiException({ kind: 'interaction-conflict', message: 'Interaction key reused with different content' });
+          throw fail({ kind: 'interaction-conflict', message: 'Interaction key reused with different content' });
         }
         if (expected.includes(response.status)) {
           let json: unknown;
           try {
             json = text.length ? JSON.parse(text) : {};
           } catch {
-            throw new ApiException({ kind: 'protocol', message: 'Response was not valid JSON' });
+            throw fail({ kind: 'protocol', message: 'Response was not valid JSON' });
           }
           const parsed = schema.safeParse(json);
           if (!parsed.success) {
-            throw new ApiException({ kind: 'protocol', message: 'Response did not match the expected shape' });
+            throw fail({ kind: 'protocol', message: 'Response did not match the expected shape' });
           }
           return parsed.data;
         }
         if (isTransient(response.status)) {
-          lastError = new ApiException({ kind: 'server', statusCode: response.status, body: text });
+          lastError = fail({ kind: 'server', statusCode: response.status, body: text });
+          // A 429 was refused outright; a 5xx may come from a proxy after the API applied it.
+          if (response.status >= 500) uncertain = true;
           if (attempt < this.maxAttempts) {
             await delay(this.delaysMs[attempt === 1 ? 0 : 1]);
             continue;
           }
           throw lastError;
         }
-        throw new ApiException({ kind: 'server', statusCode: response.status, body: text });
+        throw fail({ kind: 'server', statusCode: response.status, body: text });
       } catch (error) {
         if (error instanceof ApiException) {
           if (error.error.kind === 'interaction-conflict') throw error;
@@ -353,8 +385,10 @@ export class ApiClient implements ReaderApi {
           continue;
         }
         // A thrown TypeError from fetch() means the network request itself failed
-        // (connection refused/reset, DNS, CORS-like same-origin proxy failure).
-        lastError = new ApiException({ kind: 'network', message: describeNetworkError(error) });
+        // (connection refused/reset, DNS, CORS-like same-origin proxy failure). The browser does
+        // not say whether the request was sent first, so it may have been applied.
+        lastError = fail({ kind: 'network', message: describeNetworkError(error) });
+        uncertain = true;
         if (attempt < this.maxAttempts) {
           await delay(this.delaysMs[attempt === 1 ? 0 : 1]);
           continue;
@@ -368,7 +402,7 @@ export class ApiClient implements ReaderApi {
 /** ADR-0034: the one 403 shape `request()`'s CSRF retry reacts to -- any other server refusal
  * (including a 403 the app might one day return for an unrelated reason) is left as a terminal
  * error, never mistaken for "fetch a token and retry". */
-function isCsrfRefusal(error: unknown): boolean {
+function isCsrfRefusal(error: unknown): error is ApiException {
   return error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 403;
 }
 

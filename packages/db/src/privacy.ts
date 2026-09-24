@@ -319,8 +319,9 @@ export async function resetPersonalUniverse(client: pg.PoolClient, scope: AuthSc
  * schema guards (0030) permit exactly these deletions and nothing else, and it outlives the
  * account: it holds epochs, a count and a time, never the address.
  *
- * There is no replay: the calling session is deleted, so a retry cannot authenticate, and the
- * client treats a 401 after a sent deletion as "signed out" either way. */
+ * There is no replay: the calling session is deleted, so a retry cannot authenticate. A client
+ * reports "deleted" on a 401 only when an earlier attempt of the same request may have landed
+ * (ADR-0035 section 5); otherwise the session had simply ended before anything was sent. */
 export async function deleteAccount(client: pg.PoolClient, scope: AuthScope, input: AccountDeletionInput): Promise<AccountDeletionReceipt> {
  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
  const bound = (await client.query<{ account_id: string | null; email: string | null }>(

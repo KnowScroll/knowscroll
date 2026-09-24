@@ -795,14 +795,59 @@ describe('Sign-out and account deletion (#135, ADR-0034/ADR-0035)', () => {
     expect(storage.readSession()).toBeNull();
   });
 
-  it('a 401 after the deletion request was sent (a lost-response retry) is also treated as deleted', async () => {
-    const { api, store, signedOut } = setup();
+  const DELETED = 'Your account and history were deleted.';
+  const ENDED_BEFORE_SENT = 'Your session ended before the deletion was sent. Sign in and try again.';
+
+  it('a 401 on the first deletion attempt is never reported as a deletion: the session had already ended', async () => {
+    const { api, storage, store, signedOut } = setup();
     await openLoadedPrivacy(api, store);
+    storage.writeLastKept({ eventId: 'evt-2', title: 'Kept', reason: 'because', universeId: universeOf().universeId, privacyEpoch: 0 });
     api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
     store.beginDeleteAccount();
     store.confirmDeleteAccount('delete');
     await waitFor(() => signedOut.length === 1);
-    expect(signedOut).toEqual([{ message: 'Your account and history were deleted.', verify: false }]);
+    expect(signedOut).toEqual([{ message: ENDED_BEFORE_SENT, verify: false }]);
+    expect(storage.readLastKept()).toBeNull(); // the dead session's local traces still go
+  });
+
+  it('a lost response (network failure), then a 401 on the retry with the same requestId, is reported as deleted: the first attempt may have landed', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.accountDeleteQueue.push(new ApiException({ kind: 'network', message: 'timed out' }));
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    expect(signedOut).toHaveLength(0);
+
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.confirmDeleteAccount('delete'); // the failed panel's own retry
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: DELETED, verify: false }]);
+    expect(api.accountDeleteCalls).toHaveLength(2);
+    expect(api.accountDeleteCalls[1]!.requestId).toBe(api.accountDeleteCalls[0]!.requestId);
+  });
+
+  it('a 401 that follows an uncertain attempt inside the same call (the client\'s own retry) is reported as deleted', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }, { earlierAttemptMayHaveLanded: true }));
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: DELETED, verify: false }]);
+  });
+
+  it('a definitive refusal (409), then a 401 on the retry, is not reported as deleted: nothing was ever applied', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 409, body: 'stale epoch' }));
+    store.beginDeleteAccount();
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    api.accountDeleteQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.confirmDeleteAccount('delete');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: ENDED_BEFORE_SENT, verify: false }]);
   });
 
   it('a stale-epoch refusal (409) shows a real failure, never a fabricated deletion', async () => {

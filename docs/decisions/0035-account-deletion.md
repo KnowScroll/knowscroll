@@ -37,8 +37,14 @@ privacy receipts are immutable, and a universe "stays with the account that adop
    and the tombstone itself — ids, epochs, a session count, the ended development-session ids and a
    time, never the address. It is
    immutable and cannot be deleted even inside the deletion transaction.
-5. **No replay.** The calling session is deleted, so a retry cannot authenticate. A client that
-   sent a deletion and receives 401 treats itself as signed out either way and clears local state.
+5. **No replay.** The calling session is deleted, so a retry cannot authenticate. A 401 therefore
+   says only that the session is gone, not why. A client reports the account as deleted only when
+   an earlier attempt of the same `requestId` may have been applied without an answer (a lost or
+   unreadable response, a 5xx, or a process that died with the request in flight); a 401 with no
+   such attempt means the session had already ended before anything was sent, and the client says
+   exactly that ("Your session ended before the deletion was sent. Sign in and try again."). Either
+   way it clears the dead session and local state and returns to sign-in. Android applies the same
+   rule to Reset, which also ends the calling session.
 6. **Backups.** The development stack keeps no product backups. A future hosted deployment with
    backups must state their retention in its privacy notice; this ADR does not claim backups are
    purged.

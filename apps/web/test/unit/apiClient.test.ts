@@ -169,3 +169,32 @@ describe('ApiClient CSRF (ADR-0034)', () => {
     expect(await broken.isBearerSession()).toBe(false);
   });
 });
+
+describe('ApiClient: whether a failed call may still have been applied (#135 review)', () => {
+  it('a 401 after a network failure inside the same call carries earlierAttemptMayHaveLanded', async () => {
+    const { fetchImpl } = fakeFetch((_call, index) => {
+      if (index === 0) throw new TypeError('connection reset');
+      return jsonResponse(401, { error: 'Unauthorized' });
+    });
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0], maxAttempts: 2 });
+    await expect(client.postAccountDelete({ requestId: 'req-1', expectedPrivacyEpoch: 0, confirmation: 'delete-my-account-and-history' }))
+      .rejects.toMatchObject({ error: { kind: 'server', statusCode: 401 }, earlierAttemptMayHaveLanded: true });
+  });
+
+  it('a 401 after a 5xx inside the same call carries it too; after a 429 (refused outright) it does not', async () => {
+    const after = (status: number) => new ApiClient({
+      fetchImpl: fakeFetch((_call, index) => (index === 0 ? emptyResponse(status) : jsonResponse(401, { error: 'Unauthorized' }))).fetchImpl,
+      delaysMs: [0, 0], maxAttempts: 2,
+    });
+    const body = { requestId: 'req-1', expectedPrivacyEpoch: 0, confirmation: 'delete-my-account-and-history' } as const;
+    await expect(after(502).postAccountDelete(body)).rejects.toMatchObject({ earlierAttemptMayHaveLanded: true });
+    await expect(after(429).postAccountDelete(body)).rejects.toMatchObject({ earlierAttemptMayHaveLanded: false });
+  });
+
+  it('a 401 on the very first attempt carries no such flag', async () => {
+    const { fetchImpl } = fakeFetch(() => jsonResponse(401, { error: 'Unauthorized' }));
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0], maxAttempts: 2 });
+    await expect(client.postAccountDelete({ requestId: 'req-1', expectedPrivacyEpoch: 0, confirmation: 'delete-my-account-and-history' }))
+      .rejects.toMatchObject({ error: { kind: 'server', statusCode: 401 }, earlierAttemptMayHaveLanded: false });
+  });
+});
