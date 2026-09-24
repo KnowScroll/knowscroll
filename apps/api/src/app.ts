@@ -26,6 +26,7 @@ import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packa
 import { SHARED_SOURCE_V1, projectWorldsForEncounter, readWorldSystem } from '../../../packages/db/src/worlds.ts';
 import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
+import { clearedSessionCookie, csrfToken, registerWebSession, webSessionConfig } from './web-session.ts';
 import { registerSignInRoutes } from './sign-in-routes.ts';
 import { registerSemanticRoutes } from './semantic-routes.ts';
 import { registerComposerRoutes } from './composer-routes.ts';
@@ -128,7 +129,11 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   // ADR-0026: real sign-in (magic link, single owner account). Additive — every route above and
   // below is unchanged, and a session this mints authenticates through the exact same
   // `authenticateAndLock` path as a development-token session.
-  registerSignInRoutes(app, options.magicLinkLimits);
+  // ADR-0034: the desktop session cookie. Its hook runs before every authenticated route and hands
+  // a checked cookie to the same authentication path as a bearer token.
+  const webSession = webSessionConfig();
+  registerWebSession(app, webSession);
+  registerSignInRoutes(app, options.magicLinkLimits, webSession);
 
   const authenticated = <T>(
     authorization: string | undefined,
@@ -153,7 +158,15 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       if (!emptyObject(req.body)) throw new HttpError(400, 'Invalid revoke request');
       await revokeSession(client, scope);
     });
+    if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
     return reply.code(204).send();
+  });
+
+  // ADR-0034: the page's CSRF token for its cookie session (derived; survives reloads and tabs).
+  app.get('/v1/session/csrf', async (req, reply) => {
+    await authenticated(req.headers.authorization, async () => undefined);
+    if (!req.ksCookieSession) throw new HttpError(400, 'Only a cookie session has a CSRF token');
+    return reply.header('Cache-Control', 'no-store').send({ csrfToken: csrfToken(webSession.secret, req.ksCookieSession) });
   });
 
   app.post('/v1/history/clear', async (req, reply) => {
