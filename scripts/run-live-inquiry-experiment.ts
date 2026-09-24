@@ -14,9 +14,10 @@
  * inquiry may send two requests; `--thinking adaptive` lets M3 think, and its thinking blocks then
  * travel back in place (the fixture run uses `refused_then_valid`). Without them the route allows no
  * continuation and each inquiry sends at most one request, as before.
- * Bounds: the persistent session ledger under $KS_DEV_ROOT (shared with the Ask-answer experiment and
- * held by one live run at a time) caps live requests at 40 for this session, and the route's
- * request-quota bucket is set to what this run may use, so admission itself stops at the limit.
+ * Bounds: the persistent session ledger under $KS_DEV_ROOT (`scripts/lib/session-ledger.ts`, shared by
+ * every live tool and held by one at a time) caps live requests for this session, and the run starts only
+ * if it covers all of them; the route's request-quota bucket is set to what this run may use, so
+ * admission itself stops at the limit.
  * Requests stay within 16 KB and 4,096 output tokens. Everything runs against a disposable database
  * that is dropped afterwards. Receipts record statuses, reason codes, counts, usage and hashes only --
  * never a prompt, a reply, a thought, a mechanism or a key. A found bridge's text stays in the
@@ -28,7 +29,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import pg from 'pg';
-import { openLiveLedger } from './lib/live-ledger.ts';
+import { holdLedger, sessionLedgerPath } from './lib/session-ledger.ts';
 
 const mode = process.argv.includes('--live') ? 'live' : process.argv.includes('--fixture') ? 'fixture' : null;
 if (!mode) { console.log('Refusing: pass --fixture (no network) or --live (bounded MiniMax-M3 experiment).'); process.exit(2); }
@@ -49,16 +50,14 @@ const STEPS = [['physics.gravity'], ['earth.tides'], ['astro.star.birth']].slice
 
 const root = resolve('.');
 const devRoot = process.env.KS_DEV_ROOT ?? (() => { throw new Error('Source scripts/env.sh first'); })();
-// A live run holds the session ledger from this check until its count is written (#153); if its requests
-// cannot be counted, the lock is kept, so no further live run starts before they are counted by hand.
-const live = mode === 'live' ? openLiveLedger(devRoot) : null;
+// A live run holds the session ledger from its allowance check until its count is written (#153), under the one
+// lock every live tool counts under (#181); if its requests cannot be counted, the lock is kept, so no further
+// live run starts before they are counted by hand.
+const ledgerPath = sessionLedgerPath(devRoot);
+const hold = mode === 'live' ? await holdLedger(ledgerPath, REQUESTS) : null;
+if (hold && !hold.ok) { console.log(`Refusing: the session ledger (${ledgerPath}): ${hold.reason}; this run needs ${REQUESTS} live requests.`); process.exit(2); }
+const live = hold?.held ?? null;
 let uncounted = false;
-const allowance = live ? Math.min(REQUESTS, live.ledger.sessionCap - live.ledger.used) : REQUESTS;
-if (live && allowance < REQUESTS) {
-  console.log(`Refusing: the session allowance has ${live.ledger.sessionCap - live.ledger.used} live requests left; this run needs ${REQUESTS}.`);
-  live.release();
-  process.exit(2);
-}
 
 const config = Object.fromEntries(readFileSync(resolve(root, '.env'), 'utf8').split('\n').filter(l => l.includes('=') && !l.startsWith('#')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const source = new URL(config.DATABASE_URL!);
@@ -99,7 +98,7 @@ async function main() {
     await db.transaction(c => inquiries.installBackgroundInquiryRoute(c, { policyVersion: v,
       routeId: mode === 'live' ? 'minimax-subscription' : 'fixture-route', routeProfileVersion: mode === 'live' ? 'minimax-m3-anthropic-v1' : 'fixture-v1',
       transport: mode === 'live' ? 'minimax' : 'fixture', model: mode === 'live' ? 'MiniMax-M3' : 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 4096,
-      requestCap: allowance, tokenBudget: allowance * 24000, ownerCapacity: allowance * 24000, jobCapacity: (CONTINUATION ? 2 : 1) * 24000,
+      requestCap: REQUESTS, tokenBudget: REQUESTS * 24000, ownerCapacity: REQUESTS * 24000, jobCapacity: (CONTINUATION ? 2 : 1) * 24000,
       coalescingDelaySeconds: 1, jobTtlSeconds: 600, remoteSlots: 1, thinking: THINKING, maxContinuationSteps: CONTINUATION ? 1 : 0 }));
     closeDb = () => db.pool.end();
 
@@ -203,10 +202,7 @@ async function main() {
       const dispatched = Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL')).rows[0].count);
       receipt.dispatched = dispatched;
       if (live) {
-        live.ledger.used += dispatched;
-        live.ledger.runs.push({ at: String(receipt.at), dispatched, database, kind: 'inquiry' });
-        live.save();
-        receipt.sessionLedger = { used: live.ledger.used, cap: live.ledger.sessionCap };
+        receipt.sessionLedger = live.record({ at: String(receipt.at), database, kind: 'inquiry' }, dispatched);
         counted = true;
       }
     } catch {

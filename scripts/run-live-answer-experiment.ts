@@ -6,8 +6,9 @@
  * macOS Keychain item `minimax_api_key` straight into the worker process's environment and never
  * printed; the worker runs the quota preflight (>=25% interval and weekly) before each request.
  *
- * Bounds: a persistent session ledger under $KS_DEV_ROOT (held by one live run at a time) caps live requests at 40 for this session;
- * the route's request-quota bucket is set to the remaining allowance, so admission itself stops a run
+ * Bounds: the persistent session ledger under $KS_DEV_ROOT (`scripts/lib/session-ledger.ts`, held by one
+ * live tool at a time) caps live requests for this session, and the run starts only if it covers all of
+ * them; the route's request-quota bucket is set to what this run may use, so admission itself stops a run
  * at its limit. Requests stay within 16 KB and 1,024 output tokens. Everything runs against a
  * disposable database that is dropped afterwards. Receipts record statuses, counts, usage and
  * hashes only — never a question, answer, quote or key.
@@ -18,7 +19,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import pg from 'pg';
-import { openLiveLedger } from './lib/live-ledger.ts';
+import { holdLedger, sessionLedgerPath } from './lib/session-ledger.ts';
 
 const mode = process.argv.includes('--live') ? 'live' : process.argv.includes('--fixture') ? 'fixture' : null;
 if (!mode) { console.log('Refusing: pass --fixture (no network) or --live (bounded MiniMax-M3 experiment).'); process.exit(2); }
@@ -38,16 +39,14 @@ const QUESTIONS = sample > 0
 
 const root = resolve('.');
 const devRoot = process.env.KS_DEV_ROOT ?? (() => { throw new Error('Source scripts/env.sh first'); })();
-// A live run holds the session ledger from this check until its count is written (#153); if its requests
-// cannot be counted, the lock is kept, so no further live run starts before they are counted by hand.
-const live = mode === 'live' ? openLiveLedger(devRoot) : null;
+// A live run holds the session ledger from its allowance check until its count is written (#153), under the one
+// lock every live tool counts under (#181); if its requests cannot be counted, the lock is kept, so no further
+// live run starts before they are counted by hand.
+const ledgerPath = sessionLedgerPath(devRoot);
+const hold = mode === 'live' ? await holdLedger(ledgerPath, QUESTIONS.length) : null;
+if (hold && !hold.ok) { console.log(`Refusing: the session ledger (${ledgerPath}): ${hold.reason}; this run needs ${QUESTIONS.length} live requests.`); process.exit(2); }
+const live = hold?.held ?? null;
 let uncounted = false;
-const allowance = live ? Math.min(QUESTIONS.length, live.ledger.sessionCap - live.ledger.used) : QUESTIONS.length;
-if (live && allowance < QUESTIONS.length) {
-  console.log(`Refusing: the session allowance has ${live.ledger.sessionCap - live.ledger.used} live requests left; this run needs ${QUESTIONS.length}.`);
-  live.release();
-  process.exit(2);
-}
 
 const config = Object.fromEntries(readFileSync(resolve(root, '.env'), 'utf8').split('\n').filter(l => l.includes('=') && !l.startsWith('#')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const source = new URL(config.DATABASE_URL!);
@@ -82,7 +81,7 @@ async function main() {
     await db.transaction(c => answers.installAskAnswerRoute(c, { policyVersion: v,
       routeId: mode === 'live' ? 'minimax-subscription' : 'fixture-route', routeProfileVersion: mode === 'live' ? 'minimax-m3-anthropic-v1' : 'fixture-v1',
       transport: mode === 'live' ? 'minimax' : 'fixture', model: mode === 'live' ? 'MiniMax-M3' : 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 1024,
-      requestCap: allowance, tokenBudget: allowance * 20000, ownerCapacity: allowance * 20000, jobCapacity: 20000, answerTtlSeconds: 300, remoteSlots: 1 }));
+      requestCap: QUESTIONS.length, tokenBudget: QUESTIONS.length * 20000, ownerCapacity: QUESTIONS.length * 20000, jobCapacity: 20000, answerTtlSeconds: 300, remoteSlots: 1 }));
     closeDb = () => db.pool.end();
 
     const workerEnv: NodeJS.ProcessEnv = { ...base, KS_ANSWER_TRANSPORT: mode === 'live' ? 'minimax' : 'fixture' };
@@ -152,10 +151,7 @@ async function main() {
       const dispatched = Number((await pool.query('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL')).rows[0].count);
       receipt.dispatched = dispatched;
       if (live) {
-        live.ledger.used += dispatched;
-        live.ledger.runs.push({ at: String(receipt.at), dispatched, database });
-        live.save();
-        receipt.sessionLedger = { used: live.ledger.used, cap: live.ledger.sessionCap };
+        receipt.sessionLedger = live.record({ at: String(receipt.at), database, kind: 'answer' }, dispatched);
         counted = true;
       }
     } catch {

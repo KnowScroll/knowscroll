@@ -89,21 +89,19 @@ spec = JOURNEYS[journey_name]
 # counted against the same bounded session ledger as scripts/run-live-answer-experiment.ts.
 ask_transport = os.environ.get('KS_ASK_TRANSPORT', 'fixture')
 if ask_transport not in ('fixture', 'minimax'): sys.exit('KS_ASK_TRANSPORT is fixture or minimax')
-live_ledger_path = Path(os.environ['KS_DEV_ROOT']) / 'minimax-answer-session-ledger.json'
 # #132: the inquiry journey likewise is fixture-backed unless KS_INQUIRY_TRANSPORT=minimax opts into one
 # bounded live request (the route caps it at one), counted against the same session ledger.
 inquiry_transport = os.environ.get('KS_INQUIRY_TRANSPORT', 'fixture')
 if inquiry_transport not in ('fixture', 'minimax'): sys.exit('KS_INQUIRY_TRANSPORT is fixture or minimax')
 live_run = (journey_name == 'ask' and ask_transport == 'minimax') or (journey_name in ('inquiry', 'return') and inquiry_transport == 'minimax')
-# #153: a live run holds the ledger from this check until its count is written, through the same lock file
-# scripts/lib/live-ledger.ts takes; a run whose requests cannot be counted keeps it for counting by hand.
-live_ledger_lock = live_ledger_path.with_name(live_ledger_path.name + '.lock')
+# #153/#181: a live run holds the session ledger from its allowance check until its count is written, through
+# scripts/lib/session-ledger.ts, under the one lock every live tool counts under; a run whose requests cannot
+# be counted keeps it for counting by hand.
+def session_ledger(*arguments):
+    return json.loads(subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/lib/session-ledger.ts', *arguments], text=True))
 if live_run:
-    try: lock_fd = os.open(live_ledger_lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError: sys.exit(f'Refusing: another live run holds {live_ledger_lock}; remove it only once no live run is active.')
-    os.write(lock_fd, str(os.getpid()).encode()); os.close(lock_fd)
-    live_ledger = json.loads(live_ledger_path.read_text()) if live_ledger_path.exists() else {'sessionCap': 40, 'used': 0, 'runs': []}
-    if live_ledger['used'] + 1 > live_ledger['sessionCap']: live_ledger_lock.unlink(); sys.exit('Refusing: the live allowance is spent')
+    try: held_ledger = session_ledger('hold', '1')
+    except subprocess.CalledProcessError: sys.exit('Refusing: the session ledger cannot be held (see above).')
 out = root / 'artifacts/semantic-journey' / journey_name
 out.mkdir(parents=True, exist_ok=True)
 # The owner's preview is never installed here; its APKs are checked unchanged at the end (#136).
@@ -549,16 +547,13 @@ finally:
     # A live request counts against the session allowance whether or not the journey passed.
     def count_live():
         dispatched = int(sql('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL') or 0)
-        live_ledger['used'] += dispatched
-        live_ledger['runs'].append({'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'dispatched': dispatched, 'database': name, 'via': f'android-{journey_name}-journey'})
-        live_ledger_path.write_text(json.dumps(live_ledger, indent=2))
+        session_ledger('record', held_ledger['token'], str(dispatched), name, f'android-{journey_name}-journey')
     if created and live_run:
         before_count = len(cleanup_errors)
         attempt('count live requests', count_live)
         # A live request that cannot be counted keeps its database and the ledger lock, so it can be counted by hand.
         if len(cleanup_errors) > before_count: created = False
-        else: live_ledger_lock.unlink()
-    elif live_run: live_ledger_lock.unlink()  # no database was created, so nothing was sent
+    elif live_run: attempt('release the session ledger', lambda: session_ledger('release', held_ledger['token']))  # no database was created, so nothing was sent
     # Outcome codes only (status, validator reasons, usage counts), never question or answer text.
     def record_outcome():
         (out / 'answer-outcome.json').write_text(sql("""SELECT coalesce(json_agg(json_build_object('status', a.status, 'reasons', a.reasons,
