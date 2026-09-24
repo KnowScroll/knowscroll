@@ -2,7 +2,7 @@
 
 Source scripts/env.sh first, and run every command from the worktree whose code you want to use.
 
-    python3 scripts/android-hands-on.py up [--port N] [--seed SCRIPT]... [--reel MP4]... [--worker-env K=V]...
+    python3 scripts/android-hands-on.py up [--port N] [--seed SCRIPT]... [--reel MP4[@SCROLL_ID]]... [--worker-env K=V]...
     python3 scripts/android-hands-on.py down [--keep-db]
     python3 scripts/android-hands-on.py sql "SELECT ..."
     python3 scripts/android-hands-on.py exec -- pnpm exec tsx scripts/substrate/correct-source.ts ...
@@ -11,7 +11,8 @@ Source scripts/env.sh first, and run every command from the worktree whose code 
     python3 scripts/android-hands-on.py shot NAME [--ui]
 
 `up` creates a `knowscroll_test_hands_*` database, migrates and seeds it (the editorial substrate),
-optionally adds authorized local MP4s as Reels (`scripts/fixtures/native-reel.ts`), starts the API
+optionally adds authorized local MP4s as Reels (`scripts/fixtures/native-reel.ts`; `@SCROLL_ID` mints one over
+that library Scroll, so it carries the Scroll's concepts and has a why and continuations), starts the API
 on a free, never-owner port and the worker, runs any `--seed` scripts against the live API, builds
 and installs `com.knowscroll.mobile.journeytest` (never the owner's `.journey` preview), clears it
 and launches it. It then stays in the foreground until `down` or Ctrl-C; run it in the background.
@@ -126,9 +127,13 @@ def up(options):
         subprocess.run(['createdb', *psql[1:7], name], env=admin, check=True); created = True
         subprocess.run(['pnpm', 'db:migrate'], env=env, check=True, stdout=subprocess.DEVNULL)
         subprocess.run(['pnpm', 'db:seed'], env=env, check=True, stdout=subprocess.DEVNULL)
-        reels = [json.loads(subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/fixtures/native-reel.ts'], text=True,
-                                                    env={**env, 'KS_NATIVE_VIDEO': str(Path(video).resolve()), 'KS_NATIVE_TAG': f'hands-on-{index + 1}'}
-                                                    ).strip().splitlines()[-1]) for index, video in enumerate(options.reel)]
+        reels = []
+        for index, spec in enumerate(options.reel):
+            video, _, scroll = spec.partition('@')
+            reel_env = {**env, 'KS_NATIVE_VIDEO': str(Path(video).resolve()), 'KS_NATIVE_TAG': f'hands-on-{index + 1}'}
+            if scroll: reel_env['KS_NATIVE_SOURCE_ASSET'] = scroll
+            reels.append(json.loads(subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/fixtures/native-reel.ts'], text=True,
+                                                            env=reel_env).strip().splitlines()[-1]))
         children['api'] = start('api', env, directory)
         children['worker'] = start('worker', {**env, **worker_extra}, directory)
         wait_for_health(options.port)
@@ -219,7 +224,8 @@ commands = parser.add_subparsers(dest='command_name', required=True)
 command = commands.add_parser('up'); command.set_defaults(run=up)
 command.add_argument('--port', type=int, default=4341)
 command.add_argument('--seed', action='append', default=[], help='a script run with tsx against the live API (KS_ATLAS_SEED_API_BASE)')
-command.add_argument('--reel', action='append', default=[], help='an authorized local MP4 to add as a Reel')
+command.add_argument('--reel', action='append', default=[], metavar='MP4[@SCROLL_ID]',
+                     help='an authorized local MP4 to add as a Reel, optionally minted over a library Scroll')
 command.add_argument('--worker-env', action='append', default=[], metavar='K=V', help='extra environment for the worker only')
 command = commands.add_parser('down'); command.set_defaults(run=down)
 command.add_argument('--keep-db', action='store_true')
