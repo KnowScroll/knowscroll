@@ -1,0 +1,788 @@
+{
+  "check": "android-reader-explain-91",
+  "result": "passed",
+  "observedAt": "2026-09-24T09:05:25.476067+00:00",
+  "source": {
+    "revision": "e1a38e00a4272ec56e61747d6261d6ce7576ab07",
+    "dirty": true,
+    "files": [
+      {
+        "path": "apps/mobile/AGENTS.md",
+        "sha256": "f47b9b6b040f47d3cb1eb200f64be5e8b369495485304f85efe00551d77cfb0f"
+      },
+      {
+        "path": "apps/mobile/CLAUDE.md",
+        "sha256": "918b1c90559355ef78f33fdf3562f2b021ef8bdfd8a5c8415e5decd44934de55"
+      },
+      {
+        "path": "apps/mobile/README.md",
+        "sha256": "b3a0dceff8f1ac527237287a6211a08dfa81d920e71014d99bcff9f656ea1f04"
+      },
+      {
+        "path": "apps/mobile/app/build.gradle.kts",
+        "sha256": "cabba8b63518fedd3450cd9d62462a8af08c9ae25cf22f778669199305dae99f"
+      },
+      {
+        "path": "apps/mobile/app/proguard-rules.pro",
+        "sha256": "46390625450748ba1e9d0906310bbb2b3893b4bff48968ee4c5d56a9490226db"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/AskAnswerJourneyTest.kt",
+        "sha256": "2345137547039dd935dd11e59d00ff56c6111acd2a717add74e07afb65f1a170"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/AtlasProfileTest.kt",
+        "sha256": "91d1c45bc82b2fdf5b83303a231c47824b9d037ba2eb0852968cad80a4c4f87d"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/DirectAtlasJourneyTest.kt",
+        "sha256": "e4dcf16d4360ef42cfdd2619d48a4f52efc906f5ffe1ed78b6df4e3e21bda11d"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/DirectAtlasMotionTest.kt",
+        "sha256": "225990dfe3452c16de77f0b7a797dda275b8ceee8e384519c69338f770c16705"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/DirectMediaJourneyTest.kt",
+        "sha256": "db0f3ad392f558e766f4ef13a2a4abf6bb56c70e4b6508b2ee4111c1e6c76a43"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/LivingAtlasJourneyTest.kt",
+        "sha256": "1e150aa897b50e5c9d808278cde8d3f7f7ac03f6fabc9d9a2f02241be784282c"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/LivingCableJourneyTest.kt",
+        "sha256": "b956ef6d398d4e02211265067f641787b75801f9c2957496c43200045f9061e3"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/NativeAtlasStressTest.kt",
+        "sha256": "a769193eece09202b23a0d9d1959b2b6e619020607afd6c3c620c6621f87f84a"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/NativeMediaFaultTest.kt",
+        "sha256": "d9a0126bc87f05ae61c71f3a4a6daad6eed756842d2367003d7628e4ee8ab6f0"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/NativePreviewJourneyTest.kt",
+        "sha256": "280ec67a639491f79056e1bb88a198a17dc945938156140addc99b6d9bed5580"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/NativeSpatialJourneyTest.kt",
+        "sha256": "67dedc0fc488e5acd21d4792339053a85d0bc1b93176aecb36b12025dd15f1e2"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/OwnerPreviewSetupTest.kt",
+        "sha256": "c17145bbf52efd05c316b4777a8622f195b5bd6b6e4ac39257b80b40260146c8"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/PlacesJourneyTest.kt",
+        "sha256": "9e48abee3aaa8c4444889260222c34e1def07f94c71affa3e67a5085cd57e738"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/PreviewAuthorityJourneyTest.kt",
+        "sha256": "fffbf52f13d61d2360b3c5f8292aef4200f509537b814b5d0d234e0b0434dc18"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderAuthorityJourneyTest.kt",
+        "sha256": "c324fefd8fd38e46029641fbe88022765a5226814287840c0095bb53ae94b41c"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderExplainJourneyTest.kt",
+        "sha256": "b76945808e0c581aafbb3129f428952ca29244d3c9200c59bac97aa0bdbc0827"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderJourneyTest.kt",
+        "sha256": "483a019f33b1efdb91433e8de12819ae564f359bb00e739916032a419dac000a"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderPrivacyJourneyTest.kt",
+        "sha256": "52e08fb07a013d679d63829829118102f3246ff42399ca3e60a8a04b40dc09a6"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/ReaderSheetRecreationTest.kt",
+        "sha256": "52a5bce64ff78dce79580cd5672c3a9dd48f973c079e2a451e287e425915863c"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/RealJourneyTest.kt",
+        "sha256": "ab22849c44ecfe31046b62c9d502e9f65dda23a1a7d199d19c3d67dc45aa2841"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/SemanticBranchJourneyTest.kt",
+        "sha256": "a893c23eb20af43f567a59598f08db3da0bcc84a14d148f443cbdd966f94b8ca"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/SemanticWhyJourneyTest.kt",
+        "sha256": "32dfe622b344e6cae0cea344c929aa9037d06086d9ac39941b86a9d5e0316263"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/SignOutJourneyTest.kt",
+        "sha256": "5531e290eba63ffd072e451a57b0a399614386b90ccba880cac4de61d0c45951"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/SkyClockLifecycleTest.kt",
+        "sha256": "95b2cf5fc0844720bffb44dbf8f91af470bbcfe98f7f23c8a9ccff1e00cd4eee"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/TraceRevisitJourneyTest.kt",
+        "sha256": "0ffa53c63b77c5ae6963e971ed426cd807b43d18a26bfd83a7cb159696324466"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/WorldInspectionJourneyTest.kt",
+        "sha256": "db055018b885e05a472ea70ce47f7606cb647127a49670bcfd30834ba591eaba"
+      },
+      {
+        "path": "apps/mobile/app/src/androidTest/kotlin/com/knowscroll/mobile/journey/OwnerAccountJourneyTest.kt",
+        "sha256": "df7bbbfbe1da8ae2951cca44932c0914c2b15c2e5c713042dfab513b1accb88c"
+      },
+      {
+        "path": "apps/mobile/app/src/debug/AndroidManifest.xml",
+        "sha256": "0641e1cd0ba3aefe4e784d3e77765d9ed305d9141c11f4cda5e69f0c2b11c843"
+      },
+      {
+        "path": "apps/mobile/app/src/debug/res/xml/network_security_config_debug.xml",
+        "sha256": "6f0e250df6f150a5749e27885b74fd9c0cc6a5410b22b432eb7d19ef3c67d29b"
+      },
+      {
+        "path": "apps/mobile/app/src/main/AndroidManifest.xml",
+        "sha256": "3bf0999071efb0f8b2d4a70e564c97ea90d27402c57bab75289139e109ecc0ac"
+      },
+      {
+        "path": "apps/mobile/app/src/main/assets/fonts/README.md",
+        "sha256": "a976e085bdb009466cc165a90d9ca457162416316151b3f604f5724fbfa02bc3"
+      },
+      {
+        "path": "apps/mobile/app/src/main/assets/fonts/bricolage-OFL.txt",
+        "sha256": "4b5a7d8f37f5602621c8a8d7358a6a2e71317e6c231c661e15aef0275d3e07ba"
+      },
+      {
+        "path": "apps/mobile/app/src/main/assets/fonts/dm-mono-OFL.txt",
+        "sha256": "febfd2b42308d5327ade2884aed777da3d2decd2c53d574c43e603443d70c5b2"
+      },
+      {
+        "path": "apps/mobile/app/src/main/assets/fonts/instrument-OFL.txt",
+        "sha256": "9e27a72ed30eb49a08678f6a5d6ed98ec7ba5368f541637ee0683ec9134ef966"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/KnowScrollApp.kt",
+        "sha256": "5b2cf59c361865cf3f1dd0c743334ecd48311077b0818619931c774f77d0180f"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/MainActivity.kt",
+        "sha256": "b13bcbff804c9c35ec42867745ebbc85af4a3682c9193fa68ed5e98014fb411a"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Answers.kt",
+        "sha256": "7f33b97da19b3d31427d101af28147ebb8f67ab71c7c20848b8c465238c2b67b"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/ApiClient.kt",
+        "sha256": "6bf3f745f296136b6374bb49c0b99d1855956d50701f88e730868299f0426e1d"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Atlas.kt",
+        "sha256": "83d8638328dc24dce79697b5c580571d6193abc6aee005032c29ec7a0decb21d"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Branches.kt",
+        "sha256": "56a9b3556749f822557210272486fdf4d5778cb705058191eded44c684d48123"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Credential.kt",
+        "sha256": "9b58530db85f004ace9f6ca86aacf0b527f5699aa775f763549965d53f3ea1ae"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Models.kt",
+        "sha256": "5586017c7299acf28a342c9cbbea7016050fc1a40bddc193ecda965cec3b50b6"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/ReelMedia.kt",
+        "sha256": "1851b30a75f3bd4007da998cdf22d350ebcb9999e24495c6e683e9bc4668cd21"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/SessionVault.kt",
+        "sha256": "141832a64c30bdf147d0122955a5a95dd058bee26ac848cd9b354b09ec583521"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/SignInLink.kt",
+        "sha256": "6203f7dfffc0d102f67e074f3750d940b527bf6a2d7d41ef631f38a865235227"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/StateStore.kt",
+        "sha256": "90bda57597c9dfcdb85ea834802c5e8b810fa341b30bc4709dfac53460b52922"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/data/Why.kt",
+        "sha256": "7a20a3ed21c2bb136db227ac606baf396719cce4ad48d9909ba7039e3c2b9e47"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt",
+        "sha256": "a09b3fef7344f17ca1aab992e72dc9004afaad846d7268441e6363d88fff576a"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/BranchRail.kt",
+        "sha256": "038fbc2822f8b1bd6274021aca5bccab81a1e5b0d4f1df1c04eb95f71a640adf"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/CableControls.kt",
+        "sha256": "2cbf50f9209774855542dcf681aafaf69baabc7f3dec5d7c8a06badefdc2aa21"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/KnowScrollApp.kt",
+        "sha256": "bc1a6721ea75a8fe9dec30af6719da23fc10e95ddd3cab3c73da40b781731612"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/ReaderDiscovery.kt",
+        "sha256": "dbfc369c2bfb003cc4043748b967a9cb8ba9f122744d8540546e0695865b9973"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/ReaderExplain.kt",
+        "sha256": "440a7984c46b0a60d9026c8c80248f97121b8c398c8648467030bf49bf5dc61f"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/SignOut.kt",
+        "sha256": "40b15213305599ee2f53849f6affb8f3747fb31a2c663b813d200171b23cf883"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/SignedOutScreen.kt",
+        "sha256": "9df438add7cb9f207fc090bddd738185f92b3b616632a14598c9cd0a27a74f59"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/account/AccountStates.kt",
+        "sha256": "a42d826d470194aa0b1a55062f3f17d5bf169b452add4329d29d1720042121b2"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/account/AccountViewModel.kt",
+        "sha256": "4e60adcfc7e18fab68acc1b6ecb587664befd2c051a980e72010f88882c1d2db"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/account/PrivacyScreen.kt",
+        "sha256": "4e4cb933fd196ba12e03313858f91cc86839b771f16d069c311b2db8f05288e8"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/account/SignInScreen.kt",
+        "sha256": "c2272eeecb4c65e53fc8e8b2fa097c668b260af19b7ff4edf68e59cbd1554d37"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/ask/AskPresentation.kt",
+        "sha256": "4bba9811a5f5f4e0e82f93bae74d8bb010e046e630c1c985e444b3443dbedb4c"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/branch/BranchPresentation.kt",
+        "sha256": "3dc9e9643dc397ef88e8a80021fb76acff8e66d7ea20616a1917d21f856146fe"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/common/BottomCompass.kt",
+        "sha256": "00ab2392672b9abcb61a116438fd4f3c5fd4ca58cd0a04f7d792abe3d90b1968"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/common/CosmosBackground.kt",
+        "sha256": "f515a2a1eae81aa8ffa2c3ed88a2f42f08c2c341ecc046694a8db0e0f86f6c79"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/common/ReducedMotion.kt",
+        "sha256": "cc5b629d0b54fdb4062b6b30e87f6581f23665163e86d7d6dcd50803f98ee6f7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/common/WorldGlobe.kt",
+        "sha256": "51062bcfefa2519556637c79aab3eac3ab3d428b5ec8d6602da5812a48428992"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/keep/KeepScreen.kt",
+        "sha256": "3ea88ffcb65424a60df15478b54d8c0eb8f6aaee167cd7e1796e7742b5b7fb46"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/preview/AuthoredAtlas.kt",
+        "sha256": "6091425c6a72459f1ed932f9f27046448e7977261bc5061b145c6df33030eedf"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/preview/AuthoredPreview.kt",
+        "sha256": "16df688726b3710404f4f416e1cea5e793f776ef2d073239936860598ddc44db"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/reel/ReelPlayer.kt",
+        "sha256": "e115a6bc53c7b857674dcb605c6c5e56120dae6d363fd38d9df89df223e71b02"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/reel/ReelScreen.kt",
+        "sha256": "903c3cfab38f77878aaef465ee660e9b051cf03de025593ed75b296fc28cdc81"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/reel/SafeMediaDataSource.kt",
+        "sha256": "225d3e062e164c42e0bacddcdcbba6bf6229bce825497a26d6e94959ec5372b7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/Ask.kt",
+        "sha256": "587f969e35c1bbb1af7d2f5caef713d9135feb4f9547665912e6dfbe9322b08c"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/Connections.kt",
+        "sha256": "23f5cb40123fcdc3c4e9cdc77335df5a103811498ef8fdba6c0ebdb3c0c4da76"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/ScrollScreen.kt",
+        "sha256": "cde50e2a5ac59a17512eea4092188408f9a1f3fe34c23188cbb990c66177e729"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/content/ScrollBlocks.kt",
+        "sha256": "7cdbb4ded6ebe31221a1f1dfbbcef090c327691691dd188f88405ad73de6cd77"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/scroll/content/ScrollDocument.kt",
+        "sha256": "a86596a66f882dd49402149658a8d173164eb23050c42b39ccf16b2f31421ad8"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/AtlasCamera.kt",
+        "sha256": "9340b33a6d50daf04873c712f175a56afd18d7dc50524239c5568ccb7579cb83"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/AtlasGestures.kt",
+        "sha256": "8945f21603157f47239adb01f2dff998c4931c547915d58ab3580d27f3b3db93"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/AtlasPresentation.kt",
+        "sha256": "54803308270080d6b0e15dbb1f007f701b66d8473e40632957a8bc0fc2f11d38"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/AuthoredGeography.kt",
+        "sha256": "c11d9b59e4888025c6d3b21d16eb3c2fddcefa9a13290ef4333657d580fde14e"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/LivingSky.kt",
+        "sha256": "7ff8cdd486f91ad18a989f01b8f0782ad2f441d2efbc523ab2a10c763e9bafc7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/PlaceDetail.kt",
+        "sha256": "272509634cd292c420e713701fba98bb762430943fb36bcd84606c4bcd93aefa"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/PlacesListSheet.kt",
+        "sha256": "a732c4cd6307957eba0cb18e4d6733149739cc0ace115d7fe8a0f0c3d82969e4"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/SpatialAtlas.kt",
+        "sha256": "85b1da6b32cd82a96214cf6570b716e83a394676de26e30e1c5c2440c6941ce8"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/system/SystemScreen.kt",
+        "sha256": "68bae41e13b99e9e66a29014ffab9f71d62cf69ee896da414cca73a5bfa79777"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/theme/Theme.kt",
+        "sha256": "e4f1bc1af2075c69ea89ed08561e6c6941fd89738929847ed3486c1cee72837b"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/theme/TruthPill.kt",
+        "sha256": "5bc62b496c577393cefce71eba448af92766405c1d12177374bc0f4acccc5842"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/universe/UniverseScreen.kt",
+        "sha256": "e206cca2bb711f58e525eb33878640da4b968a37f6a3e2b4d9f6205b0634ac44"
+      },
+      {
+        "path": "apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/why/WhyPresentation.kt",
+        "sha256": "87d98f36e3983bfb6ad7e7fef0c17a897385b58033b53c5fddb82b8a7e327f02"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/drawable/ic_launcher_foreground.xml",
+        "sha256": "a35e51e6783c317b371a7d060947f5f7c9862a9a82461a7d76a97a72dd78ac69"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/font/bricolage.ttf",
+        "sha256": "413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/font/dm_mono.ttf",
+        "sha256": "fd327daf461db87b44a87def475d251bf03b997f7c07d9680592d75dbbfaad0b"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/font/instrument.ttf",
+        "sha256": "b24f1812584816958afcf22e22d08e44318c5e51651e25d2438efdde389b33b1"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+        "sha256": "c0c46d4d940303781f8c1f6fe6e3d2216ad6de9dd41fb60f6b0aea246d9de0d5"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+        "sha256": "c0c46d4d940303781f8c1f6fe6e3d2216ad6de9dd41fb60f6b0aea246d9de0d5"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values/colors.xml",
+        "sha256": "969a9b2afb4ed0bf55bd74189dda7d388f0c484727e34bd64afa82d10f061c77"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values/strings.xml",
+        "sha256": "be9be35c9d8c51fe60f44d08c7de2b14972b0a3143f6f8600aaffeac7fcd871d"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values/themes.xml",
+        "sha256": "b1729a5cc0cb1f34fe65586efab69031593593fba87d649bec559e9dae8756d7"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/values-night/themes.xml",
+        "sha256": "dc2f299d38df6162c2fa2d1860933b24a19fef23e6457e38cbd77ab22bb6fc05"
+      },
+      {
+        "path": "apps/mobile/app/src/main/res/xml/data_extraction_rules.xml",
+        "sha256": "776da0ea3dbffa486ed46800e94f1b7a8cc71b3b6280f3654fa333e62493101e"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/AccountApiTest.kt",
+        "sha256": "ccc3f5becc97101c89ca20438c2252f7edfe13c4437cdc48fad504c2f7748cb0"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/AnswersTest.kt",
+        "sha256": "97f9b084382fa7c54896a7a1504103af2c99a1c14c1492f0a6b2238c5b87b706"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/AtlasTest.kt",
+        "sha256": "613cf47608c849787671461e47217493fa8913580a26452b43d14fb68de8801d"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/BranchesTest.kt",
+        "sha256": "6bf9934e193d6ff4674ad80590320cf203d63197d9041e9641a57055743f37c5"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/CableSessionTest.kt",
+        "sha256": "81b8fb27e7fb10e61867c492cf797df05231e5598348e98625e5fde8af27e607"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/CableTransportTest.kt",
+        "sha256": "950cca226dbcd750bd6e6186e396076de87fe8be3f2aa5ccbd545f42c7b4e685"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/CredentialTest.kt",
+        "sha256": "a676724254327867deaea96b1947a3a9918a9d6ea3c59a38faf694244524f85b"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/FakeSessionVault.kt",
+        "sha256": "c28f848127d455b219344c11488afe983c008288b21e33855072244e0867ce7f"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/PrivacyRequestStoreTest.kt",
+        "sha256": "72640a7551d2ace14329c48a7a5198a50166c8c8ade723ca1cfa4fc73957adc0"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/ReelMediaTest.kt",
+        "sha256": "b14a274a9a6c9dd5f7dd5c6ecaa1ce4c53fd48fc098e83a3530d228e0138dcb9"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/RobolectricAsync.kt",
+        "sha256": "6c0d5ce0cb34845aff34e1deeb90a3917b62c6e8d5c1c5bde2caa87abf37dfd0"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/SignInLinkTest.kt",
+        "sha256": "3f41497f98732f049a3d66f6ec0b72f145eb82dc41d2be79765c3e9bb1e1d04a"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/TestHttpServer.kt",
+        "sha256": "49b9b2309f36af79f2a6da904ffb150148720ec1123b9faba4a0c4c5bf122bce"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/data/WhyTest.kt",
+        "sha256": "b824a44e00c26d62e344d5b9d96c3c7757d626f49a6b374fc18e9ee06fb90d44"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/KeepStartTest.kt",
+        "sha256": "3e1e434819ec98a229dce501a4b3d56c2dd9c9fb90c3e734d804c4046b3a2f9d"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/ReaderDiscoveryTest.kt",
+        "sha256": "3de032d946a5882dd0fc7b125648b384f12d74440030d3369cfb4d70d088adb7"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/ReaderExplainTest.kt",
+        "sha256": "f54f1f6ded39f43168dcec779240e9ad1b6cd9f2c9ce5fbd890d7afc18c687ba"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/SignOutColdStartOrderingTest.kt",
+        "sha256": "da5100eaf65d467cb8abd5a4aab1e0a8e194b5ab9d2ba451c31ad6d0574a66c9"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/SignOutStateTest.kt",
+        "sha256": "33d582d24fb26ae36ae24e5f55e5c8bc65312065ee5e9e082a80894bd1c23158"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/TraceRevisitStateTest.kt",
+        "sha256": "dea6d108185afdefcd2eee15982f7abad95066c1ad1e03fc5f3e6464ab0bc472"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/account/AccountViewModelTest.kt",
+        "sha256": "2cf713d5cf5883f0caf79a6ea4c2e3dd3041d23b68b74d1661cb72cdd5f318a1"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/account/PrivacyScreenTest.kt",
+        "sha256": "4a97a31fea751427e066f805a8384be4fd1bc10eda4a40058bd305a9dad92be9"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/account/SignInScreenTest.kt",
+        "sha256": "38a260ffef85223af8a152803416a94442f284d6417b200191fbd798e8b9e919"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/ask/AskPresentationTest.kt",
+        "sha256": "a62477c206ceea30a9169d8a4f4a9077662b0bc844e6a429b13e9eeee215e8cb"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/BottomCompassRedTest.kt",
+        "sha256": "6c785bd408d07b42679424ea073781c91508fe8fba6d3f7e8952aa6f35f09b1a"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/CardSheetRadiusRedTest.kt",
+        "sha256": "c851086e039d8c6aaee1765ffbf6b8e6ab4019168d5f81b60a470ebf56bbc0eb"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/FidelitySupport.kt",
+        "sha256": "bb4997ece5c38361dad34c6e223486706cb43640deea38a693b7004e274ec090"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/PaletteTokensRedTest.kt",
+        "sha256": "ab581f03c403b19a51b4f56c5fa75dfbf8a431ca41ae0055a9e6da5f42638086"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/PillGeometryRedTest.kt",
+        "sha256": "181544e316fc847105fb78856b25de582b164c0314842f097989e7107595878a"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/PlacesScreenTest.kt",
+        "sha256": "95dfab5d6d9244676be35ce58671a66a662b04a6c00754fd31f80252ca2a755f"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/ReducedMotionRedTest.kt",
+        "sha256": "1e24c5307c333dba1b50052732d1d61f890246553e14a0bbde6342f85a48efa8"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/ScreenshotEvidenceTest.kt",
+        "sha256": "ca20618223965e31e22bfc636de89d4d6d8e6ae48cdb836dd3bcdb686cb74c07"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/SystemScreenRedTest.kt",
+        "sha256": "0a5f0b6e3a958cd2505043435123a82d02edd19487d70b20109a58f11896e676"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/TruthPillRedTest.kt",
+        "sha256": "96a059263ef37ae0d42f15cf2f606b10bb51a5d380b04db03c9ad3ca04f989f5"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/UniverseClippingRedTest.kt",
+        "sha256": "26f9668c188a8ee89281971e596044d5c9827966935c147e69e75a0f1e526a0c"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/UniversePrivacyCompactRedTest.kt",
+        "sha256": "c777a3aa03d5a229d234430082309006ab9d1421da51b08a20203615adda5b8c"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/fidelity/WorldDetailRedTest.kt",
+        "sha256": "b81478db24048d6aadc7e48b0bc71c07b50229fc2ddbf7eb8dfcafed4377b0e1"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/keep/KeepDateFormattingTest.kt",
+        "sha256": "1bc51b23b4c98b0bee6c8d7c897a0fd335c29f19af657db380a95a3d6c7eab05"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/scroll/AskSheetTest.kt",
+        "sha256": "551ea12d8bde5a78595aca5f8b13bfde9acc1cbfc5419e86aaf73ce7c869d312"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/scroll/ExplainWhyTest.kt",
+        "sha256": "c9026fa2ab7e18da16891fc87155ecb411e2d0a0eca31d6f28fa532b67024bda"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/scroll/ReaderSheetProcessRestoreTest.kt",
+        "sha256": "98f113349a90e6c61116b9c543ce4728a8aedac0f17786e53ca748c7115cd5f6"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/scroll/ReaderSheetRemountTest.kt",
+        "sha256": "6e9a9234584498bc3779dda31650d2f18694582faa7d10b69ac6638afd16f71e"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/scroll/ReadingRestoreTest.kt",
+        "sha256": "98f8cf53e20e43fc47aa2f86e959a5af7fd6fc69943862459e928425a3416a4f"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/system/AtlasCameraTest.kt",
+        "sha256": "d421f2799cec1ba216bae517b5797ac4af77fc561a5e8e9e2d3154ed130ef5c9"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/system/AtlasPresentationTest.kt",
+        "sha256": "9c25072bf309048bb08215dc40d2b5e4035938f409b862bc52b47bf81003af03"
+      },
+      {
+        "path": "apps/mobile/app/src/test/kotlin/com/knowscroll/mobile/ui/system/SystemGeometryTest.kt",
+        "sha256": "0b2bb13998bf500c622a7e99d2ad3a0873810c41a3ad1fb07285710daa2d673f"
+      },
+      {
+        "path": "apps/mobile/build.gradle.kts",
+        "sha256": "6578a70761b39b9c0a34c8b5585a4e5e83e151ee8e12d6a8d7001ddfbaf4ce19"
+      },
+      {
+        "path": "apps/mobile/gradle/wrapper/gradle-wrapper.jar",
+        "sha256": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7"
+      },
+      {
+        "path": "apps/mobile/gradle/wrapper/gradle-wrapper.properties",
+        "sha256": "a46f766489ec4017b6ad877e6f7f8388c3dd858451f056777b9e716316800506"
+      },
+      {
+        "path": "apps/mobile/gradle.properties",
+        "sha256": "d2eebe04a72102733513bf126f37ec05429b7c1a3edcdd6248c66b995528307f"
+      },
+      {
+        "path": "apps/mobile/gradlew",
+        "sha256": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59"
+      },
+      {
+        "path": "apps/mobile/gradlew.bat",
+        "sha256": "59328c7a17f673b1a63040bfb380a0c749e5d6df3406f7f18641060314cd9aa1"
+      },
+      {
+        "path": "apps/mobile/local.properties.template",
+        "sha256": "90ed570e48d84362adbff6160c533156e7ccbb0adb85464727d65a346ddf76db"
+      },
+      {
+        "path": "apps/mobile/settings.gradle.kts",
+        "sha256": "feec88b293a79c703eba0517c0c10e8855f4bc43f0f49783ddf7d43dae4c9abf"
+      },
+      {
+        "path": "scripts/android-reader-explain-journey.py",
+        "sha256": "33c0ed01812494d1e531cc23b9c001f07b3bb531f411b500adbb57f07ee7aae1"
+      }
+    ]
+  },
+  "runtime": {
+    "database": "disposable PostgreSQL",
+    "api": "separate process",
+    "worker": "separate process",
+    "device": "36",
+    "compact": "840x1680 at font_scale1.3",
+    "regular": "AVD native size at font_scale1.0",
+    "apiPort": "4326",
+    "proxyPort": 4321,
+    "coldRestart": {
+      "beforePid": "11395",
+      "afterPid": "11441"
+    }
+  },
+  "phases": {
+    "discovery": {
+      "scenario": "explainSheetShowsDiscoveryReasonTruthAndSourcesNote",
+      "assetId": "20000000-0000-4000-8000-000000000004",
+      "reason": "A first door into Tides.",
+      "truthState": "documented",
+      "originDiscovery": true,
+      "sourcesNoteShown": true
+    },
+    "blankReason": {
+      "scenario": "explainSheetReportsNoRecordedExplanationForABlankReason",
+      "assetId": "20000000-0000-4000-8000-000000000002",
+      "proxyRewroteReasonOnly": true,
+      "apiComposerUnchanged": true
+    },
+    "savedTrace": {
+      "scenario": "explainSheetShowsSavedTraceOriginWithKeptDateAndNoReason",
+      "traceEventId": "26960fac-77e5-481c-a7fb-94ca6d550f7d",
+      "keptAt": "2026-09-24T09:03:14.655Z",
+      "reasonAbsentAsExpected": true,
+      "originStatesKeptDate": true
+    },
+    "prepare": {
+      "scenario": "explainSheetPrepareForRotationAndProcessDeath",
+      "assetId": "20000000-0000-4000-8000-000000000006",
+      "exposureId": "5a6bbb86-a46e-433f-bdd2-c52389b531ba",
+      "readingPosition": 0,
+      "sheetRestoredAfterRecreation": true,
+      "readingSessionPreservedAfterRecreation": true,
+      "phase": "before-force-stop"
+    },
+    "processDeath": {
+      "scenario": "explainSheetRestoresReadingAfterProcessDeath",
+      "assetId": "20000000-0000-4000-8000-000000000006",
+      "exposureId": "5a6bbb86-a46e-433f-bdd2-c52389b531ba",
+      "readingSessionRestored": true,
+      "sheetOpenAfterProcessDeath": false
+    },
+    "signOutCancel": {
+      "scenario": "signOutConfirmationCancelIsHarmless",
+      "dialogDismissed": true,
+      "sessionStillLive": true,
+      "universeId": "00000000-0000-4000-8000-000000000001"
+    },
+    "signOutSuccess": {
+      "scenario": "signOutConfirmedRevokeEndsSessionHonestly",
+      "resolvedVia": "204",
+      "signedOutScreenShown": true,
+      "noRetryControlOffered": true,
+      "sessionVerifiedDeadAfter401": true
+    },
+    "signOutNetworkDrop": {
+      "scenario": "signOutNetworkDroppedRevokeThenRetrySucceeds",
+      "controlStatus": 204,
+      "firstAttemptAmbiguousLocalStateKept": true,
+      "explicitRetrySameRequestSucceeded": true,
+      "sessionVerifiedDeadAfter401": true
+    },
+    "signOut401": {
+      "scenario": "signOutAlreadyRevokedSessionResolvesAsSignedOut",
+      "controlStatus": 204,
+      "firstAttemptResolvedAsSignedOutViaReal401": true
+    }
+  },
+  "domainCounts": {
+    "beforeExplain": {
+      "decision": 0,
+      "exposure": 0,
+      "ledger": 0,
+      "job": 0,
+      "trace": 0
+    },
+    "afterExplain": {
+      "decision": 4,
+      "exposure": 4,
+      "ledger": 5,
+      "job": 1,
+      "trace": 1
+    },
+    "beforeSignOut": {
+      "decision": 4,
+      "exposure": 4,
+      "ledger": 5,
+      "job": 1,
+      "trace": 1
+    },
+    "afterSignOut": {
+      "decision": 4,
+      "exposure": 4,
+      "ledger": 5,
+      "job": 1,
+      "trace": 1
+    }
+  },
+  "transportFixture": {
+    "blankNextFeedReason": false,
+    "feedReasonsBlanked": 1,
+    "remainingRevokeDrops": 0,
+    "revokeSocketsDropped": 2,
+    "revokeSucceeded": 2,
+    "revokeUnauthorized": 1,
+    "sessionsRevoked": 1,
+    "sessionsRestored": 2
+  },
+  "providerCalls": 0,
+  "ownerPackage": {
+    "installedPathBefore": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
+    "installedPathAfter": "package:/data/app/~~5mzuMbM7NpH7sboZ9xDe5w==/com.knowscroll.mobile-lVhN-ZegSX_qH20vWPGw7Q==/base.apk",
+    "untouched": true
+  },
+  "journeyPackagePath": "package:/data/app/~~_yn6S8FvkRA2DfLXisqDKQ==/com.knowscroll.mobile.journey-9_S5lYPXwjRxGxs8KOGYMw==/base.apk",
+  "limits": [
+    "Transport loss and session revocation are explicitly injected fixtures; every successful response and every terminal signed-out state comes from the real API/session logic",
+    "No owner visual acceptance or manual TalkBack traversal recorded here",
+    "No desktop, physical device, Reel, semantic/living/social world or live provider proof",
+    "Concurrent restore-of-a-pending-sign-out with a still-inflight universe reconciliation is not exercised; only sequential ambiguous-then-retry and pre-revoked-then-401 are covered"
+  ],
+  "cleanup": {
+    "databaseDropped": true,
+    "childrenExited": true,
+    "fontRestored": true,
+    "displaySizeReset": true
+  }
+}
