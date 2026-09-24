@@ -140,3 +140,11 @@ test('verification review: statements about the reader are refused; hypothetical
     assert.ok(verdict.ok, `${answer} → ${JSON.stringify(verdict)}`);
   }
 });
+
+test('the Scroll\'s own words to its reader are not the model characterising the reader', () => {
+  const speaking: AskAnswerSource = { ...source, scroll: { ...source.scroll,
+    body: `You jump, and a moment later you\u2019re back on the ground. ${source.scroll.body}` } };
+  const echo = validateAskAnswerProposal(good({ answer: "As the Scroll puts it, you're back on the ground a moment later; Earth rotates through two bulges of water." }), speaking);
+  assert.ok(echo.ok, JSON.stringify(echo));
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: "You're brilliant to ask. Earth rotates through two bulges of water." }), speaking)), ['characterizes_reader']);
+});

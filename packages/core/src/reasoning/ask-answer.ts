@@ -92,12 +92,19 @@ const TRAITS = [
   /\byou(?: clearly| obviously| probably| really)? (?:love|like|prefer|enjoy|adore)\b/g,
   /\byour (?:personality|interests?|nature|curiosity|character|taste|tastes|passion|kind of person)\b/g,
 ];
-function characterizes(text: string): boolean {
-  const t = text.replace(/[\u2018\u2019\u02bc]/g, "'").toLowerCase();
+const normalize = (text: string) => text.replace(/[\u2018\u2019\u02bc]/g, "'").toLowerCase().replace(/\s+/g, ' ');
+/** `scroll` is the Scroll's own text: a phrase it addresses to its reader, repeated word for word,
+ * is the source speaking, not the model characterising the person reading. */
+function characterizes(text: string, scroll = ''): boolean {
+  const t = normalize(text);
+  const own = normalize(scroll);
   for (const pattern of TRAITS) {
     for (const m of t.matchAll(pattern)) {
       if (m[1] !== undefined && SITUATION.has(m[1])) continue;
       if (HYPOTHETICAL.test(t.slice(0, m.index))) continue;
+      // The matched words plus the next two, within the sentence: specific enough to be the Scroll's own.
+      const phrase = t.slice(m.index).split(/[.!?;,]/)[0]!.split(' ').slice(0, m[0].split(' ').length + 2).join(' ');
+      if (own.includes(phrase)) continue;
       return true;
     }
   }
@@ -162,7 +169,7 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
   if (basis.length === 0) reasons.push('basis_missing');
   const haystack = squash(`${source.scroll.summary}\n${source.scroll.body}`);
   if (basis.some(b => b.quote.length < ASK_ANSWER_LIMITS.quoteMinChars || b.quote.length > ASK_ANSWER_LIMITS.quoteMaxChars || !haystack.includes(b.quote))) reasons.push('basis_not_in_source');
-  if (characterizes(answer) || characterizes(limits)) reasons.push('characterizes_reader');
+  if (characterizes(answer, `${source.scroll.summary}\n${source.scroll.body}`) || characterizes(limits)) reasons.push('characterizes_reader');
   if (reasons.length > 0) return reject(...reasons);
   return { ok: true, proposal: { kind: 'answered', answer, basis, limits }, validatorVersion };
 }
