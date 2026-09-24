@@ -71,7 +71,7 @@ class PlacesJourneyTest {
             tries++
         }
         assertTrue("the feed never offered \"$titlePrefix\" within a bounded trip", store().read()!!.item.title.startsWith(titlePrefix))
-        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasContentDescription("Keep this Scroll"))
+        // Keep lives in the fixed reader toolbar, outside the scrolling content (as in SemanticWhyJourneyTest).
         compose.onNodeWithContentDescription("Keep this Scroll").performClick()
         compose.waitUntil(15_000) { store().read()?.keepJobId?.isNotEmpty() == true }
         val eventId = store().read()!!.keepEventId
