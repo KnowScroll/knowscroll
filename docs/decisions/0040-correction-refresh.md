@@ -1,7 +1,7 @@
 # ADR-0040 — A source correction reaches the reader's places while they are away
 
-Date: 2026-09-24. Status: **proposed** (designed, not built) for [#134](https://github.com/KnowScroll/knowscroll/issues/134),
-parent #72. Builds on ADR-0031 (corrections revoke dependent bridges), ADR-0032 (the personal model),
+Date: 2026-09-24. Status: **accepted** (built for [#160](https://github.com/KnowScroll/knowscroll/issues/160)),
+parent #134 under #72. Builds on ADR-0031 (corrections revoke dependent bridges), ADR-0032 (the personal model),
 ADR-0036/0037 (places, foundations, deltas and their causes) and ADR-0039 (the return).
 
 ## Context
