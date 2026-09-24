@@ -71,6 +71,19 @@ class LivingCableJourneyTest {
                 store.read()?.item?.kind == "Reel" && store.read()?.exposureId?.isNotBlank() == true
             }
             val reel = store.read()!!
+            // #167 (ADR-0043): the live Reel explains itself through the Scroll reader's why sheet,
+            // with its recorded path, and never shows a source.
+            compose.onNodeWithContentDescription("Why this Reel appeared").performClick()
+            waitText("WHAT LED HERE")
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText("Reading what was recorded…").fetchSemanticsNodes().isEmpty()
+            }
+            for (source in listOf("Supplied demo library", "example.test")) {
+                assertEquals(0, compose.onAllNodesWithText(source, substring = true).fetchSemanticsNodes().size)
+            }
+            capture("living-reel-why.png")
+            compose.onNodeWithText("Back to reading").performScrollTo().performClick()
+            waitFor("Reel video")
             compose.onNodeWithText("Pause").performClick()
             // Toggle while a horizontal drag is still in progress; the disposed player must
             // cancel its gesture without turning it into a discovery or exposure.
@@ -182,6 +195,7 @@ class LivingCableJourneyTest {
                         .put("exactRetryIdentityRetained", true)
                         .put("authoredPreview", true)
                         .put("liveBranches", false)
+                        .put("liveReelWhy", true)
                         .put("horizontalBothDirections", true)
                         .put("toggleMidGesture", true)
                         .put("scrollReadingOwnsVertical", true)

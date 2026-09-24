@@ -175,3 +175,12 @@ ADR-0031 personal suppression); an unmapped fallback has no route (422); an unse
 422; a stale epoch or a key reused with other content is 409; an exact retry returns the original
 receipt. Allowed while paused. Clear/Reset erase it with attention accounts, transitions and
 hypotheses; export carries them under `personalModel`.
+
+### Reels explain and continue like Scrolls (#167, ADR-0043)
+
+No wire shape changes. A Reel is minted carrying its source Scroll's concepts (same roles), so the
+three routes above apply to a Reel encounter unchanged: `…/why` returns its recorded family, reason
+and evidence path; `POST /v1/encounters/feedback` corrects its route; `GET /v1/assets/:id/branches`
+lists continuations from its concepts, whose targets are Scrolls, and `POST /v1/branches` accepts a
+Reel exposure as `fromExposureId`. The feed composes from the reader's whole history whatever `kinds`
+asks for: a Reel kept in Reel mode grounds the next Scroll, and the reverse.

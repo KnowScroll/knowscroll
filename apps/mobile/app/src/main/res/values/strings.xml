@@ -112,6 +112,7 @@
     <!-- Why this appeared (#91) -->
     <string name="reader_explain_action">Why</string>
     <string name="reader_explain_description">Why this Scroll appeared</string>
+    <string name="reel_explain_description">Why this Reel appeared</string>
     <string name="reader_explain_sheet_title">Why this appeared</string>
     <string name="reader_explain_reason_heading">REASON</string>
     <string name="reader_explain_truth_heading">TRUTH STATE</string>

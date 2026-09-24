@@ -38,7 +38,7 @@ import com.knowscroll.mobile.ui.ScrollState
 import com.knowscroll.mobile.ui.canRequestDiscovery
 import com.knowscroll.mobile.ui.explainOriginText
 import com.knowscroll.mobile.ui.explainReasonText
-import com.knowscroll.mobile.ui.NO_REASON_RECORDED
+import com.knowscroll.mobile.ui.noReasonRecorded
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.rememberReducedMotion
@@ -457,7 +457,7 @@ internal fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, why: WhyPanel?
             )
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.reader_explain_reason_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
-                Text(explainReasonText(item.reason) ?: NO_REASON_RECORDED, style = MaterialTheme.typography.bodyLarge)
+                Text(explainReasonText(item.reason) ?: noReasonRecorded(item.kind), style = MaterialTheme.typography.bodyLarge)
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.reader_explain_truth_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
@@ -466,7 +466,7 @@ internal fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, why: WhyPanel?
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.reader_explain_origin_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
-                Text(explainOriginText(origin), style = MaterialTheme.typography.bodyMedium)
+                Text(explainOriginText(origin, item.kind), style = MaterialTheme.typography.bodyMedium)
             }
             if (why != null) WhySection(why, onCorrect)
             OutlinedButton(

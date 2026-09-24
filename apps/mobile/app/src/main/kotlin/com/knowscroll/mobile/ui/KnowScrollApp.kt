@@ -325,6 +325,8 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                     atlasStates.SaveableStateProvider(
                                         requireNotNull(activeReelKey)
                                     ) {
+                                        // #167: a Reel continues and explains itself like a Scroll.
+                                        val reelBranches = branches?.takeIf { it.assetId == reading.item.assetId }
                                         com.knowscroll.mobile.ui.reel.ReelScreen(
                                             reading,
                                             viewModel::keep,
@@ -334,6 +336,10 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                             { viewModel.onVisible(reading.item.assetId) },
                                             viewModel::onMediaAuthorityFailure,
                                             viewModel::updateReadingPosition,
+                                            branches = reelBranches?.availability ?: BranchAvailability.Unavailable,
+                                            onBranch = { viewModel.openBranch(it.id) },
+                                            branchMessage = reelBranches?.message,
+                                            why = com.knowscroll.mobile.ui.scroll.WhyControls(why, viewModel::loadWhy, viewModel::correctEncounter),
                                             mediaToken = viewModel.credentialProvider.currentToken(),
                                         )
                                     }

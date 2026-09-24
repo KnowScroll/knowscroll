@@ -37,7 +37,7 @@ class ReaderExplainTest {
     }
 
     @Test fun discoveryOriginNeverClaimsAnInterestOrSavedTrace() {
-        val text = explainOriginText(ReaderOrigin.Discovery)
+        val text = explainOriginText(ReaderOrigin.Discovery, "Scroll")
         assertTrue(text.contains("deliberate discovery"))
         assertFalse(text.contains("interest", ignoreCase = true))
         assertFalse(text.contains("kept", ignoreCase = true))
@@ -48,12 +48,19 @@ class ReaderExplainTest {
         val states = listOf("documented", "synthesis", "interpretation", "disputed", "modelled", "counterfactual", "fictional")
         val origins = listOf(ReaderOrigin.Discovery, ReaderOrigin.SavedTrace("event-a", "2026-09-17T00:00:00.000Z"),
             ReaderOrigin.Branch("Gravity pulls", "Gravity explains Tides", recorded = false))
-        val copy = states.mapNotNull(::truthStateMeaning) + origins.map(::explainOriginText)
+        val copy = states.mapNotNull(::truthStateMeaning) + origins.flatMap { origin -> listOf("Scroll", "Reel").map { explainOriginText(origin, it) } }
         assertEquals(emptyList<String>(), copy.filter(::pointsAtASource))
     }
 
+    /** #167: the Reel reader shares this sheet, so its words name the encounter actually on screen. */
+    @Test fun theOriginAndAnAbsentReasonNameTheKindOfEncounter() {
+        assertEquals("You opened this Reel through deliberate discovery from your universe.", explainOriginText(ReaderOrigin.Discovery, "Reel"))
+        assertEquals("No explanation was recorded for this Reel.", noReasonRecorded("Reel"))
+        assertEquals("No explanation was recorded for this Scroll.", noReasonRecorded("Scroll"))
+    }
+
     @Test fun savedTraceOriginStatesOnlyTheKeptDateTheApiReturned() {
-        val text = explainOriginText(ReaderOrigin.SavedTrace("event-a", "2026-09-17T00:00:00.000Z"))
+        val text = explainOriginText(ReaderOrigin.SavedTrace("event-a", "2026-09-17T00:00:00.000Z"), "Scroll")
         assertTrue(text.contains("2026-09-17T00:00:00.000Z"))
         assertFalse(text.contains("interest", ignoreCase = true))
     }

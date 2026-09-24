@@ -13,11 +13,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.BuildConfig
+import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.*
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
+import com.knowscroll.mobile.ui.scroll.ExplainSheet
+import com.knowscroll.mobile.ui.scroll.WhyControls
 import com.knowscroll.mobile.ui.theme.Cosmos
 import com.knowscroll.mobile.ui.theme.Poster
 import com.knowscroll.mobile.ui.theme.PosterTheme
@@ -35,8 +41,13 @@ fun ReelScreen(
     onPosition: (String, Int) -> Unit,
     branches: BranchAvailability = BranchAvailability.Unavailable,
     onBranch: (EncounterBranch) -> Unit = {},
+    /** #167: why a continuation could not be opened (e.g. it was withdrawn), shown until it settles. */
+    branchMessage: String? = null,
     preview: Boolean = false,
     onPrevious: (() -> Unit)? = null,
+    /** #167 (ADR-0043): the recorded "why" and its corrections, through the Scroll reader's own sheet.
+     * The authored preview has no recorded decision, so it offers no "Why". */
+    why: WhyControls = WhyControls(),
     /** #135: the resolved bearer credential for this media request (the signed-in session, or
      * the development token in a debug build). `null` sends no `Authorization` header at all --
      * the default preserves the exact previous debug behaviour for any caller that does not pass
@@ -45,15 +56,31 @@ fun ReelScreen(
 ) {
     val media = requireNotNull(state.item.media)
     var branchHelp by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
+    var explain by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
     var drag by remember { mutableStateOf(Offset.Zero) }
     val threshold = with(LocalDensity.current) { 72.dp.toPx() }
     val canNext = state.exposureId.isNotEmpty() && canRequestDiscovery(state.keep, state.discovery)
-    BackHandler(enabled = branchHelp) { branchHelp = false }
+    BackHandler(enabled = branchHelp || explain) {
+        branchHelp = false
+        explain = false
+    }
     PosterTheme {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val footerMax = (maxHeight * .30f).coerceIn(96.dp, 220.dp)
             Column(Modifier.fillMaxSize().background(Poster.Paper)) {
-                TextButton(onClick = onReturn, modifier = Modifier.padding(horizontal = 16.dp)) { Text("‹ Return to origin") }
+                FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TextButton(onClick = onReturn) { Text("‹ Return to origin") }
+                    if (!preview) {
+                        val whyDescription = stringResource(R.string.reel_explain_description)
+                        TextButton(
+                            onClick = { explain = true },
+                            modifier = Modifier.semantics { contentDescription = whyDescription },
+                        ) { Text(stringResource(R.string.reader_explain_action)) }
+                    }
+                }
                 Text(
                     if (media.simulated) "TEST MEDIA · NOT GENERATED EVIDENCE"
                     else "GENERATED SYNTHESIS",
@@ -74,7 +101,7 @@ fun ReelScreen(
                         )
                     },
                     state.readingPosition.toLong(),
-                    active = !branchHelp,
+                    active = !branchHelp && !explain,
                     gestureModifier =
                         Modifier.pointerInput(state.item.assetId, canNext, branches) {
                             detectDragGestures(
@@ -154,6 +181,7 @@ fun ReelScreen(
                             Text("You have reached the end of this library.", color = Poster.Ink)
                         else -> Unit
                     }
+                    branchMessage?.let { Text(it, color = Poster.Ink) }
                     if (state.keep is KeepState.Failed || state.keep is KeepState.Conflict)
                         Text(
                             "This Relic could not be saved. Retry keeps the same request.",
@@ -164,6 +192,16 @@ fun ReelScreen(
                     BottomCompass(CompassTab.Cable, onReturn, {}, onOpenKeep, poster = true)
             }
         }
+        LaunchedEffect(explain, state.item.assetId) { if (explain) why.onOpen() }
+        if (explain)
+            ExplainSheet(
+                state.item,
+                state.origin,
+                why.panel?.takeIf { it.assetId == state.item.assetId },
+                why.onCorrect,
+            ) {
+                explain = false
+            }
         if (branchHelp)
             AlertDialog(
                 containerColor = com.knowscroll.mobile.ui.theme.Cosmos.Cream,

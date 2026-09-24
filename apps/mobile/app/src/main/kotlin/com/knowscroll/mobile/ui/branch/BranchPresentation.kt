@@ -24,7 +24,7 @@ data class BranchPanel(
 )
 
 fun branchAvailabilityOf(result: EncounterBranches, parent: ScrollItem): BranchAvailability {
-    if (result.branches.isEmpty()) return BranchAvailability.Empty(emptyReasonText(result.emptyReason))
+    if (result.branches.isEmpty()) return BranchAvailability.Empty(emptyReasonText(result.emptyReason, parent.kind))
     return BranchAvailability.Ready(result.branches.map { branch ->
         EncounterBranch(
             id = branch.branchId,
@@ -41,8 +41,9 @@ fun branchAvailabilityOf(result: EncounterBranches, parent: ScrollItem): BranchA
 fun railLabel(branch: LiveBranch): String =
     "${branch.relationPhrase.replaceFirstChar { it.uppercaseChar() }} ${branch.toName}"
 
-fun emptyReasonText(reason: String?): String = when (reason) {
-    "no_semantic_annotation" -> "This Scroll has not been mapped to ideas yet, so no connection is offered."
+/** `kind` is the encounter the list belongs to (#167: a Reel has continuations too); targets stay Scrolls. */
+fun emptyReasonText(reason: String?, kind: String): String = when (reason) {
+    "no_semantic_annotation" -> "This $kind has not been mapped to ideas yet, so no connection is offered."
     "no_admitted_bridge" -> "No connection leads on from this idea yet."
     "no_eligible_target" -> "A connection exists, but no Scroll about the other side is available yet."
     else -> "No connection is available here."
