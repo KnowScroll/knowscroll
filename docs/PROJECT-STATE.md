@@ -1,5 +1,11 @@
 # Project state
 
+## 2026-09-24 The desktop reader explains why a Scroll appeared (#133)
+
+On the web, "Why this appeared" now shows the recorded reason and the steps that led to the Scroll,
+as the phone app does. The reader can say "less like this" or "wrong connection", and the page says
+what each one changes. It works by keyboard. The panel is hidden in very narrow windows.
+
 ## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
 
 When one of the reader's places explains several of their other places, and sources say so, it

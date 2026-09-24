@@ -110,6 +110,10 @@ jobs:
         run: pnpm --filter web exec playwright install --with-deps chromium
       - name: Verify the web-reader journey end to end (#92, #115)
         run: pnpm exec tsx scripts/run-web-reader-journey.ts
+      - name: Verify the web owner journey (#135 cookie sign-in, privacy, account deletion)
+        run: pnpm exec tsx scripts/run-web-owner-journey.ts
+      - name: Verify the web "What led here" journey (#133 journey G)
+        run: pnpm exec tsx scripts/run-web-why-journey.ts
       - name: Preserve sanitized receipt and Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -117,6 +121,8 @@ jobs:
           name: web-journey-evidence
           path: |
             docs/journeys/evidence/web-reader/last-run-receipt.json
+            docs/journeys/evidence/web-owner/last-run-receipt.json
+            docs/journeys/evidence/web-why/last-run-receipt.json
             apps/web/artifacts/playwright-report/**
             apps/web/artifacts/playwright-results.json
           if-no-files-found: ignore
