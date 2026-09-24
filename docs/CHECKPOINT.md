@@ -3,8 +3,10 @@
 ## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
 
 `AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
-installs the `.journey` app (the semantic, profile and #91 explain runners, and the six older
-ones) now goes through `scripts/android_preview.py`:
+installs the `.journey` app (the semantic, profile and #91 explain runners, the six older ones and
+`android-living-preview.py` in its verification mode) now goes through
+`scripts/android_preview.py`. Only `android-living-preview.py --keep`, the preview's own setup,
+installs it deliberately. The guard:
 - it refuses, touching nothing, if the preview cannot be backed up or holds a keystore-sealed
   signed-in session;
 - it restores only if the run actually replaced the preview;

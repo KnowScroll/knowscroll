@@ -6,7 +6,8 @@ Measured side by side on the same emulator, the current app is as fast as PR130'
 slow end and faster in the middle. It does redraw more work per frame, which is the next thing to
 cut. It is still not smooth on the emulator, and there is no phone measurement yet. A device check
 for the "why this appeared" sheet and sign-out, broken since the reader's feed changed, works
-again. Every device runner now protects the owner's running preview: it refuses to start rather
+again. Every device check now protects the owner's running preview (only the command that sets up
+the preview replaces it on purpose): it refuses to start rather
 than risk it, and leaves it alone unless the run actually replaced it. If the preview is signed in
 with an emailed link, the owner has to sign out first, or accept signing in again afterwards.
 

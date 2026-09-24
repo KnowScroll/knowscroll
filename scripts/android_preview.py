@@ -23,18 +23,23 @@ import json
 import os
 import subprocess
 import tarfile
+from xml.etree import ElementTree
 
 VAULT_PREFS = 'shared_prefs/ks_session_vault_v1.xml'
 # SessionVault's ciphertext key: present only while a session is stored (sign-out removes it but
 # leaves the file behind, so the file alone proves nothing).
-VAULT_SESSION_KEY = b'name="token_ciphertext"'
+VAULT_SESSION_KEY = 'token_ciphertext'
 
 
 def _holds_session(data):
     with tarfile.open(fileobj=io.BytesIO(data), mode='r:') as archive:
         for member in archive.getmembers():
             if member.isfile() and member.name == VAULT_PREFS:
-                return VAULT_SESSION_KEY in archive.extractfile(member).read()
+                try:
+                    root = ElementTree.fromstring(archive.extractfile(member).read())
+                except ElementTree.ParseError:
+                    return True  # unreadable: assume a session, so the run refuses rather than risks it
+                return any(element.get('name') == VAULT_SESSION_KEY for element in root)
     return False
 
 
@@ -152,6 +157,7 @@ class PreviewGuard:
             unchanged = current == self.listing
             self._receipt(replaced=False, dataUnchanged=unchanged, sessionLost=False)
             if unchanged: self._discard_backup()
+            else: print(f'The preview was not replaced, but its data changed during the run; its backup is kept at {self.backup}', flush=True)
             return
         if len(self.apks) == 1:
             subprocess.run(['adb', 'install', '-r', '-d', str(self.apks[0])], check=True, stdout=subprocess.DEVNULL)

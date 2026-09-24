@@ -17,7 +17,9 @@ holding `token_ciphertext`, which is sealed by a keystore key that a data clear 
 would have refused before touching anything, unless `KS_PREVIEW_ACCEPT_SIGN_OUT=1` was set. A
 signed-out vault file holds no session and does not block a run.
 
-The early-failure and places receipts committed here come from re-runs with the final guard
-(`guardSha256` names it). The early failure now also compares the preview's data and reports
+The early-failure and places receipts committed here come from re-runs with the guard at
+`guardSha256` 3f539b…. Two later changes were checked on synthetic archives, not re-run on the
+device: the vault check now parses the XML (unreadable counts as signed in, so the run refuses),
+and a kept backup is announced by path. The early failure now also compares the preview's data and reports
 `dataUnchanged: true`: had the owner used the preview during the run, the backup would have been
 kept rather than discarded. The explain receipt comes from the earlier run of the same logic.
