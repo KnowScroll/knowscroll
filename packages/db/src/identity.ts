@@ -61,6 +61,11 @@ export async function ensureDevelopmentSession(token: string): Promise<void> {
    }
    return;
   }
+  // ADR-0035: an account deletion deletes this session's row rather than revoking it. The
+  // tombstone names it, so the session stays ended -- exactly as a Reset's revoked row does --
+  // instead of being re-created here on the next start.
+  const ended = (await client.query('SELECT 1 FROM account_deletion_receipt WHERE $1::uuid = ANY(development_session_ids) LIMIT 1', [sessionId])).rows[0];
+  if (ended) return;
   const universe = (await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [OWNER_ID])).rows[0];
   await client.query(`INSERT INTO device_session(id,universe_id,device_id,token_hash,privacy_epoch,expires_at)
    VALUES($1,$2,$3,$4,$5,clock_timestamp()+($6 * interval '1 hour'))`,

@@ -1,0 +1,20 @@
+{
+  "at": "2026-09-24T08:19:26.850Z",
+  "clone": "knowscroll_test_owner_clone_*",
+  "sourceMigrations": 9,
+  "targetMigrations": 27,
+  "applied": 18,
+  "preExistingTables": 35,
+  "everyPreExistingRowPreserved": true,
+  "recordedChecksumsUnchanged": true,
+  "recovery": {
+    "universe": 200,
+    "feed": 200,
+    "export": 200,
+    "exportMatchesStoredHistory": true
+  },
+  "cleanup": {
+    "cloneDropped": true,
+    "dumpDeleted": true
+  }
+}

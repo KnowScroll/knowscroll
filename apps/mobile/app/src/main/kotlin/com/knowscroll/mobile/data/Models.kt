@@ -5,7 +5,10 @@ data class Universe(
     val revision: Long,
     val privacyEpoch: Long,
     val traces: List<Trace>,
-    val capabilities: Capabilities
+    val capabilities: Capabilities,
+    /** #135: an ISO instant while recording is paused (ADR-0028), else `null`. Drives the
+     * Privacy screen's Pause/Resume control -- see [ApiClient.getUniverse]. */
+    val recordingPausedAt: String? = null,
 )
 
 data class Trace(val eventId: String, val assetId: String, val title: String, val createdAt: String)
@@ -96,3 +99,59 @@ data class WorldSystem(val systemId: String, val worlds: List<WorldSummary>)
 /** `null` [system] means this universe has not yet encountered any recorded source's evidence --
  * never an empty object (docs/contracts/bootstrap-http.md). */
 data class WorldSystemResponse(val derivationMethod: String, val system: WorldSystem?)
+
+// -------------------------------------------------------------------------------------------
+// #135 (ADR-0026/0034/0035): owner identity and privacy parity.
+// -------------------------------------------------------------------------------------------
+
+/** `POST /v1/auth/session` response. Android keeps [sessionToken] as its bearer credential
+ * (ADR-0034 section 1); everything else is informational. */
+data class SignInSessionReceipt(
+    val sessionToken: String,
+    val sessionId: String,
+    val deviceId: String,
+    val universeId: String,
+    val privacyEpoch: Long,
+    val expiresAt: String,
+    val accountId: String,
+    val origin: String,
+)
+
+/** Shared by pause/resume/export (`privacyLifecycleInput`): no destructive confirmation literal. */
+data class PrivacyLifecycleRequest(val requestId: String, val expectedPrivacyEpoch: Long)
+
+data class PrivacyRecordingReceipt(
+    val receiptId: String,
+    val action: String,
+    val privacyEpoch: Long,
+    val recordingPausedAt: String?,
+    val appliedAt: String,
+)
+
+data class PrivacyResetRequest(
+    val requestId: String,
+    val expectedPrivacyEpoch: Long,
+    val confirmation: String = "reset-personal-universe",
+)
+
+data class PrivacyResetReceipt(
+    val receiptId: String,
+    val epochBefore: Long,
+    val epochAfter: Long,
+    val sessionsRevoked: Long,
+    val resetAt: String,
+)
+
+data class AccountDeletionRequest(
+    val requestId: String,
+    val expectedPrivacyEpoch: Long,
+    val confirmation: String = "delete-my-account-and-history",
+)
+
+data class AccountDeletionReceipt(
+    val receiptId: String,
+    val epochBefore: Long,
+    val epochAfter: Long,
+    val sessionsDeleted: Long,
+    val deletedAt: String,
+)

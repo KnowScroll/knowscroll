@@ -11,14 +11,15 @@ Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are
 Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
 recorded path of a v3 encounter and the reader's "less like this"), `sheets` (#97 each reader
 sheet survives Activity recreation), `ask` (#132 an authorized answer through the worker;
-fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request) and `places`
+fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request), `places`
 (#134 the reader's own live places, ADR-0036: seeds one day-old keep through the real API before
 instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
-real second day).
+real second day) and `owner` (#135 the real, sign-in-backed owner identity and privacy-lifecycle
+screen -- see its own section 3 below).
 """
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
-import datetime, hashlib, io, json, os, secrets, signal, socket, subprocess, sys, tarfile, time, urllib.request
+import datetime, hashlib, io, json, os, secrets, signal, socket, subprocess, sys, tarfile, threading, time, urllib.request
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
@@ -44,6 +45,11 @@ JOURNEYS = {
     # #134: the reader's own places form, are inspected and set aside.
     'places': {'test': 'com.knowscroll.mobile.PlacesJourneyTest', 'receipt': 'places-journey.json',
                'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
+    # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
+    'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
+              'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
+                           'owner-04-reading.png', 'owner-05-privacy.png', 'owner-06-paused.png', 'owner-07-resumed.png',
+                           'owner-08-exported.png', 'owner-09-delete-confirm.png', 'owner-10-deleted.png')},
 }
 if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
 spec = JOURNEYS[journey_name]
@@ -65,6 +71,24 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)), KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test',
            PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_MEDIA_ROOT=str(out / 'media'))
+owner_email = 'owner-journey@knowscroll.test'
+if journey_name == 'owner':
+    # ADR-0026 section 2 / ADR-0034 section 6: the API needs an owner address to accept a
+    # magic-link request for, and (to exercise the fragment-token parser, not just the bare
+    # confirm-URL query one) a configured web origin. KS_DEV_ROOT is overridden to a scratch
+    # directory so the sign-in development sink this run writes is never the real machine's --
+    # the exact isolation tests/signin-http.test.ts already requires of itself.
+    # Fresh per run: a sink left by an earlier run holds an already-used link.
+    scratch_dev_root = out / 'dev-root' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    scratch_dev_root.mkdir(mode=0o700, parents=True, exist_ok=False)
+    env.update(KS_OWNER_EMAIL=owner_email, KS_WEB_ORIGIN='https://owner-journey.knowscroll.test', KS_DEV_ROOT=str(scratch_dev_root))
+# The API process still needs a real (>=24 char) KS_DEV_TOKEN -- buildApp() refuses a short one
+# outright, and other routes in this same disposable stack still use it (ensureDevelopmentSession).
+# Only the *Gradle build*'s KS_DEV_TOKEN must be empty for the owner journey, so its compiled
+# BuildConfig.KS_DEV_TOKEN is blank and the app has no dev-token fallback (#135's whole point: the
+# sign-in screen, not a baked-in session, is what has to gate this build). Every other journey's
+# Gradle build is unaffected -- gradle_env is just env itself.
+gradle_env = {**env, 'KS_DEV_TOKEN': ''} if journey_name == 'owner' else env
 args = ['-h', source.hostname, '-p', str(source.port or 5432), '-U', source.username]
 admin = {**env, 'PGPASSWORD': source.password or ''}
 processes, created, preview_apk, preview_listing = [], False, None, []
@@ -133,13 +157,42 @@ try:
         seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/atlas/seed-day-old-history.ts'], env=seed_env, text=True, cwd=root)
         print(seeded, flush=True)
 
-    # 3. Separate journey build against this stack only.
-    run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=env)
+    # 3. Separate journey build against this stack only (gradle_env: KS_DEV_TOKEN empty for `owner`).
+    run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=gradle_env)
     for apk in ('debug/app-debug.apk', 'androidTest/debug/app-debug-androidTest.apk'):
         run(['adb', 'install', '-r', str(root / 'apps/mobile/app/build/outputs/apk' / apk)], stdout=subprocess.DEVNULL)
     adb('shell', 'pm', 'clear', package)
-    result = subprocess.check_output(['adb', 'shell', 'am', 'instrument', '-w', '-e', 'class', spec['test'],
+    instrument_args = ['-e', 'class', spec['test']]
+    watcher = None
+    if journey_name == 'owner':
+        instrument_args += ['-e', 'ownerEmail', owner_email]
+        # A background thread polls this run's own scratch development sink (never the real
+        # KS_DEV_ROOT) and, once the owner's magic-link request writes it, pushes its content into
+        # the *device app's own* files dir -- the link never otherwise crosses onto the device.
+        # `sh -c "..."` runs nested inside `run-as` so the redirect lands in the app's own sandbox
+        # (a bare `run-as <pkg> ... > file` would instead redirect at the adb-shell level, as the
+        # `shell` user, outside the app's data directory entirely).
+        sink_path = scratch_dev_root / 'sign-in' / 'magic-link.txt'
+        push_done = threading.Event()
+        watch_started = time.time()
+        def watch_and_push_magic_link(deadline=time.time() + 90):
+            while time.time() < deadline and not push_done.is_set():
+                if sink_path.exists() and sink_path.stat().st_mtime >= watch_started:
+                    content = sink_path.read_text()
+                    # A freshly installed app may not have created its files dir yet: create it, and
+                    # keep retrying until the push lands rather than letting one early failure end it.
+                    if content.strip() and subprocess.run(['adb', 'shell', f'run-as {package} sh -c "mkdir -p files && cat > files/magic-link.txt"'],
+                                                          input=content.encode(), capture_output=True).returncode == 0:
+                        push_done.set()
+                        return
+                time.sleep(0.5)
+        watcher = threading.Thread(target=watch_and_push_magic_link, daemon=True)
+        watcher.start()
+    result = subprocess.check_output(['adb', 'shell', 'am', 'instrument', '-w', *instrument_args,
                                       package + '.test/androidx.test.runner.AndroidJUnitRunner'], text=True, timeout=420)
+    if watcher is not None:
+        watcher.join(timeout=5)
+        if not push_done.is_set(): print('warning: the magic-link watcher never found a link to push', flush=True)
     (out / 'instrumentation.txt').write_text(result); print(result, flush=True)
     for filename in (spec['receipt'], *spec['captures']):
         capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
@@ -192,6 +245,27 @@ try:
         assert ok, lineage
         limits = ['Editorial substrate; composer-semantic-v3 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
                   'Scroll reader only; the Reel reader has no why sheet yet.']
+    elif journey_name == 'owner':
+        # ADR-0035: deletion erases the account, every sign-in token and device session, and the
+        # dated privacy receipts -- so pause/resume having actually written a receipt can only be
+        # checked from what the app itself observed *before* the delete step ran (the content-free
+        # test receipt's own booleans), never from the post-delete database, which is exactly what
+        # this SQL half proves is now empty.
+        lineage = json.loads(sql("""SELECT json_build_object(
+      'accountRows', (SELECT count(*) FROM account),
+      'accountDeletionReceipts', (SELECT count(*) FROM account_deletion_receipt),
+      'deviceSessions', (SELECT count(*) FROM device_session),
+      'signInTokens', (SELECT count(*) FROM sign_in_token))"""))
+        ok = (lineage['accountRows'] == 0 and lineage['accountDeletionReceipts'] == 1
+              and lineage['deviceSessions'] == 0 and lineage['signInTokens'] == 0
+              and journey.get('signedInViaPastedMagicLink') and journey.get('readARealScroll')
+              and journey.get('pausedRecording') and journey.get('resumedRecording')
+              and journey.get('exportedToAppCache') and journey.get('accountDeleted')
+              and journey.get('returnedToSignInWithDeletedMessage'))
+        assert ok, (lineage, journey)
+        limits = ['Single-owner v1 (ADR-0026): one account only, so this proves deletion, not multi-account isolation.',
+                  'Debug API36 emulator, not a physical device.',
+                  'Export is asserted via the app-cache file the journey build writes instead of the system SAF picker.']
     elif journey_name == 'places':
         p, formed_id, rejected_id = journey['placeId'], journey['deltaIds']['formed'], journey['deltaIds']['rejected']
         lineage = json.loads(sql(f"""SELECT json_build_object(
@@ -277,4 +351,6 @@ finally:
           FROM ask_answer a LEFT JOIN reasoning_receipt rr ON rr.attempt_id=a.attempt_id""") + '\n')
     if created and journey_name == 'ask': attempt('record answer outcome', record_outcome)
     if created: attempt('drop database', lambda: run(['dropdb', '--if-exists', *args, name], env=admin))
+    # The owner run's scratch dev root holds a sign-in link: it never outlives the run.
+    if journey_name == 'owner': attempt('remove scratch dev root', lambda: __import__('shutil').rmtree(scratch_dev_root, ignore_errors=True))
     if cleanup_errors: raise RuntimeError('cleanup incomplete: ' + '; '.join(cleanup_errors))

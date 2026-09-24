@@ -7,8 +7,8 @@
  * A React hook subscribes via useSyncExternalStore (src/hooks/useReaderStore.ts);
  * this file has no DOM/React dependency so its logic is directly unit-testable.
  */
-import { ApiException, describeApiError, invalidatesReader, isUnauthorized, type ReaderApi } from '../api/client.ts';
-import { RESET_CONFIRMATION } from '../api/types.ts';
+import { ApiException, describeApiError, invalidatesReader, isUnauthorized, mayHaveLanded, type ReaderApi } from '../api/client.ts';
+import { ACCOUNT_DELETE_CONFIRMATION, ACCOUNT_DELETE_TYPED_WORD, RESET_CONFIRMATION } from '../api/types.ts';
 import type {
   EventStatus,
   FeedItem,
@@ -70,12 +70,19 @@ export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy' | 
 /** ADR-0030/#119: pause, export and reset. Every mutating action carries the `kind` it is acting
  * on and, once sent, the one `requestId` that intent keeps across any retry (server-side replay
  * key) -- a manual retry after `failed` reuses it rather than minting a fresh one, exactly like
- * `ScrollSession.clientEventId` already does for Keep. */
-export type PrivacyActionKind = 'pause' | 'resume' | 'export' | 'reset';
+ * `ScrollSession.clientEventId` already does for Keep.
+ *
+ * `'sign-out'`/`'delete-account'` (#135, ADR-0034/ADR-0035) share this same one-action-at-a-time
+ * machinery: sign-out needs no confirmation step (like pause/resume), account deletion needs its
+ * own typed-confirmation gate (like reset, `'confirming-delete'` below) -- but neither ends inside
+ * this panel the way reset's `'reset-complete'` does, since both hand off to the app's sign-in
+ * screen instead (`onSignedOut`, this class's third constructor argument). */
+export type PrivacyActionKind = 'pause' | 'resume' | 'export' | 'reset' | 'sign-out' | 'delete-account';
 
 export type PrivacyActionState =
   | { status: 'idle' }
   | { status: 'confirming-reset' }
+  | { status: 'confirming-delete' }
   | { status: 'pending'; kind: PrivacyActionKind; requestId: string }
   | { status: 'failed'; kind: PrivacyActionKind; requestId: string; message: string }
   | { status: 'export-ready'; requestId: string; result: PrivacyExportResult }
@@ -121,8 +128,34 @@ export class ReaderStore {
   private ready = false;
   private navigationVersion = 0;
   private readonly visited: Set<string>;
+  /** #135 review: whether any deletion attempt in this page may have been applied without an answer
+   * (see `mayHaveLanded`) -- whatever its requestId, so Cancel and a fresh confirmation after a lost
+   * response still read a 401 as "deleted" (verification N3). See `confirmDeleteAccount`. */
+  private deletionMayHaveLanded = false;
 
-  constructor(private readonly api: ReaderApi, private readonly storage: ReaderStorage) {
+  /**
+   * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
+   * working unchanged. It fires whenever this store learns the reader is no longer authenticated --
+   * a 401 from any authenticated call (alongside the existing fail-closed Unavailable universe,
+   * never in place of it), a real `signOut()`, or a real `confirmDeleteAccount()` -- carrying a
+   * deletion-specific message on the last of those ("deleted" only when a deletion was, or may have
+   * been, applied; otherwise that the session ended before it was sent) and `null` otherwise.
+   *
+   * Its second argument, `verify`, tells the caller whether this needs confirming before it acts
+   * on it: `true` for an *ambient* 401 hit during ordinary reads (this store has no way to know
+   * whether the deployment even has a sign-in surface -- a bearer/dev-proxy session has none, and
+   * for that shape an ambient 401 is exactly the existing fail-closed-and-retry flow, not a reason
+   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`,
+   * which the reader asked for directly and which always deserve a real answer regardless of
+   * deployment shape. The app uses `ApiClient.isBearerSession()` to settle a `true` case; this
+   * class itself has no notion of screens outside its own five and makes no such deployment
+   * assumption on its own.
+   */
+  constructor(
+    private readonly api: ReaderApi,
+    private readonly storage: ReaderStorage,
+    private readonly onSignedOut?: (message: string | null, verify: boolean) => void,
+  ) {
     this.observedPrivacyEpoch = storage.readObservedPrivacyEpoch();
     this.observedUniverseId = storage.readObservedUniverseId();
     this.visited = storage.readVisited();
@@ -192,7 +225,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.set({ system: { status: 'unavailable', message: describeApiError(error) } });
         }
@@ -291,7 +324,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.setPrivacyAction({ status: 'failed', kind, requestId, message: describeApiError(error) });
         }
@@ -322,7 +355,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.setPrivacyAction({ status: 'failed', kind: 'export', requestId, message: describeApiError(error) });
         }
@@ -384,7 +417,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.setPrivacyAction({ status: 'failed', kind: 'reset', requestId, message: describeApiError(error) });
         }
@@ -400,6 +433,123 @@ export class ReaderStore {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
     if (this.state.privacy.action.status !== 'reset-complete') return;
     this.reconcilePrivacy(false);
+  }
+
+  // ---------- Sign-out and account deletion (#135, ADR-0034/ADR-0035) ----------
+
+  /** No confirmation step (like pause/resume, unlike reset/delete-account below): ending this
+   * session destroys nothing recorded. A failure shows a real, retryable failed state rather than
+   * pretending the reader signed out -- the one exception is a session that turns out to already be
+   * gone (401), which is indistinguishable from success from here and is treated as one. */
+  signOut(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    this.busy = true;
+    const version = this.navigationVersion;
+    const universeId = this.observedUniverseId;
+    const epoch = this.observedPrivacyEpoch;
+    this.setPrivacyAction({ status: 'pending', kind: 'sign-out', requestId: '' });
+    this.api
+      .postSessionRevoke()
+      .then(() => {
+        if (version !== this.navigationVersion) return;
+        this.finishSignOut(universeId, epoch);
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error)) {
+          this.finishSignOut(universeId, epoch); // already gone -- the same outcome the caller asked for
+          return;
+        }
+        this.setPrivacyAction({ status: 'failed', kind: 'sign-out', requestId: '', message: describeApiError(error) });
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** The session this browser held is over: its local reading traces (session, revisit, visited,
+   * last kept) go with it, as Android's sign-out already does; the observed epoch is kept. */
+  private finishSignOut(universeId: string, epoch: number): void {
+    this.storage.purgePrivateState(universeId, epoch);
+    this.onSignedOut?.(null, false);
+  }
+
+  /** Behind an explicit typed word (#135, ADR-0035): this only opens the confirmation UI. Nothing
+   * is sent until `confirmDeleteAccount` is called with the exact matching word. */
+  beginDeleteAccount(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (this.state.privacy.action.status !== 'idle') return;
+    this.setPrivacyAction({ status: 'confirming-delete' });
+  }
+
+  cancelDeleteAccount(): void {
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (!this.deleteConfirmationOpen()) return;
+    this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** The typed-confirmation panel is showing: freshly opened, or after a failed attempt, whose own
+   * Confirm is the retry (same requestId, via `nextPrivacyRequestId`). */
+  private deleteConfirmationOpen(): boolean {
+    const action = this.currentPrivacyAction();
+    return action !== null && (action.status === 'confirming-delete' || (action.status === 'failed' && action.kind === 'delete-account'));
+  }
+
+  /** Refuses to send anything unless `typed` is exactly the panel's own short confirmation word
+   * (`ACCOUNT_DELETE_TYPED_WORD`) -- the panel already gates its Confirm control on this; this check
+   * is defence in depth, not the only gate. The wire literal actually sent
+   * (`ACCOUNT_DELETE_CONFIRMATION`) is a different, longer string the reader never has to type. */
+  confirmDeleteAccount(typed: string): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (!this.deleteConfirmationOpen()) return;
+    if (typed !== ACCOUNT_DELETE_TYPED_WORD) return;
+    const requestId = this.nextPrivacyRequestId('delete-account');
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.busy = true;
+    const version = this.navigationVersion;
+    this.setPrivacyAction({ status: 'pending', kind: 'delete-account', requestId });
+    this.api
+      .postAccountDelete({ requestId, expectedPrivacyEpoch: epoch, confirmation: ACCOUNT_DELETE_CONFIRMATION })
+      .then(receipt => {
+        if (version !== this.navigationVersion) return;
+        this.finishAccountDeletion(universeId, receipt.epochAfter);
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error)) {
+          if (this.deletionMayHaveLanded || mayHaveLanded(error)) {
+            // ADR-0035 sec.5: the calling session is deleted inside the same transaction, so a
+            // retry after a lost response gets 401 -- and an earlier attempt of this very request
+            // may be what deleted it. The exact new epoch is unknown (the receipt never arrived),
+            // but the deletion always advances it by exactly one (ADR-0035 sec.2/`epochAfter`).
+            this.finishAccountDeletion(universeId, epoch + 1);
+          } else {
+            // Nothing of this request can have been applied: the session had already ended
+            // (expired, or signed out/reset elsewhere) before it was sent. The account remains.
+            this.storage.purgePrivateState(universeId, epoch);
+            this.onSignedOut?.('Your session ended before the deletion was sent. Sign in and try again.', false);
+          }
+          return;
+        }
+        if (mayHaveLanded(error)) this.deletionMayHaveLanded = true;
+        this.setPrivacyAction({ status: 'failed', kind: 'delete-account', requestId, message: describeApiError(error) });
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** Shared by the ordinary-success and 401-after-a-possibly-applied-attempt paths above: clears every cached private
+   * artifact this browser held (ADR-0035's "clear local reader storage") and hands off to the app's
+   * sign-in screen with the one deletion-specific message. Nothing else in this store's own state
+   * needs updating -- the app unmounts this whole reader tree the moment `onSignedOut` fires. */
+  private finishAccountDeletion(universeId: string, epochAfter: number): void {
+    this.storage.purgePrivateState(universeId, epochAfter);
+    this.onSignedOut?.('Your account and history were deleted.', false);
   }
 
   /** A Trace has an explicit origin and never becomes a new discovery or exposure (docs/contracts/trace-revisit.md). */
@@ -468,7 +618,7 @@ export class ReaderStore {
           this.set({ scroll: { status: 'unavailable', message: 'This saved Scroll is unavailable.', retryable: false } });
         } else if (invalidatesReader(error)) {
           this.purgeForScope(requested.universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.set({ scroll: { status: 'unavailable', message: describeApiError(error), retryable: true } });
         }
@@ -546,7 +696,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion || (this.state.screen !== 'scroll' && this.state.screen !== 'revisit')) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else if (reading) {
           const current = this.state.scroll;
           if (current.status === 'reading') this.set({ scroll: { ...current, discovery: 'failed' } });
@@ -600,7 +750,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(current.universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else if (!record.joined) {
           // A Keep that joined reports this failure itself.
           this.set({ toast: describeApiError(error) });
@@ -675,7 +825,7 @@ export class ReaderStore {
         if (!this.operationIsCurrent(version, epoch, currentSession)) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(currentSession.universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           const current = this.state.scroll;
           if (current.status === 'reading') this.set({ scroll: { ...current, keep: { status: 'failed', message: describeApiError(error) } } });
@@ -766,7 +916,7 @@ export class ReaderStore {
           const scope = this.revisit;
           this.purgeForScope(scope?.universeId || this.observedUniverseId, Math.max(this.observedPrivacyEpoch, scope?.privacyEpoch ?? 0));
         }
-        this.failClosed(describeApiError(error));
+        this.failClosed(describeApiError(error), isUnauthorized(error));
       })
       .finally(() => {
         this.reconciling = false;
@@ -812,9 +962,14 @@ export class ReaderStore {
     this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' } });
   }
 
-  private failClosed(reason: string): void {
+  /** `signedOut` (#135) is additive: every existing caller keeps landing on exactly the same
+   * fail-closed Unavailable universe it always did. When the underlying error was specifically a
+   * 401 (not merely any invalidating one -- see `isUnauthorized` at each call site), this also
+   * fires `onSignedOut`, so the app can show its sign-in screen instead of (or over) this dead end. */
+  private failClosed(reason: string, signedOut = false): void {
     this.ready = false;
     this.session = null;
+    if (signedOut) this.onSignedOut?.(null, true);
     this.set({
       screen: 'universe',
       scroll: { status: 'idle' },
