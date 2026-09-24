@@ -49,7 +49,7 @@ export type PrivacyExportResult = {
  deviceSessions:PrivacyExportDeviceSession[];
  reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
  semantic:{branchOpens:unknown[]; connectionFeedback:unknown[]; proposals:unknown[]; bridges:unknown[]};
- personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]};
+ personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]; atlasPlaces:unknown[]; atlasDeltas:unknown[]};
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;

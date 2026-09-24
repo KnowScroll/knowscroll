@@ -12,6 +12,7 @@ import type pg from 'pg';
 import { ATTENTION_V1, computeAttentionAccounts, type EpisodeEvidence, type MarkKind, type NegativeEvidence } from '../../../core/src/semantic/attention.ts';
 import { proposeHypotheses, validateHypothesis, type HypothesisProposal } from '../../../core/src/semantic/hypotheses.ts';
 import { BRANCH_POLICY_VERSION } from './branches.ts';
+import { eraseAtlas, exportAtlas, runCartographer } from '../atlas.ts';
 
 type Row = Record<string, unknown>;
 const ms = (v: unknown) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
@@ -94,7 +95,7 @@ export async function loadPersonalEvidence(client: pg.PoolClient, universeId: st
   return { episodes, negatives, marks, asks, conceptNames, conceptIds };
 }
 
-export interface PersonalModelResult { accounts: number; transitions: number; hypotheses: { upserted: number; rejected: number } }
+export interface PersonalModelResult { accounts: number; transitions: number; hypotheses: { upserted: number; rejected: number }; places: number }
 
 /** Recompute accounts and hypotheses for one universe. Caller holds the universe lock. */
 export async function refreshPersonalModel(client: pg.PoolClient, universeId: string): Promise<PersonalModelResult> {
@@ -103,7 +104,7 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
   // While recording is paused nothing personal is recomputed or dated inside the pause. A correction
   // made meanwhile is already stored (its route suppression applies at once) and counts as
   // counterevidence at the first refresh after recording resumes.
-  if (universe.paused) return { accounts: 0, transitions: 0, hypotheses: { upserted: 0, rejected: 0 } };
+  if (universe.paused) return { accounts: 0, transitions: 0, hypotheses: { upserted: 0, rejected: 0 }, places: 0 };
   const nowMs = universe.now.getTime();
   const evidence = await loadPersonalEvidence(client, universeId);
   const accounts = computeAttentionAccounts(evidence.episodes, evidence.negatives, nowMs, ATTENTION_V1);
@@ -133,6 +134,9 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
     }
   }
 
+  // #134: places follow the accounts just written (ADR-0036); nothing runs while paused (above).
+  const places = await runCartographer(client, universeId, [...accounts.values()]);
+
   const offeredEpisodes = new Map<string, string[]>();
   for (const e of evidence.episodes) if (e.systemOffered) for (const c of e.concepts) offeredEpisodes.set(c.code, [...(offeredEpisodes.get(c.code) ?? []), e.exposureId]);
   const proposals = proposeHypotheses({
@@ -150,7 +154,7 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
     await upsertHypothesis(client, universeId, universe.privacy_epoch, evidence.conceptIds.get(p.concept)!, p);
     upserted += 1;
   }
-  return { accounts: accounts.size, transitions, hypotheses: { upserted, rejected } };
+  return { accounts: accounts.size, transitions, hypotheses: { upserted, rejected }, places };
 }
 
 async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch: number, conceptId: string, p: HypothesisProposal): Promise<void> {
@@ -176,6 +180,7 @@ async function upsertHypothesis(client: pg.PoolClient, universeId: string, epoch
 export async function erasePersonalModel(client: pg.PoolClient, universeId: string): Promise<void> {
   // A v3 candidate may name the universe's own bridge, which the semantic erase removes next; the
   // decision records go first (their decisions follow later in the same Clear).
+  await eraseAtlas(client, universeId);
   await client.query('DELETE FROM decision_candidate WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM decision_context WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM encounter_feedback WHERE universe_id=$1', [universeId]);
@@ -193,6 +198,7 @@ export async function exportPersonalModel(client: pg.PoolClient, universeId: str
       h.evidence, h.alternatives, h.counterevidence, h.decay, h.revision, h.created_at, h.revised_at FROM personal_hypothesis h JOIN concept c ON c.id = h.concept_id WHERE h.universe_id=$1 ORDER BY h.created_at`),
     attentionTransitions: await q(`SELECT c.code AS concept, t.from_state, t.to_state, t.policy_version, t.at FROM attention_transition t
       JOIN concept c ON c.id = t.concept_id WHERE t.universe_id=$1 ORDER BY t.at, t.id`),
+    ...await exportAtlas(client, universeId),
     encounterFeedback: await q(`SELECT f.id, f.privacy_epoch, f.decision_id, f.asset_id, f.kind, f.family, c.code AS concept, f.bridge_id, f.suppress_until, f.created_at
       FROM encounter_feedback f LEFT JOIN concept c ON c.id = f.concept_id WHERE f.universe_id=$1 ORDER BY f.created_at, f.id`),
   };
