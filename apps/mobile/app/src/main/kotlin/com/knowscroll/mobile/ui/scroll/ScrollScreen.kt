@@ -75,6 +75,8 @@ fun ScrollScreen(
     onBack: () -> Unit = onReturn,
     /** #133: the recorded "why" and the reader's corrections, loaded when the sheet opens. */
     why: WhyControls = WhyControls(),
+    /** #132: the Ask/answer panel, opened only when the reader taps "Ask". */
+    ask: AskControls = AskControls(),
 ) {
     PosterTheme { Column(modifier.fillMaxSize().background(Poster.Paper)) {
         // #97 root cause: sourcesOpen/explainOpen/connectionsOpen used to be rememberSaveable
@@ -104,6 +106,7 @@ fun ScrollScreen(
         var sourcesOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         var explainOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         var connectionsOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
+        var askOpen by rememberSaveable(sheetKey) { mutableStateOf(false) }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (state) {
                 is ScrollState.Reading -> key(state.item.assetId) {
@@ -111,7 +114,9 @@ fun ScrollScreen(
                         state, onKeep, onReturn, onNext, onReadingPosition,
                         branches?.takeIf { it.assetId == state.item.assetId }, onOpenBranch, onRetryBranches, onObjectConnection, onBack,
                         sourcesOpen, { sourcesOpen = it }, explainOpen, { explainOpen = it }, connectionsOpen, { connectionsOpen = it },
+                        askOpen, { askOpen = it },
                         why.copy(panel = why.panel?.takeIf { it.assetId == state.item.assetId }),
+                        ask.copy(panel = ask.panel?.takeIf { it.assetId == state.item.assetId }),
                     )
                 }
                 is ScrollState.Unavailable -> RestScreen(false, state.message, onReturn, onRetry, state.retryable, mode)
@@ -172,7 +177,10 @@ private fun ReadingSheet(
     onExplainOpenChange: (Boolean) -> Unit,
     connectionsOpen: Boolean,
     onConnectionsOpenChange: (Boolean) -> Unit,
+    askOpen: Boolean,
+    onAskOpenChange: (Boolean) -> Unit,
     why: WhyControls,
+    ask: AskControls,
 ) {
     val contentLabel = stringResource(R.string.reader_content_description)
     val item = state.item
@@ -203,8 +211,8 @@ private fun ReadingSheet(
         restoringPosition = false
     }
     val positionDescription = stringResource(R.string.reader_position_description, readingScroll.value)
-    // #97: sourcesOpen/explainOpen/connectionsOpen are owned by ScrollScreen (see the comment
-    // there) so they survive a same-item Loading/Reading remount; they are threaded through here.
+    // #97: sourcesOpen/explainOpen/connectionsOpen/askOpen are owned by ScrollScreen (see the
+    // comment there) so they survive a same-item Loading/Reading remount; they are threaded through here.
     LaunchedEffect(item.assetId, readingScroll) {
         snapshotFlow { readingScroll.value to restoringPosition }.distinctUntilChanged().collectLatest { (value, restoring) ->
             if (restoring) return@collectLatest
@@ -216,8 +224,9 @@ private fun ReadingSheet(
     DisposableEffect(item.assetId, readingScroll) {
         onDispose { onReadingPosition(item.assetId, if (latestRestoring.value) savedPosition else readingScroll.value) }
     }
-    BackHandler(enabled = sourcesOpen || explainOpen || connectionsOpen) {
+    BackHandler(enabled = sourcesOpen || explainOpen || connectionsOpen || askOpen) {
         onSourcesOpenChange(false); onExplainOpenChange(false); onConnectionsOpenChange(false)
+        if (askOpen) { onAskOpenChange(false); ask.onClose() }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -307,7 +316,7 @@ private fun ReadingSheet(
                     }
                     DiscoveryThreshold(state.keep, state.discovery, onNext)
                 }
-                ReaderControls(state.keep, state.discovery, onKeep, onReturn, { onSourcesOpenChange(true) }) { onExplainOpenChange(true) }
+                ReaderControls(state.keep, state.discovery, onKeep, onReturn, { onSourcesOpenChange(true) }, { onExplainOpenChange(true) }) { onAskOpenChange(true) }
             }
         }
     }
@@ -323,6 +332,8 @@ private fun ReadingSheet(
             { bridge, objection -> onConnectionsOpenChange(false); onObjectConnection(bridge, objection) },
         ) { onConnectionsOpenChange(false) }
     }
+    LaunchedEffect(askOpen, item.assetId) { if (askOpen) ask.onOpen() }
+    if (askOpen) AskSheet(ask) { onAskOpenChange(false); ask.onClose() }
 }
 
 /**
@@ -396,12 +407,13 @@ private fun DiscoveryThreshold(keep: KeepState, state: DiscoveryState, onNext: (
 @Composable
 private fun ReaderControls(
     keep: KeepState, discovery: DiscoveryState, onKeep: () -> Unit, onReturn: () -> Unit,
-    onSources: () -> Unit, onExplain: () -> Unit
+    onSources: () -> Unit, onExplain: () -> Unit, onAsk: () -> Unit
 ) {
     val homeDescription = stringResource(R.string.reader_home_description)
     val keepDescription = stringResource(R.string.reader_keep_description)
     val sourcesDescription = stringResource(R.string.reader_sources_description)
     val explainDescription = stringResource(R.string.reader_explain_description)
+    val askDescription = stringResource(R.string.reader_ask_description)
     val keepLabel = stringResource(when (keep) {
         is KeepState.Kept -> R.string.action_kept
         is KeepState.Saving -> R.string.reader_keep_pending
@@ -441,6 +453,11 @@ private fun ReaderControls(
                 modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = explainDescription },
                 colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
             ) { Text(stringResource(R.string.reader_explain_action)) }
+            TextButton(
+                onClick = onAsk,
+                modifier = Modifier.widthIn(min = 72.dp).heightIn(min = 48.dp).semantics { contentDescription = askDescription },
+                colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream)
+            ) { Text(stringResource(R.string.ask_action)) }
         }
     }
 }

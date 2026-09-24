@@ -1,5 +1,21 @@
 # Project state
 
+## 2026-09-24 The reader's places (#134, first slice)
+
+Reading about a subject on different days, from more than one source, now forms a place in the
+reader's own Atlas. Nearby subjects they have not met yet show as sightings, with the sourced claim
+that connects them. Every change can be opened to see why it happened, and the reader can set a
+place aside. It is not authored and not decorative. Not built yet: rooms, relics, away-time work,
+foundation stars, model naming, and the Reel reader's link into places.
+
+## 2026-09-24 Scroll Ask answers (#132)
+
+A reader can now ask a question about a Scroll and, on a separate deliberate tap, get an answer
+drawn only from that Scroll: quotes checked word for word, where the Scroll stops said plainly, or
+"This Scroll doesn't say." A reply that does not hold up is not shown. It runs through the worker
+with a real provider on the subscription route (bounded live proof: 28 requests), never from the
+API. Not built: answers for Reels, multi-Scroll answers, a quality benchmark beyond one Scroll.
+
 ## 2026-09-24 Composer v3, the reader's why and correction (#133, #131 hypotheses)
 
 The feed is now composed by `composer-semantic-v3` from the reader's own recorded acts and the

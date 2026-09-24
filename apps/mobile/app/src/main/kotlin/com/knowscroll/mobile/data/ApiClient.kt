@@ -78,6 +78,33 @@ class ApiClient(
         }
     }
 
+    /** #134: the reader's live places (ADR-0036). Refuses an unknown kind or a shape the server
+     * contract does not describe -- see `data/Atlas.kt`. */
+    suspend fun getAtlas(): AtlasResponse = io {
+        get("/v1/atlas") { obj -> parseAtlasOrProtocol(obj) }
+    }
+
+    /** #134: one place change and its evidence. */
+    suspend fun getAtlasDelta(deltaId: String): AtlasDelta = io {
+        get("/v1/atlas/deltas/$deltaId") { obj ->
+            try { parseAtlasDelta(obj) }
+            catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid atlas delta") }
+            catch (e: JSONException) { throw ApiException.Protocol("Atlas delta returned malformed JSON") }
+        }
+    }
+
+    /** #134: the reader sets a planet or region aside. A 409 is either a stale privacy epoch or
+     * recording being paused (nothing personal is recorded then) -- see `rejectPlaceConflict`. */
+    suspend fun rejectPlace(placeId: String, expectedPrivacyEpoch: Long): AtlasResponse = io {
+        val body = jsonObj("expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
+        post("/v1/atlas/places/$placeId/reject", body, setOf(200), false) { obj -> parseAtlasOrProtocol(obj) }
+    }
+
+    private fun parseAtlasOrProtocol(obj: JSONObject): AtlasResponse =
+        try { parseAtlasResponse(obj) }
+        catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid atlas") }
+        catch (e: JSONException) { throw ApiException.Protocol("Atlas returned malformed JSON") }
+
     suspend fun postExposure(req: ExposureRequest): ExposureResponse = io {
         val body = jsonObj("decisionId" to req.decisionId, "assetId" to req.assetId,
             "clientExposureId" to req.clientExposureId).toString()
@@ -208,6 +235,58 @@ class ApiClient(
         ).toString()
         post("/v1/connections/feedback", body, setOf(200, 201), false) { obj ->
             protocol(obj.optBoolean("suppressed", false) && obj.optString("bridgeId") == bridgeId) { "Feedback receipt was unexpected" }
+        }
+    }
+
+    /** #132/ADR-0033: record an Ask against the reader's current exposure of this Scroll. Exact
+     * retry with the same clientAskId replays the same receipt. */
+    suspend fun postAsk(req: PendingAsk): AskReceipt = io {
+        val body = jsonObj(
+            "clientAskId" to req.clientAskId, "exposureId" to req.exposureId,
+            "expectedPrivacyEpoch" to req.expectedPrivacyEpoch, "question" to req.question,
+        ).toString()
+        post("/v1/asks", body, setOf(201), false) { obj ->
+            try {
+                AskReceipt(obj.getString("askId"), obj.getString("eventId"), obj.getString("status"))
+                    .also { protocol(it.status == "recorded_only") { "Ask receipt reported an unexpected status" } }
+            } catch (e: JSONException) { throw ApiException.Protocol("Ask receipt was malformed") }
+        }
+    }
+
+    /** #132: request an answer for a recorded Ask -- a separate, explicit reader action; never
+     * sent automatically after the Ask is recorded. Exact retry with the same clientRequestId
+     * returns the same requestId. */
+    suspend fun requestAnswer(req: PendingAnswerRequest): AnswerRequestReceipt = io {
+        val body = jsonObj("clientRequestId" to req.clientRequestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch).toString()
+        post("/v1/asks/${req.askId}/answer", body, setOf(202), false) { obj ->
+            try {
+                AnswerRequestReceipt(obj.getString("requestId"), obj.getString("askId"), obj.getString("jobId"), obj.getString("status"))
+                    .also { protocol(it.askId == req.askId && it.status == "queued") { "Answer request receipt was unexpected" } }
+            } catch (e: JSONException) { throw ApiException.Protocol("Answer request receipt was malformed") }
+        }
+    }
+
+    /** #132: the answer view for one Ask, or null when no answer was ever requested for it. */
+    suspend fun getAnswer(askId: String): AnswerView? = io {
+        try {
+            get("/v1/asks/$askId/answer") { obj ->
+                try { parseAnswerView(obj).also { protocol(it.askId == askId) { "Answer view named another Ask" } } }
+                catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid answer view") }
+                catch (e: JSONException) { throw ApiException.Protocol("Answer view returned malformed JSON") }
+            }
+        } catch (e: ApiException.Server) { if (e.statusCode == 404) null else throw e }
+    }
+
+    /** #132: cancel an answer request before it has started running. */
+    suspend fun cancelAnswer(askId: String, expectedPrivacyEpoch: Long): AnswerView = io {
+        val body = jsonObj("expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
+        post("/v1/asks/$askId/answer/cancel", body, setOf(200), false) { obj ->
+            try {
+                parseAnswerView(obj).also {
+                    protocol(it.askId == askId && it.status is AnswerStatus.Cancelled) { "Cancel did not return a cancelled view" }
+                }
+            } catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid answer view") }
+            catch (e: JSONException) { throw ApiException.Protocol("Cancel receipt returned malformed JSON") }
         }
     }
 

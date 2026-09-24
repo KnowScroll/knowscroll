@@ -1,0 +1,44 @@
+package com.knowscroll.mobile.ui.ask
+
+import com.knowscroll.mobile.data.AnswerBasisQuote
+import com.knowscroll.mobile.data.AnswerStatus
+import com.knowscroll.mobile.data.AnswerView
+import com.knowscroll.mobile.data.ApiException
+import org.junit.Assert.*
+import org.junit.Test
+
+/** #132: the pure Ask/answer transitions -- the polling loop's own decision, and which of the
+ * four documented conditions a 409 names -- are unit-tested without any network or coroutine. */
+class AskPresentationTest {
+    @Test
+    fun pollingKeepsWaitingOnlyWhileQueuedOrRunning() {
+        assertEquals(AskStage.Waiting("a1", "queued"), stageAfterPoll("a1", AnswerView("a1", AnswerStatus.Queued, "t", null)))
+        assertEquals(AskStage.Waiting("a1", "running"), stageAfterPoll("a1", AnswerView("a1", AnswerStatus.Running, "t", null)))
+
+        val answered = AnswerView("a1", AnswerStatus.Answered("x", listOf(AnswerBasisQuote("q")), "l"), "t", "t2")
+        assertEquals(AskStage.Final("a1", answered), stageAfterPoll("a1", answered))
+
+        val cancelled = AnswerView("a1", AnswerStatus.Cancelled(listOf("cancelled by the reader")), "t", null)
+        assertEquals(AskStage.Final("a1", cancelled), stageAfterPoll("a1", cancelled))
+
+        val unavailable = AnswerView("a1", AnswerStatus.Unavailable, "t", null)
+        assertEquals(AskStage.Final("a1", unavailable), stageAfterPoll("a1", unavailable))
+    }
+
+    @Test
+    fun aFourZeroNineFromRequestingAnAnswerNamesExactlyOneOfTheFourDocumentedConditions() {
+        assertEquals(AnswerRequestConflict.Paused, answerRequestConflict(ApiException.Server(409, """{"error":"Recording is paused"}""")))
+        assertEquals(AnswerRequestConflict.StaleEpoch, answerRequestConflict(ApiException.Server(409, """{"error":"Answer request privacy epoch is stale"}""")))
+        assertEquals(AnswerRequestConflict.AlreadyRequested, answerRequestConflict(ApiException.Server(409, """{"error":"An answer was already requested for this Ask"}""")))
+        assertEquals(AnswerRequestConflict.NotAsker, answerRequestConflict(ApiException.Server(409, """{"error":"Only the session that asked can request its answer"}""")))
+        assertNull("an unrecognized 409 is not silently mapped to one of the four", answerRequestConflict(ApiException.Server(409, "{}")))
+        assertNull("only a 409 is a request-answer conflict", answerRequestConflict(ApiException.Server(503, """{"error":"Answers are not enabled on this deployment"}""")))
+    }
+
+    @Test
+    fun cancelReportsOnlyTheAlreadyStartedConflict() {
+        assertTrue(cancelAlreadyStarted(ApiException.Server(409, """{"error":"This answer has already started"}""")))
+        assertFalse(cancelAlreadyStarted(ApiException.Server(409, "{}")))
+        assertFalse(cancelAlreadyStarted(ApiException.Server(404, "not found")))
+    }
+}

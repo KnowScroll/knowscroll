@@ -111,6 +111,114 @@ describe('ReaderStore', () => {
     expect(scroll.keep).toEqual({ status: 'kept', jobId: 'job-1' });
   });
 
+  it('a Keep tapped while the exposure is still being recorded joins it instead of being dropped (#123)', async () => {
+    await enterReadingScroll();
+    let release!: () => void;
+    api.exposureGate = new Promise<void>(resolve => { release = resolve; });
+    api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });
+    api.interactionQueue.push({ eventId: 'keep-evt-1', jobId: 'job-1', status: 'accepted' });
+    store.onVisible(feedItem().assetId);
+    await waitFor(() => api.exposureCalls.length === 1);
+    store.keep();
+    const saving = store.getState().scroll;
+    expect(saving.status === 'reading' && saving.keep.status).toBe('saving');
+    release();
+    await waitFor(() => {
+      const scroll = store.getState().scroll;
+      return scroll.status === 'reading' && scroll.keep.status === 'kept';
+    });
+    expect(api.exposureCalls).toHaveLength(1);
+    expect(api.interactionCalls).toHaveLength(1);
+    expect(api.interactionCalls[0]?.exposureId).toBe('exp-1');
+  });
+
+  describe('a Keep that joins an in-flight exposure (#123 review)', () => {
+    const keepStatus = () => { const s = store.getState().scroll; return s.status === 'reading' ? s.keep.status : s.status; };
+    async function settle(): Promise<void> { for (let i = 0; i < 20; i++) await tick(); }
+    async function holdExposure(): Promise<() => void> {
+      let release!: () => void;
+      api.exposureGate = new Promise<void>(resolve => { release = resolve; });
+      return release;
+    }
+    async function leaveAndReenter(): Promise<void> {
+      api.universeQueue.push(universeOf());
+      store.returnToUniverse();
+      await waitFor(() => store.getState().universe.status === 'loaded');
+      await settle();
+      store.enterScroll();
+    }
+
+    it('goes straight from Keeping to Kept, and nothing else can start meanwhile', async () => {
+      await enterReadingScroll();
+      const release = await holdExposure();
+      api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });
+      api.interactionQueue.push({ eventId: 'keep-evt-1', jobId: 'job-1', status: 'accepted' });
+      store.onVisible(feedItem().assetId);
+      await waitFor(() => api.exposureCalls.length === 1);
+      store.keep();
+      const seen: string[] = [];
+      const unsubscribe = store.subscribe(() => seen.push(keepStatus()));
+      store.keep(); // a second tap while joined is refused, not a second interaction
+      const feedBefore = api.feedCalls;
+      store.nextScroll(); // refused while the Keep settles
+      release();
+      await waitFor(() => keepStatus() === 'kept');
+      unsubscribe();
+      expect(seen).not.toContain('idle');
+      expect(api.interactionCalls).toHaveLength(1);
+      expect(api.feedCalls).toBe(feedBefore);
+    });
+
+    it('a joined Keep whose exposure goes stale after navigation never leaves the reader stuck', async () => {
+      await enterReadingScroll();
+      const release = await holdExposure();
+      api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' }, { exposureId: 'exp-1', eventId: 'evt-1' });
+      store.onVisible(feedItem().assetId);
+      await waitFor(() => api.exposureCalls.length === 1);
+      store.keep();
+      await leaveAndReenter();
+      api.exposureGate = null;
+      store.onVisible(feedItem().assetId);
+      await waitFor(() => api.exposureCalls.length === 2);
+      await settle();
+      release();
+      await settle();
+      api.interactionQueue.push({ eventId: 'keep-evt-1', jobId: 'job-1', status: 'accepted' });
+      store.keep();
+      await waitFor(() => keepStatus() === 'kept');
+      expect(api.interactionCalls).toHaveLength(1);
+    });
+
+    it('a Keep never joins an exposure started before the last navigation', async () => {
+      await enterReadingScroll();
+      const release = await holdExposure();
+      api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' }, { exposureId: 'exp-1', eventId: 'evt-1' });
+      store.onVisible(feedItem().assetId);
+      await waitFor(() => api.exposureCalls.length === 1);
+      await leaveAndReenter();
+      api.exposureGate = null;
+      api.interactionQueue.push({ eventId: 'keep-evt-1', jobId: 'job-1', status: 'accepted' });
+      store.keep();
+      await waitFor(() => keepStatus() === 'kept');
+      release();
+      await settle();
+      expect(api.interactionCalls).toHaveLength(1);
+    });
+
+    it('an exposure failure while a Keep has joined is reported once, on the Keep', async () => {
+      await enterReadingScroll();
+      const release = await holdExposure();
+      api.exposureQueue.push(new ApiException({ kind: 'server', statusCode: 500, body: 'boom' }));
+      store.onVisible(feedItem().assetId);
+      await waitFor(() => api.exposureCalls.length === 1);
+      store.keep();
+      release();
+      await waitFor(() => keepStatus() === 'failed');
+      await settle();
+      expect(store.getState().toast).toBeFalsy();
+    });
+  });
+
   it('keep persists the real why-this-appeared reason for the Universe screen, scoped to this universe/epoch', async () => {
     await enterReadingScroll();
     api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });

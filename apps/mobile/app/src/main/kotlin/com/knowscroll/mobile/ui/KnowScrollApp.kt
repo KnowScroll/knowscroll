@@ -41,9 +41,13 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
         val historyClear by viewModel.historyClear.collectAsStateWithLifecycle()
         val signOut by viewModel.signOut.collectAsStateWithLifecycle()
         val system by viewModel.system.collectAsStateWithLifecycle()
+        val atlas by viewModel.atlas.collectAsStateWithLifecycle()
+        val placeReject by viewModel.placeReject.collectAsStateWithLifecycle()
+        val atlasEvidence by viewModel.atlasEvidence.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val branches by viewModel.branches.collectAsStateWithLifecycle()
         val why by viewModel.why.collectAsStateWithLifecycle()
+        val ask by viewModel.ask.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val atlasStates = rememberSaveableStateHolder()
         var scopeKey by rememberSaveable { mutableStateOf("") }
@@ -205,6 +209,10 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                                         onRetryBranches = viewModel::retryBranches,
                                         onObjectConnection = viewModel::objectToConnection,
                                         why = com.knowscroll.mobile.ui.scroll.WhyControls(why, viewModel::loadWhy, viewModel::correctEncounter),
+                                        ask = com.knowscroll.mobile.ui.scroll.AskControls(
+                                            ask, viewModel::openAsk, viewModel::askQuestion,
+                                            viewModel::requestAnswer, viewModel::cancelAskAnswer, viewModel::closeAsk,
+                                        ),
                                         onNext = viewModel::nextScroll,
                                         onRetry = viewModel::retryScrollLoad,
                                         mode = cableMode,
@@ -224,10 +232,18 @@ fun KnowScrollApp(viewModel: AppViewModel = viewModel()) {
                         atlasStates.SaveableStateProvider("system:$scopeKey") {
                             SystemScreen(
                                 state = system,
+                                atlasState = atlas,
+                                placeRejectState = placeReject,
+                                evidenceState = atlasEvidence,
                                 onReturn = viewModel::returnFromSystem,
                                 onRetry = viewModel::retrySystem,
                                 onEnterScroll = viewModel::enterScrollFromSystem,
                                 onOpenKeep = viewModel::openKeep,
+                                onRequestSetAside = viewModel::requestSetAside,
+                                onCancelSetAside = viewModel::cancelSetAside,
+                                onConfirmSetAside = viewModel::confirmSetAside,
+                                onOpenEvidence = viewModel::openEvidence,
+                                onCloseEvidence = viewModel::closeEvidence,
                             )
                         }
                 }

@@ -5,6 +5,7 @@ import {
   DIRECT_CONTEXT_LIMITS,
   DIRECT_CONTEXT_VERSIONS,
   compileDirectContextInput,
+  candidateScroll,
   contextScroll,
   directContextDependency,
   directContextDependencyKey,
@@ -105,7 +106,7 @@ function selectedCandidate(row:LineageRow):{ok:true;asset:DirectContextPayload['
   const matched=candidates.filter(candidate=>typeof candidate==='object' && candidate!==null
     && (candidate as Record<string,unknown>).assetId===row.asset_id);
   if(matched.length!==1) return {ok:false,reason:'stale_lineage'};
-  const candidate=contextScroll.safeParse(matched[0]);
+  const candidate=contextScroll.safeParse(candidateScroll(matched[0] as Record<string,unknown>));
   if(!candidate.success) return {ok:false,reason:'stale_lineage'};
   const current=contextScroll.safeParse(scrollFromRow(row));
   if(!current.success) return {ok:false,reason:'stale_asset'};
