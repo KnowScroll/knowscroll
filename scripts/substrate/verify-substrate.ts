@@ -15,14 +15,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { substrateSeed, type SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
+import { normalizeSnapshotText } from '../../packages/core/src/semantic/source-text.ts';
 
 export type QuoteCheck = { claimKey: string; sourceKey: string; status: 'verified' | 'missing_in_snapshot' | 'unverified_no_snapshot' };
 export type SeedReport = { errors: string[]; quotes: QuoteCheck[]; sources: { key: string; status: 'hash_match' | 'hash_mismatch' | 'no_snapshot' }[] };
-
-/** Mirrors snapshot_source.py's normalize(): NFC and whitespace collapse only. */
-export function normalizeSnapshotText(text: string): string {
-  return text.normalize('NFC').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 export function checkSubstrateSeed(
   raw: unknown,

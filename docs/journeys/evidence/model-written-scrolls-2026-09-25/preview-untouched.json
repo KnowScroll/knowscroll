@@ -1,0 +1,10 @@
+{
+  "previewInstalled": true,
+  "apkSha256": [
+    "860b5f9376f0d264327c16dd450af4746fc43ffde024bc720bef315553541607"
+  ],
+  "unchanged": true,
+  "watch": "scripts/android_preview.py",
+  "watchSha256": "158eddf841fda6b85c7dff57a3711f09f667f8310b27baa6cfc87e7a9f81d234",
+  "at": "2026-09-24T20:10:58.310373+00:00"
+}

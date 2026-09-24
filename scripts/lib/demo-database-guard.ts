@@ -43,8 +43,25 @@ export function assertDemoDatabaseName(databaseUrl: string | undefined): string 
   if (!databaseName.startsWith(REQUIRED_PREFIX)) throw new NotADemoDatabaseError(databaseName);
   // Belt and braces: the name must also be a safe SQL identifier before it is ever interpolated
   // into a CREATE DATABASE statement.
+  assertSafeIdentifier(databaseName);
+  return databaseName;
+}
+
+function assertSafeIdentifier(databaseName: string): void {
   if (!/^[a-z0-9_]+$/i.test(databaseName)) {
     throw new Error(`Database name "${databaseName}" contains characters this tool will not interpolate into SQL.`);
   }
+}
+
+/**
+ * For operator tools that may write to any disposable database, test or demo (#162's
+ * `scripts/scrolls/write-scrolls.ts`): the name must begin `knowscroll_test_` or `knowscroll_demo_`
+ * followed by a name, and be a safe identifier. Checked before any database module is imported.
+ */
+export function assertDisposableDatabaseName(databaseName: string): string {
+  if (!/^knowscroll_(test|demo)_./.test(databaseName)) {
+    throw new Error(`Refusing to run: database "${databaseName}" is not a disposable knowscroll_test_* or knowscroll_demo_* database.`);
+  }
+  assertSafeIdentifier(databaseName);
   return databaseName;
 }

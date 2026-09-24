@@ -1,10 +1,11 @@
 /**
- * #132 — the worker-only MiniMax answer transport (ADR-0033 §2). MiniMax-M3 through the fixed
- * Anthropic-compatible subscription route; the caller supplies an `sk-cp-` key from the worker's
- * own environment. `ready()` runs the quota preflight before anything is scheduled or reserved;
- * `send()` posts exactly the reserved bytes once, with no redirects and no retries, and reports the
- * minimal receipt fields plus the reply text for the validator. Nothing here is logged or persisted:
- * no prompt, reply, header or key.
+ * #132 — the worker-only MiniMax answer transport (ADR-0033 §2), also the background inquiry path's
+ * (ADR-0038) and model-written Scrolls' (ADR-0041): it sends whatever request bytes it is given.
+ * MiniMax-M3 through the fixed Anthropic-compatible subscription route; the caller supplies an
+ * `sk-cp-` key from its own process environment. `ready()` runs the quota preflight before anything
+ * is scheduled or reserved; `send()` posts exactly the reserved bytes once, with no redirects and no
+ * retries, and reports the minimal receipt fields plus the reply text for the validator. Nothing
+ * here is logged or persisted: no prompt, reply, header or key.
  */
 import type { AnswerObservation, AnswerTransport } from '../reasoning/answer-worker.ts';
 import { checkMiniMaxQuota } from './minimax-quota.ts';
