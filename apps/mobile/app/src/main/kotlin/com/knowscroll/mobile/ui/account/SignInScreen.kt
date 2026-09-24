@@ -47,7 +47,7 @@ fun SignInScreen(
     onRequestLink: (String) -> Unit,
     onSubmitLink: (String) -> Unit,
     /** #168: a link an App Link opened. It fills the field; the reader still signs in. */
-    receivedLink: String? = null,
+    receivedLink: String?,
     modifier: Modifier = Modifier,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
