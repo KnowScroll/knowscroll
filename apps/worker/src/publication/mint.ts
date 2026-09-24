@@ -22,6 +22,8 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { generationBrief } from '../../../../packages/contracts/src/generation.ts';
+import { lockSubstrateShared } from '../../../../packages/db/src/semantic/read-set.ts';
+import { annotateReelsOver } from '../../../../packages/db/src/semantic/seed.ts';
 
 export class MintError extends Error {
   constructor(readonly code: string, message: string) {
@@ -87,6 +89,10 @@ export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Pro
   let inserted;
   try {
     await client.query('BEGIN');
+    // ADR-0043: the Scroll's annotations are read under the substrate lock, so a seed load that
+    // annotates the Scroll meanwhile either commits first (and is copied here) or waits for this
+    // Reel (and copies to it).
+    await lockSubstrateShared(client);
     inserted = await client.query<{ id: string }>(
       `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order,
                           media_sha256,generated_reel_id,simulated)
@@ -96,14 +102,8 @@ export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Pro
       [assetId, brief.title, brief.summary, source.title, source.url, reel.truth_state, reel.media_sha256, generatedReelId, simulated],
     );
     // ADR-0043: a Reel is about what its one source Scroll is about, so it carries that Scroll's
-    // concepts with the same roles, in the transaction that mints it. Not its claims: a Reel may
-    // state only some of them.
-    if (inserted.rowCount === 1) {
-      await client.query(
-        'INSERT INTO asset_concept(asset_id,concept_id,role) SELECT $1, concept_id, role FROM asset_concept WHERE asset_id=$2',
-        [assetId, briefRow.source_asset_id],
-      );
-    }
+    // concepts with the same roles, in the transaction that mints it.
+    if (inserted.rowCount === 1) await annotateReelsOver(client, briefRow.source_asset_id);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});

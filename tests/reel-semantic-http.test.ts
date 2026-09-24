@@ -15,9 +15,11 @@ import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
 import type { EncounterFeedbackReceipt, WhyResponseWire } from '../packages/contracts/src/composer.ts';
 import type { BranchOpenResponse, EncounterBranchesResponse } from '../packages/contracts/src/semantic.ts';
+import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { mintReelAsset } from '../apps/worker/src/publication/mint.ts';
 import { makeSemanticFixture, type SemanticFixture } from './helpers/semantic-fixture.ts';
-import { mintGatedTestReel, type GatedReel } from '../scripts/fixtures/gated-reel.ts';
+import { gateTestReel, mintGatedTestReel, type GatedReel } from '../scripts/fixtures/gated-reel.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('Reel semantic tests require an isolated knowscroll_test_* database');
@@ -48,6 +50,12 @@ const reelOver = (sourceAssetId: string, tag: string): Promise<GatedReel> =>
 
 async function feed(r: Reader, kinds: string): Promise<Feed> {
   const response = await app.inject({ url: `/v1/feed?kinds=${kinds}`, headers: headers(r.token) });
+  assert.equal(response.statusCode, 200, response.body);
+  return response.json();
+}
+
+async function branchesOf(r: Reader, assetId: string): Promise<EncounterBranchesResponse> {
+  const response = await app.inject({ url: `/v1/assets/${assetId}/branches`, headers: headers(r.token) });
   assert.equal(response.statusCode, 200, response.body);
   return response.json();
 }
@@ -91,6 +99,56 @@ test('a minted Reel carries its Scroll\'s concepts with the same roles, and none
 
   const bare = await reelOver(f.assets.unannotated, 'unannotated');
   assert.deepEqual(await annotations(bare.assetId), [], 'an unannotated Scroll gives an unannotated Reel');
+});
+
+/** A later seed version that annotates the fixture's unannotated Scroll. */
+const annotatingUnannotated = (f: SemanticFixture): string => JSON.stringify({
+  ...f.seed, version: `${f.seed.version}9`, bridgeProposals: [],
+  assets: [...f.seed.assets, { assetId: f.assets.unannotated, concepts: [{ code: f.codes.seasons, role: 'primary' }], claims: [] }],
+});
+
+test('a Reel minted over a Scroll the seed annotates later carries the concepts the seed gives that Scroll', async () => {
+  const f = await substrate();
+  const reel = await reelOver(f.assets.unannotated, 'annotated-later');
+  assert.deepEqual(await annotations(reel.assetId), []);
+  assert.equal((await transaction(client => loadSubstrateSeed(client, annotatingUnannotated(f)))).status, 'loaded');
+  assert.deepEqual(await annotations(reel.assetId), [{ code: f.codes.seasons, role: 'primary' }]);
+  assert.equal(Number((await pool.query('SELECT count(*) FROM asset_claim WHERE asset_id=$1', [reel.assetId])).rows[0].count), 0);
+});
+
+test('minting waits for a seed load holding the substrate, then carries the annotations it committed', async () => {
+  const f = await substrate();
+  const gated = await gateTestReel(pool, f.assets.unannotated, { tag: 'mint-lock', title: 'Reel mint-lock', summary: 'A test Reel minted while a seed loads.' });
+  const seeding = await pool.connect();
+  try {
+    await seeding.query('BEGIN');
+    await loadSubstrateSeed(seeding, annotatingUnannotated(f));
+    const minting = mintReelAsset(pool, gated.generatedReelId);
+    let waiting = false;
+    for (const deadline = Date.now() + 5000; !waiting && Date.now() < deadline; await new Promise(r => setTimeout(r, 20))) {
+      waiting = (await pool.query(`SELECT count(*)::int AS n FROM pg_locks WHERE locktype='advisory' AND NOT granted`)).rows[0].n > 0;
+    }
+    assert.ok(waiting, 'the mint waits for the seed load to commit');
+    await seeding.query('COMMIT');
+    assert.deepEqual(await annotations((await minting).assetId), [{ code: f.codes.seasons, role: 'primary' }]);
+  } catch (error) {
+    await seeding.query('ROLLBACK');
+    throw error;
+  } finally { seeding.release(); }
+});
+
+test('after a source correction a Reel continues exactly as its Scroll does, and is still served (ADR-0043 §4)', async () => {
+  const r = await reader();
+  const f = await substrate();
+  const reel = await reelOver(f.assets.tides, 'corrected');
+  assert.deepEqual((await branchesOf(r, reel.assetId)).branches.map(b => b.target.assetId), [f.assets.gravity]);
+
+  await transaction(client => correctSourceSnapshot(client, { sourceKey: f.sources.physics, action: 'revoked', reason: 'Fixture: the publisher withdrew this page' }, 'editorial'));
+  const fromReel = await branchesOf(r, reel.assetId);
+  const fromScroll = await branchesOf(r, f.assets.tides);
+  assert.deepEqual([fromReel.branches, fromReel.emptyReason], [[], 'no_admitted_bridge'], 'the continuation resting on the revoked source is gone');
+  assert.deepEqual([fromReel.branches, fromReel.emptyReason], [fromScroll.branches, fromScroll.emptyReason], 'the Reel continues as its Scroll does');
+  assert.deepEqual((await feed(r, 'Reel')).items.map(i => i.assetId), [reel.assetId], 'nothing withdraws the Reel itself (ADR-0024 §5)');
 });
 
 test('a Reel encounter\'s why names its concept and the recorded path that led to it; "less like this" suppresses its route', async () => {
@@ -141,9 +199,7 @@ test('a kept Reel grounds what comes next, from its primary concept, and its own
   const head = await why(r, next.decisionId, next.items[0]!.assetId);
   assert.ok(head.evidence.some(e => e.kind === 'mark' && e.assetId === reel.assetId && e.eventId === keepEventId), 'the head cites the kept Reel');
 
-  const branches = await app.inject({ url: `/v1/assets/${reel.assetId}/branches`, headers: headers(r.token) });
-  assert.equal(branches.statusCode, 200, branches.body);
-  const listed = branches.json() as EncounterBranchesResponse;
+  const listed = await branchesOf(r, reel.assetId);
   assert.equal(listed.emptyReason, null);
   const branch = listed.branches.find(b => b.target.assetId === f.assets.gravity);
   assert.ok(branch, JSON.stringify(listed));

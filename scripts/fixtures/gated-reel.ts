@@ -32,6 +32,13 @@ export interface GatedReel { assetId: string; generatedReelId: string; mediaSha2
 const sentence = (text: string, claimIds: string[]) => ({ text, claimIds });
 
 export async function mintGatedTestReel(pool: pg.Pool, sourceAssetId: string, options: GatedReelOptions): Promise<GatedReel> {
+  const gated = await gateTestReel(pool, sourceAssetId, options);
+  const minted = await mintReelAsset(pool, gated.generatedReelId);
+  return { ...gated, assetId: minted.assetId };
+}
+
+/** Everything up to `test_eligible`, for a caller that mints the Reel itself (e.g. to race it). */
+export async function gateTestReel(pool: pg.Pool, sourceAssetId: string, options: GatedReelOptions): Promise<Omit<GatedReel, 'assetId'>> {
   const { tag } = options;
   const artifactRoot = options.artifactRoot ?? '/tmp/gated-reel-fixtures';
   const source = (await pool.query<{ revision: number }>(`SELECT revision FROM asset WHERE id=$1 AND kind='Scroll'`, [sourceAssetId])).rows[0];
@@ -121,7 +128,5 @@ export async function mintGatedTestReel(pool: pg.Pool, sourceAssetId: string, op
     );
   }
   await pool.query(`UPDATE generated_reel SET availability='test_eligible', availability_policy_version='publication-v1', availability_decided_at=now() WHERE id=$1`, [generatedReelId]);
-
-  const minted = await mintReelAsset(pool, generatedReelId);
-  return { assetId: minted.assetId, generatedReelId, mediaSha256: media.sha256, storageKey, sourceAssetId };
+  return { generatedReelId, mediaSha256: media.sha256, storageKey, sourceAssetId };
 }
