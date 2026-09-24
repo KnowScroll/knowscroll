@@ -33,7 +33,12 @@ const delay = Number(process.env.KS_INQUIRY_COALESCING_SECONDS ?? 3);
 if (!Number.isInteger(delay) || delay < 0 || delay > 60) throw new Error('KS_INQUIRY_COALESCING_SECONDS must be 0..60');
 
 const SUPPLIED = ['astro.sun'];
-const POLICY = 'journey-inquiries-fixture-v1';
+// The labelled fixture by default; `minimax` (the runner's bounded live opt-in) caps the route at
+// one request, the owner-authorised bound, with the same output ceiling as the live experiment.
+const transport = process.env.KS_INQUIRY_TRANSPORT === 'minimax' ? 'minimax' : 'fixture';
+const live = transport === 'minimax';
+const POLICY = live ? 'journey-inquiries-live-v1' : 'journey-inquiries-fixture-v1';
+const maxOutputTokens = live ? 4096 : 2048;
 
 const response = await fetch(`${base}/v1/universe`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) });
 if (response.status !== 200) throw new Error(`seed-journey: /v1/universe returned ${response.status}`);
@@ -45,10 +50,11 @@ const { answerFairnessPolicy } = await import('../../packages/db/src/reasoning-a
 const { createReasoningFairness } = await import('../../packages/db/src/reasoning-fairness.ts');
 const { inquiryAuthority, installBackgroundInquiryRoute } = await import('../../packages/db/src/reasoning-inquiries.ts');
 try {
-  await createReasoningFairness(pool, inquiryAuthority()).installPolicy(answerFairnessPolicy(POLICY, { maxInputTokens: 16384, maxOutputTokens: 2048 }));
+  await createReasoningFairness(pool, inquiryAuthority()).installPolicy(answerFairnessPolicy(POLICY, { maxInputTokens: 16384, maxOutputTokens }));
   await transaction(client => installBackgroundInquiryRoute(client, {
-    policyVersion: POLICY, routeId: 'fixture-inquiries', routeProfileVersion: 'fixture-v1', transport: 'fixture', model: 'fixture-model',
-    maxInputTokens: 16384, maxOutputTokens: 2048, requestCap: 4, tokenBudget: 1_000_000, ownerCapacity: 1_000_000, jobCapacity: 100_000,
+    policyVersion: POLICY, routeId: live ? 'minimax-subscription' : 'fixture-inquiries', routeProfileVersion: live ? 'minimax-m3-anthropic-v1' : 'fixture-v1',
+    transport, model: live ? 'MiniMax-M3' : 'fixture-model', maxInputTokens: 16384, maxOutputTokens,
+    requestCap: live ? 1 : 4, tokenBudget: live ? 24_000 : 1_000_000, ownerCapacity: live ? 24_000 : 1_000_000, jobCapacity: live ? 24_000 : 100_000,
     coalescingDelaySeconds: delay, jobTtlSeconds: 600, remoteSlots: 1,
   }));
   const consent = (await pool.query('SELECT 1 FROM background_inquiry_consent WHERE universe_id=$1 AND enabled', [universeId])).rowCount;
@@ -62,7 +68,7 @@ try {
   });
   const mailed = Number((await pool.query('SELECT count(*) FROM inquiry_mail WHERE universe_id=$1', [universeId])).rows[0].count);
   if (mailed !== 0) throw new Error('seed-journey: the supplied place mailed an inquiry');
-  console.log(JSON.stringify({ route: POLICY, transport: 'fixture', coalescingDelaySeconds: delay, seededPlaces: SUPPLIED, deltas, universeId,
+  console.log(JSON.stringify({ route: POLICY, transport, coalescingDelaySeconds: delay, seededPlaces: SUPPLIED, deltas, universeId,
     simulated: 'route installed and accounts supplied, not read' }));
 } finally {
   await pool.end();

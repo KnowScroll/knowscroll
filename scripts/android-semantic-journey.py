@@ -18,9 +18,9 @@ real second day), `foundation` (#131/#134 ADR-0037: as `places`, after Tides, Or
 formation are placed from supplied accounts by `scripts/atlas/seed-held-up-places.ts`; the reading
 forms Gravity, which is recognised as their foundation and withdrawn when Tides is set aside),
 `inquiry` (#132 ADR-0038 background bridge inquiries: `scripts/inquiries/seed-journey.ts` installs a
-FIXTURE inquiry route with a short coalescing delay (KS_INQUIRY_COALESCING_SECONDS, default 3) and
-places The Sun from a supplied account before consent; the worker runs with
-KS_INQUIRY_TRANSPORT=fixture; the device turns consent on in Privacy & account, reads its way to
+fixture inquiry route (or, with KS_INQUIRY_TRANSPORT=minimax, one bounded live MiniMax-M3 request
+counted against the session ledger) with a short coalescing delay (KS_INQUIRY_COALESCING_SECONDS,
+default 3) and places The Sun from a supplied account before consent; the device turns consent on in Privacy & account, reads its way to
 Gravity as in `places`, sees the inquiry found and the new continuation; SQL verifies the Job,
 attempt, model proposal, admitted universe bridge and the mail's place_formed cause) and `owner`
 (#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own section 3
@@ -73,9 +73,14 @@ spec = JOURNEYS[journey_name]
 ask_transport = os.environ.get('KS_ASK_TRANSPORT', 'fixture')
 if ask_transport not in ('fixture', 'minimax'): sys.exit('KS_ASK_TRANSPORT is fixture or minimax')
 live_ledger_path = Path(os.environ['KS_DEV_ROOT']) / 'minimax-answer-session-ledger.json'
-if journey_name == 'ask' and ask_transport == 'minimax':
+# #132: the inquiry journey likewise is fixture-backed unless KS_INQUIRY_TRANSPORT=minimax opts into one
+# bounded live request (the route caps it at one), counted against the same session ledger.
+inquiry_transport = os.environ.get('KS_INQUIRY_TRANSPORT', 'fixture')
+if inquiry_transport not in ('fixture', 'minimax'): sys.exit('KS_INQUIRY_TRANSPORT is fixture or minimax')
+live_run = (journey_name == 'ask' and ask_transport == 'minimax') or (journey_name == 'inquiry' and inquiry_transport == 'minimax')
+if live_run:
     live_ledger = json.loads(live_ledger_path.read_text()) if live_ledger_path.exists() else {'sessionCap': 40, 'used': 0, 'runs': []}
-    if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live answer allowance is spent')
+    if live_ledger['used'] + 1 > live_ledger['sessionCap']: sys.exit('Refusing: the live allowance is spent')
 out = root / 'artifacts/semantic-journey' / journey_name
 # Never shared between runs: a failed run must not overwrite the last good backup.
 backup = out / 'preview-backup' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
@@ -152,9 +157,14 @@ try:
             if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
             worker_env['MINIMAX_API_KEY'] = key
     if journey_name == 'inquiry':
-        # ADR-0038 section 2: fixture transport only (labelled; never a provider call). The route itself is
-        # installed by scripts/inquiries/seed-journey.ts once the API is up (it needs the reader's universe).
-        worker_env.update(KS_INQUIRY_TRANSPORT='fixture', KS_INQUIRY_FIXTURE_MODE='proposal')
+        # ADR-0038 section 2: the labelled fixture unless KS_INQUIRY_TRANSPORT=minimax (one live request; the
+        # key reaches the worker's environment only). The route itself is installed by
+        # scripts/inquiries/seed-journey.ts once the API is up (it needs the reader's universe).
+        worker_env.update(KS_INQUIRY_TRANSPORT=inquiry_transport, KS_INQUIRY_FIXTURE_MODE='proposal')
+        if inquiry_transport == 'minimax':
+            key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
+            if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
+            worker_env['MINIMAX_API_KEY'] = key
     for role in ('api', 'worker'):
         log = (out / (role + '.log')).open('w')
         processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=worker_env if role == 'worker' else env, stdout=log, stderr=log, start_new_session=True), log))
@@ -177,7 +187,8 @@ try:
     # BEFORE the device turns consent on (so it mails nothing), then takes the same day-old keep.
     if journey_name in ('places', 'foundation', 'inquiry'):
         seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}',
-                    'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3')}
+                    'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3'),
+                    'KS_INQUIRY_TRANSPORT': inquiry_transport}
         seeds = ({'foundation': ['scripts/atlas/seed-held-up-places.ts'], 'inquiry': ['scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
                  + ['scripts/atlas/seed-day-old-history.ts'])
         for seed in seeds:
@@ -370,9 +381,11 @@ try:
               and lineage['dispatches'] == 1 and lineage['modelProposalAdmitted'] == 1 and lineage['universeBridgeAdmitted'] == 1
               and lineage['mailCausedByGravityFormed'] == 1 and lineage['gravityFormedFromReading'] == 1 and lineage['suppliedSunUnread'] == 1
               and lineage['suppliedSunMailed'] == 0 and lineage['consentRequestsBeforeMail'] >= 1 and lineage['consentEnabled'] is True
-              and lineage['routeTransport'] == 'fixture' and journey['consent']['usedToday'] == 1)
+              and lineage['routeTransport'] == inquiry_transport and journey['consent']['usedToday'] == 1)
         assert ok, lineage
-        limits = ['Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
+        limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
+                   'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else
+                  'Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
                   'Editorial substrate; cartographer and validator as shipped, bench thresholds.', 'Debug API36 emulator, not a physical device.',
                   'The Sun was formed by the real Cartographer from a supplied account (zero readings), before consent, because the library '
                   'cannot anchor it from reading (one source family); Gravity formed from this run\'s reading after consent.',
@@ -397,7 +410,7 @@ try:
     receipt = {'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'result': 'passed', 'database': name, 'apiPort': port,
                'source': subprocess.check_output(['git', 'describe', '--always', '--dirty', '--abbrev=40'], text=True).strip(), 'package': package,
                'journeyName': journey_name, 'journey': journey, 'lineage': lineage,
-               'providerCalls': lineage.get('dispatches', 0) if journey_name == 'ask' and ask_transport == 'minimax' else 0, 'limits': limits}
+               'providerCalls': lineage.get('dispatches', 0) if live_run else 0, 'limits': limits}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(lineage), flush=True)
 finally:
@@ -432,9 +445,9 @@ finally:
     def count_live():
         dispatched = int(sql('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL') or 0)
         live_ledger['used'] += dispatched
-        live_ledger['runs'].append({'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'dispatched': dispatched, 'database': name, 'via': 'android-ask-journey'})
+        live_ledger['runs'].append({'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'dispatched': dispatched, 'database': name, 'via': f'android-{journey_name}-journey'})
         live_ledger_path.write_text(json.dumps(live_ledger, indent=2))
-    if created and journey_name == 'ask' and ask_transport == 'minimax':
+    if created and live_run:
         before_count = len(cleanup_errors)
         attempt('count live requests', count_live)
         # A live request that cannot be counted keeps its database, so it can be counted by hand.
