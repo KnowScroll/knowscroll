@@ -330,7 +330,7 @@ class PlacesScreenTest {
     @Test
     fun placesShowsItsOwnHonestPositionsLabelNeverTheSourcesWording() {
         content()
-        composeRule.onNodeWithText("Positions are illustrative — what's mapped and how it connects is real.").assertExists()
+        composeRule.onNodeWithText("Positions, moons and land shapes are illustrative — what's mapped and how it connects is real.").assertExists()
         composeRule.onAllNodesWithText("Orbits & moons are illustrative").assertCountEquals(0)
     }
 

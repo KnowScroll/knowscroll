@@ -1,0 +1,14 @@
+{
+  "apkSha256": [
+    "860b5f9376f0d264327c16dd450af4746fc43ffde024bc720bef315553541607"
+  ],
+  "backup": "20260924T101909Z",
+  "files": 3,
+  "sessionLost": false,
+  "guard": "scripts/android_preview.py",
+  "guardSha256": "0ab6754bdf76519eabca23029afc4b9b45101f8db10b3ceb7aea65e432ac6627",
+  "replaced": true,
+  "dataBytes": 10240,
+  "dataVerified": true,
+  "at": "2026-09-24T10:19:53.698393+00:00"
+}

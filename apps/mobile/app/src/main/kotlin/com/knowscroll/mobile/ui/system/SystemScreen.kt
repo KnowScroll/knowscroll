@@ -192,8 +192,9 @@ fun SystemScreen(
                                 // #134 review M2: Places' own honest equivalent -- its positions are
                                 // just as hash-derived/illustrative as Sources' orbits; only what is
                                 // mapped (the places themselves, their sightings, how they connect) is real.
+                                // #131: every planet's moon and land shapes are decoration too, and say so.
                                 Text(
-                                    "Positions are illustrative — what's mapped and how it connects is real.",
+                                    "Positions, moons and land shapes are illustrative — what's mapped and how it connects is real.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Cosmos.MutedOnDark,
                                     modifier = Modifier.padding(horizontal = 20.dp),
