@@ -1,5 +1,38 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 session stop: owner decisions, remaining work as issues, Android-first handoff (lane `72-continuation-handoff`)
+
+The owner stopped the first coordinator session after #158 merged (main `485faf7`). The next session
+runs in ultracode mode from [the continuation handoff](handoffs/2026-09-24-android-first-continuation.md),
+which includes strict agent limits and the order of the waves.
+
+Owner decisions:
+- Readers never see a source. It stays internal for checking: claims, validator, corrections and
+  provenance are unchanged.
+- A model writes Scrolls in its own words from fetched material. OpenStax is excluded; its pages say
+  CC BY-NC-SA.
+- MiniMax gets 150 more requests (155 available), same route rules.
+- UI is Android-only for now. The web catches up with Cutroom at the end.
+- The domain, mail credentials and keystore arrive at the end of the release work.
+- Still needed later from the owner: a real-use review of the recommendations, and a physical
+  Android phone.
+
+Remaining work is component issues #160–#171, all on Project 1:
+- #160 correction refresh (ADR-0040 proposed here: race-safe catch-up keyed on the correction count);
+- #161 hide sources on Android;
+- #162 model-written Scrolls;
+- #163 Idea Rooms;
+- #164 inventory;
+- #165 typed Relics;
+- #166 reasoning follow-ons;
+- #167 Reels;
+- #168 release readiness;
+- #169 flakes;
+- #170 acceptance matrix;
+- #171 web catch-up (deferred).
+
+No open issue was fulfilled, so none was closed; component epics keep their unfinished acceptance.
+
 ## 2026-09-24 #134 the return and connection Relics (lane `134-return-relics`)
 
 ADR-0039, migration 0033. `GET /v1/away` lists what the reader did not cause since their marker:
