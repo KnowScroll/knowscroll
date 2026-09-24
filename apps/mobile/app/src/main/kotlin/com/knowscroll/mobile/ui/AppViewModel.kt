@@ -559,25 +559,25 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val reading=_scroll.value as? ScrollState.Reading ?: return
         val panel=_ask.value?.takeIf{it.assetId==reading.item.assetId} ?: return
         if(panel.stage !is AskStage.Composing && panel.stage !is AskStage.Error)return
-        val trimmed=question.trim()
-        if(!questionIsValid(trimmed))return
+        // Sent exactly as written (ADR-0016): the question is the reader's literal text.
+        if(!questionIsValid(question))return
         val currentSession=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
         busy=true
         val version=navigationVersion
         val epoch=observedPrivacyEpoch
-        _ask.value=panel.copy(stage=AskStage.Recording,question=trimmed)
+        _ask.value=panel.copy(stage=AskStage.Recording,question=question)
         viewModelScope.launch {
             try {
                 val exposed=recordExposure(currentSession,version,epoch)
                 if(!operationIsCurrent(version,epoch,currentSession))return@launch
                 session=exposed
                 val pending=store.readPendingAsk()?.takeIf{
-                    it.exposureId==exposed.exposureId && it.question==trimmed && it.expectedPrivacyEpoch==epoch
-                } ?: PendingAsk(UUID.randomUUID().toString(),exposed.exposureId,epoch,trimmed).also(store::writePendingAsk)
+                    it.exposureId==exposed.exposureId && it.question==question && it.expectedPrivacyEpoch==epoch
+                } ?: PendingAsk(UUID.randomUUID().toString(),exposed.exposureId,epoch,question).also(store::writePendingAsk)
                 val receipt=api.postAsk(pending)
                 if(version!=navigationVersion || epoch!=observedPrivacyEpoch)return@launch
                 store.clearPendingAsk()
-                if(_ask.value?.assetId==reading.item.assetId)_ask.value=AskPanel(reading.item.assetId,AskStage.Recorded(receipt.askId),trimmed)
+                if(_ask.value?.assetId==reading.item.assetId)_ask.value=AskPanel(reading.item.assetId,AskStage.Recorded(receipt.askId),question)
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(version!=navigationVersion)return@launch
@@ -593,7 +593,9 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(busy || reconciling || !ready)return
         val reading=_scroll.value as? ScrollState.Reading ?: return
         val panel=_ask.value?.takeIf{it.assetId==reading.item.assetId} ?: return
-        val askId=(panel.stage as? AskStage.Recorded)?.askId ?: return
+        // After an unclear failure the Ask is still recorded: the reader retries the same request
+        // (its saved key is reused below), never a new question and a second paid request.
+        val askId=when(val stage=panel.stage){is AskStage.Recorded->stage.askId;is AskStage.Error->stage.askId;else->null} ?: return
         val currentSession=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
         busy=true
         val version=navigationVersion

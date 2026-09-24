@@ -89,25 +89,16 @@ internal fun AskSheet(controls: AskControls, onDismiss: () -> Unit) {
 @Composable
 private fun AskBody(panel: AskPanel?, onAsk: (String) -> Unit, onGetAnswer: () -> Unit, onCancel: () -> Unit) {
     when (val stage = panel?.stage ?: AskStage.Composing) {
-        AskStage.Composing, is AskStage.Error -> {
-            var text by rememberSaveable(panel?.assetId) { mutableStateOf(panel?.question ?: "") }
-            OutlinedTextField(
-                value = text, onValueChange = { text = it },
-                label = { Text(stringResource(R.string.ask_question_label)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (stage is AskStage.Error) Text(
-                stage.message, style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-            val submitDescription = stringResource(R.string.ask_submit_description)
+        is AskStage.Error -> if (stage.askId != null) {
+            // The question is recorded; only its answer request failed. Offer that request again.
+            Text(stage.message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             Button(
-                onClick = { onAsk(text) },
-                enabled = questionIsValid(text),
+                onClick = onGetAnswer,
                 colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Dark, contentColor = Cosmos.Cream),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = submitDescription },
-            ) { Text(stringResource(R.string.ask_submit_action)) }
-        }
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) { Text(stringResource(R.string.ask_get_answer_action)) }
+        } else QuestionComposer(panel, stage, onAsk)
+        AskStage.Composing -> QuestionComposer(panel, null, onAsk)
         AskStage.Recording -> Progress(stringResource(R.string.ask_recording))
         is AskStage.Recorded -> {
             Text(stringResource(R.string.ask_recorded_explanation), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
@@ -129,6 +120,27 @@ private fun AskBody(panel: AskPanel?, onAsk: (String) -> Unit, onGetAnswer: () -
         is AskStage.TimedOut -> Text(stringResource(R.string.ask_unavailable), style = MaterialTheme.typography.bodyLarge)
         is AskStage.Final -> AskResult(stage.view)
     }
+}
+
+@Composable
+private fun QuestionComposer(panel: AskPanel?, stage: AskStage.Error?, onAsk: (String) -> Unit) {
+    var text by rememberSaveable(panel?.assetId) { mutableStateOf(panel?.question ?: "") }
+    OutlinedTextField(
+        value = text, onValueChange = { text = it },
+        label = { Text(stringResource(R.string.ask_question_label)) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    if (stage is AskStage.Error) Text(
+        stage.message, style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+    )
+    val submitDescription = stringResource(R.string.ask_submit_description)
+    Button(
+        onClick = { onAsk(text) },
+        enabled = questionIsValid(text),
+        colors = ButtonDefaults.buttonColors(containerColor = Cosmos.Dark, contentColor = Cosmos.Cream),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = submitDescription },
+    ) { Text(stringResource(R.string.ask_submit_action)) }
 }
 
 @Composable

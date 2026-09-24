@@ -117,6 +117,8 @@ class AnswersTest {
         assertTrue(questionIsValid("  What does this Scroll say about tides?  "))
         assertTrue(questionIsValid("a".repeat(4096)))
         assertFalse(questionIsValid("a".repeat(4097)))
+        // The server bounds the literal text (ADR-0016): surrounding spaces count toward the limit.
+        assertFalse(questionIsValid("  " + "a".repeat(4095)))
     }
 
     @Test

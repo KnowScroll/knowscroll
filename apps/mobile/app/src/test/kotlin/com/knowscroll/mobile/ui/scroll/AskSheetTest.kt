@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], qualifiers = "w360dp-h800dp-xhdpi")
 class AskSheetTest {
     @Test
-    fun composingDisablesAskUntilAQuestionIsTypedAndSendsItTrimmed() = runComposeUiTest {
+    fun composingDisablesAskUntilAQuestionIsTypedAndSendsItLiterally() = runComposeUiTest {
         val sent = mutableListOf<String>()
         setContent {
             KnowScrollTheme { AskSheet(AskControls(AskPanel("a1"), onAsk = { sent += it })) {} }
@@ -48,7 +48,7 @@ class AskSheetTest {
 
         panel.value = panel.value.copy(stage = AskStage.Recorded("ask1"))
         waitForIdle()
-        onNodeWithText("Getting an answer uses a separate answer service, which checks its response against this Scroll before it is shown.").performScrollTo()
+        onNodeWithText("Getting an answer sends your question and this Scroll's text to an outside AI model", substring = true).performScrollTo()
         onNodeWithText("Get an answer").performScrollTo().performClick()
         assertEquals(true, gotAnswer)
     }
@@ -126,5 +126,20 @@ class AskSheetTest {
         }
         onNodeWithText("Recording is paused, so questions aren't recorded.").performScrollTo()
         onNodeWithText("Does this cover storm surge?").performScrollTo()
+    }
+
+    /** #132 review I5: after an unclear failure of "Get an answer" the question is already recorded,
+     * so the sheet offers the same request again (the saved request key is reused) -- never a second
+     * question that would record a second Ask and a second paid request. */
+    @Test
+    fun anUnclearAnswerRequestFailureOffersGetAnAnswerAgainNotANewQuestion() = runComposeUiTest {
+        var retried = 0
+        setContent {
+            KnowScrollTheme { AskSheet(AskControls(AskPanel("a1", AskStage.Error("ask1", "The network dropped."), "Does this cover storm surge?"), onGetAnswer = { retried += 1 })) {} }
+        }
+        onNodeWithText("The network dropped.").performScrollTo()
+        assertEquals(0, onAllNodesWithText("Your question").fetchSemanticsNodes().size)
+        onNodeWithText("Get an answer").performScrollTo().performClick()
+        assertEquals(1, retried)
     }
 }

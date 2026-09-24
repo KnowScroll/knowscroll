@@ -57,10 +57,10 @@ private const val MAX_QUESTION_BYTES = 4096
 /** Non-empty after trim, at most 4096 UTF-8 bytes, no NUL -- the same rule the server enforces on
  * `POST /v1/asks`. Used to disable the "Ask" control before a doomed request is ever sent. */
 fun questionIsValid(question: String): Boolean {
-    val trimmed = question.trim()
-    if (trimmed.isEmpty()) return false
-    if (trimmed.any { it == '\u0000' }) return false
-    return trimmed.toByteArray(Charsets.UTF_8).size <= MAX_QUESTION_BYTES
+    if (question.isBlank()) return false
+    if (question.any { it == '\u0000' }) return false
+    // The literal text is what is sent and what the server bounds (ADR-0016), spaces included.
+    return question.toByteArray(Charsets.UTF_8).size <= MAX_QUESTION_BYTES
 }
 
 internal fun parseAnswerView(o: JSONObject): AnswerView {
