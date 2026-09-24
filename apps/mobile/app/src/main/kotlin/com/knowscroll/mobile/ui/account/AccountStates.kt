@@ -9,8 +9,12 @@ sealed interface AuthState {
 }
 
 /** Why the device is signed out, for the one honest message the sign-in screen shows -- distinct
- * from "you have never signed in here". `null` means no reason is known (the ordinary case). */
-enum class SignedOutReason { SESSION_EXPIRED, ACCOUNT_DELETED, RESET, SIGNED_OUT }
+ * from "you have never signed in here". `null` means no reason is known (the ordinary case).
+ * `SESSION_ENDED_BEFORE_DELETE`/`_RESET`: that request met a 401 with no earlier attempt of it that
+ * could have been applied -- the session had already ended, and nothing was deleted or reset. */
+enum class SignedOutReason {
+    SESSION_EXPIRED, ACCOUNT_DELETED, RESET, SIGNED_OUT, SESSION_ENDED_BEFORE_DELETE, SESSION_ENDED_BEFORE_RESET,
+}
 
 sealed interface LinkRequestState {
     data object Idle : LinkRequestState

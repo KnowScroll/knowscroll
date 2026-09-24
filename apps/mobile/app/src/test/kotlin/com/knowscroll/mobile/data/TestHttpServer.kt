@@ -30,6 +30,13 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
                     }
                     val requestBody = if (length > 0) String(CharArray(length).also { input.read(it, 0, length) }) else ""
                     requests += Recorded(requestLine, requestBody)
+                    if (status == HANG) {
+                        // Received in full, never answered: hold the connection until the client
+                        // gives up (its read timeout) and closes it -- a genuinely lost response.
+                        socket.soTimeout = 15_000
+                        runCatching { while (input.read() != -1) Unit }
+                        return@use
+                    }
                     socket.getOutputStream().write(
                         ("HTTP/1.1 $status X\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n" + body)
                             .toByteArray()
@@ -48,6 +55,8 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
     }
 
     companion object {
+        /** A reply "status" that reads the request and never answers it (see [serve]). */
+        const val HANG = -1
         fun open(): TestHttpServer = TestHttpServer(ServerSocket(0))
     }
 }

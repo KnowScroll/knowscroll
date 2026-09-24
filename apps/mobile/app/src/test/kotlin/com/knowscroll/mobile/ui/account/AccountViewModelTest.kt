@@ -47,10 +47,12 @@ class AccountViewModelTest {
         store: StateStore = StateStore(freshContext()),
         developmentToken: String = "",
         isDebugBuild: Boolean = true,
+        maxAttempts: Int = 1,
     ): AccountViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val credential = CredentialProvider { selectCredential(vault.readToken(), developmentToken, isDebugBuild) }
-        val api = ApiClient(server.baseUrl, "", maxAttempts = 1, credential = credential, onUnauthorized = {})
+        // A short read timeout: `TestHttpServer.HANG` stands for a response that never arrives.
+        val api = ApiClient(server.baseUrl, "", readTimeoutMs = 700, maxAttempts = maxAttempts, credential = credential, onUnauthorized = {})
         return AccountViewModel(application, vault, api, store, developmentToken, isDebugBuild)
     }
 
@@ -227,27 +229,146 @@ class AccountViewModelTest {
         }
     }
 
+    // ---- Finding 2: a 401 means "deleted"/"reset" only when an earlier attempt may have landed ----
+
+    private val universeAt5 = 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":null}"""
+    private val unauthorized = 401 to """{"error":"Unauthorized"}"""
+    private val lostResponse = TestHttpServer.HANG to ""
+
+    private fun openLoadedPrivacy(model: AccountViewModel) {
+        model.openPrivacy()
+        awaitUntil { model.privacy.value is PrivacyState.Loaded }
+    }
+
+    private fun requestIdOf(server: TestHttpServer, index: Int) = JSONObject(server.requests[index].body).getString("requestId")
+
     @Test
-    fun a401WhileDeletingIsTreatedAsDeletedAndSignedOutRatherThanFailed() {
+    fun a401OnTheFirstDeletionAttemptIsNeverReportedAsADeletion() {
         TestHttpServer.open().use { server ->
-            server.serve(
-                200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":null}""",
-                401 to """{"error":"Unauthorized"}""",
-            )
+            server.serve(universeAt5, unauthorized)
             val store = StateStore(freshContext())
             val vault = FakeSessionVault("session-1")
             val model = viewModel(server, vault, store)
-            model.openPrivacy()
-            awaitUntil { model.privacy.value is PrivacyState.Loaded }
+            openLoadedPrivacy(model)
 
             model.requestDeleteConfirmation()
             model.confirmDelete()
             awaitUntil { model.authState.value is AuthState.SignedOut }
             server.join()
 
-            assertEquals(SignedOutReason.ACCOUNT_DELETED, model.signedOutReason.value)
+            assertEquals(SignedOutReason.SESSION_ENDED_BEFORE_DELETE, model.signedOutReason.value)
+            assertNull("the dead session is still cleared", vault.readToken())
             assertEquals(PrivacyOperationState.Idle, model.delete.value)
-            assertNull("a lost-response retry must not be offered for what already happened", store.readPendingPrivacyRequest("delete"))
+            assertNull(store.readPendingPrivacyRequest("delete"))
+        }
+    }
+
+    @Test
+    fun aTimeoutThenA401OnTheRetryWithTheSameRequestIsReportedAsDeleted() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, lostResponse, unauthorized)
+            val store = StateStore(freshContext())
+            val vault = FakeSessionVault("session-1")
+            val model = viewModel(server, vault, store)
+            openLoadedPrivacy(model)
+
+            model.requestDeleteConfirmation()
+            model.confirmDelete()
+            awaitUntil { model.delete.value is PrivacyOperationState.Failed }
+            assertEquals(AuthState.SignedIn, model.authState.value)
+
+            model.retryDelete()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+
+            assertEquals(SignedOutReason.ACCOUNT_DELETED, model.signedOutReason.value)
+            assertEquals("the retry is the same request", requestIdOf(server, 1), requestIdOf(server, 2))
+            assertNull(store.readPendingPrivacyRequest("delete"))
+        }
+    }
+
+    @Test
+    fun aLostResponseInsideTheSameCallThenA401IsReportedAsDeleted() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, lostResponse, unauthorized)
+            val model = viewModel(server, FakeSessionVault("session-1"), maxAttempts = 2)
+            openLoadedPrivacy(model)
+
+            model.requestDeleteConfirmation()
+            model.confirmDelete() // ApiClient's own retry answers 401
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            assertEquals(SignedOutReason.ACCOUNT_DELETED, model.signedOutReason.value)
+        }
+    }
+
+    @Test
+    fun aDeletionInFlightWhenTheProcessDiedThenA401OnRetryIsReportedAsDeleted() {
+        TestHttpServer.open().use { server ->
+            server.serve(unauthorized)
+            val store = StateStore(freshContext())
+            store.writePendingPrivacyRequest("delete", "earlier-request", 5, inFlight = true)
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            assertTrue(model.delete.value is PrivacyOperationState.Failed)
+
+            model.retryDelete()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            assertEquals(SignedOutReason.ACCOUNT_DELETED, model.signedOutReason.value)
+            assertEquals("earlier-request", requestIdOf(server, 0))
+        }
+    }
+
+    @Test
+    fun aDefinitiveRefusalThenA401IsNotReportedAsDeleted() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, 409 to """{"error":"stale epoch"}""", unauthorized)
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            openLoadedPrivacy(model)
+
+            model.requestDeleteConfirmation()
+            model.confirmDelete()
+            awaitUntil { model.delete.value is PrivacyOperationState.Failed }
+            model.retryDelete()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            assertEquals(SignedOutReason.SESSION_ENDED_BEFORE_DELETE, model.signedOutReason.value)
+        }
+    }
+
+    @Test
+    fun a401OnTheFirstResetAttemptIsNeverReportedAsAReset() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, unauthorized)
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestResetConfirmation()
+            model.confirmReset()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            assertEquals(SignedOutReason.SESSION_ENDED_BEFORE_RESET, model.signedOutReason.value)
+            assertEquals(PrivacyOperationState.Idle, model.reset.value)
+            assertNull(store.readPendingPrivacyRequest("reset"))
+        }
+    }
+
+    @Test
+    fun aTimeoutThenA401OnTheResetRetryIsReportedAsReset() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, lostResponse, unauthorized)
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            openLoadedPrivacy(model)
+
+            model.requestResetConfirmation()
+            model.confirmReset()
+            awaitUntil { model.reset.value is PrivacyOperationState.Failed }
+            model.retryReset()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+            assertEquals(SignedOutReason.RESET, model.signedOutReason.value)
+            assertEquals(requestIdOf(server, 1), requestIdOf(server, 2))
         }
     }
 

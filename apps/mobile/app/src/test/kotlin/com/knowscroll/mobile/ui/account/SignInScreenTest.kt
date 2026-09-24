@@ -103,4 +103,18 @@ class SignInScreenTest {
         composeRule.onAllNodesWithText("Your account and history were deleted.").assertCountEquals(0)
         composeRule.onAllNodesWithText("Your session ended. Sign in again to continue.").assertCountEquals(0)
     }
+
+    @Test
+    fun aDeletionOrResetThatNeverLandedSaysSoAndNeverClaimsIt() {
+        render(reason = SignedOutReason.SESSION_ENDED_BEFORE_DELETE)
+        composeRule.onAllNodesWithText("Your session ended before the deletion was sent. Sign in and try again.").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Your account and history were deleted.").assertCountEquals(0)
+    }
+
+    @Test
+    fun aResetThatNeverLandedSaysSo() {
+        render(reason = SignedOutReason.SESSION_ENDED_BEFORE_RESET)
+        composeRule.onAllNodesWithText("Your session ended before the reset was sent. Sign in and try again.").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Your personal history was reset. Sign in again to continue.").assertCountEquals(0)
+    }
 }

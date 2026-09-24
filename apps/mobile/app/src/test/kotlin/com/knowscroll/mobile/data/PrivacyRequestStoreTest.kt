@@ -47,4 +47,12 @@ class PrivacyRequestStoreTest {
         store.writePendingPrivacyRequest("export", "req-b", 2)
         assertEquals(PendingPrivacyRequest("req-b", 2), store.readPendingPrivacyRequest("export"))
     }
+
+    @Test
+    fun whetherAnEarlierAttemptMayHaveLandedSurvivesAColdStart() {
+        freshStore().writePendingPrivacyRequest("delete", "req-1", 4, mayHaveLanded = true, inFlight = false)
+        assertEquals(PendingPrivacyRequest("req-1", 4, mayHaveLanded = true), StateStore(ApplicationProvider.getApplicationContext()).readPendingPrivacyRequest("delete"))
+        freshStore().writePendingPrivacyRequest("reset", "req-2", 4, inFlight = true)
+        assertEquals(PendingPrivacyRequest("req-2", 4, inFlight = true), StateStore(ApplicationProvider.getApplicationContext()).readPendingPrivacyRequest("reset"))
+    }
 }

@@ -28,8 +28,17 @@ data class TraceRevisitSession(
 
 const val MAX_BRANCH_TRAIL = 8
 
-/** #135: one persisted privacy-lifecycle retry envelope. See [StateStore.writePendingPrivacyRequest]. */
-data class PendingPrivacyRequest(val requestId: String, val expectedPrivacyEpoch: Long)
+/** #135: one persisted privacy-lifecycle retry envelope. See [StateStore.writePendingPrivacyRequest].
+ * [mayHaveLanded]: an earlier attempt of this request may have been applied without its answer
+ * arriving (a lost response, a 5xx). [inFlight]: an attempt was dispatched and its outcome never
+ * recorded -- read after a process restart, the process died with it in flight, so it may have
+ * landed too. Only Reset and account deletion, which end the calling session, need either. */
+data class PendingPrivacyRequest(
+    val requestId: String,
+    val expectedPrivacyEpoch: Long,
+    val mayHaveLanded: Boolean = false,
+    val inFlight: Boolean = false,
+)
 
 /** Persist the whole retry envelope together, not a UUID detached from its payload. */
 class StateStore(context: Context) {
@@ -251,9 +260,13 @@ class StateStore(context: Context) {
      * intent has its own slot; they are independent (e.g. a pending pause survives a concurrent
      * export). Deliberately NOT touched by [purgePrivateState]: a destructive intent's own
      * completion handler clears its slot itself, after the server has confirmed the outcome. */
-    fun writePendingPrivacyRequest(intent: String, requestId: String, expectedPrivacyEpoch: Long) {
+    fun writePendingPrivacyRequest(
+        intent: String, requestId: String, expectedPrivacyEpoch: Long,
+        mayHaveLanded: Boolean = false, inFlight: Boolean = false,
+    ) {
         val json = JSONObject().apply {
             put("requestId", requestId); put("expectedPrivacyEpoch", expectedPrivacyEpoch)
+            put("mayHaveLanded", mayHaveLanded); put("inFlight", inFlight)
         }
         check(prefs.edit().putString(privacyRequestKey(intent), json.toString()).commit()) {
             "Could not save the pending $intent request"
@@ -264,7 +277,10 @@ class StateStore(context: Context) {
         val raw = prefs.getString(privacyRequestKey(intent), null) ?: return null
         return runCatching {
             val json = JSONObject(raw)
-            PendingPrivacyRequest(json.getString("requestId"), json.getLong("expectedPrivacyEpoch"))
+            PendingPrivacyRequest(
+                json.getString("requestId"), json.getLong("expectedPrivacyEpoch"),
+                json.optBoolean("mayHaveLanded", false), json.optBoolean("inFlight", false),
+            )
         }.getOrNull()
     }
 

@@ -251,6 +251,8 @@
     <string name="sign_in_reason_session_expired">Your session ended. Sign in again to continue.</string>
     <string name="sign_in_reason_reset">Your personal history was reset. Sign in again to continue.</string>
     <string name="sign_in_reason_account_deleted">Your account and history were deleted.</string>
+    <string name="sign_in_reason_ended_before_delete">Your session ended before the deletion was sent. Sign in and try again.</string>
+    <string name="sign_in_reason_ended_before_reset">Your session ended before the reset was sent. Sign in and try again.</string>
 
     <string name="privacy_screen_title">Privacy &amp; account</string>
     <string name="privacy_screen_open_description">Open Privacy &amp; account</string>

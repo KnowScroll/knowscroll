@@ -134,5 +134,7 @@ private fun signedOutReasonMessage(reason: SignedOutReason?): String? = when (re
     SignedOutReason.RESET -> stringResource(R.string.sign_in_reason_reset)
     SignedOutReason.ACCOUNT_DELETED -> stringResource(R.string.sign_in_reason_account_deleted)
     SignedOutReason.SIGNED_OUT -> stringResource(R.string.sign_out_done_title)
+    SignedOutReason.SESSION_ENDED_BEFORE_DELETE -> stringResource(R.string.sign_in_reason_ended_before_delete)
+    SignedOutReason.SESSION_ENDED_BEFORE_RESET -> stringResource(R.string.sign_in_reason_ended_before_reset)
     null -> null
 }

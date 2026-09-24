@@ -14,9 +14,18 @@ import java.net.SocketTimeoutException
 import java.net.URL
 
 sealed class ApiException(message: String) : Exception(message) {
-    class Network(message: String) : ApiException(message)
-    class Server(val statusCode: Int, body: String) : ApiException("HTTP $statusCode: $body")
-    class Protocol(message: String) : ApiException(message)
+    /** #135 review: whether the call that failed may nonetheless have been applied by the server --
+     * a response that never arrived (timeout, dropped connection), a 5xx (a proxy can answer one
+     * after the API committed), an unreadable answer to an expected status, or an *earlier*
+     * attempt of the same call (this client retries once) that was any of those. A self-ending
+     * request (Reset, account deletion) needs it to read a final 401 honestly. */
+    open val mayHaveLanded: Boolean get() = false
+    class Network(message: String, override val mayHaveLanded: Boolean = false) : ApiException(message)
+    class Server(val statusCode: Int, body: String, override val mayHaveLanded: Boolean = statusCode >= 500) :
+        ApiException("HTTP $statusCode: $body")
+    class Protocol(message: String) : ApiException(message) {
+        override val mayHaveLanded: Boolean get() = true
+    }
     object MissingToken : ApiException("KS_DEV_TOKEN is not configured")
     class InteractionConflict(message: String) : ApiException(message)
 }
@@ -391,6 +400,9 @@ class ApiClient(
     ): T {
         var lastError: ApiException? = null
         var attempt = 0
+        // True once any attempt of this call may have been applied without its answer (see
+        // [ApiException.mayHaveLanded]); every error thrown after that carries it.
+        var uncertain = false
         while (attempt < maxAttempts) {
             attempt++
             try {
@@ -406,24 +418,29 @@ class ApiClient(
                 // A 204 (e.g. session revoke) has no body; every other expected response is JSON.
                 if (code in expected) return parse(JSONObject(responseBody.ifBlank { "{}" }))
                 if (isTransient(code)) {
-                    lastError = ApiException.Server(code, responseBody)
+                    // A 429 was refused outright; a 5xx may follow a commit behind a proxy.
+                    if (code >= 500) uncertain = true
+                    lastError = ApiException.Server(code, responseBody, uncertain)
                     if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
                     continue
                 }
-                throw ApiException.Server(code, responseBody)
+                throw ApiException.Server(code, responseBody, uncertain)
             } catch (e: ApiException) {
                 if (e is ApiException.MissingToken || e is ApiException.InteractionConflict) throw e
                 lastError = e
                 if (attempt >= maxAttempts || e !is ApiException.Network) throw e
                 delay(if (attempt == 1) 400L else 1_200L)
             } catch (e: ConnectException) {
-                lastError = ApiException.Network("Could not connect to bootstrap service")
+                // Refused before anything was sent: only an earlier attempt could have landed.
+                lastError = ApiException.Network("Could not connect to bootstrap service", uncertain)
                 if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
             } catch (e: SocketTimeoutException) {
-                lastError = ApiException.Network("Bootstrap service timed out")
+                uncertain = true
+                lastError = ApiException.Network("Bootstrap service timed out", true)
                 if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
             } catch (e: IOException) {
-                lastError = ApiException.Network(e.message ?: "Network failure")
+                uncertain = true
+                lastError = ApiException.Network(e.message ?: "Network failure", true)
                 if (attempt < maxAttempts) delay(if (attempt == 1) 400L else 1_200L)
             }
         }

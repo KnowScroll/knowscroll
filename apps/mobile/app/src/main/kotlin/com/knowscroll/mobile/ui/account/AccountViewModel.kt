@@ -349,26 +349,15 @@ class AccountViewModel @JvmOverloads constructor(
     }
 
     private fun beginReset(requestId: String, epoch: Long) {
-        store.writePendingPrivacyRequest(INTENT_RESET, requestId, epoch)
         _reset.value = PrivacyOperationState.Working
-        viewModelScope.launch {
-            try {
-                val receipt = api.resetPersonalUniverse(PrivacyResetRequest(requestId, epoch))
-                store.clearPendingPrivacyRequest(INTENT_RESET)
-                signOutLocally(SignedOutReason.RESET, receipt.epochAfter)
-                _reset.value = PrivacyOperationState.Idle
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiException.Server) {
-                // Reset revokes the caller's own session too (ADR-0030): a retry after a lost
-                // response authenticates with an already-dead token and 401s before the server
-                // even re-reads the requestId. Treated the same honest way as account deletion.
-                if (e.statusCode == 401) { store.clearPendingPrivacyRequest(INTENT_RESET); signOutLocally(SignedOutReason.RESET); _reset.value = PrivacyOperationState.Idle }
-                else _reset.value = PrivacyOperationState.Failed(transportMessage(e))
-            } catch (e: Exception) {
-                _reset.value = PrivacyOperationState.Failed(transportMessage(e))
-            }
-        }
+        // Reset revokes the caller's own session too (ADR-0030): a retry after a lost response
+        // authenticates with an already-dead token and 401s before the server even re-reads the
+        // requestId. Read exactly as account deletion's 401 is -- see [runSelfEndingRequest].
+        runSelfEndingRequest(
+            INTENT_RESET, requestId, epoch, _reset,
+            send = { api.resetPersonalUniverse(PrivacyResetRequest(requestId, epoch)).epochAfter },
+            done = SignedOutReason.RESET, endedBeforeSent = SignedOutReason.SESSION_ENDED_BEFORE_RESET,
+        )
     }
 
     // ---- Delete account (ADR-0035): its own literal, removes more than Reset -------------------
@@ -393,23 +382,53 @@ class AccountViewModel @JvmOverloads constructor(
     }
 
     private fun beginDelete(requestId: String, epoch: Long) {
-        store.writePendingPrivacyRequest(INTENT_DELETE, requestId, epoch)
         _delete.value = PrivacyOperationState.Working
+        runSelfEndingRequest(
+            INTENT_DELETE, requestId, epoch, _delete,
+            send = { api.deleteAccount(AccountDeletionRequest(requestId, epoch)).epochAfter },
+            done = SignedOutReason.ACCOUNT_DELETED, endedBeforeSent = SignedOutReason.SESSION_ENDED_BEFORE_DELETE,
+        )
+    }
+
+    /**
+     * Reset and account deletion both end the calling session, so there is no replay: a retry
+     * after a lost response meets a 401, and so does a request sent by a session that had already
+     * ended (expired, signed out or reset elsewhere) -- when nothing was applied at all. ADR-0035
+     * section 5: the 401 is read as [done] only when an earlier attempt of this same [requestId]
+     * may have been applied without its answer -- recorded in the persisted envelope
+     * ([com.knowscroll.mobile.data.PendingPrivacyRequest]: a lost response or 5xx, or an attempt
+     * still marked in flight, i.e. the process died with it), or reported by [ApiClient]'s own
+     * in-call retry ([ApiException.mayHaveLanded]). Otherwise the session simply ended first:
+     * [endedBeforeSent], and the account/history are untouched. Either way the dead session is
+     * cleared and the app returns to sign-in.
+     */
+    private fun runSelfEndingRequest(
+        intent: String, requestId: String, epoch: Long, state: MutableStateFlow<PrivacyOperationState>,
+        send: suspend () -> Long, done: SignedOutReason, endedBeforeSent: SignedOutReason,
+    ) {
+        val earlier = store.readPendingPrivacyRequest(intent)?.takeIf { it.requestId == requestId }
+        val earlierMayHaveLanded = earlier != null && (earlier.mayHaveLanded || earlier.inFlight)
+        store.writePendingPrivacyRequest(intent, requestId, epoch, mayHaveLanded = earlierMayHaveLanded, inFlight = true)
         viewModelScope.launch {
             try {
-                val receipt = api.deleteAccount(AccountDeletionRequest(requestId, epoch))
-                store.clearPendingPrivacyRequest(INTENT_DELETE)
-                signOutLocally(SignedOutReason.ACCOUNT_DELETED, receipt.epochAfter)
-                _delete.value = PrivacyOperationState.Idle
+                val epochAfter = send()
+                store.clearPendingPrivacyRequest(intent)
+                signOutLocally(done, epochAfter)
+                state.value = PrivacyOperationState.Idle
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: ApiException.Server) {
-                // ADR-0035 section 5: a client that sent a deletion and receives 401 treats
-                // itself as signed out either way -- a lost response is not a failed deletion.
-                if (e.statusCode == 401) { store.clearPendingPrivacyRequest(INTENT_DELETE); signOutLocally(SignedOutReason.ACCOUNT_DELETED); _delete.value = PrivacyOperationState.Idle }
-                else _delete.value = PrivacyOperationState.Failed(transportMessage(e))
             } catch (e: Exception) {
-                _delete.value = PrivacyOperationState.Failed(transportMessage(e))
+                if (e is ApiException.Server && e.statusCode == 401) {
+                    store.clearPendingPrivacyRequest(intent)
+                    signOutLocally(if (earlierMayHaveLanded || e.mayHaveLanded) done else endedBeforeSent)
+                    state.value = PrivacyOperationState.Idle
+                } else {
+                    // Anything but a definitive refusal may have been applied: a later 401 for this
+                    // same request then means it was.
+                    val landed = earlierMayHaveLanded || (e !is ApiException) || e.mayHaveLanded
+                    store.writePendingPrivacyRequest(intent, requestId, epoch, mayHaveLanded = landed, inFlight = false)
+                    state.value = PrivacyOperationState.Failed(transportMessage(e))
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ package com.knowscroll.mobile.data
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -168,5 +169,46 @@ class AccountApiTest {
         val api = ApiClient("http://127.0.0.1:1", "unused-fallback", maxAttempts = 1, credential = provider)
         val error = runCatching { api.getUniverse() }.exceptionOrNull()
         assertTrue(error is ApiException.MissingToken)
+    }
+
+    // ---- #135 review: whether a failed call may still have been applied ----
+
+    private fun deletingClient(server: TestHttpServer) = ApiClient(
+        server.baseUrl, "", readTimeoutMs = 700, maxAttempts = 2, credential = CredentialProvider { "session-1" }, onUnauthorized = {},
+    )
+
+    private suspend fun deletionFailure(server: TestHttpServer): ApiException.Server {
+        val error = runCatching { deletingClient(server).deleteAccount(AccountDeletionRequest("req-1", 5)) }.exceptionOrNull()
+        server.join()
+        assertTrue("expected a 401, got $error", error is ApiException.Server && error.statusCode == 401)
+        return error as ApiException.Server
+    }
+
+    @Test
+    fun a401OnTheFirstAttemptCannotHaveLanded() = runBlocking {
+        TestHttpServer.open().use { server ->
+            server.serve(401 to """{"error":"Unauthorized"}""")
+            assertFalse(deletionFailure(server).mayHaveLanded)
+        }
+    }
+
+    @Test
+    fun a401AfterALostResponseInTheSameCallMayHaveLanded() = runBlocking {
+        TestHttpServer.open().use { server ->
+            server.serve(TestHttpServer.HANG to "", 401 to """{"error":"Unauthorized"}""")
+            assertTrue(deletionFailure(server).mayHaveLanded)
+        }
+    }
+
+    @Test
+    fun a401AfterA5xxMayHaveLandedButAfterA429ItCannotHave() = runBlocking {
+        TestHttpServer.open().use { server ->
+            server.serve(502 to """{"error":"bad gateway"}""", 401 to """{"error":"Unauthorized"}""")
+            assertTrue(deletionFailure(server).mayHaveLanded)
+        }
+        TestHttpServer.open().use { server ->
+            server.serve(429 to """{"error":"slow down"}""", 401 to """{"error":"Unauthorized"}""")
+            assertFalse(deletionFailure(server).mayHaveLanded)
+        }
     }
 }
