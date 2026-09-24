@@ -166,7 +166,9 @@ try:
     run(['createdb', *args, name], env=adminenv)
     created = True
     run(['pnpm', 'db:migrate'], env=env)
-    run(['pnpm', 'db:seed'], env=env)
+    # A finite three-Scroll library (the web reader journey's fixture): this journey reaches the
+    # library's end, which the growing editorial library never does in a bounded run (#140, #136).
+    run(['pnpm', 'db:seed'], env={**env, 'KS_SEED_SCROLLS': 'apps/web/e2e/fixtures/reader-library.json', 'KS_SEED_SUBSTRATE': 'none'})
     service('api')
     service('worker')
     for _ in range(60):
