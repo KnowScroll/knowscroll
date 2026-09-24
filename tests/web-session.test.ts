@@ -43,6 +43,11 @@ async function webSession(): Promise<{ cookie: string; csrf: string; setCookie: 
   const cookie = setCookie.split(';')[0]!;
   return { cookie, csrf: response.json().csrfToken, setCookie, body: response.json() };
 }
+// Sign-in always lands in the one owner universe, which other test files also use: read its epoch.
+async function epochOf(cookie: string): Promise<number> {
+  const u = (await app.inject({ url: '/v1/universe', headers: { cookie } })).json();
+  return u.privacyEpoch ?? u.universe?.privacyEpoch ?? 0;
+}
 const change = (s: { cookie: string; csrf: string }, url: string, payload: unknown, extra: Record<string, string> = { origin: ORIGIN }) =>
   app.inject({ method: 'POST', url, payload: payload as Record<string, unknown>, headers: { cookie: s.cookie, 'x-csrf-token': s.csrf, ...extra } });
 
@@ -60,15 +65,16 @@ test('a web session is a cookie the page cannot read; the body never carries the
 
 test('a change by cookie needs the page\'s token and origin; bearer changes do not', async () => {
   const s = await webSession();
-  const pause = { requestId: randomUUID(), expectedPrivacyEpoch: 0 };
+  const epoch = await epochOf(s.cookie);
+  const pause = { requestId: randomUUID(), expectedPrivacyEpoch: epoch };
   assert.equal((await app.inject({ method: 'POST', url: '/v1/privacy/pause', payload: pause, headers: { cookie: s.cookie, origin: ORIGIN } })).statusCode, 403, 'no token');
   assert.equal((await change({ ...s, csrf: 'f'.repeat(64) }, '/v1/privacy/pause', pause)).statusCode, 403, 'wrong token');
   assert.equal((await change(s, '/v1/privacy/pause', pause, { origin: 'https://evil.test' })).statusCode, 403, 'another site');
   assert.equal((await change(s, '/v1/privacy/pause', pause, {})).statusCode, 403, 'no origin and no fetch metadata');
   assert.equal((await change(s, '/v1/privacy/pause', pause)).statusCode, 200, 'the page itself');
-  assert.equal((await change(s, '/v1/privacy/resume', { requestId: randomUUID(), expectedPrivacyEpoch: 0 }, { 'sec-fetch-site': 'same-origin' })).statusCode, 200, 'same-origin fetch metadata');
+  assert.equal((await change(s, '/v1/privacy/resume', { requestId: randomUUID(), expectedPrivacyEpoch: epoch }, { 'sec-fetch-site': 'same-origin' })).statusCode, 200, 'same-origin fetch metadata');
   const other = await webSession();
-  assert.equal((await change({ cookie: s.cookie, csrf: other.csrf }, '/v1/privacy/pause', { requestId: randomUUID(), expectedPrivacyEpoch: 0 })).statusCode, 403, 'another session\'s token');
+  assert.equal((await change({ cookie: s.cookie, csrf: other.csrf }, '/v1/privacy/pause', { requestId: randomUUID(), expectedPrivacyEpoch: epoch })).statusCode, 403, 'another session\'s token');
 });
 
 test('one credential per request; a bearer session has no CSRF token', async () => {
@@ -88,8 +94,7 @@ test('sign-out clears the cookie and ends the session; Reset ends every cookie s
   assert.match(String(out.headers['set-cookie']), /^ks_session=; .*Max-Age=0$/);
   assert.equal((await app.inject({ url: '/v1/session', headers: { cookie: s.cookie } })).statusCode, 401);
   const t = await webSession();
-  const universe = (await app.inject({ url: '/v1/universe', headers: { cookie: t.cookie } })).json();
-  const epoch = universe.privacyEpoch ?? universe.universe?.privacyEpoch ?? 0;
+  const epoch = await epochOf(t.cookie);
   const reset = await change(t, '/v1/privacy/reset', { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: 'reset-personal-universe' });
   assert.equal(reset.statusCode, 200, reset.body);
   assert.equal((await app.inject({ url: '/v1/session', headers: { cookie: t.cookie } })).statusCode, 401);
