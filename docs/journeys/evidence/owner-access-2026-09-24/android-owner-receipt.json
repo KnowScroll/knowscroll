@@ -1,0 +1,32 @@
+{
+  "at": "2026-09-24T07:19:14.948744+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_b6de973941629e58",
+  "apiPort": 4335,
+  "source": "bf931e980cc407a16375242775e665c9fdd8311a",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "owner",
+  "journey": {
+    "scenario": "ownerSignsInReadsPausesExportsResetsAndDeletesTheirAccount",
+    "signedInViaPastedMagicLink": true,
+    "readARealScroll": true,
+    "pausedRecording": true,
+    "resumedRecording": true,
+    "exportedToAppCache": true,
+    "exportHadRowCounts": true,
+    "accountDeleted": true,
+    "returnedToSignInWithDeletedMessage": true
+  },
+  "lineage": {
+    "accountRows": 0,
+    "accountDeletionReceipts": 1,
+    "deviceSessions": 0,
+    "signInTokens": 0
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Single-owner v1 (ADR-0026): one account only, so this proves deletion, not multi-account isolation.",
+    "Debug API36 emulator, not a physical device.",
+    "Export is asserted via the app-cache file the journey build writes instead of the system SAF picker."
+  ]
+}

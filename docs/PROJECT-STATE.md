@@ -1,5 +1,14 @@
 # Project state
 
+## 2026-09-24 Owner sign-in, privacy and account deletion on both clients (#135)
+
+The Android app no longer needs a baked-in development token: the owner signs in with an emailed
+link, and the session is encrypted on the device. The desktop web app signs in the same way with a
+cookie its page never sees. Both clients can pause and resume recording, export, reset, and delete
+the account and its history in one step. Upgrading a copy of the owner's real database was
+rehearsed and verified without touching the original. Not built: tapping the emailed link straight
+into the app (it is pasted), and a production mail provider.
+
 ## 2026-09-24 Scroll Ask answers (#132)
 
 A reader can now ask a question about a Scroll and, on a separate deliberate tap, get an answer

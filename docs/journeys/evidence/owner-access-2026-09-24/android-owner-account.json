@@ -1,0 +1,11 @@
+{
+  "scenario": "ownerSignsInReadsPausesExportsResetsAndDeletesTheirAccount",
+  "signedInViaPastedMagicLink": true,
+  "readARealScroll": true,
+  "pausedRecording": true,
+  "resumedRecording": true,
+  "exportedToAppCache": true,
+  "exportHadRowCounts": true,
+  "accountDeleted": true,
+  "returnedToSignInWithDeletedMessage": true
+}

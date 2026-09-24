@@ -1,9 +1,9 @@
 {
   "journey": "web-owner-135",
-  "startedAt": "2026-09-24T05:04:45.404Z",
-  "database": "knowscroll_test_b7b6af514c529894",
-  "apiPort": 56551,
-  "webPort": 56552,
+  "startedAt": "2026-09-24T07:20:06.698Z",
+  "database": "knowscroll_test_c11463c306c6c830",
+  "apiPort": 65420,
+  "webPort": 65421,
   "cookieModeSmokeCheck": "passed (unauthenticated /v1/session via the cookie-mode proxy returned 401)",
   "playwright": {
     "result": "passed"
@@ -13,6 +13,6 @@
     "receipts": 1,
     "sessions": 0
   },
-  "finishedAt": "2026-09-24T05:04:53.844Z",
+  "finishedAt": "2026-09-24T07:20:14.494Z",
   "databaseDropped": true
 }
