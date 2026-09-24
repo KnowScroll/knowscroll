@@ -1,5 +1,30 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #134 the return and connection Relics (lane `134-return-relics`)
+
+ADR-0039, migration 0033. `GET /v1/away` lists what the reader did not cause since their marker:
+- background inquiry outcomes;
+- source-correction place changes, with their chronicle line;
+- corrections to a connection they were shown or kept.
+
+`POST /v1/away/acknowledge` moves the marker forward only, and never while paused. Connection Relics
+are private and immutable, and carry their provenance. Their state (`current`, `corrected`,
+`doubted`) is derived each time they are read, and "Let go" removes one. Clear, Reset and deletion
+erase both tables before the inquiries and bridges they name; export carries both. On Android, the
+Atlas has a quiet "While you were away" section, a found connection's sheet offers Keep and Seems
+wrong, and Keep lists Relics above Traces.
+
+Proven by:
+- pure tests 7 and DB/API tests 7;
+- Android 425 plus lint;
+- the emulator `return` journey. The app is in the background while the worker finds the
+  connection. On return the reader keeps it, doubts it and marks the changes as seen, then leaves
+  again. A real operator source correction revokes the connection meanwhile, and the Relic shows it
+  corrected. SQL lineage is checked.
+
+See the [evidence](journeys/evidence/return-relics-2026-09-24/README.md). Not in this slice: rooms,
+inhabitants, other kinds of Relic, and the web client.
+
 ## 2026-09-24 #135 web Reset retry after a failure (lane `135-web-reset-retry`)
 
 A failed Reset's own Confirm is the retry (same request id) and Cancel closes it. Before, both did

@@ -429,19 +429,21 @@ try:
       'inquiryFoundTheBridge', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}' AND br.id='{b}'),
       'jobBackgroundDirtyCompleted', (SELECT count(*) FROM background_inquiry q JOIN reasoning_job j ON j.id=q.job_id WHERE q.id='{i}'
           AND j.class='background_inquiry' AND j.wake_kind='dirty' AND j.status='completed'),
-      'inquiryClosedWhileAway', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND closed_at > '{journey['leftAt']}'::timestamptz
-          AND closed_at < '{journey['returnedAt']}'::timestamptz),
       'relicKeptWithProvenance', (SELECT count(*) FROM relic WHERE id='{rid}' AND kind='connection' AND bridge_id='{b}' AND inquiry_id='{i}'
           AND validator_version='bridge-validator-v1' AND jsonb_array_length(cited_claim_keys) >= 3),
       'relics', (SELECT count(*) FROM relic),
       'seemsWrong', (SELECT count(*) FROM connection_feedback WHERE bridge_id='{b}' AND objection='seems_wrong'),
       'bridgeRevokedByCorrection', (SELECT count(*) FROM bridge WHERE id='{b}' AND status='revoked'),
       'markersForward', (SELECT count(*) FROM away_acknowledgement),
-      'markerAfterFound', (SELECT count(*) FROM away_acknowledgement a JOIN background_inquiry q ON q.id='{i}' WHERE a.through >= q.closed_at),
+      'markerAfterFound', (SELECT count(*) FROM away_acknowledgement a JOIN background_inquiry q ON q.id='{i}'
+          WHERE a.through >= date_trunc('milliseconds', q.closed_at)),
       'sharedBridgesStillAdmittedOrRevoked', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status IN ('admitted','revoked')))"""))
         found = journey['inquiryStatus'] == 'found'
-        assert found and correction.get('applied') is True, (journey['inquiryStatus'], correction)
-        expected = {'inquiryAdmitted': 1, 'inquiryFoundTheBridge': 1, 'jobBackgroundDirtyCompleted': 1, 'inquiryClosedWhileAway': 1,
+        # The device saw the inquiry still open when it left, and found when it came back: the work
+        # happened while it was away (the device's clock is never compared with the database's).
+        away_work = journey['statusWhenLeft'] in ('waiting', 'looking')
+        assert found and away_work and correction.get('applied') is True, (journey['inquiryStatus'], journey['statusWhenLeft'], correction)
+        expected = {'inquiryAdmitted': 1, 'inquiryFoundTheBridge': 1, 'jobBackgroundDirtyCompleted': 1,
                     'relicKeptWithProvenance': 1, 'relics': 1, 'seemsWrong': 1, 'bridgeRevokedByCorrection': 1}
         assert {k: lineage[k] for k in expected} == expected and lineage['markersForward'] >= 1 and lineage['markerAfterFound'] >= 1, lineage
         lineage['correction'] = {'sourceKey': correction['sourceKey'], 'applied': correction['applied']}

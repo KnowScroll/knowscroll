@@ -1,0 +1,47 @@
+{
+  "at": "2026-09-24T11:42:21.875334+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_3ec8f3d71d09458e",
+  "apiPort": 4333,
+  "source": "acd909f1383f1282aaa9bfb7a81062fca5136166-dirty",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "return",
+  "journey": {
+    "inquiryId": "ede7f316-4345-4a28-a247-afd66df406c1",
+    "inquiryStatus": "found",
+    "bridgeId": "4eb9879b-3a61-4da6-b131-3abc7528fc86",
+    "relicId": "edf239c3-ec38-43cb-9c8d-6ed7e9f983cf",
+    "relicStates": [
+      "current",
+      "doubted",
+      "corrected"
+    ],
+    "statusWhenLeft": "waiting",
+    "evidenceCount": 3
+  },
+  "lineage": {
+    "inquiryAdmitted": 1,
+    "inquiryFoundTheBridge": 1,
+    "jobBackgroundDirtyCompleted": 1,
+    "relicKeptWithProvenance": 1,
+    "relics": 1,
+    "seemsWrong": 1,
+    "bridgeRevokedByCorrection": 1,
+    "markersForward": 1,
+    "markerAfterFound": 1,
+    "sharedBridgesStillAdmittedOrRevoked": 6,
+    "correction": {
+      "sourceKey": "nasa.gravity",
+      "applied": true
+    }
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Fixture inquiry transport (labelled): the proposal is the fixture's, the admission is bridge-validator-v1's; no provider call.",
+    "\"Away\" is the app in the background (Home) while the worker and the operator correction run; not days away.",
+    "The source correction is an operator action through scripts/substrate/correct-source.ts in the disposable database.",
+    "The Sun was formed from a supplied account (labelled), as in the inquiry journey.",
+    "Coalescing delay 20 s, so the inquiry runs after the app has left.",
+    "Debug API36 emulator, not a physical device."
+  ]
+}

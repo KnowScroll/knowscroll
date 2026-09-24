@@ -16,7 +16,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
-import java.time.Instant
 
 /**
  * #134 (ADR-0039) — the return, on a real device, against the disposable stack that
@@ -113,13 +112,14 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         poll("Gravity forms from this reading", { api.getAtlas() }) { a -> a.places.any { it.anchor.code == "physics.gravity" && it.kind != "sighting" } }
         assertTrue("nothing is waiting yet", runBlocking { api.getAway() }.items.none { it is com.knowscroll.mobile.data.AwayItem.ConnectionFound })
 
-        // 2. Leave. The worker finds the connection while the app is in the background.
-        val leftAt = Instant.now()
+        // 2. Leave while the inquiry is still open. The worker finds the connection while the app is
+        // in the background (the runner's coalescing delay keeps it waiting past this point).
+        val statusWhenLeft = runBlocking { api.getInquiries() }.inquiries.firstOrNull()?.status
+        assertTrue("the inquiry is still open when the reader leaves ($statusWhenLeft)", statusWhenLeft in setOf("waiting", "looking"))
         leave()
         val list: InquiriesResponse = poll("the inquiry is found while away", { api.getInquiries() }) { l -> l.inquiries.any { it.status == "found" } }
         val inquiry = list.inquiries.first { it.status == "found" }
         val found = inquiry.found!!
-        val returnedAt = Instant.now()
 
         // 3. Return: the Atlas says what happened while away, and only that.
         comeBack()
@@ -160,7 +160,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         // 8. Mark what changed as seen, then leave again. The runner revokes the mechanism source meanwhile.
         keepToSystem()
         waitDescription("Mark what changed while you were away as seen")
-        compose.onNodeWithContentDescription("Mark what changed while you were away as seen").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Mark what changed while you were away as seen").performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithContentDescription("While you were away").fetchSemanticsNodes().isEmpty() }
         leave()
         val corrected = poll("a source correction reaches the Relic while away", { api.getRelics() }) { r ->
@@ -183,7 +183,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
             JSONObject().apply {
                 put("inquiryId", inquiry.inquiryId); put("inquiryStatus", inquiry.status); put("bridgeId", found.bridgeId)
                 put("relicId", relic.relicId); put("relicStates", org.json.JSONArray(listOf("current", "doubted", "corrected")))
-                put("leftAt", leftAt.toString()); put("returnedAt", returnedAt.toString())
+                put("statusWhenLeft", statusWhenLeft)
                 put("evidenceCount", found.evidence.size)
             }.toString(2)
         )

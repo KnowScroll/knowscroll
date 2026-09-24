@@ -42,8 +42,10 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope): Promise
   const candidates: Keyed[] = [];
   let total = 0;
 
+  // Every comparison with the marker is at millisecond precision, the precision of the wire: a
+  // marker set to an item's `at` covers that item, though the database keeps its microseconds.
   // Background inquiry outcomes, closed since the marker; only rows that can be shown are counted.
-  const inquiryWhere = `universe_id=$1 AND privacy_epoch=$2 AND closed_at > $3 AND (
+  const inquiryWhere = `universe_id=$1 AND privacy_epoch=$2 AND date_trunc('milliseconds', closed_at) > $3 AND (
       (status = 'admitted' AND proposal_id IS NOT NULL)
       OR (status = 'none' AND pairs IS NOT NULL)
       OR (status = 'rejected' AND pairs IS NOT NULL AND jsonb_array_length(reasons) > 0))`;
@@ -65,7 +67,7 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope): Promise
   }
 
   // Place changes a source correction caused. Deltas carry no epoch: Clear/Reset erase them all.
-  const deltaWhere = `d.universe_id=$1 AND d.causal_class='source_correction' AND d.created_at > $2
+  const deltaWhere = `d.universe_id=$1 AND d.causal_class='source_correction' AND date_trunc('milliseconds', d.created_at) > $2
     AND d.kind IN ('place_formed','sighting_appeared','sighting_promoted','sighting_retired','place_released','foundation_recognised','foundation_withdrawn')`;
   total += Number((await client.query(`SELECT count(*) FROM atlas_delta d WHERE ${deltaWhere}`, [scope.universeId, after])).rows[0].count);
   const deltas = (await client.query<{ id: string; place_id: string; kind: AwayChange; created_at: Date; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null }>(
@@ -87,7 +89,7 @@ export async function readAway(client: pg.PoolClient, scope: AuthScope): Promise
   }
 
   // Corrections to a connection the reader was shown as found, or kept, in this epoch.
-  const correctedWhere = `b.status IN ('revoked','superseded') AND b.status_changed_at > $3 AND (
+  const correctedWhere = `b.status IN ('revoked','superseded') AND date_trunc('milliseconds', b.status_changed_at) > $3 AND (
       EXISTS (SELECT 1 FROM background_inquiry i WHERE i.universe_id=$1 AND i.privacy_epoch=$2 AND i.status='admitted' AND i.proposal_id = b.proposal_id)
       OR EXISTS (SELECT 1 FROM relic r WHERE r.universe_id=$1 AND r.privacy_epoch=$2 AND r.bridge_id = b.id))`;
   total += Number((await client.query(`SELECT count(*) FROM bridge b WHERE ${correctedWhere}`, [scope.universeId, scope.privacyEpoch, after])).rows[0].count);

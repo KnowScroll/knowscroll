@@ -128,8 +128,9 @@ private fun ReturnActionState.retryable(): Boolean = (this as? ReturnActionState
 
 @Composable
 private fun SheetColumn(content: @Composable () -> Unit) {
+    // The dock stays drawn over the sheet's lower edge: the last action scrolls clear of it.
     Column(
-        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) { content() }
 }
