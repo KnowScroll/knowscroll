@@ -10,6 +10,7 @@ import {
   type ConceptNode, type PlaceAccount, type PlaceDelta, type PlaceView, type RelationKind, type TypedRelation,
 } from '../../core/src/atlas/cartographer.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
+import { postInquiryMail } from './reasoning-inquiries.ts';
 
 export class AtlasConflict extends Error {
   readonly statusCode = 409;
@@ -57,11 +58,13 @@ async function loadPlaces(client: pg.PoolClient, universeId: string): Promise<Pl
 const snapshot = (p: { kind: string; state: string; parentPlaceId: string | null }) => ({ kind: p.kind, state: p.state, parentPlaceId: p.parentPlaceId });
 
 async function insertDelta(client: pg.PoolClient, universeId: string, placeId: string, d: { kind: string; causalClass: string; policyVersion: string; evidence: unknown },
-  before: object | null, after: object): Promise<void> {
+  before: object | null, after: object): Promise<string> {
+  const id = randomUUID();
   await client.query(
     `INSERT INTO atlas_delta(id,universe_id,place_id,kind,causal_class,policy_version,evidence,before,after) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [randomUUID(), universeId, placeId, d.kind, d.causalClass, d.policyVersion, JSON.stringify(d.evidence), before ? JSON.stringify(before) : null, JSON.stringify(after)],
+    [id, universeId, placeId, d.kind, d.causalClass, d.policyVersion, JSON.stringify(d.evidence), before ? JSON.stringify(before) : null, JSON.stringify(after)],
   );
+  return id;
 }
 
 /** Applies deltas in plan order; parents are resolved by anchor, including places formed earlier in the plan. */
@@ -87,7 +90,10 @@ async function applyDeltas(client: pg.PoolClient, universeId: string, substrate:
         `INSERT INTO atlas_place(id,universe_id,anchor_concept_id,kind,parent_place_id,basis,policy_version) VALUES($1,$2,$3,$4,$5,$6,$7)`,
         [id, universeId, substrate.ids.get(d.anchor), kind, parent, d.kind === 'sighting_appeared' ? JSON.stringify(d.evidence.relation) : null, d.policyVersion],
       );
-      await insertDelta(client, universeId, id, d, null, snapshot({ kind, state: 'live', parentPlaceId: parent }));
+      const deltaId = await insertDelta(client, universeId, id, d, null, snapshot({ kind, state: 'live', parentPlaceId: parent }));
+      // ADR-0038 §3: a new planet or region may be worth a look for a connection, if the reader
+      // consented; the mail joins this same transaction (and nothing is mailed while paused).
+      if (kind !== 'sighting') await postInquiryMail(client, universeId, deltaId);
       const row: PlaceRow = { placeId: id, anchor: d.anchor, anchorId: substrate.ids.get(d.anchor)!, kind, parentAnchor: d.parentAnchor, parentPlaceId: parent, state: 'live',
         basis: d.kind === 'sighting_appeared' ? d.evidence.relation : null };
       liveByAnchor.set(d.anchor, row); byId.set(id, row);
