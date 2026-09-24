@@ -55,6 +55,14 @@ async function discover(db:pg.Pool,version:string,inspectHead=true):Promise<Disc
  }
  return {state,lane,klass,universe,ready:ready?decode(ready):undefined};
 }
+/** #177: a scheduler's probes run one at a time. Each one that progresses moves the single generation,
+ * so concurrent probes can only fence each other: one that found the head's universe held by another
+ * probe committed a blocked round under it, and two in step did so until both spent every probe.
+ * Taken first, while nothing else is held, so it adds no edge to the universe-first lock order. */
+const FAIRNESS_PROBE_LOCK=0x0fa1_0177;
+async function lockProbe(client:pg.PoolClient,version:string):Promise<void>{
+ await client.query('SELECT pg_advisory_xact_lock($1::int,hashtext($2))',[FAIRNESS_PROBE_LOCK,version]);
+}
 async function lockCursor(client:pg.PoolClient,version:string,d:Discovery):Promise<void>{
  const state=(await client.query<State>('SELECT * FROM reasoning_fairness_scheduler WHERE policy_version=$1 FOR UPDATE',[version])).rows[0];
  if(!state||state.generation!==d.state.generation||state.class_cursor!==d.state.class_cursor)return deny('fairness_cas_retry');
@@ -88,6 +96,7 @@ async function bypass(client:pg.PoolClient,version:string,d:Discovery,remove=fal
  */
 async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessScheduleInput,d:Discovery):Promise<{event:FairnessObservation;terminalExpiry?:true;admitted?:Omit<FairnessScheduled,'observations'|'probes'>}>{
  return tx(db,async client=>{
+  await lockProbe(client,input.policyVersion);
   if(!d.universe){await lockCursor(client,input.policyVersion,d);d.lane.credit=String(BigInt(d.lane.credit)<0n?d.lane.credit:0);d.lane.remaining=null;closeInner(d);await save(client,input.policyVersion,d,true);return {event:observation(d,'no_candidate','empty_class')};}
   const domain=(await client.query<{privacy_epoch:number}>('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED',[d.universe.universe_id])).rows[0];
   if(!domain){await lockCursor(client,input.policyVersion,d);closeInner(d);await save(client,input.policyVersion,d);return {event:observation(d,'temporarily_blocked','universe_locked')};}
@@ -214,7 +223,7 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    // A bounded scan cannot establish absence. Yield its current class opportunity
    // without granting a quantum or resetting any unfinished spend allowance.
    const d=await discover(db,input.policyVersion,false);
-   try{if(lastProgress?.generation===d.state.generation&&lastProgress.klass===d.klass)await tx(db,async client=>{await lockCursor(client,input.policyVersion,d);await save(client,input.policyVersion,d,true);});}catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused'].includes(error.code))throw error;}
+   try{if(lastProgress?.generation===d.state.generation&&lastProgress.klass===d.klass)await tx(db,async client=>{await lockProbe(client,input.policyVersion);await lockCursor(client,input.policyVersion,d);await save(client,input.policyVersion,d,true);});}catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused'].includes(error.code))throw error;}
    const distinct=new Set(observations.map(x=>x.kind));const kind=distinct.size===1&&observations[0]!.kind!=='no_candidate'?observations[0]!.kind:'scan_exhausted';
    return {kind:kind as FairnessNoWork['kind'],observations:[...observations,{kind:'scan_exhausted',reason:'probe_budget'}],probes:policy.maxProbes};
   },

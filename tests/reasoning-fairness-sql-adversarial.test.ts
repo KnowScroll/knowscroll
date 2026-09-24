@@ -354,6 +354,54 @@ test('fairness SQL retained accounting protects scope, idempotency, debt, and pr
     });
   });
 
+  // #177: CI once admitted neither (run 35593902404). A scheduler that found the head's universe held
+  // by the other's probe committed a blocked round, which moved the generation under that probe; in
+  // step, the two fenced each other until both had spent every probe.
+  await t.test('a scheduler that finds the head held by another probe cannot fence that probe', async () => {
+    await withSchema('probe_fence', async (pool) => {
+      const graph = await seedFairnessGraph(pool);
+      const base = fairnessAuthority(new Map([[graph.jobId, graph.policy]]));
+      const reached = deferred();
+      const release = deferred();
+      let holdFirst = true;
+      const fairness = createReasoningFairness(pool, {
+        ...base,
+        async validateContext(client, context, phase) {
+          if (holdFirst && phase === 'lock') {
+            holdFirst = false;
+            reached.resolve();
+            await release.promise;
+          }
+          return base.validateContext(client, context, phase);
+        },
+      });
+      await fairness.installPolicy(sqlFairnessPolicy);
+      await fairness.enqueue(readyFor(graph));
+
+      const holder = fairness.schedule({policyVersion: 'fairness-v1', owner: 'fairness-holder', leaseMs: 20_000});
+      await reached.promise;
+      const generation = async () => (await pool.query('SELECT generation FROM reasoning_fairness_scheduler WHERE policy_version=$1', ['fairness-v1'])).rows[0]?.generation;
+      const waitingOnAdvisory = async () => (await pool.query(`SELECT count(*)::int AS count FROM pg_locks
+        WHERE locktype='advisory' AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database())`)).rows[0]?.count > 0;
+      const before = await generation();
+      const rival = fairness.schedule({policyVersion: 'fairness-v1', owner: 'fairness-rival', leaseMs: 20_000});
+      // Until the rival has either committed a round of its own or is waiting for the holder's probe.
+      let rivalActed = false;
+      for (let attempt = 0; attempt < 400 && !rivalActed; attempt += 1) {
+        rivalActed = await generation() !== before || await waitingOnAdvisory();
+        if (!rivalActed) await new Promise<void>(resolve => setTimeout(resolve, 5));
+      }
+      release.resolve();
+      assert.ok(rivalActed);
+      const [held, other] = await Promise.all([holder, rival]);
+      assert.equal(held.kind, 'admitted');
+      assert.equal(held.probes, 1, 'the probe that held the head was not fenced by the rival');
+      assert.notEqual(other.kind, 'admitted');
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_attempt')).rows[0]?.count, 1);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM reasoning_fairness_ready')).rows[0]?.count, 0);
+    });
+  });
+
   await t.test('a clear racing a stale preflight fences erased work and admits only the post-CAS candidate', async () => {
     await withSchema('clear_preflight_cas', async (pool) => {
       const first = await seedFairnessGraph(pool);
