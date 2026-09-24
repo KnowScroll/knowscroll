@@ -62,8 +62,8 @@ class InquiriesSectionTest {
         fromConcept = InquiryConcept("astro.sun", "The Sun"), toConcept = InquiryConcept("physics.gravity", "Gravity"),
         sentence = "The Sun keeps every planet on a closed path because its gravity bends each one toward it.",
         evidence = listOf(
-            InquiryEvidence("clm.gravity.sun_holds_earth", "The Sun's gravity holds Earth in its orbit.", "mechanism", "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/"),
-            InquiryEvidence("clm.gravity.definition", "Gravity is a force that pulls masses together.", "to", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/"),
+            InquiryEvidence("clm.gravity.sun_holds_earth", "The Sun's gravity holds Earth in its orbit.", "mechanism", "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/", withdrawn = false),
+            InquiryEvidence("clm.gravity.definition", "Gravity is a force that pulls masses together.", "to", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/", withdrawn = false),
         ),
     )
 

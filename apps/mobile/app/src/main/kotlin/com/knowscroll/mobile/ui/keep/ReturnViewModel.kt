@@ -10,9 +10,16 @@ import com.knowscroll.mobile.data.AndroidKeyStoreSessionVault
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.AwayAcknowledgeRequest
+import com.knowscroll.mobile.data.AwayItem
+import com.knowscroll.mobile.data.AwayResponse
 import com.knowscroll.mobile.data.ConnectionFeedbackRequest
+import com.knowscroll.mobile.data.DoubtTarget
+import com.knowscroll.mobile.data.ObjectionRequest
+import com.knowscroll.mobile.data.ObjectionTarget
+import com.knowscroll.mobile.data.PassagesResponse
 import com.knowscroll.mobile.data.RelicKeepRequest
 import com.knowscroll.mobile.data.RelicReleaseRequest
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.data.RelicsResponse
 import com.knowscroll.mobile.data.VaultCredentialProvider
 import java.util.UUID
@@ -37,8 +44,10 @@ internal fun returnFailure(e: Exception): ReturnFailure = when {
 }
 
 /**
- * #134 (ADR-0039): the return and Relics -- "While you were away" on the Atlas and the Relics
- * above Keep's Traces. One small view model shared by both, created once in `KnowScrollApp` like
+ * #134/#165 (ADR-0039, ADR-0044): the return and Relics -- "While you were away" on the Atlas, the
+ * Relics above Keep's Traces, and Keep and "Seems wrong" wherever the reader meets something they
+ * may keep: a found connection, a place, a passage of the Scroll they read, an answer to their own
+ * Ask. One small view model shared by all of them, created once in `KnowScrollApp` like
  * [com.knowscroll.mobile.ui.account.InquiriesViewModel], which it mirrors: the credential is read
  * fresh per request, and a 401 reaches the app's one sign-out path through the process-wide
  * [com.knowscroll.mobile.data.SessionInvalidation] signal this [ApiClient] reports to.
@@ -48,8 +57,9 @@ internal fun returnFailure(e: Exception): ReturnFailure = when {
  * request, in memory, for an explicit retry the server replays; a definitive refusal is surfaced,
  * nothing is kept, and what is current is read again. In memory is enough: acknowledging only moves
  * a marker forward, and keeping or objecting are replay-safe server-side, so a request lost with the
- * process is simply offered again from the lists. Anything kept from another epoch (Clear, Reset)
- * could only be refused, so it is dropped when a list shows the epoch moved.
+ * process is simply offered again -- and what the reader already kept or objected to is said by the
+ * lists themselves (ADR-0044 M5), never remembered only here. Anything kept from another epoch
+ * (Clear, Reset) could only be refused, so it is dropped when a list shows the epoch moved.
  */
 class ReturnViewModel @JvmOverloads constructor(
     application: Application,
@@ -63,47 +73,84 @@ class ReturnViewModel @JvmOverloads constructor(
     val away = _away.asStateFlow()
     private val _relics = MutableStateFlow<RelicsState>(RelicsState.Loading)
     val relics = _relics.asStateFlow()
+    private val _passages = MutableStateFlow<PassagesState>(PassagesState.Loading)
+    val passages = _passages.asStateFlow()
     private val _acknowledge = MutableStateFlow<ReturnActionState>(ReturnActionState.Idle)
     val acknowledge = _acknowledge.asStateFlow()
-    /** By bridge id. */
-    private val _connections = MutableStateFlow<Map<String, ConnectionState>>(emptyMap())
-    val connections = _connections.asStateFlow()
+    /** Reading an earlier page of the return, and an older page of the Relics. */
+    private val _earlierAway = MutableStateFlow<ReturnActionState>(ReturnActionState.Idle)
+    val earlierAway = _earlierAway.asStateFlow()
+    private val _olderRelics = MutableStateFlow<ReturnActionState>(ReturnActionState.Idle)
+    val olderRelics = _olderRelics.asStateFlow()
+    /** By the thing it keeps or doubts. */
+    private val _keepables = MutableStateFlow<Map<RelicTarget, KeepableState>>(emptyMap())
+    val keepables = _keepables.asStateFlow()
+    /** Whether recording is paused, as the newest list read says: nothing new is kept then. */
+    private val _paused = MutableStateFlow(false)
+    val paused = _paused.asStateFlow()
     /** "Let go", by Relic id. */
     private val _releases = MutableStateFlow<Map<String, ReturnActionState>>(emptyMap())
     val releases = _releases.asStateFlow()
 
     private var pendingAcknowledge: AwayAcknowledgeRequest? = null
-    private val pendingKeeps = mutableMapOf<String, RelicKeepRequest>()
-    private val pendingFeedback = mutableMapOf<String, ConnectionFeedbackRequest>()
+    private val pendingKeeps = mutableMapOf<RelicTarget, RelicKeepRequest>()
+    private val pendingFeedback = mutableMapOf<RelicTarget.Connection, ConnectionFeedbackRequest>()
+    private val pendingObjections = mutableMapOf<ObjectionTarget, ObjectionRequest>()
     private val pendingReleases = mutableMapOf<String, RelicReleaseRequest>()
     /** The privacy epoch the lists were last read at. */
     private var epoch: Long? = null
     private var awayJob: Job? = null
     private var relicsJob: Job? = null
+    private var passagesJob: Job? = null
 
-    /** Opening the Atlas: what changed while away, and the Relics (so a found connection already
-     * kept says so). What is shown stays until the new answer arrives. */
+    /** Opening the Atlas: what changed while away, and the Relics (so a found connection or a place
+     * already kept says so). What is shown stays until the new answer arrives. */
     fun openAtlas() {
         loadAway()
         loadRelics()
     }
 
-    /** Opening Keep. */
-    fun openKeep() = loadRelics()
+    /** Opening Keep, or a surface that offers Keep (the Ask sheet): the Relics, and with them what is
+     * kept and whether recording is paused. */
+    fun readRelics() = loadRelics()
 
     fun retryRelics() {
         _relics.value = RelicsState.Loading
         loadRelics()
     }
 
+    /** The passages of the Scroll on screen, each with the reader's own state of it. */
+    fun openPassages(assetId: String) {
+        val shown = (_passages.value as? PassagesState.Loaded)?.response
+        if (shown?.assetId != assetId || _passages.value is PassagesState.Unavailable) _passages.value = PassagesState.Loading
+        passagesJob?.cancel()
+        passagesJob = viewModelScope.launch {
+            try {
+                val response = api.getPassages(assetId)
+                observeEpoch(response.privacyEpoch)
+                _paused.value = response.recordingPaused
+                _passages.value = PassagesState.Loaded(response)
+                applyPassages(response)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (returnFailure(e) == ReturnFailure.SessionEnded) sessionEnded()
+                else _passages.value = PassagesState.Unavailable(text(if (e is ApiException.Protocol) R.string.return_unreadable else R.string.return_load_failed))
+            }
+        }
+    }
+
     private fun loadAway() {
         if (_away.value is AwayState.Unavailable) _away.value = AwayState.Loading
         awayJob?.cancel()
+        _earlierAway.value = ReturnActionState.Idle
         awayJob = viewModelScope.launch {
             try {
                 val response = api.getAway()
                 observeEpoch(response.privacyEpoch, readingAway = true)
+                _paused.value = response.recordingPaused
                 _away.value = AwayState.Loaded(response)
+                applyAway(response)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -117,10 +164,12 @@ class ReturnViewModel @JvmOverloads constructor(
     private fun loadRelics() {
         if (_relics.value is RelicsState.Unavailable) _relics.value = RelicsState.Loading
         relicsJob?.cancel()
+        _olderRelics.value = ReturnActionState.Idle
         relicsJob = viewModelScope.launch {
             try {
                 val response = api.getRelics()
-                observeEpoch(response.privacyEpoch, readingAway = false)
+                observeEpoch(response.privacyEpoch, readingRelics = true)
+                _paused.value = response.recordingPaused
                 _relics.value = RelicsState.Loaded(response)
                 applyRelics(response)
             } catch (e: CancellationException) {
@@ -132,22 +181,108 @@ class ReturnViewModel @JvmOverloads constructor(
         }
     }
 
-    /** A kept Relic says its connection is kept, and a doubted one that the reader marked it wrong. */
+    // ---- Paging (ADR-0044 M7, M8) ---------------------------------------------------------------
+
+    /** The next earlier page of the return, added below what is shown. A failed read may be tried again. */
+    fun showEarlierAway() {
+        val shown = (_away.value as? AwayState.Loaded)?.response ?: return
+        val page = shown.nextPage ?: return
+        if (_earlierAway.value is ReturnActionState.Working || awayJob?.isActive == true) return
+        _earlierAway.value = ReturnActionState.Working
+        awayJob = viewModelScope.launch {
+            try {
+                val next = api.getAway(page)
+                if (next.privacyEpoch != shown.privacyEpoch) {
+                    // Cleared or reset meanwhile: what is shown belongs to another epoch.
+                    observeEpoch(next.privacyEpoch, readingAway = true)
+                    _earlierAway.value = ReturnActionState.Idle
+                    loadAway()
+                    return@launch
+                }
+                _earlierAway.value = ReturnActionState.Idle
+                _away.value = AwayState.Loaded(shown.copy(items = shown.items + next.items, more = next.more, nextPage = next.nextPage))
+                applyAway(next)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (returnFailure(e) == ReturnFailure.SessionEnded) sessionEnded()
+                else _earlierAway.value = ReturnActionState.Failed(text(R.string.return_load_failed), canRetry = true)
+            }
+        }
+    }
+
+    /** The next older page of the Relics, added below what is shown, so the oldest can be let go. */
+    fun showOlderRelics() {
+        val shown = (_relics.value as? RelicsState.Loaded)?.response ?: return
+        val page = shown.nextPage ?: return
+        if (_olderRelics.value is ReturnActionState.Working || relicsJob?.isActive == true) return
+        _olderRelics.value = ReturnActionState.Working
+        relicsJob = viewModelScope.launch {
+            try {
+                val next = api.getRelics(page)
+                if (next.privacyEpoch != shown.privacyEpoch) {
+                    observeEpoch(next.privacyEpoch, readingRelics = true)
+                    _olderRelics.value = ReturnActionState.Idle
+                    loadRelics()
+                    return@launch
+                }
+                _olderRelics.value = ReturnActionState.Idle
+                val all = shown.copy(relics = shown.relics + next.relics, nextPage = next.nextPage, recordingPaused = next.recordingPaused)
+                _relics.value = RelicsState.Loaded(all)
+                applyRelics(all)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (returnFailure(e) == ReturnFailure.SessionEnded) sessionEnded()
+                else _olderRelics.value = ReturnActionState.Failed(text(R.string.return_load_failed), canRetry = true)
+            }
+        }
+    }
+
+    // ---- What the lists say ---------------------------------------------------------------------
+
+    /** A kept Relic says its thing is kept, and a doubted one that the reader objected to it. What the
+     * list does not show is not kept only when the list is whole (no older page); a Relic the server
+     * lists is confirmed kept, so an unconfirmed keep of it is settled and a later retry can never
+     * bring back a Relic the reader has since let go (review M1). One still in flight settles itself. */
     private fun applyRelics(response: RelicsResponse) {
-        val kept = response.relics.associateBy { it.connection.bridgeId }
-        // A Relic the server lists is confirmed kept: an unconfirmed keep of it is settled, so a later
-        // retry can never bring back a Relic the reader has since let go (review M1). One still in
-        // flight settles itself.
-        for (id in kept.keys) if (_connections.value[id]?.keep !is ReturnActionState.Working) pendingKeeps.remove(id)
-        _connections.update { current ->
-            (current.keys + kept.keys).associateWith { id ->
-                val known = current[id] ?: ConnectionState()
-                val relic = kept[id]
+        val kept = response.relics.associateBy { it.target }
+        val whole = response.nextPage == null
+        for (target in kept.keys) if (_keepables.value[target]?.keep !is ReturnActionState.Working) pendingKeeps.remove(target)
+        _keepables.update { current ->
+            (current.keys + kept.keys).associateWith { target ->
+                val known = current[target] ?: KeepableState()
+                val relic = kept[target]
                 val settled = relic != null && known.keep !is ReturnActionState.Working
                 known.copy(
-                    kept = relic != null, markedWrong = known.markedWrong || relic?.state == "doubted",
+                    kept = relic != null || (known.kept && !whole),
+                    markedWrong = known.markedWrong || (relic?.state == "doubted" && target is DoubtTarget),
                     keep = if (settled) ReturnActionState.Idle else known.keep,
                 )
+            }
+        }
+    }
+
+    /** A found or corrected connection says whether this reader objected to it (ADR-0044 M5). */
+    private fun applyAway(response: AwayResponse) {
+        for (item in response.items) {
+            val (bridgeId, wrong) = when (item) {
+                is AwayItem.ConnectionFound -> item.found.bridgeId to item.seemsWrong
+                is AwayItem.ConnectionCorrected -> item.bridgeId to item.seemsWrong
+                else -> continue
+            }
+            if (wrong) keepable(RelicTarget.Connection(bridgeId)) { it.copy(markedWrong = true) }
+        }
+    }
+
+    /** Each passage says whether it is kept at this revision and whether the reader objected to it. */
+    private fun applyPassages(response: PassagesResponse) {
+        for (passage in response.passages) {
+            val target = RelicTarget.Passage(response.assetId, response.revision, passage.claimKey)
+            if (passage.kept && _keepables.value[target]?.keep !is ReturnActionState.Working) pendingKeeps.remove(target)
+            keepable(target) { known ->
+                val settled = passage.kept && known.keep !is ReturnActionState.Working
+                known.copy(kept = passage.kept, markedWrong = known.markedWrong || passage.seemsWrong, keep = if (settled) ReturnActionState.Idle else known.keep)
             }
         }
     }
@@ -155,7 +290,7 @@ class ReturnViewModel @JvmOverloads constructor(
     /** Clear and Reset start a new epoch: whatever was known or kept for the old one is gone, and
      * the other list, if it still shows the old epoch, is read again (the one being read is about to
      * be replaced). A request still in flight settles itself. */
-    private fun observeEpoch(next: Long, readingAway: Boolean) {
+    private fun observeEpoch(next: Long, readingAway: Boolean = false, readingRelics: Boolean = false) {
         val previous = epoch
         epoch = next
         if (previous == null || previous == next) return
@@ -165,18 +300,22 @@ class ReturnViewModel @JvmOverloads constructor(
         }
         pendingKeeps.values.removeAll { it.expectedPrivacyEpoch != next }
         pendingFeedback.values.removeAll { it.expectedPrivacyEpoch != next }
+        pendingObjections.values.removeAll { it.expectedPrivacyEpoch != next }
         pendingReleases.values.removeAll { it.expectedPrivacyEpoch != next }
-        _connections.value = _connections.value.filterValues { it.keep is ReturnActionState.Working || it.seemsWrong is ReturnActionState.Working }
-            .mapValues { (_, c) -> ConnectionState(keep = c.keep, seemsWrong = c.seemsWrong) }
+        _keepables.value = _keepables.value.filterValues { it.keep is ReturnActionState.Working || it.seemsWrong is ReturnActionState.Working }
+            .mapValues { (_, c) -> KeepableState(keep = c.keep, seemsWrong = c.seemsWrong) }
         _releases.value = _releases.value.filterValues { it is ReturnActionState.Working }
         // Unless a read of it is already on its way.
         if (!readingAway && (_away.value as? AwayState.Loaded)?.response?.privacyEpoch.let { it != null && it != next }) {
             _away.value = AwayState.Loading
             if (awayJob?.isActive != true) loadAway()
         }
-        if (readingAway && (_relics.value as? RelicsState.Loaded)?.response?.privacyEpoch.let { it != null && it != next }) {
+        if (!readingRelics && (_relics.value as? RelicsState.Loaded)?.response?.privacyEpoch.let { it != null && it != next }) {
             _relics.value = RelicsState.Loading
             if (relicsJob?.isActive != true) loadRelics()
+        }
+        (_passages.value as? PassagesState.Loaded)?.response?.takeIf { it.privacyEpoch != next }?.let { stale ->
+            if (passagesJob?.isActive != true) openPassages(stale.assetId)
         }
     }
 
@@ -217,73 +356,97 @@ class ReturnViewModel @JvmOverloads constructor(
         }
     }
 
-    // ---- "Keep" and "Seems wrong" on a found connection ---------------------------------------
+    // ---- "Keep" -------------------------------------------------------------------------------
 
-    fun keep(bridgeId: String) {
+    fun keep(target: RelicTarget) {
         val at = epoch ?: return
-        val known = _connections.value[bridgeId] ?: ConnectionState()
+        val known = _keepables.value[target] ?: KeepableState()
         if (known.kept || known.markedWrong || known.keep is ReturnActionState.Working) return
-        sendKeep(pendingKeeps[bridgeId] ?: RelicKeepRequest(UUID.randomUUID().toString(), at, bridgeId))
+        sendKeep(pendingKeeps[target] ?: RelicKeepRequest(UUID.randomUUID().toString(), at, target))
     }
 
-    fun retryKeep(bridgeId: String) {
-        if (_connections.value[bridgeId]?.keep is ReturnActionState.Working) return
-        pendingKeeps[bridgeId]?.let(::sendKeep)
+    fun retryKeep(target: RelicTarget) {
+        if (_keepables.value[target]?.keep is ReturnActionState.Working) return
+        pendingKeeps[target]?.let(::sendKeep)
     }
 
     private fun sendKeep(req: RelicKeepRequest) {
-        pendingKeeps[req.bridgeId] = req
-        connection(req.bridgeId) { it.copy(keep = ReturnActionState.Working) }
+        pendingKeeps[req.target] = req
+        keepable(req.target) { it.copy(keep = ReturnActionState.Working) }
         viewModelScope.launch {
             try {
                 val receipt = api.keepRelic(req)
-                pendingKeeps.remove(req.bridgeId)
-                connection(req.bridgeId) {
-                    it.copy(kept = true, markedWrong = it.markedWrong || receipt.relic.state == "doubted", keep = ReturnActionState.Idle)
+                pendingKeeps.remove(req.target)
+                keepable(req.target) {
+                    it.copy(kept = true, markedWrong = it.markedWrong || (receipt.relic.state == "doubted" && req.target is DoubtTarget), keep = ReturnActionState.Idle)
                 }
                 loadRelics()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 settle(e, req.expectedPrivacyEpoch, R.string.return_keep_refused,
-                    drop = { if (pendingKeeps[req.bridgeId] == req) pendingKeeps.remove(req.bridgeId) },
-                    show = { state -> connection(req.bridgeId) { it.copy(keep = state) } })
+                    drop = { if (pendingKeeps[req.target] == req) pendingKeeps.remove(req.target) },
+                    show = { state -> keepable(req.target) { it.copy(keep = state) } })
             }
         }
     }
 
-    /** Personal suppression only (ADR-0031): never a retraction of shared knowledge. A kept Relic
-     * of it becomes `doubted`, so both lists are read again. */
-    fun seemsWrong(bridgeId: String) {
+    // ---- "Seems wrong" ------------------------------------------------------------------------
+
+    /** Personal only (ADR-0031, ADR-0044 §4): never a retraction of shared knowledge. A kept Relic
+     * of it becomes `doubted`, so what shows it is read again. */
+    fun seemsWrong(target: DoubtTarget) {
         val at = epoch ?: return
-        val known = _connections.value[bridgeId] ?: ConnectionState()
+        val known = _keepables.value[target] ?: KeepableState()
         if (known.markedWrong || known.seemsWrong is ReturnActionState.Working) return
-        sendFeedback(pendingFeedback[bridgeId] ?: ConnectionFeedbackRequest(UUID.randomUUID().toString(), bridgeId, at))
+        when (target) {
+            is RelicTarget.Connection -> sendFeedback(pendingFeedback[target] ?: ConnectionFeedbackRequest(UUID.randomUUID().toString(), target.bridgeId, at))
+            is ObjectionTarget -> sendObjection(pendingObjections[target] ?: ObjectionRequest(UUID.randomUUID().toString(), at, target))
+        }
     }
 
-    fun retrySeemsWrong(bridgeId: String) {
-        if (_connections.value[bridgeId]?.seemsWrong is ReturnActionState.Working) return
-        pendingFeedback[bridgeId]?.let(::sendFeedback)
+    fun retrySeemsWrong(target: DoubtTarget) {
+        if (_keepables.value[target]?.seemsWrong is ReturnActionState.Working) return
+        when (target) {
+            is RelicTarget.Connection -> pendingFeedback[target]?.let(::sendFeedback)
+            is ObjectionTarget -> pendingObjections[target]?.let(::sendObjection)
+        }
     }
 
     private fun sendFeedback(req: ConnectionFeedbackRequest) {
-        pendingFeedback[req.bridgeId] = req
-        connection(req.bridgeId) { it.copy(seemsWrong = ReturnActionState.Working) }
+        val target = RelicTarget.Connection(req.bridgeId)
+        pendingFeedback[target] = req
+        sendDoubt(target, req.expectedPrivacyEpoch, send = { api.postConnectionFeedback(req) },
+            drop = { if (pendingFeedback[target] == req) pendingFeedback.remove(target) }, done = { pendingFeedback.remove(target) })
+    }
+
+    private fun sendObjection(req: ObjectionRequest) {
+        pendingObjections[req.target] = req
+        sendDoubt(req.target, req.expectedPrivacyEpoch, send = { api.postObjection(req) },
+            drop = { if (pendingObjections[req.target] == req) pendingObjections.remove(req.target) }, done = { pendingObjections.remove(req.target) })
+    }
+
+    /** One "seems wrong", whichever route carries it; what shows it is read again. */
+    private fun sendDoubt(target: DoubtTarget, sentAt: Long, send: suspend () -> Unit, drop: () -> Unit, done: () -> Unit) {
+        keepable(target) { it.copy(seemsWrong = ReturnActionState.Working) }
         viewModelScope.launch {
             try {
-                api.postConnectionFeedback(req)
-                pendingFeedback.remove(req.bridgeId)
-                connection(req.bridgeId) { it.copy(markedWrong = true, seemsWrong = ReturnActionState.Idle) }
-                loadAway()
-                loadRelics()
+                send()
+                done()
+                keepable(target) { it.copy(markedWrong = true, seemsWrong = ReturnActionState.Idle) }
+                refreshAfterDoubt(target)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                settle(e, req.expectedPrivacyEpoch, R.string.return_refused,
-                    drop = { if (pendingFeedback[req.bridgeId] == req) pendingFeedback.remove(req.bridgeId) },
-                    show = { state -> connection(req.bridgeId) { it.copy(seemsWrong = state) } })
+                settle(e, sentAt, R.string.return_refused, drop = drop, show = { state -> keepable(target) { it.copy(seemsWrong = state) } })
             }
         }
+    }
+
+    private fun refreshAfterDoubt(target: DoubtTarget) {
+        if (target is RelicTarget.Connection) loadAway()
+        if (target is RelicTarget.Passage) openPassages(target.assetId)
+        loadRelics()
     }
 
     // ---- "Let go" -----------------------------------------------------------------------------
@@ -310,9 +473,11 @@ class ReturnViewModel @JvmOverloads constructor(
                 // The receipt says the row is gone: it leaves the list now, not after the reload.
                 val loaded = _relics.value as? RelicsState.Loaded
                 if (loaded != null && loaded.response.privacyEpoch == req.expectedPrivacyEpoch) {
+                    val gone = loaded.response.relics.firstOrNull { it.relicId == req.relicId }
                     val remaining = loaded.response.copy(relics = loaded.response.relics.filterNot { it.relicId == req.relicId })
                     _relics.value = RelicsState.Loaded(remaining)
                     applyRelics(remaining)
+                    gone?.let { relic -> keepable(relic.target) { it.copy(kept = false) } }
                 }
                 loadRelics()
             } catch (e: CancellationException) {
@@ -327,8 +492,8 @@ class ReturnViewModel @JvmOverloads constructor(
 
     // ---- Shared -------------------------------------------------------------------------------
 
-    private fun connection(bridgeId: String, change: (ConnectionState) -> ConnectionState) {
-        _connections.update { it + (bridgeId to change(it[bridgeId] ?: ConnectionState())) }
+    private fun keepable(target: RelicTarget, change: (KeepableState) -> KeepableState) {
+        _keepables.update { it + (target to change(it[target] ?: KeepableState())) }
     }
 
     /** One failed request, settled: see [ReturnFailure]. */
@@ -340,7 +505,7 @@ class ReturnViewModel @JvmOverloads constructor(
                 drop()
                 val message = if (failure == ReturnFailure.Conflict) R.string.return_conflict else refused
                 show(ReturnActionState.Failed(text(message), canRetry = false))
-                // What is current (a new epoch, paused recording, a withdrawn connection) is shown.
+                // What is current (a new epoch, paused recording, something withdrawn) is shown.
                 loadAway()
                 loadRelics()
             }
@@ -360,16 +525,21 @@ class ReturnViewModel @JvmOverloads constructor(
     private fun sessionEnded() {
         awayJob?.cancel()
         relicsJob?.cancel()
+        passagesJob?.cancel()
         pendingAcknowledge = null
         pendingKeeps.clear()
         pendingFeedback.clear()
+        pendingObjections.clear()
         pendingReleases.clear()
         epoch = null
         _acknowledge.value = ReturnActionState.Idle
-        _connections.value = emptyMap()
+        _earlierAway.value = ReturnActionState.Idle
+        _olderRelics.value = ReturnActionState.Idle
+        _keepables.value = emptyMap()
         _releases.value = emptyMap()
         _away.value = AwayState.Unavailable(text(R.string.return_session_ended))
         _relics.value = RelicsState.Unavailable(text(R.string.return_session_ended))
+        _passages.value = PassagesState.Unavailable(text(R.string.return_session_ended))
     }
 
     private fun text(@StringRes id: Int): String = getApplication<Application>().getString(id)

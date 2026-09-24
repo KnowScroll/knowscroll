@@ -10,6 +10,7 @@ import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.AwayItem
 import com.knowscroll.mobile.data.InquiriesResponse
 import com.knowscroll.mobile.data.Relic
+import com.knowscroll.mobile.data.RelicTarget
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -128,7 +129,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         // 3. Return: the Atlas says what happened while away, and only that.
         comeBack()
         openSystem()
-        waitDescription("While you were away")
+        waitText("While you were away")
         val line = "Found a connection: ${found.fromConcept.name} and ${found.toConcept.name}."
         awaitAwayLine(line)
         screenshot("return-away.png")
@@ -147,8 +148,8 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         compose.onNodeWithContentDescription("Keep this connection").performScrollTo().performClick()
         waitText("Kept in your Relics")
         screenshot("return-relic.png")
-        val relic: Relic = poll("the Relic is kept", { api.getRelics() }) { r -> r.relics.any { it.connection.bridgeId == found.bridgeId } }
-            .relics.single { it.connection.bridgeId == found.bridgeId }
+        val relic: Relic.Connection = poll("the Relic is kept", { api.getRelics() }) { r -> r.relics.any { it.target == RelicTarget.Connection(found.bridgeId) } }
+            .relics.filterIsInstance<Relic.Connection>().single { it.connection.bridgeId == found.bridgeId }
         assertEquals("current", relic.state)
         val statesSeen = mutableListOf(relic.state)
         assertEquals(inquiry.inquiryId, relic.provenance.inquiryId)
@@ -172,7 +173,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         keepToSystem()
         waitDescription("Mark what changed while you were away as seen")
         compose.onNodeWithContentDescription("Mark what changed while you were away as seen").performClick()
-        compose.waitUntil(15_000) { compose.onAllNodesWithContentDescription("While you were away").fetchSemanticsNodes().isEmpty() }
+        compose.waitUntil(15_000) { !shown("While you were away") }
         val sightings = runBlocking { api.getAtlas() }.places.filter { it.kind == "sighting" }.map { it.placeId }.toSet()
         assertTrue("a sighting is on the horizon before the reader leaves", sightings.isNotEmpty())
         leave()
@@ -180,7 +181,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         File(instrumentation.targetContext.filesDir, "return-left-again.txt").writeText("left")
         val corrected = poll("the runner's source correction reaches the Relic while away (did its correction watcher fire?)", { api.getRelics() }) { r ->
             r.relics.any { it.relicId == relic.relicId && it.state == "corrected" }
-        }.relics.single { it.relicId == relic.relicId }
+        }.relics.filterIsInstance<Relic.Connection>().single { it.relicId == relic.relicId }
         assertEquals("revoked", corrected.connection.bridgeStatus)
         statesSeen += corrected.state
         assertEquals("the kept form stays readable", found.sentence, corrected.connection.sentence)
@@ -193,7 +194,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         // 9. Return (to the Atlas, where they left): it shows the correction and the place change; Keep
         // shows the Relic corrected.
         comeBack()
-        waitDescription("While you were away", 30_000)
+        waitText("While you were away", 30_000)
         awaitAwayLine("What it was based on changed, so the connection between ${found.fromConcept.name} and ${found.toConcept.name} was withdrawn.")
         awaitAwayLine(placeChange.line)
         screenshot("return-corrected-away.png")

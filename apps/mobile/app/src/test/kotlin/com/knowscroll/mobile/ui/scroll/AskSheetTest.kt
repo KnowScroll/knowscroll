@@ -2,18 +2,25 @@ package com.knowscroll.mobile.ui.scroll
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.data.AnswerBasisQuote
 import com.knowscroll.mobile.data.AnswerStatus
 import com.knowscroll.mobile.data.AnswerView
+import com.knowscroll.mobile.data.RelicTarget
 import com.knowscroll.mobile.ui.ask.AskPanel
 import com.knowscroll.mobile.ui.ask.AskStage
+import com.knowscroll.mobile.ui.assertNoSourceShown
+import com.knowscroll.mobile.ui.keep.KeepControls
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -77,7 +84,7 @@ class AskSheetTest {
                 listOf(AnswerBasisQuote("Gravity pulls the ocean toward the Moon.")),
                 "This only covers lunar tides, not storm surge.",
             ),
-            "2026-09-24T00:00:00Z", "2026-09-24T00:01:00Z",
+            "2026-09-24T00:00:00Z", "2026-09-24T00:01:00Z", kept = false, seemsWrong = false,
         )
         setContent { KnowScrollTheme { AskSheet(AskControls(AskPanel("a1", AskStage.Final("ask1", view)))) {} } }
         onNodeWithText("The tide rises because gravity pulls the ocean toward the Moon.").performScrollTo()
@@ -89,24 +96,24 @@ class AskSheetTest {
 
     @Test
     fun everyOtherTerminalStatusShowsItsOwnHonestCopyAndNeverAFabricatedAnswer() = runComposeUiTest {
-        val panel = mutableStateOf(AskPanel("a1", AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.NotInSource("This Scroll does not discuss storm surge."), "t", "t2"))))
+        val panel = mutableStateOf(AskPanel("a1", AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.NotInSource("This Scroll does not discuss storm surge."), "t", "t2", kept = false, seemsWrong = false))))
         setContent { KnowScrollTheme { AskSheet(AskControls(panel.value)) {} } }
         onNodeWithText("This Scroll doesn't say.").performScrollTo()
         onNodeWithText("This Scroll does not discuss storm surge.").performScrollTo()
 
-        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Rejected(listOf("The draft cited a quote not in this Scroll.")), "t", "t2")))
+        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Rejected(listOf("The draft cited a quote not in this Scroll.")), "t", "t2", kept = false, seemsWrong = false)))
         waitForIdle()
         onNodeWithText("The answer didn't hold up against the Scroll, so it isn't shown.").performScrollTo()
 
-        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Failed(listOf("The answer service could not complete this request.")), "t", "t2")))
+        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Failed(listOf("The answer service could not complete this request.")), "t", "t2", kept = false, seemsWrong = false)))
         waitForIdle()
         onNodeWithText("The answer couldn't be completed. Nothing from it was kept.").performScrollTo()
 
-        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Cancelled(listOf("Cancelled before the job started.")), "t", null)))
+        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Cancelled(listOf("Cancelled before the job started.")), "t", null, kept = false, seemsWrong = false)))
         waitForIdle()
         onNodeWithText("You cancelled this question's answer.").performScrollTo()
 
-        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Unavailable, "t", null)))
+        panel.value = panel.value.copy(stage = AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.Unavailable, "t", null, kept = false, seemsWrong = false)))
         waitForIdle()
         onNodeWithText("No answer arrived in time.").performScrollTo()
     }
@@ -141,5 +148,47 @@ class AskSheetTest {
         assertEquals(0, onAllNodesWithText("Your question").fetchSemanticsNodes().size)
         onNodeWithText("Get an answer").performScrollTo().performClick()
         assertEquals(1, retried)
+    }
+
+    // ---- #165: an answer kept as a Relic, or said to seem wrong (ADR-0044) ----
+
+    private fun answered(kept: Boolean = false, seemsWrong: Boolean = false) = AnswerView(
+        "ask1", AnswerStatus.Answered("The tide rises because gravity pulls the ocean toward the Moon.", listOf(AnswerBasisQuote("Gravity pulls the ocean toward the Moon.")),
+            "This only covers lunar tides, not storm surge."), "t", "t2", kept = kept, seemsWrong = seemsWrong,
+    )
+
+    @Test
+    fun anAnswerCanBeKeptOrSaidToSeemWrong() = runComposeUiTest {
+        val chosen = mutableListOf<String>()
+        val keeps = KeepControls(onKeep = { chosen += "keep:$it" }, onSeemsWrong = { chosen += "wrong:$it" })
+        setContent { KnowScrollTheme { AskSheet(AskControls(AskPanel("a1", AskStage.Final("ask1", answered())), keeps = keeps)) {} } }
+        onNodeWithContentDescription("Keep this answer").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        onNodeWithContentDescription("This answer seems wrong").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(listOf("keep:${RelicTarget.Answer("ask1")}", "wrong:${RelicTarget.Answer("ask1")}"), chosen)
+        assertNoSourceShown()
+    }
+
+    @Test
+    fun theAnswersOwnViewSaysWhatIsAlreadyKeptOrDoubtedSoNeitherIsOfferedAgain() = runComposeUiTest {
+        setContent { KnowScrollTheme { AskSheet(AskControls(AskPanel("a1", AskStage.Final("ask1", answered(kept = true, seemsWrong = true))))) {} } }
+        onNodeWithText("Kept in your Relics").performScrollTo()
+        onNodeWithText("You marked this as seeming wrong").performScrollTo()
+        assertEquals(0, onAllNodesWithContentDescription("Keep this answer").fetchSemanticsNodes().size)
+        assertEquals(0, onAllNodesWithContentDescription("This answer seems wrong").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun whileRecordingIsPausedAnAnswerIsNeitherKeptNorObjectedTo() = runComposeUiTest {
+        setContent { KnowScrollTheme { AskSheet(AskControls(AskPanel("a1", AskStage.Final("ask1", answered())), keeps = KeepControls(paused = true))) {} } }
+        onNodeWithText("Recording is paused, so nothing new is kept.").performScrollTo()
+        assertEquals(0, onAllNodesWithContentDescription("Keep this answer").fetchSemanticsNodes().size)
+        assertEquals(0, onAllNodesWithContentDescription("This answer seems wrong").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun onlyAnAnswerIsOfferedToKeep() = runComposeUiTest {
+        setContent { KnowScrollTheme { AskSheet(AskControls(AskPanel("a1", AskStage.Final("ask1", AnswerView("ask1", AnswerStatus.NotInSource("Nothing on surge."), "t", "t2", kept = false, seemsWrong = false))))) {} } }
+        onNodeWithText("Nothing on surge.").performScrollTo()
+        assertEquals(0, onAllNodesWithContentDescription("Keep this answer").fetchSemanticsNodes().size)
     }
 }

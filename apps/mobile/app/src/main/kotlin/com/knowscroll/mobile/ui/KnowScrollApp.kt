@@ -29,7 +29,7 @@ import com.knowscroll.mobile.ui.account.InquiryActions
 import com.knowscroll.mobile.ui.account.PrivacyActions
 import com.knowscroll.mobile.ui.account.PrivacyScreen
 import com.knowscroll.mobile.ui.account.SignInScreen
-import com.knowscroll.mobile.ui.keep.ConnectionActions
+import com.knowscroll.mobile.ui.keep.KeepControls
 import com.knowscroll.mobile.ui.keep.KeepScreen
 import com.knowscroll.mobile.ui.keep.RelicControls
 import com.knowscroll.mobile.ui.keep.ReturnViewModel
@@ -234,14 +234,23 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
         val away by returnViewModel.away.collectAsStateWithLifecycle()
         val relics by returnViewModel.relics.collectAsStateWithLifecycle()
         val acknowledge by returnViewModel.acknowledge.collectAsStateWithLifecycle()
-        val connections by returnViewModel.connections.collectAsStateWithLifecycle()
+        val keepables by returnViewModel.keepables.collectAsStateWithLifecycle()
+        val recordingPaused by returnViewModel.paused.collectAsStateWithLifecycle()
+        val passages by returnViewModel.passages.collectAsStateWithLifecycle()
+        val earlierAway by returnViewModel.earlierAway.collectAsStateWithLifecycle()
+        val olderRelics by returnViewModel.olderRelics.collectAsStateWithLifecycle()
         val releases by returnViewModel.releases.collectAsStateWithLifecycle()
+        // #165 (ADR-0044): Keep and "Seems wrong" wherever the reader meets something they may keep.
+        val keeps = KeepControls(
+            keepables, recordingPaused, onKeep = returnViewModel::keep, onRetryKeep = returnViewModel::retryKeep,
+            onSeemsWrong = returnViewModel::seemsWrong, onRetrySeemsWrong = returnViewModel::retrySeemsWrong,
+        )
         val onAtlas = screen is Screen.System
         val onKeep = screen is Screen.Keep
         LaunchedEffect(onAtlas, onKeep, returnViewModel, lifecycle) {
             if (onAtlas || onKeep)
                 lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    if (onAtlas) returnViewModel.openAtlas() else returnViewModel.openKeep()
+                    if (onAtlas) returnViewModel.openAtlas() else returnViewModel.readRelics()
                     awaitCancellation()
                 }
         }
@@ -358,9 +367,11 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                         onObjectConnection = viewModel::objectToConnection,
                                         why = com.knowscroll.mobile.ui.scroll.WhyControls(why, viewModel::loadWhy, viewModel::correctEncounter),
                                         ask = com.knowscroll.mobile.ui.scroll.AskControls(
-                                            ask, viewModel::openAsk, viewModel::askQuestion,
-                                            viewModel::requestAnswer, viewModel::cancelAskAnswer, viewModel::closeAsk,
+                                            ask, onOpen = { viewModel.openAsk(); returnViewModel.readRelics() }, onAsk = viewModel::askQuestion,
+                                            onGetAnswer = viewModel::requestAnswer, onCancel = viewModel::cancelAskAnswer, onClose = viewModel::closeAsk,
+                                            keeps = keeps,
                                         ),
+                                        passages = com.knowscroll.mobile.ui.scroll.PassagesControls(passages, keeps, returnViewModel::openPassages),
                                         onNext = viewModel::nextScroll,
                                         onRetry = viewModel::retryScrollLoad,
                                         mode = cableMode,
@@ -379,6 +390,7 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                 state = relics, releases = releases,
                                 onLetGo = returnViewModel::letGo, onRetryLetGo = returnViewModel::retryLetGo,
                                 onRetryLoad = returnViewModel::retryRelics,
+                                older = olderRelics, onShowOlder = returnViewModel::showOlderRelics,
                             ),
                         )
                     is Screen.System ->
@@ -398,12 +410,9 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                 onOpenEvidence = viewModel::openEvidence,
                                 onCloseEvidence = viewModel::closeEvidence,
                                 away = AwayControls(
-                                    state = away, acknowledge = acknowledge, connections = connections,
+                                    state = away, acknowledge = acknowledge,
                                     onMarkSeen = returnViewModel::markSeen, onRetryMarkSeen = returnViewModel::retryMarkSeen,
-                                    connection = ConnectionActions(
-                                        onKeep = returnViewModel::keep, onRetryKeep = returnViewModel::retryKeep,
-                                        onSeemsWrong = returnViewModel::seemsWrong, onRetrySeemsWrong = returnViewModel::retrySeemsWrong,
-                                    ),
+                                    earlier = earlierAway, onShowEarlier = returnViewModel::showEarlierAway,
                                 ),
                                 rooms = RoomControls(
                                     state = room, setAside = roomSetAside,
@@ -411,6 +420,7 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                     onRequestSetAside = viewModel::requestRoomSetAside, onCancelSetAside = viewModel::cancelRoomSetAside,
                                     onConfirmSetAside = viewModel::confirmRoomSetAside,
                                 ),
+                                keeps = keeps,
                             )
                         }
                 }

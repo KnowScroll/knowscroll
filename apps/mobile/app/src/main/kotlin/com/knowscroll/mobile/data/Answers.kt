@@ -26,6 +26,9 @@ data class AnswerView(
     val status: AnswerStatus,
     val requestedAt: String,
     val answeredAt: String?,
+    /** ADR-0044: whether the reader kept this answer as a Relic, and whether they said it seems wrong. */
+    val kept: Boolean,
+    val seemsWrong: Boolean,
 )
 
 data class AskReceipt(val askId: String, val eventId: String, val status: String)
@@ -113,5 +116,5 @@ internal fun parseAnswerView(o: JSONObject): AnswerView {
         "cancelled" -> AnswerStatus.Cancelled(reasons)
         else -> AnswerStatus.Unavailable
     }
-    return AnswerView(askId, parsed, requestedAt, answeredAt)
+    return AnswerView(askId, parsed, requestedAt, answeredAt, o.getBoolean("kept"), o.getBoolean("seemsWrong"))
 }

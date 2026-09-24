@@ -355,16 +355,18 @@ class ApiClient(
         catch (e: JSONException) { throw ApiException.Protocol("Inquiries returned malformed JSON") }
 
     // -------------------------------------------------------------------------------------------
-    // #134 (ADR-0039): the return and Relics. Every write is one explicit request the server
-    // replays when re-sent unchanged; a 409 (stale epoch, a reused key, or recording paused) or a
-    // 422 (a connection that is unknown, withdrawn or marked "seems wrong") is definitive and
-    // surfaced to the caller, never re-sent. A shape the contract does not describe, or a receipt
-    // for another epoch or another thing, is a protocol error (`data/Away.kt`, `data/Relics.kt`).
+    // #134/#165 (ADR-0039, ADR-0044): the return and Relics. Every write is one explicit request
+    // the server replays when re-sent unchanged; a 409 (stale epoch, a reused key, recording paused,
+    // or a Scroll that changed since it was read) or a 422 (something unknown, withdrawn or marked
+    // "seems wrong") is definitive and surfaced to the caller, never re-sent. A shape the contract
+    // does not describe, or a receipt for another epoch or another thing, is a protocol error
+    // (`data/Away.kt`, `data/Relics.kt`).
     // -------------------------------------------------------------------------------------------
 
-    /** What changed while the reader was away that they did not cause, newest first. */
-    suspend fun getAway(): AwayResponse = io {
-        get("/v1/away") { obj -> returnProtocol { parseAwayResponse(obj) } }
+    /** What changed while the reader was away that they did not cause, newest first: the newest
+     * page, or the one after [page] (a response's `nextPage`). */
+    suspend fun getAway(page: String? = null): AwayResponse = io {
+        get(pagedPath("/v1/away", page)) { obj -> returnProtocol { parseAwayResponse(obj) } }
     }
 
     /** Move the return marker to [AwayAcknowledgeRequest.through]. Markers only move forward, so
@@ -383,23 +385,44 @@ class ApiClient(
         }
     }
 
-    /** This epoch's Relics, newest first, each with the truth state derived when read. */
-    suspend fun getRelics(): RelicsResponse = io {
-        get("/v1/relics") { obj -> returnProtocol { parseRelicsResponse(obj) } }
+    /** This epoch's Relics, newest first, each with the truth state derived when read: the newest
+     * page, or the one after [page] (a response's `nextPage`). */
+    suspend fun getRelics(page: String? = null): RelicsResponse = io {
+        get(pagedPath("/v1/relics", page)) { obj -> returnProtocol { parseRelicsResponse(obj) } }
     }
 
-    /** Keep one connection as a Relic: 201 when new, 200 when it was already kept (this request
-     * replayed, or the same connection kept before). */
+    /** Keep one thing as a Relic: 201 when new, 200 when it was already kept (this request
+     * replayed, or the same thing kept before). */
     suspend fun keepRelic(req: RelicKeepRequest): RelicKeepResponse = io {
-        val body = jsonObj(
-            "clientRequestId" to req.clientRequestId, "expectedPrivacyEpoch" to req.expectedPrivacyEpoch,
-            "kind" to "connection", "bridgeId" to req.bridgeId,
-        ).toString()
+        val body = targetBody(req.target).put("clientRequestId", req.clientRequestId).put("expectedPrivacyEpoch", req.expectedPrivacyEpoch).toString()
         post("/v1/relics", body, setOf(200, 201), false) { obj ->
             returnProtocol { parseRelicKeepResponse(obj) }.also {
                 protocol(it.privacyEpoch == req.expectedPrivacyEpoch) { "Relic receipt names another privacy epoch" }
-                protocol(it.relic.connection.bridgeId == req.bridgeId) { "Relic receipt names another connection" }
+                protocol(it.relic.target == req.target) { "Relic receipt names another thing" }
             }
+        }
+    }
+
+    /** "Seems wrong" on a passage or an answer: 201 when new, 200 when it was already said. */
+    suspend fun postObjection(req: ObjectionRequest): ObjectionReceipt = io {
+        val thing = when (val target = req.target) {
+            // An objection names a passage by its claim of that Scroll, whatever its revision.
+            is RelicTarget.Passage -> jsonObj("kind" to "passage", "assetId" to target.assetId, "claimKey" to target.claimKey)
+            is RelicTarget.Answer -> targetBody(target)
+        }
+        val body = thing.put("clientRequestId", req.clientRequestId).put("expectedPrivacyEpoch", req.expectedPrivacyEpoch).toString()
+        post("/v1/objections", body, setOf(200, 201), false) { obj ->
+            returnProtocol { parseObjectionReceipt(obj) }.also {
+                protocol(it.privacyEpoch == req.expectedPrivacyEpoch) { "Objection receipt names another privacy epoch" }
+            }
+        }
+    }
+
+    /** The Scroll's claims, each with this reader's own state of it. */
+    suspend fun getPassages(assetId: String): PassagesResponse = io {
+        require(UUID_PATTERN.matches(assetId))
+        get("/v1/scrolls/$assetId/passages") { obj ->
+            returnProtocol { parsePassagesResponse(obj) }.also { protocol(it.assetId == assetId) { "Passages name another Scroll" } }
         }
     }
 
@@ -418,6 +441,14 @@ class ApiClient(
     /** "Seems wrong" on a found or kept connection -- the #131 route, as one replayable request. */
     suspend fun postConnectionFeedback(req: ConnectionFeedbackRequest): Unit =
         postConnectionFeedback(req.clientFeedbackId, req.bridgeId, req.expectedPrivacyEpoch, req.objection)
+
+    /** The thing a keep or an objection names, as the contract spells it. */
+    private fun targetBody(target: RelicTarget): JSONObject = when (target) {
+        is RelicTarget.Connection -> jsonObj("kind" to "connection", "bridgeId" to target.bridgeId)
+        is RelicTarget.Place -> jsonObj("kind" to "place", "placeId" to target.placeId)
+        is RelicTarget.Passage -> jsonObj("kind" to "passage", "assetId" to target.assetId, "revision" to target.revision, "claimKey" to target.claimKey)
+        is RelicTarget.Answer -> jsonObj("kind" to "answer", "askId" to target.askId)
+    }
 
     private inline fun <T> returnProtocol(parse: () -> T): T =
         try { parse() }
@@ -710,6 +741,10 @@ private inline fun protocol(condition:Boolean,message:()->String) {
 }
 
 /** The feed path for one kind, with this trip's opened ids (UUIDs only, newest last, at most 256). */
+/** A list's newest page, or the one after [page]: the cursor a response gave, sent back verbatim. */
+internal fun pagedPath(path: String, page: String?): String =
+    if (page == null) path else "$path?page=${java.net.URLEncoder.encode(page, "UTF-8")}"
+
 internal fun feedPath(kind: String, exclude: Collection<String>): String {
     val ids = exclude.filter { UUID_PATTERN.matches(it) }.distinct().takeLast(256)
     return if (ids.isEmpty()) "/v1/feed?kinds=$kind" else "/v1/feed?kinds=$kind&exclude=${ids.joinToString(",")}"
