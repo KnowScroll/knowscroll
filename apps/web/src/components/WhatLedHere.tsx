@@ -98,7 +98,7 @@ export function WhatLedHere({ view, onCorrect, onRetry }: WhatLedHereProps) {
       {availability.status === 'failed' && (
         <>
           <p role="alert">The recorded path could not be read. {availability.message}</p>
-          <button type="button" className="pill ghost" onClick={onRetry} aria-label="Try reading the recorded path again">
+          <button type="button" className="pill ghost" onClick={onRetry} aria-label="Try again: read the recorded path">
             Try again
           </button>
         </>
@@ -161,7 +161,15 @@ function Corrections({
         const effectId = `${idPrefix}-${kind}-effect`;
         return (
           <div className="why-correction" key={kind}>
-            <button type="button" className="pill ghost" onClick={() => onCorrect(kind)} disabled={sending !== null} aria-describedby={effectId}>
+            {/* aria-disabled, not disabled: a disabled button drops keyboard focus to <body>, and a
+                correction that fails must leave focus where the reader pressed (review M2). */}
+            <button
+              type="button"
+              className="pill ghost"
+              onClick={() => { if (sending === null) onCorrect(kind); }}
+              aria-disabled={sending !== null}
+              aria-describedby={effectId}
+            >
               {CORRECTION_LABEL[kind]}
             </button>
             <p id={effectId} className="why-correction-effect">

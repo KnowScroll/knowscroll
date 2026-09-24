@@ -143,10 +143,19 @@ describe('What led here (#133)', () => {
   });
 
   it('a correction already made is not offered again, and none can be pressed while one is being sent', () => {
-    const { rerender } = renderReader({ why: openView({ sending: 'less_like_this' }) });
+    const { rerender, onCorrect } = renderReader({ why: openView({ sending: 'less_like_this' }) });
     openPanel();
-    expect(screen.getByRole('button', { name: 'Less like this' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Wrong connection' })).toBeDisabled();
+    // aria-disabled, never disabled: a disabled button would drop keyboard focus to <body> when a
+    // correction then fails (review M2), so they stay focusable and simply ignore presses.
+    for (const name of ['Less like this', 'Wrong connection']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(button).not.toBeDisabled();
+      button.focus();
+      fireEvent.click(button);
+      expect(document.activeElement).toBe(button);
+    }
+    expect(onCorrect).not.toHaveBeenCalled();
     rerender(
       <ScrollScreen
         state={readingState()}
@@ -160,7 +169,7 @@ describe('What led here (#133)', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: 'Less like this' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Wrong connection' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Wrong connection' })).toHaveAttribute('aria-disabled', 'false');
     expect(screen.getByRole('status')).toHaveTextContent('You will see less of this route for 14 days. Nothing shared changed.');
   });
 
@@ -236,7 +245,8 @@ describe('What led here (#133)', () => {
     expect(screen.getByText('This step was not chosen by the Composer, so there is no recorded path to show.')).toBeInTheDocument();
     rerenderWith(openView({ availability: { status: 'failed', message: 'Connection interrupted.' } }));
     expect(screen.getByRole('alert')).toHaveTextContent('The recorded path could not be read. Connection interrupted.');
-    fireEvent.click(screen.getByRole('button', { name: 'Try reading the recorded path again' }));
+    // The accessible name starts with the visible text, so "click Try again" works (review M5).
+    fireEvent.click(screen.getByRole('button', { name: /^Try again/ }));
     expect(onRetryWhy).toHaveBeenCalledTimes(1);
   });
 

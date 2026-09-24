@@ -125,6 +125,10 @@ jobs:
             docs/journeys/evidence/web-why/last-run-receipt.json
             apps/web/artifacts/playwright-report/**
             apps/web/artifacts/playwright-results.json
+            apps/web/artifacts/playwright-report-owner/**
+            apps/web/artifacts/playwright-results-owner.json
+            apps/web/artifacts/playwright-report-why/**
+            apps/web/artifacts/playwright-results-why.json
           if-no-files-found: ignore
           retention-days: 7
   android:

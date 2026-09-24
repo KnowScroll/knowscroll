@@ -269,6 +269,49 @@ describe('ReaderStore: What led here (#133)', () => {
       expect(open().corrected).toEqual(['wrong_connection']);
     });
 
+    async function moveToNext(decisionId = 'd2') {
+      const next = feedItem({ assetId: '10000000-0000-4000-8000-000000000002', title: 'A star is a balancing act' });
+      api.feedQueue.push({ decisionId, universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0, items: [next] });
+      store.nextScroll();
+      await waitFor(() => {
+        const scroll = store.getState().scroll;
+        return scroll.status === 'reading' && scroll.item.assetId === next.assetId;
+      });
+      api.whyQueue.push(whyOf({ decisionId, assetId: next.assetId }));
+      store.openWhy();
+      await waitFor(() => availability() === 'loaded');
+      return next;
+    }
+
+    it('a failed correction on one encounter never lends its id to the same correction on the next (review M4)', async () => {
+      await readDiscovered();
+      await openLoaded();
+      api.feedbackQueue.push(networkError());
+      store.correctEncounter('less_like_this');
+      await waitFor(() => open().sending === null);
+      await moveToNext();
+      api.feedbackQueue.push(encounterFeedbackReceiptOf());
+      store.correctEncounter('less_like_this');
+      await waitFor(() => open().sending === null);
+      expect(api.feedbackCalls).toHaveLength(2);
+      expect(api.feedbackCalls[1]!.decisionId).toBe('d2');
+      expect(api.feedbackCalls[1]!.clientFeedbackId).not.toBe(api.feedbackCalls[0]!.clientFeedbackId);
+    });
+
+    it('a correction that succeeds after the reader moved on never marks the next Scroll as corrected (review M4)', async () => {
+      await readDiscovered();
+      await openLoaded();
+      let release!: () => void;
+      api.feedbackGate = new Promise<void>(resolve => { release = resolve; });
+      api.feedbackQueue.push(encounterFeedbackReceiptOf());
+      store.correctEncounter('less_like_this');
+      await moveToNext();
+      release();
+      await settle();
+      expect(open().corrected).toEqual([]);
+      expect(open().notice?.kind).not.toBe('corrected');
+    });
+
     it('the retry keeps its identity across closing and reopening the panel', async () => {
       await readDiscovered();
       await openLoaded();
