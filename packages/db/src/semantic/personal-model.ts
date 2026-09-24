@@ -97,14 +97,26 @@ export async function loadPersonalEvidence(client: pg.PoolClient, universeId: st
 
 export interface PersonalModelResult { accounts: number; transitions: number; hypotheses: { upserted: number; rejected: number }; places: number }
 
+/** ADR-0040: how much of the correction log is committed. It is append-only, so this only grows, and
+ * a count sees committed rows only (a correction's own time is taken before it commits). */
+export const CORRECTIONS_COMMITTED = '(SELECT count(*)::int FROM semantic_correction)';
+
 /** Recompute accounts and hypotheses for one universe. Caller holds the universe lock. */
 export async function refreshPersonalModel(client: pg.PoolClient, universeId: string): Promise<PersonalModelResult> {
-  const universe = (await client.query<{ privacy_epoch: number; now: Date; paused: boolean }>('SELECT privacy_epoch, clock_timestamp() AS now, recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1', [universeId])).rows[0];
+  const universe = (await client.query<{ privacy_epoch: number; now: Date; paused: boolean; corrections: number }>(
+    `SELECT privacy_epoch, clock_timestamp() AS now, recording_paused_at IS NOT NULL AS paused, ${CORRECTIONS_COMMITTED} AS corrections FROM universe WHERE id=$1`, [universeId])).rows[0];
   if (!universe) throw new Error('Universe not found');
   // While recording is paused nothing personal is recomputed or dated inside the pause. A correction
   // made meanwhile is already stored (its route suppression applies at once) and counts as
   // counterevidence at the first refresh after recording resumes.
   if (universe.paused) return { accounts: 0, transitions: 0, hypotheses: { upserted: 0, rejected: 0 }, places: 0 };
+  // ADR-0040: what this refresh has seen of the correction log, read before anything else it loads,
+  // so a correction committed from here on is still ahead of it and the worker catches it up.
+  await client.query(
+    `INSERT INTO correction_catch_up(universe_id,corrections_seen,refreshed_at) VALUES($1,$2,clock_timestamp())
+     ON CONFLICT (universe_id) DO UPDATE SET corrections_seen=EXCLUDED.corrections_seen, refreshed_at=EXCLUDED.refreshed_at`,
+    [universeId, universe.corrections],
+  );
   const nowMs = universe.now.getTime();
   const evidence = await loadPersonalEvidence(client, universeId);
   const accounts = computeAttentionAccounts(evidence.episodes, evidence.negatives, nowMs, ATTENTION_V1);
@@ -187,6 +199,8 @@ export async function erasePersonalModel(client: pg.PoolClient, universeId: stri
   await client.query('DELETE FROM personal_hypothesis WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM attention_transition WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM attention_account WHERE universe_id=$1', [universeId]);
+  // Bookkeeping, never history: erased with the model, and not exported.
+  await client.query('DELETE FROM correction_catch_up WHERE universe_id=$1', [universeId]);
 }
 
 export async function exportPersonalModel(client: pg.PoolClient, universeId: string) {

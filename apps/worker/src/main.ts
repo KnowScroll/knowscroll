@@ -8,6 +8,7 @@ import { executeInquiryClaim, runInquiryPass } from './reasoning/inquiry-worker.
 import { settleAbandonedAnswers } from '../../../packages/db/src/reasoning-answers.ts';
 import { inquiryAuthority, sharedReasoningAuthority } from '../../../packages/db/src/reasoning-inquiries.ts';
 import { settleInquiries } from '../../../packages/db/src/reasoning-inquiry-execution.ts';
+import { runCorrectionRefreshPass } from '../../../packages/db/src/semantic/correction-refresh.ts';
 let running=true;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{running=false;});
 const workerId=`local-${process.pid}`;
@@ -28,7 +29,11 @@ const gatesFor=(transports:Record<string,object|undefined>|null)=>transports?Obj
 })):{};
 const readiness=gatesFor(answerTransports);
 const inquiryReadiness=gatesFor(inquiryTransports);
-let lastSweep=0;
+// ADR-0040: readers behind a source correction are caught up on an interval (at least 1 s), a
+// bounded batch (1..100) at a time. Deterministic database work only; no model is called.
+const correctionRefreshMs=Math.max(1_000,Number(process.env.KS_CORRECTION_REFRESH_INTERVAL_MS ?? 60_000)||60_000);
+const correctionRefreshBatch=Math.min(100,Math.max(1,Math.trunc(Number(process.env.KS_CORRECTION_REFRESH_BATCH ?? 8)||8)));
+let lastSweep=0,lastCorrectionRefresh=0;
 const stop=new AbortController();
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>stop.abort());
 console.log(JSON.stringify({service:'worker',workerId,kind:'deterministic-projection',answers:answerTransports?Object.keys(answerTransports):[],inquiries:inquiryTransports?Object.keys(inquiryTransports):[]}));
@@ -70,6 +75,12 @@ try {while(running) {
    try {const settled=await settleInquiries(pool,{owner:workerId});if(settled) console.log(JSON.stringify({inquiriesSettled:settled}));}
    catch {console.error(JSON.stringify({error:'inquiry_sweep_failed'}));}
   }
+ }
+ if(Date.now()-lastCorrectionRefresh>=correctionRefreshMs) {
+  lastCorrectionRefresh=Date.now();
+  try {const pass=await runCorrectionRefreshPass(pool,{limit:correctionRefreshBatch});
+   if(pass.refreshed.length||pass.failed.length) console.log(JSON.stringify({correctionRefresh:pass.refreshed,placeChanges:pass.placeChanges,failed:pass.failed}));}
+  catch {console.error(JSON.stringify({error:'correction_refresh_failed'}));}
  }
  await setTimeout(300);
 }} finally {await pool.end();}

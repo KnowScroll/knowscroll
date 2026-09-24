@@ -22,7 +22,7 @@ export type InquiryFixture = {
   assets: { gravity: string; sun: string };
 };
 
-async function insertScroll(client: pg.Pool | pg.PoolClient, title: string, sourceTitle: string, sourceUrl: string): Promise<string> {
+export async function insertScroll(client: pg.Pool | pg.PoolClient, title: string, sourceTitle: string, sourceUrl: string): Promise<string> {
   const id = randomUUID();
   await client.query(
     `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)

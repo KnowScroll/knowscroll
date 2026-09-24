@@ -12,8 +12,8 @@ loadLocalEnv();
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL required; see docs/operations/development.md');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 8, connectionTimeoutMillis: 5000 });
 export const OWNER_ID = '00000000-0000-4000-8000-000000000001';
-export async function transaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
- const c = await pool.connect();
+export async function transaction<T>(fn: (client: pg.PoolClient) => Promise<T>, db: pg.Pool = pool): Promise<T> {
+ const c = await db.connect();
  try { await c.query('BEGIN'); const out=await fn(c); await c.query('COMMIT'); return out; }
  catch(e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
 }
