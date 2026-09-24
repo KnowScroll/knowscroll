@@ -13,6 +13,8 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
 
     val baseUrl get() = "http://127.0.0.1:${server.localPort}"
     val requests: MutableList<Recorded> = java.util.Collections.synchronizedList(mutableListOf())
+    /** A copy taken under the list's lock: iterating [requests] itself while the server thread appends can throw. */
+    fun snapshot(): List<Recorded> = synchronized(requests) { requests.toList() }
     private var worker: Thread? = null
 
     /** Serves each `(status, jsonBody)` reply, in order, to one accepted connection. */

@@ -77,7 +77,7 @@ class ReturnViewModelTest {
     private val released = "POST /v1/relics/$relicId/release" to (200 to """{"privacyEpoch":4,"relicId":"$relicId","released":true}""")
 
     private fun sent(server: TestHttpServer, route: String): List<JSONObject> =
-        server.requests.filter { it.requestLine.startsWith("$route ") }.map { JSONObject(it.body) }
+        server.snapshot().filter { it.requestLine.startsWith("$route ") }.map { JSONObject(it.body) }
 
     private fun loadedAway(model: ReturnViewModel) = (model.away.value as AwayState.Loaded).response
     private fun loadedRelics(model: ReturnViewModel) = (model.relics.value as RelicsState.Loaded).response
@@ -331,7 +331,7 @@ class ReturnViewModelTest {
             model.letGo(relicId)
             assertEquals(ReturnActionState.Working, model.releases.value[relicId])
             awaitUntil { relicsOrNull(model)?.relics?.isEmpty() == true && model.releases.value[relicId] == null }
-            assertEquals("""{"expectedPrivacyEpoch":4}""", server.requests[1].body)
+            assertEquals("""{"expectedPrivacyEpoch":4}""", server.snapshot()[1].body)
             awaitUntil { server.requests.size == 3 }
             assertTrue(!connectionState(model).kept)
         }
