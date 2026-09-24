@@ -316,16 +316,23 @@ export async function resetPersonalUniverse(client: pg.PoolClient, scope: AuthSc
  * every session of the universe (not just revoked), every sign-in token and dated privacy receipt,
  * and the account row; the universe is left empty and unbound, so a later sign-in with the owner
  * address creates a new account that adopts it fresh. The receipt written first is what lets the
- * schema guards (0029) permit exactly these deletions and nothing else, and it outlives the
+ * schema guards (0030) permit exactly these deletions and nothing else, and it outlives the
  * account: it holds epochs, a count and a time, never the address.
  *
  * There is no replay: the calling session is deleted, so a retry cannot authenticate, and the
  * client treats a 401 after a sent deletion as "signed out" either way. */
 export async function deleteAccount(client: pg.PoolClient, scope: AuthScope, input: AccountDeletionInput): Promise<AccountDeletionReceipt> {
  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
- const bound = (await client.query<{ account_id: string | null }>('SELECT account_id FROM universe WHERE id=$1', [scope.universeId])).rows[0];
- if (!bound?.account_id) throw new PrivacyLifecycleConflict('This universe has no account to delete');
+ const bound = (await client.query<{ account_id: string | null; email: string | null }>(
+  'SELECT u.account_id, a.email FROM universe u LEFT JOIN account a ON a.id=u.account_id WHERE u.id=$1', [scope.universeId])).rows[0];
+ if (!bound?.account_id || !bound.email) throw new PrivacyLifecycleConflict('This universe has no account to delete');
  const accountId = bound.account_id;
+ // The same lock `requestMagicLink` takes before it inserts a sign-in token for this address (only
+ // the owner address ever gets an account, so it is this account's). Without it a link requested
+ // mid-deletion inserts a token after the tokens below are deleted and the account row can no
+ // longer be deleted (a foreign-key 500). Lock order is universe row, then this; the magic-link
+ // path never takes the universe lock, so the two cannot deadlock.
+ await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ks-magic-link-account:${bound.email}`]);
 
  const nextEpoch = scope.privacyEpoch + 1;
  const universe = await client.query(`UPDATE universe SET privacy_epoch=$3,revision=revision+1,recording_paused_at=NULL

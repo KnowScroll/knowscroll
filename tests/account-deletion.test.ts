@@ -23,7 +23,7 @@ process.env.KS_DEV_ROOT = scratch;
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
 const { pool, ensureDevelopmentSession } = await import('../packages/db/src/index.ts');
-const { resolveOwnerEmail } = await import('../packages/db/src/sign-in.ts');
+const { resolveOwnerEmail, requestMagicLink } = await import('../packages/db/src/sign-in.ts');
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Account deletion tests require a disposable knowscroll_test_* database');
 const app = buildApp(randomBytes(32).toString('hex'), {
@@ -182,4 +182,31 @@ test('a deletion ends the development session for good: an API restart does not 
 
   await ensureDevelopmentSession(developmentToken); // and a restart after the new sign-in
   assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'still ended, exactly as after a Reset');
+});
+
+test('a sign-in link requested while the deletion runs never turns it into a 500: both take the account\'s magic-link lock', async () => {
+  const s = await bearerSession();
+  const epoch = await epochOf({ authorization: s.authorization });
+  // A magic-link request caught mid-transaction: it holds its lock and has inserted a token for
+  // this account that is not committed yet.
+  const racing = await pool.connect();
+  try {
+    await racing.query('BEGIN');
+    const issued = await requestMagicLink(racing, { email: resolveOwnerEmail(), requesterFingerprint: 'f'.repeat(64) },
+      { accountWindowMinutes: 15, accountMaxPerWindow: 500, fingerprintWindowMinutes: 15, fingerprintMaxPerWindow: 500 });
+    assert.equal(issued?.accountId, s.accountId);
+    const deletion = app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+    const deadline = Date.now() + 10_000;
+    while ((await pool.query(`SELECT count(*)::int n FROM pg_stat_activity
+      WHERE datname=current_database() AND wait_event_type='Lock' AND pid<>pg_backend_pid()`)).rows[0].n === 0) {
+      assert.ok(Date.now() < deadline, 'the deletion never waited on the in-flight sign-in request');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    await racing.query('COMMIT');
+    const response = await deletion;
+    assert.equal(response.statusCode, 200, response.body);
+  } finally {
+    racing.release();
+  }
+  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, bound: null });
 });
