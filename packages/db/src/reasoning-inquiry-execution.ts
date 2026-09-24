@@ -95,10 +95,31 @@ async function finish(client: pg.PoolClient, f: InquiryFence, succeeded: boolean
   await client.query('UPDATE reasoning_job SET status=$2,lease_owner=NULL,lease_expires_at=NULL WHERE id=$1', [f.jobId, succeeded ? 'completed' : 'failed']);
 }
 
-async function closeInquiry(client: pg.PoolClient, inquiryId: string, status: string, fields: { attemptId?: string | null; proposalId?: string | null; reasons?: string[] }): Promise<void> {
+/** Closes an open inquiry; if it was a family's last open child, its parent settles in the same transaction. */
+async function closeInquiry(client: pg.PoolClient, inquiryId: string, status: string, fields: { attemptId?: string | null; proposalId?: string | null; reasons?: string[] }, owner: string): Promise<void> {
   const closed = await client.query(`UPDATE background_inquiry SET status=$2, attempt_id=$3, proposal_id=$4, reasons=$5 WHERE id=$1 AND status='queued'`,
     [inquiryId, status, fields.attemptId ?? null, fields.proposalId ?? null, JSON.stringify(fields.reasons ?? [])]);
   if (closed.rowCount !== 1) throw new Error('Inquiry is no longer open');
+  await settleParent(client, inquiryId, owner);
+}
+
+/**
+ * ADR-0042 §4.5: once no child is open, the parent inquiry is `settled` and its waiting Job completed.
+ * ADR-0019 finishes a Job only under a live lease, so the settling worker takes the idle parent's for
+ * that one transition. Caller holds the universe lock, so the last child is decided by one transaction.
+ */
+async function settleParent(client: pg.PoolClient, childId: string, owner: string): Promise<void> {
+  const parent = (await client.query<{ id: string; job_id: string }>(
+    `SELECT p.id, p.job_id FROM background_inquiry c JOIN background_inquiry p ON p.id = c.parent_id
+     WHERE c.id=$1 AND p.status='queued' AND NOT EXISTS (SELECT 1 FROM background_inquiry s WHERE s.parent_id = p.id AND s.status IN ('pending','queued'))
+     FOR UPDATE OF p`, [childId])).rows[0];
+  if (!parent) return;
+  await client.query(`UPDATE background_inquiry SET status='settled' WHERE id=$1`, [parent.id]);
+  const leased = await client.query(
+    `UPDATE reasoning_job SET status='running',lease_owner=$2,lease_fence=lease_fence+1,lease_expires_at=clock_timestamp()+interval '1 minute'
+     WHERE id=$1 AND status='waiting' AND lease_owner IS NULL AND lease_fence<9223372036854775807`, [parent.job_id, owner]);
+  if (leased.rowCount !== 1) throw new Error('A parent inquiry Job only waits for its children');
+  await client.query(`UPDATE reasoning_job SET status='completed',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`, [parent.job_id]);
 }
 
 /** A sealed fact that no longer holds: consent off or a pause withdraw it, a passed deadline expires it; anything else is stale. */
@@ -126,7 +147,7 @@ export async function applyInquiryReply(client: pg.PoolClient, f: InquiryFence, 
       && (await client.query<{ past: boolean }>('SELECT deadline <= clock_timestamp() AS past FROM reasoning_job WHERE id=$1', [f.jobId])).rows[0]?.past;
     const open = late ? (await client.query<InquiryRow>(`SELECT * FROM background_inquiry WHERE job_id=$1 AND status='queued' FOR UPDATE`, [f.jobId])).rows[0] : undefined;
     if (!open) return { kind: 'discarded', reason: 'output_not_eligible' };
-    await closeInquiry(client, open.id, 'failed', { attemptId: f.attemptId, reasons: ['expired'] });
+    await closeInquiry(client, open.id, 'failed', { attemptId: f.attemptId, reasons: ['expired'] }, f.owner);
     await finish(client, f, false);
     return { kind: 'failed', reason: 'expired' };
   }
@@ -138,24 +159,24 @@ export async function applyInquiryReply(client: pg.PoolClient, f: InquiryFence, 
   catch (error) { if (!(error instanceof ReasoningDenied)) throw error; refusal = error.code.replace(/^context_/, ''); }
   if (refusal) {
     const end = staleOutcome(refusal);
-    await closeInquiry(client, inquiry.id, end.status, { attemptId: f.attemptId, reasons: end.reasons });
+    await closeInquiry(client, inquiry.id, end.status, { attemptId: f.attemptId, reasons: end.reasons }, f.owner);
     await finish(client, f, false);
     return end.outcome;
   }
   if (reply.stopReason === 'max_tokens') {
-    await closeInquiry(client, inquiry.id, 'failed', { attemptId: f.attemptId, reasons: ['truncated'] });
+    await closeInquiry(client, inquiry.id, 'failed', { attemptId: f.attemptId, reasons: ['truncated'] }, f.owner);
     await finish(client, f, false);
     return { kind: 'failed', reason: 'truncated' };
   }
   const payload = await readInquiryPayload(client, inquiry.context_id!);
   const parsed = parseBridgeInquiryReply(reply.text, payload.pairs);
   if (parsed.kind === 'shape') {
-    await closeInquiry(client, inquiry.id, 'rejected', { attemptId: f.attemptId, reasons: parsed.reasons });
+    await closeInquiry(client, inquiry.id, 'rejected', { attemptId: f.attemptId, reasons: parsed.reasons }, f.owner);
     await finish(client, f, false);
     return { kind: 'applied', status: 'rejected' };
   }
   if (parsed.kind === 'none') {
-    await closeInquiry(client, inquiry.id, 'none', { attemptId: f.attemptId });
+    await closeInquiry(client, inquiry.id, 'none', { attemptId: f.attemptId }, f.owner);
     await finish(client, f, true);
     return { kind: 'applied', status: 'none' };
   }
@@ -170,7 +191,7 @@ export async function applyInquiryReply(client: pg.PoolClient, f: InquiryFence, 
     await client.query('RELEASE SAVEPOINT inquiry_proposal');
   } catch {
     await client.query('ROLLBACK TO SAVEPOINT inquiry_proposal');
-    await closeInquiry(client, inquiry.id, 'rejected', { attemptId: f.attemptId, reasons: ['storage_refused'] });
+    await closeInquiry(client, inquiry.id, 'rejected', { attemptId: f.attemptId, reasons: ['storage_refused'] }, f.owner);
     await finish(client, f, false);
     return { kind: 'applied', status: 'rejected' };
   }
@@ -181,7 +202,7 @@ export async function applyInquiryReply(client: pg.PoolClient, f: InquiryFence, 
   const admitted = decided.status === 'admitted';
   await closeInquiry(client, inquiry.id, admitted ? 'admitted' : 'rejected', {
     attemptId: f.attemptId, proposalId: decided.proposalId, reasons: decided.decision.outcome === 'rejected' ? decided.decision.reasons : [],
-  });
+  }, f.owner);
   await finish(client, f, admitted);
   return { kind: 'applied', status: admitted ? 'admitted' : 'rejected' };
 }
@@ -228,7 +249,7 @@ export async function failInquiry(client: pg.PoolClient, f: InquiryFence, reason
   if (stale) return { kind: 'discarded', reason: stale };
   const inquiry = (await client.query<{ id: string; status: string }>('SELECT id, status FROM background_inquiry WHERE job_id=$1 FOR UPDATE', [f.jobId])).rows[0];
   if (!inquiry || inquiry.status !== 'queued') return { kind: 'discarded', reason: 'inquiry_closed' };
-  await closeInquiry(client, inquiry.id, 'failed', { attemptId: f.attemptId, reasons: [reason] });
+  await closeInquiry(client, inquiry.id, 'failed', { attemptId: f.attemptId, reasons: [reason] }, f.owner);
   await finish(client, f, false);
   return { kind: 'failed', reason };
 }
@@ -248,7 +269,7 @@ async function latestAttempt(client: pg.PoolClient, jobId: string): Promise<{ id
 }
 
 /** Why an inquiry whose Job ended without an outcome ended: unknown if anything may have been sent. */
-async function closeTerminalInquiry(client: pg.PoolClient, jobId: string, fallback: string[]): Promise<boolean> {
+async function closeTerminalInquiry(client: pg.PoolClient, jobId: string, fallback: string[], owner: string): Promise<boolean> {
   const inquiry = (await client.query<InquiryRow>('SELECT * FROM background_inquiry WHERE job_id=$1', [jobId])).rows[0];
   if (!inquiry) return false;
   await client.query('SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [inquiry.universe_id, inquiry.privacy_epoch]);
@@ -261,7 +282,7 @@ async function closeTerminalInquiry(client: pg.PoolClient, jobId: string, fallba
     : ['dispatch_committed', 'unknown'].includes(attempt.state) ? ['outcome_unknown']
     : attempt.state === 'responded' ? ['apply_failed'] : fallback;
   const withdrawn = reasons[0] === 'consent_off' || reasons[0] === 'recording_paused';
-  await closeInquiry(client, inquiry.id, withdrawn ? 'withdrawn' : 'failed', { attemptId: attempt?.id ?? null, reasons });
+  await closeInquiry(client, inquiry.id, withdrawn ? 'withdrawn' : 'failed', { attemptId: attempt?.id ?? null, reasons }, owner);
   return true;
 }
 
@@ -273,7 +294,7 @@ async function closeTerminalInquiry(client: pg.PoolClient, jobId: string, fallba
 export async function giveBackUnsentInquiry(pool: pg.Pool, admission: ReasoningAdmission, f: InquiryFence, refusal: string | null): Promise<InquiryOutcome> {
   await admission.withdrawJob({ universeId: f.universeId, privacyEpoch: f.privacyEpoch, jobId: f.jobId, owner: f.owner, leaseFence: f.leaseFence, reason: 'cancelled' });
   const end = refusal ? staleOutcome(refusal) : { reasons: ['not_sent'], outcome: { kind: 'failed', reason: 'not_sent' } as InquiryOutcome };
-  const closed = await inTransaction(pool, client => closeTerminalInquiry(client, f.jobId, end.reasons));
+  const closed = await inTransaction(pool, client => closeTerminalInquiry(client, f.jobId, end.reasons, f.owner));
   return closed ? end.outcome : { kind: 'discarded', reason: 'already_settled' };
 }
 
@@ -296,7 +317,8 @@ async function recoverRespondedInquiry(client: pg.PoolClient, row: { job_id: str
 
 /** Close an idle inquiry Job: the inquiry records why first (the schema requires it), then the Job is
  * withdrawn (ADR-0018 background branch). One transaction; the universe lock first. */
-async function withdrawIdleInquiry(client: pg.PoolClient, row: { job_id: string; universe_id: string; privacy_epoch: number }, decide: (inquiry: InquiryRow) => Promise<{ status: string; reasons: string[]; expire: boolean } | null>): Promise<boolean> {
+async function withdrawIdleInquiry(client: pg.PoolClient, row: { job_id: string; universe_id: string; privacy_epoch: number },
+  decide: (inquiry: InquiryRow) => Promise<{ status: string; reasons: string[]; expire: boolean } | null>, owner: string): Promise<boolean> {
   if (!(await client.query('SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [row.universe_id, row.privacy_epoch])).rowCount) return false;
   const job = (await client.query<{ status: string; idle: boolean }>(
     `SELECT status, (lease_owner IS NULL OR lease_expires_at <= clock_timestamp()) AS idle FROM reasoning_job WHERE id=$1 FOR UPDATE`, [row.job_id])).rows[0];
@@ -305,7 +327,7 @@ async function withdrawIdleInquiry(client: pg.PoolClient, row: { job_id: string;
   const verdict = await decide(inquiry);
   if (!verdict) return false;
   const attempt = await latestAttempt(client, row.job_id);
-  await closeInquiry(client, inquiry.id, verdict.status, { attemptId: attempt?.id ?? null, reasons: verdict.reasons });
+  await closeInquiry(client, inquiry.id, verdict.status, { attemptId: attempt?.id ?? null, reasons: verdict.reasons }, owner);
   await withdrawIdleBackgroundJob(client, { jobId: row.job_id, universeId: row.universe_id, privacyEpoch: row.privacy_epoch }, verdict.expire ? 'expired' : 'cancelled');
   return true;
 }
@@ -337,7 +359,7 @@ export async function settleInquiries(pool: pg.Pool, input: { owner: string; lim
   const idle = (await pool.query<{ job_id: string; universe_id: string; privacy_epoch: number; queued: boolean }>(
     `SELECT j.id AS job_id, j.universe_id, j.privacy_epoch, j.status = 'queued' AS queued
      FROM background_inquiry i JOIN reasoning_job j ON j.id = i.job_id
-     WHERE i.status = 'queued' AND j.status IN ('queued','waiting') AND (j.lease_owner IS NULL OR j.lease_expires_at <= clock_timestamp())
+     WHERE i.status = 'queued' AND i.role <> 'parent' AND j.status IN ('queued','waiting') AND (j.lease_owner IS NULL OR j.lease_expires_at <= clock_timestamp())
        AND NOT EXISTS (SELECT 1 FROM reasoning_attempt at WHERE at.job_id = j.id AND at.active)
      ORDER BY j.deadline, j.id LIMIT $1`, [limit])).rows;
   for (const row of idle) {
@@ -358,15 +380,15 @@ export async function settleInquiries(pool: pg.Pool, input: { owner: string; lim
         if (check.valid) return null;
         const end = staleOutcome(check.reason);
         return { status: end.status, reasons: end.reasons, expire: false };
-      }));
+      }, input.owner));
       if (closed) settled += 1;
     } catch { /* e.g. the worker took it meanwhile: left for a later sweep */ }
   }
   const terminal = (await pool.query<{ job_id: string }>(
     `SELECT j.id AS job_id FROM background_inquiry i JOIN reasoning_job j ON j.id = i.job_id
-     WHERE i.status = 'queued' AND j.status IN ('cancelled','expired','failed','completed') ORDER BY j.id LIMIT $1`, [limit])).rows;
+     WHERE i.status = 'queued' AND i.role <> 'parent' AND j.status IN ('cancelled','expired','failed','completed') ORDER BY j.id LIMIT $1`, [limit])).rows;
   for (const row of terminal) {
-    try { if (await inTransaction(pool, client => closeTerminalInquiry(client, row.job_id, ['worker_stopped']))) settled += 1; }
+    try { if (await inTransaction(pool, client => closeTerminalInquiry(client, row.job_id, ['worker_stopped'], input.owner))) settled += 1; }
     catch { /* left for a later sweep */ }
   }
   return settled;
