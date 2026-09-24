@@ -102,7 +102,7 @@ class IdeaRoomsScreenTest {
                     atlasState = AtlasState.Loaded(atlas),
                     onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
                     away = AwayControls(
-                        state = AwayState.Loaded(AwayResponse(4, null, emptyList(), 0, paused)), acknowledge = ReturnActionState.Idle,
+                        state = AwayState.Loaded(AwayResponse(4, null, emptyList(), 0, null, paused)), acknowledge = ReturnActionState.Idle,
                         onMarkSeen = {}, onRetryMarkSeen = {},
                     ),
                     keeps = KeepControls(paused = paused),
