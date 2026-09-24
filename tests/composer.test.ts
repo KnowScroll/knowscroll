@@ -31,7 +31,8 @@ if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
 }
 
 const developmentToken = randomBytes(32).toString('hex');
-const app = buildApp(developmentToken);
+// These tests pin composer-signals-v2 (ADR-0028/0029), which stays a selectable, immutable policy.
+const app = buildApp(developmentToken, { composerPolicy: 'composer-signals-v2' });
 after(async () => { await app.close(); await pool.end(); });
 
 const headers = (token: string) => ({ authorization: `Bearer ${token}` });
