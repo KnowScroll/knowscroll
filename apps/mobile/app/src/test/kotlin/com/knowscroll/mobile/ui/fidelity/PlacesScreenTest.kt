@@ -38,6 +38,7 @@ import com.knowscroll.mobile.ui.AtlasEvidenceState
 import com.knowscroll.mobile.ui.AtlasState
 import com.knowscroll.mobile.ui.PlaceRejectState
 import com.knowscroll.mobile.ui.SystemState
+import com.knowscroll.mobile.ui.assertNoSourceShown
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import org.junit.Assert.assertEquals
@@ -49,12 +50,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #134 — the reader's live places (ADR-0036) as a second System-screen layer. These pin: Places is
- * the default once a planet exists, otherwise Sources with a quiet explanation; a planet/region/
- * sighting render with their real counts and labels; the place sheet shows only what the atlas
- * response actually carries; a chronicle line's evidence and "Set aside" call back to the exact
- * viewmodel entry points the coordinator's journey drives; and the Places layer never shows the
- * "AUTHORED"/"Illustrative geography" wording that Sources still does.
+ * #134 — the reader's live places (ADR-0036) on the System screen. These pin: the places are the
+ * whole map, with a quiet explanation until a planet exists; a planet/region/sighting render with
+ * their real counts and labels; the place sheet shows only what the atlas response actually
+ * carries, and (#161) never a world or a source; a chronicle line's evidence and "Set aside" call
+ * back to the exact viewmodel entry points the coordinator's journey drives; and the map never
+ * shows the authored preview's "AUTHORED"/"Illustrative geography" wording.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w360dp-h780dp-xhdpi")
@@ -62,6 +63,7 @@ class PlacesScreenTest {
     @get:Rule val composeRule = createComposeRule()
 
     private val world = WorldSummary("w-1", "NASA · Gravity pulls", "https://example.test/gravity", 3, 3)
+    private val sources = arrayOf(world.sourceTitle, world.sourceUrl, "NASA · Star formation", "NASA · Lensing", "NOAA · Tides")
     private val loadedWorlds = SystemState.Loaded(WorldSystemResponse("shared_source_v1", WorldSystem("sys-1", listOf(world))))
 
     private val planetId = "11111111-1111-1111-1111-111111111111"
@@ -119,21 +121,24 @@ class PlacesScreenTest {
         }
     }
 
+    /** #161: a world is one source, so the map is the reader's places alone -- no world, no layer. */
     @Test
-    fun placesIsTheDefaultOnceAPlanetExists() {
+    fun theMapIsTheReadersPlacesAndNeverAWorld() {
         content()
         composeRule.onNodeWithContentDescription("Explore place: Gravity").assertExists()
-        composeRule.onNodeWithContentDescription("Places, selected").assertExists()
-        composeRule.onNodeWithContentDescription("Show Sources").assertExists()
+        composeRule.onAllNodesWithContentDescription("Explore world:", substring = true).assertCountEquals(0)
+        composeRule.onAllNodesWithText("Places form when you come back to a subject on different days.").assertCountEquals(0)
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test
-    fun sourcesIsTheDefaultWithAQuietLineWhenThereAreNoPlanetsYet() {
+    fun withNoPlanetsYetAQuietLineSaysWhenAPlaceForms() {
         content(atlasState = AtlasState.Loaded(AtlasResponse("cartographer-v1", emptyList(), emptyList(), emptyList())))
-        composeRule.onNodeWithContentDescription("Explore world: NASA · Gravity pulls").assertExists()
         composeRule.onNodeWithText("Places form when you come back to a subject on different days.").assertExists()
-        // Review M2: the quiet line is additional, never a replacement for PR130's own label.
-        composeRule.onNodeWithText("Orbits & moons are illustrative").assertExists()
+        // Review M2: the quiet line is additional, never a replacement for the map's own label.
+        composeRule.onNodeWithText("Positions, orbits, moons and land art are illustrative — what's mapped and how it connects is real.").assertExists()
+        composeRule.onAllNodesWithText("WORLD", substring = true).assertCountEquals(0)
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test
@@ -195,16 +200,18 @@ class PlacesScreenTest {
         composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
         composeRule.onNodeWithText("Info").performClick()
         composeRule.onNodeWithText("Gravity description").assertExists()
-        composeRule.onNodeWithText("Read on 2 days · 2 sources").assertExists()
+        composeRule.onNodeWithText("Read on 2 days").assertExists()
         composeRule.onNodeWithText("2 of 3 Scrolls read").assertExists()
         composeRule.onNodeWithText("Gravity explains Star formation").assertExists()
-        composeRule.onNodeWithText("\"Gravity pulls gas clouds together.\" — NASA · Star formation").assertExists()
+        composeRule.onNodeWithText("\"Gravity pulls gas clouds together.\"").assertExists()
         composeRule.onNodeWithText("Gravity explains Light").assertExists()
+        composeRule.onNodeWithText("\"Gravity bends light.\"").assertExists()
         composeRule.onNodeWithText("A place formed around Gravity.").assertExists()
+        composeRule.assertNoSourceShown(*sources)
     }
 
     /** ADR-0037: a foundation's marker says so, and its sheet names what it holds up and each
-     * sourced connection behind that, never more than the atlas response carries. */
+     * connection behind that, never more than the atlas response carries. */
     @Test
     fun aFoundationsMarkerAndSheetShowWhatItHoldsUpAndTheClaimsThatSaySo() {
         val foundation = planet.copy(
@@ -224,10 +231,11 @@ class PlacesScreenTest {
         composeRule.onNodeWithText("Info").performClick()
         composeRule.onNodeWithText("Holds up Light and Tides").performScrollTo().assertExists()
         composeRule.onNodeWithText("Gravity explains Tides").performScrollTo().assertExists()
-        composeRule.onNodeWithText("\"The Moon's gravity pulls on the ocean.\" — NOAA · Tides").performScrollTo().assertExists()
+        composeRule.onNodeWithText("\"The Moon's gravity pulls on the ocean.\"").performScrollTo().assertExists()
         // Gravity → Light is both a foundation connection and a relation between live places: it
         // is listed once, under the foundation, not again under Connections (device run 1).
         composeRule.onAllNodesWithText("Gravity explains Light").assertCountEquals(1)
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test
@@ -259,7 +267,8 @@ class PlacesScreenTest {
         content(evidenceState = AtlasEvidenceState.Loaded(deltaId, delta))
         composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
         composeRule.onNodeWithText("Info").performClick()
-        composeRule.onNodeWithText("Formed from 3 readings across 2 days and 2 source families.").assertExists()
+        composeRule.onNodeWithText("Formed from 3 readings across 2 days.").assertExists()
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test
@@ -313,22 +322,7 @@ class PlacesScreenTest {
     }
 
     @Test
-    fun sourcesSubtitleIsUnchangedByThePlacesWork() {
-        content(atlasState = AtlasState.Loaded(AtlasResponse("cartographer-v1", emptyList(), emptyList(), emptyList())))
-        composeRule.onNodeWithText("1 WORLD · 3 SCROLLS RECORDED · 3 SEEN").assertExists()
-    }
-
-    @Test
-    fun theOrbitsLabelAlwaysShowsForSourcesEvenWhenPlanetsExist() {
-        // The atlas has a planet (Places would default), but the reader chose Sources manually --
-        // review M2: PR130's own label is restored unconditionally, never only when there are no places yet.
-        content()
-        composeRule.onNodeWithContentDescription("Show Sources").performClick()
-        composeRule.onNodeWithText("Orbits & moons are illustrative").assertExists()
-    }
-
-    @Test
-    fun placesShowsItsOwnHonestPositionsLabelNeverTheSourcesWording() {
+    fun theMapSaysWhatIsIllustrativeAndWhatIsReal() {
         content()
         composeRule.onNodeWithText("Positions, orbits, moons and land art are illustrative — what's mapped and how it connects is real.").assertExists()
         composeRule.onAllNodesWithText("Orbits & moons are illustrative").assertCountEquals(0)
@@ -370,11 +364,11 @@ class PlacesScreenTest {
         assertEquals(deltaId, opened)
     }
 
-    /** Review I4: the exact scenario named -- select a Sources world, leave for the reader (system
-     * Back from there returns via a *fresh* mount of `SystemScreen`, same as `KnowScrollApp.kt`'s
-     * own `when(screen)` swap), and the selection (and its open sheet) survive the round trip. */
+    /** Review I4: the exact scenario named -- select a place, leave for the reader (system Back from
+     * there returns via a *fresh* mount of `SystemScreen`, same as `KnowScrollApp.kt`'s own
+     * `when(screen)` swap), and the selection (and its open sheet) survive the round trip. */
     @Test
-    fun sourcesSelectionSurvivesLeavingForTheReaderAndReturning() {
+    fun aSelectedPlaceSurvivesLeavingForTheReaderAndReturning() {
         var showSystem by mutableStateOf(true)
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
@@ -384,23 +378,24 @@ class PlacesScreenTest {
                 if (showSystem) {
                     holder.SaveableStateProvider("system") {
                         SystemScreen(
-                            state = loadedWorlds, onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
+                            state = loadedWorlds, atlasState = AtlasState.Loaded(atlas),
+                            onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
                         )
                     }
                 } else Text("Elsewhere (the reader)")
             }
         }
-        composeRule.onNodeWithContentDescription("Explore world: NASA · Gravity pulls").performClick()
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
         composeRule.onNodeWithText("Info").performClick()
-        composeRule.onNodeWithText("3 of 3 Scrolls encountered").assertExists()
+        composeRule.onNodeWithText("Gravity description").assertExists()
 
         showSystem = false
         composeRule.waitForIdle()
         showSystem = true
         composeRule.waitForIdle()
 
-        // No re-selection needed: the world and its open sheet are exactly as they were.
-        composeRule.onNodeWithText("3 of 3 Scrolls encountered").assertExists()
+        // No re-selection needed: the place and its open sheet are exactly as they were.
+        composeRule.onNodeWithText("Gravity description").assertExists()
     }
 
     /** Review I4 (AppViewModel's own fix): a same-scope refresh -- e.g. on return from the reader --
@@ -436,8 +431,7 @@ class PlacesScreenTest {
 
     /** Review I4: while a first load/refresh is in flight or has failed, the Places map is never
      * mounted with empty data (no false "0 PLACES"), and a failure shows the real error with Retry
-     * -- reusing this screen's own [onRetry]. The layer stays Places (cached from the earlier
-     * Loaded response), never silently falling back to Sources. */
+     * -- reusing this screen's own [onRetry]. */
     @Test
     fun aFailedAtlasFetchShowsTheErrorAndRetryNeverAFalseZeroPlaces() {
         var atlasState by mutableStateOf<AtlasState>(AtlasState.Loaded(atlas))

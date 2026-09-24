@@ -20,7 +20,6 @@
     <string name="universe_heading_first">Somewhere new starts here.</string>
     <string name="universe_subtitle_first">No topics to pick. Just something interesting.</string>
     <string name="universe_heading_started">Your curiosity leaves a trace.</string>
-    <string name="universe_subtitle_started">Saved encounters below. Source-backed worlds in your system.</string>
     <!-- Deviation: the reference's yellow note carries a real why-this-appeared reason, which
          lives on a Scroll (in the reader), not on a kept Trace (on this screen). Rather than
          invent one, this note states the one real fact this screen has: how many are kept. -->
@@ -59,7 +58,6 @@
     <string name="action_retry">Retry</string>
     <string name="traces_heading">Traces</string>
     <string name="trace_unknown_title">Untitled Scroll</string>
-    <string name="trace_revisit_action">Reopen saved Scroll %1$s</string>
     <string name="keep_kicker">KNOWSCROLL</string>
     <string name="keep_title">Keep</string>
     <string name="keep_subtitle">Saved Traces. Tap any to reopen the verified original.</string>
@@ -82,29 +80,19 @@
     <string name="action_kept">Kept</string>
     <string name="action_return">Return</string>
     <string name="action_next">Next Scroll</string>
-    <string name="action_open_source">Open source</string>
     <string name="keep_pending">Saving your keep…</string>
     <string name="keep_failed">Could not keep this Scroll.</string>
     <!-- docs/product/ui-system.md section 5b: "keep going →" (teal action pill). -->
     <string name="action_next_pill">keep going →</string>
-    <!-- docs/product/ui-system.md section 5b: the reader's state pill carries the real source
-         count. This client's ScrollItem always carries exactly one source. -->
-    <string name="reader_state_pill_sources">%1$d SOURCE</string>
 
     <!-- Capabilities: the slice does not promise them. -->
 
     <!-- Decorative cosmos copy is intentionally absent; the cosmos is
          drawn, not narrated. Decorative-only labels are not shipped. -->
     <string name="action_home">Home</string>
-    <string name="action_sources">Sources</string>
     <string name="reader_origin">YOUR UNIVERSE / SCROLL</string>
     <string name="reader_saved_trace_origin">SAVED FROM YOUR KEEP</string>
     <string name="reader_truth_label">SCROLL · %1$s</string>
-    <string name="reader_source_marker">SOURCE</string>
-    <string name="reader_source_sheet_title">Sources and truth</string>
-    <string name="reader_attribution_note">Editorial source attribution. This pointer is not independent verification of every claim.</string>
-    <string name="reader_close_sources">Back to reading</string>
-    <string name="reader_browser_unavailable">A browser could not open this source. You can still read its address above.</string>
     <string name="reader_threshold_title">Another discovery?</string>
     <string name="reader_threshold_detail">Stay with this idea, or deliberately open the next Scroll.</string>
     <string name="reader_next_loading">Finding the next Scroll…</string>
@@ -120,9 +108,6 @@
     <string name="reader_home_description">Return to the universe</string>
     <string name="reader_keep_description">Keep this Scroll</string>
     <string name="reader_next_description">Get the next Scroll</string>
-    <string name="reader_sources_description">Sources for this Scroll</string>
-    <string name="reader_close_sources_description">Close sources</string>
-    <string name="reader_open_source_description">Open %1$s in browser</string>
 
     <!-- Why this appeared (#91) -->
     <string name="reader_explain_action">Why</string>
@@ -131,7 +116,6 @@
     <string name="reader_explain_reason_heading">REASON</string>
     <string name="reader_explain_truth_heading">TRUTH STATE</string>
     <string name="reader_explain_origin_heading">ORIGIN</string>
-    <string name="reader_explain_documented_sources_note">Sources below show this evidence.</string>
     <string name="reader_explain_close">Back to reading</string>
     <string name="reader_why_path_heading">WHAT LED HERE</string>
     <string name="reader_why_loading">Reading what was recorded…</string>
@@ -152,8 +136,8 @@
     <string name="sign_out_done_title">This device is signed out</string>
     <string name="sign_out_done_body">This device\'s session has ended. Your Scroll history was not erased. Other devices are not affected. You can sign in on this device again with a new sign-in link.</string>
 
-    <!-- System level (#116, ADR-0028/#113): the real, derived worlds/system geography
-         (docs/product/ui-system.md sec.5b/5c). -->
+    <!-- System level (#116, ADR-0028/#113; docs/product/ui-system.md sec.5b/5c). #161: a world is
+         one source, so the system draws only the reader's own places (ADR-0036). -->
     <string name="system_view_description">Open the system view</string>
     <string name="system_kind_label">SYSTEM</string>
     <string name="system_head_origin">Your atlas</string>
@@ -163,33 +147,9 @@
     <string name="system_retry_description">Retry loading the system</string>
     <string name="system_empty_eyebrow">No system yet</string>
     <string name="system_empty_title">Nothing has been encountered yet</string>
-    <string name="system_empty_body">There is no system yet because nothing has been encountered. A system only ever names the worlds this universe\'s own reading has actually reached — nothing is arranged ahead of that.</string>
+    <string name="system_empty_body">There is no system yet because nothing has been encountered. A system only ever maps what this universe\'s own reading has actually reached — nothing is arranged ahead of that.</string>
     <string name="system_eyebrow">System</string>
     <string name="system_title">Your system</string>
-    <!-- Audit U2 (#72): "FULLY EXPLORED" overstates the evidence - every catalog Scroll having
-         an exposure is not mastery of the subject. Renamed to the exact-seen-of-total phrasing
-         the audit records as the honest wording. -->
-    <string name="system_fully_explored">ALL SCROLLS ENCOUNTERED</string>
-    <string name="system_more_to_explore">MORE TO EXPLORE</string>
-    <string name="system_open_source_description">Open %1$s in browser</string>
-    <string name="system_worlds_list_description">Worlds in your system</string>
-    <!-- When there are many worlds the orbit risks body/label collisions; a list fallback shows
-         the same real values stacked, never a new dataset. The list itself is the system; the
-         toggle is a layout decision, not a navigation one. (XML comments cannot contain the
-         double-hyphen sequence.) -->
-    <string name="system_layout_orbit">Orbit</string>
-    <string name="system_layout_list">List</string>
-    <string name="system_layout_orbit_description">Switch to orbit view</string>
-    <string name="system_layout_list_description">Switch to list view</string>
-    <!-- World detail (audit U1, sec.5b table): tapped from System, lives only on this client,
-         returns to the same system. No new domain entity. (XML comments cannot contain the
-         double-hyphen sequence.) -->
-    <string name="world_detail_title">World detail</string>
-    <string name="world_detail_back_description">Close world detail and return to the system</string>
-    <string name="world_detail_counts">%1$d of %2$d Scrolls encountered</string>
-    <string name="world_detail_explanation">This world gathers Scrolls from the same source. It appeared because your reading reached that source. Encounters record what was shown, not what you know.</string>
-    <string name="world_detail_decorative_label">Decorative cartographic globe</string>
-    <string name="world_detail_open_source_description">Open %1$s in browser</string>
     <string name="reader_branch_origin">FOLLOWED A CONNECTION</string>
     <string name="reader_branch_back">Back to %1$s</string>
     <string name="branch_why_action">Why these connections?</string>
@@ -203,8 +163,8 @@
     <string name="connection_open">Follow this connection</string>
     <string name="connection_not_useful">Not useful to me</string>
     <string name="connection_seems_wrong">Seems wrong</string>
-    <string name="connection_feedback_note">Hiding a connection affects only your universe. The cited sources are not changed.</string>
-    <string name="connection_hidden">Hidden for you. The sources are unchanged.</string>
+    <string name="connection_feedback_note">Hiding a connection affects only your universe. The connection itself is not changed.</string>
+    <string name="connection_hidden">Hidden for you. Nothing shared changed.</string>
     <string name="connection_close">Back to reading</string>
 
     <!-- Ask about this Scroll (#132, ADR-0033): an authorized answer over this Scroll's own text.
@@ -287,7 +247,7 @@
     <!-- #132 (ADR-0038): background bridge inquiries on Privacy & account -->
     <string name="inquiry_heading">Connections between your places</string>
     <string name="inquiry_switch_label">Look for connections between my places</string>
-    <string name="inquiry_body">Each look is one model request that sends only your places\' names and their sourced claims, never your reading, and a connection is kept only if KnowScroll\'s own checks confirm it.</string>
+    <string name="inquiry_body">Each look is one model request that sends only your places\' names and the claims behind them, never your reading, and a connection is kept only if KnowScroll\'s own checks confirm it.</string>
     <string name="inquiry_unavailable">This deployment has no background route enabled; nothing will run.</string>
     <string name="inquiry_paused">Recording is paused, so nothing new is looked for.</string>
     <string name="inquiry_limit_label">Daily limit</string>
@@ -307,17 +267,16 @@
     <string name="inquiry_pair">%1$s and %2$s</string>
     <string name="inquiry_pairs_none">Your places</string>
     <string name="inquiry_asked_on">Asked %1$s</string>
-    <string name="inquiry_found_sources">Sources</string>
-    <string name="inquiry_found_revoked">A later source correction withdrew this connection.</string>
-    <string name="inquiry_found_superseded">A later source correction replaced this connection.</string>
+    <string name="inquiry_found_revoked">What this connection was based on changed, so it was withdrawn.</string>
+    <string name="inquiry_found_superseded">What this connection was based on changed, so it was replaced.</string>
     <string name="inquiry_status_waiting">Waiting to look (it gathers a few changes first).</string>
     <string name="inquiry_status_waiting_unavailable">Waiting, but this deployment has no background route enabled, so it will not look.</string>
     <string name="inquiry_status_waiting_limit">Waiting: today\'s limit is reached, so it looks again tomorrow.</string>
-    <string name="inquiry_status_looking">Looking now for a sourced connection.</string>
+    <string name="inquiry_status_looking">Looking now for a connection that holds up.</string>
     <string name="inquiry_status_found">Found a connection.</string>
-    <string name="inquiry_status_nothing_found">Looked, and the sources offered no connection between these places.</string>
+    <string name="inquiry_status_nothing_found">Looked, and found no connection between these places.</string>
     <string name="inquiry_status_did_not_hold_up">A connection was proposed but did not hold up: %1$s.</string>
-    <string name="inquiry_status_nothing_to_ask">Nothing to ask: no two of your places were left to ask about. A pair needs sources on both sides, and is skipped once connected or asked about.</string>
+    <string name="inquiry_status_nothing_to_ask">Nothing to ask: no two of your places were left to ask about. A pair needs evidence on both sides, and is skipped once connected or asked about.</string>
     <string name="inquiry_status_failed">Could not finish: %1$s.</string>
     <string name="inquiry_status_withdrawn_consent_off">Stopped: you turned this off, so nothing from it was kept.</string>
     <string name="inquiry_status_withdrawn_recording_paused">Stopped: recording was paused, so nothing from it was kept.</string>
@@ -335,18 +294,18 @@
     <string name="inquiry_reason_hierarchy_not_bridge">one place is part of the other</string>
     <string name="inquiry_reason_mechanism_is_label">it named the link without explaining how it works</string>
     <string name="inquiry_reason_evidence_unresolved">it cited a claim that does not exist</string>
-    <string name="inquiry_reason_evidence_unsupported">a claim it cited has no current source</string>
-    <string name="inquiry_reason_from_side_unsupported">one side had no source of its own</string>
-    <string name="inquiry_reason_to_side_unsupported">the other side had no source of its own</string>
-    <string name="inquiry_reason_mechanism_unsupported">no cited source connects the two</string>
-    <string name="inquiry_reason_direction_unsupported">the sources do not support its direction</string>
-    <string name="inquiry_reason_contradicted_by_substrate">the sources say otherwise</string>
+    <string name="inquiry_reason_evidence_unsupported">a claim it cited is no longer supported</string>
+    <string name="inquiry_reason_from_side_unsupported">one side had no evidence of its own</string>
+    <string name="inquiry_reason_to_side_unsupported">the other side had no evidence of its own</string>
+    <string name="inquiry_reason_mechanism_unsupported">no cited claim connects the two</string>
+    <string name="inquiry_reason_direction_unsupported">the evidence does not support its direction</string>
+    <string name="inquiry_reason_contradicted_by_substrate">the evidence says otherwise</string>
     <string name="inquiry_reason_analogy_limit_missing">it did not say where the comparison stops</string>
     <string name="inquiry_reason_counterevidence_unresolved">it cited counterevidence that does not exist</string>
-    <string name="inquiry_reason_counterevidence_ignored">it ignored a source that argues against it</string>
-    <string name="inquiry_reason_counterevidence_cited_as_support">it used a source that argues against it as support</string>
+    <string name="inquiry_reason_counterevidence_ignored">it ignored evidence that argues against it</string>
+    <string name="inquiry_reason_counterevidence_cited_as_support">it used evidence that argues against it as support</string>
     <string name="inquiry_reason_duplicate_admitted">that connection already exists</string>
-    <string name="inquiry_reason_stale_read_set">the sources changed while it was checked</string>
+    <string name="inquiry_reason_stale_read_set">what it was based on changed while it was checked</string>
     <string name="inquiry_reason_foreign_scope">it reached outside your own universe</string>
     <string name="inquiry_reason_history_cleared">your history was cleared meanwhile</string>
     <string name="inquiry_reason_shape">the reply was not in a form KnowScroll accepts</string>
@@ -366,10 +325,10 @@
     <string name="inquiry_reason_not_sent">it was stopped before it was sent</string>
     <string name="inquiry_reason_expired">it waited too long and expired</string>
     <string name="inquiry_reason_worker_stopped">the worker stopped before it finished</string>
-    <string name="inquiry_reason_stale_context">your places or their sources changed before it finished</string>
+    <string name="inquiry_reason_stale_context">your places or what they are based on changed before it finished</string>
     <string name="inquiry_reason_place_changed">one of the places changed</string>
     <string name="inquiry_reason_pair_connected">the two places became connected meanwhile</string>
-    <string name="inquiry_reason_claim_changed">a source it relied on changed</string>
+    <string name="inquiry_reason_claim_changed">a claim it relied on changed</string>
     <string name="inquiry_reason_route_disabled">the background route was turned off</string>
     <string name="inquiry_reason_inquiry_closed">it had already been closed</string>
     <string name="inquiry_reason_changed_policy">the deployment\'s limits changed</string>
@@ -391,9 +350,9 @@
     <string name="away_open_connection">Open its evidence</string>
     <string name="away_found">Found a connection: %1$s and %2$s.</string>
     <string name="away_did_not_hold_up">Looked for a connection between %1$s; it did not hold up: %2$s.</string>
-    <string name="away_nothing_found">Looked for a connection between %1$s; the sources offered none.</string>
-    <string name="away_corrected_revoked">A source correction withdrew the connection between %1$s and %2$s.</string>
-    <string name="away_corrected_superseded">A source correction replaced the connection between %1$s and %2$s.</string>
+    <string name="away_nothing_found">Looked for a connection between %1$s; none was found.</string>
+    <string name="away_corrected_revoked">What it was based on changed, so the connection between %1$s and %2$s was withdrawn.</string>
+    <string name="away_corrected_superseded">What it was based on changed, so the connection between %1$s and %2$s was replaced.</string>
     <string name="away_pairs_separator">", or "</string>
     <string name="connection_kicker">Connection</string>
     <string name="connection_back_atlas">‹ Atlas</string>
@@ -412,7 +371,7 @@
     <string name="relic_kicker">Relic</string>
     <string name="relic_description">Relic: %1$s and %2$s</string>
     <string name="relic_state_current">Current</string>
-    <string name="relic_state_corrected">Corrected — a source changed after you kept it</string>
+    <string name="relic_state_corrected">Corrected — what it was based on changed after you kept it</string>
     <string name="relic_state_doubted">You marked this as seeming wrong</string>
     <string name="relic_kept_on">Kept %1$s · checked by %2$s</string>
     <string name="relic_let_go">Let go</string>

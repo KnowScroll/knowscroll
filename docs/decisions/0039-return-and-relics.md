@@ -61,6 +61,11 @@ superseded". No Relic exists. Keep holds only Traces, which are keyed by asset.
    from its type (a place change is the chronicle's own line, whose evidence the atlas already opens). Keep lists Relics above Traces, each with its state.
    The web client is not in this slice.
 
+   **Amendment, 2026-09-24 (owner decision, #161):** readers never see a source. A found connection
+   opens its sentence and its evidence claims, with no source names, links or counts, and an away item
+   says that what a connection was based on changed rather than naming a source correction. Sources,
+   the validator, corrections and Relic provenance stay internal and unchanged.
+
 ## Not in this version
 
 Rooms and inhabitants (every resident step is a model call at room cost; a later slice can open a

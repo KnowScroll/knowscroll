@@ -6,8 +6,6 @@ sealed interface ScrollBlock {
 
     data class Heading(val text: String) : ScrollBlock
 
-    data class Citation(val label: String, val url: String) : ScrollBlock
-
     data class Image(val url: String, val alt: String, val caption: String) : ScrollBlock
 
     data class ComparisonSlider(val label: String, val left: String, val right: String) :
@@ -25,7 +23,7 @@ data class ScrollDocument(val blocks: List<ScrollBlock>) {
     }
 
     companion object {
-        /** Exact body retained: no markdown interpretation or fabricated source attribution. */
+        /** Exact body retained: no markdown interpretation, and never a source (#161). */
         fun fromBody(body: String) = ScrollDocument(listOf(ScrollBlock.Prose(body)))
     }
 }

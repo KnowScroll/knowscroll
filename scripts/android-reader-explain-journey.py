@@ -280,7 +280,7 @@ try:
     baseline = counts()
 
     # ---- Part A: "Why this appeared" (non-destructive; one shared live session) ----
-    instrument('ReaderExplainJourneyTest', 'explainSheetShowsDiscoveryReasonTruthAndSourcesNote')
+    instrument('ReaderExplainJourneyTest', 'explainSheetShowsDiscoveryReasonAndTruthButNoSource')
     phases['discovery'] = app_file('explain-discovery.json')
     app_file('explain-discovery.png')
 

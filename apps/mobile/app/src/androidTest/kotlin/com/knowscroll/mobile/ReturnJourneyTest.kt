@@ -133,10 +133,14 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         awaitAwayLine(line)
         screenshot("return-away.png")
 
-        // 4. Inspect it: the connection's sentence and the sources it was admitted on.
+        // 4. Inspect it: the connection's sentence and the claims it was admitted on -- never their sources (#161).
         compose.onAllNodesWithText(line).onFirst().performClick()
         compose.waitUntil(15_000) { shown(found.sentence) }
-        compose.onAllNodesWithText(found.evidence.first().sourceTitle, substring = true).onFirst().performScrollTo().assertExists()
+        compose.onAllNodesWithText(found.evidence.first().statement).onFirst().performScrollTo().assertExists()
+        for (claim in found.evidence) {
+            assertFalse(claim.sourceTitle, shown(claim.sourceTitle, substring = true))
+            assertFalse(claim.sourceUrl, shown(claim.sourceUrl, substring = true))
+        }
         screenshot("return-evidence.png")
 
         // 5. Keep it as a Relic.
@@ -190,12 +194,12 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         // shows the Relic corrected.
         comeBack()
         waitDescription("While you were away", 30_000)
-        awaitAwayLine("A source correction withdrew the connection between ${found.fromConcept.name} and ${found.toConcept.name}.")
+        awaitAwayLine("What it was based on changed, so the connection between ${found.fromConcept.name} and ${found.toConcept.name} was withdrawn.")
         awaitAwayLine(placeChange.line)
         screenshot("return-corrected-away.png")
         openKeep()
         waitDescription("Relic: ${found.fromConcept.name} and ${found.toConcept.name}")
-        waitText("Corrected — a source changed after you kept it")
+        waitText("Corrected — what it was based on changed after you kept it")
         screenshot("return-corrected-relic.png")
 
         File(instrumentation.targetContext.filesDir, "return-journey.json").writeText(

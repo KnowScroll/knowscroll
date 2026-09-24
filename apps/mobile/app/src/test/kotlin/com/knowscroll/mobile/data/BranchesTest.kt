@@ -50,7 +50,7 @@ class BranchesTest {
     fun anEmptyListCarriesItsReasonAndNothingElse() {
         val empty = parseEncounterBranches(response("", "no_admitted_bridge"))
         val shown = branchAvailabilityOf(empty, parent) as BranchAvailability.Empty
-        assertTrue(shown.reason.contains("No sourced connection"))
+        assertEquals("No connection leads on from this idea yet.", shown.reason)
         assertThrows(IllegalArgumentException::class.java) { parseEncounterBranches(response("", null)) }
         assertThrows(IllegalArgumentException::class.java) { parseEncounterBranches(response(branchJson, "no_admitted_bridge")) }
         assertThrows(IllegalArgumentException::class.java) { parseEncounterBranches(response("", "because_i_said_so")) }

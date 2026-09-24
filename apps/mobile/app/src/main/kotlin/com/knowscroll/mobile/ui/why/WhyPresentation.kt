@@ -41,5 +41,5 @@ internal fun correctionLabel(kind: String): String = when (kind) {
 
 internal fun correctedText(kind: String): String = when (kind) {
     "less_like_this" -> "You will see less of this route for 14 days. Nothing shared changed."
-    else -> "This connection is hidden for you. The sources are unchanged."
+    else -> "This connection is hidden for you. Nothing shared changed."
 }

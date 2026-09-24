@@ -95,7 +95,7 @@ class RealJourneyTest {
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
         waitText(expected.title)
         compose.waitUntil(10000){store().read()?.exposureId?.isNotEmpty()==true}
-        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasText("SOURCE"))
+        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasContentDescription("Get the next Scroll"))
         compose.waitUntil(10000){(store().read()?.readingPosition ?: 0)>0}
         val session=store().read() ?: error("Scroll retry envelope was not persisted")
         val exposureRetry=ApiClient().postExposure(ExposureRequest(session.decisionId,session.item.assetId,session.clientExposureId))

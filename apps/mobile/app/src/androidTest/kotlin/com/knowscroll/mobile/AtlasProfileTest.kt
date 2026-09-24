@@ -16,7 +16,9 @@ import org.junit.runner.RunWith
 
 /**
  * Real-time accessibility input, deliberately without Compose's test animation clock. Same 12
- * world-entry/Back cycles run on the original PR head and its spatial successor.
+ * world-entry/Back cycles run on the original PR head and its spatial successor. #161: the live
+ * system draws no world (a world is one source), so the cycles enter the authored Atlas's "Orbits"
+ * planet on the same spatial engine.
  */
 @android.annotation.TargetApi(33)
 @RunWith(AndroidJUnit4::class)
@@ -80,7 +82,8 @@ class AtlasProfileTest {
         fun isWorld(node: AccessibilityNodeInfo) =
             node.contentDescription?.let { it.startsWith("Explore world: ") && it.contains("Orbits") } == true
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            click { it.contentDescription == "Open the system view" }
+            click { it.text?.toString() == "Authored Atlas" }
+            click { it.contentDescription == "Enter authored system" }
             awaitNode(::isWorld)
             automation.waitForIdle(200, 10_000)
             val durations = Collections.synchronizedList(mutableListOf<Long>())
@@ -122,9 +125,7 @@ class AtlasProfileTest {
             try {
                 repeat(12) {
                     click(::isWorld)
-                    awaitNode {
-                        it.contentDescription == "Close world detail and return to the system"
-                    }
+                    awaitNode { it.contentDescription == "Enter continents on Orbits" }
                     automation.waitForIdle(200, 10_000)
                     instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
                     awaitNode(::isWorld)

@@ -31,6 +31,7 @@ import com.knowscroll.mobile.data.RelicsResponse
 import com.knowscroll.mobile.data.Trace
 import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.ui.UniverseState
+import com.knowscroll.mobile.ui.assertNoSourceShown
 import com.knowscroll.mobile.ui.system.AwayControls
 import com.knowscroll.mobile.ui.system.AwaySection
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
@@ -58,6 +59,10 @@ class ReturnSectionsTest {
     private val bridgeId = "22222222-2222-4222-8222-222222222222"
     private val relicId = "66666666-6666-4666-8666-666666666666"
 
+    private val sources = arrayOf(
+        "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/",
+    )
+
     private fun found(bridgeStatus: String = "admitted") = InquiryFound(
         bridgeId = bridgeId, bridgeStatus = bridgeStatus, relationType = "compares_mechanism", fromConcept = sun, toConcept = gravity,
         sentence = "The Sun keeps every planet on a closed path because its gravity bends each one toward it.",
@@ -75,7 +80,7 @@ class ReturnSectionsTest {
         at(7), inquiryId, listOf(InquiryPair(sun, gravity), InquiryPair(InquiryConcept("astro.orbit", "Orbit"), InquiryConcept("earth.tides", "Tides"))),
     )
     private val placeItem = AwayItem.PlaceChanged(at(6), "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444",
-        "foundation_withdrawn", "source_correction", "Gravity no longer holds up Tides: a source was corrected.")
+        "foundation_withdrawn", "source_correction", "Gravity no longer holds up the places around it.")
     private val revokedItem = AwayItem.ConnectionCorrected(at(5), bridgeId, "revoked", sun, gravity)
     private val supersededItem = AwayItem.ConnectionCorrected(at(4), bridgeId, "superseded", sun, gravity)
 
@@ -106,16 +111,18 @@ class ReturnSectionsTest {
         composeRule.onNodeWithContentDescription("While you were away").assertExists()
         shown("While you were away")
         shown("Found a connection: The Sun and Gravity.")
-        shown("Looked for a connection between The Sun and Gravity; it did not hold up: one side had no source of its own; it named the link without explaining how it works.")
-        shown("Looked for a connection between The Sun and Gravity, or Orbit and Tides; the sources offered none.")
+        shown("Looked for a connection between The Sun and Gravity; it did not hold up: one side had no evidence of its own; it named the link without explaining how it works.")
+        shown("Looked for a connection between The Sun and Gravity, or Orbit and Tides; none was found.")
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test
     fun correctionsAreSaidPlainlyAndAPlaceChangeUsesTheChroniclesOwnLine() {
         renderAway(controls(away(placeItem, revokedItem, supersededItem)))
-        shown("Gravity no longer holds up Tides: a source was corrected.")
-        shown("A source correction withdrew the connection between The Sun and Gravity.")
-        shown("A source correction replaced the connection between The Sun and Gravity.")
+        shown("Gravity no longer holds up the places around it.")
+        shown("What it was based on changed, so the connection between The Sun and Gravity was withdrawn.")
+        shown("What it was based on changed, so the connection between The Sun and Gravity was replaced.")
+        composeRule.assertNoSourceShown(*sources)
     }
 
     @Test
@@ -185,13 +192,13 @@ class ReturnSectionsTest {
     @Test
     fun atMostThreeLinesUntilTheReaderAsksForTheRest() {
         renderAway(controls(away(foundItem, refusedItem, nothingItem, placeItem, revokedItem)))
-        absent("Gravity no longer holds up Tides: a source was corrected.")
+        absent("Gravity no longer holds up the places around it.")
         shown("and 2 more")
         composeRule.onNodeWithContentDescription("Show everything that changed while you were away").assertHeightIsAtLeast(48.dp).performClick()
-        shown("Gravity no longer holds up Tides: a source was corrected.")
-        shown("A source correction withdrew the connection between The Sun and Gravity.")
+        shown("Gravity no longer holds up the places around it.")
+        shown("What it was based on changed, so the connection between The Sun and Gravity was withdrawn.")
         composeRule.onNodeWithContentDescription("Show fewer of the changes while you were away").performScrollTo().performClick()
-        absent("Gravity no longer holds up Tides: a source was corrected.")
+        absent("Gravity no longer holds up the places around it.")
     }
 
     @Test
@@ -224,14 +231,15 @@ class ReturnSectionsTest {
         composeRule.onNodeWithContentDescription("This connection seems wrong").performScrollTo().assertExists()
     }
 
+    /** #161: the sentence and each claim it rests on, never where a claim came from. */
     @Test
-    fun theSheetShowsTheSentenceAndItsSourcesAndOffersKeepAndSeemsWrong() {
+    fun theSheetShowsTheSentenceAndItsClaimsButNeverASourceAndOffersKeepAndSeemsWrong() {
         renderFound()
         shown("The Sun and Gravity")
         shown("The Sun keeps every planet on a closed path because its gravity bends each one toward it.")
         shown("The Sun's gravity holds Earth in its orbit.")
-        shown("NASA · Our Sun: Facts")
-        shown("NASA · What Is Gravity?")
+        shown("Gravity is a force that pulls masses together.")
+        composeRule.assertNoSourceShown(*sources)
         composeRule.onNodeWithContentDescription("Keep this connection").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         composeRule.onNodeWithContentDescription("This connection seems wrong").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf("keep:$bridgeId", "wrong:$bridgeId"), connectionActions)
@@ -257,7 +265,7 @@ class ReturnSectionsTest {
     @Test
     fun aWithdrawnConnectionIsShownNotOffered() {
         renderFound(found = found("revoked"))
-        shown("A later source correction withdrew this connection.")
+        shown("What this connection was based on changed, so it was withdrawn.")
         composeRule.onAllNodesWithContentDescription("Keep this connection").assertCountEquals(0)
         composeRule.onAllNodesWithContentDescription("This connection seems wrong").assertCountEquals(0)
     }
@@ -330,9 +338,9 @@ class ReturnSectionsTest {
         shown("Traces")
         composeRule.onAllNodesWithContentDescription("Relic: The Sun and Gravity").assertCountEquals(3)
         shown("Current")
-        shown("Corrected — a source changed after you kept it")
+        shown("Corrected — what it was based on changed after you kept it")
         shown("You marked this as seeming wrong")
-        composeRule.onAllNodes(hasStateDescription("Corrected — a source changed after you kept it")).assertCountEquals(1)
+        composeRule.onAllNodes(hasStateDescription("Corrected — what it was based on changed after you kept it")).assertCountEquals(1)
         shown("The pull you can't see")
         val relicsTop = composeRule.onNodeWithText("Relics").getUnclippedBoundsInRoot().top
         val tracesTop = composeRule.onNodeWithText("The pull you can't see").getUnclippedBoundsInRoot().top
@@ -369,8 +377,9 @@ class ReturnSectionsTest {
         renderKeep(relics(relic("corrected")))
         composeRule.onNodeWithContentDescription("Relic: The Sun and Gravity").assertHeightIsAtLeast(48.dp).performClick()
         composeRule.onNodeWithText("The Sun keeps every planet on a closed path because its gravity bends each one toward it.").assertExists()
-        composeRule.onNodeWithText("A later source correction withdrew this connection.").assertExists()
-        composeRule.onNodeWithText("NASA · Our Sun: Facts").assertExists()
+        composeRule.onNodeWithText("What this connection was based on changed, so it was withdrawn.").assertExists()
+        composeRule.onNodeWithText("The Sun's gravity holds Earth in its orbit.").assertExists()
+        composeRule.assertNoSourceShown(*sources)
         composeRule.onNodeWithContentDescription("Let go of this Relic").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf("let-go:$relicId"), letGo)
     }

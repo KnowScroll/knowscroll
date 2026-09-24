@@ -27,6 +27,7 @@ import com.knowscroll.mobile.data.InquiryConsent
 import com.knowscroll.mobile.data.InquiryEvidence
 import com.knowscroll.mobile.data.InquiryFound
 import com.knowscroll.mobile.data.InquiryPair
+import com.knowscroll.mobile.ui.assertNoSourceShown
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -108,7 +109,7 @@ class InquiriesSectionTest {
     @Test
     fun whatItCostsAndDoesIsSaidInOnePlainSentence() {
         render(loaded(consent(enabled = false)))
-        shown("Each look is one model request that sends only your places' names and their sourced claims, never your reading, and a connection is kept only if KnowScroll's own checks confirm it.")
+        shown("Each look is one model request that sends only your places' names and the claims behind them, never your reading, and a connection is kept only if KnowScroll's own checks confirm it.")
     }
 
     @Test
@@ -217,7 +218,7 @@ class InquiriesSectionTest {
     fun aFailedRefreshSaysSoAndKeepsTheList() {
         render(loaded(inquiries = listOf(inquiry("looking")), refreshFailed = "Could not refresh. What is shown may be out of date."))
         shown("Could not refresh. What is shown may be out of date.")
-        shown("Looking now for a sourced connection.")
+        shown("Looking now for a connection that holds up.")
     }
 
     // ---- Each status, in plain words ----
@@ -247,36 +248,39 @@ class InquiriesSectionTest {
         val tidesOrbit = InquiryPair(InquiryConcept("astro.orbit", "Orbit"), InquiryConcept("earth.tides", "Tides"))
         render(loaded(inquiries = listOf(inquiry("looking", pairs = listOf(sunGravity, tidesOrbit)))))
         shown("The Sun and Gravity · Orbit and Tides")
-        shown("Looking now for a sourced connection.")
+        shown("Looking now for a connection that holds up.")
     }
 
+    /** #161: each claim the bridge rests on, never where it came from. */
     @Test
-    fun foundShowsTheBridgeSentenceAndItsSources() {
+    fun foundShowsTheBridgeSentenceAndItsClaimsButNeverASource() {
         render(loaded(inquiries = listOf(inquiry("found", found = found()))))
         shown("Found a connection.")
         shown("The Sun keeps every planet on a closed path because its gravity bends each one toward it.")
         shown("The Sun's gravity holds Earth in its orbit.")
-        shown("NASA · Our Sun: Facts")
-        shown("NASA · What Is Gravity?")
-        composeRule.onAllNodesWithText("A later source correction withdrew this connection.").assertCountEquals(0)
+        shown("Gravity is a force that pulls masses together.")
+        composeRule.onAllNodesWithText("What this connection was based on changed, so it was withdrawn.").assertCountEquals(0)
+        composeRule.assertNoSourceShown(
+            "NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/", "NASA · What Is Gravity?", "https://spaceplace.nasa.gov/what-is-gravity/",
+        )
     }
 
     @Test
     fun aFoundConnectionALaterCorrectionWithdrewSaysSo() {
         render(loaded(inquiries = listOf(inquiry("found", found = found(bridgeStatus = "revoked")))))
-        shown("A later source correction withdrew this connection.")
+        shown("What this connection was based on changed, so it was withdrawn.")
     }
 
     @Test
     fun nothingFound() {
         render(loaded(inquiries = listOf(inquiry("nothing_found"))))
-        shown("Looked, and the sources offered no connection between these places.")
+        shown("Looked, and found no connection between these places.")
     }
 
     @Test
     fun didNotHoldUpTranslatesTheValidatorsReasons() {
         render(loaded(inquiries = listOf(inquiry("did_not_hold_up", listOf("from_side_unsupported", "mechanism_is_label")))))
-        shown("A connection was proposed but did not hold up: one side had no source of its own; it named the link without explaining how it works.")
+        shown("A connection was proposed but did not hold up: one side had no evidence of its own; it named the link without explaining how it works.")
     }
 
     @Test
@@ -300,7 +304,7 @@ class InquiriesSectionTest {
     @Test
     fun nothingToAsk() {
         render(loaded(inquiries = listOf(inquiry("nothing_to_ask", listOf("no_candidate_pair"), pairs = emptyList()))))
-        shown("Nothing to ask: no two of your places were left to ask about. A pair needs sources on both sides, and is skipped once connected or asked about.")
+        shown("Nothing to ask: no two of your places were left to ask about. A pair needs evidence on both sides, and is skipped once connected or asked about.")
     }
 
     @Test

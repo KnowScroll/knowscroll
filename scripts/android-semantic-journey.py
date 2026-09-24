@@ -56,9 +56,9 @@ JOURNEYS = {
                'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
     'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
             'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
-    # #97: each reader sheet stays open across Activity recreation, on the real stack.
-    'sheets': {'test': 'com.knowscroll.mobile.ReaderSheetRecreationTest', 'receipt': 'sources-sheet-recreate.json', 'tests': 3,
-               'captures': ('sources-sheet-recreate.png', 'explain-sheet-recreate.png', 'connections-sheet-recreate.png',
+    # #97: each reader sheet stays open across Activity recreation, on the real stack; #161: no reader shows a source.
+    'sheets': {'test': 'com.knowscroll.mobile.ReaderSheetRecreationTest', 'receipt': 'ask-sheet-recreate.json', 'tests': 3,
+               'captures': ('ask-sheet-recreate.png', 'explain-sheet-recreate.png', 'connections-sheet-recreate.png',
                             'explain-sheet-recreate.json', 'connections-sheet-recreate.json')},
     # #132: an authorized Ask answer through the worker, with the labelled fixture transport.
     'ask': {'test': 'com.knowscroll.mobile.AskAnswerJourneyTest', 'receipt': 'ask-answer.json',

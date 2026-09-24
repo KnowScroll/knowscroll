@@ -30,7 +30,7 @@ import org.robolectric.annotation.Config
  * `ScrollState.Reading` for the *same* assetId from the persisted store (`applyUniverse` ->
  * `show(cached)`). That is a second mount of `ReadingSheet` inside the SAME live composition (no
  * new Activity, no `Bundle` involved the second time) -- `ScrollScreen`'s `when (state)` removes
- * `ReadingSheet` (and therefore `sourcesOpen`/`explainOpen`/`connectionsOpen`, which used to live
+ * `ReadingSheet` (and therefore `explainOpen`/`connectionsOpen`/`askOpen`, which used to live
  * inside it) from composition while `state` isn't `Reading`. Compose's `SaveableStateRegistry`
  * only lets a `Bundle`-restored value be consumed once: the flags' first mount (right after the
  * real Activity recreation) already consumed the restored `true`, so the second mount moments
@@ -50,7 +50,7 @@ class ReaderSheetRemountTest {
         ScrollState.Reading(item(id), "e1", "ev1", KeepState.Idle, 0, DiscoveryState.Idle, ReaderOrigin.Discovery)
 
     @Test
-    fun sourcesSheetSurvivesAForegroundReconciliationReload() = runComposeUiTest {
+    fun askSheetSurvivesAForegroundReconciliationReload() = runComposeUiTest {
         val backing = mutableStateOf<ScrollState>(reading("asset-1"))
         setContent {
             KnowScrollTheme {
@@ -60,15 +60,15 @@ class ReaderSheetRemountTest {
                 )
             }
         }
-        onNodeWithContentDescription("Sources for this Scroll").performClick()
-        onNodeWithText("Sources and truth").assertIsDisplayed()
+        onNodeWithContentDescription("Ask about this Scroll").performClick()
+        onNodeWithText("Ask about this Scroll").assertIsDisplayed()
 
         backing.value = ScrollState.Loading
         waitForIdle()
         backing.value = reading("asset-1")
         waitForIdle()
 
-        onNodeWithText("Sources and truth").assertIsDisplayed()
+        onNodeWithText("Ask about this Scroll").assertIsDisplayed()
     }
 
     @Test
@@ -104,8 +104,8 @@ class ReaderSheetRemountTest {
                 )
             }
         }
-        onNodeWithContentDescription("Sources for this Scroll").performClick()
-        onNodeWithText("Sources and truth").assertIsDisplayed()
+        onNodeWithContentDescription("Why this Scroll appeared").performClick()
+        onNodeWithText("Why this appeared").assertIsDisplayed()
 
         // A genuine item change (e.g. "keep going") must still close a sheet left open on the
         // previous item -- the fix must not make the flags permanently sticky.
@@ -114,7 +114,7 @@ class ReaderSheetRemountTest {
         backing.value = reading("asset-2")
         waitForIdle()
 
-        onNodeWithText("Sources and truth").assertDoesNotExist()
+        onNodeWithText("Why this appeared").assertDoesNotExist()
     }
 
     @Test
@@ -128,8 +128,8 @@ class ReaderSheetRemountTest {
                 )
             }
         }
-        onNodeWithContentDescription("Sources for this Scroll").performClick()
-        onNodeWithText("Sources and truth").assertIsDisplayed()
+        onNodeWithContentDescription("Why this Scroll appeared").performClick()
+        onNodeWithText("Why this appeared").assertIsDisplayed()
 
         // Only a reload carries a sheet over; a failed opening in between does not.
         backing.value = ScrollState.Unavailable("Opening this Scroll was interrupted.", true)
@@ -137,6 +137,6 @@ class ReaderSheetRemountTest {
         backing.value = reading("asset-1")
         waitForIdle()
 
-        onNodeWithText("Sources and truth").assertDoesNotExist()
+        onNodeWithText("Why this appeared").assertDoesNotExist()
     }
 }

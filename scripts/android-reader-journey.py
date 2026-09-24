@@ -188,9 +188,9 @@ try:
     run(['adb', 'shell', 'pm', 'clear', package])
     run(['adb', 'shell', 'wm', 'size', '840x1680'])
     run(['adb', 'shell', 'settings', 'put', 'system', 'font_scale', '1.3'])
-    instrument('ReaderJourneyTest', 'readerSourcesThresholdAndRest')
+    instrument('ReaderJourneyTest', 'readerThresholdAndRest')
     navigation = app_file('reader-navigation.json')
-    for filename in ('reader-navigation.png', 'reader-source.png', 'reader-rest.png'):
+    for filename in ('reader-navigation.png', 'reader-why.png', 'reader-rest.png'):
         app_file(filename)
     navigation_counts = counts()
     if navigation_counts['exposure'] != 3 or navigation_counts['ledger'] != 3:
@@ -210,7 +210,7 @@ try:
     if after_retry['exposure'] - before_retry['exposure'] != 2:
         raise RuntimeError('Expected one initial and one deliberate retry exposure')
     run(['adb', 'shell', 'pm', 'clear', package])
-    instrument('ReaderPrivacyJourneyTest', 'sourceSheetClearOnForeground')
+    instrument('ReaderPrivacyJourneyTest', 'whySheetClearOnForeground')
     privacy = app_file('reader-privacy.json')
     app_file('reader-privacy.png')
     if counts() != {'exposure': 0, 'ledger': 0, 'job': 0, 'trace': 0}:

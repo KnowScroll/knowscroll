@@ -13,7 +13,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The same owner-visible hierarchy, with real source worlds and labelled authored geography. */
+/** The owner-visible system view: the reader's places (#161: never a world or its source), the
+ * honest station, pan and pinch, and an exact camera across recreation and Back. */
 @RunWith(AndroidJUnit4::class)
 class LivingAtlasJourneyTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
@@ -64,7 +65,7 @@ class LivingAtlasJourneyTest {
             waitFor("Enter Scroll")
             compose.onNodeWithContentDescription("Enter Scroll").performClick()
             compose.waitUntil(20_000) { store.read()?.exposureId?.isNotBlank() == true }
-            val worldTitle = store.read()!!.item.sourceTitle
+            val sourceTitle = store.read()!!.item.sourceTitle
             compose.onNodeWithContentDescription("Keep this Scroll").performClick()
             compose.waitUntil(20_000) { store.read()?.keepJobId?.isNotBlank() == true }
             compose.onNodeWithContentDescription("Return to the universe").performClick()
@@ -74,9 +75,9 @@ class LivingAtlasJourneyTest {
                 .performScrollTo()
                 .performClick()
             waitFor("Spatial atlas")
-            compose.waitUntil(20_000) {
-                compose.onAllNodesWithText("Worlds 1").fetchSemanticsNodes().isNotEmpty()
-            }
+            waitText("Places form when you come back to a subject on different days.")
+            compose.onAllNodesWithText(sourceTitle, substring = true).assertCountEquals(0)
+            compose.onAllNodesWithContentDescription("Explore world:", substring = true).assertCountEquals(0)
             capture("living-system.png")
             compose.onNodeWithContentDescription("Station").performClick()
             waitText("A place to pause.")
@@ -98,37 +99,16 @@ class LivingAtlasJourneyTest {
             }
             settle()
             val origin = pose()
-            compose.onNodeWithText("Worlds 1").performClick()
-            waitText("YOUR WORLDS")
-            capture("living-worlds.png")
-            // The fixture title comes from the accessible, source-backed selector.
-            compose.onNodeWithText(worldTitle).performClick()
-            settle()
-            compose.onNodeWithContentDescription("Enter continents on $worldTitle").performClick()
-            waitText("Continents & coastlines")
-            capture("living-continents.png")
-            val continents = pose()
-            settle()
-            compose
-                .onNodeWithContentDescription("Explore authored region: North coast")
-                .performClick()
-            waitText("North coast · local detail")
-            capture("living-local.png")
-            val local = pose()
             compose.activityRule.scenario.recreate()
-            waitText("North coast · local detail")
+            waitFor("Spatial atlas")
             settle()
-            assertEquals(local, pose())
-            back()
-            waitText("Continents & coastlines")
-            assertEquals(continents, pose())
-            back()
-            waitFor("Close world detail and return to the system")
-            back()
             assertEquals(origin, pose())
+            compose.onAllNodesWithText(sourceTitle, substring = true).assertCountEquals(0)
+            back()
+            waitFor("Open the system view")
             File(instrumentation.targetContext.filesDir, "living-atlas.json")
                 .writeText(
-                    """{"result":"passed","sourceWorld":true,"authoredGeography":true,"panPinch":true,"localRecreation":true,"exactCameraReturn":true,"stationHonest":true}"""
+                    """{"result":"passed","sourceShown":false,"panPinch":true,"exactCameraAcrossRecreation":true,"returnedToUniverse":true,"stationHonest":true}"""
                 )
         } catch (failure: Throwable) {
             runCatching { capture("living-failure.png") }

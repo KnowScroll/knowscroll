@@ -1,4 +1,4 @@
-"""Repeatable frame metrics for 12 world-entry/source/Back cycles, disposable demo and .journeytest only.
+"""Repeatable frame metrics for 12 authored-Atlas world-entry/Back cycles, disposable demo and .journeytest only.
 
 Run after sourcing scripts/env.sh. No provider calls, owner app changes, or owner history reset.
 The owner's running preview is the separate `.journey` app (#136): this runner never installs it,

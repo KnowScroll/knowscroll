@@ -49,15 +49,9 @@ class NativeSpatialJourneyTest {
         }
     }
 
-    private val worlds =
-        SemanticsMatcher("world") {
-            it.config
-                .getOrElse(SemanticsProperties.ContentDescription) { emptyList() }
-                .any { label -> label.startsWith("Explore world: ") }
-        }
-
+    /** #161: the Atlas draws the reader's places, never a world or the source a Scroll came from. */
     @Test
-    fun worldToRealReelAndBack() {
+    fun atlasToRealReelAndBack() {
         check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName))
         val frames = Collections.synchronizedList(mutableListOf<Long>())
         val thread = HandlerThread("native-frame-metrics").apply { start() }
@@ -79,7 +73,7 @@ class NativeSpatialJourneyTest {
             }
             waitDescription("Scroll reading content")
             compose.waitUntil(20_000) { store().read()?.exposureId?.isNotBlank() == true }
-            val originTitle = store().read()!!.item.sourceTitle
+            val sourceTitle = store().read()!!.item.sourceTitle
             compose.onNodeWithContentDescription("Return to the universe").performClick()
             waitDescription("Open the system view")
             compose
@@ -102,11 +96,8 @@ class NativeSpatialJourneyTest {
                     .onNodeWithContentDescription("Spatial atlas")
                     .fetchSemanticsNode()
                     .config[SemanticsProperties.StateDescription]
-            // The accessible list works even after the user pans a world off-screen.
-            compose.onNodeWithText("Worlds", substring = true).performClick()
-            compose.onNodeWithText(originTitle).performClick()
-            waitDescription("Close world detail and return to the system")
-            capture("spatial-world.png")
+            compose.onAllNodesWithText(sourceTitle, substring = true).assertCountEquals(0)
+            compose.onAllNodesWithContentDescription("Explore world:", substring = true).assertCountEquals(0)
             compose.onNodeWithText("Cable").performClick()
             waitDescription("Scroll reading content")
             compose.onNodeWithContentDescription("Cable Reel").performClick()
@@ -126,10 +117,7 @@ class NativeSpatialJourneyTest {
             }
             compose.onNodeWithText("Play").performClick()
             assertEquals(exposed, store().read()!!.clientExposureId)
-            compose.onNodeWithText("Sources & truth").performClick()
-            compose.onNodeWithText("Sources and truth").assertExists()
-            compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
-            waitDescription("Reel video")
+            compose.onAllNodesWithText("Sources", substring = true).assertCountEquals(0)
             compose.onNodeWithText("Continue →").performClick()
             compose.onNodeWithText("Back to Reel").performClick()
             waitDescription("Reel video")
@@ -143,10 +131,6 @@ class NativeSpatialJourneyTest {
             val verticalOutcome = if(store().read()?.item?.assetId != priorReel) "next-reel" else "library-exhausted"
             assertEquals("Reel", store().read()!!.item.kind)
             compose.onNodeWithText("‹ Return to origin").performClick()
-            waitDescription("Close world detail and return to the system")
-            compose
-                .onNodeWithContentDescription("Close world detail and return to the system")
-                .performClick()
             waitDescription("Spatial atlas")
             compose.waitUntil(10_000) {
                 compose
@@ -167,6 +151,7 @@ class NativeSpatialJourneyTest {
                         .put("pausedAcrossAuthorityRecheck", true)
                         .put("realVideoRendered", true)
                         .put("originCameraRestored", true)
+                        .put("sourceShown", false)
                         .put("frameCount", samples.size)
                         .put("p50Ms", samples[samples.size / 2] / 1e6)
                         .put("p95Ms", samples[(samples.size * .95).toInt()] / 1e6)

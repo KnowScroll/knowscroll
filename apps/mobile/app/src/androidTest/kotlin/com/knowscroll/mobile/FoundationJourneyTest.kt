@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.ui.system.holdsUpLine
+import com.knowscroll.mobile.ui.system.supportLine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -63,7 +64,7 @@ class FoundationJourneyTest : AtlasJourneySupport() {
         val gravity = recognisedAtlas.places.single { it.anchor.code == "physics.gravity" }
         val heldUp = gravity.foundation!!.holdsUp.map { id -> recognisedAtlas.places.single { it.placeId == id } }
         assertEquals(setOf("earth.tides", "astro.orbit", "astro.star.birth"), heldUp.map { it.anchor.code }.toSet())
-        assertTrue("every connection is sourced", gravity.foundation!!.relations.all { it.claim != null || it.bridge != null })
+        assertTrue("every connection rests on a claim or a bridge", gravity.foundation!!.relations.all { it.claim != null || it.bridge != null })
         val recognised = recognisedAtlas.chronicle.single { it.kind == "foundation_recognised" && it.placeId == gravity.placeId }
         assertEquals("substrate_neighbourhood", recognised.causalClass)
         val formed = recognisedAtlas.chronicle.single { it.kind == "place_formed" && it.placeId == gravity.placeId }
@@ -84,15 +85,18 @@ class FoundationJourneyTest : AtlasJourneySupport() {
         compose.waitUntil(10_000) { compose.onAllNodesWithText(holdsUp).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(holdsUp).performScrollTo()
         val tidesRelation = gravity.foundation!!.relations.first { it.to == tidesName }
-        val support = tidesRelation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: tidesRelation.bridge!!.mechanism
+        val support = supportLine(tidesRelation.claim, tidesRelation.bridge)!!
         compose.onAllNodesWithText(support).onFirst().performScrollTo().assertExists()
+        // #161: each claim, never where it came from.
+        for (claim in gravity.foundation!!.relations.mapNotNull { it.claim })
+            compose.onAllNodesWithText(claim.sourceTitle, substring = true).assertCountEquals(0)
         screenshot("foundation-sheet.png")
 
         compose.onNodeWithText(recognised.line).performScrollTo().performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("Recognised from 3 sourced connections to 3 of your places.").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("Recognised from 3 connections to 3 of your places.").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Recognised from 3 sourced connections to 3 of your places.").performScrollTo()
+        compose.onNodeWithText("Recognised from 3 connections to 3 of your places.").performScrollTo()
         screenshot("foundation-evidence.png")
 
         // Back on the map with Gravity selected: drawn with its glow, and it says so.
@@ -118,7 +122,7 @@ class FoundationJourneyTest : AtlasJourneySupport() {
         openList()
         compose.onNodeWithText("${gravity.scrolls.seen} of ${gravity.scrolls.total} Scrolls read · Foundation").assertDoesNotExist()
         compose.onNodeWithText(withdrawn.line).performScrollTo().performClick()
-        val withdrawnEvidence = "After you set a place aside, it no longer has enough sourced connections to your places."
+        val withdrawnEvidence = "After you set a place aside, it no longer has enough connections to your places."
         compose.waitUntil(10_000) { compose.onAllNodesWithText(withdrawnEvidence).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(withdrawnEvidence).performScrollTo()
         screenshot("foundation-withdrawn.png")

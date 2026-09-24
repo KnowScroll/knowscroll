@@ -142,7 +142,7 @@ async function assertAurorasLeft(r: Reader) {
   const item = (await away(r)).items.find(i => i.kind === 'place_changed');
   assert.ok(item && item.kind === 'place_changed', 'the change is away news');
   assert.deepEqual([item.change, item.placeId, item.cause, item.line],
-    ['sighting_retired', r.sightingId, 'source_correction', 'Auroras left the horizon: the source behind it changed.']);
+    ['sighting_retired', r.sightingId, 'source_correction', 'Auroras left the horizon: what it was based on changed.']);
   assert.equal((await pool.query('SELECT state FROM atlas_place WHERE id=$1', [r.planetId])).rows[0].state, 'live', 'the planet itself is untouched');
 }
 

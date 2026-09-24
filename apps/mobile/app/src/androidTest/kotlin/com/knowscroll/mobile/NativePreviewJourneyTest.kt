@@ -66,10 +66,6 @@ class NativePreviewJourneyTest {
                             "Universe",
                         ),
                     ),
-                    ScrollBlock.Citation(
-                        "Source: NASA orbits",
-                        "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
-                    ),
                     ScrollBlock.Image(
                         "https://preview.test/frame.png",
                         "Authorized video frame in native image block",

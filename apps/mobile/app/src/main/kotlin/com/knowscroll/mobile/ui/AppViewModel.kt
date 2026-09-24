@@ -59,9 +59,9 @@ sealed interface Screen {
     /** docs/product/ui-system.md sec.5b's Keep destination: a read-only view over the already
      * loaded universe's real Traces. No network fetch of its own -- see `openKeep()`. */
     data object Keep: Screen
-    /** docs/product/ui-system.md sec.5b/5c's system level (#116, ADR-0028/#113): a read-only view
-     * of the real, derived worlds/system geography. No network fetch of its own on entry into
-     * this sealed value -- see `enterSystem()`. */
+    /** docs/product/ui-system.md sec.5b/5c's system level (#116, ADR-0036): a read-only view of the
+     * reader's places. No network fetch of its own on entry into this sealed value -- see
+     * `enterSystem()`. */
     data object System: Screen
 }
 sealed interface UniverseState {
@@ -104,10 +104,10 @@ sealed interface HistoryClearState {
     data class SessionUnavailable(val message:String):HistoryClearState
 }
 
-/** ADR-0028/#113: a read-only view of the real, derived worlds/system geography (docs/product/
- * ui-system.md sec.5b/5c, #116). Mirrors the web lane's `SystemView` (`claude/116-system-view`'s
- * `apps/web/src/state/readerStore.ts`): never persisted across process death, unlike `ScrollState`
- * -- a fresh entry always re-reads `GET /v1/worlds` rather than risking a stale count. */
+/** Whether this universe has encountered anything yet, read from `GET /v1/worlds` (ADR-0028/#113).
+ * #161: a world is one source, so Android only tells from it whether anything was encountered; the
+ * System screen draws the reader's places ([AtlasState]) and never a world. Never persisted across
+ * process death, unlike `ScrollState`: a fresh entry always re-reads it. */
 sealed interface SystemState {
     data object Idle:SystemState
     data object Loading:SystemState
@@ -116,9 +116,9 @@ sealed interface SystemState {
 }
 
 /** #134: the reader's live places (ADR-0036, `GET /v1/atlas`). Loaded alongside [SystemState] but
- * independent of it -- a failure here never blocks the System screen, which falls back to Sources
- * (`ui/system/AtlasPresentation.kt`'s `defaultAtlasLayer`). Never restored across process death,
- * same as [SystemState]: a fresh entry always re-reads the atlas. */
+ * independent of it -- a failure here shows its own error and Retry in place of the map, never
+ * failing the whole System screen. Never restored across process death, same as [SystemState]: a
+ * fresh entry always re-reads the atlas. */
 sealed interface AtlasState {
     data object Idle:AtlasState
     data object Loading:AtlasState
@@ -337,7 +337,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 when {
                     e is ApiException.Server && e.statusCode==409 -> {
                         discardRevisit()
-                        _scroll.value=ScrollState.Unavailable("This saved Scroll's source has changed and cannot be reopened.",retryable=false)
+                        _scroll.value=ScrollState.Unavailable("This saved Scroll has changed and cannot be reopened.",retryable=false)
                     }
                     e is ApiException.Protocol || e is ApiException.Server && e.statusCode in setOf(400,404,422) -> {
                         discardRevisit()
@@ -931,10 +931,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         reconcilePrivacy(restoreStoredScroll=true)
     }
 
-    /** The system level (#116, ADR-0028/#113): reads the real, derived worlds/system geography.
-     * Read-only -- it creates no event, holds no private per-Scroll session, and (mirroring the
-     * web lane's `enterSystem()`) is never restored from storage on process death: a fresh entry
-     * always re-reads `GET /v1/worlds` rather than risking a stale count. */
+    /** The system level (#116): `GET /v1/worlds` only decides whether anything has been encountered
+     * yet; the places come from the Atlas. Read-only -- it creates no event, holds no private
+     * per-Scroll session, and is never restored from storage on process death: a fresh entry always
+     * re-reads it. */
     fun enterSystem(){
         if(busy || reconciling || !ready)return
         busy=true
@@ -963,7 +963,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     /** #134: the reader's live places, independent of [enterSystem]'s worlds fetch above -- a
-     * failure here leaves the System screen usable via Sources, never failing the whole screen. */
+     * failure here shows its own error and Retry in place of the map, never failing the whole screen. */
     private fun refreshAtlas(version:Long,epoch:Long,universeId:String){
         // #134 review I4: keep showing the last loaded atlas while this same-scope refresh is in
         // flight -- only Loading when nothing is loaded yet. A purge/scope change already resets

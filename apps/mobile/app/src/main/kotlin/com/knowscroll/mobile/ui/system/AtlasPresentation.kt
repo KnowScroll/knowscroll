@@ -2,24 +2,21 @@ package com.knowscroll.mobile.ui.system
 
 import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.AtlasBasis
+import com.knowscroll.mobile.data.AtlasBridgeSupport
 import com.knowscroll.mobile.data.AtlasChronicleEntry
+import com.knowscroll.mobile.data.AtlasClaim
 import com.knowscroll.mobile.data.AtlasDelta
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
 
-/**
+/*
  * #134 — pure mapping from the reader's places (ADR-0036) to the existing `AtlasMarker`/region
  * seams `SpatialAtlas` already renders, and the copy shown for a place's basis/evidence. Kept out
  * of the ViewModel and out of Compose so the mapping, wording and conflict rules are unit-testable
  * without a live ViewModel or a running server -- mirrors `ui/branch/BranchPresentation.kt`.
+ * #161: the wording never names or points at a source; the claim itself is what the reader sees.
  */
-enum class AtlasLayer { Places, Sources }
-
-/** Places is the default once the reader has at least one live planet; otherwise Sources, with a
- * quiet explanation of when a place would first appear. */
-fun defaultAtlasLayer(places: List<AtlasPlace>): AtlasLayer =
-    if (places.any { it.kind == "planet" }) AtlasLayer.Places else AtlasLayer.Sources
 
 fun placeMarkerDetail(place: AtlasPlace): String {
     val total = place.scrolls.total
@@ -58,6 +55,9 @@ internal val ATLAS_RELATION_VERB: Map<String, String> = mapOf(
 /** "Gravity explains Star formation" -- from the sighting's own basis, already resolved to names. */
 fun basisSentence(basis: AtlasBasis): String = "${basis.from} ${ATLAS_RELATION_VERB.getValue(basis.kind)} ${basis.to}"
 
+/** What a connection rests on: its claim, quoted, or the admitted bridge's mechanism. */
+fun supportLine(claim: AtlasClaim?, bridge: AtlasBridgeSupport?): String? = claim?.let { "\"${it.text}\"" } ?: bridge?.mechanism
+
 /** The sentence for a typed relation between two live places, from [thisPlaceId]'s own side. */
 fun placeRelationSentence(relation: AtlasRelation, thisPlaceId: String, places: List<AtlasPlace>): String? {
     val name = { id: String -> places.firstOrNull { it.placeId == id }?.anchor?.name }
@@ -83,10 +83,8 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
         val account = delta.evidence["account"] as? Map<*, *>
         val episodes = (account?.get("episodes") as? Number)?.toInt()
         val days = (account?.get("daysActive") as? Number)?.toInt()
-        val families = (account?.get("sourceFamilies") as? Number)?.toInt()
-        if (episodes != null && days != null && families != null)
-            "Formed from $episodes reading${if (episodes == 1) "" else "s"} across $days day${if (days == 1) "" else "s"}" +
-                " and $families source famil${if (families == 1) "y" else "ies"}."
+        if (episodes != null && days != null)
+            "Formed from $episodes reading${if (episodes == 1) "" else "s"} across $days day${if (days == 1) "" else "s"}."
         else "Formed from your reading."
     }
     "sighting_appeared" -> {
@@ -95,14 +93,14 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
         val support = delta.evidence["relationSupport"] as? Map<*, *>
         val claim = support?.get("claim") as? Map<*, *>
         val bridge = support?.get("bridge") as? Map<*, *>
-        val claimText = (claim?.get("text") as? String)?.let { text -> "\"$text\" — ${claim["sourceTitle"]}" }
+        val claimText = (claim?.get("text") as? String)?.let { text -> "\"$text\"" }
         val supportText = claimText ?: (bridge?.get("mechanism") as? String)
         listOfNotNull(verb?.let { "A connection that $it." }, supportText).joinToString(" ").ifBlank { "A neighbouring idea." }
     }
     // #134 review 2: a sighting the reader came across retires as their own exploration -- the
     // server's evidence names what happened (`evidence.met`), so "no longer active" would be false.
     "sighting_retired" -> when (delta.causalClass) {
-        "source_correction" -> "The source behind this connection changed."
+        "source_correction" -> "What this connection was based on changed."
         "personal_exploration" -> {
             val met = delta.evidence["met"] as? Map<*, *>
             val episodes = (met?.get("episodes") as? Number)?.toInt()
@@ -116,22 +114,22 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
     "foundation_recognised" -> {
         val relations = (delta.evidence["relations"] as? List<*>)?.size
         val holdsUp = (delta.evidence["holdsUp"] as? List<*>)?.size
-        val connections = relations?.let { "$it sourced connection${if (it == 1) "" else "s"}" }
+        val connections = relations?.let { "$it connection${if (it == 1) "" else "s"}" }
         val places = holdsUp?.let { "$it of your places" }
         // Before and after both load-bearing: its connections changed while it stood (ADR-0037).
         val revised = delta.before?.get("loadBearing") == true
         when {
-            connections == null || places == null -> "Recognised from sourced connections to your places."
+            connections == null || places == null -> "Recognised from its connections to your places."
             !revised -> "Recognised from $connections to $places."
             delta.causalClass == "reader_correction" -> "After you set a place aside, it still stands on $connections to $places."
-            delta.causalClass == "source_correction" -> "A source changed; it now stands on $connections to $places."
+            delta.causalClass == "source_correction" -> "What it was based on changed; it now stands on $connections to $places."
             else -> "It now holds up $places, through $connections."
         }
     }
     "foundation_withdrawn" -> when {
         delta.evidence["setAside"] == true -> "You set this place aside, so it no longer holds anything up."
-        delta.causalClass == "source_correction" -> "A source behind one of its connections changed."
-        else -> "After you set a place aside, it no longer has enough sourced connections to your places."
+        delta.causalClass == "source_correction" -> "What one of its connections was based on changed."
+        else -> "After you set a place aside, it no longer has enough connections to your places."
     }
     else -> "This place changed."
 }
@@ -191,8 +189,7 @@ tailrec fun topmostAncestor(places: List<AtlasPlace>, placeId: String): String {
     return topmostAncestor(places, parentId)
 }
 
-/** "$N PLACES · $M SIGHTINGS" -- Places' own subtitle, a straight count of the live atlas, never
- * the Sources subtitle's world/Scroll counts (review M2: the two layers show different data). */
+/** "$N PLACES · $M SIGHTINGS" -- the system's subtitle, a straight count of the live atlas. */
 fun placesSubtitle(places: List<AtlasPlace>): String {
     val liveCount = places.count { it.kind == "planet" || it.kind == "region" }
     val sightingCount = places.count { it.kind == "sighting" }

@@ -102,9 +102,7 @@ internal fun LivingSky(
             markers.associate {
                 it.id to
                     measurer.measure(
-                        AnnotatedString(
-                            it.title.removePrefix("NASA - ").substringBefore(" · ").take(22)
-                        ),
+                        AnnotatedString(it.title.take(22)),
                         titleStyle.copy(color = Cosmos.Cream),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
