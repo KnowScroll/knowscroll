@@ -67,14 +67,18 @@ async function keep(r: Reader, exposureId: string, assetId: string): Promise<{ e
   return response.json();
 }
 
-/** Expose and keep exactly `assetId` through a recorded single-item decision, so nothing else
- * this reader has seen depends on the universe-salted tie-break of a cold-start slate. */
-async function keepDirect(r: Reader, assetId: string): Promise<{ keepEventId: string }> {
+/** Expose exactly `assetId` through a recorded single-item decision, so nothing else this reader
+ * has seen depends on the universe-salted tie-break of a cold-start slate. */
+async function exposeDirect(r: Reader, assetId: string): Promise<{ exposureId: string; eventId: string }> {
   const asset = (await pool.query(`SELECT id AS "assetId", revision, kind, title, summary, body, source_title AS "sourceTitle", source_url AS "sourceUrl", truth_state AS "truthState" FROM asset WHERE id=$1`, [assetId])).rows[0];
   const decisionId = randomUUID();
   await pool.query(`INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch) VALUES($1,$2,0,'semantic-test-fixture',$3::jsonb,0)`,
     [decisionId, r.universeId, JSON.stringify([asset])]);
-  const exposure = await expose(r, decisionId, assetId);
+  return expose(r, decisionId, assetId);
+}
+
+async function keepDirect(r: Reader, assetId: string): Promise<{ keepEventId: string }> {
+  const exposure = await exposeDirect(r, assetId);
   return { keepEventId: (await keep(r, exposure.exposureId, assetId)).eventId };
 }
 
@@ -157,6 +161,34 @@ test('a keep updates the private model in the same request, and the next encount
   const bridge = (await pool.query(
     `SELECT dc.bridge_id FROM decision_candidate dc WHERE dc.decision_id=$1 AND dc.asset_id=$2 AND dc.rank=1`, [next.decisionId, head.assetId])).rows[0];
   assert.ok(bridge.bridge_id, 'the served bridge is recorded on the candidate');
+});
+
+test('an Ask opens a revisable question that cites it, and the next composition continues from it', async () => {
+  const r = await reader();
+  const f = await substrate();
+  const exposure = await exposeDirect(r, f.assets.gravity);
+  const asked = await app.inject({ method: 'POST', url: '/v1/asks', headers: headers(r.token),
+    payload: { clientAskId: randomUUID(), exposureId: exposure.exposureId, expectedPrivacyEpoch: 0, question: 'Why does the pull weaken with distance?' } });
+  assert.ok(asked.statusCode === 201 || asked.statusCode === 202, asked.body);
+  const askEventId = asked.json().eventId as string;
+
+  const hypothesis = (await pool.query(
+    `SELECT h.kind, h.status, h.permitted_uses, h.evidence, h.alternatives, h.proposer_kind FROM personal_hypothesis h JOIN concept c ON c.id=h.concept_id
+     WHERE h.universe_id=$1 AND c.code=$2`, [r.universeId, f.codes.gravity])).rows;
+  const question = hypothesis.find(h => h.kind === 'open_question');
+  assert.ok(question, 'the Ask opened a question hypothesis in the same request');
+  assert.equal(question.status, 'active');
+  assert.equal(question.proposer_kind, 'rule');
+  assert.deepEqual(question.permitted_uses, ['composer.continuity'], 'a question may ask for continuity, never shape ranking');
+  assert.deepEqual(question.evidence, [{ kind: 'ask', ref: askEventId }]);
+  assert.ok(question.alternatives.length >= 1, 'a competing explanation is stated');
+  assert.ok(!hypothesis.some(h => h.kind === 'direction'), 'one Ask is not a direction');
+
+  const next = await feed(r);
+  const continued = (await pool.query(
+    `SELECT dc.gate FROM decision_candidate dc JOIN concept c ON c.id=dc.concept_id
+     WHERE dc.decision_id=$1 AND dc.explanation_key='v3_question' AND c.code=$2`, [next.decisionId, f.codes.gravity])).rows;
+  assert.ok(continued.length >= 1, 'the composition considered continuing the open question');
 });
 
 test('"less like this" suppresses that route for this reader only; retries replay; misuse is refused', async () => {
