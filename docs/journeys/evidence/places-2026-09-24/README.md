@@ -12,9 +12,9 @@ refuses a place change without one.
 
 | Proof | How | Result |
 | --- | --- | --- |
-| Pure Cartographer | `tests/cartographer-core.test.ts` (11, 4 mutants killed) | planet vs region within two hops, shallow first; only anchored accounts; rejected anchors never return; sightings capped per place (existing ones count), ranked by distinct neighbours, claim before bridge, never already shown; a sighting the reader then reads retires ("You reached …"); promotion; a revoked relation retires its sighting; deterministic |
+| Pure Cartographer | `tests/cartographer-core.test.ts` (12, 4 mutants killed) | planet vs region within two hops, shallow first; only anchored accounts; rejected anchors never return; sightings capped per place (existing ones count), ranked by distinct neighbours, claim before bridge, never already shown; a sighting the reader then reads retires ("You came across …"); promotion; a revoked relation retires its sighting; deterministic |
 | Database + API | `tests/atlas-places.test.ts` (6) | gravity anchored over two days forms a planet with its account as evidence and a claim-backed sighting; another universe sees nothing; setting a place aside retires its sightings, never re-forms, is refused while paused or on a stale epoch; a source correction retires a sighting (`source_correction`); Clear erases and export carries places and deltas; the schema refuses a place without a delta, an edited delta, and a change to a settled place. Every response is parsed by the strict contract (`packages/contracts/src/atlas.ts`) |
-| Android | 178 unit + Robolectric tests, lint | strict parsing, presentation, Places/Sources choice (and Sources' selection surviving a return), place sheet with its sightings' lines, a list of every live place at any depth plus recent changes, set-aside confirmation, ≥48 dp targets |
+| Android | 183 unit + Robolectric tests, lint | strict parsing, presentation, Places/Sources choice (and Sources' selection surviving a return), place sheet with its sightings' lines, a list of every live place at any depth plus recent changes, set-aside confirmation, ≥48 dp targets |
 | Emulator | `KS_SEMANTIC_JOURNEY=places` (`receipt.json`, `instrumentation.txt`, screenshots) | see below |
 
 ## The device journey
@@ -42,7 +42,8 @@ explains Star formation."
 A fresh-context review (PR #146) found that reading a sighting's own subject made the Android
 Places layer disappear (the server kept the sighting live with attention, which the strict parser
 rightly refused), plus a per-refresh sighting cap, missing chronicle lines, invisible nested regions
-and a selection reset; all were fixed test-first before merge.
+and a selection reset; all were fixed test-first before merge. A second, verification review
+found nothing blocking; its important findings were fixed too, and this run is from that head.
 
 First device runs, retained: (1) the test scrolled the content for Keep, which lives in the fixed
 toolbar; (2) it walked past one target while looking for the other, and a trip never re-offers what

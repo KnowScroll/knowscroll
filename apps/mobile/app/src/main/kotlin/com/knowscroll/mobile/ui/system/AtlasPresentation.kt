@@ -99,8 +99,18 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
         val supportText = claimText ?: (bridge?.get("mechanism") as? String)
         listOfNotNull(verb?.let { "A connection that $it." }, supportText).joinToString(" ").ifBlank { "A neighbouring idea." }
     }
-    "sighting_retired" ->
-        if (delta.causalClass == "source_correction") "The source behind this connection changed." else "This connection is no longer active."
+    // #134 review 2: a sighting the reader came across retires as their own exploration -- the
+    // server's evidence names what happened (`evidence.met`), so "no longer active" would be false.
+    "sighting_retired" -> when (delta.causalClass) {
+        "source_correction" -> "The source behind this connection changed."
+        "personal_exploration" -> {
+            val met = delta.evidence["met"] as? Map<*, *>
+            val episodes = (met?.get("episodes") as? Number)?.toInt()
+            if (episodes != null) "You came across it ($episodes reading${if (episodes == 1) "" else "s"}), so it is no longer on the horizon."
+            else "You came across it, so it is no longer on the horizon."
+        }
+        else -> "This connection is no longer active."
+    }
     "place_rejected" -> "You set this place aside."
     "place_released" -> "Its planet was set aside, so this region now stands on its own."
     else -> "This place changed."
@@ -133,7 +143,10 @@ fun rejectPlaceConflict(error: ApiException.Server): RejectPlaceConflict? {
 data class PlaceListRow(val placeId: String, val kind: String, val name: String, val depth: Int, val detail: String)
 
 fun placeListRows(places: List<AtlasPlace>): List<PlaceListRow> {
-    val byParent = places.groupBy { it.parentPlaceId }
+    // Review 3: a place whose declared parent is not itself in this payload (e.g. paged, or a
+    // stale/foreign reference) is never silently dropped -- it is walked as a top-level row instead.
+    val ids = places.mapTo(mutableSetOf()) { it.placeId }
+    val byParent = places.groupBy { if (it.parentPlaceId != null && it.parentPlaceId in ids) it.parentPlaceId else null }
     val rows = mutableListOf<PlaceListRow>()
     fun walk(parentId: String?, depth: Int) {
         byParent[parentId].orEmpty().sortedBy { it.anchor.name }.forEach { p ->

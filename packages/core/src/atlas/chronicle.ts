@@ -27,7 +27,7 @@ export function chronicleLine(d: {
       return d.relation ? `${d.name} appeared near ${d.parentName ?? 'your places'}: ${relationPhrase(d.relation)}.` : `${d.name} appeared on the horizon.`;
     case 'sighting_retired':
       if (d.causalClass === 'source_correction') return `${d.name} left the horizon: the source behind it changed.`;
-      if (d.causalClass === 'personal_exploration') return `You reached ${d.name}.`;
+      if (d.causalClass === 'personal_exploration') return `You came across ${d.name}.`;
       return `${d.name} left the horizon.`;
     case 'place_rejected':
       return `You set ${d.name} aside.`;

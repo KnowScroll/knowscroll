@@ -16,9 +16,12 @@ Scroll counts, sightings with their claims, chronicle lines that open their evid
 aside". Authored geography stays for Sources and the labelled preview.
 
 A fresh-context review found 1 blocking defect (a sighting whose subject the reader then read stayed
-live with attention; Android refused the atlas) and 4 important ones; all fixed test-first.
-Verification (merged with main at `95f7481`): pure 11 (4 mutants), HTTP 6, backend 831+13, web 87,
-Android 178 units + lint, and the emulator places journey with SQL lineage; see the
+live with attention; Android refused the atlas) and 4 important ones; all fixed test-first. A
+second, verification review found nothing blocking; its important findings (a false empty Places
+while loading or after a failure, claim-backed sightings first overall, an anchored sighting
+promoted before a revoked basis retires it, honest wording) were fixed test-first as well.
+Verification on `bfd9843` (main merged at `95f7481`): pure 12 (4 mutants), HTTP 6, backend 832+13,
+web 87, Android 183 units + lint, and the emulator places journey with SQL lineage; see the
 [evidence](journeys/evidence/places-2026-09-24/README.md). Preview restored; no provider call.
 
 ## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)

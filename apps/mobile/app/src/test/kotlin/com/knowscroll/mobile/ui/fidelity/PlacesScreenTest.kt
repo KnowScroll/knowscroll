@@ -363,4 +363,85 @@ class PlacesScreenTest {
         // No re-selection needed: the world and its open sheet are exactly as they were.
         composeRule.onNodeWithText("3 of 3 Scrolls encountered").assertExists()
     }
+
+    /** Review I4 (AppViewModel's own fix): a same-scope refresh -- e.g. on return from the reader --
+     * delivers `Loaded -> Loaded` directly, never a `Loading` in between for data that is already
+     * there. This pins that `SystemScreen` handles that correctly: the selection and its open sheet
+     * survive, and the sheet reflects the refreshed data, with no re-selection. */
+    @Test
+    fun aRefreshDeliveringLoadedDirectlyKeepsTheSelectedPlaceAndItsSheet() {
+        var atlasState by mutableStateOf<AtlasState>(AtlasState.Loaded(atlas))
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = loadedWorlds, atlasState = atlasState,
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
+                )
+            }
+        }
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onNodeWithText("Gravity description").assertExists()
+        composeRule.onNodeWithText("2 of 3 Scrolls read").assertExists()
+
+        val refreshedPlanet = planet.copy(scrolls = AtlasScrollCounts(total = 4, seen = 4))
+        atlasState = AtlasState.Loaded(atlas.copy(places = listOf(refreshedPlanet, region, sighting, otherPlanet)))
+        composeRule.waitForIdle()
+
+        // No re-selection needed, and the sheet already reflects the refreshed data.
+        composeRule.onNodeWithText("Gravity description").assertExists()
+        composeRule.onNodeWithText("4 of 4 Scrolls read").assertExists()
+    }
+
+    /** Review I4: while a first load/refresh is in flight or has failed, the Places map is never
+     * mounted with empty data (no false "0 PLACES"), and a failure shows the real error with Retry
+     * -- reusing this screen's own [onRetry]. The layer stays Places (cached from the earlier
+     * Loaded response), never silently falling back to Sources. */
+    @Test
+    fun aFailedAtlasFetchShowsTheErrorAndRetryNeverAFalseZeroPlaces() {
+        var atlasState by mutableStateOf<AtlasState>(AtlasState.Loaded(atlas))
+        var retried = false
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = loadedWorlds, atlasState = atlasState,
+                    onReturn = {}, onRetry = { retried = true }, onEnterScroll = {}, onOpenKeep = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("3 PLACES · 1 SIGHTING").assertExists()
+
+        atlasState = AtlasState.Unavailable("Connection interrupted. Please retry; your action keeps the same identity.")
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Connection interrupted. Please retry; your action keeps the same identity.").assertExists()
+        composeRule.onAllNodesWithText("PLACES", substring = true).assertCountEquals(0)
+        composeRule.onNodeWithContentDescription("Retry loading your places").performClick()
+        assertEquals(true, retried)
+    }
+
+    @Test
+    fun whileLoadingThePlacesMapIsNotMountedAndNoFalseCountShows() {
+        var atlasState by mutableStateOf<AtlasState>(AtlasState.Loaded(atlas))
+        composeRule.setContent {
+            KnowScrollTheme {
+                SystemScreen(
+                    state = loadedWorlds, atlasState = atlasState,
+                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("3 PLACES · 1 SIGHTING").assertExists()
+
+        atlasState = AtlasState.Loading
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Loading your places…").assertExists()
+        composeRule.onAllNodesWithText("PLACES", substring = true).assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription("Explore place: Gravity", substring = true).assertCountEquals(0)
+    }
 }
