@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { bridgeProposalPayload, sourceCorrectionInput, type SourceCorrectionInput } from '../../../contracts/src/semantic.ts';
 import { validateBridgeProposal } from '../../../core/src/semantic/bridge-validator.ts';
+import { cancelRequestsForCorrectedMaterial } from '../inventory/supply.ts';
 import { loadBridgeReadSet, lockSubstrateExclusive } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
 
@@ -31,8 +32,8 @@ export async function correctSourceSnapshot(client: pg.PoolClient, raw: unknown,
   const input: SourceCorrectionInput = parsed.data;
   await lockSubstrateExclusive(client);
 
-  const snapshot = (await client.query<{ id: string }>(
-    `SELECT ss.id FROM source_snapshot ss JOIN semantic_source s ON s.id = ss.source_id WHERE s.key=$1 AND ss.status='current'`,
+  const snapshot = (await client.query<{ id: string; url: string }>(
+    `SELECT ss.id, s.url FROM source_snapshot ss JOIN semantic_source s ON s.id = ss.source_id WHERE s.key=$1 AND ss.status='current'`,
     [input.sourceKey],
   )).rows[0];
   if (!snapshot) throw new SemanticNotFound(`source ${input.sourceKey} has no current snapshot`);
@@ -52,6 +53,9 @@ export async function correctSourceSnapshot(client: pg.PoolClient, raw: unknown,
     `INSERT INTO semantic_correction(id,target_kind,target_id,action,reason,actor_kind) VALUES($1,'source_snapshot',$2,$3,$4,$5)`,
     [correctionId, snapshot.id, input.action, input.reason, actor],
   );
+
+  // #164 (ADR-0046 §5): shared supply not yet sent from this page is cancelled; nothing private is touched here.
+  await cancelRequestsForCorrectedMaterial(client, snapshot.url, input.action);
 
   const effects: CorrectionEffect[] = [];
   const record = async (effect: CorrectionEffect) => {

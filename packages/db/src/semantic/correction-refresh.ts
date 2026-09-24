@@ -14,9 +14,11 @@ import type pg from 'pg';
 import { lockUniverse, transaction } from '../index.ts';
 import { CORRECTIONS_COMMITTED, refreshPersonalModel, type PersonalModelResult } from './personal-model.ts';
 
-// Recording on, something on the map, and a correction committed since the last refresh (or none recorded yet).
+// Recording on, something a correction can change (a place on the map, or a Scroll bound to the
+// reader's need, ADR-0046 §5), and a correction committed since the last refresh (or none recorded yet).
 const BEHIND = `u.recording_paused_at IS NULL
-  AND EXISTS (SELECT 1 FROM atlas_place p WHERE p.universe_id = u.id AND p.state = 'live')
+  AND (EXISTS (SELECT 1 FROM atlas_place p WHERE p.universe_id = u.id AND p.state = 'live')
+    OR EXISTS (SELECT 1 FROM encounter_binding b WHERE b.universe_id = u.id AND b.status = 'active'))
   AND (c.universe_id IS NULL OR c.corrections_seen < ${CORRECTIONS_COMMITTED})`;
 
 /** Up to `limit` behind universes, longest-behind first: never recorded, then the oldest refresh.

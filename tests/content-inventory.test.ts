@@ -4,10 +4,11 @@
  * feed that observed it records the demand and the Quartermaster funds a shared request; the worker
  * writes and admits a Scroll; the reader is served it first, with the binding as evidence. A second
  * universe joins the same request; pause, Clear and Reset cancel only their own waiter; a funded
- * request holds its route's unit, so another need is told `no_budget`; a spent budget, a lost
- * transport and two refusals each end in `cannot_meet` with their reason; a continuation opened or
- * offered into a concept with nothing unseen is a need, and its binding keeps the origin. No
- * inventory response names a source. Every page here is a hand-written fixture.
+ * request holds its route's unit, so another need is told `no_budget`; a real source correction
+ * withdraws the binding, reopens the demand and is away news; a spent budget, a lost transport and
+ * two refusals each end in `cannot_meet` with their reason; a continuation opened or offered into a
+ * concept with nothing unseen is a need, and its binding keeps the origin. No inventory response
+ * names a source. Every page here is a hand-written fixture.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,9 +19,13 @@ import { createMiniMaxAnswerTransport } from '../apps/worker/src/providers/minim
 import { createFixtureScrollTransport, type ScrollFixtureMode } from '../apps/worker/src/providers/scroll-fixture.ts';
 import { runSupplyPass, scrollTransportsFromEnvironment } from '../apps/worker/src/scrolls/supply-worker.ts';
 import { atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
+import { awayResponse } from '../packages/contracts/src/away.ts';
 import { inventoryResponse } from '../packages/contracts/src/inventory.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
+import { loadBoundScrolls } from '../packages/db/src/inventory/read.ts';
 import { admitRequest, installMaterialCandidates, installScrollWritingRoute } from '../packages/db/src/inventory/supply.ts';
+import { catchUpUniverse } from '../packages/db/src/semantic/correction-refresh.ts';
+import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { fixtureNetwork, makeInventoryFixture, materialPage, readTidesInFull, type InventoryFixture } from './helpers/inventory-fixture.ts';
 import { readScroll } from './helpers/reading.ts';
 
@@ -255,6 +260,57 @@ test('an offered continuation into a concept with nothing unseen is a need; a fu
   // Sent, the unit is consumed.
   assert.equal((await s.pass()).kind, 'done');
   assert.deepEqual(await bucketOf(f), { reserved: 0, consumed: 1 });
+});
+
+test('a real source correction withdraws the binding, reopens the demand, cancels revoked material and is away news', async () => {
+  const s = await setup({ requestCap: 3, material: [{ name: 'first', concepts: ['tides', 'gravity'] }, { name: 'second' }] });
+  const a = await reader();
+  await readTidesInFull(app, a.h, a.universeId, s.f);
+  await feed(a);
+  assert.equal((await s.pass()).kind, 'done');
+  const [binding] = await bindingsOf(a);
+  const source = (await pool.query<{ key: string; id: string }>(
+    `SELECT s.key, s.id FROM supply_request r JOIN scroll_writing w ON w.id = r.writing_id JOIN source_snapshot ss ON ss.id = w.snapshot_id
+     JOIN semantic_source s ON s.id = ss.source_id WHERE r.asset_id = $1`, [binding!.asset_id])).rows[0]!;
+  // Another concept's request from the same page is still open when the page is revoked.
+  const gravity = randomUUID();
+  await pool.query(`INSERT INTO supply_request(id,concept_id,modality,rights_policy,route_id,candidate_id,offered_codes,status)
+    SELECT $1, (SELECT id FROM concept WHERE code=$2), 'scroll', 'material-hosts-v1', $3, m.id, ARRAY[$2], 'open' FROM scroll_material_candidate m WHERE m.url=$4`,
+    [gravity, s.f.codes.gravity, `fixture-${s.f.tag}`, s.f.material('first')]);
+
+  await transaction(c => correctSourceSnapshot(c, { sourceKey: source.key, action: 'revoked', reason: 'Test: the page this Scroll was written from was withdrawn' }, 'operator'));
+  assert.deepEqual((await pool.query('SELECT status, reasons FROM supply_request WHERE id=$1', [gravity])).rows[0], { status: 'cancelled', reasons: ['material_revoked'] });
+  assert.equal((await bindingsOf(a))[0]!.status, 'active', 'the reader\'s own rows wait for their catch-up');
+  // The Composer rechecks eligibility when it serves: a Scroll that lost its support is not served first.
+  assert.deepEqual(await transaction(c => loadBoundScrolls(c, a.universeId)), []);
+
+  // The correction catch-up (ADR-0040) withdraws the binding and reopens the demand.
+  assert.ok(await transaction(c => catchUpUniverse(c, a.universeId)));
+  const [withdrawn] = await bindingsOf(a);
+  assert.deepEqual([withdrawn!.status, withdrawn!.withdrawn_reason], ['withdrawn', 'source_correction']);
+  const reopened = await demandOf(a, s.f.codes.tides);
+  assert.deepEqual([reopened.status, reopened.decision], ['waiting', 'fund'], 'the next material is funded');
+  assert.deepEqual(withoutAt(reopened.decisions).map(d => [d.decision, d.trigger]), [['fund', 'demand_written'], ['reuse', 'supply_settled'], ['fund', 'binding_withdrawn']]);
+  assert.deepEqual((await placeOf(a, s.f.codes.tides)).demand, { demandId: reopened.id, status: 'waiting', reason: null, scroll: null, withdrawn: true });
+  const listed = (await inventory(a)).demands[0]!;
+  assert.deepEqual([listed.status, listed.withdrawn, listed.scroll], ['waiting', true, null]);
+  assert.notEqual((await feed(a)).items[0]?.assetId, binding!.asset_id);
+
+  const away = awayResponse.parse((await get(a, '/v1/away')).json());
+  const item = away.items.find(i => i.kind === 'scroll_withdrawn');
+  assert.deepEqual(item && { ...item, at: undefined }, { kind: 'scroll_withdrawn', at: undefined, bindingId: withdrawn!.id, concept: { code: s.f.codes.tides, name: 'Tides' } });
+  assert.ok(!(await get(a, '/v1/away')).body.includes('science.nasa.gov'));
+
+  // The schema: a binding only to an eligible Scroll; decisions and causes only appended; shared
+  // requests never deleted; private rows erased only after their epoch ends.
+  await assert.rejects(pool.query(`INSERT INTO encounter_binding(id,demand_id,universe_id,privacy_epoch,asset_id,status) VALUES($1,$2,$3,0,$4,'active')`,
+    [randomUUID(), reopened.id, a.universeId, binding!.asset_id]), /only to an eligible Scroll/);
+  await assert.rejects(pool.query(`UPDATE content_demand SET decisions='[]' WHERE id=$1`, [reopened.id]), /only ever appended/);
+  await assert.rejects(pool.query(`UPDATE encounter_binding SET status='active', withdrawn_at=NULL, withdrawn_reason=NULL WHERE id=$1`, [withdrawn!.id]), /only ever withdrawn/);
+  await assert.rejects(pool.query('DELETE FROM supply_request WHERE id=$1', [gravity]), /never deleted/);
+  await assert.rejects(pool.query('DELETE FROM content_demand WHERE id=$1', [reopened.id]), /only after their privacy epoch ends/);
+  await assert.rejects(pool.query(`INSERT INTO content_demand(id,universe_id,privacy_epoch,concept_id,modality,status,causes)
+    SELECT $1,$2,0,id,'scroll','open','[{"kind":"exhaustion"}]' FROM concept WHERE code=$3`, [randomUUID(), a.universeId, s.f.codes.tides]), /content_demand_one_live/);
 });
 
 test('a lost transport is never retried: one call, the request failed, and the demand says it cannot be met', async () => {

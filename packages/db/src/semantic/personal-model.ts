@@ -13,6 +13,7 @@ import { ATTENTION_V1, computeAttentionAccounts, type EpisodeEvidence, type Mark
 import { proposeHypotheses, validateHypothesis, type HypothesisProposal } from '../../../core/src/semantic/hypotheses.ts';
 import { BRANCH_POLICY_VERSION } from './branches.ts';
 import { eraseAtlas, exportAtlas, runCartographer, runKeeper } from '../atlas.ts';
+import { withdrawCorrectedBindings } from '../inventory/demand.ts';
 import { postInquiryMail } from '../reasoning-inquiries.ts';
 import { eraseRooms, exportRooms } from '../rooms.ts';
 
@@ -152,6 +153,8 @@ export async function refreshPersonalModel(client: pg.PoolClient, universeId: st
   // the reader's Asks (ADR-0045); nothing runs while paused (above).
   const places = await runCartographer(client, universeId, [...accounts.values()]);
   const rooms = await runKeeper(client, universeId, evidence.asks);
+  // #164: a Scroll bound to this reader's need that a correction left unsupported is withdrawn (ADR-0046 §5).
+  await withdrawCorrectedBindings(client, universeId);
 
   const offeredEpisodes = new Map<string, string[]>();
   for (const e of evidence.episodes) if (e.systemOffered) for (const c of e.concepts) offeredEpisodes.set(c.code, [...(offeredEpisodes.get(c.code) ?? []), e.exposureId]);
