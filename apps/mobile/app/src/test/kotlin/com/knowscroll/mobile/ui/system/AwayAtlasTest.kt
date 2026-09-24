@@ -25,6 +25,7 @@ import com.knowscroll.mobile.data.WorldSystem
 import com.knowscroll.mobile.data.WorldSystemResponse
 import com.knowscroll.mobile.ui.AtlasState
 import com.knowscroll.mobile.ui.SystemState
+import com.knowscroll.mobile.ui.assertNoSourceShown
 import com.knowscroll.mobile.ui.keep.AwayState
 import com.knowscroll.mobile.ui.keep.ConnectionActions
 import com.knowscroll.mobile.ui.keep.ConnectionState
@@ -38,9 +39,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #134 (ADR-0039 §6): "While you were away" on the Atlas itself -- at the top of the Places layer,
- * only when something is unacknowledged, never on Sources; a found connection opens its evidence
- * sheet over the map with "Keep" and "Seems wrong", and the sheet closes back to the same Atlas.
+ * #134 (ADR-0039 §6): "While you were away" on the Atlas itself -- above the map, only when
+ * something is unacknowledged; a found connection opens its evidence sheet over the map with "Keep"
+ * and "Seems wrong" (#161: never a source), and the sheet closes back to the same Atlas.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w360dp-h780dp-xhdpi")
@@ -103,10 +104,11 @@ class AwayAtlasTest {
     }
 
     @Test
-    fun theSourcesLayerNeverShowsIt() {
+    fun anAtlasWithNoPlanetsYetStillSaysWhatChanged() {
         render(places = emptyList())
-        composeRule.onAllNodesWithText("Orbits & moons are illustrative").assertCountEquals(1)
-        composeRule.onAllNodesWithContentDescription("While you were away").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Places form when you come back to a subject on different days.").assertCountEquals(1)
+        composeRule.onNodeWithContentDescription("While you were away").assertExists()
+        composeRule.assertNoSourceShown(world.sourceTitle, world.sourceUrl)
     }
 
     @Test
@@ -114,7 +116,8 @@ class AwayAtlasTest {
         render()
         composeRule.onNodeWithText(line).performClick()
         composeRule.onNodeWithText(found.sentence).assertExists()
-        composeRule.onNodeWithText("NASA · Our Sun: Facts").assertExists()
+        composeRule.onNodeWithText("The Sun's gravity holds Earth in its orbit.").assertExists()
+        composeRule.assertNoSourceShown("NASA · Our Sun: Facts", "https://science.nasa.gov/sun/facts/", world.sourceTitle)
         // The Atlas beneath is hidden from TalkBack while the sheet is open.
         composeRule.onAllNodesWithContentDescription("While you were away").assertCountEquals(0)
         composeRule.onNodeWithContentDescription("Keep this connection").performScrollTo().performClick()

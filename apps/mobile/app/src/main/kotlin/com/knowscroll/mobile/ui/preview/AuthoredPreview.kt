@@ -233,12 +233,6 @@ internal fun previewDocument(index: Int): ScrollDocument {
                     "Illustrative geometry · authored locally, not an observation",
                 )
             )
-            add(
-                ScrollBlock.Citation(
-                    "Read the NASA orbit reference ↗",
-                    "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
-                )
-            )
             add(ScrollBlock.ComparisonSlider("Compare the two illustrations", "A", "B"))
             add(
                 ScrollBlock.Diagram(

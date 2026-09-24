@@ -1,8 +1,6 @@
 package com.knowscroll.mobile.ui.scroll.content
 
-import android.content.Intent
 import android.graphics.BitmapFactory
-import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -12,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import java.net.HttpURLConnection
@@ -39,7 +36,6 @@ fun ScrollBlocks(
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.semantics { heading() },
                         )
-                    is ScrollBlock.Citation -> Citation(block)
                     is ScrollBlock.Image -> DocumentImage(block, imageLoader)
                     is ScrollBlock.ComparisonSlider -> Comparison(block)
                     is ScrollBlock.Diagram ->
@@ -74,24 +70,6 @@ fun ScrollBlocks(
             }
         }
     }
-}
-
-@Composable
-private fun Citation(block: ScrollBlock.Citation) {
-    val context = LocalContext.current
-    var failed by remember { mutableStateOf(false) }
-    TextButton(
-        colors = ButtonDefaults.textButtonColors(contentColor = LocalContentColor.current),
-        onClick = {
-            val uri = Uri.parse(block.url)
-            failed =
-                uri.scheme !in setOf("https", "http") ||
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.isFailure
-        },
-    ) {
-        Text(block.label)
-    }
-    if (failed) Text("This source could not be opened.")
 }
 
 @Composable

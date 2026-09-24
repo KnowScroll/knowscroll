@@ -107,7 +107,9 @@ sealed interface HistoryClearState {
 /** ADR-0028/#113: a read-only view of the real, derived worlds/system geography (docs/product/
  * ui-system.md sec.5b/5c, #116). Mirrors the web lane's `SystemView` (`claude/116-system-view`'s
  * `apps/web/src/state/readerStore.ts`): never persisted across process death, unlike `ScrollState`
- * -- a fresh entry always re-reads `GET /v1/worlds` rather than risking a stale count. */
+ * -- a fresh entry always re-reads `GET /v1/worlds` rather than risking a stale count. #161: a
+ * world is one source, so Android only tells from it whether anything was encountered yet; the
+ * System screen draws the reader's places ([AtlasState]) and never a world. */
 sealed interface SystemState {
     data object Idle:SystemState
     data object Loading:SystemState
@@ -116,9 +118,9 @@ sealed interface SystemState {
 }
 
 /** #134: the reader's live places (ADR-0036, `GET /v1/atlas`). Loaded alongside [SystemState] but
- * independent of it -- a failure here never blocks the System screen, which falls back to Sources
- * (`ui/system/AtlasPresentation.kt`'s `defaultAtlasLayer`). Never restored across process death,
- * same as [SystemState]: a fresh entry always re-reads the atlas. */
+ * independent of it -- a failure here shows its own error and Retry in place of the map, never
+ * failing the whole System screen. Never restored across process death, same as [SystemState]: a
+ * fresh entry always re-reads the atlas. */
 sealed interface AtlasState {
     data object Idle:AtlasState
     data object Loading:AtlasState
@@ -963,7 +965,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     /** #134: the reader's live places, independent of [enterSystem]'s worlds fetch above -- a
-     * failure here leaves the System screen usable via Sources, never failing the whole screen. */
+     * failure here shows its own error and Retry in place of the map, never failing the whole screen. */
     private fun refreshAtlas(version:Long,epoch:Long,universeId:String){
         // #134 review I4: keep showing the last loaded atlas while this same-scope refresh is in
         // flight -- only Loading when nothing is loaded yet. A purge/scope change already resets

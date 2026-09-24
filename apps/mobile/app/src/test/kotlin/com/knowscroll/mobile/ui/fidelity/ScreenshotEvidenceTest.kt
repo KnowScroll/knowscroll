@@ -163,12 +163,18 @@ class ScreenshotEvidenceTest {
         save(onRoot().captureToImage().asAndroidBitmap(), "universe-three-traces.png")
     }
 
-    // Audit U1 / N2 (#72): the world detail is a local layout over the same system level --
-    // decorative cartographic globe, full source title, exact seen/total counts, plain
-    // shared-source explanation, external source link, local Back. This screenshot captures
-    // the detail so it can be compared with the reference's interior level at the same size.
+    // #161: the system level draws the reader's own places (ADR-0036), never a world -- a world is
+    // one source, named only by that source. This captures the level with a single place so it can
+    // be compared with the reference's system level at the same size.
     @Test
-    fun `world detail over the system level with a single body`() = runComposeUiTest {
+    fun `system level with a single place`() = runComposeUiTest {
+        val gravity = com.knowscroll.mobile.data.AtlasPlace(
+            placeId = "11111111-1111-1111-1111-111111111111", kind = "planet", parentPlaceId = null,
+            anchor = com.knowscroll.mobile.data.AtlasAnchor("physics.gravity", "Gravity", "Gravity description"),
+            basis = null, attention = com.knowscroll.mobile.data.AtlasAttention("anchored", 3, 2, 2),
+            scrolls = com.knowscroll.mobile.data.AtlasScrollCounts(3, 2),
+            formedAt = "2026-09-23T00:00:00.000Z", formedBy = "place_formed",
+        )
         val orbits = com.knowscroll.mobile.data.WorldSummary(
             worldId = "w-orbits", sourceTitle = "NASA \u00b7 Orbits and Kepler\u2019s Laws",
             sourceUrl = "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
@@ -183,11 +189,14 @@ class ScreenshotEvidenceTest {
                             com.knowscroll.mobile.data.WorldSystem("sys-1", listOf(orbits))
                         )
                     ),
+                    atlasState = com.knowscroll.mobile.ui.AtlasState.Loaded(
+                        com.knowscroll.mobile.data.AtlasResponse("cartographer-v1", listOf(gravity), emptyList(), emptyList())
+                    ),
                     onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
                 )
             }
         }
         waitForIdle()
-        save(onRoot().captureToImage().asAndroidBitmap(), "system-with-one-world.png")
+        save(onRoot().captureToImage().asAndroidBitmap(), "system-with-one-place.png")
     }
 }

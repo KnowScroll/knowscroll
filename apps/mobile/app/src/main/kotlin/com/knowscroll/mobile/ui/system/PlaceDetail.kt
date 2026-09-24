@@ -32,13 +32,11 @@ import com.knowscroll.mobile.ui.AtlasEvidenceState
 import com.knowscroll.mobile.ui.PlaceRejectState
 import com.knowscroll.mobile.ui.theme.Cosmos
 
-/* #134: the reader's place sheet (ADR-0036) -- a place, what led to it, its sightings and the
- * reader's "set aside". Split from SystemScreen.kt, which keeps the source-world sheet. */
 /**
- * #134: the reader's own place sheet, reusing [WorldDetail]'s pattern (back pill, headline, body,
- * a `verticalScroll` column) for a planet or region instead of a source world: its basis-formed
- * sightings, its typed relations to other live places, its chronicle and each line's evidence, and
- * "Set aside" for the whole place.
+ * #134: the reader's own place sheet (ADR-0036) -- back pill, headline, body, in a `verticalScroll`
+ * column -- for a planet or region: its basis-formed sightings, its typed relations to other live
+ * places, its chronicle and each line's evidence, and "Set aside" for the whole place. #161: each
+ * connection shows the claim it rests on, never where that claim came from.
  */
 @Composable
 internal fun PlaceDetail(
@@ -104,13 +102,11 @@ internal fun PlaceDetail(
             place.basis?.let { basis ->
                 // Only a sighting carries its own basis -- what it connects to and why it is offered.
                 Text(basisSentence(basis), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
-                val support = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
-                if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                supportLine(basis.claim, basis.bridge)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream) }
             }
             if (attention != null)
                 Text(
-                    "Read on ${attention.daysActive} ${if (attention.daysActive == 1) "day" else "days"} · " +
-                        "${attention.sourceFamilies} ${if (attention.sourceFamilies == 1) "source" else "sources"}",
+                    "Read on ${attention.daysActive} ${if (attention.daysActive == 1) "day" else "days"}",
                     style = MaterialTheme.typography.labelLarge,
                     color = Cosmos.MutedOnCream,
                 )
@@ -124,8 +120,7 @@ internal fun PlaceDetail(
                 foundation.relations.forEach { relation ->
                     Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(basisSentence(relation), style = MaterialTheme.typography.bodyMedium)
-                        val support = relation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: relation.bridge?.mechanism
-                        if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                        supportLine(relation.claim, relation.bridge)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream) }
                     }
                 }
             }
@@ -138,8 +133,7 @@ internal fun PlaceDetail(
                         Text(sighting.anchor.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight(700))
                         if (basis != null) {
                             Text(basisSentence(basis), style = MaterialTheme.typography.bodyMedium)
-                            val support = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
-                            if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                            supportLine(basis.claim, basis.bridge)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream) }
                         }
                     }
                 }
@@ -150,8 +144,7 @@ internal fun PlaceDetail(
                 connections.forEach { (sentence, relation) ->
                     Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(sentence, style = MaterialTheme.typography.bodyMedium)
-                        val support = relation.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: relation.bridge?.mechanism
-                        if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                        supportLine(relation.claim, relation.bridge)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream) }
                     }
                 }
             }

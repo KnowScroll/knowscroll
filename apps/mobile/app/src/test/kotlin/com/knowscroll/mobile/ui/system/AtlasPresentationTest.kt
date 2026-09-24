@@ -3,6 +3,9 @@ package com.knowscroll.mobile.ui.system
 import com.knowscroll.mobile.data.AtlasAnchor
 import com.knowscroll.mobile.data.AtlasAttention
 import com.knowscroll.mobile.data.AtlasBasis
+import com.knowscroll.mobile.data.AtlasBridgeSupport
+import com.knowscroll.mobile.data.AtlasClaim
+import com.knowscroll.mobile.data.AtlasDelta
 import com.knowscroll.mobile.data.AtlasFoundation
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
@@ -32,11 +35,25 @@ class AtlasPresentationTest {
         formedAt = "2026-09-24T00:00:00.000Z", formedBy = "sighting_appeared",
     )
 
+    /** #161: a connection rests on its claim, shown without the source it came from. */
     @Test
-    fun defaultsToPlacesOnlyWhenAtLeastOnePlanetExists() {
-        assertEquals(AtlasLayer.Sources, defaultAtlasLayer(emptyList()))
-        assertEquals(AtlasLayer.Sources, defaultAtlasLayer(listOf(region("r1", "Region", "p1"))))
-        assertEquals(AtlasLayer.Places, defaultAtlasLayer(listOf(planet("p1", "Gravity"))))
+    fun aConnectionsSupportIsItsClaimOrMechanismNeverItsSource() {
+        assertEquals("\"Gravity pulls gas clouds together.\"", supportLine(AtlasClaim("Gravity pulls gas clouds together.", "NASA · Star formation"), null))
+        assertEquals("Tidal forces synchronise rotation.", supportLine(null, AtlasBridgeSupport("Tidal forces synchronise rotation.")))
+        assertNull(supportLine(null, null))
+    }
+
+    @Test
+    fun aSightingsEvidenceQuotesItsClaimAndAWithdrawalNeverNamesASource() {
+        fun delta(kind: String, causalClass: String, evidence: Map<String, Any?>) = AtlasDelta(
+            "d1", "s1", kind, causalClass, "cartographer-v1", "2026-09-24T00:00:00.000Z", "c.stars", "Star formation", null, emptyMap(), evidence,
+        )
+        val appeared = delta("sighting_appeared", "substrate_neighbourhood", mapOf(
+            "relation" to mapOf("kind" to "explains"),
+            "relationSupport" to mapOf("claim" to mapOf("text" to "Gravity pulls gas clouds together.", "sourceTitle" to "NASA · Star formation")),
+        ))
+        assertEquals("A connection that explains. \"Gravity pulls gas clouds together.\"", evidenceSummary(appeared))
+        assertEquals("What this connection was based on changed.", evidenceSummary(delta("sighting_retired", "source_correction", emptyMap())))
     }
 
     @Test

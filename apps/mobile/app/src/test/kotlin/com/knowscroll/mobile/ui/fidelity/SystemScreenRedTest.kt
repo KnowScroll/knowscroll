@@ -4,12 +4,16 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import com.knowscroll.mobile.data.AtlasResponse
 import com.knowscroll.mobile.data.WorldSummary
 import com.knowscroll.mobile.data.WorldSystem
 import com.knowscroll.mobile.data.WorldSystemResponse
+import com.knowscroll.mobile.ui.AtlasState
 import com.knowscroll.mobile.ui.SystemState
+import com.knowscroll.mobile.ui.assertNoSourceShown
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import org.junit.Assert.assertEquals
@@ -24,8 +28,8 @@ import org.junit.runner.RunWith
  * beside the reference and it is recognisably the same thing", and this issue's own honesty rule
  * -- "every name and number on screen comes from the response. Invent nothing." These tests pin
  * that every string the empty and loaded states draw is either literal product copy or a value
- * read straight off the fixture `WorldSystemResponse`, never a number this client computed,
- * rounded or derived on its own.
+ * read straight off a fixture response, never a number this client computed, rounded or derived on
+ * its own.
  *
  * `SystemScreen.kt`, `SystemState` and the `WorldSummary`/`WorldSystem`/`WorldSystemResponse`
  * wire types did not exist before this lane -- run directly against the pre-#116 source, the
@@ -89,8 +93,10 @@ class SystemScreenRedTest {
         composeRule.onNodeWithText("Nothing has been encountered yet").assertExists()
     }
 
+    /** #161: a world is one source, and its only name is that source's -- so a loaded system never
+     * draws one, nor its counts; the reader's own places are the map. */
     @Test
-    fun `a loaded system draws the real source titles, counts and derivation line, never invented ones`() {
+    fun `a loaded system never names a world's source, only the reader's places`() {
         val orbits = WorldSummary(
             worldId = "w-orbits", sourceTitle = "NASA · Orbits and Kepler’s Laws",
             sourceUrl = "https://science.nasa.gov/solar-system/orbits-and-keplers-laws/",
@@ -105,22 +111,17 @@ class SystemScreenRedTest {
             KnowScrollTheme {
                 SystemScreen(
                     state = SystemState.Loaded(WorldSystemResponse("shared_source_v1", WorldSystem("sys-1", listOf(orbits, stars)))),
+                    atlasState = AtlasState.Loaded(AtlasResponse("cartographer-v1", emptyList(), emptyList(), emptyList())),
                     onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
                 )
             }
         }
-        // The real source titles, verbatim -- never a topic this client invented.
-        composeRule.onNodeWithText("NASA · Orbits and Kepler’s Laws").assertExists()
-        composeRule.onNodeWithText("NASA · Stars").assertExists()
-        // The real per-world counts, exactly as the fixture response carries them.
-        composeRule.onNodeWithText("2 SCROLLS · 1 SEEN").assertExists()
-        composeRule.onNodeWithText("1 SCROLL · 1 SEEN").assertExists()
-        // scrollCount(1)==seenCount(1) and >0 -> all encountered; scrollCount(2)>seenCount(1) -> more to explore.
-        composeRule.onNodeWithText("ALL SCROLLS ENCOUNTERED").assertExists()
-        composeRule.onNodeWithText("MORE TO EXPLORE").assertExists()
-        // The subtitle line is a straight sum of the two real worlds' own counts: 2 worlds,
-        // 2+1=3 scrolls recorded, 1+1=2 seen -- never a number this client derived independently.
-        composeRule.onNodeWithText("2 WORLDS · 3 SCROLLS RECORDED · 2 SEEN").assertExists()
+        composeRule.assertNoSourceShown(orbits.sourceTitle, orbits.sourceUrl, stars.sourceTitle, stars.sourceUrl)
+        composeRule.onAllNodesWithContentDescription("Explore world:", substring = true).assertCountEquals(0)
+        composeRule.onAllNodesWithText("SEEN", substring = true).assertCountEquals(0)
+        composeRule.onAllNodesWithText("WORLD", substring = true).assertCountEquals(0)
+        // The reader's own places, counted straight off the atlas response.
+        composeRule.onNodeWithText("0 PLACES · 0 SIGHTINGS").assertExists()
         // Methodology copy, not a data value -- present, but never claims a ranking or inference.
         composeRule.onNodeWithText("Your atlas").assertExists()
         // No invented "DAY n" pill, ranking, or progress bar exists anywhere on this level.

@@ -53,7 +53,7 @@ import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
 import com.knowscroll.mobile.ui.theme.Cosmos
 
-/** Atlas contains saved Traces; source-backed worlds are inspected inside System. */
+/** Atlas contains saved Traces; the reader's places are inspected inside System. */
 @Composable
 fun UniverseScreen(
     state: UniverseState,
@@ -350,7 +350,7 @@ private fun UniverseCanvas(
     Box(modifier.then(if (savedOpen) Modifier.clearAndSetSemantics {} else Modifier)) {
         com.knowscroll.mobile.ui.preview.MiniSystem(
             "Your system",
-            "SOURCE-BACKED WORLDS",
+            "YOUR PLACES",
             onEnterSystem,
             Modifier.align(Alignment.Center).size(210.dp),
         )

@@ -164,15 +164,15 @@ class AtlasTest {
         ))
         val relations = """[{"from":"physics.gravity","to":"earth.tides","kind":"explains"},{"from":"physics.gravity","to":"astro.orbit","kind":"explains"},{"from":"physics.gravity","to":"astro.star.birth","kind":"explains"}]"""
         assertEquals(
-            "Recognised from 3 sourced connections to 3 of your places.",
+            "Recognised from 3 connections to 3 of your places.",
             evidenceSummary(delta("foundation_recognised", "substrate_neighbourhood", """{"relations":$relations,"holdsUp":["earth.tides","astro.orbit","astro.star.birth"]}""")),
         )
         assertEquals(
-            "After you set a place aside, it no longer has enough sourced connections to your places.",
+            "After you set a place aside, it no longer has enough connections to your places.",
             evidenceSummary(delta("foundation_withdrawn", "reader_correction", """{"relations":$relations}""")),
         )
         assertEquals(
-            "A source behind one of its connections changed.",
+            "What one of its connections was based on changed.",
             evidenceSummary(delta("foundation_withdrawn", "source_correction", """{"relations":$relations}""")),
         )
         // The foundation itself was set aside: it did not lose its connections (verification review).
@@ -192,9 +192,9 @@ class AtlasTest {
                 "anchor":{"code":"physics.gravity","name":"Gravity"},"before":{"loadBearing":true},
                 "after":{"loadBearing":true},"evidence":{"relations":[{},{},{}],"holdsUp":["a","b"]}}""",
         ))
-        assertEquals("After you set a place aside, it still stands on 3 sourced connections to 2 of your places.", evidenceSummary(revised("reader_correction")))
-        assertEquals("A source changed; it now stands on 3 sourced connections to 2 of your places.", evidenceSummary(revised("source_correction")))
-        assertEquals("It now holds up 2 of your places, through 3 sourced connections.", evidenceSummary(revised("substrate_neighbourhood")))
+        assertEquals("After you set a place aside, it still stands on 3 connections to 2 of your places.", evidenceSummary(revised("reader_correction")))
+        assertEquals("What it was based on changed; it now stands on 3 connections to 2 of your places.", evidenceSummary(revised("source_correction")))
+        assertEquals("It now holds up 2 of your places, through 3 connections.", evidenceSummary(revised("substrate_neighbourhood")))
     }
 
     @Test
@@ -244,7 +244,8 @@ class AtlasTest {
         val parsed = parseAtlasDelta(delta)
         assertNull(parsed.before)
         assertEquals(mapOf("kind" to "planet", "state" to "live", "parentPlaceId" to null), parsed.after)
-        assertEquals("Formed from 3 readings across 2 days and 2 source families.", evidenceSummary(parsed))
+        // #161: the account's source families are parsed but never said.
+        assertEquals("Formed from 3 readings across 2 days.", evidenceSummary(parsed))
         // Structural, not identity, equality -- two independent parses of the same JSON match.
         assertEquals(parseAtlasDelta(JSONObject(delta.toString())), parsed)
     }

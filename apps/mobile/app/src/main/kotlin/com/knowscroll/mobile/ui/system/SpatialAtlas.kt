@@ -38,16 +38,16 @@ data class AtlasMarker(
     val title: String,
     val detail: String = "",
     val status: String = "",
-    /** #134: set only for a sighting, naming the live place it neighbours. `null` for a planet/
-     * source world, which is laid out on its own orbit by [atlasLayout] instead. */
+    /** #134: set only for a sighting, naming the live place it neighbours. `null` for a planet,
+     * which is laid out on its own orbit by [atlasLayout] instead. */
     val parentId: String? = null,
     /** ADR-0037: this place holds others up; drawn brighter, and said aloud. */
     val foundation: Boolean = false,
 )
 
-/** #134: a tappable land area at the continents level -- the reader's own region place (Places) in
- * place of an authored one (Sources). Same shape as [AuthoredRegion] minus its `known` art flag,
- * which only ever describes illustrative geography. */
+/** #134: a tappable land area at the continents level -- the reader's own region place in place of
+ * an authored one (the authored preview). Same shape as [AuthoredRegion] minus its `known` art
+ * flag, which only ever describes illustrative geography. */
 data class AtlasRegionArea(val id: String, val name: String, val x: Float, val y: Float)
 
 /** Authored links only. Live world membership never grants topic/revision authority. */
@@ -58,7 +58,6 @@ data class AtlasTopic(
     val title: String,
     val kind: String,
     val truth: String,
-    val source: String,
     val x: Float,
     val y: Float,
 )
@@ -81,9 +80,9 @@ fun SpatialAtlas(
     /** #134: faint markers next to their parent's point (a live place's sightings). Never
      * independently selectable -- a tap selects the parent, same as tapping the parent itself. */
     sightings: List<AtlasMarker> = emptyList(),
-    /** #134: land areas at the continents level. `null` keeps today's authored regions and their
-     * "AUTHORED GEOGRAPHY"/"Illustrative geography" wording (Sources); a list (possibly empty)
-     * switches to the reader's own region places and drops that wording (Places). */
+    /** #134: land areas at the continents level. `null` keeps the authored regions and their
+     * "AUTHORED GEOGRAPHY"/"Illustrative geography" wording (the authored preview); a list (possibly
+     * empty) switches to the reader's own region places and drops that wording. */
     regions: List<AtlasRegionArea>? = null,
     /** #134: shown instead of the continents caption when [regions] is an empty, non-null list --
      * a live planet that has not anchored any narrower subject yet. */
@@ -93,8 +92,9 @@ fun SpatialAtlas(
      * other level), so the caller can target its own "Info" sheet at the right place. */
     onFocusedRegionChanged: (String?) -> Unit = {},
     /** #134 review I3: replaces the default flat marker list inside the "List" sheet when non-null
-     * -- Places supplies its own nested planets/regions/sightings list and a "Recent changes" list
-     * (`PlacesListSheet.kt`); Sources leaves this `null` and keeps today's flat marker list exactly.
+     * -- the reader's places supply their own nested planets/regions/sightings list and a "Recent
+     * changes" list (`PlacesListSheet.kt`); the authored preview leaves this `null` and keeps the
+     * flat marker list.
      * [onDismiss] closes the sheet, same as selecting a marker from the default list already does. */
     listSheetContent: (@Composable (onDismiss: () -> Unit) -> Unit)? = null,
 ) {
@@ -545,7 +545,6 @@ fun SpatialAtlas(
                         )
                         Text(currentTopic.title, style = MaterialTheme.typography.titleLarge)
                         Text(currentTopic.truth, style = MaterialTheme.typography.labelMedium)
-                        Text(currentTopic.source, style = MaterialTheme.typography.bodySmall)
                         Row {
                             Button(onClick = { onOpenTopic(currentTopic) }) { Text("Open") }
                             TextButton(onClick = { topicId = null }) { Text("Close") }

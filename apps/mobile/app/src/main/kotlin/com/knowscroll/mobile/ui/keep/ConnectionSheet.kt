@@ -46,7 +46,7 @@ data class ConnectionActions(
 /**
  * #134 (ADR-0039): the bottom sheet a found connection (on the Atlas) or a Relic (on Keep) opens,
  * in the place sheet's own form (`PlaceDetail`): a back pill, the two places, the bridge's validated
- * sentence and the sources it was admitted on, then the reader's choices. Tapping above the sheet
+ * sentence and the claims it was admitted on, then the reader's choices. Tapping above the sheet
  * dismisses it and never reaches what is beneath. [bordered] draws the poster ink edge Keep's paper
  * ground needs to set the sheet apart.
  */
@@ -167,7 +167,7 @@ private fun SheetTitle(found: InquiryFound) {
     )
 }
 
-/** The bridge's sentence, any correction since, and each cited claim once with its source. */
+/** The bridge's sentence, any correction since, and each cited claim once -- never its source (#161). */
 @Composable
 private fun ConnectionEvidence(found: InquiryFound) {
     Text(found.sentence, style = MaterialTheme.typography.bodyLarge, color = Cosmos.InkOnCream)
@@ -175,12 +175,9 @@ private fun ConnectionEvidence(found: InquiryFound) {
         "revoked" -> Text(stringResource(R.string.inquiry_found_revoked), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
         "superseded" -> Text(stringResource(R.string.inquiry_found_superseded), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
     }
-    Text(stringResource(R.string.inquiry_found_sources), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
-    found.evidence.distinctBy { it.statement }.forEach { e ->
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(e.statement, style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream)
-            Text(e.sourceTitle, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
-        }
+    Text(stringResource(R.string.connection_evidence_heading), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
+    found.evidence.distinctBy { it.statement }.forEach {
+        Text(it.statement, style = MaterialTheme.typography.bodyMedium, color = Cosmos.InkOnCream)
     }
 }
 

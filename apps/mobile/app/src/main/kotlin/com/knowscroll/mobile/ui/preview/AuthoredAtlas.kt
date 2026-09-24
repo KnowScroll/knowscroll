@@ -76,7 +76,6 @@ fun AuthoredAtlas(
                                 title,
                                 "Scroll",
                                 "MODELLED · AUTHORED REVISION 1",
-                                "1 source · NASA orbit reference",
                                 area.x + listOf(-12f, 6f, 17f)[i],
                                 area.y + listOf(5f, -9f, 14f)[i],
                             )
@@ -94,7 +93,6 @@ fun AuthoredAtlas(
                                 item.title,
                                 "Reel",
                                 "SIMULATED · SUPPLIED TEST MEDIA",
-                                "Authored demo collection · ${item.sourceTitle}",
                                 area.x + listOf(-12f, 6f, 17f)[i % 3],
                                 area.y + listOf(5f, -9f, 14f)[i % 3],
                             )

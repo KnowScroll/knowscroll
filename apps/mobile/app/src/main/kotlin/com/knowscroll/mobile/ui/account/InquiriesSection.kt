@@ -47,7 +47,7 @@ data class InquiryActions(
  * #132 (ADR-0038) on the Privacy & account screen: the "Look for connections between my places"
  * switch, its daily limit, what it costs and does, an honest line when this deployment runs nothing,
  * and what KnowScroll looked for -- each inquiry's pairs and a plain status line, with a found
- * bridge's sentence and sources. Rendering only.
+ * bridge's sentence and the claims it rests on (#161: never their sources). Rendering only.
  */
 @Composable
 fun InquiriesSection(state: InquiriesState, change: ConsentChangeState, recordingPaused: Boolean, actions: InquiryActions) {
@@ -171,12 +171,9 @@ private fun InquiryCard(inquiry: Inquiry, consent: InquiryConsent) {
                     "revoked" -> Text(stringResource(R.string.inquiry_found_revoked), color = Cosmos.Yellow)
                     "superseded" -> Text(stringResource(R.string.inquiry_found_superseded), color = Cosmos.Yellow)
                 }
-                Text(stringResource(R.string.inquiry_found_sources), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-                // One claim can support several roles; show each once, with its source.
-                found.evidence.distinctBy { it.statement }.forEach { e ->
-                    Text(e.statement, style = MaterialTheme.typography.bodyMedium)
-                    Text(e.sourceTitle, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-                }
+                Text(stringResource(R.string.connection_evidence_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
+                // One claim can support several roles; show each once.
+                found.evidence.distinctBy { it.statement }.forEach { Text(it.statement, style = MaterialTheme.typography.bodyMedium) }
             }
         }
     }
