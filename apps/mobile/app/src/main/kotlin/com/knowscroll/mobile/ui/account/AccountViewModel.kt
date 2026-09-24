@@ -15,6 +15,7 @@ import com.knowscroll.mobile.data.SessionVault
 import com.knowscroll.mobile.data.StateStore
 import com.knowscroll.mobile.data.VaultCredentialProvider
 import com.knowscroll.mobile.data.parseSignInToken
+import com.knowscroll.mobile.data.selectCredential
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +52,10 @@ class AccountViewModel @JvmOverloads constructor(
     ),
     /** Test seam: a JVM test passes its own [StateStore] over a disposable context. */
     private val store: StateStore = StateStore(application),
+    /** Test seams for the build's development-token fallback ([selectCredential]): the same two
+     * values the reader's own [VaultCredentialProvider] is built from. */
+    private val developmentToken: String = BuildConfig.KS_DEV_TOKEN,
+    private val isDebugBuild: Boolean = BuildConfig.DEBUG,
 ) : AndroidViewModel(application) {
 
     private val _authState = MutableStateFlow(deriveAuthState())
@@ -88,8 +93,13 @@ class AccountViewModel @JvmOverloads constructor(
         }
     }
 
+    /** Exactly the credential the reader's own requests will use ([selectCredential]): the signed-in
+     * session, or -- only in a debug build -- a non-blank development token. A debug build with a
+     * development token (every journey except the owner one, whose build deliberately has none)
+     * opens on the reader, as it did before sign-in existed. */
     private fun deriveAuthState(): AuthState =
-        if (vault.readToken() != null) AuthState.SignedIn else AuthState.SignedOut
+        if (selectCredential(vault.readToken(), developmentToken, isDebugBuild) != null) AuthState.SignedIn
+        else AuthState.SignedOut
 
     private fun restoredOperationState(intent: String): PrivacyOperationState =
         if (store.readPendingPrivacyRequest(intent) != null) PrivacyOperationState.Failed(PRIVACY_RETRY_MESSAGE)

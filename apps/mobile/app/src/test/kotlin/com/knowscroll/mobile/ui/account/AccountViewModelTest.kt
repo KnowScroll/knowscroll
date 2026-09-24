@@ -34,11 +34,47 @@ class AccountViewModelTest {
         return context
     }
 
-    private fun viewModel(server: TestHttpServer, vault: FakeSessionVault = FakeSessionVault("session-1"), store: StateStore = StateStore(freshContext())): AccountViewModel {
+    /** [developmentToken] defaults to none -- the owner build's shape -- so no test here depends on
+     * whatever development token the local Gradle build happened to bake into BuildConfig. */
+    private fun viewModel(
+        server: TestHttpServer,
+        vault: FakeSessionVault = FakeSessionVault("session-1"),
+        store: StateStore = StateStore(freshContext()),
+        developmentToken: String = "",
+        isDebugBuild: Boolean = true,
+    ): AccountViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val credential = CredentialProvider { vault.readToken() ?: "" }
         val api = ApiClient(server.baseUrl, "", maxAttempts = 1, credential = credential, onUnauthorized = {})
-        return AccountViewModel(application, vault, api, store)
+        return AccountViewModel(application, vault, api, store, developmentToken, isDebugBuild)
+    }
+
+    // ---- Finding 1: a debug build's development token still counts (every non-owner journey) ----
+
+    @Test
+    fun aDebugBuildWithADevelopmentTokenAndNoSignInOpensOnTheReaderNotTheSignInScreen() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault(), developmentToken = "d".repeat(64), isDebugBuild = true)
+            assertEquals(AuthState.SignedIn, model.authState.value)
+            model.refresh() // what every foreground does
+            assertEquals(AuthState.SignedIn, model.authState.value)
+            assertEquals(0, server.requests.size)
+        }
+    }
+
+    @Test
+    fun theOwnerJourneyBuildWithNoDevelopmentTokenStillOpensOnTheSignInScreen() {
+        TestHttpServer.open().use { server ->
+            assertEquals(AuthState.SignedOut, viewModel(server, FakeSessionVault(), developmentToken = "", isDebugBuild = true).authState.value)
+            assertEquals(AuthState.SignedOut, viewModel(server, FakeSessionVault(), developmentToken = "   ", isDebugBuild = true).authState.value)
+        }
+    }
+
+    @Test
+    fun aReleaseBuildNeverCountsADevelopmentToken() {
+        TestHttpServer.open().use { server ->
+            assertEquals(AuthState.SignedOut, viewModel(server, FakeSessionVault(), developmentToken = "d".repeat(64), isDebugBuild = false).authState.value)
+        }
     }
 
     @Test
