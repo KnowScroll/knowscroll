@@ -1,0 +1,37 @@
+{
+  "at": "2026-09-24T10:25:46.307553+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_20554cea590aa18a",
+  "apiPort": 4333,
+  "source": "2bf6f3563b45832e927cb3e64dad85c470dba1fb-dirty",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "places",
+  "journey": {
+    "placeId": "e6ca91ef-15a2-4664-97eb-890b40a07081",
+    "deltaIds": {
+      "formed": "881641fb-5175-4848-9f23-8dba38c042b4",
+      "sightingAppeared": null,
+      "rejected": "07f6c623-28c2-4985-bd0a-cc0612da39fe"
+    },
+    "counts": {
+      "scrollsTotal": 3,
+      "scrollsSeen": 3,
+      "sightings": 0
+    }
+  },
+  "lineage": {
+    "placeFormedPersonalExploration": 1,
+    "rejectionDeltaReaderCorrection": 1,
+    "placeStateRejected": 1,
+    "formedEpisodes": 5,
+    "formedMarks": 3,
+    "formedDaysActive": 2
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Editorial substrate; cartographer-v1 with bench thresholds.",
+    "Debug API36 emulator, not a physical device.",
+    "The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.",
+    "One live planet inspected end to end; sightings appear only for neighbours this walk has not shown."
+  ]
+}
