@@ -2,7 +2,7 @@
  * #132 — the worker's Ask-answer consumer (ADR-0033 §2–§4). One pass: fair scheduling admits one
  * answer attempt; the reserved bytes are rebuilt from the sealed context and proven; exactly one
  * provider call goes through `invokeReasoningOnce`; the reply is applied only through
- * ask-answer-v1, or the answer fails honestly. Nothing here is reachable from the API process.
+ * the answer validator (ask-answer-v2), or the answer fails honestly. Nothing here is reachable from the API process.
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';

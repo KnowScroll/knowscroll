@@ -11,7 +11,9 @@
  * "The Scroll does not say" is a valid, honest outcome.
  */
 
-export const ASK_ANSWER_VERSIONS = Object.freeze({ prompt: 'ask-answer-prompt-v1', validator: 'ask-answer-v1' });
+// v2 (2026-09-24): basis items are projected to their quote (see the loop below). Measured live:
+// five of five replies to a yes/no question failed v1's exact item shape, with verbatim-checkable quotes.
+export const ASK_ANSWER_VERSIONS = Object.freeze({ prompt: 'ask-answer-prompt-v1', validator: 'ask-answer-v2' });
 export const ASK_ANSWER_LIMITS = Object.freeze({ answerChars: 1200, limitsChars: 400, quoteMinChars: 12, quoteMaxChars: 400, maxQuotes: 4 });
 
 export interface AskAnswerSource {
@@ -26,7 +28,9 @@ export type AskAnswerProposal =
   | { kind: 'not_in_source'; limits: string };
 export type AskAnswerRejection =
   | 'not_one_json_object' | 'shape_invalid' | 'basis_missing' | 'basis_not_in_source' | 'answer_too_long'
-  | 'limits_missing' | 'characterizes_reader';
+  | 'limits_missing' | 'characterizes_reader'
+  // Which shape rule failed, always alongside 'shape_invalid': diagnostics only, never content.
+  | 'shape_not_object' | 'shape_keys' | 'shape_types' | 'shape_too_many_quotes' | 'shape_basis_item' | 'shape_limits_too_long' | 'shape_empty_answer';
 export type AskAnswerVerdict =
   | { ok: true; proposal: AskAnswerProposal; validatorVersion: string }
   | { ok: false; reasons: AskAnswerRejection[]; validatorVersion: string };
@@ -96,19 +100,25 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
   const reject = (...reasons: AskAnswerRejection[]): AskAnswerVerdict => ({ ok: false, reasons, validatorVersion });
   const value = oneObject(text);
   if (value === undefined) return reject('not_one_json_object');
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return reject('shape_invalid');
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return reject('shape_invalid', 'shape_not_object');
   const v = value as Record<string, unknown>;
   const keys = Object.keys(v).sort().join(',');
-  if (keys !== 'answer,basis,limits') return reject('shape_invalid');
-  if (!(v.answer === null || typeof v.answer === 'string') || typeof v.limits !== 'string' || !Array.isArray(v.basis)) return reject('shape_invalid');
-  if (v.basis.length > ASK_ANSWER_LIMITS.maxQuotes) return reject('shape_invalid');
+  if (keys !== 'answer,basis,limits') return reject('shape_invalid', 'shape_keys');
+  if (!(v.answer === null || typeof v.answer === 'string') || typeof v.limits !== 'string' || !Array.isArray(v.basis)) return reject('shape_invalid', 'shape_types');
+  if (v.basis.length > ASK_ANSWER_LIMITS.maxQuotes) return reject('shape_invalid', 'shape_too_many_quotes');
   const basis: { quote: string }[] = [];
   for (const item of v.basis) {
-    if (item === null || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).join(',') !== 'quote' || typeof (item as { quote: unknown }).quote !== 'string') return reject('shape_invalid');
-    basis.push({ quote: (item as { quote: string }).quote });
+    // v2: a quote may come as a bare string or as an object whose `quote` is a string. Any other
+    // key on the item is dropped unread and never stored: only the quote carries weight, and it is
+    // still checked word for word against the Scroll below.
+    const quote = typeof item === 'string' ? item
+      : item !== null && typeof item === 'object' && !Array.isArray(item) && typeof (item as { quote?: unknown }).quote === 'string' ? (item as { quote: string }).quote
+      : null;
+    if (quote === null) return reject('shape_invalid', 'shape_basis_item');
+    basis.push({ quote });
   }
   const limits = v.limits.trim();
-  if (limits.length > ASK_ANSWER_LIMITS.limitsChars) return reject('shape_invalid');
+  if (limits.length > ASK_ANSWER_LIMITS.limitsChars) return reject('shape_invalid', 'shape_limits_too_long');
 
   if (v.answer === null) {
     if (limits.length === 0) return reject('limits_missing');
@@ -117,7 +127,7 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
   }
   const answer = v.answer.trim();
   const reasons: AskAnswerRejection[] = [];
-  if (answer.length === 0) return reject('shape_invalid');
+  if (answer.length === 0) return reject('shape_invalid', 'shape_empty_answer');
   if (answer.length > ASK_ANSWER_LIMITS.answerChars) reasons.push('answer_too_long');
   if (basis.length === 0) reasons.push('basis_missing');
   const haystack = squash(`${source.scroll.summary}\n${source.scroll.body}`);

@@ -23,10 +23,18 @@ const mode = process.argv.includes('--live') ? 'live' : process.argv.includes('-
 if (!mode) { console.log('Refusing: pass --fixture (no network) or --live (bounded MiniMax-M3 experiment).'); process.exit(2); }
 const SESSION_CAP = 40;
 const TARGET = '20000000-0000-4000-8000-000000000004'; // "A rhythm the ocean keeps"
-const QUESTIONS = [
+const PAIR = [
   { label: 'answerable', text: 'Why do most coasts get two high tides a day instead of one?' },
   { label: 'not_in_source', text: 'Who was the first person to measure tides scientifically?' },
 ];
+// `--sample N` repeats the Android journey's question N times (1..8) to measure how often a live
+// reply survives the validator; the default is the answerable / not-in-source pair.
+const sampleArg = process.argv.indexOf('--sample');
+const sample = sampleArg < 0 ? 0 : Number(process.argv[sampleArg + 1]);
+if (sampleArg >= 0 && (!Number.isInteger(sample) || sample < 1 || sample > 8)) { console.log('Refusing: --sample takes 1..8'); process.exit(2); }
+const QUESTIONS = sample > 0
+  ? Array.from({ length: sample }, (_, i) => ({ label: `android-question-${i + 1}`, text: 'Does this Scroll say anything about tides?' }))
+  : PAIR;
 
 const root = resolve('.');
 const devRoot = process.env.KS_DEV_ROOT ?? (() => { throw new Error('Source scripts/env.sh first'); })();

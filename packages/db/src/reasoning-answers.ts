@@ -6,7 +6,7 @@
  * (ADR-0017), creates the Step, derives the exact request bytes and enqueues fairly — in the
  * caller's authenticated transaction. The worker then calls `loadAnswerWork` (rebuilds the bytes
  * and proves the reserved hash), sends them through `invokeReasoningOnce`, and finishes with
- * `applyAskAnswer` or `failAskAnswer`. Provider text changes state only through ask-answer-v1.
+ * `applyAskAnswer` or `failAskAnswer`. Provider text changes state only through the answer validator (ask-answer-v2).
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -248,7 +248,7 @@ async function finish(client: pg.PoolClient, f: Fence, succeeded: boolean): Prom
 }
 
 /**
- * ADR-0033 §4: apply provider text only through ask-answer-v1, under the current fence, epoch,
+ * ADR-0033 §4: apply provider text only through the answer validator (ask-answer-v2), under the current fence, epoch,
  * eligible output authority and a clean context recheck. Anything stale is discarded, not applied.
  */
 export async function applyAskAnswer(client: pg.PoolClient, f: Fence, text: string, authority: ReasoningAuthority): Promise<AnswerOutcome> {

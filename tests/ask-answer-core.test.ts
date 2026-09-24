@@ -85,10 +85,25 @@ test('an answer must cite, stay bounded, and never characterise the reader', () 
   assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: [] }), source)), ['basis_missing']);
   assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: 'x'.repeat(1201) }), source)), ['answer_too_long']);
   assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: 'You seem to love the ocean, so: the Moon pulls the water.' }), source)), ['characterizes_reader']);
-  assert.deepEqual(reasons(validateAskAnswerProposal(good({ extra: 'field' }), source)), ['shape_invalid']);
-  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: Array.from({ length: 5 }, () => ({ quote: 'Earth rotates through two bulges of water' })) }), source)), ['shape_invalid']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ extra: 'field' }), source)), ['shape_invalid', 'shape_keys']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: Array.from({ length: 5 }, () => ({ quote: 'Earth rotates through two bulges of water' })) }), source)), ['shape_invalid', 'shape_too_many_quotes']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: [{ text: 'Earth rotates through two bulges of water' }] }), source)), ['shape_invalid', 'shape_basis_item']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: [{ quote: 42 }] }), source)), ['shape_invalid', 'shape_basis_item']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: '   ' }), source)), ['shape_invalid', 'shape_empty_answer']);
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ answer: true }), source)), ['shape_invalid', 'shape_types']);
 });
 
 function reasons(verdict: ReturnType<typeof validateAskAnswerProposal>): string[] {
   return verdict.ok ? [] : verdict.reasons;
 }
+
+test('v2 takes a quote as a bare string or an object with a string quote, drops every other key, and still checks it verbatim', () => {
+  const bare = validateAskAnswerProposal(good({ basis: ['Earth rotates through two bulges of water'] }), source);
+  assert.ok(bare.ok && bare.proposal.kind === 'answered');
+  assert.deepEqual(bare.ok && bare.proposal.kind === 'answered' ? bare.proposal.basis : null, [{ quote: 'Earth rotates through two bulges of water' }]);
+  const extra = validateAskAnswerProposal(good({ basis: [{ quote: 'Earth rotates through two bulges of water', where: 'paragraph 2', note: 'You seem curious' }] }), source);
+  assert.ok(extra.ok && extra.proposal.kind === 'answered');
+  assert.deepEqual(extra.ok && extra.proposal.kind === 'answered' ? extra.proposal.basis : null, [{ quote: 'Earth rotates through two bulges of water' }], 'other keys are never kept');
+  assert.equal(extra.validatorVersion, 'ask-answer-v2');
+  assert.deepEqual(reasons(validateAskAnswerProposal(good({ basis: ['The Moon is made of green cheese entirely'] }), source)), ['basis_not_in_source']);
+});

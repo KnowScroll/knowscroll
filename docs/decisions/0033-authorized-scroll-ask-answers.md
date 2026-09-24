@@ -38,7 +38,8 @@ bytes from the worker only, and lets the reply change state only after it passes
 4. **Validated application.** Provider text is evidence, not authority. After a recorded
    successful receipt, `applyAskAnswer` locks universe → original session → Job → Step, requires the
    current lease fence, current epoch, eligible output authority and a clean context recheck, then
-   runs `ask-answer-v1`: one exact JSON object; every basis quote found in the sealed Scroll; bounded
+   runs the answer validator (now `ask-answer-v2`, see the amendment below): one JSON object with
+   exactly `answer`, `basis` and `limits`; every basis quote found in the sealed Scroll; bounded
    lengths; nothing said about the reader. It writes one immutable `ask_answer` (`answered`,
    `not_in_source`, or `rejected` with reasons and no provider text) and completes or fails the Job.
 5. **Reading and cancelling.** `GET /v1/asks/:askId/answer` returns the request's state and, once
@@ -63,3 +64,14 @@ Migration 0028; `packages/core/src/reasoning/ask-answer.ts`; `packages/db/src/re
 `apps/worker/src/reasoning/answer-worker.ts` and provider transports; API routes; Android Ask
 controls. The existing J004 proof keeps covering the protocol; the answer path adds its own
 crash, unknown-outcome, cancellation and Clear checks and one live, bounded, authorized round trip.
+
+## Amendment — validator v2 (2026-09-24)
+
+Live measurement on the Android journey's question ("Does this Scroll say anything about tides?")
+rejected five of five MiniMax-M3 replies with `shape_basis_item`: the quotes did not come as exact
+`{"quote": string}` items. v1's exact item shape guarded nothing the other rules do not: only the
+quote is ever kept, and it is still checked word for word against the Scroll. `ask-answer-v2`
+therefore takes a basis item given as a bare string or as an object whose `quote` is a string,
+drops every other key unread (never stored or shown), and changes nothing else. Rejections now carry
+content-free sub-codes next to `shape_invalid` (`shape_keys`, `shape_types`, `shape_basis_item`, …)
+so a live failure can be diagnosed without recording provider text.
