@@ -39,3 +39,4 @@
 0032_background_inquiries.sql
 0033_return_and_relics.sql
 0034_correction_catch_up.sql
+0035_model_written_scrolls.sql

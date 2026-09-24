@@ -25,8 +25,9 @@ export type SeedLoadResult = {
   proposals: { key: string; result: ProposalResult }[];
 };
 
-/** Insert-if-absent by natural key, then prove the stored row equals what the seed says. */
-async function ensureRow(client: pg.PoolClient, table: string, keyColumn: string, values: Record<string, unknown>, compare: string[]): Promise<string> {
+/** Insert-if-absent by natural key, then prove the stored row equals what the seed says. Also how a
+ * model-written Scroll's family and source enter the substrate (ADR-0041 §6). */
+export async function ensureRow(client: pg.PoolClient, table: string, keyColumn: string, values: Record<string, unknown>, compare: string[]): Promise<string> {
   const columns = Object.keys(values);
   const inserted = await client.query(
     `INSERT INTO ${table}(id,${columns.join(',')}) VALUES($1,${columns.map((_, i) => `$${i + 2}`).join(',')})
