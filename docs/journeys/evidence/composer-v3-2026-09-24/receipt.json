@@ -1,0 +1,29 @@
+{
+  "at": "2026-09-24T02:48:56.653010+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_239f4514a9df3916",
+  "apiPort": 4333,
+  "source": "525a44020ff8c65752a319447565a2c78ea0af8d",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "why",
+  "journey": {
+    "decisionId": "b87f3519-ea19-4b8e-9ff3-2ee6c9dfb51b",
+    "assetId": "20000000-0000-4000-8000-000000000002",
+    "title": "One force, many jobs",
+    "citedKeepTitle": "A rhythm the ocean keeps",
+    "keepsBeforeCited": 1
+  },
+  "lineage": {
+    "servedByV3": 1,
+    "citedKeepRecorded": 1,
+    "lessLikeThis": 1,
+    "attentionAccounts": 4,
+    "sharedBridgesStillAdmitted": 6
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Editorial substrate; composer-semantic-v3 with bench thresholds.",
+    "Debug API36 emulator, not a physical device.",
+    "Scroll reader only; the Reel reader has no why sheet yet."
+  ]
+}
