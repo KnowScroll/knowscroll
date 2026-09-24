@@ -1,5 +1,13 @@
 # Project state
 
+## 2026-09-24 What is left, and how the next session works (#72)
+
+Six phases: #131 is done. #132–#136 continue as twelve concrete issues (#160–#171). The next
+session is Android-first and tests every feature by hand on the emulator. Sources stay out of
+readers' sight but still check every fact, and new Scrolls will be written by the model in its own
+words. After #160–#170, what remains is Cutroom, the web catch-up, the owner's release inputs and
+acceptance. See [the continuation handoff](handoffs/2026-09-24-android-first-continuation.md).
+
 ## 2026-09-24 KnowScroll tells you what changed while you were away, and you can keep a connection as a Relic (#134)
 
 When you come back to the Atlas, a short "While you were away" section lists only what happened
