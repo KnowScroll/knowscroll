@@ -50,3 +50,11 @@ test('a foundation is withdrawn when what it held up goes: a revoked source, or 
   assert.deepEqual(setAside.map(d => [d.kind, d.causalClass]), [['foundation_withdrawn', 'reader_correction']]);
   assert.deepEqual(foundations(plan([standing, planet('earth.tides'), planet('astro.orbit')])), [], 'still standing: nothing changes');
 });
+
+test('only explaining or coming before counts: other typed connections never make a foundation', () => {
+  const places = [planet('physics.gravity'), planet('earth.tides'), planet('astro.orbit'), planet('astro.star.birth')];
+  for (const kind of ['contradicts', 'analogous_in', 'applies_to', 'compares_mechanism'] as const) {
+    const others = ['earth.tides', 'astro.orbit', 'astro.star.birth'].map(to => rel(to, kind, { claimId: `claim-${kind}-${to}` }));
+    assert.deepEqual(foundations(plan(places, others)), [], kind);
+  }
+});

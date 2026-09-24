@@ -1,0 +1,16 @@
+{
+  "gravityPlaceId": "8c46b9f1-c6ed-4107-af9c-158254aaa7f8",
+  "heldUpPlaceIds": [
+    "44bc1236-93ff-4ca8-af2b-c715cbbf4e85",
+    "72de2537-70a4-4420-ba17-ee6064f482c0",
+    "c7b09a6a-2b6e-40d6-9d12-65e5fbdf83fc"
+  ],
+  "tidesPlaceId": "c7b09a6a-2b6e-40d6-9d12-65e5fbdf83fc",
+  "deltaIds": {
+    "gravityFormed": "3d71b23b-3f8d-443d-8d1a-c09a69d45835",
+    "recognised": "b72ac87f-4842-42b8-8b75-dd91bdbbf228",
+    "tidesRejected": "e5919609-50dc-4560-804a-047dd6e572d1",
+    "withdrawn": "57e6bb8c-c0e2-41e3-9323-04fd3302e970"
+  },
+  "connections": 3
+}
