@@ -146,7 +146,7 @@ test('return after real background work: found, inspected, kept, acknowledged; a
   assert.ok(corrected.kind === 'connection_corrected' && corrected.bridgeId === found.found.bridgeId && corrected.status === 'revoked');
   const place = later.items.find(i => i.kind === 'place_changed')!;
   assert.ok(place.kind === 'place_changed' && place.change === 'sighting_retired' && place.placeId === sighting.id);
-  assert.equal(place.line, 'Tides left the horizon: the source behind it changed.');
+  assert.equal(place.line, 'Tides left the horizon: what it was based on changed.');
 
   const [after] = await relics(r);
   assert.deepEqual([after!.relicId, after!.state, after!.connection.bridgeStatus], [relic.relicId, 'corrected', 'revoked']);
