@@ -33,7 +33,7 @@ const inquiryReadiness=gatesFor(inquiryTransports);
 // bounded batch (1..100) at a time. Deterministic database work only; no model is called.
 const correctionRefreshMs=Math.max(1_000,Number(process.env.KS_CORRECTION_REFRESH_INTERVAL_MS ?? 60_000)||60_000);
 const correctionRefreshBatch=Math.min(100,Math.max(1,Math.trunc(Number(process.env.KS_CORRECTION_REFRESH_BATCH ?? 8)||8)));
-let lastSweep=0,lastCorrectionRefresh=0;
+let lastSweep=0,lastCorrectionRefresh=0,refreshDeferred:string[]=[];
 const stop=new AbortController();
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>stop.abort());
 console.log(JSON.stringify({service:'worker',workerId,kind:'deterministic-projection',answers:answerTransports?Object.keys(answerTransports):[],inquiries:inquiryTransports?Object.keys(inquiryTransports):[]}));
@@ -78,7 +78,8 @@ try {while(running) {
  }
  if(Date.now()-lastCorrectionRefresh>=correctionRefreshMs) {
   lastCorrectionRefresh=Date.now();
-  try {const pass=await runCorrectionRefreshPass(pool,{limit:correctionRefreshBatch});
+  try {const pass=await runCorrectionRefreshPass(pool,{limit:correctionRefreshBatch,deferred:refreshDeferred});
+   refreshDeferred=pass.failed.map(f=>f.universeId);
    if(pass.refreshed.length||pass.failed.length) console.log(JSON.stringify({correctionRefresh:pass.refreshed,placeChanges:pass.placeChanges,failed:pass.failed}));}
   catch {console.error(JSON.stringify({error:'correction_refresh_failed'}));}
  }

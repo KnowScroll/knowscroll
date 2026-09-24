@@ -7,8 +7,8 @@
  * The worker's pass refreshes each reader who is behind the append-only correction log, exactly as
  * their next action would have: the change appears on the return with its own cause, a paused
  * reader waits until they resume, a second pass does nothing, a correction that commits after a
- * refresh read the count is still caught up, one reader's failure holds no one else back, and Clear
- * and Reset erase the record.
+ * refresh read the count (or while it runs) is still caught up, one reader's failure holds no one else
+ * back, and Clear and Reset erase the record.
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -127,7 +127,7 @@ async function drain(): Promise<{ refreshed: Set<string>; failed: Set<string> }>
   const refreshed = new Set<string>(), failed = new Set<string>();
   for (let pass = 0; pass < 100; pass += 1) {
     const result = await runCorrectionRefreshPass(pool, { limit: 50 });
-    for (const id of result.failed) failed.add(id);
+    for (const f of result.failed) failed.add(f.universeId);
     if (result.refreshed.length === 0) return { refreshed, failed };
     for (const id of result.refreshed) refreshed.add(id);
   }
@@ -220,6 +220,37 @@ test('a correction that commits after a refresh read the count is still caught u
   await assertAurorasLeft(r);
 });
 
+test('a correction that commits while a refresh is running is still caught up: the count is read before anything it loads', async () => {
+  const r = await anchoredReader();
+  const seen = await committedCorrections();
+  const key = parseInt(r.universeId.replace(/-/g, '').slice(0, 8), 16);
+  // Hold the refresh after its Cartographer step (hypotheses are written last) while the correction commits.
+  await pool.query(`CREATE FUNCTION hold_correction_refresh() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+    IF NEW.universe_id='${r.universeId}'::uuid THEN PERFORM pg_advisory_lock(${key}); PERFORM pg_advisory_unlock(${key}); END IF; RETURN NEW; END $$`);
+  await pool.query('CREATE TRIGGER hold_correction_refresh BEFORE INSERT OR UPDATE ON personal_hypothesis FOR EACH ROW EXECUTE FUNCTION hold_correction_refresh()');
+  const holder = await pool.connect();
+  try {
+    await holder.query('SELECT pg_advisory_lock($1)', [key]);
+    const refresh = transaction(async client => { await lockUniverse(client, r.universeId); await refreshPersonalModel(client, r.universeId); });
+    for (let waited = 0; !(await pool.query(`SELECT 1 FROM pg_locks WHERE locktype='advisory' AND objid=$1 AND NOT granted`, [key])).rowCount; waited += 1) {
+      assert.ok(waited < 200, 'the refresh reached its held step');
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    await withdraw(r.aurorasSource);
+    await holder.query('SELECT pg_advisory_unlock($1)', [key]);
+    await refresh;
+  } finally {
+    holder.release();
+    await pool.query('DROP TRIGGER hold_correction_refresh ON personal_hypothesis');
+    await pool.query('DROP FUNCTION hold_correction_refresh()');
+  }
+  assert.equal((await record(r))?.corrections_seen, seen, 'the refresh recorded only what was committed when it began');
+  assert.equal(await sightingState(r), 'live', 'its Cartographer ran before the correction');
+
+  assert.ok((await drain()).refreshed.has(r.universeId));
+  await assertAurorasLeft(r);
+});
+
 test('one reader\'s failed refresh holds no one else back, and is tried again on the next pass', async () => {
   const failing = await anchoredReader();
   const r = await anchoredReader();
@@ -229,9 +260,20 @@ test('one reader\'s failed refresh holds no one else back, and is tried again on
   await pool.query('CREATE TRIGGER reject_correction_refresh BEFORE INSERT OR UPDATE ON attention_account FOR EACH ROW EXECUTE FUNCTION reject_correction_refresh()');
   try {
     await withdraw(r.aurorasSource);
+    // One reader at a time, as a busy worker would take them: the failing reader was behind first,
+    // yet the next pass serves someone else, so it never holds the batch.
+    const behind = (await pool.query(`SELECT count(*) FROM universe`)).rows[0].count as string;
+    let deferred: string[] = [], reached = false, failedOnce = false;
+    for (let pass = 0; pass < 2 * Number(behind) + 2 && !reached; pass += 1) {
+      const result = await runCorrectionRefreshPass(pool, { limit: 1, deferred });
+      deferred = result.failed.map(f => f.universeId);
+      failedOnce ||= deferred.includes(failing.universeId);
+      reached = result.refreshed.includes(r.universeId);
+    }
+    assert.ok(failedOnce, 'the failing reader was tried');
+    assert.ok(reached, 'a reader behind the failing one was still caught up');
     const first = await drain();
     assert.ok(first.failed.has(failing.universeId) && !first.refreshed.has(failing.universeId));
-    assert.ok(first.refreshed.has(r.universeId));
   } finally {
     await pool.query('DROP TRIGGER reject_correction_refresh ON attention_account');
     await pool.query('DROP FUNCTION reject_correction_refresh()');
@@ -242,7 +284,7 @@ test('one reader\'s failed refresh holds no one else back, and is tried again on
   assert.equal((await record(failing))?.corrections_seen, await committedCorrections());
 });
 
-test('Clear and Reset erase the record with the rest of the personal model', async () => {
+test('Clear and Reset erase the record with the rest of the personal model (account deletion: tests/account-deletion.test.ts)', async () => {
   for (const [url, confirmation] of [['/v1/history/clear', 'clear-scroll-history'], ['/v1/privacy/reset', 'reset-personal-universe']] as const) {
     const identity = await provisionIdentity();
     const headers = { authorization: `Bearer ${identity.token}` };

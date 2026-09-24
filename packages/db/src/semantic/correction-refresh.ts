@@ -19,11 +19,13 @@ const BEHIND = `u.recording_paused_at IS NULL
   AND EXISTS (SELECT 1 FROM atlas_place p WHERE p.universe_id = u.id AND p.state = 'live')
   AND (c.universe_id IS NULL OR c.corrections_seen < ${CORRECTIONS_COMMITTED})`;
 
-/** Up to `limit` behind universes, longest-behind first: never recorded, then the oldest refresh. */
-export async function findBehindUniverses(client: pg.Pool | pg.PoolClient, limit: number): Promise<string[]> {
+/** Up to `limit` behind universes, longest-behind first: never recorded, then the oldest refresh.
+ * `deferred` (the universes whose refresh failed last pass) go after everyone else: a failure
+ * records nothing, so it would otherwise stay longest-behind and take the head of every batch. */
+export async function findBehindUniverses(client: pg.Pool | pg.PoolClient, limit: number, deferred: readonly string[] = []): Promise<string[]> {
   return (await client.query<{ id: string }>(
     `SELECT u.id FROM universe u LEFT JOIN correction_catch_up c ON c.universe_id = u.id
-     WHERE ${BEHIND} ORDER BY c.refreshed_at NULLS FIRST, u.id LIMIT $1`, [limit],
+     WHERE ${BEHIND} ORDER BY u.id = ANY($2::uuid[]), c.refreshed_at NULLS FIRST, u.id LIMIT $1`, [limit, deferred],
   )).rows.map(r => r.id);
 }
 
@@ -37,20 +39,23 @@ export async function catchUpUniverse(client: pg.PoolClient, universeId: string)
   return behind ? refreshPersonalModel(client, universeId) : null;
 }
 
-export interface CorrectionRefreshPass { refreshed: string[]; placeChanges: number; failed: string[] }
+/** A failed universe and what kind of error it was: a PostgreSQL error code or the error's name,
+ * never its message (which may quote a row). */
+export interface FailedCatchUp { universeId: string; error: string }
+export interface CorrectionRefreshPass { refreshed: string[]; placeChanges: number; failed: FailedCatchUp[] }
 
 /** One worker pass. A universe whose refresh fails is rolled back and named; it is still behind, so
- * the next pass takes it again, and it never holds back the universes after it. */
-export async function runCorrectionRefreshPass(pool: pg.Pool, opts: { limit: number }): Promise<CorrectionRefreshPass> {
+ * it is taken again, after the others when the caller passes this pass's failures as `deferred`. */
+export async function runCorrectionRefreshPass(pool: pg.Pool, opts: { limit: number; deferred?: readonly string[] }): Promise<CorrectionRefreshPass> {
   const pass: CorrectionRefreshPass = { refreshed: [], placeChanges: 0, failed: [] };
-  for (const universeId of await findBehindUniverses(pool, opts.limit)) {
+  for (const universeId of await findBehindUniverses(pool, opts.limit, opts.deferred)) {
     try {
       const result = await transaction(client => catchUpUniverse(client, universeId), pool);
       if (!result) continue;
       pass.refreshed.push(universeId);
       pass.placeChanges += result.places;
-    } catch {
-      pass.failed.push(universeId);
+    } catch (error) {
+      pass.failed.push({ universeId, error: (error as { code?: string }).code ?? (error as Error).name ?? 'unknown' });
     }
   }
   return pass;
