@@ -17,6 +17,7 @@ name='knowscroll_test_'+uuid.uuid4().hex
 env={**os.environ,'PGPASSWORD':u.password or ''}
 args=['-h',u.hostname,'-p',str(u.port or 5432),'-U',u.username]
 url=lambda db:urlunparse(u._replace(path='/'+db))
+if any(a.startswith('-') for a in sys.argv[1:]):raise SystemExit('scripts/test.sh takes test files only')
 files=sys.argv[1:] or sorted(str(path) for path in Path('tests').glob('*.test.ts'))
 subprocess.run(['createdb',*args,name],env=env,check=True)
 try:
@@ -27,7 +28,8 @@ try:
   subprocess.run(['createdb',*args,'-T',name,copy],env=env,check=True)
   try:
    if subprocess.run(['pnpm','exec','tsx','--test',file],env={**env,'DATABASE_URL':url(copy)}).returncode:failed.append(file)
-  finally:subprocess.run(['dropdb',*args,copy],env=env,check=True)
+  # --force: a worker a failed test left behind cannot keep its copy, or stop the run.
+  finally:subprocess.run(['dropdb','--force',*args,copy],env=env,check=True)
  if failed:raise SystemExit(f'{len(failed)} of {len(files)} test files failed: '+' '.join(failed))
-finally:subprocess.run(['dropdb',*args,name],env=env,check=True)
+finally:subprocess.run(['dropdb','--force',*args,name],env=env,check=True)
 PY2
