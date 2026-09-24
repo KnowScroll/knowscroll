@@ -95,6 +95,11 @@ class ReelContinuationTest {
         panel.value = ready()
         waitForIdle()
         assertEquals(0, onAllNodesWithText("Back to Reel").fetchSemanticsNodes().size)
+        // A swipe on the video later opens a continuation without the chooser: it stays closed.
+        panel.value = ready(opening = gravity.id)
+        waitForIdle()
+        assertEquals(0, onAllNodesWithText("Back to Reel").fetchSemanticsNodes().size)
+        panel.value = ready()
         onNodeWithText("Continue →").performClick()
         onNodeWithText("Back to Reel").assertExists()
     }

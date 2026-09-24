@@ -61,9 +61,16 @@ fun ReelScreen(
     var branchHelp by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
     // #183: a continuation chosen in the chooser, until it settles. The chooser shows it opening, and
     // says there why one failed; one that opened took the reader away, so the Reel they come back to
-    // has its chooser closed.
+    // has its chooser closed, and a later swipe on the video does not reopen it.
     var chosen by rememberSaveable(state.item.assetId) { mutableStateOf(false) }
-    val chooser = branchHelp && !(chosen && branches?.opening == null && branches?.message == null)
+    val settled = chosen && branches?.opening == null && branches?.message == null
+    LaunchedEffect(settled) {
+        if (settled) {
+            branchHelp = false
+            chosen = false
+        }
+    }
+    val chooser = branchHelp && !settled
     val openChooser = {
         chosen = false
         branchHelp = true

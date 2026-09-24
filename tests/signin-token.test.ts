@@ -12,6 +12,8 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { authenticateAndLock, OWNER_ID, pool, transaction, UnauthorizedSession } from '../packages/db/src/index.ts';
 import {
@@ -336,9 +338,12 @@ test('the universe is adopted on first consumption and never re-bound by a secon
   assert.equal(universeAfter, accountId, 'still the same account; never re-bound');
 });
 
-test('every sign-in suite uses its own owner address, never one a local .env supplied (#177)', () => {
+test('the test owner address replaces one a local .env supplied, and no suite keeps that one (#177)', () => {
   // What packages/db's loadLocalEnv() copies in from a developer's .env before this file's first statement.
   process.env.KS_OWNER_EMAIL = 'developer@local-env.knowscroll.test';
   useTestOwnerEmail();
-  assert.equal(resolveOwnerEmail() === TEST_OWNER_EMAIL, true);
+  assert.equal(resolveOwnerEmail(), TEST_OWNER_EMAIL);
+  // `??=` keeps whatever .env supplied: the cross-file cause of #177's web-session failures.
+  const keeping = readdirSync('tests').filter(f => f.endsWith('.test.ts') && /KS_OWNER_EMAIL\s*\?\?=/.test(readFileSync(join('tests', f), 'utf8')));
+  assert.deepEqual(keeping, []);
 });
