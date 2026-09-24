@@ -15,6 +15,7 @@ import { buildApp } from '../apps/api/src/app.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
 import { createFixtureScrollTransport, type ScrollFixtureMode } from '../apps/worker/src/providers/scroll-fixture.ts';
 import { writeScroll, type WriteScrollDeps } from '../apps/worker/src/scrolls/write-scroll.ts';
+import { extractVisibleText } from '../packages/core/src/scrolls/material.ts';
 import { SCROLL_LIMITS } from '../packages/core/src/scrolls/writing.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
 import { admitModelScroll } from '../packages/db/src/semantic/model-scrolls.ts';
@@ -124,6 +125,23 @@ test('the same material and request are decided once and never sent again', asyn
     FROM semantic_source s JOIN source_snapshot ss ON ss.source_id = s.id LEFT JOIN source_material m ON m.snapshot_id = ss.id
     LEFT JOIN scroll_writing w ON w.snapshot_id = ss.id WHERE s.url=$1`, [url])).rows[0];
   assert.deepEqual(counts, { snapshots: 1, materials: 1, writings: 2 });
+});
+
+test('a page the substrate already holds, unchanged, keeps its source and snapshot and gains its material', async () => {
+  const fixture = await makeSemanticFixture(pool);
+  const url = `https://science.nasa.gov/fixture/${fixture.tag}/known/`;
+  const text = extractVisibleText(pageHtml()).text;
+  const seed = { ...fixture.seed, sources: fixture.seed.sources.map((s, i) => (i === 0 ? { ...s, url, contentSha256: sha(text) } : s)) };
+  assert.equal((await transaction(c => loadSubstrateSeed(c, JSON.stringify(seed)))).status, 'loaded');
+  const held = `SELECT s.id AS source_id, s.key, ss.id AS snapshot_id FROM semantic_source s JOIN source_snapshot ss ON ss.source_id = s.id WHERE s.url=$1`;
+  const before = (await pool.query(held, [url])).rows;
+  const result = await writeScroll(deps({ [url]: pageHtml() }).deps, { url, conceptCodes: [fixture.codes.tides] });
+  assert.equal(result.status, 'admitted', JSON.stringify(result));
+  assert.deepEqual((await pool.query(held, [url])).rows, before, 'the same source and snapshot, under the substrate\'s own key');
+  assert.equal((await pool.query('SELECT content FROM source_material WHERE snapshot_id=$1', [before[0].snapshot_id])).rows[0].content, text);
+  assert.equal((await pool.query('SELECT source_title FROM asset WHERE id=$1', [result.assetId])).rows[0].source_title, 'Fixture · Physics fixture');
+  const supports = (await pool.query('SELECT DISTINCT cs.snapshot_id FROM asset_claim x JOIN claim_support cs ON cs.claim_id = x.claim_id WHERE x.asset_id=$1', [result.assetId])).rows;
+  assert.deepEqual(supports, [{ snapshot_id: before[0].snapshot_id }]);
 });
 
 test('admission itself is idempotent under the substrate lock', async () => {

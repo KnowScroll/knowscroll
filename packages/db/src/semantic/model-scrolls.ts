@@ -79,20 +79,26 @@ export async function admitModelScroll(client: pg.PoolClient, input: { identity:
   const standing = await sourceStanding(client, material.url, identity.materialSha256);
   if (standing === 'changed') return recordRefusedScroll(client, { identity, url: material.url, reasons: ['source_changed'], record });
 
+  // A page the substrate already holds keeps its own source and current snapshot (the same text, as
+  // `sourceStanding` just proved); a new page becomes a source under its URL's key, with a first
+  // snapshot.
   const { host } = material;
-  const familyId = await ensureRow(client, 'evidence_family', 'key', { key: host.family.key, kind: host.family.kind, description: host.family.description }, ['kind', 'description']);
-  const pageTitle = material.title !== null && material.title.length >= 3 ? material.title.slice(0, 300).trim() : material.url.slice(0, 300);
-  const sourceId = await ensureRow(client, 'semantic_source', 'key', {
-    key: `${host.keyPrefix}.page-${sha256(material.url).slice(0, 16)}`, url: material.url, title: pageTitle, publisher: host.publisher, family_id: familyId,
-  }, ['url', 'title', 'publisher', 'family_id']);
-  let snapshotId = (await client.query<{ id: string }>(`SELECT id FROM source_snapshot WHERE source_id = $1 AND status = 'current'`, [sourceId])).rows[0]?.id;
-  if (!snapshotId) {
-    snapshotId = randomUUID();
+  let source = (await client.query<{ snapshot_id: string; title: string; publisher: string }>(
+    `SELECT ss.id AS snapshot_id, s.title, s.publisher FROM semantic_source s JOIN source_snapshot ss ON ss.source_id = s.id AND ss.status = 'current' WHERE s.url = $1`,
+    [material.url],
+  )).rows[0];
+  if (!source) {
+    const familyId = await ensureRow(client, 'evidence_family', 'key', { key: host.family.key, kind: host.family.kind, description: host.family.description }, ['kind', 'description']);
+    const title = material.title !== null && material.title.length >= 3 ? material.title.slice(0, 300).trim() : material.url.slice(0, 300);
+    const sourceId = await ensureRow(client, 'semantic_source', 'key', {
+      key: `${host.keyPrefix}.page-${sha256(material.url).slice(0, 16)}`, url: material.url, title, publisher: host.publisher, family_id: familyId,
+    }, ['url', 'title', 'publisher', 'family_id']);
+    source = { snapshot_id: randomUUID(), title, publisher: host.publisher };
     await client.query('INSERT INTO source_snapshot(id,source_id,revision,retrieved_on,content_sha256) VALUES($1,$2,1,$3,$4)',
-      [snapshotId, sourceId, material.retrievedAt.slice(0, 10), identity.materialSha256]);
+      [source.snapshot_id, sourceId, material.retrievedAt.slice(0, 10), identity.materialSha256]);
   }
   await client.query('INSERT INTO source_material(snapshot_id,content,retrieved_at) VALUES($1,$2,$3) ON CONFLICT (snapshot_id) DO NOTHING',
-    [snapshotId, material.text, material.retrievedAt]);
+    [source.snapshot_id, material.text, material.retrievedAt]);
 
   const conceptIds = new Map((await client.query<{ id: string; code: string }>('SELECT id, code FROM concept WHERE code = ANY($1::text[])',
     [[...scroll.concepts.map(c => c.code), ...scroll.claims.flatMap(c => c.concepts.map(l => l.code))]])).rows.map(r => [r.code, r.id]));
@@ -107,7 +113,7 @@ export async function admitModelScroll(client: pg.PoolClient, input: { identity:
       await client.query('INSERT INTO claim_concept(claim_id,concept_id,role) VALUES($1,$2,$3)', [claimId, conceptIds.get(link.code), link.role]);
     }
     await client.query('INSERT INTO claim_support(id,claim_id,snapshot_id,quote,support_kind) VALUES($1,$2,$3,$4,$5)',
-      [randomUUID(), claimId, snapshotId, claim.quote, claim.supportKind]);
+      [randomUUID(), claimId, source.snapshot_id, claim.quote, claim.supportKind]);
   }
 
   // The source title and URL stay internal: readers never see a source (owner decision, 2026-09-24).
@@ -115,7 +121,7 @@ export async function admitModelScroll(client: pg.PoolClient, input: { identity:
   await client.query(
     `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
      VALUES($1,1,'Scroll',$2,$3,$4,$5,$6,'documented',(SELECT COALESCE(MAX(editorial_order), -1) + 1 FROM asset))`,
-    [assetId, scroll.title, scroll.summary, scroll.body, `${host.publisher} · ${pageTitle}`, material.url],
+    [assetId, scroll.title, scroll.summary, scroll.body, `${source.publisher} · ${source.title}`, material.url],
   );
   for (const c of scroll.concepts) await client.query('INSERT INTO asset_concept(asset_id,concept_id,role) VALUES($1,$2,$3)', [assetId, conceptIds.get(c.code), c.role]);
   for (const claimId of claimIds) await client.query('INSERT INTO asset_claim(asset_id,claim_id) VALUES($1,$2)', [assetId, claimId]);
@@ -125,7 +131,7 @@ export async function admitModelScroll(client: pg.PoolClient, input: { identity:
     `INSERT INTO scroll_writing(id,material_sha256,request_sha256,source_url,transport,model,versions,input_bytes,usage,status,reasons,snapshot_id,asset_id)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'admitted','[]',$10,$11)`,
     [writingId, identity.materialSha256, identity.requestSha256, material.url, record.transport, record.model,
-      JSON.stringify(record.versions), record.inputBytes, JSON.stringify(record.usage), snapshotId, assetId],
+      JSON.stringify(record.versions), record.inputBytes, JSON.stringify(record.usage), source.snapshot_id, assetId],
   );
   return { status: 'admitted', writingId, assetId };
 }
