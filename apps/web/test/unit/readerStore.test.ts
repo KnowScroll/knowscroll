@@ -904,6 +904,90 @@ describe('Sign-out and account deletion (#135, ADR-0034/ADR-0035)', () => {
     await waitFor(() => privacyActionStatus(store) === 'failed');
     expect(signedOut).toHaveLength(0);
   });
+
+  // #135 (from #119): a failed Reset kept its confirmation on screen, but its Confirm and Cancel
+  // did nothing. They are now the retry (same requestId) and a real Cancel, as for deletion.
+  const RESET_MAY_HAVE_COMPLETED = 'Your session ended. The Reset may have completed, but the connection dropped before it was confirmed. Sign in to see your universe.';
+
+  it('a failed reset keeps its own Confirm as the retry, with the same requestId', async () => {
+    const { api, store } = setup();
+    await openLoadedPrivacy(api, store);
+    api.resetQueue.push(new ApiException({ kind: 'network', message: 'timed out' }));
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+
+    api.resetQueue.push(privacyResetReceiptOf());
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'reset-complete');
+    expect(api.resetCalls).toHaveLength(2);
+    expect(api.resetCalls[1]!.requestId).toBe(api.resetCalls[0]!.requestId);
+  });
+
+  it('Cancel after a failed reset closes the confirmation', async () => {
+    const { api, store } = setup();
+    await openLoadedPrivacy(api, store);
+    api.resetQueue.push(new ApiException({ kind: 'network', message: 'timed out' }));
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    store.cancelReset();
+    expect(store.getState().privacy).toEqual({ status: 'open', action: { status: 'idle' } });
+  });
+
+  it('a lost response, then a 401 on the retry, says the reset may have completed (verify=false) and purges this browser', async () => {
+    const { api, storage, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    storage.writeLastKept({ eventId: 'evt-2', title: 'Kept', reason: 'because', universeId: universeOf().universeId, privacyEpoch: 0 });
+    api.resetQueue.push(new ApiException({ kind: 'network', message: 'timed out' }));
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+
+    api.resetQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: RESET_MAY_HAVE_COMPLETED, verify: false }]);
+    expect(storage.readLastKept()).toBeNull();
+  });
+
+  it('a 401 that follows the client\'s own retry of a lost attempt says the reset may have completed, and keeps the epoch fence', async () => {
+    const { api, storage, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.resetQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }, { earlierAttemptMayHaveLanded: true }));
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: RESET_MAY_HAVE_COMPLETED, verify: false }]);
+    expect(storage.readObservedPrivacyEpoch()).toBe(0); // never ahead of a server whose Reset may not have landed
+  });
+
+  it('a lost reset, then Cancel and a fresh confirmation (a new requestId), then a 401 still says it may have completed', async () => {
+    const { api, storage, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.resetQueue.push(new ApiException({ kind: 'network', message: 'timed out' }));
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => privacyActionStatus(store) === 'failed');
+    store.cancelReset();
+    store.beginReset();
+    api.resetQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: RESET_MAY_HAVE_COMPLETED, verify: false }]);
+    expect(api.resetCalls[1]!.requestId).not.toBe(api.resetCalls[0]!.requestId);
+    expect(storage.readObservedPrivacyEpoch()).toBe(0);
+  });
+
+  it('a 401 on the first reset attempt is never reported as a possible reset: the session had already ended', async () => {
+    const { api, store, signedOut } = setup();
+    await openLoadedPrivacy(api, store);
+    api.resetQueue.push(new ApiException({ kind: 'server', statusCode: 401, body: 'unauthorized' }));
+    store.beginReset();
+    store.confirmReset('reset-personal-universe');
+    await waitFor(() => signedOut.length === 1);
+    expect(signedOut).toEqual([{ message: null, verify: true }]);
+  });
 });
 
 describe('Keep navigation', () => {

@@ -15,7 +15,7 @@ type AuthState = { screen: 'reader' } | { screen: 'signed-out'; message: string 
  * itself actually reloads, which is also the only time this in-memory token is allowed to be lost.
  *
  * `App` never sees a signed-out state of its own -- the moment `ReaderStore`'s `onSignedOut`
- * fires (a 401, a real sign-out, or a real account deletion), this component swaps the whole
+ * fires (a 401, a real sign-out, a real account deletion, or a Reset that may have completed), this component swaps the whole
  * reader tree for `SignedOutScreen` rather than leaving `App` to render some dead-end state.
  *
  * The one exception is an *ambient* 401 (`verify === true`, see `ReaderStore`'s own doc comment)
