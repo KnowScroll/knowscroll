@@ -221,7 +221,7 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
     deviceSessions: [],
     reasoning: { jobs: [], steps: [], receipts: [], accounting: [] },
     semantic: { branchOpens: [], connectionFeedback: [], proposals: [], bridges: [] },
-    personalModel: { attentionAccounts: [], attentionTransitions: [], hypotheses: [], encounterFeedback: [], atlasPlaces: [], atlasDeltas: [] },
+    personalModel: { attentionAccounts: [], attentionTransitions: [], hypotheses: [], encounterFeedback: [], atlasPlaces: [], atlasDeltas: [], rooms: [], roomInhabitants: [], roomDeltas: [] },
     askAnswers: [],
     inquiries: { consent: [], consentRequests: [], mail: [], inquiries: [] },
     returns: { acknowledgements: [], relics: [] },

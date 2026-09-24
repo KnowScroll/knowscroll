@@ -1,9 +1,9 @@
 package com.knowscroll.mobile.data
 
-import com.knowscroll.mobile.ui.system.RejectPlaceConflict
+import com.knowscroll.mobile.ui.system.SetAsideConflict
 import com.knowscroll.mobile.ui.system.basisSentence
 import com.knowscroll.mobile.ui.system.evidenceSummary
-import com.knowscroll.mobile.ui.system.rejectPlaceConflict
+import com.knowscroll.mobile.ui.system.setAsideConflict
 import java.net.ServerSocket
 import kotlin.concurrent.thread
 import kotlinx.coroutines.runBlocking
@@ -40,12 +40,12 @@ class AtlasTest {
          "anchor":{"code":"physics.gravity","name":"Gravity","description":"The force that pulls masses together."},
          "basis":null,
          "attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null},
+         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[]},
         {"placeId":"$sightingId","kind":"sighting","parentPlaceId":"$gravityId",
          "anchor":{"code":"astro.star-formation","name":"Star formation","description":"How stars are born."},
          "basis":{"kind":"explains","from":"Gravity","to":"Star formation",
              "claim":{"text":"Gravity pulls gas clouds together until they ignite.","sourceTitle":"NASA · Star formation"},"bridge":null},
-         "attention":null,"scrolls":{"total":0,"seen":0},"formedAt":"2026-09-24T00:00:00.000Z","formedBy":"sighting_appeared","foundation":null}
+         "attention":null,"scrolls":{"total":0,"seen":0},"formedAt":"2026-09-24T00:00:00.000Z","formedBy":"sighting_appeared","foundation":null,"rooms":[]}
     ]"""
 
     private fun defaultChronicle() = """[
@@ -95,15 +95,15 @@ class AtlasTest {
         {"placeId":"$gravityId","kind":"planet","parentPlaceId":null,
          "anchor":{"code":"physics.gravity","name":"Gravity","description":"The force that pulls masses together."},
          "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":$foundation},
+         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":$foundation,"rooms":[]},
         {"placeId":"$tidesId","kind":"planet","parentPlaceId":null,
          "anchor":{"code":"earth.tides","name":"Tides","description":"The rise and fall of the sea."},
          "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null},
+         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[]},
         {"placeId":"$orbitsId","kind":"planet","parentPlaceId":null,
          "anchor":{"code":"astro.orbit","name":"Orbits","description":"Paths around a larger body."},
          "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null}
+         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null,"rooms":[]}
     ]"""
 
     @Test
@@ -149,7 +149,7 @@ class AtlasTest {
 
     @Test
     fun refusesAPlaceThatDoesNotSayWhetherItIsAFoundation() {
-        val silent = defaultPlaces().replace(",\"foundation\":null}", "}")
+        val silent = defaultPlaces().replace(",\"foundation\":null,", ",")
         assertNotEquals(defaultPlaces(), silent)
         assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = silent)) }
     }
@@ -267,13 +267,15 @@ class AtlasTest {
     }
 
     @Test
-    fun rejectPlaceConflictMatchesPausedExplicitlyAndLeavesAnyOtherReasonGeneric() {
-        assertEquals(RejectPlaceConflict.StaleEpoch, rejectPlaceConflict(ApiException.Server(409, """{"error":"Privacy epoch changed"}""")))
-        assertEquals(RejectPlaceConflict.Paused, rejectPlaceConflict(ApiException.Server(409, """{"error":"Recording is paused"}""")))
+    fun setAsideConflictMatchesPausedExplicitlyAndLeavesAnyOtherReasonGeneric() {
+        assertEquals(SetAsideConflict.StaleEpoch, setAsideConflict(ApiException.Server(409, """{"error":"Privacy epoch changed"}""")))
+        assertEquals(SetAsideConflict.Paused, setAsideConflict(ApiException.Server(409, """{"error":"Recording is paused"}""")))
         // Review M6: a 409 for neither known reason (e.g. a sighting refused set-aside) is not
         // assumed to mean paused -- the caller maps it to a generic message instead.
-        assertNull(rejectPlaceConflict(ApiException.Server(409, """{"error":"Only a live planet or region can be set aside"}""")))
-        assertNull(rejectPlaceConflict(ApiException.Server(404, "{}")))
+        assertNull(setAsideConflict(ApiException.Server(409, """{"error":"Only a live planet or region can be set aside"}""")))
+        // #163: a room no longer live is refused the same way.
+        assertNull(setAsideConflict(ApiException.Server(409, """{"error":"Only a live room can be set aside"}""")))
+        assertNull(setAsideConflict(ApiException.Server(404, "{}")))
     }
 
     @Test

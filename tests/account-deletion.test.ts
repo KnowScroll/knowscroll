@@ -24,6 +24,7 @@ const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
 const { pool, ensureDevelopmentSession } = await import('../packages/db/src/index.ts');
 const { resolveOwnerEmail, requestMagicLink } = await import('../packages/db/src/sign-in.ts');
+const { carryGravityQuestion } = await import('./helpers/rooms.ts');
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Account deletion tests require a disposable knowscroll_test_* database');
 const app = buildApp(randomBytes(32).toString('hex'), {
@@ -121,6 +122,18 @@ test('signing in again after deletion starts a new account on the empty universe
   const counts = exported.json().rowCounts;
   assert.deepEqual([counts.exposures, counts.ledger, counts.decisions, counts.traces], [0, 0, 0, 0]);
   assert.equal(counts.deviceSessions, 1, 'only this new session exists');
+});
+
+test('deletion erases the reader\'s Idea Rooms, their inhabitants and deltas (ADR-0045), from the universe emptied above', async () => {
+  const s = await bearerSession();
+  await carryGravityQuestion(app, { authorization: s.authorization }, s.universeId);
+  const rooms = async () => (await pool.query(`SELECT (SELECT count(*)::int FROM room WHERE universe_id=$1) rooms,
+    (SELECT count(*)::int FROM room_inhabitant WHERE universe_id=$1) inhabitants, (SELECT count(*)::int FROM room_delta WHERE universe_id=$1) deltas`, [s.universeId])).rows[0];
+  assert.deepEqual(await rooms(), { rooms: 1, inhabitants: 1, deltas: 2 });
+  const epoch = await epochOf({ authorization: s.authorization });
+  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  assert.deepEqual(await rooms(), { rooms: 0, inhabitants: 0, deltas: 0 });
 });
 
 test('a cookie session needs its CSRF token to delete, and the cookie is cleared', async () => {

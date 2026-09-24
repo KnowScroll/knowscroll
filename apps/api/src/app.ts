@@ -35,6 +35,7 @@ import { registerAnswerRoutes } from './answer-routes.ts';
 import { registerAtlasRoutes } from './atlas-routes.ts';
 import { registerInquiryRoutes } from './inquiry-routes.ts';
 import { registerReturnRoutes } from './return-routes.ts';
+import { registerRoomRoutes } from './room-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -158,6 +159,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   registerInquiryRoutes(app, authenticated);
   // #134: what changed while the reader was away, and the Relics they keep (ADR-0039).
   registerReturnRoutes(app, authenticated);
+  // #163: the reader's Idea Rooms, their inhabitants and their setting aside (ADR-0045).
+  registerRoomRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 

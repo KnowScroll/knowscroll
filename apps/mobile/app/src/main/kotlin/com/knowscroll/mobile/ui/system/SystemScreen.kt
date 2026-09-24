@@ -41,6 +41,7 @@ import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.AtlasEvidenceState
 import com.knowscroll.mobile.ui.AtlasState
 import com.knowscroll.mobile.ui.PlaceRejectState
+import com.knowscroll.mobile.ui.RoomState
 import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
@@ -59,6 +60,9 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * #134 (ADR-0039 §6): the map opens with a quiet "While you were away" when something changed that
  * the reader did not cause ([AwaySection]); a found connection opens its evidence in a sheet with
  * "Keep" and "Seems wrong". [away] is defaulted so every other call site is unchanged.
+ *
+ * #163 (ADR-0045): a place's Idea Rooms open over its sheet ([RoomSheet]); [rooms] is defaulted
+ * the same way.
  */
 @Composable
 fun SystemScreen(
@@ -79,6 +83,7 @@ fun SystemScreen(
     onOpenEvidence: (String) -> Unit = {},
     onCloseEvidence: () -> Unit = {},
     away: AwayControls? = null,
+    rooms: RoomControls? = null,
 ) {
     val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var inspection by rememberSaveable { mutableStateOf(false) }
@@ -107,6 +112,11 @@ fun SystemScreen(
     // #134: the found connection whose evidence sheet is open, while the list still carries it.
     var openConnectionId by rememberSaveable { mutableStateOf<String?>(null) }
     val openConnection = away?.let { controls -> openConnectionId?.let { awayFound(controls.state, it) } }
+    // Recording paused: nothing is kept, and no room is set aside, until the reader resumes.
+    val paused = (away?.state as? com.knowscroll.mobile.ui.keep.AwayState.Loaded)?.response?.recordingPaused == true
+    val openRoom = rooms?.takeIf { it.state !is RoomState.Closed }
+    // The place's sheet and a room open over it close together.
+    fun closeInspection() { inspection = false; rooms?.onClose?.invoke() }
     BackHandler { if (selectedPlaceId != null) selectedPlaceId = null else onReturn() }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -200,7 +210,7 @@ fun SystemScreen(
                         if (inspection && atlas != null && focusedPlace != null) {
                             Box(
                                 Modifier.fillMaxSize()
-                                    .clickable { inspection = false }
+                                    .clickable { closeInspection() }
                                     .semantics { contentDescription = "Dismiss place inspection" }
                             )
                             Surface(
@@ -212,18 +222,21 @@ fun SystemScreen(
                                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                             ) {
                                 com.knowscroll.mobile.ui.theme.PosterTheme {
-                                    PlaceDetail(
-                                        place = focusedPlace,
-                                        atlas = atlas,
-                                        rejectState = placeRejectState,
-                                        evidenceState = evidenceState,
-                                        onClose = { inspection = false },
-                                        onRequestSetAside = onRequestSetAside,
-                                        onCancelSetAside = onCancelSetAside,
-                                        onConfirmSetAside = onConfirmSetAside,
-                                        onOpenEvidence = onOpenEvidence,
-                                        onCloseEvidence = onCloseEvidence,
-                                    )
+                                    if (openRoom != null) RoomSheet(openRoom, paused)
+                                    else
+                                        PlaceDetail(
+                                            place = focusedPlace,
+                                            atlas = atlas,
+                                            rejectState = placeRejectState,
+                                            evidenceState = evidenceState,
+                                            onClose = { inspection = false },
+                                            onRequestSetAside = onRequestSetAside,
+                                            onCancelSetAside = onCancelSetAside,
+                                            onConfirmSetAside = onConfirmSetAside,
+                                            onOpenEvidence = onOpenEvidence,
+                                            onCloseEvidence = onCloseEvidence,
+                                            onOpenRoom = { rooms?.onOpen?.invoke(it) },
+                                        )
                                 }
                             }
                         } else if (openConnection != null && away != null) {
@@ -233,7 +246,7 @@ fun SystemScreen(
                                     state = away.connections[openConnection.bridgeId] ?: ConnectionState(),
                                     actions = away.connection,
                                     onClose = { openConnectionId = null },
-                                    paused = (away.state as? com.knowscroll.mobile.ui.keep.AwayState.Loaded)?.response?.recordingPaused == true,
+                                    paused = paused,
                                 )
                             }
                         }
@@ -269,7 +282,9 @@ fun SystemScreen(
             BottomCompass(CompassTab.Atlas, onReturn, onEnterScroll, onOpenKeep)
         }
     }
-    BackHandler(enabled = inspection) { inspection = false }
+    BackHandler(enabled = inspection) { closeInspection() }
+    // A room open over its place closes first, back to the place's sheet.
+    BackHandler(enabled = openRoom != null) { openRoom?.onClose?.invoke() }
     // #134: a connection gone from the list (marked as seen, a new epoch) closes its sheet; Back
     // closes an open one first.
     LaunchedEffect(openConnection == null) { if (openConnection == null) openConnectionId = null }

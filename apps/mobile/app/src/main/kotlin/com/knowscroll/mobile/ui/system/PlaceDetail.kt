@@ -36,7 +36,8 @@ import com.knowscroll.mobile.ui.theme.Cosmos
  * #134: the reader's own place sheet (ADR-0036) -- back pill, headline, body, in a `verticalScroll`
  * column -- for a planet or region: its basis-formed sightings, its typed relations to other live
  * places, its chronicle and each line's evidence, and "Set aside" for the whole place. #161: each
- * connection shows the claim it rests on, never where that claim came from.
+ * connection shows the claim it rests on, never where that claim came from. #163: its Idea Rooms,
+ * each under the reader's own question, open their own sheet ([RoomSheet]).
  */
 @Composable
 internal fun PlaceDetail(
@@ -50,6 +51,7 @@ internal fun PlaceDetail(
     onConfirmSetAside: () -> Unit,
     onOpenEvidence: (String) -> Unit,
     onCloseEvidence: () -> Unit,
+    onOpenRoom: (String) -> Unit,
 ) {
     val sightings = atlas.places.filter { it.kind == "sighting" && it.parentPlaceId == place.placeId }
     val connections = placeConnections(place, atlas)
@@ -111,6 +113,23 @@ internal fun PlaceDetail(
                     color = Cosmos.MutedOnCream,
                 )
             Text(placeMarkerDetail(place), style = MaterialTheme.typography.labelLarge, color = Cosmos.MutedOnCream)
+
+            if (place.rooms.isNotEmpty()) {
+                Text("Idea rooms", style = MaterialTheme.typography.labelLarge, color = Cosmos.InkOnCream)
+                place.rooms.forEach { room ->
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(onClickLabel = "Open this room") { onOpenRoom(room.roomId) }
+                            .semantics { contentDescription = "Open the room: ${room.question}" }
+                            .padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text("\"${room.question}\"", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight(700))
+                        Text(roomStateWords(room.state), style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+                    }
+                }
+            }
 
             val holdsUp = holdsUpLine(place, atlas.places)
             val foundation = place.foundation

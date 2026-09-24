@@ -57,6 +57,12 @@ class AwayTest {
         put("line", "Gravity no longer holds up Tides: a source was corrected.")
     }
 
+    private fun roomChanged(at: String = "2026-09-24T10:01:30.000Z") = JSONObject().apply {
+        put("kind", "room_changed"); put("at", at); put("deltaId", deltaId); put("roomId", inquiryId); put("placeId", placeId)
+        put("change", "inhabitant_unseated"); put("cause", "source_correction")
+        put("line", "The doubter left: what its claims were based on changed.")
+    }
+
     private fun corrected(at: String = "2026-09-24T10:01:00.000Z", status: String = "revoked") = JSONObject().apply {
         put("kind", "connection_corrected"); put("at", at); put("bridgeId", bridgeId); put("status", status)
         put("fromConcept", concept("astro.sun", "The Sun")); put("toConcept", concept("physics.gravity", "Gravity"))
@@ -102,6 +108,20 @@ class AwayTest {
         val correction = parsed.items[4] as AwayItem.ConnectionCorrected
         assertEquals("revoked", correction.status)
         assertEquals("The Sun", correction.fromConcept.name)
+    }
+
+    /** #163 (ADR-0045): a room a source correction changed is away news too, in the Keeper's own line. */
+    @Test
+    fun aRoomChangedByACorrectionIsCarriedWithItsLine() {
+        val change = parseAwayResponse(response(placeChanged(), roomChanged(), corrected())).items[1] as AwayItem.RoomChanged
+        assertEquals(listOf(deltaId, inquiryId, placeId), listOf(change.deltaId, change.roomId, change.placeId))
+        assertEquals("inhabitant_unseated", change.change)
+        assertEquals("The doubter left: what its claims were based on changed.", change.line)
+        refused(response(roomChanged().put("change", "room_opened")))
+        refused(response(roomChanged().put("cause", "reader_correction")))
+        refused(response(roomChanged().apply { remove("roomId") }))
+        refused(response(roomChanged().put("question", "the reader's words")))
+        refused(response(roomChanged().put("line", "x".repeat(601))))
     }
 
     @Test

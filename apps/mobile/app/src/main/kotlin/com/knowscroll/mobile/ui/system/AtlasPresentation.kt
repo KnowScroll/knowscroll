@@ -9,6 +9,8 @@ import com.knowscroll.mobile.data.AtlasDelta
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
+import com.knowscroll.mobile.data.RoomChronicleEntry
+import com.knowscroll.mobile.data.RoomClaim
 
 /*
  * #134 — pure mapping from the reader's places (ADR-0036) to the existing `AtlasMarker`/region
@@ -29,7 +31,9 @@ fun placeMarkerStatus(place: AtlasPlace): String = place.attention?.state?.upper
 /** The system-level markers for live planets, in `SpatialAtlas`'s existing marker shape. */
 fun planetMarkersOf(places: List<AtlasPlace>): List<AtlasMarker> =
     places.filter { it.kind == "planet" }
-        .map { AtlasMarker(it.placeId, it.anchor.name, placeMarkerDetail(it), placeMarkerStatus(it), foundation = it.foundation != null) }
+        .map {
+            AtlasMarker(it.placeId, it.anchor.name, placeMarkerDetail(it), placeMarkerStatus(it), foundation = it.foundation != null, room = it.rooms.isNotEmpty())
+        }
 
 /** Faint markers next to their parent: `SpatialAtlas` positions each near its parent's own point
  * via [sightingOffset], never through the independent [atlasLayout] orbit. */
@@ -42,7 +46,7 @@ fun sightingMarkersOf(places: List<AtlasPlace>): List<AtlasMarker> =
 fun regionAreasOf(places: List<AtlasPlace>, planetId: String): List<AtlasRegionArea> {
     val regions = places.filter { it.kind == "region" && it.parentPlaceId == planetId }
     val points = regionAreaLayout(regions.map { it.placeId }).associateBy { it.id }
-    return regions.mapNotNull { r -> points[r.placeId]?.let { p -> AtlasRegionArea(r.placeId, r.anchor.name, p.x, p.y) } }
+    return regions.mapNotNull { r -> points[r.placeId]?.let { p -> AtlasRegionArea(r.placeId, r.anchor.name, p.x, p.y, room = r.rooms.isNotEmpty()) } }
 }
 
 /** ADR-0036's Cartographer wording (`packages/core/src/atlas/chronicle.ts`'s `VERB` table),
@@ -134,21 +138,22 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
     else -> "This place changed."
 }
 
-enum class RejectPlaceConflict { StaleEpoch, Paused }
+enum class SetAsideConflict { StaleEpoch, Paused }
 
-/** A 409 from `POST /v1/atlas/places/:placeId/reject` is either a stale privacy epoch (reconcile,
- * same as every other mutation) or recording being paused (an honest message; nothing to reconcile
- * since nothing personal was recorded) -- mirrors `ui/branch/BranchPresentation.kt`'s
- * `branchOpenConflict`. Review M6: matches the server's own two 409 reasons explicitly ("Privacy
- * epoch changed" and "Recording is paused" -- `apps/api/src/atlas-routes.ts`); any other 409 (not
- * a reason this endpoint is known to send) returns `null`, so the caller falls back to a generic
- * message rather than assuming it must mean paused. */
-fun rejectPlaceConflict(error: ApiException.Server): RejectPlaceConflict? {
+/** A 409 from setting a place aside (`POST /v1/atlas/places/:placeId/reject`) or a room (#163,
+ * `POST /v1/rooms/:roomId/set-aside`) is either a stale privacy epoch (reconcile, same as every
+ * other mutation) or recording being paused (an honest message; nothing to reconcile since nothing
+ * personal was recorded) -- mirrors `ui/branch/BranchPresentation.kt`'s `branchOpenConflict`.
+ * Review M6: matches the servers' own two 409 reasons explicitly ("Privacy epoch changed" and
+ * "Recording is paused" -- `packages/db/src/atlas.ts`, `packages/db/src/rooms.ts`); any other 409
+ * (a room no longer live, or a reason these endpoints are not known to send) returns `null`, so the
+ * caller falls back to a generic message rather than assuming it must mean paused. */
+fun setAsideConflict(error: ApiException.Server): SetAsideConflict? {
     if (error.statusCode != 409) return null
     val body = error.message ?: ""
     return when {
-        body.contains("privacy epoch", ignoreCase = true) -> RejectPlaceConflict.StaleEpoch
-        body.contains("paused", ignoreCase = true) -> RejectPlaceConflict.Paused
+        body.contains("privacy epoch", ignoreCase = true) -> SetAsideConflict.StaleEpoch
+        body.contains("paused", ignoreCase = true) -> SetAsideConflict.Paused
         else -> null
     }
 }
@@ -170,8 +175,7 @@ fun placeListRows(places: List<AtlasPlace>): List<PlaceListRow> {
         byParent[parentId].orEmpty().sortedBy { it.anchor.name }.forEach { p ->
             val detail = when {
                 p.kind == "sighting" -> "Sighting"
-                p.foundation != null -> "${placeMarkerDetail(p)} · Foundation"
-                else -> placeMarkerDetail(p)
+                else -> listOfNotNull(placeMarkerDetail(p), "Foundation".takeIf { p.foundation != null }, roomsDetail(p)).joinToString(" · ")
             }
             rows += PlaceListRow(p.placeId, p.kind, p.anchor.name, depth, detail)
             if (p.kind != "sighting") walk(p.placeId, depth + 1)
@@ -220,4 +224,58 @@ fun placeConnections(place: AtlasPlace, atlas: AtlasResponse): List<Pair<String,
         .filter { it.fromPlaceId == place.placeId || it.toPlaceId == place.placeId }
         .mapNotNull { relation -> placeRelationSentence(relation, place.placeId, atlas.places)?.let { it to relation } }
         .filter { (sentence, _) -> sentence !in listed }
+}
+
+/** #163 (ADR-0045): how the Atlas says a place holds an Idea Room -- on its marker, its region
+ * area and its row in the places list. */
+const val ROOM_MARK = "Idea room"
+
+/** "Idea room" / "2 idea rooms" for a place that holds any; `null` otherwise. */
+fun roomsDetail(place: AtlasPlace): String? = when (val n = place.rooms.size) {
+    0 -> null
+    1 -> ROOM_MARK
+    else -> "$n idea rooms"
+}
+
+/** A room's state in words: the ladder is evidence, never a score or a count. */
+fun roomStateWords(state: String): String = when (state) {
+    "arguing" -> "Two readings disagree"
+    "opened" -> "One reading so far"
+    "set_aside" -> "You set this room aside"
+    "retired" -> "This room has closed"
+    // Unreachable: the parser refuses any other state.
+    else -> error("Unknown room state")
+}
+
+/** An inhabitant is a seat of evidence access, named for what it reads, never a persona. */
+fun roomRoleTitle(role: String): String = when (role) {
+    "reader_of_record" -> "The reader of record"
+    "doubter" -> "The doubter"
+    "connector" -> "The connector"
+    // Unreachable: the parser refuses any other role.
+    else -> error("Unknown room role")
+}
+
+/** One held claim, quoted; one that a source qualifies or contradicts says so, never by whom. */
+fun roomClaimLine(claim: RoomClaim): String = when (claim.supportKind) {
+    "qualifies" -> "\"${claim.statement}\" (qualified)"
+    "contradicts" -> "\"${claim.statement}\" (contested)"
+    else -> "\"${claim.statement}\""
+}
+
+/** What a room's chronicle line rests on, from the evidence the room response carries: the days
+ * the question was asked, or the claims a seat holds now (held, for one that left) and before. */
+fun roomEvidenceSummary(entry: RoomChronicleEntry): String {
+    val evidence = entry.evidence
+    val days = evidence.asks.map { it.day }.distinct()
+    val lines = listOfNotNull(
+        evidence.asks.takeIf { it.isNotEmpty() }?.let {
+            "Asked ${it.size} ${if (it.size == 1) "time" else "times"}, on ${listNames(days)}."
+        },
+        evidence.claims.takeIf { it.isNotEmpty() }?.let { claims ->
+            "${if (entry.kind == "inhabitant_unseated") "It held" else "It holds"} ${claims.joinToString(" ") { roomClaimLine(it) }}"
+        },
+        evidence.previous.takeIf { it.isNotEmpty() }?.let { claims -> "Before, it held ${claims.joinToString(" ") { roomClaimLine(it) }}" },
+    )
+    return lines.joinToString("\n").ifEmpty { "Nothing more was recorded for this change." }
 }

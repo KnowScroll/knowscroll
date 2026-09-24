@@ -210,6 +210,10 @@ export const privacyExportResultSchema = z
         encounterFeedback: z.array(exportRowSchema),
         atlasPlaces: z.array(exportRowSchema),
         atlasDeltas: z.array(exportRowSchema),
+        /** ADR-0045: Idea Rooms, their inhabitants and deltas. */
+        rooms: z.array(exportRowSchema),
+        roomInhabitants: z.array(exportRowSchema),
+        roomDeltas: z.array(exportRowSchema),
       })
       .strict(),
     askAnswers: z.array(exportRowSchema),

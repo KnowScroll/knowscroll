@@ -61,7 +61,9 @@ export type PrivacyExportResult = {
  deviceSessions:PrivacyExportDeviceSession[];
  reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
  semantic:{branchOpens:unknown[]; connectionFeedback:unknown[]; proposals:unknown[]; bridges:unknown[]};
- personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]; atlasPlaces:unknown[]; atlasDeltas:unknown[]};
+ personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]; atlasPlaces:unknown[]; atlasDeltas:unknown[];
+  /** #163: Idea Rooms, their inhabitants and deltas (ADR-0045). */
+  rooms:unknown[]; roomInhabitants:unknown[]; roomDeltas:unknown[]};
  /** #132: answer requests and their applied outcomes (ADR-0033). */
  askAnswers:unknown[];
  /** #132: background inquiry consent, its requests, mail and inquiries (ADR-0038). */

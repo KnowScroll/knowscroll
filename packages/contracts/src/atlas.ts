@@ -4,6 +4,7 @@
  * Imported directly, like `./worlds.ts`.
  */
 import { z } from 'zod';
+import { roomSummary } from './rooms.ts';
 
 const id = z.string().uuid();
 const relationKind = z.enum(['prerequisite_for', 'explains', 'contradicts', 'analogous_in', 'applies_to', 'compares_mechanism']);
@@ -26,7 +27,9 @@ export const atlasPlaceSchema = z.object({
     holdsUp: z.array(id).min(1),
     relations: z.array(z.object({ kind: relationKind, from: z.string().min(1), to: z.string().min(1), ...support }).strict()).min(1),
   }).strict().nullable(),
-}).strict().refine(p => p.kind !== 'sighting' || (p.attention === null && p.foundation === null), { message: 'A sighting is not yet met: it carries no attention and holds nothing up' });
+  /** ADR-0045: the reader's live Idea Rooms on this place, oldest first. */
+  rooms: z.array(roomSummary).max(3),
+}).strict().refine(p => p.kind !== 'sighting' || (p.attention === null && p.foundation === null && p.rooms.length === 0), { message: 'A sighting is not yet met: it carries no attention, holds nothing up and has no room' });
 
 export const atlasResponseSchema = z.object({
   policyVersion: z.string().min(1),

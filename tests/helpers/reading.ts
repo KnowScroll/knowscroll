@@ -12,8 +12,8 @@ import { pool, provisionIdentity } from '../../packages/db/src/index.ts';
 
 /** Asks the feed for more, skipping what this trip already saw, until the target is offered; exposes
  * only it, and keeps it when asked (its projection job runs at once). The library bounds the trip:
- * a feed with nothing new left to offer ends it. */
-export async function readScroll(app: ReturnType<typeof buildApp>, headers: Record<string, string>, assetId: string, keep: boolean): Promise<void> {
+ * a feed with nothing new left to offer ends it. Returns the exposure, which an Ask names. */
+export async function readScroll(app: ReturnType<typeof buildApp>, headers: Record<string, string>, assetId: string, keep: boolean): Promise<string> {
   const skipped: string[] = [];
   for (;;) {
     const response = await app.inject({ url: `/v1/feed?kinds=Scroll${skipped.length ? `&exclude=${skipped.join(',')}` : ''}`, headers });
@@ -23,13 +23,22 @@ export async function readScroll(app: ReturnType<typeof buildApp>, headers: Reco
     if (!feed.items.some(x => x.assetId === assetId)) { skipped.push(...feed.items.map(x => x.assetId)); continue; }
     const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers, payload: { decisionId: feed.decisionId, assetId, clientExposureId: randomUUID() } });
     assert.equal(exposure.statusCode, 201, exposure.body);
-    if (!keep) return;
-    const kept = await app.inject({ method: 'POST', url: '/v1/interactions', headers, payload: { clientEventId: randomUUID(), exposureId: exposure.json().exposureId, assetId, kind: 'keep' } });
+    const exposureId: string = exposure.json().exposureId;
+    if (!keep) return exposureId;
+    const kept = await app.inject({ method: 'POST', url: '/v1/interactions', headers, payload: { clientEventId: randomUUID(), exposureId, assetId, kind: 'keep' } });
     assert.equal(kept.statusCode, 202, kept.body);
     await pool.query("UPDATE job SET available_at='1990-01-01T00:00:00Z' WHERE id=$1", [kept.json().jobId]);
     assert.equal((await projectOne())?.status, 'completed');
-    return;
+    return exposureId;
   }
+}
+
+/** The reader asks a question of a Scroll they were shown (ADR-0016); the Ask refreshes the personal model. */
+export async function askAbout(app: ReturnType<typeof buildApp>, headers: Record<string, string>, exposureId: string, question: string): Promise<string> {
+  const expectedPrivacyEpoch = (await app.inject({ url: '/v1/universe', headers })).json().privacyEpoch;
+  const asked = await app.inject({ method: 'POST', url: '/v1/asks', headers, payload: { clientAskId: randomUUID(), exposureId, question, expectedPrivacyEpoch } });
+  assert.equal(asked.statusCode, 201, asked.body);
+  return asked.json().askId;
 }
 
 /** Reads whatever the feed offers first: any new exposure refreshes the personal model and the atlas. */

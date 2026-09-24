@@ -112,6 +112,9 @@ internal fun LivingSky(
         }
     // ADR-0037: a foundation is drawn brighter -- a soft glow and ring behind the planet.
     val foundations = remember(markers) { markers.filter { it.foundation }.mapTo(HashSet()) { it.id } }
+    // ADR-0045: a place that holds an Idea Room carries a small lit door -- a property of the place,
+    // never a new object on the map.
+    val rooms = remember(markers) { markers.filter { it.room }.mapTo(HashSet()) { it.id } }
     Canvas(modifier) {
         if (hidden) return@Canvas
         val pose = camera()
@@ -227,6 +230,11 @@ internal fun LivingSky(
                     style = Stroke(.07f, cap = StrokeCap.Round),
                 )
                 drawCircle(Cosmos.Teal2.copy(alpha = .65f), 1f, Offset.Zero, style = Stroke(.022f))
+                if (point.id in rooms) {
+                    drawCircle(Cosmos.Yellow.copy(alpha = .32f), .24f, Offset(.34f, .3f))
+                    drawRoundRect(Cosmos.Yellow, Offset(.27f, .18f), Size(.14f, .24f), CornerRadius(.07f, .07f))
+                    drawRoundRect(Cosmos.Deep, Offset(.27f, .18f), Size(.14f, .24f), CornerRadius(.07f, .07f), style = Stroke(.02f))
+                }
                 if (point.id == selectedId)
                     drawCircle(Cosmos.Yellow, 1.11f, Offset.Zero, style = Stroke(.025f))
             }

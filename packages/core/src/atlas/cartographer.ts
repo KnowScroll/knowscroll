@@ -193,6 +193,13 @@ export function planFoundations(input: { relations: readonly TypedRelation[]; pl
   return deltas;
 }
 
+/** The nearest anchor on a concept's ancestor chain, itself first, that `isHome` accepts: where a
+ * Scroll about that concept belongs (the atlas counts it there; ADR-0045 carries its Asks there). */
+export function homeAnchor(code: string, parentOf: ReadonlyMap<string, string | null>, isHome: (anchor: string) => boolean): string | null {
+  for (let c: string | null = code, i = 0; c !== null && i < 64; c = parentOf.get(c) ?? null, i += 1) if (isHome(c)) return c;
+  return null;
+}
+
 const sameRelations = (a: readonly TypedRelation[], b: readonly TypedRelation[]) =>
   a.length === b.length && a.map(relationKey).sort().join('\n') === b.map(relationKey).sort().join('\n');
 

@@ -6,11 +6,14 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
-  CARTOGRAPHER_POLICY, planFoundations, planPlaces, planRejection, relationKey,
+  CARTOGRAPHER_POLICY, homeAnchor, planFoundations, planPlaces, planRejection, relationKey,
   type ConceptNode, type PlaceAccount, type PlaceDelta, type PlaceView, type RelationKind, type TypedRelation,
 } from '../../core/src/atlas/cartographer.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
+import type { KeeperAsk } from '../../core/src/rooms/keeper.ts';
+import type { RoomSummary } from '../../contracts/src/rooms.ts';
 import { postInquiryMail } from './reasoning-inquiries.ts';
+import { keepRooms, readPlaceRooms, retireRooms } from './rooms.ts';
 
 export class AtlasConflict extends Error {
   readonly statusCode = 409;
@@ -140,6 +143,12 @@ export async function runCartographer(client: pg.PoolClient, universeId: string,
   return applyDeltas(client, universeId, substrate, places, deltas);
 }
 
+/** ADR-0045 §5: the Keeper runs right after the Cartographer, in the same refresh, over the places as
+ * it left them and the reader's Asks. */
+export async function runKeeper(client: pg.PoolClient, universeId: string, asks: readonly KeeperAsk[]): Promise<number> {
+  return keepRooms(client, universeId, await loadSubstrate(client), await loadPlaces(client, universeId), asks);
+}
+
 export async function rejectPlace(client: pg.PoolClient, universeId: string, placeId: string): Promise<{ deltas: number }> {
   const paused = (await client.query<{ paused: boolean }>('SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1', [universeId])).rows[0]?.paused;
   if (paused) throw new AtlasConflict('Recording is paused');
@@ -154,7 +163,8 @@ export async function rejectPlace(client: pg.PoolClient, universeId: string, pla
   // waits for the reader's next refresh, exactly as in ADR-0036.
   const after = await loadPlaces(client, universeId);
   const followUp = planFoundations({ relations: substrate.relations, places: after });
-  return { deltas: rejected + await applyDeltas(client, universeId, substrate, after, followUp) };
+  // Its rooms retire with it, in this same transaction (ADR-0045 §6).
+  return { deltas: rejected + await applyDeltas(client, universeId, substrate, after, followUp) + await retireRooms(client, universeId, after) };
 }
 
 
@@ -169,6 +179,8 @@ export interface AtlasView {
     formedAt: string; formedBy: string;
     /** ADR-0037: the places this one holds up, and the sourced connections that say so. */
     foundation: { holdsUp: string[]; relations: { kind: RelationKind; from: string; to: string; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[] } | null;
+    /** ADR-0045: its live Idea Rooms. */
+    rooms: RoomSummary[];
   }[];
   relations: { fromPlaceId: string; toPlaceId: string; kind: RelationKind; claim: { text: string; sourceTitle: string } | null; bridge: { mechanism: string } | null }[];
   chronicle: { deltaId: string; placeId: string; parentPlaceId: string | null; kind: string; causalClass: string; at: string; line: string }[];
@@ -201,11 +213,8 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
   const parentOf = new Map(substrate.concepts.map(c => [c.code, c.parent]));
   // A Scroll belongs to the nearest planet/region on its primary concept's ancestor chain; a sighting counts its own anchor.
   const home = (code: string): string | null => {
-    for (let c: string | null = code, i = 0; c !== null && i < 64; c = parentOf.get(c) ?? null, i += 1) {
-      const p = liveAnchor.get(c);
-      if (p && p.kind !== 'sighting') return p.placeId;
-    }
-    return null;
+    const anchor = homeAnchor(code, parentOf, c => { const p = liveAnchor.get(c); return !!p && p.kind !== 'sighting'; });
+    return anchor === null ? null : liveAnchor.get(anchor)!.placeId;
   };
   // Scrolls only: a Reel carries its Scroll's concepts (ADR-0043) but is not one of its Scrolls.
   const primaries = (await client.query<{ asset_id: string; code: string; seen: boolean }>(
@@ -233,6 +242,7 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
     && liveAnchor.get(r.from)!.kind !== 'sighting' && liveAnchor.get(r.to)!.kind !== 'sighting');
   const refs = await describeRefs(client, [...between, ...places.flatMap(p => [...(p.basis ? [p.basis] : []), ...(p.loadBearing ? p.foundationBasis ?? [] : [])])]);
 
+  const rooms = await readPlaceRooms(client, universeId);
   const deltas = (await client.query<{ id: string; place_id: string; kind: string; causal_class: string; created_at: Date; evidence: Record<string, unknown>; anchor: string; parent_anchor: string | null; parent_place_id: string | null }>(
     `SELECT d.id, d.place_id, d.kind, d.causal_class, d.created_at, d.evidence, c.code AS anchor, pc.code AS parent_anchor, pp.id AS parent_place_id
      FROM atlas_delta d JOIN atlas_place p ON p.id = d.place_id JOIN concept c ON c.id = p.anchor_concept_id
@@ -267,6 +277,7 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
         scrolls: counts.get(p.placeId) ?? { total: 0, seen: 0 },
         formedAt: f ? iso(f.created_at) : iso(new Date()), formedBy: f?.kind ?? 'place_formed',
         foundation: foundationOf(p),
+        rooms: rooms.get(p.placeId) ?? [],
       };
     }),
     relations: between.map(r => ({ fromPlaceId: liveAnchor.get(r.from)!.placeId, toPlaceId: liveAnchor.get(r.to)!.placeId, kind: r.kind, ...refs(r) })),
