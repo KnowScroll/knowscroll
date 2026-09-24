@@ -705,13 +705,14 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _ask.value=panel.copy(stage=AskStage.Requesting)
         viewModelScope.launch {
             try {
-                // Accepted in this epoch, the answer is watched even if the reader has moved on (#182);
-                // only the sheet follows the screen.
-                val watching=requestWatchedAnswer(store,WatchedAnswer(askId,reading.item.assetId,epoch,panel.question),api::requestAnswer,
-                    epochIsCurrent={epoch==observedPrivacyEpoch},screenIsCurrent={version==navigationVersion})
-                if(!watching || _ask.value?.assetId!=reading.item.assetId)return@launch
+                // Accepted in this epoch, the answer is watched even if the reader has moved on (#182).
+                // Only polling follows the screen: a reader who left finds the sheet waiting when they
+                // reopen it, and reopening watches again (askToWatchOnReopen).
+                val watched=requestWatchedAnswer(store,WatchedAnswer(askId,reading.item.assetId,epoch,panel.question),api::requestAnswer,
+                    epochIsCurrent={epoch==observedPrivacyEpoch})
+                if(!watched || _ask.value?.assetId!=reading.item.assetId)return@launch
                 _ask.value=_ask.value?.copy(stage=AskStage.Waiting(askId,"queued"))
-                pollAnswer(askId,reading.item.assetId,epoch)
+                if(version==navigationVersion)pollAnswer(askId,reading.item.assetId,epoch)
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(version!=navigationVersion)return@launch

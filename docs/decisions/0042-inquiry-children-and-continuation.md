@@ -167,8 +167,8 @@ kinds. The web client's controls.
   - continuation refused when the context changed;
   - a lost acknowledgement held as unknown, never resent;
   - competing workers (#182: deterministic, one worker holding a continuation in flight while another
-    runs; two schedulers polling one policy at once mostly block each other, see
-    `docs/operations/reasoning-sql-fairness.md`);
+    runs; two schedulers claiming one ready Job at once are covered by the fairness SQL tests; two
+    polling one policy at once mostly block each other, see `docs/operations/reasoning-sql-fairness.md`);
   - consent off and Clear during a continuation call;
   - a stale continuation output discarded;
   - children on one budget, settling and withdrawal;

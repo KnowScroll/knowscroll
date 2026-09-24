@@ -32,7 +32,7 @@ import type { ScrollItemResult, ScrollTransport, WriteScrollDeps } from '../../a
 import { MATERIAL_POLICY_VERSION } from '../../packages/core/src/scrolls/material.ts';
 import { SCROLL_WRITING_VERSIONS, scrollPlanItem, type ScrollPlanItem } from '../../packages/core/src/scrolls/writing.ts';
 import { assertDisposableDatabaseName, localDisposableDatabaseUrl } from '../lib/demo-database-guard.ts';
-import { countLedgerRequest } from '../lib/session-ledger.ts';
+import { countLedgerRequest, sessionLedgerPath } from '../lib/session-ledger.ts';
 
 type Gate = WriteScrollDeps['beforeSend'];
 
@@ -132,7 +132,7 @@ async function main(argv: string[]): Promise<number> {
     if (!process.env.KS_DEV_ROOT) return refuse('source scripts/env.sh first: the session ledger lives under KS_DEV_ROOT.');
     const live = createMiniMaxAnswerTransport({ apiKey });
     transport = live;
-    gate = liveRequestGate(live, resolve(process.env.KS_DEV_ROOT, 'minimax-answer-session-ledger.json'), { at, database, kind: 'scroll' });
+    gate = liveRequestGate(live, sessionLedgerPath(process.env.KS_DEV_ROOT), { at, database, kind: 'scroll' });
   } else {
     transport = createFixtureScrollTransport(() => fixtureMode as ScrollFixtureMode);
     gate = { beforeSend: async () => ({ ok: true }), ledger: () => null };

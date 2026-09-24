@@ -21,7 +21,8 @@ import org.robolectric.annotation.Config
  * #182: an answer request the server accepted in the reader's current epoch is watched whatever the
  * reader did while it was in flight -- navigation decides only whether the sheet shows it -- and the
  * answer is watched in the same commit that drops its retry envelope, so no kill between two writes
- * loses both. A cold [StateStore] reads what a restarted process would.
+ * loses both; never after a purge took that envelope. A cold [StateStore] reads what a restarted
+ * process would.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -36,17 +37,29 @@ class RequestWatchedAnswerTest {
     private fun accepted(request: PendingAnswerRequest) = AnswerRequestReceipt("r1", request.askId, "j1", "queued")
 
     @Test
-    fun anAnswerAcceptedAfterTheReaderMovedOnIsStillWatched() = runBlocking {
+    fun anAcceptedAnswerIsWatchedWithItsEnvelopeGoneInOneCommit() = runBlocking {
         val store = freshStore()
-        var navigated = false
-        val showWaiting = requestWatchedAnswer(store, answer, { request ->
+        val watched = requestWatchedAnswer(store, answer, { request ->
             assertEquals("the envelope is saved before dispatch", request, store.readPendingAnswerRequest())
-            navigated = true // the reader leaves the Scroll while the request is in flight
             accepted(request)
-        }, epochIsCurrent = { true }, screenIsCurrent = { !navigated })
-        assertFalse("the sheet is gone: nothing to show", showWaiting)
+        }, epochIsCurrent = { true })
+        assertTrue(watched)
         val cold = StateStore(context)
         assertEquals(answer, cold.readWatchedAnswer())
+        assertNull(cold.readPendingAnswerRequest())
+    }
+
+    @Test
+    fun anAnswerAcceptedAfterAPurgeIsNeverWatched() = runBlocking {
+        val store = freshStore()
+        val watched = requestWatchedAnswer(store, answer, { request ->
+            // Sign-out (or Reset, or deletion) purges private state in the same epoch while the request is in flight.
+            store.purgePrivateState("77777777-7777-4777-8777-777777777777", answer.expectedPrivacyEpoch)
+            accepted(request)
+        }, epochIsCurrent = { true })
+        assertFalse(watched)
+        val cold = StateStore(context)
+        assertNull("the question is not written back after the purge", cold.readWatchedAnswer())
         assertNull(cold.readPendingAnswerRequest())
     }
 
@@ -55,11 +68,11 @@ class RequestWatchedAnswerTest {
         val store = freshStore()
         store.writePendingAnswerRequest(PendingAnswerRequest("cr1", answer.askId, answer.expectedPrivacyEpoch))
         var sent: PendingAnswerRequest? = null
-        val showWaiting = requestWatchedAnswer(store, answer, { request ->
+        val watched = requestWatchedAnswer(store, answer, { request ->
             sent = request
             throw ApiException.Server(409, """{"message":"An answer was already requested for this Ask"}""")
-        }, epochIsCurrent = { true }, screenIsCurrent = { true })
-        assertTrue(showWaiting)
+        }, epochIsCurrent = { true })
+        assertTrue(watched)
         assertEquals("the saved envelope is retried, never a new request", "cr1", sent?.clientRequestId)
         assertEquals(answer, store.readWatchedAnswer())
         assertNull(store.readPendingAnswerRequest())
@@ -68,14 +81,14 @@ class RequestWatchedAnswerTest {
     @Test
     fun anotherEpochWatchesNothingAndAnyOtherRefusalKeepsTheEnvelope() = runBlocking {
         val store = freshStore()
-        assertFalse(requestWatchedAnswer(store, answer, ::accepted, epochIsCurrent = { false }, screenIsCurrent = { true }))
+        assertFalse(requestWatchedAnswer(store, answer, ::accepted, epochIsCurrent = { false }))
         assertNull("an answer of an epoch the reader left is never watched", store.readWatchedAnswer())
 
         val paused = freshStore()
         assertThrows(ApiException.Server::class.java) {
             runBlocking {
                 requestWatchedAnswer(paused, answer, { throw ApiException.Server(409, """{"message":"Recording is paused"}""") },
-                    epochIsCurrent = { true }, screenIsCurrent = { true })
+                    epochIsCurrent = { true })
             }
         }
         assertNull(paused.readWatchedAnswer())
