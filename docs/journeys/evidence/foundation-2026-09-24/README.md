@@ -51,10 +51,9 @@ mechanism. Fixed test-first (a connection its foundation lists is not repeated);
 after that fix. That run's same-refresh check compared timestamps, which differ per row; it now
 compares the inserting transaction.
 
-Both runs are from `d51af5b`, after the review fixes below: the places journey (whose reader walk
-now lives in a shared `AtlasJourneySupport`) passed again unchanged, and the foundation journey
-above. Gates on that head: backend 13 + 844, Android 194 + lint (web 87 on `6f8a910`; web is
-untouched since).
+The committed foundation run is from `78e85e1` (main with #147 merged in, after both reviews).
+Gates on that head: backend 13 + 857, web 138, Android 277 + lint. The places journey (whose reader
+walk now lives in a shared `AtlasJourneySupport`) passed again on `d51af5b`.
 
 A fresh-context review (PR #148) found that a standing foundation's connections could go stale
 (showing a set-aside place or a revoked claim, or an empty `holdsUp` that would blank Android's
@@ -62,7 +61,7 @@ Places), that setting a place aside re-ran the whole Cartographer, and that this
 brighter marker the screenshot did not show. All were fixed test-first, with the minor findings
 listed on the PR. A verification review found nothing blocking; its minor findings (the wording
 when a foundation is itself set aside, a connection revoked since the last refresh still shown,
-naming) were fixed test-first after these runs and change neither journey's path.
+naming) were fixed test-first before this run.
 
 ## Limits
 

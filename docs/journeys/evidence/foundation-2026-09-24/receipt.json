@@ -1,24 +1,24 @@
 {
-  "at": "2026-09-24T08:05:43.274913+00:00",
+  "at": "2026-09-24T08:58:16.370836+00:00",
   "result": "passed",
-  "database": "knowscroll_test_semantic_8412f002cf7eb4e1",
+  "database": "knowscroll_test_semantic_44d9d1c9f91cc435",
   "apiPort": 4333,
-  "source": "d51af5ba0380c07e84addba14c5c95c48955e354",
+  "source": "78e85e177897fbe93567c89e6804d9776be47994",
   "package": "com.knowscroll.mobile.journey",
   "journeyName": "foundation",
   "journey": {
-    "gravityPlaceId": "16ecd31c-c92b-4616-8201-4f2418b038b0",
+    "gravityPlaceId": "c2874987-b318-4999-908c-1632463a76e8",
     "heldUpPlaceIds": [
-      "78b30528-300a-45b8-9f16-17787bafea7d",
-      "3c515a55-5c7b-4c3b-bf62-727be46b11de",
-      "5201eb6c-fa36-4b5d-a90d-3224719b5e8b"
+      "7e06e119-03a6-450e-98bd-cd59ba30150f",
+      "16ec7004-c126-4426-aeae-af1fa697785d",
+      "c10143f4-3d91-4b6a-90bb-8d8d5ab2ca73"
     ],
-    "tidesPlaceId": "5201eb6c-fa36-4b5d-a90d-3224719b5e8b",
+    "tidesPlaceId": "c10143f4-3d91-4b6a-90bb-8d8d5ab2ca73",
     "deltaIds": {
-      "gravityFormed": "1067a399-6ed2-42bd-b561-b61cd21b5c28",
-      "recognised": "23266bec-d31c-4c5f-a085-f98f3c225ac5",
-      "tidesRejected": "a1dcede9-b8f2-4ffc-a1ce-41e411ff8074",
-      "withdrawn": "381fcc8d-d477-4f7f-83c0-5da0d11f240a"
+      "gravityFormed": "426cda2b-8358-4736-a5fd-918c34868d08",
+      "recognised": "bb45b2b1-ac48-4fb5-983e-a77fec7cf474",
+      "tidesRejected": "3ac38c25-6ecf-48b5-9b37-bac3ca966144",
+      "withdrawn": "a53c44ad-16fa-49d7-a8c4-59ef2fd0d46c"
     },
     "connections": 3
   },
@@ -36,7 +36,7 @@
   "limits": [
     "Editorial substrate; cartographer-v2 with bench thresholds.",
     "Debug API36 emulator, not a physical device.",
-    "Tides, Orbits and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because the library cannot anchor Orbits or Star formation from two source families; Gravity formed from this run's reading.",
+    "Tides, Orbit and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because the library cannot anchor Orbit or Star formation from two source families; Gravity formed from this run's reading.",
     "The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run."
   ]
 }
