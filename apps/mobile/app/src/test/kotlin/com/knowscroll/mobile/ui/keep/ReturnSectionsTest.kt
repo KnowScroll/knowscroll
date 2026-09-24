@@ -482,6 +482,9 @@ class ReturnSectionsTest {
         composeRule.onAllNodesWithText("Every mass attracts every other mass.").assertCountEquals(1)
         composeRule.onNodeWithText("The pull you can't see").assertExists()
         composeRule.onNodeWithText("What this was based on was withdrawn.").assertExists()
+        // TalkBack names what the back pill closes: this is a Relic, not a connection.
+        composeRule.onNodeWithContentDescription("Close this Relic").assertExists()
+        composeRule.onAllNodesWithContentDescription("Close this connection").assertCountEquals(0)
         composeRule.assertNoSourceShown(*sources)
     }
 

@@ -120,7 +120,7 @@ internal fun KeepChoices(target: RelicTarget, keeps: KeepControls, offered: Bool
 @Composable
 internal fun FoundConnectionSheet(found: InquiryFound, keeps: KeepControls, onClose: () -> Unit) {
     SheetColumn {
-        SheetHeader(stringResource(R.string.connection_back_atlas), stringResource(R.string.connection_kicker), onClose)
+        SheetHeader(stringResource(R.string.connection_back_atlas), stringResource(R.string.connection_kicker), stringResource(R.string.connection_close_description), onClose)
         SheetTitle(stringResource(R.string.inquiry_pair, found.fromConcept.name, found.toConcept.name))
         ConnectionEvidence(found)
         // Only an admitted connection can be kept or doubted; a withdrawn one is shown, not offered.
@@ -132,7 +132,8 @@ internal fun FoundConnectionSheet(found: InquiryFound, keeps: KeepControls, onCl
 @Composable
 internal fun RelicSheet(relic: Relic, release: ReturnActionState, onLetGo: (String) -> Unit, onRetryLetGo: (String) -> Unit, onClose: () -> Unit) {
     SheetColumn {
-        SheetHeader(stringResource(R.string.connection_back_keep), stringResource(relicKindRes(relic)), onClose)
+        SheetHeader(stringResource(R.string.connection_back_keep), stringResource(relicKindRes(relic)),
+            stringResource(if (relic is Relic.Connection) R.string.connection_close_description else R.string.relic_close_description), onClose)
         SheetTitle(relicTitle(relic, LocalContext.current))
         Text(stringResource(relicStateRes(relic)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
         val keptOn = humanDate(relic.keptAt)
@@ -192,8 +193,7 @@ private fun SheetColumn(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SheetHeader(backLabel: String, kicker: String, onClose: () -> Unit) {
-    val closeDescription = stringResource(R.string.connection_close_description)
+private fun SheetHeader(backLabel: String, kicker: String, closeDescription: String, onClose: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
             color = Cosmos.Cream.copy(alpha = 0.94f),

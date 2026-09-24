@@ -361,6 +361,7 @@
     <string name="connection_back_atlas">‹ Atlas</string>
     <string name="connection_back_keep">‹ Keep</string>
     <string name="connection_close_description">Close this connection</string>
+    <string name="relic_close_description">Close this Relic</string>
     <string name="connection_dismiss_description">Dismiss this sheet</string>
     <string name="connection_keep">Keep</string>
     <string name="connection_keep_description">Keep this connection</string>
