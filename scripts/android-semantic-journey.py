@@ -73,8 +73,9 @@ if journey_name == 'owner':
     # confirm-URL query one) a configured web origin. KS_DEV_ROOT is overridden to a scratch
     # directory so the sign-in development sink this run writes is never the real machine's --
     # the exact isolation tests/signin-http.test.ts already requires of itself.
-    scratch_dev_root = out / 'dev-root'
-    scratch_dev_root.mkdir(parents=True, exist_ok=True)
+    # Fresh per run: a sink left by an earlier run holds an already-used link.
+    scratch_dev_root = out / 'dev-root' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    scratch_dev_root.mkdir(mode=0o700, parents=True, exist_ok=False)
     env.update(KS_OWNER_EMAIL=owner_email, KS_WEB_ORIGIN='https://owner-journey.knowscroll.test', KS_DEV_ROOT=str(scratch_dev_root))
 # The API process still needs a real (>=24 char) KS_DEV_TOKEN -- buildApp() refuses a short one
 # outright, and other routes in this same disposable stack still use it (ensureDevelopmentSession).
@@ -161,9 +162,10 @@ try:
         # `shell` user, outside the app's data directory entirely).
         sink_path = scratch_dev_root / 'sign-in' / 'magic-link.txt'
         push_done = threading.Event()
+        watch_started = time.time()
         def watch_and_push_magic_link(deadline=time.time() + 90):
             while time.time() < deadline and not push_done.is_set():
-                if sink_path.exists():
+                if sink_path.exists() and sink_path.stat().st_mtime >= watch_started:
                     content = sink_path.read_text()
                     # A freshly installed app may not have created its files dir yet: create it, and
                     # keep retrying until the push lands rather than letting one early failure end it.
@@ -320,4 +322,6 @@ finally:
           FROM ask_answer a LEFT JOIN reasoning_receipt rr ON rr.attempt_id=a.attempt_id""") + '\n')
     if created and journey_name == 'ask': attempt('record answer outcome', record_outcome)
     if created: attempt('drop database', lambda: run(['dropdb', '--if-exists', *args, name], env=admin))
+    # The owner run's scratch dev root holds a sign-in link: it never outlives the run.
+    if journey_name == 'owner': attempt('remove scratch dev root', lambda: __import__('shutil').rmtree(scratch_dev_root, ignore_errors=True))
     if cleanup_errors: raise RuntimeError('cleanup incomplete: ' + '; '.join(cleanup_errors))
