@@ -18,6 +18,7 @@ import {generationBrief, type GenerationBrief} from '../packages/contracts/src/g
 import * as storage from '../apps/worker/src/generation/storage.ts';
 import {createLocalImportPort} from '../apps/worker/src/generation/import-port.ts';
 import {processClaimedJob} from '../apps/worker/src/generation/worker.ts';
+import {drainStrayJobs} from './helpers/generation-fixture.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -254,20 +255,6 @@ async function pollUntil(predicate: () => Promise<boolean>, timeoutMs = 5_000): 
   throw new Error('pollUntil timed out');
 }
 
-/** `pnpm test` runs every `tests/*.test.ts` file against one shared disposable database.
- * `storage.claimJob` deliberately claims the globally oldest ready job (never scoped to a single
- * caller's own rows), so a `generation_job` left `queued` by another file in this same run (for
- * example `generation-contract.test.ts`'s own admission-guard fixture) would otherwise be claimed
- * here by mistake instead of this file's own job. Claiming those away first is a benign,
- * non-destructive status change (that file's own assertions about them have already completed by
- * the time this file runs) and makes every claim below deterministic. */
-async function drainStrayQueuedJobs(): Promise<void> {
-  for (;;) {
-    const claimed = await storage.claimJob(pool, {owner: 'generation-runtime-test-sweep', leaseMs: 60_000});
-    if (!claimed) return;
-  }
-}
-
 // --- Real-file import fixtures (issue #94 stage A2): a genuine ffmpeg-made MP4 and a scratch ----
 // engine-artifact-root/media-root pair per subtest, never the real stand-in engine on :4390. -----
 
@@ -299,8 +286,19 @@ async function sha256OfFile(path: string): Promise<string> {
 test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', async (t) => {
   assetId = (await pool.query<{id: string}>('SELECT id FROM asset ORDER BY editorial_order LIMIT 1')).rows[0]?.id as string;
   assert.ok(assetId, 'the seeded library has at least one asset');
-  await drainStrayQueuedJobs();
+  await drainStrayJobs(pool, 'generation-runtime-test-sweep');
   try {
+
+  await t.test('a job another file still holds under a live lease is drained too, so that lease cannot run out into a claim here', async () => {
+    await withFakeEngine(async (_engine, engineId) => {
+      const job = await storage.createJob(pool, {briefId: await approvedBrief(), engineId, grantId: await freshGrant(), until: 'plan', budgetCents: 10, deadlineAt: future()});
+      const leased = await storage.claimJob(pool, {owner: 'another-file-worker', leaseMs: 1_000});
+      assert.equal(leased?.jobId, job.jobId);
+      await drainStrayJobs(pool, 'generation-runtime-test-sweep');
+      await pollUntil(async () => (await pool.query<{passed: boolean}>('SELECT clock_timestamp()>$1 AS passed', [leased!.leaseExpiresAt])).rows[0]!.passed);
+      assert.equal(await storage.claimJob(pool, {owner: 'runtime-test', leaseMs: 30_000}), null, 'the other worker\'s lease has run out, and its job is still not claimable here');
+    });
+  });
 
   await t.test('dispatches once, follows a real HTTP run to completion, and leaves an unwired import port honestly unfinished (reservation stays held)', async () => {
     await withFakeEngine(async (engine, engineId) => {
