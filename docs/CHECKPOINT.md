@@ -1,5 +1,24 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #134 first slice — the reader's places (lane `134-living-worlds`)
+
+ADR-0036; migration `atlas_place`/`atlas_delta` (numbered after #132 and #135 at merge). A pure
+Cartographer (`cartographer-v1`) runs in the personal-model refresh, never while paused: an
+anchored concept becomes a free planet or a region of the nearest anchored ancestor (two parent
+hops). Planets and regions offer up to five sightings: never-shown concepts one active typed
+relation or admitted bridge away. A revoked relation retires its sighting, and the reader can set a
+place aside for good. Every change is an immutable delta with a causal class and evidence; a
+deferred constraint trigger refuses a place change without one. `GET /v1/atlas`,
+`GET /v1/atlas/deltas/:id` and `POST /v1/atlas/places/:id/reject` go through a strict contract.
+Android: a Places | Sources choice on the System screen (Sources unchanged). Places shows the live
+planets, regions and sightings on the accepted Atlas visuals, and a place sheet with its account,
+Scroll counts, sightings with their claims, chronicle lines that open their evidence, and "Set
+aside". Authored geography stays for Sources and the labelled preview.
+
+Verification: pure 8 (4 mutants), HTTP 5, backend and web suites, Android units + lint, and the
+emulator places journey with SQL lineage; see the
+[evidence](journeys/evidence/places-2026-09-24/README.md). Preview restored; no provider call.
+
 ## 2026-09-24 #133 Composer v3 + #131 attention accounts and hypotheses (lane `133-semantic-composer`)
 
 Branch `claude/133-semantic-composer` on main `b0281db`. ADR-0032; migration 0027 appended to
