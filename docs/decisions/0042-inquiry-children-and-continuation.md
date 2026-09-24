@@ -107,6 +107,8 @@ preflight.
    revoked bridges, shared or the reader's own, between two of their live planets or regions, revoked
    after their consent was last turned on and after recording last resumed. Each revocation is mailed
    at most once per universe. The connection may then be looked for again from current evidence.
+   A reader whose pending inquiry already holds its 16 causes is passed over until that inquiry opens
+   (#182), so their revocations never fill a pass and hold up another reader's.
 4. **No backfill.** Nothing earlier than the current consent (or the last resume) becomes paid work, and
    old recorded-only Asks stay untouched.
 
