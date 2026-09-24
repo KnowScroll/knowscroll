@@ -24,6 +24,10 @@ import threading
 import time
 import urllib.request
 import uuid
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from android_preview import PreviewGuard  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -113,8 +117,10 @@ class Proxy(BaseHTTPRequestHandler):
             except Exception:
                 self.send_error(400, 'Disposable control failed')
             return
-        is_revoke = self.command == 'POST' and self.path == '/v1/session/revoke'
-        is_feed = self.command == 'GET' and self.path == '/v1/feed'
+        # The app sends query strings (e.g. `/v1/feed?kinds=Scroll`): match the path itself (#136).
+        request_path = urlparse(self.path).path
+        is_revoke = self.command == 'POST' and request_path == '/v1/session/revoke'
+        is_feed = self.command == 'GET' and request_path == '/v1/feed'
         with control_lock:
             drop_revoke = is_revoke and control['remainingRevokeDrops'] > 0
             if drop_revoke:
@@ -236,7 +242,11 @@ def restore_session():
 receipt = None
 original_font = subprocess.check_output(['adb', 'shell', 'settings', 'get', 'system', 'font_scale'], text=True).strip()
 owner_before = subprocess.run(['adb', 'shell', 'pm', 'path', owner_package], capture_output=True, text=True).stdout.strip()
+# The `.journey` app is also the owner's running preview: preserved before anything replaces it and
+# restored (verified) first in `finally` (#136, scripts/android_preview.py).
+guard = PreviewGuard(package, out)
 try:
+    guard.preserve()
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', int(ACTUAL_PORT)))
     proxy = ThreadingHTTPServer(('127.0.0.1', PROXY_PORT), Proxy)
@@ -386,6 +396,10 @@ try:
                ]}
 finally:
     cleanup_errors = []
+    try:
+        guard.restore()
+    except Exception as error:
+        cleanup_errors.append('PreviewRestore: ' + str(error))
     def clean(action):
         try:
             action()
