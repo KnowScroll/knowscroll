@@ -9,6 +9,7 @@ import com.knowscroll.mobile.data.AndroidKeyStoreSessionVault
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.PrivacyLifecycleRequest
+import com.knowscroll.mobile.data.PrivacyRecordingReceipt
 import com.knowscroll.mobile.data.PrivacyResetRequest
 import com.knowscroll.mobile.data.SessionInvalidation
 import com.knowscroll.mobile.data.SessionVault
@@ -235,32 +236,14 @@ class AccountViewModel @JvmOverloads constructor(
         beginPause(UUID.randomUUID().toString(), loaded.privacyEpoch)
     }
 
+    /** The same request again -- or, when nothing is kept (it was refused), a fresh one. */
     fun retryPause() {
-        val pending = store.readPendingPrivacyRequest(INTENT_PAUSE) ?: return
+        val pending = store.readPendingPrivacyRequest(INTENT_PAUSE) ?: return requestPause()
         beginPause(pending.requestId, pending.expectedPrivacyEpoch)
     }
 
-    private fun beginPause(requestId: String, epoch: Long) {
-        store.writePendingPrivacyRequest(INTENT_PAUSE, requestId, epoch)
-        _pause.value = PrivacyOperationState.Working
-        viewModelScope.launch {
-            try {
-                val receipt = api.pauseRecording(PrivacyLifecycleRequest(requestId, epoch))
-                store.clearPendingPrivacyRequest(INTENT_PAUSE)
-                _pause.value = PrivacyOperationState.Idle
-                (_privacy.value as? PrivacyState.Loaded)?.let {
-                    _privacy.value = it.copy(recordingPausedAt = receipt.recordingPausedAt, privacyEpoch = receipt.privacyEpoch)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiException.Server) {
-                if (e.statusCode == 401) { signOutLocally(SignedOutReason.SESSION_EXPIRED); _pause.value = PrivacyOperationState.Idle }
-                else _pause.value = PrivacyOperationState.Failed(transportMessage(e))
-            } catch (e: Exception) {
-                _pause.value = PrivacyOperationState.Failed(transportMessage(e))
-            }
-        }
-    }
+    private fun beginPause(requestId: String, epoch: Long) =
+        beginRecordingChange(INTENT_PAUSE, requestId, epoch, _pause, api::pauseRecording)
 
     fun requestResume() {
         val loaded = _privacy.value as? PrivacyState.Loaded ?: return
@@ -268,31 +251,31 @@ class AccountViewModel @JvmOverloads constructor(
         beginResume(UUID.randomUUID().toString(), loaded.privacyEpoch)
     }
 
+    /** The same request again -- or, when nothing is kept (it was refused), a fresh one. */
     fun retryResume() {
-        val pending = store.readPendingPrivacyRequest(INTENT_RESUME) ?: return
+        val pending = store.readPendingPrivacyRequest(INTENT_RESUME) ?: return requestResume()
         beginResume(pending.requestId, pending.expectedPrivacyEpoch)
     }
 
-    private fun beginResume(requestId: String, epoch: Long) {
-        store.writePendingPrivacyRequest(INTENT_RESUME, requestId, epoch)
-        _resume.value = PrivacyOperationState.Working
-        viewModelScope.launch {
-            try {
-                val receipt = api.resumeRecording(PrivacyLifecycleRequest(requestId, epoch))
-                store.clearPendingPrivacyRequest(INTENT_RESUME)
-                _resume.value = PrivacyOperationState.Idle
+    private fun beginResume(requestId: String, epoch: Long) =
+        beginRecordingChange(INTENT_RESUME, requestId, epoch, _resume, api::resumeRecording)
+
+    /** Pause and resume differ only in their route: each answers with the recording state it left. */
+    private fun beginRecordingChange(
+        intent: String, requestId: String, epoch: Long, state: MutableStateFlow<PrivacyOperationState>,
+        send: suspend (PrivacyLifecycleRequest) -> PrivacyRecordingReceipt,
+    ) {
+        state.value = PrivacyOperationState.Working
+        runLifecycleRequest(
+            intent, requestId, epoch, send,
+            succeeded = { receipt ->
+                state.value = PrivacyOperationState.Idle
                 (_privacy.value as? PrivacyState.Loaded)?.let {
                     _privacy.value = it.copy(recordingPausedAt = receipt.recordingPausedAt, privacyEpoch = receipt.privacyEpoch)
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiException.Server) {
-                if (e.statusCode == 401) { signOutLocally(SignedOutReason.SESSION_EXPIRED); _resume.value = PrivacyOperationState.Idle }
-                else _resume.value = PrivacyOperationState.Failed(transportMessage(e))
-            } catch (e: Exception) {
-                _resume.value = PrivacyOperationState.Failed(transportMessage(e))
-            }
-        }
+            },
+            failed = { state.value = PrivacyOperationState.Failed(it) },
+        )
     }
 
     // ---- Export --------------------------------------------------------------------------
@@ -303,26 +286,52 @@ class AccountViewModel @JvmOverloads constructor(
         beginExport(UUID.randomUUID().toString(), loaded.privacyEpoch)
     }
 
+    /** The same request again -- or, when nothing is kept (it was refused), a fresh one. */
     fun retryExport() {
-        val pending = store.readPendingPrivacyRequest(INTENT_EXPORT) ?: return
+        val pending = store.readPendingPrivacyRequest(INTENT_EXPORT) ?: return requestExport()
         beginExport(pending.requestId, pending.expectedPrivacyEpoch)
     }
 
     private fun beginExport(requestId: String, epoch: Long) {
-        store.writePendingPrivacyRequest(INTENT_EXPORT, requestId, epoch)
         _export.value = ExportState.Working
+        runLifecycleRequest(
+            INTENT_EXPORT, requestId, epoch, api::exportUniverse,
+            succeeded = { _export.value = ExportState.Ready(it) },
+            failed = { _export.value = ExportState.Failed(it) },
+        )
+    }
+
+    /**
+     * Pause, resume and export: one request each, its envelope persisted before dispatch, which the
+     * server replays when re-sent unchanged (ADR-0030). Only an ambiguous failure keeps it, for an
+     * explicit retry of that same request. A definitive refusal -- a stale epoch (409), invalid
+     * input -- applied nothing and never will: nothing is kept, a 409 reloads the screen, and the
+     * next attempt is a fresh request at the epoch it shows (the rule Reset and Delete follow below,
+     * and [InquiriesViewModel] for consent). A 401 ends the session.
+     */
+    private fun <T> runLifecycleRequest(
+        intent: String, requestId: String, epoch: Long,
+        send: suspend (PrivacyLifecycleRequest) -> T, succeeded: (T) -> Unit, failed: (String) -> Unit,
+    ) {
+        store.writePendingPrivacyRequest(intent, requestId, epoch)
         viewModelScope.launch {
             try {
-                val json = api.exportUniverse(PrivacyLifecycleRequest(requestId, epoch))
-                store.clearPendingPrivacyRequest(INTENT_EXPORT)
-                _export.value = ExportState.Ready(json)
+                val result = send(PrivacyLifecycleRequest(requestId, epoch))
+                store.clearPendingPrivacyRequest(intent)
+                succeeded(result)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: ApiException.Server) {
-                if (e.statusCode == 401) { signOutLocally(SignedOutReason.SESSION_EXPIRED); _export.value = ExportState.Idle }
-                else _export.value = ExportState.Failed(transportMessage(e))
             } catch (e: Exception) {
-                _export.value = ExportState.Failed(transportMessage(e))
+                val refused = definitiveRefusal(e)
+                if (e is ApiException.Server && e.statusCode == 401) {
+                    signOutLocally(SignedOutReason.SESSION_EXPIRED)
+                } else if (refused != null) {
+                    store.clearPendingPrivacyRequest(intent)
+                    failed(transportMessage(e))
+                    if (refused == 409) openPrivacy()
+                } else {
+                    failed(transportMessage(e))
+                }
             }
         }
     }
@@ -429,17 +438,18 @@ class AccountViewModel @JvmOverloads constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                val refused = definitiveRefusal(e)
                 if (e is ApiException.Server && e.statusCode == 401) {
                     store.clearPendingPrivacyRequest(intent)
                     signOutLocally(if (earlierMayHaveLanded || e.mayHaveLanded) done else endedBeforeSent)
                     state.value = PrivacyOperationState.Idle
-                } else if (e is ApiException.Server && e.statusCode in 400..499 && e.statusCode != 408 && e.statusCode != 429) {
+                } else if (refused != null) {
                     // A definitive refusal (e.g. the epoch changed on another device) applied nothing,
                     // and this live session proves no earlier attempt did either: nothing is kept to
                     // retry with its stale epoch. The screen reloads and offers a fresh confirmation.
                     store.clearPendingPrivacyRequest(intent)
                     state.value = PrivacyOperationState.Failed(transportMessage(e))
-                    if (e.statusCode == 409) openPrivacy()
+                    if (refused == 409) openPrivacy()
                 } else {
                     // Anything but a definitive refusal may have been applied: a later 401 for this
                     // same request then means it was.
@@ -534,3 +544,9 @@ class AccountViewModel @JvmOverloads constructor(
         else -> "Connection interrupted. Please retry; your request is not repeated."
     }
 }
+
+/** The status of a refusal the server made outright -- any 4xx but an ended session (401), a timeout
+ * (408) or a rate limit (429) -- or `null`. Nothing was applied, and the same request could only be
+ * refused again. */
+private fun definitiveRefusal(e: Exception): Int? =
+    (e as? ApiException.Server)?.statusCode?.takeIf { it in 400..499 && it !in setOf(401, 408, 429) }

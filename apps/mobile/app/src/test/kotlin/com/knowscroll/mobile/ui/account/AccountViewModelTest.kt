@@ -159,12 +159,13 @@ class AccountViewModelTest {
         }
     }
 
+    /** An uncertain failure (a 5xx may follow a commit behind a proxy); a refusal is the #168 tests below. */
     @Test
     fun aFailedPausePersistsItsRequestAndAnExplicitRetryReusesTheSameOne() {
         TestHttpServer.open().use { server ->
             server.serve(
                 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":null}""",
-                409 to """{"error":"stale epoch"}""",
+                503 to """{"error":"unavailable"}""",
                 200 to """{"receiptId":"r1","action":"pause","privacyEpoch":5,"recordingPausedAt":"2026-09-24T00:00:00Z","appliedAt":"2026-09-24T00:00:00Z"}""",
             )
             val store = StateStore(freshContext())
@@ -634,6 +635,79 @@ class AccountViewModelTest {
             assertNull(store.readPendingPrivacyRequest("reset"))
             assertEquals(PrivacyOperationState.Idle, model.delete.value)
             assertEquals(PrivacyOperationState.Idle, model.reset.value)
+        }
+    }
+
+    // ---- #168: a refused pause, resume or export is never re-sent with its stale epoch ----
+
+    private val pausedAt5 = 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":"2026-09-24T00:00:00Z"}"""
+    private val pausedAt6 = 200 to """{"universeId":"u1","revision":2,"privacyEpoch":6,"traces":[],"capabilities":{},"recordingPausedAt":"2026-09-24T00:00:00Z"}"""
+
+    /** A 409 (the epoch moved on, e.g. Clear on another device) applied nothing, and the same request
+     * could only be refused again: nothing is kept, Privacy reloads, and Retry asks afresh at the
+     * epoch the screen now shows. */
+    @Test
+    fun aRefusedPauseKeepsNothingAndRetryAsksAgainAtTheCurrentEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, epochChanged, universeAt6,
+                200 to """{"receiptId":"r1","action":"pause","privacyEpoch":6,"recordingPausedAt":"2026-09-25T00:00:00Z","appliedAt":"2026-09-25T00:00:00Z"}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestPause()
+            awaitUntil { model.pause.value is PrivacyOperationState.Failed }
+            assertNull("a refusal applied nothing: no request is kept to retry", store.readPendingPrivacyRequest("pause"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.retryPause()
+            awaitUntil { model.pause.value is PrivacyOperationState.Idle }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertTrue("a fresh request, never the refused one", requestIdOf(server, 3) != requestIdOf(server, 1))
+        }
+    }
+
+    @Test
+    fun aRefusedResumeKeepsNothingAndRetryAsksAgainAtTheCurrentEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(pausedAt5, epochChanged, pausedAt6,
+                200 to """{"receiptId":"r1","action":"resume","privacyEpoch":6,"recordingPausedAt":null,"appliedAt":"2026-09-25T00:00:00Z"}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestResume()
+            awaitUntil { model.resume.value is PrivacyOperationState.Failed }
+            assertNull(store.readPendingPrivacyRequest("resume"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.retryResume()
+            awaitUntil { model.resume.value is PrivacyOperationState.Idle && (model.privacy.value as PrivacyState.Loaded).recordingPausedAt == null }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertTrue(requestIdOf(server, 3) != requestIdOf(server, 1))
+        }
+    }
+
+    @Test
+    fun aRefusedExportKeepsNothingAndRetryExportsAtTheCurrentEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, epochChanged, universeAt6, 200 to """{"receiptId":"e1","privacyEpoch":6}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestExport()
+            awaitUntil { model.export.value is ExportState.Failed }
+            assertNull(store.readPendingPrivacyRequest("export"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.retryExport()
+            awaitUntil { model.export.value is ExportState.Ready }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertTrue(requestIdOf(server, 3) != requestIdOf(server, 1))
         }
     }
 
