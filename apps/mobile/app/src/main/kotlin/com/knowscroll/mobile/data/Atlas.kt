@@ -52,6 +52,9 @@ data class AtlasRelation(
 data class AtlasChronicleEntry(
     val deltaId: String,
     val placeId: String,
+    /** The place this change belonged to at the time (a sighting's/released region's parent);
+     * `null` for a planet or a change with no parent. */
+    val parentPlaceId: String?,
     val kind: String,
     val causalClass: String,
     val at: String,
@@ -151,7 +154,9 @@ internal fun parseChronicleEntry(o: JSONObject): AtlasChronicleEntry {
     val causalClass = o.getString("causalClass")
     require(causalClass in ATLAS_CAUSAL_CLASSES) { "Unknown causal class" }
     return AtlasChronicleEntry(
-        o.getString("deltaId"), o.getString("placeId"), kind, causalClass,
+        o.getString("deltaId"), o.getString("placeId"),
+        if (o.isNull("parentPlaceId")) null else o.getString("parentPlaceId"),
+        kind, causalClass,
         o.getString("at").also { require(it.isNotBlank()) { "A chronicle line must carry when it happened" } },
         o.getString("line").also { require(it.isNotBlank()) { "A chronicle line must carry its own text" } },
     )

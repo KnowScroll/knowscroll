@@ -85,22 +85,50 @@ fun SystemScreen(
     var inspection by rememberSaveable { mutableStateOf(false) }
     var selectedWorldId by rememberSaveable { mutableStateOf<String?>(null) }
     var focusedRegionId by rememberSaveable { mutableStateOf<String?>(null) }
+    // #134 review I3: a place opened directly from the Places list (any depth, any kind) takes
+    // priority over the camera-driven selection below -- see onOpenPlaceFromList.
+    var listOpenedPlaceId by rememberSaveable { mutableStateOf<String?>(null) }
     var manualLayer by rememberSaveable { mutableStateOf<String?>(null) }
     val worlds = (state as? SystemState.Loaded)?.response?.system?.worlds.orEmpty()
     val atlas = (atlasState as? AtlasState.Loaded)?.response
     val places = atlas?.places.orEmpty()
+    // #134 review I4: the reactive default only ever moves on real data (a Loaded atlas), never on
+    // the transient Loading state every refresh passes through -- otherwise a refresh while already
+    // on this screen (e.g. returning to it) would flip Places -> Sources -> Places and reset the
+    // selection twice, once for each flip.
+    var lastDefaultLayer by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(atlasState) {
+        if (atlasState is AtlasState.Loaded)
+            lastDefaultLayer = if (defaultAtlasLayer(places) == AtlasLayer.Places) "places" else "sources"
+    }
     val layer = manualLayer?.let { if (it == "places") AtlasLayer.Places else AtlasLayer.Sources }
-        ?: defaultAtlasLayer(places)
-    // Switching layers (or losing the focused place, e.g. after Set aside) never leaves a stale
-    // selection from the other layer pointing at nothing.
-    LaunchedEffect(layer) { selectedWorldId = null; focusedRegionId = null; inspection = false }
-    val focusedPlaceId = if (layer == AtlasLayer.Places) focusedRegionId ?: selectedWorldId else null
+        ?: if (lastDefaultLayer == "places") AtlasLayer.Places else AtlasLayer.Sources
+    val layerKey = if (layer == AtlasLayer.Places) "places" else "sources"
+    // #134 review I4: reset the selection only when the layer actually *changed* since the last
+    // time this ran -- not merely because this composition is a fresh mount (leaving for the reader
+    // and returning with system Back, or a rotation, both start a fresh LaunchedEffect history even
+    // though rememberedLayer/selectedWorldId themselves survived via rememberSaveable).
+    var rememberedLayer by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(layerKey) {
+        if (rememberedLayer != null && rememberedLayer != layerKey) {
+            selectedWorldId = null; focusedRegionId = null; listOpenedPlaceId = null; inspection = false
+        }
+        rememberedLayer = layerKey
+    }
+    val focusedPlaceId = if (layer == AtlasLayer.Places) listOpenedPlaceId ?: focusedRegionId ?: selectedWorldId else null
     val focusedPlace = focusedPlaceId?.let { id -> places.firstOrNull { it.placeId == id } }
     LaunchedEffect(atlas, focusedPlaceId) {
         if (layer == AtlasLayer.Places && focusedPlaceId != null && atlas != null && focusedPlace == null) {
             // The place this sheet was showing is gone (e.g. it was just set aside).
-            inspection = false; focusedRegionId = null; selectedWorldId = null
+            inspection = false; focusedRegionId = null; selectedWorldId = null; listOpenedPlaceId = null
         }
+    }
+    // Opens a place's own sheet directly from the Places list, regardless of its depth or kind --
+    // never routed through the camera/marker selection, which only ever understands a planet.
+    fun openPlaceFromList(placeId: String) {
+        listOpenedPlaceId = placeId
+        selectedWorldId = topmostAncestor(places, placeId)
+        inspection = true
     }
     val selected = worlds.firstOrNull { it.worldId == selectedWorldId }
     BackHandler { if (selectedWorldId != null) selectedWorldId = null else onReturn() }
@@ -127,7 +155,9 @@ fun SystemScreen(
                                 modifier = Modifier.padding(horizontal = 20.dp),
                             )
                             Text(
-                                systemSubtitle(loadedWorlds),
+                                // #134 review M2: Places counts its own live places/sightings, never
+                                // the Sources world/Scroll counts -- the two layers show different data.
+                                if (layer == AtlasLayer.Places) placesSubtitle(places) else systemSubtitle(loadedWorlds),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Cosmos.MutedOnDark,
                                 modifier = Modifier.padding(horizontal = 20.dp),
@@ -137,16 +167,28 @@ fun SystemScreen(
                                 onSelect = { manualLayer = if (it == AtlasLayer.Places) "places" else "sources" },
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                             )
-                            if (layer == AtlasLayer.Sources && places.none { it.kind == "planet" })
+                            if (layer == AtlasLayer.Sources) {
+                                // #134 review M2: PR130's own label, restored unconditionally --
+                                // it is never replaced by the places-forming explanation below.
                                 Text(
-                                    "Places form when you come back to a subject on different days.",
+                                    "Orbits & moons are illustrative",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Cosmos.MutedOnDark,
                                     modifier = Modifier.padding(horizontal = 20.dp),
                                 )
-                            else if (layer == AtlasLayer.Sources)
+                                if (places.none { it.kind == "planet" })
+                                    Text(
+                                        "Places form when you come back to a subject on different days.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Cosmos.MutedOnDark,
+                                        modifier = Modifier.padding(horizontal = 20.dp),
+                                    )
+                            } else
+                                // #134 review M2: Places' own honest equivalent -- its positions are
+                                // just as hash-derived/illustrative as Sources' orbits; only what is
+                                // mapped (the places themselves, their sightings, how they connect) is real.
                                 Text(
-                                    "Orbits & moons are illustrative",
+                                    "Positions are illustrative — what's mapped and how it connects is real.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Cosmos.MutedOnDark,
                                     modifier = Modifier.padding(horizontal = 20.dp),
@@ -156,17 +198,25 @@ fun SystemScreen(
                                     SpatialAtlas(
                                         markers = planetMarkersOf(places),
                                         selectedId = selectedWorldId,
-                                        onSelect = { selectedWorldId = it },
+                                        onSelect = { selectedWorldId = it; listOpenedPlaceId = null },
                                         modifier = Modifier.weight(1f).fillMaxWidth(),
                                         collectionLabel = "Places",
                                         actionLabel = "Explore place: ",
-                                        onDeselect = { selectedWorldId = null; inspection = false },
-                                        onInspect = { inspection = true },
+                                        onDeselect = { selectedWorldId = null; inspection = false; listOpenedPlaceId = null },
+                                        onInspect = { listOpenedPlaceId = null; inspection = true },
                                         sightings = sightingMarkersOf(places),
                                         regions = selectedWorldId?.let { regionAreasOf(places, it) } ?: emptyList(),
                                         regionsEmptyMessage = "No regions yet — a region forms when you anchor a narrower subject.",
                                         regionActionLabel = "Explore region: ",
                                         onFocusedRegionChanged = { focusedRegionId = it },
+                                        listSheetContent = { closeSheet ->
+                                            PlacesListSheetContent(
+                                                atlas = atlas ?: AtlasResponse("", emptyList(), emptyList(), emptyList()),
+                                                evidenceState = evidenceState,
+                                                onOpenEvidence = onOpenEvidence,
+                                                onOpenPlace = { placeId -> closeSheet(); openPlaceFromList(placeId) },
+                                            )
+                                        },
                                     )
                                 else
                                     SpatialAtlas(

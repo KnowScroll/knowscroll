@@ -1008,6 +1008,11 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     }
                     conflict==RejectPlaceConflict.Paused ->
                         _placeReject.value=PlaceRejectState.Failed(placeId,"Recording was paused, so nothing was set aside.")
+                    // #134 review M6: a 409 this endpoint's own two known reasons don't explain is
+                    // a generic failure, not a session-ending one -- never routed through
+                    // invalidatesReader, which treats every 409 as reader-invalidating.
+                    e is ApiException.Server && e.statusCode==409 ->
+                        _placeReject.value=PlaceRejectState.Failed(placeId,"That change could not be completed. Try again.")
                     invalidatesReader(e) -> {purgeForScope(universeId,epoch);failClosed(message(e))}
                     else -> _placeReject.value=PlaceRejectState.Failed(placeId,message(e))
                 }

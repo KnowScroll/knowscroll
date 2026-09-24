@@ -2,6 +2,7 @@ package com.knowscroll.mobile.ui.fidelity
 
 import android.provider.Settings
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -9,10 +10,17 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import com.knowscroll.mobile.data.AtlasAnchor
 import com.knowscroll.mobile.data.AtlasAttention
 import com.knowscroll.mobile.data.AtlasBasis
+import com.knowscroll.mobile.data.AtlasBridgeSupport
 import com.knowscroll.mobile.data.AtlasChronicleEntry
 import com.knowscroll.mobile.data.AtlasClaim
 import com.knowscroll.mobile.data.AtlasDelta
@@ -30,6 +38,7 @@ import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,7 +54,7 @@ import org.robolectric.annotation.Config
  * "AUTHORED"/"Illustrative geography" wording that Sources still does.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@Config(sdk = [35], qualifiers = "w360dp-h780dp-xhdpi")
 class PlacesScreenTest {
     @get:Rule val composeRule = createComposeRule()
 
@@ -83,7 +92,7 @@ class PlacesScreenTest {
     )
     private val relation = AtlasRelation(planetId, otherPlanetId, "explains", AtlasClaim("Gravity bends light.", "NASA · Lensing"), null)
     private val chronicle = listOf(
-        AtlasChronicleEntry(deltaId, planetId, "place_formed", "personal_exploration", "2026-09-23T00:00:00.000Z", "A place formed around Gravity."),
+        AtlasChronicleEntry(deltaId, planetId, null, "place_formed", "personal_exploration", "2026-09-23T00:00:00.000Z", "A place formed around Gravity."),
     )
     private val atlas = AtlasResponse("cartographer-v1", listOf(planet, region, sighting, otherPlanet), listOf(relation), chronicle)
 
@@ -120,6 +129,8 @@ class PlacesScreenTest {
         content(atlasState = AtlasState.Loaded(AtlasResponse("cartographer-v1", emptyList(), emptyList(), emptyList())))
         composeRule.onNodeWithContentDescription("Explore world: NASA · Gravity pulls").assertExists()
         composeRule.onNodeWithText("Places form when you come back to a subject on different days.").assertExists()
+        // Review M2: the quiet line is additional, never a replacement for PR130's own label.
+        composeRule.onNodeWithText("Orbits & moons are illustrative").assertExists()
     }
 
     @Test
@@ -149,7 +160,12 @@ class PlacesScreenTest {
     @Test
     fun aSightingIsFaintNextToItsParentAndARegionAppearsAtTheContinentsLevel() {
         content()
-        composeRule.onNodeWithContentDescription("Sighting near Gravity: Star formation").assertExists()
+        // Review M7: the label is truthful about what a tap does (opens the parent), and the touch
+        // target is >=48dp even though the drawn dot stays small.
+        val sightingNode = composeRule.onNodeWithContentDescription("Sighting: Star formation — near Gravity")
+        sightingNode.assertExists()
+        val bounds = sightingNode.getUnclippedBoundsInRoot()
+        assertTrue((bounds.right - bounds.left) >= 48.dp && (bounds.bottom - bounds.top) >= 48.dp)
         enterContinents("Gravity")
         composeRule.onNodeWithContentDescription("Explore region: Tides").assertExists()
     }
@@ -238,5 +254,113 @@ class PlacesScreenTest {
         composeRule.onNodeWithContentDescription("Cancel setting aside").performScrollTo().performClick()
         assertEquals(false, confirmed)
         assertEquals(true, cancelled)
+    }
+
+    @Test
+    fun aChronicleLinesTouchTargetIsAtLeast48dp() {
+        content()
+        composeRule.onNodeWithContentDescription("Explore place: Gravity").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        val bounds = composeRule.onNodeWithContentDescription("Show evidence: A place formed around Gravity.").getUnclippedBoundsInRoot()
+        assertTrue((bounds.bottom - bounds.top) >= 48.dp)
+    }
+
+    @Test
+    fun placesSubtitleCountsLivePlacesAndSightingsNotWorldsOrScrolls() {
+        content()
+        // planet + region + otherPlanet are live places; the one sighting is counted separately.
+        composeRule.onNodeWithText("3 PLACES · 1 SIGHTING").assertExists()
+        composeRule.onAllNodesWithText("WORLDS", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun sourcesSubtitleIsUnchangedByThePlacesWork() {
+        content(atlasState = AtlasState.Loaded(AtlasResponse("cartographer-v1", emptyList(), emptyList(), emptyList())))
+        composeRule.onNodeWithText("1 WORLD · 3 SCROLLS RECORDED · 3 SEEN").assertExists()
+    }
+
+    @Test
+    fun theOrbitsLabelAlwaysShowsForSourcesEvenWhenPlanetsExist() {
+        // The atlas has a planet (Places would default), but the reader chose Sources manually --
+        // review M2: PR130's own label is restored unconditionally, never only when there are no places yet.
+        content()
+        composeRule.onNodeWithContentDescription("Show Sources").performClick()
+        composeRule.onNodeWithText("Orbits & moons are illustrative").assertExists()
+    }
+
+    @Test
+    fun placesShowsItsOwnHonestPositionsLabelNeverTheSourcesWording() {
+        content()
+        composeRule.onNodeWithText("Positions are illustrative — what's mapped and how it connects is real.").assertExists()
+        composeRule.onAllNodesWithText("Orbits & moons are illustrative").assertCountEquals(0)
+    }
+
+    @Test
+    fun theListSheetOpensAPlaceAtAnyNestingDepthAndASightingsSheetHasNoSetAside() {
+        val nestedRegion = AtlasPlace(
+            placeId = "66666666-6666-6666-6666-666666666666", kind = "region", parentPlaceId = regionId,
+            anchor = anchor("Neap tides"), basis = null, attention = AtlasAttention("seen", 1, 1, 1),
+            scrolls = AtlasScrollCounts(1, 1), formedAt = "2026-09-23T00:00:00.000Z", formedBy = "place_formed",
+        )
+        val nestedSighting = AtlasPlace(
+            placeId = "77777777-7777-7777-7777-777777777777", kind = "sighting", parentPlaceId = nestedRegion.placeId,
+            anchor = anchor("Spin-orbit locking"),
+            basis = AtlasBasis("explains", "Neap tides", "Spin-orbit locking", null, AtlasBridgeSupport("Tidal forces synchronise rotation.")),
+            attention = null, scrolls = AtlasScrollCounts(0, 0), formedAt = "2026-09-24T00:00:00.000Z", formedBy = "sighting_appeared",
+        )
+        content(atlasState = AtlasState.Loaded(atlas.copy(places = atlas.places + nestedRegion + nestedSighting)))
+        composeRule.onNodeWithText("List").performClick()
+        // A region inside a region, and a sighting of it -- invisible to regionAreasOf/the map,
+        // but always reachable from the list regardless of nesting depth (review I3).
+        composeRule.onNodeWithText("Region: Neap tides").assertExists()
+        composeRule.onNodeWithText("Sighting: Spin-orbit locking").assertExists()
+        composeRule.onNodeWithText("Sighting: Spin-orbit locking").performClick()
+        composeRule.onNodeWithText("Neap tides explains Spin-orbit locking").assertExists()
+        composeRule.onNodeWithText("Tidal forces synchronise rotation.").assertExists()
+        // The server refuses to set a sighting aside -- its own sheet never offers to.
+        composeRule.onAllNodesWithContentDescription("Set Spin-orbit locking aside").assertCountEquals(0)
+    }
+
+    @Test
+    fun recentChangesListsEveryChronicleLineAndOpensItsEvidence() {
+        var opened: String? = null
+        content(onOpenEvidence = { opened = it })
+        composeRule.onNodeWithText("List").performClick()
+        composeRule.onNodeWithText("Recent changes").assertExists()
+        composeRule.onNodeWithText("A place formed around Gravity.").performClick()
+        assertEquals(deltaId, opened)
+    }
+
+    /** Review I4: the exact scenario named -- select a Sources world, leave for the reader (system
+     * Back from there returns via a *fresh* mount of `SystemScreen`, same as `KnowScrollApp.kt`'s
+     * own `when(screen)` swap), and the selection (and its open sheet) survive the round trip. */
+    @Test
+    fun sourcesSelectionSurvivesLeavingForTheReaderAndReturning() {
+        var showSystem by mutableStateOf(true)
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        composeRule.setContent {
+            KnowScrollTheme {
+                val holder = rememberSaveableStateHolder()
+                if (showSystem) {
+                    holder.SaveableStateProvider("system") {
+                        SystemScreen(
+                            state = loadedWorlds, onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {},
+                        )
+                    }
+                } else Text("Elsewhere (the reader)")
+            }
+        }
+        composeRule.onNodeWithContentDescription("Explore world: NASA · Gravity pulls").performClick()
+        composeRule.onNodeWithText("Info").performClick()
+        composeRule.onNodeWithText("3 of 3 Scrolls encountered").assertExists()
+
+        showSystem = false
+        composeRule.waitForIdle()
+        showSystem = true
+        composeRule.waitForIdle()
+
+        // No re-selection needed: the world and its open sheet are exactly as they were.
+        composeRule.onNodeWithText("3 of 3 Scrolls encountered").assertExists()
     }
 }

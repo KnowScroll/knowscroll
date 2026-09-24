@@ -101,6 +101,12 @@ internal fun PlaceDetail(
                 modifier = Modifier.fillMaxWidth().semantics { heading() },
             )
             Text(place.anchor.description, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnCream)
+            place.basis?.let { basis ->
+                // Only a sighting carries its own basis -- what it connects to and why it is offered.
+                Text(basisSentence(basis), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight(700))
+                val support = basis.claim?.let { "\"${it.text}\" — ${it.sourceTitle}" } ?: basis.bridge?.mechanism
+                if (support != null) Text(support, style = MaterialTheme.typography.bodySmall, color = Cosmos.MutedOnCream)
+            }
             if (attention != null)
                 Text(
                     "Read on ${attention.daysActive} ${if (attention.daysActive == 1) "day" else "days"} · " +
@@ -144,13 +150,18 @@ internal fun PlaceDetail(
                 chronicle.forEach { entry -> ChronicleLine(entry.deltaId, entry.line, evidenceState, onOpenEvidence) }
             }
 
-            PlaceSetAside(place, rejectState, onRequestSetAside, onCancelSetAside, onConfirmSetAside)
+            // A sighting cannot be set aside (the server refuses it) -- only its own sheet, opened
+            // from the Places list, would otherwise show a button that quietly does nothing.
+            if (place.kind != "sighting")
+                PlaceSetAside(place, rejectState, onRequestSetAside, onCancelSetAside, onConfirmSetAside)
         }
     }
 }
 
+/** Reused by the system-level "Recent changes" list (`PlacesListSheet.kt`) so every chronicle line
+ * -- for a place still live or one that is now gone -- opens its evidence the same way. */
 @Composable
-private fun ChronicleLine(
+internal fun ChronicleLine(
     deltaId: String,
     line: String,
     evidenceState: AtlasEvidenceState,
@@ -166,7 +177,7 @@ private fun ChronicleLine(
             color = Cosmos.InkOnCream,
             modifier =
                 Modifier.clickable(onClickLabel = if (open) "Hide evidence" else "Show evidence") { onOpenEvidence(deltaId) }
-                    .heightIn(min = 32.dp)
+                    .heightIn(min = 48.dp)
                     .semantics { contentDescription = "${if (open) "Hide" else "Show"} evidence: $line" },
         )
         if (loading)
