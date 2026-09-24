@@ -8,8 +8,8 @@ populated upgrade proof on a clone of the owner database is in
 
 | Proof | How | Result |
 | --- | --- | --- |
-| Cookie session | `tests/web-session.test.ts` (5) | the page never sees a token; cookie reads work; every change needs the HMAC CSRF token and a same origin; one credential per request; sign-out and Reset end cookie sessions; production refuses to start without a secret and web origin; the emailed link is `<origin>/sign-in#token=…` with no query string |
-| Account deletion | `tests/account-deletion.test.ts` (4, 3 mutants killed) | own confirmation literal and current epoch; one transaction removes the account, sign-in tokens, every session, dated privacy receipts and personal history, leaving an address-free tombstone; re-sign-in starts a new account on the empty universe; a cookie session needs CSRF and gets its cookie cleared; outside that transaction every guard still refuses |
+| Cookie session | `tests/web-session.test.ts` (6) | the page never sees a token; a malformed cookie is no cookie (401, not 500); cookie reads work; every change needs the HMAC CSRF token and a same origin; one credential per request; sign-out and Reset end cookie sessions; production refuses to start without a secret and web origin; the emailed link is `<origin>/sign-in#token=…` with no query string |
+| Account deletion | `tests/account-deletion.test.ts` (6, 3 mutants killed) | own confirmation literal and current epoch; an API restart never revives the development session; a magic-link request during a deletion waits for it instead of failing; one transaction removes the account, sign-in tokens, every session, dated privacy receipts and personal history, leaving an address-free tombstone; re-sign-in starts a new account on the empty universe; a cookie session needs CSRF and gets its cookie cleared; outside that transaction every guard still refuses |
 | Web client | web unit tests; `scripts/run-web-owner-journey.ts` (Playwright, cookie-mode proxy, real API and disposable DB) | signed-out screen → magic link from the development sink → `/sign-in#token` (fragment removed at once; nothing consumed until the button) → reading → privacy → delete account → deleted screen; afterwards 0 accounts, 1 deletion receipt, 0 sessions (`../web-owner/last-run-receipt.json`) |
 | Android client | Android unit + Robolectric tests; `KS_SEMANTIC_JOURNEY=owner` on the emulator | see below |
 
@@ -37,9 +37,32 @@ First device runs, retained:
 3. The link was pushed before the freshly installed app had a files directory.
 4. A link left by an earlier run, already used, was pushed from a shared scratch path.
 
+## Review
+
+A fresh-context review (PR #147) found three blocking defects and two important ones, all fixed
+test-first before these runs:
+- A debug build carrying a development token opened on the sign-in screen, so every other journey
+  would have stalled. It now opens on the reader; the `places` journey below is such a build.
+- Both clients said "Your account and history were deleted" (or reset) after a 401 that arrived
+  before the request was ever sent. Now only a request that may have landed counts.
+- The old "Sign out this device" left a signed-in owner on a dead end.
+- Deleting the account let the development session come back on the next API restart.
+- The web client never refreshed a CSRF token it already held.
+
+Runs on `d676fe6` (review fixes, main merged): backend 13 + 844, web 136, Android 261 + lint, the
+`owner` journey (SQL: 0 accounts, 1 deletion receipt, 0 device sessions, 0 sign-in tokens) and the
+`places` journey on a development-token build, each restoring the owner's preview.
+
 ## Limits
 
 - The owner pastes the emailed link; Android App Links for tapping it directly are not set up.
 - Debug API36 emulator, not a physical device; the development mail sink stands in for email.
-- The previous development-token "Sign out this device" control remains next to the new Privacy &
-  account screen.
+- The earlier "Sign out this device" control (#91) remains next to Privacy & account; since the
+  review it clears the stored session and ends on the sign-in screen.
+- The #91 reader-explain runner (`scripts/android-reader-explain-journey.py`) fails its blank-reason
+  explain phase on main as well as here (recorded on #136). Its four sign-out tests were run on
+  this branch from a copy of the runner with that part removed, under the preview guard: all four
+  passed (cancel is harmless, a confirmed revoke ends the session honestly, a dropped revoke then
+  retry succeeds, an already-revoked session resolves as signed out) and the preview was restored
+  and verified. That copy then stopped before writing its receipt (it still referred to the removed
+  part), so there is no committed receipt for it; the instrumentation results are the evidence.

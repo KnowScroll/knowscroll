@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.journey.OwnerAccountJourneyTest:.
 
-Time: 15.086
+Time: 22.744
 
 OK (1 test)
 

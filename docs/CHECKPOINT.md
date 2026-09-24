@@ -13,7 +13,7 @@ a signed-out screen, the `/sign-in` page, CSRF in the client, sign-out and delet
 cookie-mode proxy. Android: magic-link sign-in with a Keystore-encrypted session, and a Privacy &
 account screen (pause/resume, export, Reset, delete, sign out) at parity with web.
 
-Verification: web-session 5, account-deletion 4 (3 mutants), backend suite, web units, Android
+Verification (after the review fixes): web-session 6, account-deletion 6 (3 mutants), backend suite, web units, Android
 units + lint, the web owner journey (Playwright, cookie mode) and the emulator owner journey with
 SQL checks; see the [evidence](journeys/evidence/owner-access-2026-09-24/README.md). Four initial
 device failures are recorded there, including a launch crash that the JVM tests had missed.
