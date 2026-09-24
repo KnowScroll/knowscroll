@@ -234,4 +234,14 @@ class AccountViewModelTest {
             assertNull(vault.readToken())
         }
     }
+
+    /** The app obtains this view model through the standard factory (`viewModel()` in
+     * KnowScrollApp), which needs an `(Application)` constructor; the device journey found that
+     * missing (the app crashed at launch). */
+    @Test
+    fun theStandardViewModelFactoryCanCreateIt() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val created = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(application).create(AccountViewModel::class.java)
+        assertNotNull(created)
+    }
 }

@@ -37,7 +37,7 @@ internal const val PRIVACY_RETRY_MESSAGE =
  * reader's very next call with no extra wiring, and [SessionInvalidation] carries the one signal
  * that must cross between them (the reader's session died).
  */
-class AccountViewModel(
+class AccountViewModel @JvmOverloads constructor(
     application: Application,
     /** Test seam: a JVM test passes a [com.knowscroll.mobile.data.FakeSessionVault]. */
     private val vault: SessionVault = AndroidKeyStoreSessionVault(application),
