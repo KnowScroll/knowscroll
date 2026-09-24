@@ -60,7 +60,9 @@ A fresh-context review (PR #148) found that a standing foundation's connections 
 (showing a set-aside place or a revoked claim, or an empty `holdsUp` that would blank Android's
 Places), that setting a place aside re-ran the whole Cartographer, and that this README claimed a
 brighter marker the screenshot did not show. All were fixed test-first, with the minor findings
-listed on the PR.
+listed on the PR. A verification review found nothing blocking; its minor findings (the wording
+when a foundation is itself set aside, a connection revoked since the last refresh still shown,
+naming) were fixed test-first after these runs and change neither journey's path.
 
 ## Limits
 

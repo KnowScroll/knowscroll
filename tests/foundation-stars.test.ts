@@ -10,7 +10,8 @@ import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { atlasDeltaSchema, atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
-import { runCartographer } from '../packages/db/src/atlas.ts';
+import { readAtlas, runCartographer } from '../packages/db/src/atlas.ts';
+import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import type { PlaceAccount } from '../packages/core/src/atlas/cartographer.ts';
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Foundation tests require a disposable knowscroll_test_* database');
@@ -132,6 +133,23 @@ test('the foundation shown is its latest recognition, and the schema wants a fou
     await assert.rejects(client.query('COMMIT'), /foundation/);
   } finally {
     await client.query('ROLLBACK').catch(() => undefined);
+    client.release();
+  }
+});
+
+test('a connection revoked since the last refresh is not shown as holding anything up (verification review)', async () => {
+  const { i, byCode } = await setUp();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // The NOAA page behind "Gravity explains Tides" (claim and bridge alike) is withdrawn.
+    await correctSourceSnapshot(client, { sourceKey: 'noaa.tides', action: 'revoked', reason: 'Test: the publisher withdrew this page' }, 'operator');
+    const atlas = await readAtlas(client, i.scope.universeId);
+    const shown = atlas.places.find(p => p.placeId === byCode.get('physics.gravity')!.placeId)!.foundation!;
+    assert.deepEqual(shown.relations.map(r => r.to).sort(), ['Orbit', 'Star formation']);
+    assert.ok(!shown.holdsUp.includes(byCode.get('earth.tides')!.placeId));
+  } finally {
+    await client.query('ROLLBACK');
     client.release();
   }
 });

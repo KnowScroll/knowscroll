@@ -128,9 +128,11 @@ fun evidenceSummary(delta: AtlasDelta): String = when (delta.kind) {
             else -> "It now holds up $places, through $connections."
         }
     }
-    "foundation_withdrawn" ->
-        if (delta.causalClass == "source_correction") "A source behind one of its connections changed."
-        else "After you set a place aside, it no longer has enough sourced connections to your places."
+    "foundation_withdrawn" -> when {
+        delta.evidence["setAside"] == true -> "You set this place aside, so it no longer holds anything up."
+        delta.causalClass == "source_correction" -> "A source behind one of its connections changed."
+        else -> "After you set a place aside, it no longer has enough sourced connections to your places."
+    }
     else -> "This place changed."
 }
 

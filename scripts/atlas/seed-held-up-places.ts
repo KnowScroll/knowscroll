@@ -1,7 +1,7 @@
 /**
  * #131/#134 — the one simulated step of the `foundation` journey (`scripts/android-semantic-journey.py`):
- * places for Tides, Orbits and Star formation, formed by the real Cartographer from accounts this
- * script supplies instead of from reading. The editorial library cannot anchor Orbits or Star
+ * places for Tides, Orbit and Star formation, formed by the real Cartographer from accounts this
+ * script supplies instead of from reading. The editorial library cannot anchor Orbit or Star
  * formation today (each has Scrolls from one source family only), so no reading could produce them.
  * The injected accounts carry zero episodes, days and marks and cite no episode, so the evidence of
  * each of these places says plainly that no reading formed it.

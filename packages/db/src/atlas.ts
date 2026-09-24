@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
-  CARTOGRAPHER_POLICY, planFoundations, planPlaces, planRejection,
+  CARTOGRAPHER_POLICY, planFoundations, planPlaces, planRejection, relationKey,
   type ConceptNode, type PlaceAccount, type PlaceDelta, type PlaceView, type RelationKind, type TypedRelation,
 } from '../../core/src/atlas/cartographer.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
@@ -144,8 +144,8 @@ export async function rejectPlace(client: pg.PoolClient, universeId: string, pla
   if (target.state !== 'live' || target.kind === 'sighting') throw new AtlasConflict('Only a live planet or region can be set aside');
   const substrate = await loadSubstrate(client);
   const rejected = await applyDeltas(client, universeId, substrate, places, planRejection(places, placeId));
-  // Only the foundations the rejection affects are re-evaluated at once (ADR-0037); every other
-  // change waits for the reader's next refresh, exactly as in ADR-0036.
+  // Foundations, and only foundations, are re-evaluated at once (ADR-0037); every other change
+  // waits for the reader's next refresh, exactly as in ADR-0036.
   const after = await loadPlaces(client, universeId);
   const followUp = planFoundations({ relations: substrate.relations, places: after });
   return { deltas: rejected + await applyDeltas(client, universeId, substrate, after, followUp) };
@@ -232,12 +232,14 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
      WHERE d.universe_id = $1 AND d.kind <> 'sighting_promoted' ORDER BY d.created_at DESC, d.id LIMIT 20`, [universeId],
   )).rows;
   const nameOf = (code: string | null) => (code === null ? null : names.get(code)?.name ?? code);
-  // What a foundation holds up is always among the reader's live planets and regions: a connection
-  // whose place has gone is not shown, and one holding nothing live up shows as none (every path
-  // that removes a place re-plans foundations in the same transaction, so this is a backstop).
+  // What a foundation holds up is always among the reader's live planets and regions, by active
+  // connections: one whose place has gone or whose source was revoked is not shown, and a
+  // foundation left holding nothing up shows as none until the next plan records it.
+  const active = new Set(substrate.relations.map(relationKey));
   const foundationOf = (p: PlaceRow): AtlasView['places'][number]['foundation'] => {
     if (!p.loadBearing || !p.foundationBasis) return null;
-    const standing = p.foundationBasis.filter(r => { const t = liveAnchor.get(r.to); return !!t && t.kind !== 'sighting'; });
+    // A connection revoked since the last refresh (a source correction) is not shown either.
+    const standing = p.foundationBasis.filter(r => { const t = liveAnchor.get(r.to); return !!t && t.kind !== 'sighting' && active.has(relationKey(r)); });
     const holdsUp = [...new Set(standing.map(r => liveAnchor.get(r.to)!.placeId))];
     if (holdsUp.length === 0) return null;
     return { holdsUp, relations: standing.map(r => ({ kind: r.kind, from: nameOf(r.from)!, to: nameOf(r.to)!, ...refs(r) })) };

@@ -14,7 +14,7 @@ sheet survives Activity recreation), `ask` (#132 an authorized answer through th
 fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request) and `places`
 (#134 the reader's own live places, ADR-0036: seeds one day-old keep through the real API before
 instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
-real second day) and `foundation` (#131/#134 ADR-0037: as `places`, after Tides, Orbits and Star
+real second day) and `foundation` (#131/#134 ADR-0037: as `places`, after Tides, Orbit and Star
 formation are placed from supplied accounts by `scripts/atlas/seed-held-up-places.ts`; the reading
 forms Gravity, which is recognised as their foundation and withdrawn when Tides is set aside).
 """
@@ -133,7 +133,7 @@ try:
 
     # 2.5. `places`/`foundation`: one day-old keep through the real API, before instrumenting -- the
     # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
-    # `foundation` first places Tides, Orbits and Star formation from supplied accounts (labelled;
+    # `foundation` first places Tides, Orbit and Star formation from supplied accounts (labelled;
     # see scripts/atlas/seed-held-up-places.ts), then takes the same day-old keep.
     if journey_name in ('places', 'foundation'):
         seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}'}
@@ -241,8 +241,8 @@ try:
               and lineage['gravityLoadBearingNow'] is False and lineage['suppliedHeldUpPlaces'] == 3)
         assert ok, lineage
         limits = ['Editorial substrate; cartographer-v2 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
-                  'Tides, Orbits and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because '
-                  'the library cannot anchor Orbits or Star formation from two source families; Gravity formed from this run\'s reading.',
+                  'Tides, Orbit and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because '
+                  'the library cannot anchor Orbit or Star formation from two source families; Gravity formed from this run\'s reading.',
                   'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.']
     else:
         lineage = json.loads(sql(f"""SELECT json_build_object(

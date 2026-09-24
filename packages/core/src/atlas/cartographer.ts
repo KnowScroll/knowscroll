@@ -56,10 +56,10 @@ export type PlaceDelta =
   | Common & { kind: 'place_rejected'; placeId: string; evidence: Record<string, never> }
   | Common & { kind: 'place_released'; placeId: string; evidence: { rejectedPlaceId: string } }
   | Common & { kind: 'foundation_recognised'; evidence: { relations: TypedRelation[]; holdsUp: string[] } }
-  | Common & { kind: 'foundation_withdrawn'; evidence: { relations: TypedRelation[] } };
+  | Common & { kind: 'foundation_withdrawn'; evidence: { relations: TypedRelation[]; setAside?: true } };
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const relationKey = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `c:${r.ref.claimId}` : `b:${r.ref.bridgeId}`}`;
+export const relationKey = (r: TypedRelation) => `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `c:${r.ref.claimId}` : `b:${r.ref.bridgeId}`}`;
 // A sourced claim is the preferred basis for a sighting, whatever its direction or kind; an admitted
 // bridge is the fallback.
 const basisOrder = (r: TypedRelation) => `${'claimId' in r.ref ? '0' : '1'}|${relationKey(r)}`;
@@ -204,7 +204,7 @@ export function planRejection(places: readonly PlaceView[], placeId: string): Pl
   const children = places.filter(p => p.state === 'live' && p.parentAnchor === target.anchor).sort((a, b) => byCode(a.anchor, b.anchor));
   return [
     // A foundation set aside stops being one first, while it is still live (ADR-0037).
-    ...(target.loadBearing ? [{ ...common(target.anchor), kind: 'foundation_withdrawn' as const, evidence: { relations: [...(target.foundationBasis ?? [])] } }] : []),
+    ...(target.loadBearing ? [{ ...common(target.anchor), kind: 'foundation_withdrawn' as const, evidence: { relations: [...(target.foundationBasis ?? [])], setAside: true as const } }] : []),
     { ...common(target.anchor), kind: 'place_rejected', placeId: target.placeId, evidence: {} },
     ...children.filter(p => p.kind === 'region').map(p => ({ ...common(p.anchor), kind: 'place_released' as const, placeId: p.placeId, evidence: { rejectedPlaceId: target.placeId } })),
     ...children.filter(p => p.kind === 'sighting').map(p => ({ ...common(p.anchor), kind: 'sighting_retired' as const, placeId: p.placeId, evidence: { rejectedPlaceId: target.placeId } })),

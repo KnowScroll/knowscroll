@@ -26,7 +26,7 @@ Follows `docs/architecture/target/07-UNIVERSE-EVOLUTION.md` §1 (the `load_beari
    together with a foundation delta for that place (migration 0031's own deferred trigger) and is
    never set on a sighting.
 3. **Shown as a property, not an object.** The atlas returns, per place, `foundation: {holdsUp,
-   relations}` or null. The chronicle says "Gravity holds up Orbits, Star formation and Tides.";
+   relations}` or null. The chronicle says "Gravity holds up Orbit, Star formation and Tides.";
    the place sheet lists what it holds up and the claims that say so. The renderer may express it
    as brightness or pull lines. There is no separate star object.
 4. **v2 changes nothing v1 decides.** Places, regions and sightings behave exactly as in

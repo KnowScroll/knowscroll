@@ -15,8 +15,8 @@ import java.io.File
 
 /**
  * #131/#134 — foundation Stars (ADR-0037) on a real device, against the disposable stack that
- * `scripts/android-semantic-journey.py`'s `foundation` mode seeds. Tides, Orbits and Star formation
- * are already places, formed from supplied accounts because the library cannot anchor Orbits or
+ * `scripts/android-semantic-journey.py`'s `foundation` mode seeds. Tides, Orbit and Star formation
+ * are already places, formed from supplied accounts because the library cannot anchor Orbit or
  * Star formation from reading (`scripts/atlas/seed-held-up-places.ts`), and there is one day-old
  * keep of "One force, many jobs".
  *

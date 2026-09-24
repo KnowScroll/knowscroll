@@ -175,6 +175,11 @@ class AtlasTest {
             "A source behind one of its connections changed.",
             evidenceSummary(delta("foundation_withdrawn", "source_correction", """{"relations":$relations}""")),
         )
+        // The foundation itself was set aside: it did not lose its connections (verification review).
+        assertEquals(
+            "You set this place aside, so it no longer holds anything up.",
+            evidenceSummary(delta("foundation_withdrawn", "reader_correction", """{"relations":$relations,"setAside":true}""")),
+        )
     }
 
     /** Review I1: a standing foundation whose connections change is re-recorded (before and after

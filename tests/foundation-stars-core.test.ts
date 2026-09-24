@@ -90,4 +90,6 @@ test('setting a foundation itself aside withdraws it first, as the reader\'s cor
   const standing = planet('physics.gravity', { loadBearing: true, foundationBasis: [rel('earth.tides'), rel('astro.orbit'), rel('astro.orbit', 'prerequisite_for', { claimId: 'claim-orbit-pre' })] });
   const deltas = planRejection([standing, planet('earth.tides'), planet('astro.orbit')], 'p-physics.gravity');
   assert.deepEqual(deltas.map(d => [d.kind, d.causalClass]), [['foundation_withdrawn', 'reader_correction'], ['place_rejected', 'reader_correction']]);
+  // Its evidence says the foundation itself was set aside, not that it lost connections.
+  assert.equal(deltas[0]!.kind === 'foundation_withdrawn' && deltas[0]!.evidence.setAside, true);
 });
