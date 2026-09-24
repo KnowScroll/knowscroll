@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.knowscroll.mobile.data.ApiClient
+import com.knowscroll.mobile.data.AwayItem
 import com.knowscroll.mobile.data.InquiriesResponse
 import com.knowscroll.mobile.data.Relic
 import kotlinx.coroutines.delay
@@ -20,15 +21,18 @@ import java.io.File
 /**
  * #134 (ADR-0039) — the return, on a real device, against the disposable stack that
  * `scripts/android-semantic-journey.py`'s `return` mode seeds (the same as `inquiry`: a labelled
- * FIXTURE inquiry route, The Sun placed from a SUPPLIED account before consent, and a day-old keep).
+ * FIXTURE inquiry route, The Sun placed from a SUPPLIED account before consent, and a day-old keep;
+ * and SUPPLIED journey knowledge, Solar wind, on The Sun's horizon, which no reading can meet).
  *
  * The reader turns on "Look for connections between my places" and reads their way to Gravity. Then
  * they LEAVE: the app goes to the background while the worker, on its own, opens the inquiry that
  * formation mailed and bridge-validator-v1 admits the fixture's proposal. They RETURN: the Atlas says
  * "While you were away" and shows the connection found. They open its evidence, keep it as a Relic
  * (Keep shows it "Current"), then decide it seems wrong (the Relic says so) and mark what changed as
- * seen. They LEAVE again, and the runner applies a real operator source correction that revokes the
- * connection's mechanism source. On return the Atlas shows the correction and Keep shows the Relic
+ * seen. They LEAVE again, and the runner applies real operator source corrections: one revokes the
+ * connection's mechanism source, one the source a sighting on their horizon rests on alone. With no
+ * action of theirs, the worker's correction catch-up (ADR-0040) retires that sighting while they are
+ * away. On return the Atlas shows the correction and the place change, and Keep shows the Relic
  * "Corrected", its kept form still readable. The runner verifies the lineage in SQL. This receipt
  * holds ids, statuses and times only -- no sentence, claim or provider text.
  */
@@ -110,7 +114,7 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         openReader()
         keepWhenOffered("The pull you can't see", "A rhythm the ocean keeps")
         poll("Gravity forms from this reading", { api.getAtlas() }) { a -> a.places.any { it.anchor.code == "physics.gravity" && it.kind != "sighting" } }
-        assertTrue("nothing is waiting yet", runBlocking { api.getAway() }.items.none { it is com.knowscroll.mobile.data.AwayItem.ConnectionFound })
+        assertTrue("nothing is waiting yet", runBlocking { api.getAway() }.items.none { it is AwayItem.ConnectionFound })
 
         // 2. Leave while the inquiry is still open. The worker finds the connection while the app is
         // in the background (the runner's coalescing delay keeps it waiting past this point).
@@ -159,11 +163,14 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         waitText("You marked this as seeming wrong")
         screenshot("return-doubted.png")
 
-        // 8. Mark what changed as seen, then leave again. The runner revokes the mechanism source meanwhile.
+        // 8. Mark what changed as seen, then leave again. The runner revokes the mechanism source meanwhile,
+        // and the source one of the sightings on the horizon now rests on alone.
         keepToSystem()
         waitDescription("Mark what changed while you were away as seen")
         compose.onNodeWithContentDescription("Mark what changed while you were away as seen").performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithContentDescription("While you were away").fetchSemanticsNodes().isEmpty() }
+        val sightings = runBlocking { api.getAtlas() }.places.filter { it.kind == "sighting" }.map { it.placeId }.toSet()
+        assertTrue("a sighting is on the horizon before the reader leaves", sightings.isNotEmpty())
         leave()
         // Only now, with the app in the background, may the runner apply the correction: it waits for this.
         File(instrumentation.targetContext.filesDir, "return-left-again.txt").writeText("left")
@@ -173,11 +180,18 @@ class ReturnJourneyTest : AtlasJourneySupport() {
         assertEquals("revoked", corrected.connection.bridgeStatus)
         statesSeen += corrected.state
         assertEquals("the kept form stays readable", found.sentence, corrected.connection.sentence)
+        // ADR-0040: no action of the reader's refreshes their places; the worker catches them up while away.
+        val placeChange = poll("the worker's catch-up retires a sighting whose source was withdrawn while away", { api.getAway() }) { a ->
+            a.items.any { it is AwayItem.PlaceChanged && it.change == "sighting_retired" && it.placeId in sightings }
+        }.items.filterIsInstance<AwayItem.PlaceChanged>().first { it.change == "sighting_retired" && it.placeId in sightings }
+        assertTrue("the sighting has left the Atlas", runBlocking { api.getAtlas() }.places.none { it.placeId == placeChange.placeId })
 
-        // 9. Return (to the Atlas, where they left): it shows the correction; Keep shows the Relic corrected.
+        // 9. Return (to the Atlas, where they left): it shows the correction and the place change; Keep
+        // shows the Relic corrected.
         comeBack()
         waitDescription("While you were away", 30_000)
         awaitAwayLine("A source correction withdrew the connection between ${found.fromConcept.name} and ${found.toConcept.name}.")
+        awaitAwayLine(placeChange.line)
         screenshot("return-corrected-away.png")
         openKeep()
         waitDescription("Relic: ${found.fromConcept.name} and ${found.toConcept.name}")
@@ -190,6 +204,9 @@ class ReturnJourneyTest : AtlasJourneySupport() {
                 put("relicId", relic.relicId); put("relicStates", org.json.JSONArray(statesSeen))
                 put("statusWhenLeft", statusWhenLeft)
                 put("evidenceCount", found.evidence.size)
+                put("placeChange", JSONObject().apply {
+                    put("deltaId", placeChange.deltaId); put("placeId", placeChange.placeId); put("change", placeChange.change)
+                })
             }.toString(2)
         )
     }
