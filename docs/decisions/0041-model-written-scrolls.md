@@ -77,6 +77,16 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
    - `no_supporting_claim`: no claim's quote `supports` it (a `qualifies` quote alone does not
      make a claim supported, `claim_is_supported`).
    A rule change is a new checks version, recorded with every decision.
+
+   A refused quote is diagnosed (`quote-diagnosis-v1`, #181): a refusal keeps no model text, so the
+   first live batch's 13 `quote_not_in_material` refusals could not be read back. After the reason
+   codes, the record lists one code per quote that is not a passage of the material, in claim order:
+   `quote:typography` (a passage once curly quotes, apostrophes, dashes and the ellipsis are folded to
+   ASCII on both sides), `quote:case` (once case is folded too), `quote:words` (its words are a run of
+   the material's, punctuation and sentence breaks aside), `quote:partial` (at least half its words
+   are) or `quote:absent`. A diagnosis is a code, never text, and never changes a verdict; its version
+   is recorded with the others. Whether a later checks version should match after folding (storing
+   the page's own passage) waits for a live batch's diagnoses.
 6. **Admission is one transaction under the substrate lock** (`packages/db/src/semantic/model-scrolls.ts`):
    - the family (inserted if absent);
    - the source, inserted if absent under the key `<nasa|noaa|usgs>.page-<16 hex of the URL's
@@ -93,7 +103,8 @@ Scroll from a real page, and a deterministic gate that decides whether what it w
 
    The pair of material and request hashes is the identity. A pair already decided is never sent
    again, and admitting it again returns the first decision. A refused reply records a
-   `scroll_writing` row with its reason codes only: no model text, no claim and no material. The
+   `scroll_writing` row with its reason codes (and its quotes' diagnoses) only: no model text, no
+   claim and no material. The
    new claims carry no substrate relation, so no admitted bridge needs revalidation.
 7. **Transports.** `fixture` is deterministic and labelled, for tests and journeys only. `minimax` is
    the existing worker-only MiniMax transport, reused unchanged: MiniMax-M3 through the fixed

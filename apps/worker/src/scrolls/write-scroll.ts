@@ -6,7 +6,7 @@
  * decided are never sent again. Only then is the caller's `beforeSend` gate asked, and exactly one
  * request sent, never retried. The reply is judged by scroll-checks-v2 and either admitted (the
  * Scroll, its claims and the private material, in one transaction) or recorded as refused with its
- * reason codes. The operator CLI (`scripts/scrolls/write-scrolls.ts`) supplies the transport and a
+ * reason codes, each refused quote's diagnosis after them (#181). The operator CLI (`scripts/scrolls/write-scrolls.ts`) supplies the transport and a
  * gate of quota preflight plus the session ledger; a worker loop supplies its own route's.
  */
 import { createHash } from 'node:crypto';
@@ -90,7 +90,7 @@ export async function writeScroll(deps: WriteScrollDeps, item: ScrollPlanItem): 
   const verdict = judgeScrollReply(observed.text ?? '', { material: material.text, offered: item.conceptCodes, known });
   const decided = await transaction(c => verdict.ok
     ? admitModelScroll(c, { identity, material: { url: material.url, title: material.title, host: material.host, text: material.text, retrievedAt: material.retrievedAt }, scroll: verdict.scroll, record })
-    : recordRefusedScroll(c, { identity, url: material.url, reasons: verdict.reasons, record }));
+    : recordRefusedScroll(c, { identity, url: material.url, reasons: [...verdict.reasons, ...verdict.quoteDiagnoses ?? []], record }));
   return {
     ...sent, status: decided.status, reasons: decided.status === 'admitted' ? [] : decided.reasons,
     writingId: decided.writingId, assetId: decided.status === 'refused' ? null : decided.assetId,

@@ -109,7 +109,7 @@ test('a fixture-written Scroll is admitted with its whole lineage', async () => 
   const writing = (await pool.query('SELECT * FROM scroll_writing WHERE asset_id=$1', [result.assetId])).rows[0];
   assert.deepEqual([writing.status, writing.reasons, writing.transport, writing.model, writing.snapshot_id, writing.material_sha256, writing.request_sha256, writing.input_bytes],
     ['admitted', [], 'fixture', 'fixture-model', source.snapshot_id, result.materialSha256, result.requestSha256, result.inputBytes]);
-  assert.deepEqual(writing.versions, { prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v2', hosts: 'material-hosts-v1' });
+  assert.deepEqual(writing.versions, { prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v2', quoteDiagnosis: 'quote-diagnosis-v1', hosts: 'material-hosts-v1' });
 });
 
 test('the same material and request are decided once and never sent again', async () => {
@@ -166,14 +166,15 @@ test('admission itself is idempotent under the substrate lock', async () => {
 
 test('a refused reply records its reason codes and nothing a model wrote', async () => {
   const f = await setup();
-  for (const [mode, reason] of [['invented_quote', 'quote_not_in_material'], ['copied_passage', 'copied_passage'], ['prose', 'not_one_json_object']] as const) {
+  // A refused quote also records its diagnosis (#181): a code, never the quote.
+  for (const [mode, reasons] of [['invented_quote', ['quote_not_in_material', 'quote:absent']], ['copied_passage', ['copied_passage']], ['prose', ['not_one_json_object']]] as const) {
     const url = f.url(`refused-${mode}`);
     // Each page's own text: the same text and request anywhere is one decision.
     const { deps: d, calls } = deps({ [url]: pageHtml(`${TEXT} Fixture page for ${mode}.`) }, { mode });
     const result = await writeScroll(d, { url, conceptCodes: [f.codes.tides] });
-    assert.deepEqual([result.status, result.reasons, result.assetId], ['refused', [reason], null], mode);
+    assert.deepEqual([result.status, result.reasons, result.assetId], ['refused', reasons, null], mode);
     const row = (await pool.query('SELECT * FROM scroll_writing WHERE id=$1', [result.writingId])).rows[0];
-    assert.deepEqual([row.status, row.reasons, row.asset_id, row.snapshot_id], ['refused', [reason], null, null]);
+    assert.deepEqual([row.status, row.reasons, row.asset_id, row.snapshot_id], ['refused', reasons, null, null]);
     assert.ok(!/Fixture |Moon|never contained|Here is/.test(JSON.stringify(row)), 'no model text and no material in the record');
     assert.equal((await pool.query('SELECT 1 FROM semantic_source WHERE url=$1', [url])).rowCount, 0, 'nothing admitted: no source, snapshot or material');
     assert.equal((await writeScroll(d, { url, conceptCodes: [f.codes.tides] })).status, 'already_decided');
