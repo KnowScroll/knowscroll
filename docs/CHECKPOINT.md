@@ -1,5 +1,29 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #131 first slice — semantic substrate, validated bridges, live Android continuations (PR140)
+
+Worktree `131-semantic-foundations`, branch `claude/131-semantic-foundations`. ADR-0031; migration
+0026 appended to `RELEASED.txt`. Delivered: immutable source-backed claims on hashed snapshots;
+bridges admitted only by the pure `bridge-validator-v1` from a recorded, replayable read-set slice;
+commit-time database guards; deterministic correction propagation (and seed-load revalidation);
+live continuations with branch lineage (`branch` Ledger event caused by the origin exposure, a
+branch decision, `branch_open`); personal "not useful / seems wrong"; pause, Clear/Reset erasure
+and export. 23 editorial Scrolls and a 9-source substrate (32 concepts, 60 claims, 71/71 quotes
+verified against persisted snapshots, 6 admitted bridges, 4 tempting ones refused).
+
+Verification: backend 756/756, web 79/79, Android 102 units + lint, emulator journey `OK` with the
+database lineage checked in SQL (see the
+[evidence](journeys/evidence/semantic-2026-09-24/README.md)). Two fresh-context reviews: the first
+found 1 blocking + 6 important defects, all fixed test-first; the verification review found 2 more
+important ones, also fixed. The web journey now seeds its own three-Scroll fixture
+(`apps/web/e2e/fixtures/reader-library.json`), because it proves reader mechanics over a finite
+library and the product library grew. No provider call; MiniMax budget used 0/40.
+
+Not done in #131: hypotheses, uncertainty and decay (ADR-0032, lane `133-semantic-composer`), and
+evidence-backed geography semantics. Deferred minors are listed on PR140. The owner's `.journey`
+preview (4322) was restored and verified after every emulator run; owner database `knowscroll`
+untouched.
+
 ## 2026-09-24 six-phase personal delivery and tracker cleanup
 
 Owner asks for all six remaining phases to be implemented with continuous verification and

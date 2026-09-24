@@ -287,7 +287,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       const exhaustedHeading = page.getByRole('heading', { name: /reached the end of the current library/ }).first();
       // Either immediately exhausted (if earlier specs already kept every asset) or reading with
       // room for a short deliberate Next walk -- both are honest outcomes of the same finite,
-      // unkept-only feed (content/editorial-scrolls.json has exactly three Scrolls). Wait for
+      // unkept-only feed (the journey seeds e2e/fixtures/reader-library.json: exactly three Scrolls). Wait for
       // *some* settled outcome first: `Next discovery`'s own actionability wait is not enough on
       // its own, because immediately after the click the button may not exist yet at all.
       await expect(page.getByRole('article').or(exhaustedHeading)).toBeVisible({ timeout: 15000 });

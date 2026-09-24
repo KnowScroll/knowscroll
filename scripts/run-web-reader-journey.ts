@@ -385,7 +385,10 @@ try {
   await guarded(run('pnpm', ['exec', 'tsx', 'scripts/migrate.ts'], backendEnvironment));
   throwIfInterrupted();
   notePhase('seeding the disposable database');
-  await guarded(run('pnpm', ['exec', 'tsx', 'scripts/seed.ts'], backendEnvironment));
+  // The reader journey proves mechanics over a finite three-Scroll library (its own fixture), not
+  // the size of the product library, which grows with editorial content (#131).
+  await guarded(run('pnpm', ['exec', 'tsx', 'scripts/seed.ts'],
+    { ...backendEnvironment, KS_SEED_SCROLLS: 'apps/web/e2e/fixtures/reader-library.json', KS_SEED_SUBSTRATE: 'none' }));
   throwIfInterrupted();
 
   notePhase('starting the API and worker');
