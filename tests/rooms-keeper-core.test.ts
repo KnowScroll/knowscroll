@@ -222,3 +222,18 @@ test('each change is one quiet line in the Keeper\'s own words, never naming a s
     for (const cause of ['source_correction', 'reader_correction', 'substrate_neighbourhood'])
       assert.doesNotMatch(line(kind, cause, 'doubter'), /source|publisher|http/i);
 });
+
+test('a question is held wherever its room is: a nearer region, or the parent after a rejection, never reopens it', () => {
+  // Review of #184: an Ask's home is worked out again on every refresh, so holding Asks per place let
+  // the same question open a second room when a nearer region formed, or on the parent after the
+  // reader set the region aside.
+  const weight: KeeperPlace = { placeId: 'p-weight', anchor: 'physics.gravity.weight', kind: 'region', state: 'live' };
+  const asks = [ask('a1', 0, 'physics.gravity.weight'), ask('a2', 1, 'physics.gravity.weight')];
+  for (const state of ['opened', 'set_aside'] as const) {
+    const onGravity = room('r-gravity', { placeId: 'p-gravity', state, askIds: ['a1', 'a2'] });
+    assert.deepEqual(opened(planRooms(input({ places: [gravity, weight], asks, rooms: [onGravity] }))), [], `a ${state} room on the planet holds its question`);
+  }
+  const rejected: KeeperPlace = { ...weight, state: 'rejected' };
+  const retiredOnRegion = room('r-weight', { placeId: 'p-weight', state: 'retired', askIds: ['a1', 'a2'] });
+  assert.deepEqual(opened(planRooms(input({ places: [gravity, rejected], asks, rooms: [retiredOnRegion] }))), [], 'a retired room on a rejected region holds it too');
+});

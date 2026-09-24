@@ -79,7 +79,10 @@ ledger payload (`question`, migration 0009). An Ask counts at the nearest live p
 its Scroll's primary-concept chain (the atlas's own rule for where a Scroll belongs), so one question
 never opens a room on both a planet and its region. No room can outlive its Asks: they are erased
 only by Clear, Reset and deletion, which erase rooms first (and the room references its question's
-Ask), so a room retires only when its place stops being a live planet or region. A claim is held by
+Ask), so a room retires only when its place stops being a live planet or region; the Cartographer retires
+only sightings, so that happens only when the reader rejects the place (`reader_correction`). A room
+holds its Asks wherever it is, set aside and retired included, so a question never opens a second room
+when a nearer region forms or a rejected region hands its Asks back to its parent (review, same day). A claim is held by
 one seat only (doubter, then connector, then the reader of record, who holds the anchor's other
 supported claims), so no sentence appears twice. A position change or an unseating is
 `source_correction` when a claim it held left the substrate (lost its support, its qualification or

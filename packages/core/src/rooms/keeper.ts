@@ -92,12 +92,15 @@ export function planRooms(input: KeeperInput): RoomDelta[] {
     if (home !== null) asksAt.set(live.get(home)!.placeId, [...(asksAt.get(live.get(home)!.placeId) ?? []), ask]);
   }
   let liveRooms = rooms.filter(isLiveRoom).length;
+  // Every room holds its Asks wherever it is, set aside and retired included: an Ask's home is worked
+  // out again on every refresh (a nearer region forms, a rejected region hands it back to its parent),
+  // and what the reader said no to never reopens anywhere.
+  const held = new Set(input.rooms.flatMap(r => r.askIds));
   for (const place of [...live.values()].sort((a, b) => byCode(a.anchor, b.anchor))) {
     const here = rooms.filter(r => r.placeId === place.placeId);
-    // Every room of the place holds its Asks, set aside included: what the reader said no to never reopens.
-    const held = new Set(here.flatMap(r => r.askIds));
     const carried = (asksAt.get(place.placeId) ?? []).filter(a => !held.has(a.askId)).sort((a, b) => a.atMs - b.atMs || byCode(a.askId, b.askId));
     if (carried.length < MIN_ASKS || new Set(carried.map(a => isoDay(a.atMs))).size < MIN_DAYS) continue;
+    for (const a of carried) held.add(a.askId);
     const evidence = { asks: carried.map(askEvidence) };
     const liveHere = here.filter(isLiveRoom);
     if (liveHere.length < MAX_LIVE_ROOMS_PER_PLACE && liveRooms < MAX_LIVE_ROOMS) {
@@ -121,7 +124,10 @@ export function planRooms(input: KeeperInput): RoomDelta[] {
   return deltas;
 }
 
-/** A live room whose place is no longer a live planet or region retires: the reader set the place aside, or it went for a source's reason. */
+/** A live room whose place is no longer a live planet or region retires: the reader set the place
+ * aside, or it went for a source's reason. Cartographer v2 retires only sightings, so today a room
+ * retires only by the reader's rejection; the source's cause is kept because the schema lets a planet
+ * or region be retired, and such a retirement must never be recorded as the reader's. */
 export function planRetirements(rooms: readonly RoomView[], places: readonly KeeperPlace[]): RoomDelta[] {
   const placeOf = new Map(places.map(p => [p.placeId, p]));
   return rooms.filter(isLiveRoom).flatMap(r => {
