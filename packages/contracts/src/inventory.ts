@@ -2,9 +2,14 @@
  * ADR-0025 — additive types for the Reel-inventory slice. Nothing here is re-exported from
  * `./index.ts` (the same convention `generation.ts`/`publication.ts` already follow); callers
  * import this file directly, so no existing consumer of the shared index is affected.
+ *
+ * ADR-0046 (#164) — the reader's content demands (`GET /v1/inventory`) and, per place, its live
+ * demand (`GET /v1/atlas`). Strict: clients refuse an unexpected shape. A demand names a concept
+ * and, once bound, a Scroll: never a source, a material page or anything the reader wrote.
  */
 import { z } from 'zod';
 import type { ScrollAsset } from './index.ts';
+import { conceptCode } from './semantic.ts';
 
 /** The two consumption objects the feed can be asked for, in the exact spelling `GET /v1/feed`'s
  * own `kinds` query parameter and every stored asset row use. */
@@ -64,3 +69,57 @@ export type ReelAssetDisplay = z.infer<typeof reelAsset>;
 /** A feed item is either an existing Scroll or a minted Reel; the union is additive and never
  * changes `ScrollAsset` itself. */
 export type FeedAsset = ScrollAsset | ReelAssetDisplay;
+
+const id = z.string().uuid();
+const reason = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
+
+export const INVENTORY_LIST_LIMIT = 50;
+
+/** The Scroll a demand is bound to, while that binding stands. */
+const boundScroll = z.object({ assetId: id, title: z.string().min(1) }).strict();
+
+/** Why the Quartermaster (`quartermaster-v1`) cannot meet a need: no writing route, its budget spent,
+ * no allowlisted material for the concept, the Scrolls written for it refused twice, or a request whose
+ * one send failed. */
+export const cannotMeetReason = z.enum(['no_route', 'no_budget', 'no_material', 'checks_failed', 'request_failed']);
+export type CannotMeetReason = z.infer<typeof cannotMeetReason>;
+
+/**
+ * One place's live demand. `waiting`: a Scroll is being written (a request was funded or joined).
+ * `bound`: one is ready for the reader. `cannot_meet`: nothing more for now, and `reason` says why.
+ * `withdrawn`: the last Scroll bound to this need was withdrawn because what it was based on changed.
+ */
+export const placeDemand = z.object({
+  demandId: id,
+  status: z.enum(['waiting', 'bound', 'cannot_meet']),
+  reason: cannotMeetReason.nullable(),
+  scroll: boundScroll.nullable(),
+  withdrawn: z.boolean(),
+}).strict().refine(d => (d.status === 'bound') === (d.scroll !== null) && (d.status === 'cannot_meet') === (d.reason !== null),
+  { message: 'Only a bound demand names a Scroll, and only one that cannot be met a reason' });
+export type PlaceDemand = z.infer<typeof placeDemand>;
+
+export const inventoryDemand = z.object({
+  demandId: id,
+  status: z.enum(['waiting', 'bound', 'cannot_meet', 'cancelled']),
+  /** The Quartermaster's latest decision (`quartermaster-v1`). */
+  decision: z.enum(['reuse', 'join', 'fund', 'cannot_meet']).nullable(),
+  reason: reason.nullable(),
+  concept: z.object({ code: conceptCode, name: z.string().min(1).max(80) }).strict(),
+  /** What recorded the need: a place read in full, or a continuation into a concept with nothing unseen. */
+  causes: z.array(z.enum(['exhaustion', 'branch_gap'])).min(1).max(8),
+  scroll: boundScroll.nullable(),
+  withdrawn: z.boolean(),
+  /** A continuation's gap: the Scroll opens as that continuation, from the exposure it was needed from. */
+  origin: z.object({ bridgeId: id, exposureId: id }).strict().nullable(),
+  createdAt: z.string().datetime(),
+  changedAt: z.string().datetime(),
+}).strict();
+export type InventoryDemand = z.infer<typeof inventoryDemand>;
+
+export const inventoryResponse = z.object({
+  privacyEpoch: z.number().int().min(0).max(2147483647),
+  /** This epoch's demands, most recently changed first. */
+  demands: z.array(inventoryDemand).max(INVENTORY_LIST_LIMIT),
+}).strict();
+export type InventoryResponse = z.infer<typeof inventoryResponse>;
