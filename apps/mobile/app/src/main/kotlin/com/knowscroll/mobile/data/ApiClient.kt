@@ -114,10 +114,28 @@ class ApiClient(
     }
 
     /** #134: the reader sets a planet or region aside. A 409 is either a stale privacy epoch or
-     * recording being paused (nothing personal is recorded then) -- see `rejectPlaceConflict`. */
+     * recording being paused (nothing personal is recorded then) -- see `setAsideConflict`. */
     suspend fun rejectPlace(placeId: String, expectedPrivacyEpoch: Long): AtlasResponse = io {
         val body = jsonObj("expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
         post("/v1/atlas/places/$placeId/reject", body, setOf(200), false) { obj -> parseAtlasOrProtocol(obj) }
+    }
+
+    /** #163: one Idea Room, whatever its state, with its chronicle and each line's evidence (ADR-0045). */
+    suspend fun getRoom(roomId: String): RoomDetail = io {
+        require(UUID_PATTERN.matches(roomId))
+        get("/v1/rooms/$roomId") { obj ->
+            try { parseRoomResponse(obj).also { protocol(it.roomId == roomId) { "Room response names another room" } } }
+            catch (e: IllegalArgumentException) { throw ApiException.Protocol(e.message ?: "Invalid room") }
+            catch (e: JSONException) { throw ApiException.Protocol("Room returned malformed JSON") }
+        }
+    }
+
+    /** #163: "Set this room aside". The answer is the atlas without it; a 409 is a stale privacy
+     * epoch, recording being paused, or a room no longer live -- see `setAsideConflict`. */
+    suspend fun setRoomAside(roomId: String, clientRequestId: String, expectedPrivacyEpoch: Long): AtlasResponse = io {
+        require(UUID_PATTERN.matches(roomId))
+        val body = jsonObj("clientRequestId" to clientRequestId, "expectedPrivacyEpoch" to expectedPrivacyEpoch).toString()
+        post("/v1/rooms/$roomId/set-aside", body, setOf(200), false) { obj -> parseAtlasOrProtocol(obj) }
     }
 
     private fun parseAtlasOrProtocol(obj: JSONObject): AtlasResponse =

@@ -35,6 +35,7 @@ import com.knowscroll.mobile.ui.keep.RelicControls
 import com.knowscroll.mobile.ui.keep.ReturnViewModel
 import com.knowscroll.mobile.ui.system.AwayControls
 import com.knowscroll.mobile.ui.scroll.ScrollScreen
+import com.knowscroll.mobile.ui.system.RoomControls
 import com.knowscroll.mobile.ui.system.SystemScreen
 import com.knowscroll.mobile.ui.theme.KnowScrollTheme
 import com.knowscroll.mobile.ui.universe.UniverseScreen
@@ -157,6 +158,8 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
         val atlas by viewModel.atlas.collectAsStateWithLifecycle()
         val placeReject by viewModel.placeReject.collectAsStateWithLifecycle()
         val atlasEvidence by viewModel.atlasEvidence.collectAsStateWithLifecycle()
+        val room by viewModel.room.collectAsStateWithLifecycle()
+        val roomSetAside by viewModel.roomSetAside.collectAsStateWithLifecycle()
         val toast by viewModel.toast.collectAsStateWithLifecycle()
         val branches by viewModel.branches.collectAsStateWithLifecycle()
         val why by viewModel.why.collectAsStateWithLifecycle()
@@ -401,6 +404,12 @@ private fun AuthenticatedApp(viewModel: AppViewModel = viewModel(), onOpenPrivac
                                         onKeep = returnViewModel::keep, onRetryKeep = returnViewModel::retryKeep,
                                         onSeemsWrong = returnViewModel::seemsWrong, onRetrySeemsWrong = returnViewModel::retrySeemsWrong,
                                     ),
+                                ),
+                                rooms = RoomControls(
+                                    state = room, setAside = roomSetAside,
+                                    onOpen = viewModel::openRoom, onClose = viewModel::closeRoom,
+                                    onRequestSetAside = viewModel::requestRoomSetAside, onCancelSetAside = viewModel::cancelRoomSetAside,
+                                    onConfirmSetAside = viewModel::confirmRoomSetAside,
                                 ),
                             )
                         }

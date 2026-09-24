@@ -45,6 +45,8 @@ data class AtlasPlace(
     val formedBy: String,
     /** `null` unless the Cartographer recognised this place as a foundation; never on a sighting. */
     val foundation: AtlasFoundation? = null,
+    /** #163 (ADR-0045): the reader's live Idea Rooms here, oldest first; never on a sighting. */
+    val rooms: List<AtlasRoom> = emptyList(),
 )
 
 data class AtlasRelation(
@@ -128,6 +130,10 @@ internal fun parseAtlasPlace(o: JSONObject): AtlasPlace {
     require(o.has("foundation")) { "A place must say whether it is a foundation" }
     val foundation = if (o.isNull("foundation")) null else parseAtlasFoundation(o.getJSONObject("foundation"))
     require(kind != "sighting" || foundation == null) { "A sighting holds nothing up: it has not been met" }
+    // Required, like `foundation`: every place says which rooms it holds (ADR-0045).
+    require(o.has("rooms")) { "A place must say which rooms it holds" }
+    val rooms = o.getJSONArray("rooms").strictObjects().map(::parseAtlasRoom)
+    require(rooms.size <= 3 && (kind != "sighting" || rooms.isEmpty())) { "A place holds at most three live rooms, and a sighting none" }
     val scrollsObj = o.getJSONObject("scrolls")
     val scrolls = AtlasScrollCounts(scrollsObj.getInt("total"), scrollsObj.getInt("seen"))
     return AtlasPlace(
@@ -137,6 +143,7 @@ internal fun parseAtlasPlace(o: JSONObject): AtlasPlace {
         formedAt = o.getString("formedAt").also { require(it.isNotBlank()) { "A place must carry when it formed" } },
         formedBy = o.getString("formedBy").also { require(it.isNotBlank()) { "A place must carry why it formed" } },
         foundation = foundation,
+        rooms = rooms,
     )
 }
 

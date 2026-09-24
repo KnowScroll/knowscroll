@@ -19,8 +19,9 @@ internal fun awayItemLine(item: AwayItem, context: Context): String = when (item
         inquiryReasonPhrases(item.reasons, context::getString).joinToString("; "),
     )
     is AwayItem.NothingFound -> context.getString(R.string.away_nothing_found, awayPairsText(item.pairs, context))
-    // The chronicle's own deterministic line (ADR-0036), verbatim.
+    // The chronicle's own deterministic line (ADR-0036), verbatim; a room's is the Keeper's (ADR-0045).
     is AwayItem.PlaceChanged -> item.line
+    is AwayItem.RoomChanged -> item.line
     is AwayItem.ConnectionCorrected -> context.getString(
         if (item.status == "revoked") R.string.away_corrected_revoked else R.string.away_corrected_superseded,
         item.fromConcept.name, item.toConcept.name,

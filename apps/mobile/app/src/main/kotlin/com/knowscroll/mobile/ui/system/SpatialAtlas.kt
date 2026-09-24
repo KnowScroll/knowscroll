@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -43,12 +44,14 @@ data class AtlasMarker(
     val parentId: String? = null,
     /** ADR-0037: this place holds others up; drawn brighter, and said aloud. */
     val foundation: Boolean = false,
+    /** ADR-0045: this place holds an Idea Room; a small lit door on it, and said aloud. */
+    val room: Boolean = false,
 )
 
 /** #134: a tappable land area at the continents level -- the reader's own region place in place of
  * an authored one (the authored preview). Same shape as [AuthoredRegion] minus its `known` art
  * flag, which only ever describes illustrative geography. */
-data class AtlasRegionArea(val id: String, val name: String, val x: Float, val y: Float)
+data class AtlasRegionArea(val id: String, val name: String, val x: Float, val y: Float, val room: Boolean = false)
 
 /** Authored links only. Live world membership never grants topic/revision authority. */
 data class AtlasTopic(
@@ -389,7 +392,7 @@ fun SpatialAtlas(
                             .semantics {
                                 contentDescription = "$actionLabel${marker.title}"
                                 this[SemanticsProperties.Text] =
-                                    listOf(marker.title, marker.detail, marker.status, if (marker.foundation) "Foundation" else "")
+                                    listOf(marker.title, marker.detail, marker.status, if (marker.foundation) "Foundation" else "", if (marker.room) ROOM_MARK else "")
                                         .filter { it.isNotBlank() }
                                         .map { androidx.compose.ui.text.AnnotatedString(it) }
                             }
@@ -410,7 +413,8 @@ fun SpatialAtlas(
                         .semantics {
                             val selected = markers.firstOrNull { it.id == selectedId }
                             contentDescription = "Enter continents on ${selected?.title}"
-                            if (selected?.foundation == true) stateDescription = "Foundation"
+                            val marks = listOfNotNull("Foundation".takeIf { selected?.foundation == true }, ROOM_MARK.takeIf { selected?.room == true })
+                            if (marks.isNotEmpty()) stateDescription = marks.joinToString(" · ")
                         }
                 )
             } else if (level == "continents" && point != null) {
@@ -423,16 +427,18 @@ fun SpatialAtlas(
                                 .clickable { enterRegion(area) }
                                 .semantics {
                                     contentDescription = "$regionActionLabel${area.name}"
+                                    if (area.room) stateDescription = ROOM_MARK
                                 },
                         color = Cosmos.Cream.copy(alpha = .94f),
                         contentColor = Cosmos.InkOnCream,
                         shape = RoundedCornerShape(16.dp),
                     ) {
-                        Text(
-                            area.name,
-                            Modifier.padding(8.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
+                        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // ADR-0045: the same small lit door the planet carries (LivingSky).
+                            if (area.room)
+                                Box(Modifier.size(width = 7.dp, height = 10.dp).background(Cosmos.Yellow, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                            Text(area.name, style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             } else if (level == "region" && point != null) {

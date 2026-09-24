@@ -10,6 +10,7 @@ import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
 import com.knowscroll.mobile.data.AtlasDelta
 import com.knowscroll.mobile.data.AtlasResponse
+import com.knowscroll.mobile.data.RoomDetail
 import com.knowscroll.mobile.data.CredentialProvider
 import com.knowscroll.mobile.data.VaultCredentialProvider
 import com.knowscroll.mobile.data.ExposureRequest
@@ -45,8 +46,8 @@ import com.knowscroll.mobile.ui.ask.askToWatchOnReopen
 import com.knowscroll.mobile.ui.ask.cancelAlreadyStarted
 import com.knowscroll.mobile.ui.ask.reopenedAskPanel
 import com.knowscroll.mobile.ui.ask.stageAfterPoll
-import com.knowscroll.mobile.ui.system.RejectPlaceConflict
-import com.knowscroll.mobile.ui.system.rejectPlaceConflict
+import com.knowscroll.mobile.ui.system.SetAsideConflict
+import com.knowscroll.mobile.ui.system.setAsideConflict
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -146,6 +147,23 @@ sealed interface AtlasEvidenceState {
     data class Failed(val deltaId:String,val message:String):AtlasEvidenceState
 }
 
+/** #163: the Idea Room whose sheet is open (ADR-0045, `GET /v1/rooms/:roomId`), read afresh each
+ * time it opens and never restored across process death, like [AtlasState]. */
+sealed interface RoomState {
+    data object Closed:RoomState
+    data class Loading(val roomId:String):RoomState
+    data class Loaded(val room:RoomDetail):RoomState
+    data class Failed(val roomId:String,val message:String):RoomState
+}
+
+/** #163: "Set this room aside", with the same confirm/cancel shape as [PlaceRejectState]. */
+sealed interface RoomSetAsideState {
+    data object Idle:RoomSetAsideState
+    data class Confirming(val roomId:String):RoomSetAsideState
+    data class Sending(val roomId:String):RoomSetAsideState
+    data class Failed(val roomId:String,val message:String):RoomSetAsideState
+}
+
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
     // #135: the signed-in session if one exists; otherwise, only in a debug build, the baked-in
     // development token; otherwise no credential at all (release builds have none, matching the
@@ -187,6 +205,10 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val _placeReject=MutableStateFlow<PlaceRejectState>(PlaceRejectState.Idle); val placeReject=_placeReject.asStateFlow()
     private val _atlasEvidence=MutableStateFlow<AtlasEvidenceState>(AtlasEvidenceState.Idle); val atlasEvidence=_atlasEvidence.asStateFlow()
     private var evidenceJob:kotlinx.coroutines.Job?=null
+    /** #163: the open Idea Room and its setting aside. */
+    private val _room=MutableStateFlow<RoomState>(RoomState.Closed); val room=_room.asStateFlow()
+    private val _roomSetAside=MutableStateFlow<RoomSetAsideState>(RoomSetAsideState.Idle); val roomSetAside=_roomSetAside.asStateFlow()
+    private var roomJob:kotlinx.coroutines.Job?=null
     private val _toast=MutableStateFlow<String?>(null); val toast=_toast.asStateFlow()
     /** #131: live continuations for the Scroll being read (null when none apply). */
     private val _branches=MutableStateFlow<BranchPanel?>(null); val branches=_branches.asStateFlow()
@@ -1023,8 +1045,14 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         savedState["screen"]="universe";store.writeScreen("universe")
         _system.value=SystemState.Idle
         _atlas.value=AtlasState.Idle
+        closeAtlasSheets()
+    }
+
+    /** Everything opened over the places -- a set-aside, a line's evidence, a room -- closes with them. */
+    private fun closeAtlasSheets(){
         _placeReject.value=PlaceRejectState.Idle
         evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
+        closeRoom()
     }
 
     /** #134: "Set aside" on a live planet or region (not a sighting -- the server refuses that). */
@@ -1054,22 +1082,86 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 _placeReject.value=PlaceRejectState.Idle
             } catch(e:Exception){
                 if(e is CancellationException)throw e
-                val conflict=(e as? ApiException.Server)?.let(::rejectPlaceConflict)
-                when {
-                    conflict==RejectPlaceConflict.StaleEpoch -> {
-                        _placeReject.value=PlaceRejectState.Idle
-                        reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
-                    }
-                    conflict==RejectPlaceConflict.Paused ->
-                        _placeReject.value=PlaceRejectState.Failed(placeId,"Recording was paused, so nothing was set aside.")
-                    // #134 review M6: a 409 this endpoint's own two known reasons don't explain is
-                    // a generic failure, not a session-ending one -- never routed through
-                    // invalidatesReader, which treats every 409 as reader-invalidating.
-                    e is ApiException.Server && e.statusCode==409 ->
-                        _placeReject.value=PlaceRejectState.Failed(placeId,"That change could not be completed. Try again.")
-                    invalidatesReader(e) -> {purgeForScope(universeId,epoch);failClosed(message(e))}
-                    else -> _placeReject.value=PlaceRejectState.Failed(placeId,message(e))
-                }
+                setAsideFailed(e,universeId,epoch,idle={_placeReject.value=PlaceRejectState.Idle},fail={_placeReject.value=PlaceRejectState.Failed(placeId,it)})
+            }
+        }
+    }
+
+    /** A place or room that could not be set aside (#134/#163): a stale epoch reconciles, like every
+     * other mutation; recording being paused is said honestly (nothing personal was recorded). */
+    private fun setAsideFailed(e:Exception,universeId:String,epoch:Long,idle:()->Unit,fail:(String)->Unit){
+        val conflict=(e as? ApiException.Server)?.let(::setAsideConflict)
+        when {
+            conflict==SetAsideConflict.StaleEpoch -> {
+                idle()
+                reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
+            }
+            conflict==SetAsideConflict.Paused -> fail("Recording was paused, so nothing was set aside.")
+            // #134 review M6: a 409 these endpoints' own two known reasons don't explain is a
+            // generic failure, not a session-ending one -- never routed through invalidatesReader,
+            // which treats every 409 as reader-invalidating.
+            e is ApiException.Server && e.statusCode==409 -> fail("That change could not be completed. Try again.")
+            invalidatesReader(e) -> {purgeForScope(universeId,epoch);failClosed(message(e))}
+            else -> fail(message(e))
+        }
+    }
+
+    /** #163: opens an Idea Room's sheet from its place (ADR-0045). */
+    fun openRoom(roomId:String){
+        if(reconciling || !ready)return
+        roomJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _roomSetAside.value=RoomSetAsideState.Idle
+        _room.value=RoomState.Loading(roomId)
+        roomJob=viewModelScope.launch {
+            try {
+                val room=api.getRoom(roomId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_room.value as? RoomState.Loading)?.roomId!=roomId)return@launch
+                _room.value=RoomState.Loaded(room)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e));return@launch}
+                if((_room.value as? RoomState.Loading)?.roomId==roomId)_room.value=RoomState.Failed(roomId,message(e))
+            }
+        }
+    }
+
+    fun closeRoom(){
+        roomJob?.cancel()
+        _room.value=RoomState.Closed
+        _roomSetAside.value=RoomSetAsideState.Idle
+    }
+
+    /** #163: "Set this room aside" on the open room, while it is live. */
+    fun requestRoomSetAside(){
+        if(reconciling || !ready)return
+        val room=(_room.value as? RoomState.Loaded)?.room ?: return
+        if(room.state!="opened" && room.state!="arguing")return
+        _roomSetAside.value=RoomSetAsideState.Confirming(room.roomId)
+    }
+
+    fun cancelRoomSetAside(){
+        if(_roomSetAside.value is RoomSetAsideState.Confirming)_roomSetAside.value=RoomSetAsideState.Idle
+    }
+
+    /** One explicit request: the answer is the atlas without the room, and its sheet closes. */
+    fun confirmRoomSetAside(){
+        val confirming=_roomSetAside.value as? RoomSetAsideState.Confirming ?: return
+        if(!ready || reconciling)return
+        val roomId=confirming.roomId
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _roomSetAside.value=RoomSetAsideState.Sending(roomId)
+        viewModelScope.launch {
+            try {
+                val response=api.setRoomAside(roomId,UUID.randomUUID().toString(),epoch)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _atlas.value=AtlasState.Loaded(response)
+                closeRoom()
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                setAsideFailed(e,universeId,epoch,idle={_roomSetAside.value=RoomSetAsideState.Idle},fail={_roomSetAside.value=RoomSetAsideState.Failed(roomId,it)})
             }
         }
     }
@@ -1366,8 +1458,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _scroll.value=ScrollState.Idle
         _system.value=SystemState.Idle
         _atlas.value=AtlasState.Idle
-        _placeReject.value=PlaceRejectState.Idle
-        evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
+        closeAtlasSheets()
         _screen.value=Screen.Universe
         savedState["screen"]="universe"
     }
@@ -1376,8 +1467,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         ready=false;session=null
         _system.value=SystemState.Idle
         _atlas.value=AtlasState.Idle
-        _placeReject.value=PlaceRejectState.Idle
-        evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
+        closeAtlasSheets()
         _screen.value=Screen.Universe
         _scroll.value=ScrollState.Idle
         _universe.value=UniverseState.Unavailable(reason)

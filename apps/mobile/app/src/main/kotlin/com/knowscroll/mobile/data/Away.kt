@@ -34,6 +34,16 @@ sealed interface AwayItem {
         val line: String,
     ) : AwayItem
 
+    /** #163 (ADR-0045): an Idea Room changed because of a source correction; [line] is the Keeper's
+     * own deterministic line for the delta. [cause] is always `source_correction`. */
+    data class RoomChanged(
+        override val at: String, val deltaId: String, val roomId: String, val placeId: String,
+        /** One of [AWAY_ROOM_CHANGES]. */
+        val change: String,
+        val cause: String,
+        val line: String,
+    ) : AwayItem
+
     /** A connection the reader was shown as found, or kept, was [status] `revoked` or `superseded`. */
     data class ConnectionCorrected(
         override val at: String, val bridgeId: String, val status: String,
@@ -65,6 +75,7 @@ internal val AWAY_PLACE_CHANGES = setOf(
     "place_formed", "sighting_appeared", "sighting_promoted", "sighting_retired", "place_released",
     "foundation_recognised", "foundation_withdrawn",
 )
+internal val AWAY_ROOM_CHANGES = setOf("position_changed", "inhabitant_unseated", "room_retired")
 internal val AWAY_CORRECTION_STATUSES = setOf("revoked", "superseded")
 
 internal fun parseAwayResponse(o: JSONObject): AwayResponse {
@@ -101,12 +112,13 @@ internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
         o.requireKeys("kind", "at", "deltaId", "placeId", "change", "cause", "line")
         val change = o.string("change")
         require(change in AWAY_PLACE_CHANGES) { "Unknown place change" }
-        // Only a source correction changes a place without the reader.
-        val cause = o.string("cause")
-        require(cause == "source_correction") { "Only a source correction changes a place while away" }
-        val line = o.string("line")
-        require(line.isNotEmpty() && line.length <= 600) { "Invalid chronicle line" }
-        AwayItem.PlaceChanged(o.datetime("at"), o.uuid("deltaId"), o.uuid("placeId"), change, cause, line)
+        AwayItem.PlaceChanged(o.datetime("at"), o.uuid("deltaId"), o.uuid("placeId"), change, correctionCause(o), chronicleLine(o))
+    }
+    "room_changed" -> {
+        o.requireKeys("kind", "at", "deltaId", "roomId", "placeId", "change", "cause", "line")
+        val change = o.string("change")
+        require(change in AWAY_ROOM_CHANGES) { "Unknown room change" }
+        AwayItem.RoomChanged(o.datetime("at"), o.uuid("deltaId"), o.uuid("roomId"), o.uuid("placeId"), change, correctionCause(o), chronicleLine(o))
     }
     "connection_corrected" -> {
         o.requireKeys("kind", "at", "bridgeId", "status", "fromConcept", "toConcept")
@@ -119,6 +131,13 @@ internal fun parseAwayItem(o: JSONObject): AwayItem = when (o.string("kind")) {
     }
     else -> throw IllegalArgumentException("Unknown away item kind")
 }
+
+/** Only a source correction changes a place or a room without the reader. */
+private fun correctionCause(o: JSONObject): String =
+    o.string("cause").also { require(it == "source_correction") { "Only a source correction changes a place or room while away" } }
+
+private fun chronicleLine(o: JSONObject): String =
+    o.string("line").also { require(it.isNotEmpty() && it.length <= 600) { "Invalid chronicle line" } }
 
 /** An inquiry outcome on the return always names what it asked about: one to three pairs. */
 private fun awayPairs(o: JSONObject): List<InquiryPair> =

@@ -10,7 +10,13 @@ import com.knowscroll.mobile.data.AtlasFoundation
 import com.knowscroll.mobile.data.AtlasPlace
 import com.knowscroll.mobile.data.AtlasRelation
 import com.knowscroll.mobile.data.AtlasResponse
+import com.knowscroll.mobile.data.AtlasRoom
 import com.knowscroll.mobile.data.AtlasScrollCounts
+import com.knowscroll.mobile.data.RoomAskEvidence
+import com.knowscroll.mobile.data.RoomChronicleEntry
+import com.knowscroll.mobile.data.RoomClaim
+import com.knowscroll.mobile.data.RoomEvidence
+import com.knowscroll.mobile.data.RoomInhabitant
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -222,6 +228,53 @@ class AtlasPresentationTest {
         )
         assertEquals("2 PLACES · 1 SIGHTING", placesSubtitle(places))
         assertEquals("0 PLACES · 0 SIGHTINGS", placesSubtitle(emptyList()))
+    }
+
+    private fun room(state: String = "opened") = AtlasRoom(
+        "r1", "So what is gravity, really?", state,
+        listOf(RoomInhabitant("reader_of_record", listOf(RoomClaim("clm.gravity.definition", "Gravity draws objects toward a planet's center.", "documented", "supports")))),
+        "2026-09-25T10:00:00.000Z",
+    )
+
+    /** #163 (ADR-0045): a place that holds a room says so on its marker, its region area and its
+     * row -- a property of the place, never a new object -- and a sighting never does. */
+    @Test
+    fun aPlaceThatHoldsARoomIsMarkedAsOneWithoutANewObject() {
+        val gravity = planet("p1", "Gravity").copy(rooms = listOf(room()))
+        val light = planet("p2", "Light")
+        val tides = region("r1", "Tides", "p1").copy(rooms = listOf(room(), room("arguing")))
+        val places = listOf(gravity, light, tides)
+        assertEquals(listOf(true, false), planetMarkersOf(places).map { it.room })
+        assertEquals(2, planetMarkersOf(places).size)
+        assertEquals(listOf(true), regionAreasOf(places, "p1").map { it.room })
+        assertEquals(
+            listOf("2 of 3 Scrolls read · Idea room", "1 of 1 Scroll read · 2 idea rooms", "2 of 3 Scrolls read"),
+            placeListRows(places).map { it.detail },
+        )
+    }
+
+    @Test
+    fun aRoomIsWordedByItsLadderItsSeatsAndTheClaimsTheyHoldNeverTheirSource() {
+        assertEquals(listOf("One reading so far", "Two readings disagree", "You set this room aside", "This room has closed"),
+            listOf("opened", "arguing", "set_aside", "retired").map(::roomStateWords))
+        assertEquals(listOf("The reader of record", "The doubter", "The connector"), listOf("reader_of_record", "doubter", "connector").map(::roomRoleTitle))
+        fun claim(kind: String) = RoomClaim("clm.k", "Gravity is the curving of space and time.", "documented", kind)
+        assertEquals("\"Gravity is the curving of space and time.\"", roomClaimLine(claim("supports")))
+        assertEquals("\"Gravity is the curving of space and time.\" (qualified)", roomClaimLine(claim("qualifies")))
+        assertEquals("\"Gravity is the curving of space and time.\" (contested)", roomClaimLine(claim("contradicts")))
+    }
+
+    @Test
+    fun aRoomLinesEvidenceSaysOnlyWhatItsChangeRecorded() {
+        val held = listOf(RoomClaim("clm.k", "Gravity is the curving of space and time.", "documented", "qualifies"))
+        fun entry(kind: String, evidence: RoomEvidence) = RoomChronicleEntry("d1", kind, "source_correction", "doubter", "2026-09-25T10:00:00.000Z", "line", evidence)
+        val asks = RoomEvidence(listOf(RoomAskEvidence("a1", "2026-09-24"), RoomAskEvidence("a2", "2026-09-25"), RoomAskEvidence("a3", "2026-09-25")), emptyList(), emptyList())
+        assertEquals("Asked 3 times, on 2026-09-24 and 2026-09-25.", roomEvidenceSummary(entry("room_opened", asks)))
+        assertEquals("It holds \"Gravity is the curving of space and time.\" (qualified)", roomEvidenceSummary(entry("inhabitant_seated", RoomEvidence(emptyList(), held, emptyList()))))
+        assertEquals("It held \"Gravity is the curving of space and time.\" (qualified)", roomEvidenceSummary(entry("inhabitant_unseated", RoomEvidence(emptyList(), held, emptyList()))))
+        val moved = roomEvidenceSummary(entry("position_changed", RoomEvidence(emptyList(), held, held)))
+        assertEquals(listOf("It holds", "Before, it held"), moved.lines().map { it.substringBefore(" \"") })
+        assertEquals("Nothing more was recorded for this change.", roomEvidenceSummary(entry("room_set_aside", RoomEvidence(emptyList(), emptyList(), emptyList()))))
     }
 
     private fun chronicleEntry(deltaId: String, placeId: String, parentPlaceId: String?, kind: String, causalClass: String, line: String) =
