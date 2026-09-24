@@ -46,7 +46,8 @@ class ApiClient(
                 revision = obj.getLong("revision"),
                 privacyEpoch = obj.getLong("privacyEpoch"),
                 traces = parseTraces(obj.optJSONArray("traces")),
-                capabilities = parseCaps(obj.optJSONObject("capabilities"))
+                capabilities = parseCaps(obj.optJSONObject("capabilities")),
+                recordingPausedAt = obj.optStringOrNull("recordingPausedAt"),
             )
         }
     }

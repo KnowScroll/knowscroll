@@ -73,6 +73,10 @@ fun UniverseScreen(
     onRetrySignOut: () -> Unit,
     onOpenKeep: () -> Unit,
     modifier: Modifier = Modifier,
+    /** #135: opens the real Privacy &amp; account screen (pause/resume/export/reset/delete
+     * account/sign-in-backed sign-out) -- reachable next to this screen's existing Clear/Sign-out
+     * disclosure. Defaulted so every existing caller of this composable keeps compiling unchanged. */
+    onOpenPrivacy: () -> Unit = {},
     onAuthoredAtlas: (() -> Unit)? = null,
 ) {
     val viewStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
@@ -159,6 +163,7 @@ fun UniverseScreen(
                                 onRetryHistoryClear = onRetryHistoryClear,
                                 onRequestSignOut = onRequestSignOut,
                                 onRetrySignOut = onRetrySignOut,
+                                onOpenPrivacy = onOpenPrivacy,
                                 onAuthoredAtlas = onAuthoredAtlas,
                             )
                         }
@@ -207,6 +212,7 @@ private fun UniverseCanvasScreen(
     onRetryHistoryClear: () -> Unit,
     onRequestSignOut: () -> Unit,
     onRetrySignOut: () -> Unit,
+    onOpenPrivacy: () -> Unit,
     onAuthoredAtlas: (() -> Unit)?,
 ) {
     val hasRead = universe.traces.isNotEmpty()
@@ -279,14 +285,32 @@ private fun UniverseCanvasScreen(
                     else Modifier.weight(1f).fillMaxWidth(),
                 )
                 Box(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                    PrivacyDisclosure(
-                        historyClear,
-                        signOut,
-                        onRequestHistoryClear,
-                        onRetryHistoryClear,
-                        onRequestSignOut,
-                        onRetrySignOut,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PrivacyDisclosure(
+                            historyClear,
+                            signOut,
+                            onRequestHistoryClear,
+                            onRetryHistoryClear,
+                            onRequestSignOut,
+                            onRetrySignOut,
+                        )
+                        // #135: the real, sign-in-backed Privacy & account screen (pause/resume/
+                        // export/reset/delete account) lives one tap from here, next to the
+                        // existing dev-token-era Clear/Sign-out disclosure above.
+                        OutlinedButton(
+                            onClick = onOpenPrivacy,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
+                                contentDescription = "Open Privacy & account"
+                            },
+                        ) {
+                            Text(
+                                stringResource(R.string.privacy_screen_title),
+                                fontWeight = FontWeight(800),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
                 }
             }
         }

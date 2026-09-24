@@ -5,7 +5,10 @@ data class Universe(
     val revision: Long,
     val privacyEpoch: Long,
     val traces: List<Trace>,
-    val capabilities: Capabilities
+    val capabilities: Capabilities,
+    /** #135: an ISO instant while recording is paused (ADR-0028), else `null`. Drives the
+     * Privacy screen's Pause/Resume control -- see [ApiClient.getUniverse]. */
+    val recordingPausedAt: String? = null,
 )
 
 data class Trace(val eventId: String, val assetId: String, val title: String, val createdAt: String)
