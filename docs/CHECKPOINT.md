@@ -1,5 +1,32 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)
+
+Branch `claude/132-product-reasoning` on main `6a56b24`. ADR-0033 (with the validator-v2
+amendment); migration 0028 appended to `RELEASED.txt`. A recorded Ask becomes an answer only on a
+fresh reader action (`POST /v1/asks/:askId/answer`) from the Ask's own session, when recording is
+not paused and an answer route is enabled. The API only records the request; the worker schedules
+it fairly (ADR-0019 plane: fairness, admission, one invocation, reconciliation), sends exactly the
+reserved bytes once through the worker-only transport (fixture or MiniMax-M3 subscription route
+with quota preflight), and applies provider text only through the answer validator (v2): one JSON
+object, every basis quote verbatim in the sealed Scroll, bounded, nothing about the reader.
+Otherwise the answer is `rejected` with content-free reason codes. Unknown outcomes hold their
+remote slot and are never retried. Clear/Reset erase requests and answers; export carries them.
+Android: Ask sheet with "Get an answer", answered/not-in-source/rejected/failed states, cancel.
+
+Live, bounded (28 of 40 authorized requests): v1 rejected every reply to the Android journey's
+yes/no question because MiniMax wrapped basis quotes differently; v2 projects items to their quote
+and keeps every other rule; 0/5 → 5/5 answered with verified quotes, then answered on the emulator.
+A fresh-context review found 2 blocking defects (all-space quotes passed; an attempt admitted but
+never sent left the Job and its remote slot stuck) and 8 important ones; a verification review of
+those fixes found 3 more (a signed-out reader broke the recovery sweep; a reply recorded but never
+applied stayed open; the reader check let "you are curious" through). All were fixed test-first and
+the evidence regenerated from clean commits. Verification: core 10, lifecycle 12, recovery 3,
+signed-out 1, crash 1, transport 7, backend 814+13, Android 130 units, fixture and live emulator
+journeys with DB lineage; see the
+[evidence](journeys/evidence/ask-answers-2026-09-24/README.md). Preview restored after every run;
+owner database untouched.
+
 ## 2026-09-24 #97 reader sheets survive recreation (lane `97-reader-sheet-restore`)
 
 The Sources, Why and Connections sheet flags are hoisted to `ScrollScreen`, above the state `when`

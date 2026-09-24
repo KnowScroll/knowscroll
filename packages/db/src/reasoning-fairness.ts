@@ -172,15 +172,9 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
  });
 }
 
-export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority):ReasoningFairness{
- return {
-  async installPolicy(input){const {policy,hash}=validateFairnessPolicy(input);await tx(db,async client=>{
-   await client.query('INSERT INTO reasoning_fairness_policy(version,policy_hash,config) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[policy.version,hash,JSON.stringify(policy)]);
-   if((await policyFor(client,policy.version)).hash!==hash)deny('fairness_policy_changed');
-   await client.query('INSERT INTO reasoning_fairness_scheduler(policy_version) VALUES($1) ON CONFLICT DO NOTHING',[policy.version]);
-   for(const klass of FAIRNESS_CLASSES)await client.query('INSERT INTO reasoning_fairness_class(policy_version,class) VALUES($1,$2) ON CONFLICT DO NOTHING',[policy.version,klass]);
-  });return {version:policy.version,hash};},
-  async enqueue(input){await tx(db,async client=>{
+/** Enqueue inside the caller's transaction, so a Job's creation and its ready membership commit
+ * together (ADR-0033). Same checks and lock order as `enqueue`. */
+export async function enqueueFairInTransaction(client:pg.PoolClient,input:FairnessReadyInput):Promise<void>{
    const {policy}=await policyFor(client,input.policyVersion);if(!FAIRNESS_CLASSES.includes(input.class))deny('invalid_fairness_class');const charge=fairnessCharge(policy,input.inputTokensUpperBound,input.maxOutputTokens);
    const universe=(await client.query('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',[input.universeId])).rows[0];if(universe?.privacy_epoch!==input.privacyEpoch)deny('stale_epoch');
    const job=(await client.query('SELECT * FROM reasoning_job WHERE id=$1 FOR UPDATE',[input.jobId])).rows[0];
@@ -193,7 +187,17 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    await client.query(`INSERT INTO reasoning_fairness_ready(job_id,step_id,context_id,universe_id,privacy_epoch,class,policy_version,request_id,request_hash,input_tokens_upper_bound,max_output_tokens,cost_ceiling_micro_usd,deadline,permit_ttl_ms,charge) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,[input.jobId,input.stepId,input.contextId,input.universeId,input.privacyEpoch,input.class,input.policyVersion,input.requestId,input.requestHash,input.inputTokensUpperBound,input.maxOutputTokens,input.costCeilingMicroUsd,input.deadline,input.permitTtlMs,charge]);
    await client.query('UPDATE reasoning_fairness_universe SET ready_count=ready_count+1 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,input.class,input.universeId]);
    await client.query('UPDATE reasoning_fairness_scheduler SET generation=generation+1 WHERE policy_version=$1',[input.policyVersion]);
-  });},
+}
+
+export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority):ReasoningFairness{
+ return {
+  async installPolicy(input){const {policy,hash}=validateFairnessPolicy(input);await tx(db,async client=>{
+   await client.query('INSERT INTO reasoning_fairness_policy(version,policy_hash,config) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[policy.version,hash,JSON.stringify(policy)]);
+   if((await policyFor(client,policy.version)).hash!==hash)deny('fairness_policy_changed');
+   await client.query('INSERT INTO reasoning_fairness_scheduler(policy_version) VALUES($1) ON CONFLICT DO NOTHING',[policy.version]);
+   for(const klass of FAIRNESS_CLASSES)await client.query('INSERT INTO reasoning_fairness_class(policy_version,class) VALUES($1,$2) ON CONFLICT DO NOTHING',[policy.version,klass]);
+  });return {version:policy.version,hash};},
+  async enqueue(input){await tx(db,client=>enqueueFairInTransaction(client,input));},
   async schedule(input){
    if(!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/.test(input.owner)||!Number.isInteger(input.leaseMs)||input.leaseMs<1||input.leaseMs>REASONING_ADMISSION_LIMITS.maxLeaseMs)deny('invalid_fairness_lease');
    const {policy}=await policyFor(db,input.policyVersion);const observations:FairnessObservation[]=[];let lastProgress:{generation:string;klass:FairnessClass}|undefined;

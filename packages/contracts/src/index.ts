@@ -36,6 +36,7 @@ export type PrivacyExportRowCounts = {
  reasoningReceipts:number; reasoningAccounting:number;
  branchOpens:number; connectionFeedback:number; semanticProposals:number;
  attentionAccounts:number; hypotheses:number; encounterFeedback:number;
+ askAnswers:number;
 };
 export type PrivacyExportDeviceSession = {
  deviceId:string; origin:string; createdAt:string; expiresAt:string; revokedAt:string|null;
@@ -50,6 +51,8 @@ export type PrivacyExportResult = {
  reasoning:{jobs:unknown[]; steps:unknown[]; receipts:unknown[]; accounting:unknown[]};
  semantic:{branchOpens:unknown[]; connectionFeedback:unknown[]; proposals:unknown[]; bridges:unknown[]};
  personalModel:{attentionAccounts:unknown[]; hypotheses:unknown[]; encounterFeedback:unknown[]};
+ /** #132: answer requests and their applied outcomes (ADR-0033). */
+ askAnswers:unknown[];
 };
 export type PrivacyResetReceipt = {
  receiptId:string; epochBefore:number; epochAfter:number; sessionsRevoked:number; resetAt:string;

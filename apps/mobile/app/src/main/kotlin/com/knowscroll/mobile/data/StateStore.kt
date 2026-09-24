@@ -104,6 +104,40 @@ class StateStore(context: Context) {
     }
     fun clearPendingBranch() { check(prefs.edit().remove("pendingBranch").commit()) { "Could not clear the branch request" } }
 
+    /** #132: the persisted retry envelope for `POST /v1/asks`, written before dispatch so an
+     * ambiguous failure can retry with the same clientAskId instead of recording a duplicate. */
+    fun writePendingAsk(r: PendingAsk) {
+        val json = JSONObject().apply {
+            put("clientAskId", r.clientAskId); put("exposureId", r.exposureId)
+            put("expectedPrivacyEpoch", r.expectedPrivacyEpoch); put("question", r.question)
+        }
+        check(prefs.edit().putString("pendingAsk", json.toString()).commit()) { "Could not save the Ask request" }
+    }
+    fun readPendingAsk(): PendingAsk? {
+        val raw = prefs.getString("pendingAsk", null) ?: return null
+        return runCatching {
+            val o = JSONObject(raw)
+            PendingAsk(o.getString("clientAskId"), o.getString("exposureId"), o.getLong("expectedPrivacyEpoch"), o.getString("question"))
+        }.getOrNull()
+    }
+    fun clearPendingAsk() { check(prefs.edit().remove("pendingAsk").commit()) { "Could not clear the Ask request" } }
+
+    /** #132: the persisted retry envelope for `POST /v1/asks/:id/answer`. */
+    fun writePendingAnswerRequest(r: PendingAnswerRequest) {
+        val json = JSONObject().apply {
+            put("clientRequestId", r.clientRequestId); put("askId", r.askId); put("expectedPrivacyEpoch", r.expectedPrivacyEpoch)
+        }
+        check(prefs.edit().putString("pendingAnswerRequest", json.toString()).commit()) { "Could not save the answer request" }
+    }
+    fun readPendingAnswerRequest(): PendingAnswerRequest? {
+        val raw = prefs.getString("pendingAnswerRequest", null) ?: return null
+        return runCatching {
+            val o = JSONObject(raw)
+            PendingAnswerRequest(o.getString("clientRequestId"), o.getString("askId"), o.getLong("expectedPrivacyEpoch"))
+        }.getOrNull()
+    }
+    fun clearPendingAnswerRequest() { check(prefs.edit().remove("pendingAnswerRequest").commit()) { "Could not clear the answer request" } }
+
     /** Position is not a retry envelope. Apply in memory now and serialize disk work off-main. */
     fun writeReadingPosition(assetId: String, position: Int) {
         val edit = prefs.edit().putString("readingAssetId",assetId).putInt("readingPosition",position)
@@ -210,6 +244,7 @@ class StateStore(context: Context) {
         check(prefs.edit()
             .remove("session").remove("session_Scroll").remove("session_Reel").remove("readingAssetId").remove("readingPosition")
             .remove("branchTrail").remove("pendingBranch")
+            .remove("pendingAsk").remove("pendingAnswerRequest")
             .remove("revisit")
             .remove("visited").remove("pendingHistoryClear")
             .putString("screen", "universe").putString("privacyUniverseId",universeId)
