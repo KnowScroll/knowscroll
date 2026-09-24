@@ -100,7 +100,7 @@ slice with its own version; thresholds here are bench values carried by `keeper-
 
 ## Consequences
 
-Migration `0039_idea_rooms.sql` (`room`, `room_inhabitant`, `room_delta`, guards: immutable deltas, a
+Migration `0038_idea_rooms.sql` (`room`, `room_inhabitant`, `room_delta`, guards: immutable deltas, a
 room or inhabitant changes only with a delta, caps, epoch match, no change while paused);
 `packages/core/src/rooms/keeper.ts` (pure: carried questions, seats, positions, ladder, deltas);
 `packages/db/src/rooms.ts` (apply, read, set aside, erase, export) called from the personal-model
