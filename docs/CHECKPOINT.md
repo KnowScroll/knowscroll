@@ -1,5 +1,27 @@
 # Shared delivery checkpoint
 
+## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)
+
+Branch `claude/132-product-reasoning` on main `6a56b24`. ADR-0033 (with the validator-v2
+amendment); migration 0028 appended to `RELEASED.txt`. A recorded Ask becomes an answer only on a
+fresh reader action (`POST /v1/asks/:askId/answer`) from the Ask's own session, when recording is
+not paused and an answer route is enabled. The API only records the request; the worker schedules
+it fairly (ADR-0019 plane: fairness, admission, one invocation, reconciliation), sends exactly the
+reserved bytes once through the worker-only transport (fixture or MiniMax-M3 subscription route
+with quota preflight), and applies provider text only through the answer validator: one JSON
+object, every basis quote verbatim in the sealed Scroll, bounded, nothing about the reader.
+Otherwise the answer is `rejected` with content-free reason codes. Unknown outcomes hold their
+remote slot and are never retried. Clear/Reset erase requests and answers; export carries them.
+Android: Ask sheet with "Get an answer", answered/not-in-source/rejected/failed states, cancel.
+
+Live, bounded (16 of 40 authorized requests): v1 rejected every reply to the Android journey's
+yes/no question because MiniMax wrapped basis quotes differently; v2 projects items to their quote
+and keeps every other rule; 0/5 → 5/5 answered with verified quotes, then answered on the emulator.
+Verification: core 7, lifecycle 11, crash 1, transport 4, backend 802+13, web 82, Android 124
+units, fixture and live emulator journeys with DB lineage; see the
+[evidence](journeys/evidence/ask-answers-2026-09-24/README.md). Preview restored after every run;
+owner database untouched.
+
 ## 2026-09-24 #133 Composer v3 + #131 attention accounts and hypotheses (lane `133-semantic-composer`)
 
 Branch `claude/133-semantic-composer` on main `b0281db`. ADR-0032; migration 0027 appended to

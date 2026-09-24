@@ -1,0 +1,88 @@
+{
+  "at": "2026-09-24T04:25:42.069Z",
+  "mode": "live",
+  "database": "knowscroll_test_live_answer_b2cd5f424d8d",
+  "model": "MiniMax-M3",
+  "asks": [
+    {
+      "label": "android-question-1",
+      "requestStatus": 202,
+      "status": "answered",
+      "reasons": [],
+      "basisQuotes": 3,
+      "answerChars": 353,
+      "answerSha256": "ad03735af900dda5d83ab4e6690d93ed64339cc7da06cbeea4b107f918b60cef",
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 172
+      }
+    },
+    {
+      "label": "android-question-2",
+      "requestStatus": 202,
+      "status": "answered",
+      "reasons": [],
+      "basisQuotes": 3,
+      "answerChars": 248,
+      "answerSha256": "6b7a116b4d12dec1e1f7adab6c1b1ad3887d545790d3b502ba6bbf947744c328",
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 157
+      }
+    },
+    {
+      "label": "android-question-3",
+      "requestStatus": 202,
+      "status": "answered",
+      "reasons": [],
+      "basisQuotes": 3,
+      "answerChars": 211,
+      "answerSha256": "c9b2df49bfed13ceaadf7e7739a73971e179a0193922b2ba1a16f33564ca0a86",
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 168
+      }
+    },
+    {
+      "label": "android-question-4",
+      "requestStatus": 202,
+      "status": "answered",
+      "reasons": [],
+      "basisQuotes": 3,
+      "answerChars": 250,
+      "answerSha256": "a334b22f8cc829c754de0da7aebdba1a1d5ab04db31252b55c621e7cd18a21ea",
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 191
+      }
+    },
+    {
+      "label": "android-question-5",
+      "requestStatus": 202,
+      "status": "answered",
+      "reasons": [],
+      "basisQuotes": 4,
+      "answerChars": 307,
+      "answerSha256": "177a95bfe888509d97d43e44491ddaf0f158c0b793b9b36a96ce7b7c795496cb",
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 197
+      }
+    }
+  ],
+  "dispatched": 5,
+  "sessionLedger": {
+    "used": 15,
+    "cap": 40
+  }
+}
