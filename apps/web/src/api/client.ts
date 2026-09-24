@@ -9,20 +9,34 @@
  * The client never reads or holds a bearer token: every request goes to a
  * same-origin relative `/v1/*` path. The Vite dev/preview proxy (vite.config.ts,
  * Node-side only) injects `Authorization` before forwarding to the configured
- * loopback API. This file must never import, construct, or reference a token.
+ * loopback API, or (ADR-0034, `KS_WEB_AUTH=cookie`) forwards the browser's own
+ * cookie unchanged. This file must never import, construct, or reference a
+ * bearer token.
+ *
+ * ADR-0034's other half lives here: a cookie session authenticates GET
+ * requests on its own, but a mutating request also needs `X-CSRF-Token`. This
+ * client keeps that token in memory only (never localStorage/sessionStorage,
+ * and never anywhere it would survive a reload) -- see `csrfToken`/
+ * `setCsrfToken`/`refreshCsrfToken` below.
  */
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
 import {
+  accountDeletionReceiptSchema,
   eventStatus,
   exposureResponse,
   feedResponse,
   interactionResponse,
+  magicLinkRequestedSchema,
   privacyExportResultSchema,
   privacyRecordingReceiptSchema,
   privacyResetReceiptSchema,
+  sessionCsrfSchema,
   traceRevisit,
   universe,
+  webSessionResponseSchema,
   worldSystemResponseSchema,
+  type AccountDeletionReceipt,
+  type AccountDeletionRequest,
   type EventStatus,
   type ExposureResponse,
   type FeedResponse,
@@ -34,6 +48,7 @@ import {
   type PrivacyResetRequest,
   type TraceRevisit,
   type Universe,
+  type WebSessionResponse,
   type WorldSystemResponse,
 } from './types.ts';
 
@@ -102,6 +117,11 @@ export interface ReaderApi {
   postPrivacyResume(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt>;
   postPrivacyExport(body: PrivacyLifecycleRequest): Promise<PrivacyExportResult>;
   postPrivacyReset(body: PrivacyResetRequest): Promise<PrivacyResetReceipt>;
+  /** ADR-0034: ends the calling session (Android's bearer session too, though only a cookie
+   * session ever needs the sign-in screen this drives the reader store to afterward). */
+  postSessionRevoke(): Promise<void>;
+  /** ADR-0035: one transaction, its own confirmation literal -- see `ACCOUNT_DELETE_CONFIRMATION`. */
+  postAccountDelete(body: AccountDeletionRequest): Promise<AccountDeletionReceipt>;
 }
 
 export class ApiClient implements ReaderApi {
@@ -109,6 +129,14 @@ export class ApiClient implements ReaderApi {
   private readonly fetchImpl: typeof fetch;
   private readonly maxAttempts: number;
   private readonly delaysMs: [number, number];
+  /** ADR-0034: the page's own CSRF token, derived server-side from the cookie session and handed
+   * back once by `POST /v1/auth/web-session` or `GET /v1/session/csrf`. Held only in this instance
+   * field -- never localStorage/sessionStorage -- so it is gone the moment the page reloads; a
+   * fresh instance rediscovers it lazily the first time a mutating request needs it (see
+   * `refreshCsrfToken`). A bearer/dev-proxy session never sets this: no browser attaches those
+   * requests, so no CSRF check ever applies to them (ADR-0034 sec.3).
+   */
+  private csrfToken: string | null = null;
 
   constructor(options: ApiClientOptions = {}) {
     this.basePath = options.basePath ?? '/v1';
@@ -179,7 +207,72 @@ export class ApiClient implements ReaderApi {
     return this.request('POST', '/privacy/reset', body, [200], false, privacyResetReceiptSchema);
   }
 
+  async postSessionRevoke(): Promise<void> {
+    await this.request('POST', '/session/revoke', {}, [204], false, emptyObjectSchema);
+  }
+
+  async postAccountDelete(body: AccountDeletionRequest): Promise<AccountDeletionReceipt> {
+    return this.request('POST', '/account/delete', body, [200], false, accountDeletionReceiptSchema);
+  }
+
+  /** ADR-0026: `POST /v1/auth/magic-link` -- one fixed 202, deliberately indistinguishable
+   * whether or not the address has an account (no CSRF: this route is exempt, see web-session.ts). */
+  async postMagicLink(email: string): Promise<void> {
+    await this.request('POST', '/auth/magic-link', { email }, [202], false, magicLinkRequestedSchema);
+  }
+
+  /** ADR-0034: consumes a magic-link sign-in token for the desktop cookie session. The server sets
+   * the cookie itself (never in this response body); the returned `csrfToken` is the one thing the
+   * caller must feed back into `setCsrfToken` so later mutating requests carry it immediately. */
+  async postWebSession(token: string): Promise<WebSessionResponse> {
+    return this.request('POST', '/auth/web-session', { token }, [200], false, webSessionResponseSchema);
+  }
+
+  /** Never persisted; see the `csrfToken` field doc comment. Passing `null` (sign-out, account
+   * deletion, or a fresh 401) forgets it, so a later reused instance never sends a stale value. */
+  setCsrfToken(token: string | null): void {
+    this.csrfToken = token;
+  }
+
+  /**
+   * CSRF retry wrapper (ADR-0034): every non-GET call goes through `attempt()` first. If it comes
+   * back 403 and no token is known yet, this fetches the page's own token exactly once
+   * (`GET /v1/session/csrf` -- a 400 there means a bearer/dev-proxy session, which never needed one)
+   * and retries the *same* call exactly once more. This wraps `attempt()` rather than sitting inside
+   * its per-attempt loop, so the existing transient-failure retry/backoff and requestId reuse
+   * (the caller's own `body`, re-sent unchanged) are untouched -- a 403 is not itself a transient
+   * status, so `attempt()` already throws immediately on it without consuming that loop's budget.
+   */
   private async request<T>(
+    method: 'GET' | 'POST',
+    path: string,
+    body: unknown,
+    expected: number[],
+    treat409AsConflict: boolean,
+    schema: ZodType<T>,
+  ): Promise<T> {
+    try {
+      return await this.attempt(method, path, body, expected, treat409AsConflict, schema);
+    } catch (error) {
+      if (method === 'GET' || this.csrfToken !== null || !isCsrfRefusal(error)) throw error;
+      await this.refreshCsrfToken();
+      return this.attempt(method, path, body, expected, treat409AsConflict, schema);
+    }
+  }
+
+  private async refreshCsrfToken(): Promise<void> {
+    try {
+      const response = await this.fetchImpl(`${this.basePath}/session/csrf`, { headers: { Accept: 'application/json' } });
+      if (response.status !== 200) return; // 400: a bearer/dev-proxy session has no token to fetch.
+      const parsed = sessionCsrfSchema.safeParse(JSON.parse(await response.text()));
+      if (parsed.success) this.csrfToken = parsed.data.csrfToken;
+    } catch {
+      // A failed preflight never blocks the one allowed retry in `request()`: it simply fails again
+      // with the same 403 if the session genuinely has no way to authenticate this change.
+    }
+  }
+
+  private async attempt<T>(
     method: 'GET' | 'POST',
     path: string,
     body: unknown,
@@ -190,9 +283,12 @@ export class ApiClient implements ReaderApi {
     let lastError: ApiException | undefined;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
       try {
+        const headers: Record<string, string> = body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' };
+        // ADR-0034: sent whenever known, on every non-GET request -- a GET is never CSRF-gated.
+        if (method !== 'GET' && this.csrfToken !== null) headers['X-CSRF-Token'] = this.csrfToken;
         const response = await this.fetchImpl(`${this.basePath}${path}`, {
           method,
-          headers: body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
+          headers,
           body: body === undefined ? undefined : JSON.stringify(body),
         });
         const text = await response.text();
@@ -241,6 +337,17 @@ export class ApiClient implements ReaderApi {
     throw lastError ?? new ApiException({ kind: 'network', message: 'Unknown network failure' });
   }
 }
+
+/** ADR-0034: the one 403 shape `request()`'s CSRF retry reacts to -- any other server refusal
+ * (including a 403 the app might one day return for an unrelated reason) is left as a terminal
+ * error, never mistaken for "fetch a token and retry". */
+function isCsrfRefusal(error: unknown): boolean {
+  return error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 403;
+}
+
+/** `POST /v1/session/revoke` answers 204 with no body; `attempt()` already turns an empty body
+ * into `{}` for a schema to check, so this validates that there genuinely was nothing else there. */
+const emptyObjectSchema = z.object({}).strict();
 
 function describeNetworkError(error: unknown): string {
   if (error instanceof Error) return error.message || 'Could not reach the bootstrap service';
