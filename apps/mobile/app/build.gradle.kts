@@ -9,7 +9,7 @@ val journeyBase = System.getenv("KS_JOURNEY_API_URL")
 // #136: device test runners build their own app (".journeytest") so they never replace the owner's
 // running preview (".journey", built by scripts/android-living-preview.py, which sets no suffix).
 val journeySuffix = (System.getenv("KS_APP_ID_SUFFIX") ?: ".journey").also {
-    require(Regex("^\\.journey[a-z]*$").matches(it)) { "KS_APP_ID_SUFFIX must be .journey or .journey<letters>" }
+    require(journeyBase == null || Regex("^\\.journey[a-z]*$").matches(it)) { "KS_APP_ID_SUFFIX must be .journey or .journey<letters>" }
 }
 val local = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }

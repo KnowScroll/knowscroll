@@ -17,7 +17,7 @@ class PreviewAuthorityJourneyTest {
     @Test
     fun previewAndBothBanksDisappearAfterEpochChange() = runBlocking<Unit> {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        check(context.packageName.endsWith(".journey"))
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName))
         compose.waitUntil(20_000) {
             compose
                 .onAllNodesWithContentDescription("Enter Scroll")

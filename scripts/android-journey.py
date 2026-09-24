@@ -8,7 +8,7 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.dont_write_bytecode = True
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 root=Path.cwd();config=dict(l.split('=',1) for l in Path('.env').read_text().splitlines() if '=' in l and not l.startswith('#'))
 u=urlparse(config['DATABASE_URL']);name='knowscroll_test_'+uuid.uuid4().hex
 adminenv={**os.environ,'PGPASSWORD':u.password or ''}
@@ -21,7 +21,7 @@ def service(script):
  log=(out/(script.replace(':','-')+'.log')).open('w')
  p=subprocess.Popen(['pnpm',script],env=env,stdout=log,stderr=log,start_new_session=True);processes.append((p,log));return p
 _preview_error = None
-_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
  _guard.preserve()
  run(['createdb',*args,name],env=adminenv)

@@ -34,12 +34,7 @@ class DirectMediaJourneyTest {
     @Test
     fun mediaOriginAndPrivacy() =
         runBlocking<Unit> {
-            check(
-                InstrumentationRegistry.getInstrumentation()
-                    .targetContext
-                    .packageName
-                    .endsWith(".journey")
-            )
+            check(com.knowscroll.mobile.JourneyBuild.isJourney(InstrumentationRegistry.getInstrumentation().targetContext.packageName))
             waitText("Authored Atlas")
             compose.onNodeWithText("Authored Atlas").performClick()
             waitNode("Enter authored system")

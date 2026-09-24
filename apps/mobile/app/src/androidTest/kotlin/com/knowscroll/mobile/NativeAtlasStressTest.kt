@@ -24,7 +24,7 @@ class NativeAtlasStressTest {
     @Test
     fun manyMarkersRemainAccessible() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        check(context.packageName.startsWith("com.knowscroll.mobile.journey"))
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName))
         var selected: String? = null
         compose.setContent {
             val density = LocalDensity.current

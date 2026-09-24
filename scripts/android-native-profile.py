@@ -1,8 +1,8 @@
-"""Repeatable frame metrics for 12 world-entry/source/Back cycles, disposable demo and .journey only.
+"""Repeatable frame metrics for 12 world-entry/source/Back cycles, disposable demo and .journeytest only.
 
 Run after sourcing scripts/env.sh. No provider calls, owner app changes, or owner history reset.
-The `.journey` app is also the owner's running preview: it is preserved before anything replaces it
-and restored (verified) first in `finally` (scripts/android_preview.py). Each run writes to its own
+The owner's running preview is the separate `.journey` app (#136): this runner never installs it,
+and its APKs are verified unchanged first in `finally` (scripts/android_preview.py). Each run writes to its own
 folder, `artifacts/android-spatial/profile/<KS_PROFILE_LABEL or timestamp>/`, with every frame phase
 and per-frame rows (#136), and records the exact source with `git describe --dirty`.
 """
@@ -21,7 +21,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402
+from android_preview import PreviewWatch  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines()
@@ -63,7 +63,7 @@ motion = adb('shell', 'settings', 'get', 'global', 'animator_duration_scale')
 sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
-guard = PreviewGuard('com.knowscroll.mobile.journey', out)
+guard = PreviewWatch('com.knowscroll.mobile.journey', out)
 try:
     guard.preserve()
     import socket

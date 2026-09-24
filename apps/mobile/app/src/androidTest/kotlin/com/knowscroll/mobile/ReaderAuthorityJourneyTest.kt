@@ -31,7 +31,7 @@ class ReaderAuthorityJourneyTest {
     private fun store() = StateStore(instrumentation.targetContext)
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName.startsWith("com.knowscroll.mobile.journey")) {
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName)) {
             "Reader authority verification requires the separate journey app"
         }
     }

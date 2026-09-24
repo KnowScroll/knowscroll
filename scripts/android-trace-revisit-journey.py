@@ -23,7 +23,7 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.dont_write_bytecode = True
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -227,7 +227,7 @@ def private_snapshot():
 receipt = None
 original_font = subprocess.check_output(['adb', 'shell', 'settings', 'get', 'system', 'font_scale'], text=True).strip()
 _preview_error = None
-_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
     _guard.preserve()
     with socket.socket() as probe:

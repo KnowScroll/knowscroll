@@ -8,7 +8,7 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.dont_write_bytecode = True
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 root=Path.cwd()
 config=dict(line.split('=',1) for line in (root/'.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
 source=urlparse(config['DATABASE_URL'])
@@ -35,7 +35,7 @@ def adb(*command): return subprocess.check_output(['adb',*command],text=True).st
 font=adb('shell','settings','get','system','font_scale')
 motion=adb('shell','settings','get','global','animator_duration_scale')
 _preview_error = None
-_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
     _guard.preserve()
     with socket.socket() as probe: probe.bind(('127.0.0.1',port))

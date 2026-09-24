@@ -1,4 +1,4 @@
-"""Real UI verification against a disposable demo library and separate .journey application.
+"""Real UI verification against a disposable demo library and separate .journeytest application (never the owner's .journey preview, #136).
 
 Run after sourcing scripts/env.sh. No provider calls, owner app changes, or owner history reset.
 """
@@ -17,7 +17,7 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.dont_write_bytecode = True
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402  (#136: the owner's .journey preview)
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines()
@@ -60,7 +60,7 @@ sizes = adb('shell', 'wm', 'size').splitlines()
 original_override = next((line.split(': ', 1)[1] for line in sizes if line.startswith('Override size:')), None)
 scenarios = []
 _preview_error = None
-_guard = PreviewGuard('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
     _guard.preserve()
     import socket

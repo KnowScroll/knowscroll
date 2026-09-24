@@ -16,7 +16,7 @@ class DirectAtlasMotionTest {
     fun visibleArrivalAndContentReturn() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        check(context.packageName.startsWith("com.knowscroll.mobile.journey"))
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName))
         val automation = instrumentation.uiAutomation
         fun find(label: String): AccessibilityNodeInfo? {
             fun walk(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {

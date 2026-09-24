@@ -2,12 +2,16 @@
 
 ## 2026-09-24 #136 device test runs no longer install over the owner's preview (lane `136-test-app-id`)
 
-Every device test runner now builds and installs its own app, `com.knowscroll.mobile.journeytest`
-(`KS_APP_ID_SUFFIX=.journeytest`). The owner's preview, `com.knowscroll.mobile.journey`, is built only
-by `scripts/android-living-preview.py`, which sets no suffix. The instrumented tests accept either
-package. `scripts/android_preview.py` still watches the preview as a second line of defence. Proven
-by the emulator `places` journey passing as `journeytest` while the preview's APK hash stayed the
-same and the guard reported `replaced: false`.
+The nine device test runners now build and install their own app, `com.knowscroll.mobile.journeytest`
+(`KS_APP_ID_SUFFIX=.journeytest`). The owner's preview, `com.knowscroll.mobile.journey`, is built and
+installed only by `scripts/android-living-preview.py`, which sets no suffix. Its verification mode
+(without `--keep`) still replaces the preview, under the full preserve/restore guard. The debug-only
+journey behaviour (authored previews, the export written to the app's cache) is enabled by one
+helper, `JourneyBuild.isJourney`, for both packages. Instrumented tests use the same helper. The test
+runners use `PreviewWatch`: it records the preview's APK hashes and fails the run if they changed.
+It never pulls data, never refuses a signed-in preview, and never reinstalls or clears anything.
+Proven by the emulator `places` journey passing as `journeytest` with the preview's APK hash
+unchanged.
 
 ## 2026-09-24 #132 background bridge inquiries (lane `132-background-inquiries`)
 

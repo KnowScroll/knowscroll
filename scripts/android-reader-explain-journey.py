@@ -28,7 +28,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from android_preview import PreviewGuard  # noqa: E402
+from android_preview import PreviewWatch  # noqa: E402
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -243,9 +243,9 @@ def restore_session():
 receipt = None
 original_font = subprocess.check_output(['adb', 'shell', 'settings', 'get', 'system', 'font_scale'], text=True).strip()
 owner_before = subprocess.run(['adb', 'shell', 'pm', 'path', owner_package], capture_output=True, text=True).stdout.strip()
-# The `.journey` app is also the owner's running preview: preserved before anything replaces it and
-# restored (verified) first in `finally` (#136, scripts/android_preview.py).
-guard = PreviewGuard('com.knowscroll.mobile.journey', out)
+# The owner's running preview is the separate `.journey` app: never installed by this runner, its
+# APKs verified unchanged first in `finally` (#136, scripts/android_preview.py).
+guard = PreviewWatch('com.knowscroll.mobile.journey', out)
 try:
     guard.preserve()
     with socket.socket() as probe:
