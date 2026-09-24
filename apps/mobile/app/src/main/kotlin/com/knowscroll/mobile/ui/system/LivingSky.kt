@@ -112,6 +112,8 @@ internal fun LivingSky(
                     )
             }
         }
+    // ADR-0037: a foundation is drawn brighter -- a soft glow and ring behind the planet.
+    val foundations = remember(markers) { markers.filter { it.foundation }.mapTo(HashSet()) { it.id } }
     Canvas(modifier) {
         if (hidden) return@Canvas
         val pose = camera()
@@ -195,6 +197,10 @@ internal fun LivingSky(
                 translate(p.x, p.y)
                 scale(radius, radius, Offset.Zero)
             }) {
+                if (point.id in foundations) {
+                    drawCircle(Cosmos.Yellow.copy(alpha = .16f), 1.5f, Offset.Zero)
+                    drawCircle(Cosmos.Cream.copy(alpha = .6f), 1.3f, Offset.Zero, style = Stroke(.03f))
+                }
                 drawCircle(paint.ocean, 1f, Offset.Zero)
                 paint.land.forEachIndexed { i, path ->
                     drawPath(

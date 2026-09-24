@@ -1,5 +1,14 @@
 # Project state
 
+## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
+
+When one of the reader's places explains several of their other places, and sources say so, it
+becomes a foundation. On Android it is drawn brighter, and its sheet lists what it holds up and the
+claims behind each connection. It stops being one, with the reason recorded, when a source is
+corrected or the reader sets one of those places aside. Reading alone never makes a foundation. With
+today's small library this happens only around Gravity, and only if Orbits and Star formation become
+places, which needs more Scrolls from a second source.
+
 ## 2026-09-24 Owner sign-in, privacy and account deletion on both clients (#135)
 
 The Android app no longer needs a baked-in development token: the owner signs in with an emailed

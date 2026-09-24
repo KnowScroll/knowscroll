@@ -40,12 +40,12 @@ class AtlasTest {
          "anchor":{"code":"physics.gravity","name":"Gravity","description":"The force that pulls masses together."},
          "basis":null,
          "attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
-         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed"},
+         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null},
         {"placeId":"$sightingId","kind":"sighting","parentPlaceId":"$gravityId",
          "anchor":{"code":"astro.star-formation","name":"Star formation","description":"How stars are born."},
          "basis":{"kind":"explains","from":"Gravity","to":"Star formation",
              "claim":{"text":"Gravity pulls gas clouds together until they ignite.","sourceTitle":"NASA · Star formation"},"bridge":null},
-         "attention":null,"scrolls":{"total":0,"seen":0},"formedAt":"2026-09-24T00:00:00.000Z","formedBy":"sighting_appeared"}
+         "attention":null,"scrolls":{"total":0,"seen":0},"formedAt":"2026-09-24T00:00:00.000Z","formedBy":"sighting_appeared","foundation":null}
     ]"""
 
     private fun defaultChronicle() = """[
@@ -83,6 +83,118 @@ class AtlasTest {
         assertEquals("personal_exploration", entry.causalClass)
         assertEquals(gravityId, entry.parentPlaceId)
         assertEquals("You came across Star formation.", entry.line)
+    }
+
+    private val tidesId = "44444444-4444-4444-4444-444444444444"
+    private val orbitsId = "55555555-5555-5555-5555-555555555555"
+
+    /** ADR-0037: Gravity holds up Tides and Orbits, citing each sourced connection. */
+    private fun foundationPlaces(foundation: String = """{"holdsUp":["$tidesId","$orbitsId"],"relations":[
+            {"kind":"explains","from":"Gravity","to":"Tides","claim":{"text":"The Moon's gravity pulls on the ocean.","sourceTitle":"NOAA · Tides"},"bridge":null},
+            {"kind":"explains","from":"Gravity","to":"Orbits","claim":{"text":"Gravity keeps planets in orbit.","sourceTitle":"NASA · Orbits"},"bridge":null}]}""") = """[
+        {"placeId":"$gravityId","kind":"planet","parentPlaceId":null,
+         "anchor":{"code":"physics.gravity","name":"Gravity","description":"The force that pulls masses together."},
+         "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
+         "scrolls":{"total":3,"seen":3},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":$foundation},
+        {"placeId":"$tidesId","kind":"planet","parentPlaceId":null,
+         "anchor":{"code":"earth.tides","name":"Tides","description":"The rise and fall of the sea."},
+         "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
+         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null},
+        {"placeId":"$orbitsId","kind":"planet","parentPlaceId":null,
+         "anchor":{"code":"astro.orbit","name":"Orbits","description":"Paths around a larger body."},
+         "basis":null,"attention":{"state":"anchored","episodes":3,"daysActive":2,"sourceFamilies":2},
+         "scrolls":{"total":2,"seen":2},"formedAt":"2026-09-23T00:00:00.000Z","formedBy":"place_formed","foundation":null}
+    ]"""
+
+    @Test
+    fun parsesAFoundationWithWhatItHoldsUpAndTheClaimsThatSaySo() {
+        val recognised = """[{"deltaId":"$deltaId","placeId":"$gravityId","parentPlaceId":null,"kind":"foundation_recognised",
+            "causalClass":"substrate_neighbourhood","at":"2026-09-24T00:00:00.000Z","line":"Gravity holds up Orbits and Tides."}]"""
+        val atlas = parseAtlasResponse(atlasJson(places = foundationPlaces(), chronicle = recognised))
+        val gravity = atlas.places.single { it.anchor.name == "Gravity" }
+        assertEquals(listOf(tidesId, orbitsId), gravity.foundation?.holdsUp)
+        assertEquals(listOf("Tides", "Orbits"), gravity.foundation?.relations?.map { it.to })
+        assertEquals("NOAA · Tides", gravity.foundation?.relations?.first()?.claim?.sourceTitle)
+        assertNull("a held-up place is not itself a foundation", atlas.places.single { it.anchor.name == "Tides" }.foundation)
+        assertEquals("foundation_recognised", atlas.chronicle.single().kind)
+    }
+
+    @Test
+    fun acceptsAWithdrawnFoundationAsTheReadersCorrection() {
+        val withdrawn = """[{"deltaId":"$deltaId","placeId":"$gravityId","parentPlaceId":null,"kind":"foundation_withdrawn",
+            "causalClass":"reader_correction","at":"2026-09-24T00:00:00.000Z","line":"Gravity no longer holds up the places around it."}]"""
+        val atlas = parseAtlasResponse(atlasJson(chronicle = withdrawn))
+        assertEquals("foundation_withdrawn", atlas.chronicle.single().kind)
+    }
+
+    @Test
+    fun refusesAFoundationOnASighting() {
+        val dishonest = defaultPlaces().replace(
+            "\"formedBy\":\"sighting_appeared\",\"foundation\":null",
+            "\"formedBy\":\"sighting_appeared\",\"foundation\":{\"holdsUp\":[\"$gravityId\"],\"relations\":[{\"kind\":\"explains\",\"from\":\"Star formation\",\"to\":\"Gravity\",\"claim\":null,\"bridge\":{\"mechanism\":\"m\"}}]}",
+        )
+        assertNotEquals(defaultPlaces(), dishonest)
+        assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = dishonest)) }
+    }
+
+    @Test
+    fun refusesAFoundationThatHoldsNothingUpOrCitesNothing() {
+        val holdsNothing = foundationPlaces("""{"holdsUp":[],"relations":[{"kind":"explains","from":"Gravity","to":"Tides","claim":null,"bridge":{"mechanism":"m"}}]}""")
+        assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = holdsNothing)) }
+        val citesNothing = foundationPlaces("""{"holdsUp":["$tidesId"],"relations":[]}""")
+        assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = citesNothing)) }
+        val unknownKind = foundationPlaces("""{"holdsUp":["$tidesId"],"relations":[{"kind":"vibes","from":"Gravity","to":"Tides","claim":null,"bridge":{"mechanism":"m"}}]}""")
+        assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = unknownKind)) }
+    }
+
+    @Test
+    fun refusesAPlaceThatDoesNotSayWhetherItIsAFoundation() {
+        val silent = defaultPlaces().replace(",\"foundation\":null}", "}")
+        assertNotEquals(defaultPlaces(), silent)
+        assertThrows(IllegalArgumentException::class.java) { parseAtlasResponse(atlasJson(places = silent)) }
+    }
+
+    @Test
+    fun evidenceSummaryForAFoundationSaysOnlyWhatItsDeltaRecords() {
+        fun delta(kind: String, causalClass: String, evidence: String) = parseAtlasDelta(JSONObject(
+            """{"deltaId":"$deltaId","placeId":"$gravityId","kind":"$kind","causalClass":"$causalClass",
+                "policyVersion":"cartographer-v2","at":"2026-09-24T00:00:00.000Z",
+                "anchor":{"code":"physics.gravity","name":"Gravity"},"before":{"loadBearing":false},
+                "after":{"loadBearing":true},"evidence":$evidence}""",
+        ))
+        val relations = """[{"from":"physics.gravity","to":"earth.tides","kind":"explains"},{"from":"physics.gravity","to":"astro.orbit","kind":"explains"},{"from":"physics.gravity","to":"astro.star.birth","kind":"explains"}]"""
+        assertEquals(
+            "Recognised from 3 sourced connections to 3 of your places.",
+            evidenceSummary(delta("foundation_recognised", "substrate_neighbourhood", """{"relations":$relations,"holdsUp":["earth.tides","astro.orbit","astro.star.birth"]}""")),
+        )
+        assertEquals(
+            "After you set a place aside, it no longer has enough sourced connections to your places.",
+            evidenceSummary(delta("foundation_withdrawn", "reader_correction", """{"relations":$relations}""")),
+        )
+        assertEquals(
+            "A source behind one of its connections changed.",
+            evidenceSummary(delta("foundation_withdrawn", "source_correction", """{"relations":$relations}""")),
+        )
+        // The foundation itself was set aside: it did not lose its connections (verification review).
+        assertEquals(
+            "You set this place aside, so it no longer holds anything up.",
+            evidenceSummary(delta("foundation_withdrawn", "reader_correction", """{"relations":$relations,"setAside":true}""")),
+        )
+    }
+
+    /** Review I1: a standing foundation whose connections change is re-recorded (before and after
+     * both load-bearing), and the evidence says why it changed, not that it was newly recognised. */
+    @Test
+    fun evidenceSummaryForARerecordedFoundationSaysWhatChanged() {
+        fun revised(causalClass: String) = parseAtlasDelta(JSONObject(
+            """{"deltaId":"$deltaId","placeId":"$gravityId","kind":"foundation_recognised","causalClass":"$causalClass",
+                "policyVersion":"cartographer-v2","at":"2026-09-24T00:00:00.000Z",
+                "anchor":{"code":"physics.gravity","name":"Gravity"},"before":{"loadBearing":true},
+                "after":{"loadBearing":true},"evidence":{"relations":[{},{},{}],"holdsUp":["a","b"]}}""",
+        ))
+        assertEquals("After you set a place aside, it still stands on 3 sourced connections to 2 of your places.", evidenceSummary(revised("reader_correction")))
+        assertEquals("A source changed; it now stands on 3 sourced connections to 2 of your places.", evidenceSummary(revised("source_correction")))
+        assertEquals("It now holds up 2 of your places, through 3 sourced connections.", evidenceSummary(revised("substrate_neighbourhood")))
     }
 
     @Test
