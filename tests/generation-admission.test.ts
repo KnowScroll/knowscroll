@@ -9,6 +9,7 @@ import test from 'node:test';
 import pg from 'pg';
 import {generationBrief, type GenerationBrief} from '../packages/contracts/src/generation.ts';
 import * as storage from '../apps/worker/src/generation/storage.ts';
+import {drainStrayJobs} from './helpers/generation-fixture.ts';
 
 const databaseUrl = process.env.DATABASE_URL ?? (() => { throw new Error('DATABASE_URL required'); })();
 const databaseName = new URL(databaseUrl).pathname.slice(1);
@@ -90,21 +91,10 @@ function isDenied(code: string) {
   return (error: unknown) => error instanceof storage.GenerationDenied && error.code === code;
 }
 
-/** `pnpm test` runs every `tests/*.test.ts` file against one shared disposable database, and
- * `storage.claimJob` claims the globally oldest ready job. Draining any pre-existing `queued`
- * job away first (a benign, non-destructive status change) keeps every claim below deterministic
- * regardless of what another file in this run may have left behind. */
-async function drainStrayQueuedJobs(): Promise<void> {
-  for (;;) {
-    const claimed = await storage.claimJob(pool, {owner: 'generation-admission-test-sweep', leaseMs: 60_000});
-    if (!claimed) return;
-  }
-}
-
 test('ADR-0023 generation storage: admission, lease/fence, dispatch, outcomes, events, settlement', async (t) => {
   assetId = (await pool.query<{id: string}>('SELECT id FROM asset ORDER BY editorial_order LIMIT 1')).rows[0]?.id as string;
   assert.ok(assetId, 'the seeded library has at least one asset');
-  await drainStrayQueuedJobs();
+  await drainStrayJobs(pool, 'generation-admission-test-sweep');
   try {
 
   await t.test('admission is all-or-nothing; exactly at cap admits, one cent over refuses', async () => {

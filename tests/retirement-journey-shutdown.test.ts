@@ -5,7 +5,7 @@ import {once} from 'node:events';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import test, {type TestContext} from 'node:test';
+import test, {before, type TestContext} from 'node:test';
 import pg from 'pg';
 import {trackPoolDisconnect} from '../scripts/lib/pg-disconnect.ts';
 
@@ -38,10 +38,29 @@ test('child exit can precede delivery of its final stopped event', {timeout: 5_0
   assert.deepEqual(order,['exit','data','close']);
 });
 
+async function databaseUrl(): Promise<URL> {
+  const config=Object.fromEntries((await readFile('.env','utf8').catch(()=>''))
+    .split('\n').filter(line=>/^[A-Z_][A-Z0-9_]*=/.test(line)).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
+  return new URL(process.env.DATABASE_URL??config.DATABASE_URL??'');
+}
+
 /**
- * #136: this test has timed out in CI (10 s) while passing in ~0.2 s locally, even under CPU load.
- * If it runs past 8 s, say which step it is in and what every server process is waiting on, so the
- * next failure names its cause instead of only a timeout.
+ * #169: DROP DATABASE forces a checkpoint, and the first one in this file flushed whatever the rest
+ * of the suite had left unflushed. In CI run 35993358382 the forced drop below waited 7.9 s on
+ * CheckpointDone while the checkpointer synced data files, and that test hit its 10 s timeout in 4
+ * of the last 201 runs. Checkpointing first leaves the drops below only this file's own writes.
+ */
+before(async () => {
+  const url=await databaseUrl();url.pathname='/postgres';
+  const admin=new pg.Client({connectionString:url.toString()});
+  await admin.connect();
+  try {await admin.query('CHECKPOINT');} finally {await admin.end();}
+});
+
+/**
+ * #136: if the test below runs past 8 s, say which step it is in and what every server process is
+ * waiting on, so a failure names its cause instead of only a timeout (it named the checkpoint wait
+ * the hook above now settles).
  */
 function stallWatchdog(t: TestContext, base: URL, database: string, step: () => string): () => void {
   const timer = setTimeout(() => {
@@ -71,9 +90,7 @@ function stallWatchdog(t: TestContext, base: URL, database: string, step: () => 
 }
 
 test('pg pool end can resolve before its released client physically disconnects', {timeout: 10_000}, async (t) => {
-  const config=Object.fromEntries((await readFile('.env','utf8').catch(()=>''))
-    .split('\n').filter(line=>/^[A-Z_][A-Z0-9_]*=/.test(line)).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
-  const base=new URL(process.env.DATABASE_URL??config.DATABASE_URL??'');
+  const base=await databaseUrl();
   const name=`knowscroll_test_pg_disconnect_${randomUUID().replaceAll('-','')}`;
   const adminUrl=new URL(base);adminUrl.pathname='/postgres';
   const testUrl=new URL(base);testUrl.pathname=`/${name}`;
@@ -129,9 +146,7 @@ test('pg pool end can resolve before its released client physically disconnects'
 });
 
 test('tracked physical disconnect precedes ordinary database drop', {timeout: 10_000}, async () => {
-  const config=Object.fromEntries((await readFile('.env','utf8').catch(()=>''))
-    .split('\n').filter(line=>/^[A-Z_][A-Z0-9_]*=/.test(line)).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
-  const base=new URL(process.env.DATABASE_URL??config.DATABASE_URL??'');
+  const base=await databaseUrl();
   const name=`knowscroll_test_pg_disconnect_${randomUUID().replaceAll('-','')}`;
   const adminUrl=new URL(base);adminUrl.pathname='/postgres';
   const testUrl=new URL(base);testUrl.pathname=`/${name}`;

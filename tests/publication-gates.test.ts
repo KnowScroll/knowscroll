@@ -16,6 +16,7 @@ import pg from 'pg';
 import { runMigrations } from '../packages/db/src/migrations.ts';
 import { generationBrief, type GenerationBrief } from '../packages/contracts/src/generation.ts';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
+import { insertFakeEngine } from './helpers/generation-fixture.ts';
 import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts';
 import { evaluatePublicationGates } from '../apps/worker/src/publication/evaluate.ts';
 
@@ -160,12 +161,7 @@ async function seedFixture(pool: pg.Pool, options: FixtureOptions): Promise<Seed
   );
 
   const engineId = randomUUID();
-  const port = 20000 + Math.floor(Math.random() * 30000);
-  await pool.query(
-    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
-     VALUES($1,$2,$3,'/tmp/publication-gate-fixtures','standin','test')`,
-    [engineId, `http://127.0.0.1:${port}`, REVISION],
-  );
+  await insertFakeEngine(pool, { id: engineId, artifactRoot: '/tmp/publication-gate-fixtures', providerMode: 'standin' });
 
   const grantId = randomUUID();
   await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`, [grantId]);

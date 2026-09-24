@@ -101,8 +101,10 @@ class InquiriesViewModelTest {
             val model = viewModel(server, store)
             openLoaded(model)
 
+            server.holdAnswers()
             model.setEnabled(true)
             assertTrue("the change is working until the server answers", model.change.value is ConsentChangeState.Working)
+            server.releaseAnswers()
             awaitUntil { loaded(model).response.consent.enabled && model.change.value == ConsentChangeState.Idle }
             server.join()
 
