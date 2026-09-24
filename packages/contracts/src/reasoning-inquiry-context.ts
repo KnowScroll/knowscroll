@@ -13,7 +13,7 @@ const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
 const scope = { universeId: id, privacyEpoch: z.number().int().min(0).max(2147483647) };
 
-export const INQUIRY_CONTEXT_VERSIONS = Object.freeze({ compiler: 'bridge-inquiry-context-v1', prompt: 'bridge-inquiry-prompt-v3', sourcePolicy: 'inquiry-bridge-between-places-v1' });
+export const INQUIRY_CONTEXT_VERSIONS = Object.freeze({ compiler: 'bridge-inquiry-context-v1', prompt: 'bridge-inquiry-prompt-v4', sourcePolicy: 'inquiry-bridge-between-places-v1' });
 export const INQUIRY_KIND = 'bridge_between_places';
 export const INQUIRY_DIRTY_SCOPE = 'inquiry:bridge_between_places';
 export const INQUIRY_CONTEXT_LIMITS = Object.freeze({ maxBytes: 65_536, maxDependencies: 128, maxCausesPerInquiry: 16 });

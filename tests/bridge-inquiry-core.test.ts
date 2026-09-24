@@ -111,7 +111,7 @@ test('the request bytes are a deterministic function of the sealed pairs and the
   assert.match(request.system, /exactly one JSON object/);
   assert.match(request.system, /\{"none": true\}/);
   assert.match(request.system, /"proposal"/);
-  assert.match(request.system, /only claim keys offered/i);
+  assert.match(request.system, /all offered for that pair/i);
   const content: string = request.messages[0].content;
   for (const c of [...pairs[0]!.claimsA, ...pairs[0]!.both]) assert.ok(content.includes(c.statement) && content.includes(c.key));
   assert.ok(pairs.every(p => !content.includes(p.a.placeId) && !content.includes(p.b.placeId)), 'no place ids leave the process');
@@ -120,22 +120,32 @@ test('the request bytes are a deterministic function of the sealed pairs and the
 });
 
 const pairs = selectInquiryPairs(base);
+const sunGravity = pairs.findIndex(p => p.a.code === 'x.gravity' && p.b.code === 'x.sun');
+const compare = (pair: InquiryPair) => pair.admissible.findIndex(r => r.relationType === 'compares_mechanism');
+// Reply v2 (prompt v4): indexes, cited keys and prose; the system composes the typed proposal.
 const proposal = (over: Record<string, unknown> = {}) => ({
-  fromConcept: 'x.sun', toConcept: 'x.gravity', relationType: 'compares_mechanism',
+  pair: sunGravity, relation: compare(pairs[sunGravity]!),
   mechanism: 'The Sun keeps Earth on a closed path because its gravity bends the planet toward it every moment of the year.',
   prerequisites: [{ statement: 'Masses attract one another' }],
   limitations: [{ kind: 'analogy_limit', statement: 'The comparison stops at the scale of the solar system' }],
-  evidence: [{ claimKey: 'c.sun.identity', supports: 'from' }, { claimKey: 'c.gravity.def', supports: 'to' }, { claimKey: 'c.sun.held', supports: 'mechanism' }],
+  cite: ['c.sun.identity', 'c.gravity.def', 'c.sun.held'],
   counterevidence: { disposition: 'searched_none_found', searchedScope: 'the offered claims', claimKeys: [] },
   ...over,
 });
 const reply = (value: unknown) => JSON.stringify(value);
 
-test('one proposal for an offered pair, citing only offered claims, is a proposal (in either direction)', () => {
+test('the system composes the typed proposal: the direction from the chosen admissible entry, each side from where a claim was offered', () => {
   const parsed = parseBridgeInquiryReply(reply({ proposal: proposal() }), pairs);
   assert.equal(parsed.kind, 'proposal');
-  if (parsed.kind === 'proposal') assert.equal(parsed.payload.fromConcept, 'x.sun');
-  assert.equal(parseBridgeInquiryReply(reply({ proposal: proposal({ fromConcept: 'x.gravity', toConcept: 'x.sun' }) }), pairs).kind, 'proposal');
+  if (parsed.kind !== 'proposal') return;
+  assert.deepEqual([parsed.payload.relationType, parsed.payload.fromConcept, parsed.payload.toConcept], ['compares_mechanism', 'x.gravity', 'x.sun']);
+  assert.deepEqual(parsed.payload.evidence, [
+    { claimKey: 'c.sun.identity', supports: 'to' }, { claimKey: 'c.gravity.def', supports: 'from' }, { claimKey: 'c.sun.held', supports: 'mechanism' },
+  ]);
+  // "explains" goes only the way the claims carry it: Gravity explains The Sun, never the reverse.
+  const explains = pairs[sunGravity]!.admissible.findIndex(r => r.relationType === 'explains');
+  const e = parseBridgeInquiryReply(reply({ proposal: proposal({ relation: explains }) }), pairs);
+  assert.ok(e.kind === 'proposal' && e.payload.fromConcept === 'x.gravity' && e.payload.toConcept === 'x.sun');
 });
 
 test('"none" is an honest answer; reasoning blocks and one fenced block are tolerated like the answer path', () => {
@@ -153,13 +163,16 @@ test('anything else is a shape rejection, and says which rule it broke', () => {
   assert.deepEqual(shape('{"none": true, "why": "nothing"}'), ['shape', 'reply_keys']);
   assert.deepEqual(shape(reply({ proposal: proposal({ mechanism: 'too short' }) })), ['shape', 'payload_invalid']);
   assert.deepEqual(shape(reply({ proposal: proposal({ extra: 1 }) })), ['shape', 'payload_invalid']);
-  assert.deepEqual(shape(reply({ proposal: proposal({ fromConcept: 'x.gravity', toConcept: 'x.tides' }) })), ['shape', 'pair_not_offered']);
-  assert.deepEqual(shape(reply({ proposal: proposal({ evidence: [{ claimKey: 'c.sun.identity', supports: 'from' }, { claimKey: 'c.gravity.def', supports: 'to' }, { claimKey: 'c.gravity.invented', supports: 'mechanism' }] }) })), ['shape', 'claim_not_offered']);
+  assert.deepEqual(shape(reply({ proposal: proposal({ fromConcept: 'x.gravity' }) })), ['shape', 'payload_invalid'], 'the model never names the direction itself');
+  assert.deepEqual(shape(reply({ proposal: proposal({ pair: 9 }) })), ['shape', 'pair_not_offered']);
+  assert.deepEqual(shape(reply({ proposal: proposal({ relation: 9 }) })), ['shape', 'relation_not_admissible']);
+  assert.deepEqual(shape(reply({ proposal: proposal({ cite: ['c.sun.identity', 'c.gravity.def', 'c.gravity.invented'] }) })), ['shape', 'claim_not_offered']);
   assert.deepEqual(shape(reply({ proposal: proposal({ counterevidence: { disposition: 'listed', searchedScope: 'offered claims', claimKeys: ['c.body.stable'] } }) })), ['shape', 'claim_not_offered'],
     'a claim offered for another pair is not offered for this one');
+  assert.deepEqual(shape(reply({ proposal: proposal({ cite: ['c.sun.held'] }) })), ['shape', 'payload_invalid'], 'fewer than three distinct cited claims');
 });
 
-test('prompt v2 tells the model what the validator judges: each side\'s role in a claim naming both, and only admissible relation types', () => {
+test('the request tells the model what the validator judges: each side\'s role in a claim naming both, and only admissible relation types', () => {
   const pair = selectInquiryPairs(base).find(p => p.a.code === 'x.gravity' && p.b.code === 'x.sun')!;
   const held = pair.both.find(c => c.key === 'c.sun.held')!;
   assert.deepEqual(held.roles, { 'x.gravity': 'mechanism', 'x.sun': 'subject' });
@@ -168,10 +181,10 @@ test('prompt v2 tells the model what the validator judges: each side\'s role in 
   assert.deepEqual(offered[0].claimsNamingBoth.find((c: { key: string }) => c.key === 'c.sun.held').roles, { 'x.gravity': 'mechanism', 'x.sun': 'subject' });
   // A new pair has no recorded relation, so "applies_to"/"prerequisite_for" could never be admitted.
   assert.doesNotMatch(request.system, /applies_to|prerequisite_for/);
-  assert.match(request.system, /never one you cite as evidence/);
+  assert.match(request.system, /never one you cite/);
 });
 
-test('prompt v3 offers each pair only the relations its claims can carry, directions included', () => {
+test('the request offers each pair only the relations its claims can carry, directions included, by index', () => {
   const pair = selectInquiryPairs(base).find(p => p.a.code === 'x.gravity' && p.b.code === 'x.sun')!;
   // c.sun.held gives Gravity the mechanism role and The Sun the subject role: only Gravity explains The Sun.
   assert.deepEqual(pair.admissible, [
@@ -181,6 +194,7 @@ test('prompt v3 offers each pair only the relations its claims can carry, direct
   ]);
   const request = JSON.parse(new TextDecoder().decode(serializeBridgeInquiryRequest([pair], { model: 'm', maxOutputTokens: 100 })));
   const offered = JSON.parse(String(request.messages[0].content).split('\n').slice(1).join('\n'));
-  assert.deepEqual(offered[0].admissible, pair.admissible);
-  assert.match(request.system, /one of the pair's "admissible" entries/);
+  assert.deepEqual(offered[0].admissible, pair.admissible.map((r, index) => ({ index, ...r })));
+  assert.equal(offered[0].index, 0);
+  assert.match(request.system, /the index of one of that pair's "admissible" entries/);
 });

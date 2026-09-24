@@ -13,7 +13,8 @@ export type InquiryFixtureMode = 'proposal' | 'none' | 'prose' | 'unoffered_clai
 export const INQUIRY_FIXTURE_MODES: readonly InquiryFixtureMode[] = ['proposal', 'none', 'prose', 'unoffered_claim', 'invalid_bridge', 'http_error', 'transport_loss', 'hang'];
 
 type Offered = { key: string };
-type OfferedPair = { a: { code: string; name: string }; b: { code: string; name: string }; claimsAboutA: Offered[]; claimsAboutB: Offered[]; claimsNamingBoth: Offered[] };
+type OfferedPair = { index: number; a: { code: string; name: string }; b: { code: string; name: string }; claimsAboutA: Offered[]; claimsAboutB: Offered[]; claimsNamingBoth: Offered[];
+  admissible: { index: number; relationType: string; fromConcept: string; toConcept: string }[] };
 const usage = { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, costMicroUsd: null };
 
 function offeredPairs(body: Uint8Array): OfferedPair[] {
@@ -26,19 +27,21 @@ function reply(mode: InquiryFixtureMode, pairs: OfferedPair[]): unknown {
   const pair = pairs.find(p => p.claimsNamingBoth.length > 0);
   if (mode === 'none' || !pair) return { none: true };
   const mechanism = pair.claimsNamingBoth[0]!.key;
-  const from = pair.claimsAboutA[0]?.key ?? pair.claimsNamingBoth[1]?.key ?? mechanism;
-  const to = pair.claimsAboutB[0]?.key ?? pair.claimsNamingBoth[1]?.key ?? mechanism;
-  const evidence = mode === 'invalid_bridge'
-    // Every side cites only the connecting claim: the validator refuses sides without their own evidence.
-    ? [{ claimKey: mechanism, supports: 'from' }, { claimKey: mechanism, supports: 'to' }, { claimKey: mechanism, supports: 'mechanism' }]
-    : [{ claimKey: from, supports: 'from' }, { claimKey: to, supports: 'to' }, { claimKey: mode === 'unoffered_claim' ? 'clm.fixture.never_offered' : mechanism, supports: 'mechanism' }];
+  const aSide = pair.claimsAboutA[0]?.key ?? pair.claimsNamingBoth[1]?.key ?? mechanism;
+  const bSide = pair.claimsAboutB[0]?.key ?? pair.claimsNamingBoth[1]?.key ?? mechanism;
+  const relation = (kind: string) => pair.admissible.find(r => r.relationType === kind)!.index;
+  // Reply v2 (prompt v4): indexes and cited keys; the system composes the typed proposal.
   return {
     proposal: {
-      fromConcept: pair.a.code, toConcept: pair.b.code, relationType: 'compares_mechanism',
+      pair: pair.index,
+      relation: relation(mode === 'invalid_bridge' ? 'analogous_in' : 'compares_mechanism'),
       mechanism: `Fixture: ${pair.a.name} and ${pair.b.name} are linked through one offered claim that describes a single process acting on both of them.`,
       prerequisites: [{ statement: 'Fixture prerequisite: read both places first.' }],
-      limitations: [{ kind: 'analogy_limit', statement: 'Fixture reply; the comparison stops at the offered claims.' }],
-      evidence,
+      // invalid_bridge: an analogy that never says where it stops, which the validator refuses.
+      limitations: mode === 'invalid_bridge'
+        ? [{ kind: 'scope_limit', statement: 'Fixture reply; the offered claims only.' }]
+        : [{ kind: 'analogy_limit', statement: 'Fixture reply; the comparison stops at the offered claims.' }],
+      cite: [aSide, bSide, mode === 'unoffered_claim' ? 'clm.fixture.never_offered' : mechanism],
       counterevidence: { disposition: 'searched_none_found', searchedScope: 'the offered claims', claimKeys: [] },
     },
   };

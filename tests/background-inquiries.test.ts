@@ -216,7 +216,9 @@ test('a proposal the validator refuses is recorded with its reasons; nothing is 
   mode = 'proposal';
   const listed = (await list(r)).inquiries[0]!;
   assert.equal(listed.status, 'did_not_hold_up');
-  assert.ok(listed.reasons.includes('from_side_unsupported') && listed.reasons.includes('to_side_unsupported'), JSON.stringify(listed.reasons));
+  // Reply v2: the system assigns sides, so the fixture's refused proposal is an analogy that never
+  // says where it stops.
+  assert.ok(listed.reasons.includes('analogy_limit_missing'), JSON.stringify(listed.reasons));
   const inquiry = await inquiryOf(r);
   assert.equal((await pool.query('SELECT status FROM semantic_proposal WHERE id=$1', [inquiry.proposal_id])).rows[0].status, 'rejected');
   assert.equal(await count('bridge', r), 0);
