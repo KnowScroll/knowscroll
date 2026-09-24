@@ -24,6 +24,17 @@ class ReaderDiscoveryTest {
         assertEquals(setOf("visited"), visited)
     }
 
+    /** #164 (ADR-0046 §6): "New for you" in a place sheet opens that Scroll when the feed offers it. */
+    @Test fun aBoundScrollOpenedFromItsPlaceIsTakenWhenTheFeedOffersIt() {
+        val bound = item("bound")
+        assertEquals(DiscoverySelection.Item(bound), selectDiscovery(feed(items = listOf(item("first"), bound)), "owner", 4, emptySet(), null, preferredAssetId = "bound"))
+        // No longer offered (withdrawn meanwhile, or already read): discovery goes on as usual.
+        assertEquals(DiscoverySelection.Item(item("first")), selectDiscovery(feed(items = listOf(item("first"))), "owner", 4, emptySet(), null, preferredAssetId = "bound"))
+        // What this trip already opened is never taken again.
+        assertEquals(DiscoverySelection.Item(item("first")), selectDiscovery(feed(items = listOf(bound, item("first"))), "owner", 4, setOf("bound"), null, preferredAssetId = "bound"))
+        assertEquals(DiscoverySelection.InvalidScope, selectDiscovery(feed("foreign", items = listOf(bound)), "owner", 4, emptySet(), null, preferredAssetId = "bound"))
+    }
+
     @Test fun authorizedEmptyOrAlreadySeenFeedIsFiniteExhaustion() {
         assertEquals(DiscoverySelection.Exhausted, selectDiscovery(feed(), "owner", 4, emptySet(), null))
         assertEquals(DiscoverySelection.Exhausted, selectDiscovery(feed(items = listOf(item("current"))), "owner", 4, emptySet(), "current"))

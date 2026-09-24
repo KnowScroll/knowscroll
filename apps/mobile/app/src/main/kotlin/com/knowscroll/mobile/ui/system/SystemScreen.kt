@@ -89,6 +89,8 @@ fun SystemScreen(
     rooms: RoomControls? = null,
     /** #165: Keep on a place and on a found connection, and what the reader already kept or doubted. */
     keeps: KeepControls = KeepControls(),
+    // #164: "New for you" in a place sheet opens that Scroll in the reader.
+    onOpenBoundScroll: (String) -> Unit = {},
 ) {
     val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var inspection by rememberSaveable { mutableStateOf(false) }
@@ -241,6 +243,7 @@ fun SystemScreen(
                                             onCloseEvidence = onCloseEvidence,
                                             onOpenRoom = { rooms?.onOpen?.invoke(it) },
                                             keeps = keeps,
+                                            onOpenScroll = onOpenBoundScroll,
                                         )
                                 }
                             }
