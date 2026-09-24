@@ -2,7 +2,8 @@
 
 Issue [#131](https://github.com/KnowScroll/knowscroll/issues/131) (with the first #133/#134 thread), parent #72.
 Decision: [ADR-0031](../../../decisions/0031-semantic-substrate-and-validated-bridges.md).
-Implementation revision for the Android journey below: `5dd71a5` (receipt `source`).
+Implementation revision for the Android journey below: `cb2ac30` (receipt `source`), after the
+independent review's fix pass. The first run, at `5dd71a5`, is described under *Failures found*.
 
 ## Outcome
 
@@ -16,10 +17,10 @@ unsupported connection is refused and never offered.
 
 | Level | What ran | Result |
 |---|---|---|
-| Source verification | `scripts/substrate/verify-substrate.ts --require-snapshots` against hashed snapshots of 9 public pages (NASA, NOAA, OpenStax), retrieved 2026-09-24 | 70/70 quotes are exact passages; 9/9 hashes match ([substrate-verification.json](substrate-verification.json)) |
-| Pure validator | `tests/semantic-bridge-validator.test.ts` | 13/13 pass. Mutation checks: disabling the mechanism rule turns 4 tests red; disabling the direction rule turns 1 red |
-| Real PostgreSQL / HTTP | `tests/semantic-substrate.test.ts`, `semantic-editorial.test.ts`, `semantic-migration.test.ts` | 13 + 4 + 1 pass. Real editorial seed: 6/6 bridges admitted, 4/4 tempting bridges refused. Populated 0025→0026 upgrade preserves every prior row and checksum. Mutation checks: removing the semantic erasure or the suppression filter turns 3 tests red |
-| Android units | `./gradlew :app:testDebugUnitTest` | 100/100 (new: `BranchesTest` 5, `ReadingRestoreTest` 1 — red before its fix: expected 4079, was 3929) |
+| Source verification | `scripts/substrate/verify-substrate.ts --require-snapshots` against hashed snapshots of 9 public pages (NASA, NOAA, OpenStax), retrieved 2026-09-24 | 71/71 quotes are exact passages; 9/9 hashes match ([substrate-verification.json](substrate-verification.json)) |
+| Pure validator | `tests/semantic-bridge-validator.test.ts` | 18/18 pass, including the five admissions the review showed were wrong (upward generalisation, a refuting claim cited as support, contradiction order, loose direction, one claim serving every role). First-slice mutation checks: disabling the mechanism rule turns 4 tests red; disabling the direction rule turns 1 red |
+| Real PostgreSQL / HTTP | `tests/semantic-substrate.test.ts`, `semantic-editorial.test.ts`, `semantic-migration.test.ts` | 18 + 4 + 1 pass. Real editorial seed: 6/6 bridges admitted, 4/4 tempting bridges refused. Populated 0025→0026 upgrade preserves every prior row and checksum. Mutation checks: removing the semantic erasure or the suppression filter turns 3 tests red |
+| Android units | `./gradlew :app:testDebugUnitTest` | 102/102 (new: `BranchesTest` 6, `ReadingRestoreTest` 2 — red before their fixes: expected 4079, was 3929; a paused receipt parsed its null decision as the string `"null"`) |
 | Real emulator journey | `scripts/android-semantic-journey.py` → `SemanticBranchJourneyTest` on emulator-5554 (API36), separate `.journey` app, disposable API/worker/PostgreSQL on 4333 | `OK (1 test)`; DB lineage below |
 | Live provider | none | No model or provider call. Every bridge is editorial, decided by the deterministic validator |
 
@@ -30,8 +31,8 @@ unsupported connection is refused and never offered.
 1. The reader enters the Cable. The first Scroll ("An orbit is not a perfect circle") offers
    **"Is explained by Gravity"**, traveling the admitted `physics.gravity explains astro.orbit`
    bridge in reverse. ([semantic-connections.png](semantic-connections.png) shows the mechanism,
-   where it stops, and the evidence with its source.)
-2. The reader follows it and lands on "One force, many jobs" as `FOLLOWED A CONNECTION`, with a
+   what helps to know first, where it stops, and three cited quotes with their sources.)
+2. The reader follows it and lands on "The pull you can't see" as `FOLLOWED A CONNECTION`, with a
    visible `← An orbit is not a perfect …` back affordance
    ([semantic-branch-target.png](semantic-branch-target.png)).
 3. Activity recreation keeps the target, its origin and the way back.
@@ -61,19 +62,45 @@ the branch decision; the target's exposure admitted through that branch decision
 - **Verifier false pass.** The editorial-content worker found that `verify-substrate.ts` exited 0
   without checking anything when the path contains a space. Fixed with `pathToFileURL`.
 
+## Independent review fix pass
+
+A fresh-context review of `563253d` found one blocking and six important defects. All were fixed
+with a failing test first:
+
+- **Paused branches were recorded** (a decision row was stored). Now nothing is stored and
+  `decisionId` is null; Android never tries to expose such a target.
+- **Session expiry during the substrate lock wait** now refuses the branch.
+- **Validator admissions** listed above.
+- **Guards that direct SQL could bypass:** bridge evidence is immutable; a snapshot status change
+  without its correction propagation is refused at commit; an admitted proposal's stored decision
+  must agree with its status and validator version.
+- **The runner could lose the owner's preview data** — see *Owner preview* below.
+- **Clear/Reset of a universe's own bridge** is now exercised end to end.
+- **Proposal replay** is scoped per universe.
+
+Also fixed from the minors: a later seed can no longer extend existing claims or annotations, and
+it re-validates admitted bridges (a newly added contradiction revokes them with the seed named as
+the cause); the restore guard no longer treats the unmeasured `Int.MAX_VALUE` document as ready.
+
 ## Owner preview
 
 The `.journey` app is also the owner's preview on 4322. Each run pulls the installed APK and
-archives its app data, then reinstalls that exact APK, restores the data and relaunches it
-([preview-restored.json](preview-restored.json): APK sha256 and restored data size). Owner
-database `knowscroll` was never touched.
+archives its app data into a per-run timestamped backup, and refuses to replace anything unless
+that archive is readable and holds the preferences. Afterwards it reinstalls that exact APK,
+restores the data, compares the restored files (names and sizes) with the backup, and relaunches
+it ([preview-restored.json](preview-restored.json): APK sha256, file count, `dataVerified: true`).
+Owner database `knowscroll` was never touched.
 
 ## Limits
 
 - Bridges are editorial. Model-proposed bridges arrive with #132 through the same validator.
 - Continuations are Scroll-only; Reels carry no concept annotations yet.
-- The substrate is small (32 concepts, 59 claims, 6 bridges), so most Scrolls honestly say that
+- The substrate is small (32 concepts, 60 claims, 6 bridges), so most Scrolls honestly say that
   no connection leads on yet.
 - Emulator only (API36, debug build), not a physical device. Frame timing is not measured here.
+- Activity recreation is exercised; process death is not (the persisted return trail is proven by
+  `StateStore` unit tests only).
+- The paused-branch path is proven in SQL/HTTP and Android unit tests, not on the emulator: Android
+  has no pause control until #135.
 - Usefulness is not established by these checks. Owner review of whether these connections help is
   separate.

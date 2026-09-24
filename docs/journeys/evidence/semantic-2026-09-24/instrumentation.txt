@@ -1,7 +1,7 @@
 
 com.knowscroll.mobile.SemanticBranchJourneyTest:.
 
-Time: 9.95
+Time: 9.103
 
 OK (1 test)
 
