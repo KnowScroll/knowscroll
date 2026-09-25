@@ -1,5 +1,18 @@
 # Project state
 
+## 2026-09-25 Android: Idea Rooms, typed Relics, "more about this" and release readiness (#72)
+
+On the Android test app:
+
+- **Idea Rooms.** A question you ask about the same place on two days opens a room there, under your own words. Two readings that disagree take seats and hold sourced claims. A source correction can unseat one while you are away, and the return says so.
+- **Keep and doubt more things.** You can keep or doubt a place, a single passage of a Scroll, or an answer, as well as a connection. Keep lists every kind and says whether it still stands, was corrected, or was marked by you.
+- **More about a place you have read in full.** When you have read everything about a place, KnowScroll records that you want more. It can have a new Scroll written in its own words from public material. The place sheet says "Being written", "New for you" or why there is nothing more. A correction withdraws such a Scroll and tells you.
+  - One live attempt this session was refused by KnowScroll's own checks, so no model-written Scroll was served through this path yet.
+- **Release readiness.** The release build refuses to build without your domain, mail credentials and keystore, and invents none of them. A mailed sign-in link will open the app's sign-in screen. Upgrading and rolling back the database are written down. Privacy controls no longer resend a refused request.
+- **Acceptance** on the emulator: the everyday journeys work end to end, and the app is no slower than it was before this work. Two things were fixed on the way: the way back along a followed connection is readable at the largest text size, and exports always go through the system's save dialog. Predictions are not built yet.
+
+Still waiting on you: your domain, mail credentials and keystore; a physical phone for performance; your usefulness review (including whether the new Composer becomes the default); then Cutroom (#9). The web catch-up (#171) and Social (#137) are deferred.
+
 ## 2026-09-25 Android: sources hidden, corrections reach you while away, model-written Scrolls, Reels that explain themselves (#72)
 
 On the Android test app, readers no longer see any source. A source correction now reaches your
