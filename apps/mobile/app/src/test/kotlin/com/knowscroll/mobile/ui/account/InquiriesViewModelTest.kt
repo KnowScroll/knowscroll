@@ -44,9 +44,11 @@ class InquiriesViewModelTest {
         store: StateStore = freshStore(),
         onUnauthorized: () -> Unit = {},
         credential: CredentialProvider = CredentialProvider { "session-1" },
+        /** The app's own unless a test serves [lost]: an answer a loaded host delays past a short
+         * timeout would otherwise fail as if it were lost (#177). */
+        readTimeoutMs: Int = ApiClient.DEFAULT_READ_TIMEOUT_MS,
     ): InquiriesViewModel {
-        // A short read timeout: `TestHttpServer.HANG` stands for a response that never arrives.
-        val api = ApiClient(server.baseUrl, "", readTimeoutMs = 700, maxAttempts = 1, credential = credential, onUnauthorized = onUnauthorized)
+        val api = ApiClient(server.baseUrl, "", readTimeoutMs = readTimeoutMs, maxAttempts = 1, credential = credential, onUnauthorized = onUnauthorized)
         return InquiriesViewModel(ApplicationProvider.getApplicationContext<Application>(), api, store)
     }
 
@@ -63,7 +65,9 @@ class InquiriesViewModelTest {
         "closedAt":null,"pairs":[],"reasons":[],"found":null}"""
     private val withdrawn = """{"inquiryId":"11111111-1111-4111-8111-111111111111","status":"withdrawn","requestedAt":"2026-09-24T10:00:00.000Z",
         "closedAt":"2026-09-24T10:01:00.000Z","pairs":[],"reasons":["consent_off"],"found":null}"""
+    /** A response that never arrives; a short read timeout notices it quickly. */
     private val lost = TestHttpServer.HANG to ""
+    private val lostResponseReadTimeoutMs = 700
     private val staleEpoch = 409 to """{"error":"Consent privacy epoch is stale"}"""
     private val unauthorized = 401 to """{"error":"Unauthorized"}"""
 
@@ -138,7 +142,7 @@ class InquiriesViewModelTest {
         TestHttpServer.open().use { server ->
             server.serve(list(epoch = 4, enabled = false, dailyLimit = 3), lost, receipt(epoch = 4, enabled = true))
             val store = freshStore()
-            val model = viewModel(server, store)
+            val model = viewModel(server, store, readTimeoutMs = lostResponseReadTimeoutMs)
             openLoaded(model)
 
             model.setEnabled(true)
@@ -352,7 +356,7 @@ class InquiriesViewModelTest {
     fun aSecondChangeWhileOneIsWorkingIsIgnored() {
         TestHttpServer.open().use { server ->
             server.serve(list(), lost)
-            val model = viewModel(server)
+            val model = viewModel(server, readTimeoutMs = lostResponseReadTimeoutMs)
             openLoaded(model)
             model.setEnabled(true)
             model.setEnabled(true)

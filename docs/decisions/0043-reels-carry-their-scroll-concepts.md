@@ -26,6 +26,10 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
    copied: the brief's claims are its own narration claims mapped to the Scroll, and a Reel may
    present only some of the Scroll's substrate claims, so it must not be offered as the `challenge`
    of a contradiction it might not state, or counted as restating an argument it might not make.
+   Minting reads the Scroll's annotations under the substrate lock (shared, ADR-0031 §7), and a seed
+   load that first annotates a Scroll gives the same concepts to every Reel already minted over it
+   (`annotateReelsOver`, in the seed's own transaction). Whichever of the two commits second sees the
+   other, so a Reel's concepts are its Scroll's in either order (review follow-up, #183).
 2. **No migration and no backfill.** Annotations stay immutable and follow the asset (migration
    0026). A Reel asset can exist only in a disposable `knowscroll_test_*` database (the ADR-0024
    stand-in fence and the unavailable witness gate), so no persistent database holds an unannotated
@@ -44,17 +48,30 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
    reader's exposures and marks name outside the requested kinds; they ground families, fatigue and
    the no-adjacent-repeat rule, and are never offered. A history of the requested kinds only (every
    universe before Reels) composes exactly as before, with the same `composer-semantic-v3` row.
-4. **A Reel whose Scroll lost support follows the existing gates.** Its brief pins the Scroll's
-   revision; `source_support` fails closed when that revision changes, and a withdrawn Reel asset is
-   never offered. Automatic withdrawal after a correction remains the later correction-propagation
-   slice (ADR-0024 §5); this ADR adds nothing that keeps a Reel alive past its gates.
+4. **After a source correction a Reel behaves exactly as its Scroll does** (reworded after review,
+   #183). The correction revokes the bridges whose evidence rested on the corrected source
+   (ADR-0031), so the Reel's continuations shrink exactly as its Scroll's do. Nothing withdraws the
+   Reel itself: `source_support` checks the Scroll's asset revision, which a source correction does
+   not change, so the Reel stays eligible and served, like its Scroll. Withdrawing a Reel, or its
+   Scroll, after a correction is the correction propagation ADR-0024 §5 leaves for a later slice. A
+   withdrawn Reel asset is never offered.
 5. **Android: the Reel reader explains itself and continues.** A "Why" control on the Reel opens the
    Scroll reader's own why sheet (the same composable, the same recorded data and the same
    corrections), worded for a Reel. Its continuations are the same live `GET …/branches` list, shown in
    the existing "Continue →" rail and taken by the horizontal swipe; a continuation opens its Scroll
-   with the Reel as its origin, and Back returns to the Reel at its position. Per the owner's decision
-   of 2026-09-24, the sheet shows no source: no source names, publishers, URLs, licences or counts.
-   The authored preview has no recorded decision, so it shows no "Why".
+   with the Reel as its origin, and Back returns to the Reel at its position. The "Continue →" chooser
+   is the Scroll reader's own continuation section (`BranchSection`, without its connection sheet;
+   #183): while a chosen continuation opens it says so and offers nothing else to choose, a list that
+   could not be loaded offers Retry, an opening that failed says why there, and a Reel the reader
+   comes back to from an opened continuation has its chooser closed. **Reel mode survives a
+   continuation** (#183): the Cable mode is the reader's choice of what to discover, and a
+   continuation (always a Scroll, since a Reel is not yet a branch target) is a detour inside it.
+   The continuation is kept in the bank of the mode it was followed in, so a cold start reopens it in
+   Reel mode and the reader's Scroll-mode place is left alone; the next discovery from it is a Reel,
+   and Back returns to the Reel. Choosing Scroll mode there goes to the Scroll-mode place, as it does
+   from any Reel. Per the owner's decision of 2026-09-24, the why sheet shows no source: no source
+   names, publishers, URLs, licences or counts. The authored preview has no recorded decision, so it
+   shows no "Why".
 6. **Policy tuning is evidence-led and versioned.** `scripts/composer-compare.ts` walks golden and
    adversarial readers over a library that includes gated test Reels (one over several library
    Scrolls): the two interest readers, a Reel-heavy reader, a reader who only skips, a reader with one
@@ -93,7 +110,8 @@ that Scroll. What the Scroll is about is therefore what the Reel is about.
 
 ## Consequences
 
-`apps/worker/src/publication/mint.ts` (transactional mint with annotations); `packages/db/src/atlas.ts`
+`apps/worker/src/publication/mint.ts` (transactional mint with annotations, under the substrate lock);
+`annotateReelsOver` in `packages/db/src/semantic/seed.ts` (shared by the mint and the seed); `packages/db/src/atlas.ts`
 (Scroll-only counts); `V3State.history` and `V3Policy.tieBreak` in `packages/core/src/composer/semantic.ts`
 and their loader; migration 0037 (`composer-semantic-v4`), selectable through `buildApp`'s
 `composerPolicy`; a shared test fixture that mints a gated test Reel over a given Scroll
@@ -101,4 +119,6 @@ and their loader; migration 0037 (`composer-semantic-v4`), selectable through `b
 over a library Scroll for a hands-on stack); Android `ui/reel/ReelScreen.kt`, the why sheet's wording
 and the live reader's wiring; `scripts/composer-compare.ts`. Tests: pure Composer golden, adversarial
 and replay cases with Reels (and v4's fair tie-break); DB/API: a minted Reel's concepts, its why and path, a continuation from
-it, the atlas count; Android: the Reel why sheet and that it renders no source text.
+it, the atlas count, a Reel over a Scroll the seed annotates later, a mint that waits for a seed load, and a
+Reel's continuations after a source correction; Android: the Reel why sheet and that it renders no source text,
+the Reel chooser's opening, Retry and failure states, and that Reel mode survives a continuation.

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.BuildConfig
 import com.knowscroll.mobile.data.*
 import com.knowscroll.mobile.ui.*
+import com.knowscroll.mobile.ui.branch.BranchPanel
 import com.knowscroll.mobile.ui.reel.ReelScreen
 import com.knowscroll.mobile.ui.scroll.content.*
 import com.knowscroll.mobile.ui.theme.*
@@ -188,7 +189,7 @@ fun AuthoredPreview(
                                 onAuthorityFailure()
                             },
                             { _, _ -> },
-                            BranchAvailability.Ready(choices),
+                            BranchPanel(item.assetId, BranchAvailability.Ready(choices)),
                             { link ->
                                 branch(media.indexOfFirst { it.assetId == link.targetAssetId })
                             },

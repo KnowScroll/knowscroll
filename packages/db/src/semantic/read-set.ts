@@ -4,8 +4,9 @@
  * Lock order (ADR-0031 §7): the universe row lock, when a request holds
  * one, always comes first; the substrate advisory lock second. Writers of shared knowledge
  * (seed loads, shared proposals, corrections) take it exclusively; anything that must see a
- * stable substrate while writing private rows (universe proposals, branch opens, erasure) takes
- * it shared. Corrections never take a universe lock, so the two orders cannot cycle.
+ * stable substrate while writing private rows (universe proposals, branch opens, erasure) or a
+ * Reel's copied annotations (its mint, ADR-0043) takes it shared. Corrections never take a
+ * universe lock, so the two orders cannot cycle.
  *
  * The v1 substrate is editorial-sized (hundreds of concepts/claims), so a full load per decision
  * is deliberate: it keeps "what the validator saw" trivially equal to "what the database held".

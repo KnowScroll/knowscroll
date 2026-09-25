@@ -19,8 +19,8 @@
  * ever contains the owner address, the issued token, the confirmation link or the configured key.
  *
  * Runs against the outer test.sh-managed disposable database via the shared `pool`, exactly like
- * `tests/signin-http.test.ts`, and shares its `KS_OWNER_EMAIL` default so it reuses the same
- * single-row owner account rather than trying to create a second one.
+ * `tests/signin-http.test.ts`, and signs in as the same owner address (`tests/helpers/owner-address.ts`)
+ * so it reuses the same single-row owner account rather than trying to create a second one.
  */
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -28,8 +28,9 @@ import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool } from '../packages/db/src/index.ts';
 import { resolveOwnerEmail } from '../packages/db/src/sign-in.ts';
+import { useTestOwnerEmail } from './helpers/owner-address.ts';
 
-process.env.KS_OWNER_EMAIL ??= 'owner@knowscroll.test';
+useTestOwnerEmail();
 
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
   throw new Error('AgentMail route tests require an isolated knowscroll_test_* database');

@@ -45,6 +45,21 @@ export async function ensureRow(client: pg.PoolClient, table: string, keyColumn:
   return row.id;
 }
 
+/** ADR-0043: a Reel is about what its one source Scroll is about. Gives every Reel minted over
+ * `scrollAssetId` that carries no concepts yet the Scroll's own, with the same roles; never its
+ * claims (a Reel may state only some of them). Run when a Reel is minted and when the seed first
+ * annotates its Scroll, both under the substrate lock, so whichever commits second sees the other. */
+export async function annotateReelsOver(client: pg.PoolClient, scrollAssetId: string): Promise<void> {
+  await client.query(
+    `INSERT INTO asset_concept(asset_id,concept_id,role)
+     SELECT reel.id, ac.concept_id, ac.role
+     FROM asset reel JOIN generated_reel g ON g.id = reel.generated_reel_id JOIN generation_brief b ON b.id = g.brief_id
+     JOIN asset_concept ac ON ac.asset_id = b.source_asset_id
+     WHERE b.source_asset_id = $1 AND NOT EXISTS (SELECT 1 FROM asset_concept x WHERE x.asset_id = reel.id)`,
+    [scrollAssetId],
+  );
+}
+
 function parentsFirst(seed: SubstrateSeed): SubstrateSeed['concepts'] {
   const byCode = new Map(seed.concepts.map(c => [c.code, c]));
   const out: SubstrateSeed['concepts'] = [];
@@ -156,6 +171,7 @@ export async function loadSubstrateSeed(client: pg.PoolClient, rawText: string):
     if (!annotated) for (const key of annotation.claims) {
       await client.query('INSERT INTO asset_claim(asset_id,claim_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [annotation.assetId, claimIds.get(key)]);
     }
+    if (!annotated) await annotateReelsOver(client, annotation.assetId);
     await sameSet(`asset ${annotation.assetId} concepts`,
       `SELECT c.code || ':' || ac.role AS k FROM asset_concept ac JOIN concept c ON c.id = ac.concept_id WHERE ac.asset_id = $1`, [annotation.assetId],
       annotation.concepts.map(c => `${c.code}:${c.role}`));

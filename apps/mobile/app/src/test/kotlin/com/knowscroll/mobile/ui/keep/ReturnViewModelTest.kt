@@ -32,7 +32,9 @@ import java.net.SocketTimeoutException
 class ReturnViewModelTest {
     private val bridgeId = "22222222-2222-4222-8222-222222222222"
     private val relicId = "66666666-6666-4666-8666-666666666666"
+    /** A response that never arrives; a short read timeout notices it quickly. */
     private val lost = TestHttpServer.HANG to ""
+    private val lostResponseReadTimeoutMs = 700
 
     /** Replies queued per `METHOD /path`, served to whichever request asks for that route. */
     private class Routes(vararg replies: Pair<String, Pair<Int, String>>) {
@@ -45,9 +47,10 @@ class ReturnViewModelTest {
 
     private fun TestHttpServer.serve(routes: Routes) = serveBy(routes.count, routes::reply)
 
-    private fun viewModel(server: TestHttpServer, onUnauthorized: () -> Unit = {}): ReturnViewModel {
-        // A short read timeout: `TestHttpServer.HANG` stands for a response that never arrives.
-        val api = ApiClient(server.baseUrl, "", readTimeoutMs = 700, maxAttempts = 1, credential = CredentialProvider { "session-1" }, onUnauthorized = onUnauthorized)
+    /** [readTimeoutMs] is the app's own unless a test serves [lost]: an answer a loaded host delays
+     * past a short timeout would otherwise fail as if it were lost (#177). */
+    private fun viewModel(server: TestHttpServer, onUnauthorized: () -> Unit = {}, readTimeoutMs: Int = ApiClient.DEFAULT_READ_TIMEOUT_MS): ReturnViewModel {
+        val api = ApiClient(server.baseUrl, "", readTimeoutMs = readTimeoutMs, maxAttempts = 1, credential = CredentialProvider { "session-1" }, onUnauthorized = onUnauthorized)
         return ReturnViewModel(ApplicationProvider.getApplicationContext<Application>(), api)
     }
 
@@ -177,7 +180,7 @@ class ReturnViewModelTest {
     fun aLostAcknowledgementKeepsTheSameRequestAndRetrySendsItAgain() {
         TestHttpServer.open().use { server ->
             server.serve(Routes(away(found), relics(), "POST /v1/away/acknowledge" to lost, acknowledged(), away()))
-            val model = viewModel(server)
+            val model = viewModel(server, readTimeoutMs = lostResponseReadTimeoutMs)
             openAtlas(model)
             model.markSeen()
             awaitUntil { model.acknowledge.value is ReturnActionState.Failed }
@@ -318,7 +321,7 @@ class ReturnViewModelTest {
     fun anUnconfirmedSeemsWrongIsSentAgainAsTheSameRequest() {
         TestHttpServer.open().use { server ->
             server.serve(Routes(away(found), relics(), "POST /v1/connections/feedback" to lost, feedback, away(found), relics()))
-            val model = viewModel(server)
+            val model = viewModel(server, readTimeoutMs = lostResponseReadTimeoutMs)
             openAtlas(model)
             model.seemsWrong(connectionTarget)
             awaitUntil { (connectionState(model).seemsWrong as? ReturnActionState.Failed)?.canRetry == true }
@@ -353,7 +356,7 @@ class ReturnViewModelTest {
     fun anUnconfirmedLetGoIsRetriedForTheSameRelic() {
         TestHttpServer.open().use { server ->
             server.serve(Routes(relics(relic()), "POST /v1/relics/$relicId/release" to lost, released, relics()))
-            val model = viewModel(server)
+            val model = viewModel(server, readTimeoutMs = lostResponseReadTimeoutMs)
             model.readRelics()
             awaitUntil { model.relics.value is RelicsState.Loaded }
             model.letGo(relicId)
@@ -474,7 +477,7 @@ class ReturnViewModelTest {
         val target = RelicTarget.Passage(assetId, 1, "clm.c")
         TestHttpServer.open().use { server ->
             server.serve(Routes(passages(passage("clm.c")), "POST /v1/objections" to lost, objected, passages(passage("clm.c", seemsWrong = true)), relics()))
-            val model = viewModel(server)
+            val model = viewModel(server, readTimeoutMs = lostResponseReadTimeoutMs)
             model.openPassages(assetId)
             awaitUntil { model.passages.value is PassagesState.Loaded }
             model.seemsWrong(target)

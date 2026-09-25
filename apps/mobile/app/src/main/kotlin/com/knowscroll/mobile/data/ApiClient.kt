@@ -34,7 +34,7 @@ class ApiClient(
     private val baseUrl: String = BuildConfig.KS_DEBUG_API_BASE,
     token: String = BuildConfig.KS_DEV_TOKEN,
     private val connectTimeoutMs: Int = 5_000,
-    private val readTimeoutMs: Int = 8_000,
+    private val readTimeoutMs: Int = DEFAULT_READ_TIMEOUT_MS,
     private val maxAttempts: Int = 2,
     /** #135: the signed-in token if present; otherwise, only in a debug build, [token] (the
      * development session) if non-blank; otherwise no credential. The default closes over
@@ -47,6 +47,9 @@ class ApiClient(
      * a real vault. */
     private val onUnauthorized: () -> Unit = SessionInvalidation::reportUnauthorized,
 ) {
+    companion object {
+        const val DEFAULT_READ_TIMEOUT_MS = 8_000
+    }
 
     suspend fun getUniverse(): Universe = io {
         get("/v1/universe") { obj ->

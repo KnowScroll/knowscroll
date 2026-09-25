@@ -28,6 +28,12 @@ data class TraceRevisitSession(
 
 const val MAX_BRANCH_TRAIL = 8
 
+/** The Cable mode [session] is read in, and so the bank that keeps it. A discovery is read in its
+ * own kind's mode; a continuation (always a Scroll) stays in the mode it was followed in, [current]:
+ * following one from a Reel keeps Reel mode (#183, ADR-0043 §5). */
+internal fun cableModeFor(session: ScrollSession, current: String): String =
+    if (session.branchFrom == null) session.item.kind else current
+
 /** #135: one persisted privacy-lifecycle retry envelope. See [StateStore.writePendingPrivacyRequest].
  * [mayHaveLanded]: an earlier attempt of this request may have been applied without its answer
  * arriving (a lost response, a 5xx). [inFlight]: an attempt was dispatched and its outcome never
@@ -88,7 +94,7 @@ class StateStore(context: Context) {
 
     fun write(s: ScrollSession) {
         val json = sessionJson(s)
-        check(prefs.edit().putString("session", json.toString()).putString("session_${s.item.kind}", json.toString())
+        check(prefs.edit().putString("session", json.toString()).putString("session_${cableModeFor(s, readCableMode())}", json.toString())
             .putString("readingAssetId",s.item.assetId).putInt("readingPosition",s.readingPosition).commit()) { "Could not save the retry envelope" }
     }
 

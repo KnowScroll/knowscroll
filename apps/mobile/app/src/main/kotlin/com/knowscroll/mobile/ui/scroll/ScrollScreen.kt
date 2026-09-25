@@ -299,7 +299,7 @@ private fun ReadingSheet(
                         com.knowscroll.mobile.ui.scroll.content.ScrollDocument.fromBody(item.body)
                     }
                     com.knowscroll.mobile.ui.scroll.content.ScrollBlocks(document)
-                    BranchSection(branches, onOpenBranch, onRetryBranches) { onConnectionsOpenChange(true) }
+                    BranchSection(branches, { onOpenBranch(it.id) }, onRetryBranches) { onConnectionsOpenChange(true) }
                     HorizontalDivider(color = Cosmos.CreamDim)
                     DiscoveryThreshold(state.keep, state.discovery, onNext)
                 }
