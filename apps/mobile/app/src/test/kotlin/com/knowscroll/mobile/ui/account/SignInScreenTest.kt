@@ -32,12 +32,28 @@ class SignInScreenTest {
         reason: SignedOutReason? = null,
         onRequestLink: (String) -> Unit = {},
         onSubmitLink: (String) -> Unit = {},
+        receivedLink: String? = null,
+        onReceivedLinkShown: () -> Unit = {},
     ) {
         composeRule.setContent {
             KnowScrollTheme {
-                SignInScreen(linkRequest, tokenSubmit, reason, onRequestLink, onSubmitLink)
+                SignInScreen(linkRequest, tokenSubmit, reason, onRequestLink, onSubmitLink, receivedLink, onReceivedLinkShown)
             }
         }
+    }
+
+    /** #168 (ADR-0047): an opened App Link fills the field; signing in is still the reader's tap. */
+    @Test
+    fun anOpenedLinkFillsTheFieldAndSignsInOnlyOnTheReadersTap() {
+        var submitted: String? = null
+        var shown = 0
+        render(onSubmitLink = { submitted = it }, receivedLink = "https://links.knowscroll.example/sign-in#token=abc", onReceivedLinkShown = { shown++ })
+        composeRule.onAllNodesWithText("https://links.knowscroll.example/sign-in#token=abc").assertCountEquals(1)
+        // Used once: a later composition (a rotation) never puts it back over what the reader typed.
+        assertEquals(1, shown)
+        assertEquals(null, submitted)
+        composeRule.onNodeWithContentDescription("Sign in with this link").performClick()
+        assertEquals("https://links.knowscroll.example/sign-in#token=abc", submitted)
     }
 
     @Test

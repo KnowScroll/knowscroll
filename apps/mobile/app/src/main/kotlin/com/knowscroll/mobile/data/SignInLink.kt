@@ -21,6 +21,22 @@ fun parseSignInToken(raw: String): String? {
     return uri.rawQuery?.let(::tokenFromQueryLike)
 }
 
+/**
+ * #168 (ADR-0047): the sign-in link an opened App Link carries, or `null` for anything that must
+ * not be put in front of the reader. Any app can send the activity a link, so only exactly
+ * `https://<appLinksHost>/sign-in` -- default port, no user info, a token [parseSignInToken]
+ * accepts -- is taken, and never from a relaunch out of Recents, which re-delivers the intent that
+ * first started the activity. The whole link is returned: it only fills the paste field, since a
+ * link opens the confirmation, never the consumption (ADR-0026 section 3).
+ */
+fun receivedSignInLink(data: String?, appLinksHost: String, launchedFromHistory: Boolean): String? {
+    if (data == null || launchedFromHistory) return null
+    val uri = runCatching { URI(data) }.getOrNull() ?: return null
+    val exact = uri.scheme == "https" && uri.host.equals(appLinksHost, ignoreCase = true) &&
+        uri.port == -1 && uri.rawUserInfo == null && uri.rawPath == "/sign-in"
+    return data.takeIf { exact && parseSignInToken(it) != null }
+}
+
 private fun tokenFromQueryLike(part: String): String? {
     for (pair in part.split("&")) {
         val separator = pair.indexOf('=')

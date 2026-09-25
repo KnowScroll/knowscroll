@@ -66,12 +66,15 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
                 val linkRequest by accountViewModel.linkRequest.collectAsStateWithLifecycle()
                 val tokenSubmit by accountViewModel.tokenSubmit.collectAsStateWithLifecycle()
                 val reason by accountViewModel.signedOutReason.collectAsStateWithLifecycle()
+                val receivedLink by accountViewModel.receivedLink.collectAsStateWithLifecycle()
                 SignInScreen(
                     linkRequest = linkRequest,
                     tokenSubmit = tokenSubmit,
                     reason = reason,
                     onRequestLink = accountViewModel::requestLink,
                     onSubmitLink = accountViewModel::submitPastedLink,
+                    receivedLink = receivedLink,
+                    onReceivedLinkShown = accountViewModel::receivedLinkShown,
                 )
             }
         }
@@ -109,6 +112,7 @@ fun KnowScrollApp(accountViewModel: AccountViewModel = viewModel()) {
                         onRequestExport = accountViewModel::requestExport,
                         onRetryExport = accountViewModel::retryExport,
                         onExportSaved = accountViewModel::consumeExport,
+                        onExportNotSaved = accountViewModel::exportNotSaved,
                         onRequestResetConfirmation = accountViewModel::requestResetConfirmation,
                         onCancelReset = accountViewModel::cancelReset,
                         onConfirmReset = accountViewModel::confirmReset,

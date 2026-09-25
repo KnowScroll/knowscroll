@@ -146,3 +146,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - run: ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --no-daemon
         working-directory: apps/mobile
+      # ADR-0047: the release variant is shrunk and signed on every run, with a throwaway keystore made
+      # here and never kept, so a missing keep rule or a release-only break shows up before the
+      # owner's inputs arrive. The API address can never resolve.
+      - name: Build and verify a release with throwaway inputs
+        working-directory: apps/mobile
+        run: |
+          pass="$(openssl rand -hex 16)"
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/throwaway.p12" -storetype PKCS12 -storepass "$pass" \
+            -alias throwaway -keyalg RSA -keysize 2048 -validity 1 -dname "CN=throwaway"
+          KS_RELEASE_STORE_FILE="$RUNNER_TEMP/throwaway.p12" KS_RELEASE_STORE_PASSWORD="$pass" KS_RELEASE_KEY_ALIAS=throwaway \
+            KS_RELEASE_KEY_PASSWORD="$pass" KS_RELEASE_API_BASE=https://api.knowscroll.invalid ./gradlew :app:assembleRelease --no-daemon
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk

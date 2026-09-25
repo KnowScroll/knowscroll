@@ -159,12 +159,13 @@ class AccountViewModelTest {
         }
     }
 
+    /** An uncertain failure (a 5xx may follow a commit behind a proxy); a refusal is the #168 tests below. */
     @Test
     fun aFailedPausePersistsItsRequestAndAnExplicitRetryReusesTheSameOne() {
         TestHttpServer.open().use { server ->
             server.serve(
                 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":null}""",
-                409 to """{"error":"stale epoch"}""",
+                503 to """{"error":"unavailable"}""",
                 200 to """{"receiptId":"r1","action":"pause","privacyEpoch":5,"recordingPausedAt":"2026-09-24T00:00:00Z","appliedAt":"2026-09-24T00:00:00Z"}""",
             )
             val store = StateStore(freshContext())
@@ -634,6 +635,222 @@ class AccountViewModelTest {
             assertNull(store.readPendingPrivacyRequest("reset"))
             assertEquals(PrivacyOperationState.Idle, model.delete.value)
             assertEquals(PrivacyOperationState.Idle, model.reset.value)
+        }
+    }
+
+    // ---- #168 (ADR-0047): an opened App Link ----
+
+    private val openedLink = "https://links.knowscroll.example/sign-in#token=raw-token"
+
+    /** The link opens the confirmation, never the consumption (ADR-0026 section 3): it waits in the
+     * sign-in field for the reader's tap, and nothing is sent. */
+    @Test
+    fun anOpenedLinkWaitsForTheReaderAndSendsNothing() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault())
+            model.receiveSignInLink(openedLink)
+            assertEquals(openedLink, model.receivedLink.value)
+            assertEquals(AuthState.SignedOut, model.authState.value)
+            assertEquals(0, server.requests.size)
+        }
+    }
+
+    @Test
+    fun aSignedInDeviceIgnoresAnOpenedLink() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            model.receiveSignInLink(openedLink)
+            assertNull(model.receivedLink.value)
+        }
+    }
+
+    /** Once used, the link is spent: a later sign-out must not offer it again. */
+    @Test
+    fun signingInWithTheOpenedLinkForgetsIt() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u1",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a1","origin":"magic_link"}""",
+            )
+            val model = viewModel(server, FakeSessionVault())
+            model.receiveSignInLink(openedLink)
+            model.submitPastedLink(openedLink)
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+            assertNull(model.receivedLink.value)
+            assertEquals("raw-token", JSONObject(server.requests[0].body).getString("token"))
+        }
+    }
+
+    /** An expired, used or unknown token is one indistinguishable 401 (ADR-0026 section 3). */
+    @Test
+    fun anExpiredOrUsedLinkSaysSoAndLeavesTheDeviceSignedOut() {
+        TestHttpServer.open().use { server ->
+            server.serve(unauthorized)
+            val vault = FakeSessionVault()
+            val model = viewModel(server, vault)
+            model.submitPastedLink(openedLink)
+            awaitUntil { model.tokenSubmit.value is TokenSubmitState.Failed }
+            assertEquals(TokenSubmitState.Failed("This link is no longer valid. Request a new one."), model.tokenSubmit.value)
+            assertEquals(AuthState.SignedOut, model.authState.value)
+            assertNull(vault.readToken())
+        }
+    }
+
+    // ---- #168: a pause, resume or export belongs to the session that sent it ----
+
+    private val lifecycleIntents = listOf("pause", "resume", "export")
+
+    /** The session ended with a pause, resume and export unconfirmed. None of them is the next
+     * session's to retry -- that may be another account's universe -- and Privacy reads the real
+     * recording state again anyway. */
+    @Test
+    fun aSessionThatEndsTakesItsUnconfirmedPauseResumeAndExportWithIt() {
+        TestHttpServer.open().use { server ->
+            server.serve(unauthorized)
+            val store = StateStore(freshContext())
+            lifecycleIntents.forEach { store.writePendingPrivacyRequest(it, "earlier-$it", 5, mayHaveLanded = true) }
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            model.openPrivacy()
+            awaitUntil { model.authState.value is AuthState.SignedOut }
+            server.join()
+
+            lifecycleIntents.forEach { assertNull("the ended session's $it", store.readPendingPrivacyRequest(it)) }
+            val nextProcess = viewModel(server, FakeSessionVault(), store)
+            assertEquals(PrivacyOperationState.Idle, nextProcess.pause.value)
+            assertEquals(PrivacyOperationState.Idle, nextProcess.resume.value)
+        }
+    }
+
+    /** The reader's own sign-out (#91) ends a session without passing through this view model; the
+     * new sign-in still leaves nothing of the earlier one to retry. */
+    @Test
+    fun aNewSignInClearsAnEarlierSessionsPendingPauseResumeAndExport() {
+        TestHttpServer.open().use { server ->
+            server.serve(
+                200 to """{"sessionToken":"session-2","sessionId":"s2","deviceId":"d2","universeId":"u2",
+                    "privacyEpoch":0,"expiresAt":"2026-10-01T00:00:00Z","accountId":"a2","origin":"magic_link"}""",
+            )
+            val store = StateStore(freshContext())
+            lifecycleIntents.forEach { store.writePendingPrivacyRequest(it, "earlier-$it", 5) }
+            store.writeSignedOut()
+            val model = viewModel(server, FakeSessionVault(), store)
+            assertTrue("offered as an earlier process left it", model.pause.value is PrivacyOperationState.Failed)
+
+            model.submitPastedLink("https://knowscroll.test/sign-in#token=raw-token")
+            awaitUntil { model.authState.value is AuthState.SignedIn }
+            server.join()
+
+            lifecycleIntents.forEach { assertNull("the earlier session's $it", store.readPendingPrivacyRequest(it)) }
+            assertEquals(PrivacyOperationState.Idle, model.pause.value)
+            assertEquals(PrivacyOperationState.Idle, model.resume.value)
+            model.retryPause() // nothing kept, and Privacy not loaded: nothing is sent
+            assertEquals(1, server.snapshot().size)
+        }
+    }
+
+    // ---- #168: an export is done only when its file holds it ----
+
+    @Test
+    fun anExportThatNeverReachedItsFileIsReportedAndRetryExportsAgain() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, 200 to """{"receiptId":"e1","privacyEpoch":5}""", 200 to """{"receiptId":"e2","privacyEpoch":5}""")
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            openLoadedPrivacy(model)
+            model.requestExport()
+            awaitUntil { model.export.value is ExportState.Ready }
+
+            model.exportNotSaved()
+            assertTrue("never shown as done", model.export.value is ExportState.Failed)
+            model.retryExport()
+            awaitUntil { model.export.value is ExportState.Ready }
+            server.join()
+            assertEquals(3, server.requests.size)
+        }
+    }
+
+    /** The process died while the picker was open; its answer reaches a new view model, which never
+     * held the export. */
+    @Test
+    fun anExportLostWithTheProcessIsReportedToTheNextOne() {
+        TestHttpServer.open().use { server ->
+            val model = viewModel(server, FakeSessionVault("session-1"))
+            model.exportNotSaved()
+            assertTrue(model.export.value is ExportState.Failed)
+            assertEquals(0, server.requests.size)
+        }
+    }
+
+    // ---- #168: a refused pause, resume or export is never re-sent with its stale epoch ----
+
+    private val pausedAt5 = 200 to """{"universeId":"u1","revision":1,"privacyEpoch":5,"traces":[],"capabilities":{},"recordingPausedAt":"2026-09-24T00:00:00Z"}"""
+    private val pausedAt6 = 200 to """{"universeId":"u1","revision":2,"privacyEpoch":6,"traces":[],"capabilities":{},"recordingPausedAt":"2026-09-24T00:00:00Z"}"""
+
+    /** A 409 (the epoch moved on, e.g. Clear on another device) applied nothing, and the same request
+     * could only be refused again: nothing is kept, Privacy reloads, and Retry asks afresh at the
+     * epoch the screen now shows. */
+    @Test
+    fun aRefusedPauseKeepsNothingAndRetryAsksAgainAtTheCurrentEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, epochChanged, universeAt6,
+                200 to """{"receiptId":"r1","action":"pause","privacyEpoch":6,"recordingPausedAt":"2026-09-25T00:00:00Z","appliedAt":"2026-09-25T00:00:00Z"}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestPause()
+            awaitUntil { model.pause.value is PrivacyOperationState.Failed }
+            assertNull("a refusal applied nothing: no request is kept to retry", store.readPendingPrivacyRequest("pause"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.retryPause()
+            awaitUntil { model.pause.value is PrivacyOperationState.Idle }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertTrue("a fresh request, never the refused one", requestIdOf(server, 3) != requestIdOf(server, 1))
+        }
+    }
+
+    @Test
+    fun aRefusedResumeKeepsNothingAndRetryAsksAgainAtTheCurrentEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(pausedAt5, epochChanged, pausedAt6,
+                200 to """{"receiptId":"r1","action":"resume","privacyEpoch":6,"recordingPausedAt":null,"appliedAt":"2026-09-25T00:00:00Z"}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestResume()
+            awaitUntil { model.resume.value is PrivacyOperationState.Failed }
+            assertNull(store.readPendingPrivacyRequest("resume"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.retryResume()
+            awaitUntil { model.resume.value is PrivacyOperationState.Idle && (model.privacy.value as PrivacyState.Loaded).recordingPausedAt == null }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertTrue(requestIdOf(server, 3) != requestIdOf(server, 1))
+        }
+    }
+
+    @Test
+    fun aRefusedExportKeepsNothingAndRetryExportsAtTheCurrentEpoch() {
+        TestHttpServer.open().use { server ->
+            server.serve(universeAt5, epochChanged, universeAt6, 200 to """{"receiptId":"e1","privacyEpoch":6}""")
+            val store = StateStore(freshContext())
+            val model = viewModel(server, FakeSessionVault("session-1"), store)
+            openLoadedPrivacy(model)
+
+            model.requestExport()
+            awaitUntil { model.export.value is ExportState.Failed }
+            assertNull(store.readPendingPrivacyRequest("export"))
+            awaitUntil { (model.privacy.value as? PrivacyState.Loaded)?.privacyEpoch == 6L }
+
+            model.retryExport()
+            awaitUntil { model.export.value is ExportState.Ready }
+            server.join()
+            assertEquals(6L, JSONObject(server.requests[3].body).getLong("expectedPrivacyEpoch"))
+            assertTrue(requestIdOf(server, 3) != requestIdOf(server, 1))
         }
     }
 

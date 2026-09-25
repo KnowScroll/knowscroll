@@ -59,7 +59,7 @@ class ReaderAuthorityJourneyTest {
     }
 
     private fun revokeJourneySessions(): Int {
-        val connection = URL(BuildConfig.KS_DEBUG_API_BASE + "/__journey/revoke-sessions")
+        val connection = URL(BuildConfig.KS_API_BASE + "/__journey/revoke-sessions")
             .openConnection() as HttpURLConnection
         return try {
             connection.requestMethod = "POST"
