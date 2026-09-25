@@ -36,11 +36,7 @@ before(async () => {
     transport: 'fixture', model: 'fixture-model', maxInputTokens: 16384, maxOutputTokens: 2048, requestCap: 4, tokenBudget: 1_000_000,
     ownerCapacity: 1_000_000, jobCapacity: 100_000, coalescingDelaySeconds: 0, jobTtlSeconds: 600, remoteSlots: 1 }));
 });
-after(async () => {
-  // Leave no enabled route behind for later files in the same disposable database.
-  await pool.query('UPDATE background_inquiry_route SET enabled=false WHERE policy_version=$1', [POLICY]);
-  await app.close(); await pool.end();
-});
+after(async () => { await app.close(); await pool.end(); });
 
 test('The Sun supplied before consent and Gravity formed after it: one inquiry, found, and a continuation where Gravity is read', async () => {
   const { token, scope } = await provisionIdentity();

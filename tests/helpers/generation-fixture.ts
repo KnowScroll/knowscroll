@@ -1,18 +1,15 @@
 import type pg from 'pg';
 import * as storage from '../../apps/worker/src/generation/storage.ts';
 
-/** `pnpm test` runs every `tests/*.test.ts` file against one shared disposable database.
- * `storage.claimJob` deliberately claims the globally oldest ready job (never scoped to a single
- * caller's own rows), so a `generation_job` another file in this same run left claimable (for
- * example `generation-contract.test.ts`'s own admission-guard fixture, left `queued`) would
- * otherwise be claimed by a later file by mistake instead of its own job. Claiming those away first
- * is a benign, non-destructive status change (that file's own assertions about them have already
- * completed by the time the next file runs) and makes every later claim deterministic.
+/** `storage.claimJob` deliberately claims the globally oldest ready job (never scoped to a single
+ * caller's own rows), so a `generation_job` an earlier test in the same file left claimable would
+ * otherwise be claimed by mistake instead of the next test's own job. (Each file has its own
+ * database, #188, so only this file's rows are there.) Claiming those away first is a benign,
+ * non-destructive status change and makes every later claim deterministic.
  *
- * #169: a job another file left under a live lease is not claimable yet, but becomes so the moment
- * that lease runs out -- mid-file, when it outlasts the files in between (generation-admission's
- * 20 s leases ran out inside generation-runtime on CI). Its worker went with that file's process,
- * so the lease is ended now and the job drained with the rest. */
+ * #169: a job left under a live lease is not claimable yet, but becomes so the moment that lease
+ * runs out, in the middle of a later test. Its worker has stopped, so the lease is ended now and the
+ * job drained with the rest. */
 export async function drainStrayJobs(db: pg.Pool, owner: string): Promise<void> {
   await db.query('UPDATE generation_job SET lease_expires_at=clock_timestamp() WHERE lease_expires_at>clock_timestamp()');
   for (;;) {
@@ -22,9 +19,9 @@ export async function drainStrayJobs(db: pg.Pool, owner: string): Promise<void> 
 }
 
 /** Registers a Cutroom engine nothing listens on, for rows that only need one to point at. An
- * origin belongs to at most one active engine (`cutroom_engine_one_active_origin`), and every file's
- * engines stay active in the shared database, so the port is the lowest one no active engine holds
- * -- #169: a random port collided with an earlier file's engine often enough to fail CI. */
+ * origin belongs to at most one active engine (`cutroom_engine_one_active_origin`), and the engines
+ * earlier tests in the file registered stay active, so the port is the lowest one no active engine
+ * holds -- #169: a random port collided with an earlier engine often enough to fail CI. */
 export async function insertFakeEngine(db: pg.Pool, engine: {id: string; artifactRoot: string; providerMode: 'standin' | 'live'}): Promise<void> {
   const inserted = await db.query(
     `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)

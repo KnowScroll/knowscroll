@@ -1,5 +1,6 @@
 package com.knowscroll.mobile.data
 
+import java.io.BufferedReader
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.thread
@@ -58,7 +59,7 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
                 if (line.isNullOrEmpty()) break
                 if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
             }
-            val requestBody = if (length > 0) String(CharArray(length).also { input.read(it, 0, length) }) else ""
+            val requestBody = input.readBody(length)
             val recorded = Recorded(requestLine, requestBody)
             requests += recorded
             val (status, body) = reply(recorded)
@@ -91,4 +92,20 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
         const val HANG = -1
         fun open(): TestHttpServer = TestHttpServer(ServerSocket(0))
     }
+}
+
+/**
+ * A request body of [length] characters, read until it is all in. One read can stop at the first
+ * segment, and closing a socket with unread input resets the connection before the client reads
+ * the answer (#177). Every raw-HTTP test fixture reads its bodies with this.
+ */
+internal fun BufferedReader.readBody(length: Int): String {
+    val chars = CharArray(length)
+    var read = 0
+    while (read < length) {
+        val n = read(chars, read, length - read)
+        if (n < 0) break
+        read += n
+    }
+    return String(chars, 0, read)
 }

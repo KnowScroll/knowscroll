@@ -34,8 +34,7 @@ import { readScroll } from './helpers/reading.ts';
 if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Inventory tests require a disposable knowscroll_test_* database');
 const app = buildApp(randomBytes(32).toString('hex'));
 await app.ready();
-// The writing route is deployment-wide: leave none of this file's enabled for the files after it.
-after(async () => { await pool.query('UPDATE scroll_writing_route SET enabled=false WHERE enabled AND id LIKE \'fixture-i%\''); await app.close(); await pool.end(); });
+after(async () => { await app.close(); await pool.end(); });
 
 const SENTINEL = 'A sentinel sentence no Scroll quotes: the harbour keeper logged every tide in a green ledger.';
 

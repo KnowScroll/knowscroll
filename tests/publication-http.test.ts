@@ -181,9 +181,9 @@ async function seedMediaFixture(options: MediaFixtureOptions): Promise<MediaFixt
 
 // -------------------------------------------------------------------------------------------
 
-test('a fixture engine never takes an origin an engine registered earlier in this run still holds', async (t) => {
-  // #169: every file's engines stay active in the one shared database, and an origin belongs to at
-  // most one active engine. A random fixture port that landed on one of them failed this file on CI.
+test('a fixture engine never takes an origin an engine registered earlier still holds', async (t) => {
+  // #169: engines registered earlier stay active, and an origin belongs to at most one active engine.
+  // A random fixture port that landed on one of them failed this file on CI.
   const held = 'http://127.0.0.1:20000';
   await pool.query(
     `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)

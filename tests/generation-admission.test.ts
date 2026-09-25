@@ -149,13 +149,9 @@ test('ADR-0023 generation storage: admission, lease/fence, dispatch, outcomes, e
 
     // This runtime slice refuses ANY live-engine job outright (owner decision 2026-09-20, ADR-0023
     // section 2). A live engine is checked before the grant at all, so this needs no live-mode
-    // grant row here: migration 0013's cumulative 200-cent live-grant cap is a single shared
-    // database-wide total, and `generation-contract.test.ts` (a different lane's file, sharing
-    // this same disposable database within one `pnpm test` run) already exercises that boundary
-    // exactly at its limit. Creating an additional live grant here would risk breaking that file's
-    // assertions depending on file execution order, so `grant_mode_mismatch` (standin engine vs.
-    // live grant) is intentionally left unexercised in this file; it is covered indirectly by
-    // migration 0013's own admission trigger, which `generation-contract.test.ts` already proves.
+    // grant row here. `grant_mode_mismatch` (standin engine vs. live grant) is left to migration
+    // 0013's own admission trigger, which `generation-contract.test.ts` proves at the cumulative
+    // live-grant cap.
     const liveEngineId = await freshEngine('live');
     await assert.rejects(
       storage.createJob(pool, {briefId, engineId: liveEngineId, grantId, until: 'video', budgetCents: 100, deadlineAt: future()}),
