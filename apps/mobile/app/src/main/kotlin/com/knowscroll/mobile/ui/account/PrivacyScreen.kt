@@ -100,19 +100,9 @@ fun PrivacyScreen(
         if (uri == null) actions.onExportSaved()
         else reportSaved(writeExport(exportJson) { context.contentResolver.openOutputStream(uri) })
     }
-    // The disposable journey app (`scripts/android-semantic-journey.py`'s `owner` mode) cannot
-    // drive the system's own Storage Access Framework picker -- a separate process/activity --
-    // so it writes the export straight to the app's own cache dir instead and skips the picker
-    // entirely, the same `.journey`-package gate `AuthoredPreview`/`AuthoredAtlas` already use for
-    // their own owner-testable-only behaviour. Real builds always go through the SAF picker.
-    val isJourneyBuild = com.knowscroll.mobile.BuildConfig.DEBUG && com.knowscroll.mobile.JourneyBuild.isJourney(context.packageName)
-    val onSaveExport: () -> Unit = {
-        if (isJourneyBuild) {
-            reportSaved(writeExport(exportJson) { java.io.File(context.cacheDir, "owner-journey-export.json").outputStream() })
-        } else {
-            saveExport.launch(exportFileName())
-        }
-    }
+    // Every build saves through the system's Storage Access Framework picker; the owner journey
+    // stubs the picker's answer (OwnerAccountJourneyTest), never a path of its own here (#170).
+    val onSaveExport: () -> Unit = { saveExport.launch(exportFileName()) }
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
         Column(

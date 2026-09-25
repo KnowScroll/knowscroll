@@ -1,6 +1,10 @@
 package com.knowscroll.mobile.journey
 
+import android.app.Activity
+import android.app.Instrumentation
+import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -11,6 +15,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.Intents.intending
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.knowscroll.mobile.MainActivity
@@ -132,16 +139,22 @@ class OwnerAccountJourneyTest {
         waitText("Recording is on")
         screenshot("owner-07-resumed.png")
 
-        // 6. Export: the journey build writes straight to the app cache instead of driving the
-        // system Storage Access Framework picker (a separate process/activity) -- see
-        // PrivacyScreen's `isJourneyBuild` gate.
+        // 6. Export through the app's own save path: the system picker (a separate process) is
+        // answered with a file in this app's cache, as if the reader had chosen it (#170).
         compose.onNodeWithContentDescription("Export my data").performScrollTo().performClick()
         waitDescription("Save the export file", timeoutMs = 20_000)
-        compose.onNodeWithContentDescription("Save the export file").performClick()
-        compose.waitUntil(15_000) {
-            compose.onAllNodesWithContentDescription("Export my data").fetchSemanticsNodes().isNotEmpty()
-        }
         val exportFile = File(instrumentation.targetContext.cacheDir, "owner-journey-export.json")
+        Intents.init()
+        try {
+            intending(hasAction(Intent.ACTION_CREATE_DOCUMENT))
+                .respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, Intent().setData(Uri.fromFile(exportFile))))
+            compose.onNodeWithContentDescription("Save the export file").performClick()
+            compose.waitUntil(15_000) {
+                compose.onAllNodesWithContentDescription("Export my data").fetchSemanticsNodes().isNotEmpty()
+            }
+        } finally {
+            Intents.release()
+        }
         assertTrue("the export must have been written to the app cache", exportFile.exists() && exportFile.length() > 0)
         val exportRowCounts = runCatching { JSONObject(exportFile.readText()).optJSONObject("rowCounts") }.getOrNull()
         screenshot("owner-08-exported.png")
