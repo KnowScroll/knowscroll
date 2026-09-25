@@ -97,7 +97,8 @@ class TestHttpServer private constructor(private val server: ServerSocket) : Aut
 /**
  * A request body of [length] characters, read until it is all in. One read can stop at the first
  * segment, and closing a socket with unread input resets the connection before the client reads
- * the answer (#177). Every raw-HTTP test fixture reads its bodies with this.
+ * the answer (#177). Every raw-HTTP test fixture reads its bodies with this. Content-Length counts
+ * bytes and this counts characters: the fixtures' bodies are ASCII JSON, where the two agree.
  */
 internal fun BufferedReader.readBody(length: Int): String {
     val chars = CharArray(length)

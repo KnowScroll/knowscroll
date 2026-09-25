@@ -127,7 +127,7 @@ class BranchesTest {
                             if (line.isNullOrEmpty()) break
                             if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
                         }
-                        input.read(CharArray(length), 0, length)
+                        input.readBody(length)
                         socket.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n$body").toByteArray())
                     }
                 }

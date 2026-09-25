@@ -29,7 +29,7 @@ C (a generated series) waits for Cutroom (#9). F (Social) is deferred (#137).
 `AtlasProfileTest`, run through `scripts/android-native-profile.py`: 12 cycles into and out of the authored Atlas's Orbits planet, with every frame phase recorded. All numbers are in `frame-profile-summary.json`.
 
 - **Baseline.** `b77a971`, the first main with this scenario (#161 removed the live world view that the PR130 profile used).
-- **After.** This branch (final main `bb86ad9` plus this PR, with no change to the Atlas).
+- **After.** `dc0c5f9`: final main `bb86ad9` plus this PR's export and fixture fixes. The later reader fix does not touch the Atlas.
 - **Order.** Baseline runs 1–4, then after/baseline interleaved on a quiet host.
 
 | Median, interleaved runs | p50 | p95 | animation p95 | draw p95 | swap p95 | PSS |
@@ -74,4 +74,4 @@ C (a generated series) waits for Cutroom (#9). F (Social) is deferred (#137).
 - A physical phone: frame timing, startup, memory, video playback and TalkBack gestures (#136, owner's phone).
 - Release signing with the owner's keystore, App Links verification on the owner's domain, and real mail delivery (#72, owner inputs).
 - Usefulness: whether these journeys are good, and whether `composer-semantic-v4` should become the default (the owner's review).
-- A MiniMax-written Scroll served through the inventory loop: the one live request (#164) was refused by the checks. The live continuation step (#166) was not triggered in three live runs; each first proposal was either admitted or refused for its shape.
+- A MiniMax-written Scroll served through the inventory loop: the one live request (#164) was refused by the checks. The live continuation step (#166) was not triggered in three live runs; each first proposal was either admitted or refused for its shape. The third run (one request, ledger 73 → 74) is `live-inquiry-run.json`: statuses, counts and hashes only.

@@ -8,8 +8,8 @@
  * #113: earlier versions of this file found a source's asset by reading `GET /v1/feed` and
  * matching a seeded editorial `sourceUrl`. That coupled a derivation test to whichever ranking
  * policy `/v1/feed` happens to run — real ranking (composer-signals-v2, #114/ADR-0029) does not
- * guarantee any specific source appears in a bounded slate when the `asset` table is shared with
- * every other test file in the run (ADR-0029's own coverage guarantee is about a source
+ * guarantee any specific source appears in a bounded slate when the `asset` table holds a large
+ * library (ADR-0029's own coverage guarantee is about a source
  * eventually being reached across many decisions, not about any one decision). This file has
  * nothing to do with ranking, so it no longer goes through the feed at all: every test below seeds
  * its own, uniquely-URLed source directly into `asset`, then constructs the `decision` row itself

@@ -259,8 +259,8 @@ private fun ReadingSheet(
             ReadingProgressSliver(readingScroll, modifier = Modifier.weight(1f))
         }
         // #131: a Scroll opened by a connection shows where it came from, and one tap returns there at
-        // the exact reading position (the same path as system Back). #170: on its own line, so a
-        // long title or the largest text size never squeezes it to "…".
+        // the exact reading position (the same path as system Back). #170: on its own line (two at
+        // most), no longer squeezed beside the origin chip to "…" by a long title or large text.
         (state.origin as? com.knowscroll.mobile.ui.ReaderOrigin.Branch)?.let { origin ->
             val backLabel = stringResource(R.string.reader_branch_back, origin.fromTitle)
             TextButton(

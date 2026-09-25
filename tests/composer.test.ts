@@ -6,11 +6,11 @@
  * SQL recomputation of the same (published) policy weights over the raw `exposure`/`ledger`
  * facts — never by re-invoking `rankSignalCandidates` and asserting it agrees with itself.
  *
- * `asset` (kind='Scroll') is a single global table shared with every other test file in this run
- * (same convention `tests/inventory-http.test.ts` documents), and the bounded slate always fills
+ * `asset` (kind='Scroll') is a single global table that the seed and every test in this file add
+ * to (each file has its own database copy, #188), and the bounded slate always fills
  * up to `slate_size` from whatever is eligible and unkept — ranking never drops a low-scoring
  * candidate just because a better one exists elsewhere. So rather than trying to out-score
- * whatever another file already left in the shared library (which a tie could still let back in),
+ * whatever the seed or an earlier test already left in the library (which a tie could still let back in),
  * every test below marks every pre-existing Scroll as already kept for its own fresh universe
  * before inserting its own fixtures: the real, production `kept_asset_ids` exclusion
  * (`rankSignalCandidates` filters on it before any scoring) removes the existing library from
