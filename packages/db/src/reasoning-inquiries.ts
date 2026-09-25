@@ -235,7 +235,9 @@ export async function postInquiryMail(client: pg.PoolClient, universeId: string,
 }
 
 /** Revoked bridges (shared, or the reader's own) between two of a consenting, recording reader's live
- * planets or regions, revoked since that reader's consent was turned on (or recording resumed), not yet mailed. */
+ * planets or regions, revoked since that reader's consent was turned on (or recording resumed), not yet mailed.
+ * A reader whose pending inquiry already holds its 16 causes is left until that inquiry opens (#182), so
+ * their revocations never fill a pass and hold up everyone else's. */
 const REVOKED_CONNECTIONS = `SELECT u.id AS universe_id, b.id AS bridge_id FROM bridge b
   JOIN atlas_place f ON f.anchor_concept_id = b.from_concept_id AND f.state = 'live' AND f.kind IN ('planet','region')
   JOIN atlas_place t ON t.universe_id = f.universe_id AND t.anchor_concept_id = b.to_concept_id AND t.state = 'live' AND t.kind IN ('planet','region')
@@ -243,7 +245,9 @@ const REVOKED_CONNECTIONS = `SELECT u.id AS universe_id, b.id AS bridge_id FROM 
   JOIN background_inquiry_consent c ON c.universe_id = u.id AND c.privacy_epoch = u.privacy_epoch AND c.enabled
   WHERE b.status = 'revoked' AND (b.universe_id IS NULL OR b.universe_id = u.id)
     AND b.status_changed_at > inquiry_mail_since(u.id, u.privacy_epoch)
-    AND NOT EXISTS (SELECT 1 FROM inquiry_mail m WHERE m.universe_id = u.id AND m.cause_bridge_id = b.id)`;
+    AND NOT EXISTS (SELECT 1 FROM inquiry_mail m WHERE m.universe_id = u.id AND m.cause_bridge_id = b.id)
+    AND NOT EXISTS (SELECT 1 FROM background_inquiry i WHERE i.universe_id = u.id AND i.kind = '${INQUIRY_KIND}' AND i.status = 'pending'
+      AND (SELECT count(*) FROM inquiry_mail m WHERE m.inquiry_id = i.id) >= ${INQUIRY_CONTEXT_LIMITS.maxCausesPerInquiry})`;
 
 /**
  * ADR-0042 §5.3: a source correction that revoked a connection between two of a reader's live places asks

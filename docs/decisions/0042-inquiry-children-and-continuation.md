@@ -107,6 +107,8 @@ preflight.
    revoked bridges, shared or the reader's own, between two of their live planets or regions, revoked
    after their consent was last turned on and after recording last resumed. Each revocation is mailed
    at most once per universe. The connection may then be looked for again from current evidence.
+   A reader whose pending inquiry already holds its 16 causes is passed over until that inquiry opens
+   (#182), so their revocations never fill a pass and hold up another reader's.
 4. **No backfill.** Nothing earlier than the current consent (or the last resume) becomes paid work, and
    old recorded-only Asks stay untouched.
 
@@ -127,7 +129,10 @@ preflight.
    was dispatched (`sent`). A pair counts as asked in this epoch only if its request was sent, and it
    counts no longer once a bridge between the pair has been revoked since.
 6. **One live run at a time.** The live runners take an exclusive lock on the shared session ledger for
-   the whole run, so two runs started at once cannot both pass its check.
+   the whole run, so two runs started at once cannot both pass its check. Every live tool counts through
+   one module, `scripts/lib/session-ledger.ts`, under that one lock (#181): the runners and the Android
+   journey (through its command line) for the whole run, `write-scrolls.ts` for each request. A missing
+   ledger is refused, never created with a default cap, and each count is written durably.
 
 ## Not in this version
 
@@ -161,7 +166,9 @@ kinds. The web client's controls.
   - truncation;
   - continuation refused when the context changed;
   - a lost acknowledgement held as unknown, never resent;
-  - competing workers;
+  - competing workers (#182: deterministic, one worker holding a continuation in flight while another
+    runs; two schedulers claiming one ready Job at once are covered by the fairness SQL tests; two
+    polling one policy at once mostly block each other, see `docs/operations/reasoning-sql-fairness.md`);
   - consent off and Clear during a continuation call;
   - a stale continuation output discarded;
   - children on one budget, settling and withdrawal;

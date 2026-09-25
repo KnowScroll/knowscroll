@@ -3,6 +3,7 @@ package com.knowscroll.mobile.data
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,9 +24,12 @@ class WatchedAnswerStoreTest {
 
     @Test
     fun theWatchedAnswerSurvivesAColdStartWholeAndClears() {
-        freshStore().writeWatchedAnswer(watched)
+        val store = freshStore()
+        store.writePendingAnswerRequest(PendingAnswerRequest("cr1", watched.askId, watched.expectedPrivacyEpoch))
+        assertTrue(store.watchAnswer(watched, "cr1"))
         val cold = StateStore(ApplicationProvider.getApplicationContext())
         assertEquals(watched, cold.readWatchedAnswer())
+        assertNull("its request was accepted: the retry envelope went with the same commit", cold.readPendingAnswerRequest())
         cold.clearWatchedAnswer()
         assertNull(cold.readWatchedAnswer())
     }
@@ -33,7 +37,8 @@ class WatchedAnswerStoreTest {
     @Test
     fun aPrivacyPurgeDropsTheWatchedAnswer() {
         val store = freshStore()
-        store.writeWatchedAnswer(watched)
+        store.writePendingAnswerRequest(PendingAnswerRequest("cr1", watched.askId, watched.expectedPrivacyEpoch))
+        assertTrue(store.watchAnswer(watched, "cr1"))
         store.purgePrivateState("u1", 3)
         assertNull(store.readWatchedAnswer())
     }

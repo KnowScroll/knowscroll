@@ -4,7 +4,8 @@
  * the labelled fixture transport. Proves: a personal hypothesis about a live place that changes status
  * mails an inquiry in the refresh's own transaction; a source correction that revokes a bridge between
  * two of a consenting reader's live places mails one from the worker, once, and the pair may be asked
- * again; each mail records its typed cause and coalesces as ADR-0038 §3; nothing earlier than consent
+ * again, and a reader whose pending inquiry is full holds up no one else's (#182); each mail records
+ * its typed cause and coalesces as ADR-0038 §3; nothing earlier than consent
  * (or the last resume) is ever mailed; and the schema refuses a cause the rules do not allow.
  */
 import { after, before, test } from 'node:test';
@@ -13,7 +14,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
-import { mailRevokedConnections } from '../packages/db/src/reasoning-inquiries.ts';
+import { mailRevokedConnections, openDueInquiries } from '../packages/db/src/reasoning-inquiries.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
@@ -128,6 +129,42 @@ test('a correction that revokes a bridge between two live places mails a look ag
   const again = await newestInquiry(r.universeId);
   assert.deepEqual(again.pairs.map((p: { a: { code: string }; b: { code: string } }) => [p.a.code, p.b.code]), [[f.codes.gravity, f.codes.sun]]);
   assert.equal(again.dispatched, 1);
+});
+
+test('a reader whose pending inquiry is full never holds up another reader\'s revocation mail (#182)', async () => {
+  // Revocations left by earlier tests are mailed first, so the pass below sees only this test's.
+  while (await mailRevokedConnections(pool) > 0);
+  const connect = (r: InquiryReader, own: InquiryFixture) => transaction(async client => {
+    await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [r.universeId]);
+    await submitBridgeProposal(client, { scope: { kind: 'universe', universeId: r.universeId, privacyEpoch: 0 }, proposerKind: 'person', proposerRef: `person-${own.tag}`, payload: gravitySunPayload(own) });
+  });
+  const revoke = (own: InquiryFixture) => transaction(client => correctSourceSnapshot(client, { sourceKey: own.sources.physics, action: 'revoked', reason: 'Fixture: this source was withdrawn' }, 'editorial'));
+  const pendingCauses = async (universeId: string) => (await pool.query(`SELECT count(*)::int AS n FROM inquiry_mail m JOIN background_inquiry i ON i.id = m.inquiry_id
+    WHERE i.universe_id=$1 AND i.status='pending'`, [universeId])).rows[0].n;
+
+  // Twenty places formed after consent fill the full reader's one pending inquiry, and ten of its own
+  // connections between them are revoked, before one of another reader's.
+  const full = await consentingReader(app);
+  const owns: InquiryFixture[] = [];
+  for (let n = 0; n < 10; n += 1) owns.push(await loadInquiryFixture(pool));
+  await formPlaces(full.universeId, owns.flatMap(own => [own.codes.gravity, own.codes.sun]));
+  assert.equal(await pendingCauses(full.universeId), 16);
+  for (const own of owns) await connect(full, own);
+  const other = await consentingReader(app);
+  const last = await loadInquiryFixture(pool);
+  await formPlaces(other.universeId, [last.codes.gravity, last.codes.sun]);
+  await connect(other, last);
+  for (const own of [...owns, last]) await revoke(own);
+  const otherBridge = (await pool.query(`SELECT id FROM bridge WHERE universe_id=$1 AND status='revoked'`, [other.universeId])).rows[0].id;
+
+  assert.equal(await mailRevokedConnections(pool), 1, 'one pass mails the other reader');
+  assert.deepEqual((await mail(other.universeId)).filter(m => m.cause_kind === 'bridge_revoked').map(m => m.cause_bridge_id), [otherBridge]);
+  assert.equal(await pendingCauses(full.universeId), 16, 'the full inquiry takes no more');
+
+  // Once the full inquiry opens, the next pass mails the ten revocations into a new one.
+  await openDueInquiries(pool);
+  assert.equal(await mailRevokedConnections(pool), 10);
+  assert.equal((await mail(full.universeId)).filter(m => m.cause_kind === 'bridge_revoked').length, 10);
 });
 
 test('no backfill: a revocation before consent, or while paused, is never mailed', async () => {

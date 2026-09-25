@@ -407,7 +407,7 @@ test('a refused Scroll funds the next material once; a second refusal is checks_
   await readTidesInFull(app, a.h, a.universeId, s.f);
   await feed(a);
   const first = await s.pass();
-  assert.deepEqual(first.kind === 'done' && [first.status, first.reasons], ['refused', ['quote_not_in_material']]);
+  assert.deepEqual(first.kind === 'done' && [first.status, first.reasons], ['refused', ['quote_not_in_material', 'quote:absent']]);
   assert.deepEqual([(await demandOf(a, s.f.codes.tides)).decision, (await requestsFor(s.f.codes.tides)).map(r => r.status)], ['fund', ['refused', 'open']]);
   await s.pass();
   const stopped = await demandOf(a, s.f.codes.tides);

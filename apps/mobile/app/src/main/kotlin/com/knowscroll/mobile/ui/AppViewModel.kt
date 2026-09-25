@@ -28,7 +28,6 @@ import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.data.WorldSystemResponse
 import com.knowscroll.mobile.data.BranchFrom
 import com.knowscroll.mobile.data.BranchOpenRequest
-import com.knowscroll.mobile.data.PendingAnswerRequest
 import com.knowscroll.mobile.data.PendingAsk
 import com.knowscroll.mobile.data.WatchedAnswer
 import com.knowscroll.mobile.data.questionIsValid
@@ -46,6 +45,7 @@ import com.knowscroll.mobile.ui.ask.answerRequestConflict
 import com.knowscroll.mobile.ui.ask.askToWatchOnReopen
 import com.knowscroll.mobile.ui.ask.cancelAlreadyStarted
 import com.knowscroll.mobile.ui.ask.reopenedAskPanel
+import com.knowscroll.mobile.ui.ask.requestWatchedAnswer
 import com.knowscroll.mobile.ui.ask.stageAfterPoll
 import com.knowscroll.mobile.ui.system.SetAsideConflict
 import com.knowscroll.mobile.ui.system.setAsideConflict
@@ -696,7 +696,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val reading=_scroll.value as? ScrollState.Reading ?: return
         val panel=_ask.value?.takeIf{it.assetId==reading.item.assetId} ?: return
         // After an unclear failure the Ask is still recorded: the reader retries the same request
-        // (its saved key is reused below), never a new question and a second paid request.
+        // (requestWatchedAnswer reuses its saved key), never a new question and a second paid request.
         val askId=when(val stage=panel.stage){is AskStage.Recorded->stage.askId;is AskStage.Error->stage.askId;else->null} ?: return
         val currentSession=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
         busy=true
@@ -705,15 +705,14 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _ask.value=panel.copy(stage=AskStage.Requesting)
         viewModelScope.launch {
             try {
-                val pending=store.readPendingAnswerRequest()?.takeIf{it.askId==askId && it.expectedPrivacyEpoch==epoch}
-                    ?: PendingAnswerRequest(UUID.randomUUID().toString(),askId,epoch).also(store::writePendingAnswerRequest)
-                val receipt=api.requestAnswer(pending)
-                if(version!=navigationVersion || epoch!=observedPrivacyEpoch)return@launch
-                store.clearPendingAnswerRequest()
-                store.writeWatchedAnswer(WatchedAnswer(receipt.askId,reading.item.assetId,epoch,panel.question))
-                if(_ask.value?.assetId!=reading.item.assetId)return@launch
-                _ask.value=_ask.value?.copy(stage=AskStage.Waiting(receipt.askId,"queued"))
-                pollAnswer(receipt.askId,reading.item.assetId,epoch)
+                // Accepted in this epoch, the answer is watched even if the reader has moved on (#182).
+                // Only polling follows the screen: a reader who left finds the sheet waiting when they
+                // reopen it, and reopening watches again (askToWatchOnReopen).
+                val watched=requestWatchedAnswer(store,WatchedAnswer(askId,reading.item.assetId,epoch,panel.question),api::requestAnswer,
+                    epochIsCurrent={epoch==observedPrivacyEpoch})
+                if(!watched || _ask.value?.assetId!=reading.item.assetId)return@launch
+                _ask.value=_ask.value?.copy(stage=AskStage.Waiting(askId,"queued"))
+                if(version==navigationVersion)pollAnswer(askId,reading.item.assetId,epoch)
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(version!=navigationVersion)return@launch
@@ -724,16 +723,6 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         store.clearPendingAnswerRequest()
                         if(_ask.value?.assetId==reading.item.assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,
                             getApplication<Application>().getString(com.knowscroll.mobile.R.string.ask_paused_request)))
-                    }
-                    conflict==AnswerRequestConflict.AlreadyRequested -> {
-                        // Idempotent from this reader's own point of view: what was asked for is
-                        // already in flight, so watch it rather than surface a false failure.
-                        store.clearPendingAnswerRequest()
-                        store.writeWatchedAnswer(WatchedAnswer(askId,reading.item.assetId,epoch,panel.question))
-                        if(_ask.value?.assetId==reading.item.assetId){
-                            _ask.value=_ask.value?.copy(stage=AskStage.Waiting(askId,"queued"))
-                            pollAnswer(askId,reading.item.assetId,epoch)
-                        }
                     }
                     conflict==AnswerRequestConflict.NotAsker -> {
                         store.clearPendingAnswerRequest()

@@ -118,6 +118,33 @@ test('quote_not_in_material: a claim quote that is not an exact passage of the s
   assert.deepEqual(reasonsOf(d => { d.claims[0]!.quote = 'it pulls hardest on the side facing it'; }), ['quote_not_in_material']);
 });
 
+test('each refused quote carries a quote-diagnosis-v1 code, never its text (#181)', () => {
+  const MIXED = normalizeSnapshotText(`${MATERIAL} The Moon’s pull is a “tide-raising” force — strongest on the near side.`);
+  const diagnoses = (...quotes: string[]) => {
+    const d = draft();
+    quotes.forEach((quote, i) => { d.claims[i]!.quote = quote; });
+    const verdict = checkScrollDraft(d, { ...context, material: MIXED });
+    return verdict.ok ? null : { reasons: verdict.reasons, quoteDiagnoses: verdict.quoteDiagnoses };
+  };
+  // Straight for curly, and a hyphen for a dash: only the typography differs.
+  assert.deepEqual(diagnoses('The Moon\'s pull is a "tide-raising" force - strongest'),
+    { reasons: ['quote_not_in_material'], quoteDiagnoses: ['quote:typography'] });
+  // A capital at the start of a quote taken from mid-sentence.
+  assert.deepEqual(diagnoses('It pulls hardest on the side that faces it')?.quoteDiagnoses, ['quote:case']);
+  // A sentence break inserted, or punctuation dropped: the same words in the same order.
+  assert.deepEqual(diagnoses('both bulges. So many shores see two high tides')?.quoteDiagnoses, ['quote:words']);
+  // An elision or a changed ending: at least half its words are one run of the material's.
+  assert.deepEqual(diagnoses('many shores see two high tides and two low tides each and every day, it is said')?.quoteDiagnoses, ['quote:partial']);
+  assert.deepEqual(diagnoses('a sentence the material never contained at all')?.quoteDiagnoses, ['quote:absent']);
+  // One code per refused quote, in claim order; a quote that is on the page has none.
+  assert.deepEqual(diagnoses('it pulls hardest on the side that faces it', 'Many shores see two high tides')?.quoteDiagnoses, ['quote:case']);
+  assert.deepEqual(diagnoses('a sentence the material never contained', 'The Moon’s pull is a "tide-raising" force')?.quoteDiagnoses, ['quote:absent', 'quote:typography']);
+  // Only a quote refusal is diagnosed.
+  const other = checkScrollDraft({ ...draft(), title: 'Tides' }, context);
+  assert.ok(!other.ok && other.quoteDiagnoses === undefined, JSON.stringify(other));
+  assert.equal(SCROLL_WRITING_VERSIONS.quoteDiagnosis, 'quote-diagnosis-v1');
+});
+
 test('copied_passage: more than 8 consecutive words of the material in the title, summary or a beat', () => {
   // 8 shared words in a row is the bench limit and passes; 9 is copying.
   assert.deepEqual(reasonsOf(d => { d.beats[2] = 'While Earth turns a coast passes through both bulges, and the harbour water climbs twice.'; }), []);

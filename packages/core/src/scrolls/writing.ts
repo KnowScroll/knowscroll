@@ -10,13 +10,16 @@
  * `checkScrollDraft` decides, deterministically, whether a draft may become a Scroll: every quote
  * is an exact passage of the stored material, the prose copies no passage of it, the shape is
  * bounded, and the concepts are the substrate's own. Provider text carries no authority of its own.
+ * A quote it refuses is diagnosed with a code that carries no text (`quote-diagnosis-v1`).
  */
 import { z } from 'zod';
 import { claimConceptRole, conceptCode } from '../../../contracts/src/semantic.ts';
 import { canonical, wholeObject } from '../reasoning/wire.ts';
 import { normalizeSnapshotText } from '../semantic/source-text.ts';
 
-export const SCROLL_WRITING_VERSIONS = Object.freeze({ prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v2' });
+export const SCROLL_WRITING_VERSIONS = Object.freeze({
+  prompt: 'scroll-writing-prompt-v1', reply: 'scroll-reply-v1', checks: 'scroll-checks-v2', quoteDiagnosis: 'quote-diagnosis-v1',
+});
 /** Bench values (ADR-0041 §3, §5): a changed number is a new checks version. Ranges are inclusive. */
 export const SCROLL_LIMITS = Object.freeze({
   requestBytes: 16_384, maxOutputTokens: 4_096, offeredConcepts: 8,
@@ -132,7 +135,11 @@ export interface ScrollCheckContext {
 }
 export type ScrollVerdict =
   | { ok: true; scroll: CheckedScroll; checksVersion: string }
-  | { ok: false; reasons: (ScrollShapeReason | ScrollCheckReason)[]; checksVersion: string };
+  | {
+    ok: false; reasons: (ScrollShapeReason | ScrollCheckReason)[]; checksVersion: string;
+    /** With `quote_not_in_material` only: one per quote that is not a passage of the material, in claim order. */
+    quoteDiagnoses?: QuoteDiagnosis[];
+  };
 
 /** Case-folded words; punctuation (hyphens included) separates, apostrophes belong to a word. */
 function words(text: string): string[] {
@@ -144,6 +151,32 @@ function runs(list: readonly string[], length: number): string[] {
   for (let i = 0; i + length <= list.length; i += 1) out.push(list.slice(i, i + length).join(' '));
   return out;
 }
+/**
+ * quote-diagnosis-v1 (#181): what separates a refused quote from the material, the first that holds.
+ * It is a passage once typography is folded (curly quotes and apostrophes, dashes and the ellipsis to
+ * ASCII, on both sides); once case is folded too; its words are a run of the material's (punctuation
+ * and sentence breaks aside); at least half its words are; or none of these. A diagnosis is a code that
+ * carries no text, and never changes a verdict.
+ */
+export type QuoteDiagnosis = 'quote:typography' | 'quote:case' | 'quote:words' | 'quote:partial' | 'quote:absent';
+const TYPOGRAPHY: readonly [RegExp, string][] = [[/[‘’‚‛′ʼ]/g, "'"], [/[“”„‟″]/g, '"'], [/[‐‑‒–—―−]/g, '-'], [/…/g, '...']];
+const foldTypography = (text: string) => TYPOGRAPHY.reduce((out, [from, to]) => out.replace(from, to), text);
+
+function diagnoseQuotes(quotes: readonly string[], material: string): QuoteDiagnosis[] {
+  const folded = foldTypography(material);
+  const foldedCase = folded.toLowerCase();
+  const materialWords = ` ${words(material).join(' ')} `;
+  const inMaterial = (run: string) => run.length > 0 && materialWords.includes(` ${run} `);
+  return quotes.map(quote => {
+    const q = foldTypography(quote);
+    if (folded.includes(q)) return 'quote:typography';
+    if (foldedCase.includes(q.toLowerCase())) return 'quote:case';
+    const list = words(quote);
+    if (inMaterial(list.join(' '))) return 'quote:words';
+    return runs(list, Math.ceil(list.length / 2)).some(inMaterial) ? 'quote:partial' : 'quote:absent';
+  });
+}
+
 /** Code points, as PostgreSQL's length() counts them. */
 const chars = (value: string) => Array.from(value).length;
 const within = (value: number, [min, max]: readonly [number, number]) => value >= min && value <= max;
@@ -157,7 +190,8 @@ export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext
   const claims = draft.claims.map(c => ({ statement: normalizeSnapshotText(c.statement), concepts: c.concepts, quote: normalizeSnapshotText(c.quote), supportKind: c.supportKind }));
   const found = new Set<ScrollCheckReason>();
 
-  if (claims.some(c => !context.material.includes(c.quote))) found.add('quote_not_in_material');
+  const refusedQuotes = claims.map(c => c.quote).filter(quote => !context.material.includes(quote));
+  if (refusedQuotes.length > 0) found.add('quote_not_in_material');
   const copied = new Set(runs(words(context.material), L.maxSharedWords + 1));
   const prose = [title, summary, ...beats];
   if (prose.some(part => runs(words(part), L.maxSharedWords + 1).some(run => copied.has(run)))) found.add('copied_passage');
@@ -183,7 +217,10 @@ export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext
   if (claims.some(c => !c.concepts.some(l => offered.has(l.code)))) found.add('claim_concept_not_offered');
   if (!claims.some(c => c.supportKind === 'supports')) found.add('no_supporting_claim');
 
-  if (found.size > 0) return { ok: false, reasons: CHECK_ORDER.filter(r => found.has(r)), checksVersion };
+  if (found.size > 0) {
+    const diagnosed = refusedQuotes.length > 0 ? { quoteDiagnoses: diagnoseQuotes(refusedQuotes, context.material) } : {};
+    return { ok: false, reasons: CHECK_ORDER.filter(r => found.has(r)), checksVersion, ...diagnosed };
+  }
   return { ok: true, scroll: { title, summary, beats, body: beats.join('\n\n'), concepts: draft.concepts, claims }, checksVersion };
 }
 
