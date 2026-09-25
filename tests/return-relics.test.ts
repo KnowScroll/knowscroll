@@ -59,7 +59,7 @@ async function form(r: Reader, ...names: (keyof InquiryFixture['codes'])[]) {
   await formPlaces(r.universeId, codes, r.places);
   r.places.push(...codes);
 }
-/** Runs the worker until this reader has no open inquiry (another file's queued work may come first). */
+/** Runs the worker until this reader has no open inquiry (another reader's queued work may come first). */
 async function drain(r: Reader) {
   for (let i = 0; i < 20; i += 1) {
     if (!(await pool.query(`SELECT 1 FROM background_inquiry WHERE universe_id=$1 AND status IN ('pending','queued')`, [r.universeId])).rowCount) return;

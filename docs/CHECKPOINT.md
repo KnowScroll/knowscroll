@@ -1,5 +1,65 @@
 # Shared delivery checkpoint
 
+## 2026-09-25 Android-first continuation, Waves 3–4 and the acceptance matrix (coordinator)
+
+Main moved from `d009225` to `bb86ad9`, then this PR. Every slice was used by hand on the API36
+emulator as `com.knowscroll.mobile.journeytest`. After each run PreviewWatch confirmed the owner's
+preview was unchanged.
+
+- **#163 Idea Rooms** (#184, ADR-0045, migration 0038):
+  - A question carried on two days opens a room on its place, under the reader's own words.
+  - Inhabitants hold sourced positions. A source correction unseats one, as away news.
+- **Test isolation** (#188): each test file runs alone in its own copy of the migrated, seeded
+  database, dropped with `--force`. The shared library had grown until a cold reader's Scroll sat
+  beyond one feed trip's 256 skips (#186's CI). Cross-file renames and owner addresses had failed
+  later files (#177).
+- **#165 typed Relics** (#186, ADR-0044, migration 0039):
+  - A place, a passage and an answer are kept or doubted. Corrected beats doubted.
+  - #159's M4–M8 are done. The return pages at ten, in one order, room changes included.
+  - Review fixes: the cursor's kinds are the item union's own; an answer is kept only while every
+    claim of its Scroll is supported; guard and indexes; the Inquiries card marks withdrawn claims.
+- **#164 inventory** (#187, ADR-0046, migration 0040):
+  - Demand is recorded from real reading. The pure Quartermaster reuses, joins, funds or says why
+    it cannot. Supply is shared; bindings are private.
+  - Review fixes: one supply lock (a two-reader deadlock test failed first); an unsent cancellation
+    no longer uses up its material; the place names a bound Scroll only while it would be served;
+    the withdrawn Scroll is paged.
+  - One bounded live MiniMax request through the writing loop was sent once and refused by the
+    checks.
+- **#183, #177** (#191):
+  - A correction shrinks a Reel's continuations. Minting takes the substrate lock.
+  - The Reel chooser is the reader's own; Reel mode survives a continuation.
+  - Reasoning probes run one at a time. Sign-in tests pin their owner. Fixture timeouts are split.
+- **#182, #181** (#190):
+  - An accepted answer is watched after navigation, and never after a purge (review fix, test
+    failed first).
+  - Refused quotes carry `quote-diagnosis-v1` codes. Model-written claims are left out of
+    inquiries.
+  - One session ledger for every live tool.
+- **#168 release readiness** (#189, ADR-0047):
+  - A release build that refuses without the owner's inputs, with R8, and a signed throwaway
+    release in CI.
+  - App Links fill the sign-in field in a single-top activity. Nothing leaves by backup or
+    transfer.
+  - Four privacy-control fixes. Upgrade and rollback are documented, and a populated 0009 fixture
+    upgrades to head.
+- **#170 acceptance matrix** (this PR, `docs/journeys/evidence/acceptance-matrix-2026-09-25/`):
+  - Journeys A/B/D/E/G/H/I by hand. Predictions are not built.
+  - Frame timing matched and interleaved against `b77a971`: p95 50.86 vs 50.64 ms, no regression.
+    PR130's `81431cc` would need the owner's preview package.
+  - Cold start median 2,466 ms. PSS 81–106 MB. No ANR or crash.
+  - Text at 0.85–2.0× and reduced motion checked, TalkBack enabled. 0 unlabelled controls and
+    0 under 48 dp.
+  - Fixed on the way: the reader's way back was cut to "…"; the export's journey-only path;
+    raw-HTTP fixtures that reset connections.
+- **Process.**
+  - Migration numbers went to merge order: 0038 rooms, 0039 relics, 0040 inventory.
+  - MiniMax session ledger: 72 → 74 of 190 (one inventory request, one inquiry request).
+  - Agent runs: 26 of 30.
+  - A `cut` of the hands-on `stack.env` (JSON) printed that disposable stack's development token
+    and the local Postgres role's password into the coordinator's session. The owner may want to
+    rotate that local role's password.
+
 ## 2026-09-25 Android-first continuation, Waves 0–2 (coordinator)
 
 Main moved from `485faf7` to `d009225`. Every slice was used by hand on the API36 emulator as

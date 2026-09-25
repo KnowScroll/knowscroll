@@ -10,7 +10,7 @@ import { correctSourceSnapshot } from '../../packages/db/src/semantic/correction
 export const withdraw = (sourceKey: string) => transaction(client =>
   correctSourceSnapshot(client, { sourceKey, action: 'revoked', reason: 'Test: the publisher withdrew this page' }, 'operator'));
 
-/** The worker's pass, run until it refreshes no one (other files' readers may be behind too).
+/** The worker's pass, run until it refreshes no one (other readers in the file may be behind too).
  * Returns everyone it refreshed and everyone whose refresh failed. */
 export async function drain(): Promise<{ refreshed: Set<string>; failed: Set<string> }> {
   const refreshed = new Set<string>(), failed = new Set<string>();

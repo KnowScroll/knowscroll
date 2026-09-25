@@ -144,7 +144,7 @@ class AnswersTest {
                             if (line.isNullOrEmpty()) break
                             if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
                         }
-                        requests += requestLine to String(CharArray(length).also { input.read(it, 0, length) })
+                        requests += requestLine to input.readBody(length)
                         socket.getOutputStream().write(("HTTP/1.1 $status X\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n$body").toByteArray())
                     }
                 }

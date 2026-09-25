@@ -289,10 +289,10 @@ test('ADR-0023 generation worker: real local HTTP fixture, full lifecycle', asyn
   await drainStrayJobs(pool, 'generation-runtime-test-sweep');
   try {
 
-  await t.test('a job another file still holds under a live lease is drained too, so that lease cannot run out into a claim here', async () => {
+  await t.test('a job still held under a live lease is drained too, so that lease cannot run out into a later claim', async () => {
     await withFakeEngine(async (_engine, engineId) => {
       const job = await storage.createJob(pool, {briefId: await approvedBrief(), engineId, grantId: await freshGrant(), until: 'plan', budgetCents: 10, deadlineAt: future()});
-      const leased = await storage.claimJob(pool, {owner: 'another-file-worker', leaseMs: 1_000});
+      const leased = await storage.claimJob(pool, {owner: 'an-earlier-worker', leaseMs: 1_000});
       assert.equal(leased?.jobId, job.jobId);
       await drainStrayJobs(pool, 'generation-runtime-test-sweep');
       await pollUntil(async () => (await pool.query<{passed: boolean}>('SELECT clock_timestamp()>$1 AS passed', [leased!.leaseExpiresAt])).rows[0]!.passed);

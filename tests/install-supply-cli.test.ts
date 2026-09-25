@@ -18,8 +18,7 @@ import { makeInventoryFixture } from './helpers/inventory-fixture.ts';
 
 const database = new URL(process.env.DATABASE_URL!).pathname.slice(1);
 if (!database.startsWith('knowscroll_test_')) throw new Error('CLI tests require an isolated knowscroll_test_* database');
-// The writing route is deployment-wide: leave none of this file's enabled for the files after it.
-after(async () => { await pool.query('UPDATE scroll_writing_route SET enabled=false WHERE enabled'); await pool.end(); });
+after(async () => { await pool.end(); });
 
 const run = promisify(execFile);
 // TEST-NET-1 never answers: a refusal that came after a connection attempt would hang, not exit.

@@ -88,7 +88,7 @@ class BranchesTest {
                             if (line.isNullOrEmpty()) break
                             if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
                         }
-                        bodies += String(CharArray(length).also { input.read(it, 0, length) })
+                        bodies += input.readBody(length)
                         val body = """{"decisionId":"d2","universeId":"u","accountRevision":0,"privacyEpoch":0,
                             "items":[{"assetId":"$served","revision":1,"kind":"Scroll","title":"t","summary":"s","body":"b","sourceTitle":"st","sourceUrl":"https://x","truthState":"documented","reason":"A connection you chose"}],
                             "branch":{"branchOpenId":"o1","recorded":true,"bridgeId":"br1","relationType":"explains","direction":"reverse"}}"""
@@ -127,7 +127,7 @@ class BranchesTest {
                             if (line.isNullOrEmpty()) break
                             if (line.startsWith("Content-Length:", true)) length = line.substringAfter(":").trim().toInt()
                         }
-                        input.read(CharArray(length), 0, length)
+                        input.readBody(length)
                         socket.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n$body").toByteArray())
                     }
                 }

@@ -250,16 +250,6 @@ private fun ReadingSheet(
                     Text(originLabel, fontWeight = androidx.compose.ui.text.font.FontWeight(800), fontSize = 12.5.sp)
                 }
             }
-            // #131: a Scroll opened by a connection shows where it came from, and one tap returns
-            // there at the exact reading position (the same path as system Back).
-            (state.origin as? com.knowscroll.mobile.ui.ReaderOrigin.Branch)?.let { origin ->
-                val backLabel = stringResource(R.string.reader_branch_back, origin.fromTitle)
-                TextButton(
-                    onClick = onBack,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream),
-                    modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = backLabel },
-                ) { Text("← ${origin.fromTitle}", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, fontSize = 12.5.sp) }
-            }
             // Audit A2 (#72): the 150dp gradient placeholder that used to repeat the title is
             // gone. The cream reading sheet below now begins directly under the origin chip, so
             // the *thin* progress bar the spec asks for has been moved up here as a sliver at
@@ -267,6 +257,17 @@ private fun ReadingSheet(
             // reading position via the same readingScroll state, never a clock-driven animation,
             // and it does not duplicate the title.
             ReadingProgressSliver(readingScroll, modifier = Modifier.weight(1f))
+        }
+        // #131: a Scroll opened by a connection shows where it came from, and one tap returns there at
+        // the exact reading position (the same path as system Back). #170: on its own line (two at
+        // most), no longer squeezed beside the origin chip to "…" by a long title or large text.
+        (state.origin as? com.knowscroll.mobile.ui.ReaderOrigin.Branch)?.let { origin ->
+            val backLabel = stringResource(R.string.reader_branch_back, origin.fromTitle)
+            TextButton(
+                onClick = onBack,
+                colors = ButtonDefaults.textButtonColors(contentColor = Cosmos.InkOnCream),
+                modifier = Modifier.padding(horizontal = 8.dp).heightIn(min = 48.dp).semantics { contentDescription = backLabel },
+            ) { Text("← ${origin.fromTitle}", maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, fontSize = 12.5.sp) }
         }
         // Audit A2 (#72): the previous typographic `Stage` block was a 150dp gradient placeholder
         // repeating the title above the cream reading sheet. Removed: the Scroll's stage *is* its

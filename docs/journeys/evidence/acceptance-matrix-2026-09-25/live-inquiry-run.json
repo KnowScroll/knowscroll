@@ -1,0 +1,76 @@
+{
+  "at": "2026-09-25T01:45:40.387Z",
+  "mode": "live",
+  "database": "knowscroll_test_live_inquiry_ba9f014d2868",
+  "model": "MiniMax-M3",
+  "continuation": true,
+  "thinking": "adaptive",
+  "simulated": "places formed from supplied anchored accounts (labelled), as in the inquiry journey; consent, mail, admission, the call and the validator are real",
+  "inquiries": [
+    {
+      "step": 1,
+      "placeFormed": [
+        "physics.gravity"
+      ],
+      "status": "found",
+      "reasons": [],
+      "pairs": 1,
+      "found": {
+        "relationType": "explains",
+        "evidence": 6,
+        "sentenceSha256": "8a2042fb27c744b73b2d023575c6ffe026362cede178ac3f3e1325a4a10d4feb",
+        "bridgeStatus": "admitted",
+        "continuationsShowingIt": 3
+      },
+      "requestSha256": "8d65a22a5df42220436648c96500ad07107d2c46f8e26aab39d61004786f04d4",
+      "inputBytes": 5619,
+      "sent": true,
+      "steps": [
+        {
+          "ordinal": 1,
+          "step": "succeeded",
+          "requestSha256": "8d65a22a5df42220436648c96500ad07107d2c46f8e26aab39d61004786f04d4",
+          "inputBytes": 5619,
+          "continuedAfter": null,
+          "accounting": "responded",
+          "httpStatus": 200,
+          "usage": {
+            "input": 1255,
+            "output": 1216
+          }
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "placeFormed": [
+        "earth.tides"
+      ],
+      "status": "nothing_to_ask",
+      "reasons": [
+        "no_candidate_pair"
+      ],
+      "pairs": 0,
+      "found": null,
+      "requestSha256": null,
+      "inputBytes": null,
+      "sent": false,
+      "steps": []
+    }
+  ],
+  "consent": {
+    "status": 200,
+    "available": true
+  },
+  "proposals": [
+    {
+      "status": "admitted",
+      "n": 1
+    }
+  ],
+  "dispatched": 1,
+  "sessionLedger": {
+    "used": 74,
+    "cap": 190
+  }
+}
