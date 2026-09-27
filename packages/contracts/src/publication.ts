@@ -24,7 +24,13 @@ export const publicationGateVerdict = z.enum(['pass', 'pass_with_label', 'fail',
 export type PublicationGateVerdict = z.infer<typeof publicationGateVerdict>;
 
 /** Migration 0014's replaced `generated_reel.availability` CHECK. */
-export const generatedReelAvailability = z.enum(['imported', 'eligible', 'test_eligible', 'rejected', 'withdrawn']);
+export const generatedReelAvailability = z.enum([
+  'imported',
+  'eligible',
+  'test_eligible',
+  'rejected',
+  'withdrawn',
+]);
 export type GeneratedReelAvailability = z.infer<typeof generatedReelAvailability>;
 
 /** Migration 0014's `publication_policy.version` CHECK. */

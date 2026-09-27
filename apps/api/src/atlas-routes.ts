@@ -12,11 +12,15 @@ import { readAtlas, readAtlasDelta, rejectPlace } from '../../../packages/db/src
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 
-const rejectInput = z.object({ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647) }).strict();
+const rejectInput = z
+  .object({ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647) })
+  .strict();
 
 export function registerAtlasRoutes(app: FastifyInstance, authenticated: Authenticated): void {
   app.get('/v1/atlas', async (req, reply) => {
-    const atlas = await authenticated(req.headers.authorization, (scope, client) => readAtlas(client, scope.universeId));
+    const atlas = await authenticated(req.headers.authorization, (scope, client) =>
+      readAtlas(client, scope.universeId),
+    );
     return reply.header('Cache-Control', 'no-store').send(atlas);
   });
 
@@ -28,14 +32,19 @@ export function registerAtlasRoutes(app: FastifyInstance, authenticated: Authent
     return reply.header('Cache-Control', 'no-store').send(delta);
   });
 
-  app.post<{ Params: { placeId: string } }>('/v1/atlas/places/:placeId/reject', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = rejectInput.safeParse(req.body);
-      if (!uuid.safeParse(req.params.placeId).success || !parsed.success) throw new HttpError(400, 'Invalid reject request');
-      if (parsed.data.expectedPrivacyEpoch !== scope.privacyEpoch) throw new HttpError(409, 'Privacy epoch changed');
-      await rejectPlace(client, scope.universeId, req.params.placeId);
-      return readAtlas(client, scope.universeId);
-    });
-    return reply.header('Cache-Control', 'no-store').send(result);
-  });
+  app.post<{ Params: { placeId: string } }>(
+    '/v1/atlas/places/:placeId/reject',
+    async (req, reply) => {
+      const result = await authenticated(req.headers.authorization, async (scope, client) => {
+        const parsed = rejectInput.safeParse(req.body);
+        if (!uuid.safeParse(req.params.placeId).success || !parsed.success)
+          throw new HttpError(400, 'Invalid reject request');
+        if (parsed.data.expectedPrivacyEpoch !== scope.privacyEpoch)
+          throw new HttpError(409, 'Privacy epoch changed');
+        await rejectPlace(client, scope.universeId, req.params.placeId);
+        return readAtlas(client, scope.universeId);
+      });
+      return reply.header('Cache-Control', 'no-store').send(result);
+    },
+  );
 }

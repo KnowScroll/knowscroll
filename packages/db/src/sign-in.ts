@@ -39,9 +39,11 @@ function isPlausibleEmail(email: string): boolean {
  * address it named, so a misconfigured deployment still discloses nothing about who the owner is. */
 export function resolveOwnerEmail(env: NodeJS.ProcessEnv = process.env): string {
   const raw = env.KS_OWNER_EMAIL;
-  if (!raw) throw new Error('invalid_config: KS_OWNER_EMAIL must be set before sign-in can be used');
+  if (!raw)
+    throw new Error('invalid_config: KS_OWNER_EMAIL must be set before sign-in can be used');
   const email = normalizeEmail(raw);
-  if (!isPlausibleEmail(email)) throw new Error('invalid_config: KS_OWNER_EMAIL is not a valid address');
+  if (!isPlausibleEmail(email))
+    throw new Error('invalid_config: KS_OWNER_EMAIL is not a valid address');
   return email;
 }
 
@@ -135,30 +137,56 @@ export async function requestMagicLink(
   // cannot tell the owner's address from any other by how long the answer takes or by what the
   // database did. The one residual asymmetry is the single INSERT that only a real, unthrottled
   // owner request performs; it is documented in ADR-0026 rather than hidden.
-  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ks-magic-link-account:${ownerEmail}`]);
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+    `ks-magic-link-account:${ownerEmail}`,
+  ]);
 
-  let account = (await client.query<{ id: string }>('SELECT id FROM account WHERE email=$1', [email])).rows[0];
+  let account = (
+    await client.query<{ id: string }>('SELECT id FROM account WHERE email=$1', [email])
+  ).rows[0];
   if (!account && owner) {
-    account = (await client.query<{ id: string }>(
-      'INSERT INTO account(id,email) VALUES($1,$2) RETURNING id',
-      [randomUUID(), email],
-    )).rows[0]!;
+    account = (
+      await client.query<{ id: string }>(
+        'INSERT INTO account(id,email) VALUES($1,$2) RETURNING id',
+        [randomUUID(), email],
+      )
+    ).rows[0]!;
   }
   // A non-owner address counts against a uuid that matches nothing, so the same two queries run
   // with the same plans and return zero.
   const countedAccountId = account?.id ?? '00000000-0000-4000-8000-000000000000';
 
-  const accountCount = (await client.query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM sign_in_token
-      WHERE account_id=$1 AND created_at > clock_timestamp() - ($2::int * interval '1 minute')`,
-    [countedAccountId, limits.accountWindowMinutes],
-  )).rows[0]!.n;
-  const fingerprintCount = (await client.query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM sign_in_token
-      WHERE requester_fingerprint=$1 AND created_at > clock_timestamp() - ($2::int * interval '1 minute')`,
-    [input.requesterFingerprint, limits.fingerprintWindowMinutes],
-  )).rows[0]!.n;
-  const throttled = accountCount >= limits.accountMaxPerWindow || fingerprintCount >= limits.fingerprintMaxPerWindow;
+  const accountCount = (
+    await client.query<{ n: number }>(
+      `
+      SELECT
+        count(*)::int AS n
+      FROM
+        sign_in_token
+      WHERE
+        account_id = $1
+        AND created_at > clock_timestamp() - ($2::int * interval '1 minute')
+    `,
+      [countedAccountId, limits.accountWindowMinutes],
+    )
+  ).rows[0]!.n;
+  const fingerprintCount = (
+    await client.query<{ n: number }>(
+      `
+      SELECT
+        count(*)::int AS n
+      FROM
+        sign_in_token
+      WHERE
+        requester_fingerprint = $1
+        AND created_at > clock_timestamp() - ($2::int * interval '1 minute')
+    `,
+      [input.requesterFingerprint, limits.fingerprintWindowMinutes],
+    )
+  ).rows[0]!.n;
+  const throttled =
+    accountCount >= limits.accountMaxPerWindow ||
+    fingerprintCount >= limits.fingerprintMaxPerWindow;
 
   // Generated either way, so the cost of making and hashing a secret is not a signal.
   const rawToken = randomBytes(32).toString('base64url');
@@ -166,8 +194,26 @@ export async function requestMagicLink(
   if (!owner || !account || throttled) return null;
 
   await client.query(
-    `INSERT INTO sign_in_token(id,account_id,token_hash,purpose,requester_fingerprint,expires_at)
-     VALUES($1,$2,$3,'sign_in',$4,now() + ($5::int * interval '1 minute'))`,
+    `
+      INSERT INTO
+        sign_in_token (
+          id,
+          account_id,
+          token_hash,
+          purpose,
+          requester_fingerprint,
+          expires_at
+        )
+      VALUES
+        (
+          $1,
+          $2,
+          $3,
+          'sign_in',
+          $4,
+          now() + ($5::int * interval '1 minute')
+        )
+    `,
     [randomUUID(), account.id, hashed, input.requesterFingerprint, SIGN_IN_TOKEN_TTL_MINUTES],
   );
   return { token: rawToken, accountId: account.id };
@@ -180,11 +226,22 @@ export async function requestMagicLink(
 /** `GET /v1/auth/confirm`'s entire job: report whether a confirmation surface should be shown.
  * Takes no lock and changes nothing, so an email scanner's prefetch is harmless and idempotent. */
 export async function confirmSignInToken(client: Queryable, rawToken: string): Promise<boolean> {
-  const row = (await client.query(
-    `SELECT 1 FROM sign_in_token
-      WHERE token_hash=$1 AND purpose='sign_in' AND consumed_at IS NULL AND expires_at > clock_timestamp()`,
-    [tokenHash(rawToken)],
-  )).rows[0];
+  const row = (
+    await client.query(
+      `
+      SELECT
+        1
+      FROM
+        sign_in_token
+      WHERE
+        token_hash = $1
+        AND purpose = 'sign_in'
+        AND consumed_at IS NULL
+        AND expires_at > clock_timestamp()
+    `,
+      [tokenHash(rawToken)],
+    )
+  ).rows[0];
   return row !== undefined;
 }
 
@@ -220,39 +277,61 @@ export interface SignInSession {
  * universe is locked, then the token row is re-read and locked (`FOR UPDATE`) before any decision
  * is made — universe before session/domain rows, per this repository's stated lock order.
  */
-export async function consumeSignInToken(client: pg.PoolClient, rawToken: string): Promise<SignInSession> {
+export async function consumeSignInToken(
+  client: pg.PoolClient,
+  rawToken: string,
+): Promise<SignInSession> {
   const hash = tokenHash(rawToken);
-  const candidate = (await client.query<{ account_id: string }>(
-    'SELECT account_id FROM sign_in_token WHERE token_hash=$1',
-    [hash],
-  )).rows[0];
+  const candidate = (
+    await client.query<{ account_id: string }>(
+      'SELECT account_id FROM sign_in_token WHERE token_hash=$1',
+      [hash],
+    )
+  ).rows[0];
   if (!candidate) throw new InvalidSignInToken();
 
-  const alreadyAdopted = (await client.query<{ id: string }>(
-    'SELECT id FROM universe WHERE account_id=$1 LIMIT 1',
-    [candidate.account_id],
-  )).rows[0];
+  const alreadyAdopted = (
+    await client.query<{ id: string }>('SELECT id FROM universe WHERE account_id=$1 LIMIT 1', [
+      candidate.account_id,
+    ])
+  ).rows[0];
   const universeId = alreadyAdopted?.id ?? OWNER_ID;
   await lockUniverse(client, universeId);
 
-  const row = (await client.query<{ id: string; consumed_at: Date | null; live: boolean }>(
-    `SELECT id, consumed_at, (expires_at > clock_timestamp()) AS live
-       FROM sign_in_token WHERE token_hash=$1 AND purpose='sign_in' FOR UPDATE`,
-    [hash],
-  )).rows[0];
+  const row = (
+    await client.query<{ id: string; consumed_at: Date | null; live: boolean }>(
+      `
+      SELECT
+        id,
+        consumed_at,
+        (expires_at > clock_timestamp()) AS live
+      FROM
+        sign_in_token
+      WHERE
+        token_hash = $1
+        AND purpose = 'sign_in'
+      FOR UPDATE
+    `,
+      [hash],
+    )
+  ).rows[0];
   if (!row || row.consumed_at !== null || !row.live) throw new InvalidSignInToken();
 
   let privacyEpoch: number;
   if (alreadyAdopted) {
-    privacyEpoch = (await client.query<{ privacy_epoch: number }>(
-      'SELECT privacy_epoch FROM universe WHERE id=$1',
-      [universeId],
-    )).rows[0]!.privacy_epoch;
+    privacyEpoch = (
+      await client.query<{ privacy_epoch: number }>(
+        'SELECT privacy_epoch FROM universe WHERE id=$1',
+        [universeId],
+      )
+    ).rows[0]!.privacy_epoch;
   } else {
-    const adopted = (await client.query<{ privacy_epoch: number }>(
-      'UPDATE universe SET account_id=$1 WHERE id=$2 AND account_id IS NULL RETURNING privacy_epoch',
-      [candidate.account_id, universeId],
-    )).rows[0];
+    const adopted = (
+      await client.query<{ privacy_epoch: number }>(
+        'UPDATE universe SET account_id=$1 WHERE id=$2 AND account_id IS NULL RETURNING privacy_epoch',
+        [candidate.account_id, universeId],
+      )
+    ).rows[0];
     // Cannot happen under the single-account invariant (only one account can ever exist, so a
     // universe found unbound above cannot have been bound by someone else by now), but this
     // function never proceeds on an assumption it has not just re-checked under the lock it holds.
@@ -264,19 +343,65 @@ export async function consumeSignInToken(client: pg.PoolClient, rawToken: string
   const sessionId = randomUUID();
   const deviceId = randomUUID();
   const newSessionToken = randomBytes(32).toString('base64url');
-  const session = (await client.query<{ id: string; device_id: string; universe_id: string; privacy_epoch: number; expires_at: Date }>(
-    `INSERT INTO device_session(id,universe_id,device_id,token_hash,privacy_epoch,expires_at,origin,account_id)
-     VALUES($1,$2,$3,$4,$5,clock_timestamp() + ($6::int * interval '1 hour'),'magic_link',$7)
-     RETURNING id, device_id, universe_id, privacy_epoch, expires_at`,
-    [sessionId, universeId, deviceId, tokenHash(newSessionToken), privacyEpoch, DEFAULT_EXPIRY_HOURS, candidate.account_id],
-  )).rows[0]!;
+  const session = (
+    await client.query<{
+      id: string;
+      device_id: string;
+      universe_id: string;
+      privacy_epoch: number;
+      expires_at: Date;
+    }>(
+      `
+      INSERT INTO
+        device_session (
+          id,
+          universe_id,
+          device_id,
+          token_hash,
+          privacy_epoch,
+          expires_at,
+          origin,
+          account_id
+        )
+      VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          clock_timestamp() + ($6::int * interval '1 hour'),
+          'magic_link',
+          $7
+        )
+      RETURNING
+        id,
+        device_id,
+        universe_id,
+        privacy_epoch,
+        expires_at
+    `,
+      [
+        sessionId,
+        universeId,
+        deviceId,
+        tokenHash(newSessionToken),
+        privacyEpoch,
+        DEFAULT_EXPIRY_HOURS,
+        candidate.account_id,
+      ],
+    )
+  ).rows[0]!;
 
   await client.query(
     'UPDATE sign_in_token SET consumed_at=clock_timestamp(), consumed_session_id=$1 WHERE id=$2',
     [sessionId, row.id],
   );
 
-  const expiresAt = session.expires_at instanceof Date ? session.expires_at.toISOString() : new Date(String(session.expires_at)).toISOString();
+  const expiresAt =
+    session.expires_at instanceof Date
+      ? session.expires_at.toISOString()
+      : new Date(String(session.expires_at)).toISOString();
   return {
     token: newSessionToken,
     sessionId: session.id,

@@ -15,15 +15,34 @@
  * "none", or a shape rejection naming the rule it broke. Provider text carries no authority of its own.
  */
 import { z } from 'zod';
-import { bridgeProposalPayload, semanticKey, type BridgeProposalPayload } from '../../../contracts/src/semantic.ts';
+import {
+  bridgeProposalPayload,
+  semanticKey,
+  type BridgeProposalPayload,
+} from '../../../contracts/src/semantic.ts';
 import { canonical, wholeObject } from './wire.ts';
 
-export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({ selection: 'inquiry-pairs-v2', prompt: 'bridge-inquiry-prompt-v4', reply: 'bridge-inquiry-reply-v2', continuation: 'bridge-inquiry-continuation-v1' });
-export const BRIDGE_INQUIRY_LIMITS = Object.freeze({ maxPairs: 3, claimsPerAnchor: 8, claimsBoth: 8 });
+export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({
+  selection: 'inquiry-pairs-v2',
+  prompt: 'bridge-inquiry-prompt-v4',
+  reply: 'bridge-inquiry-reply-v2',
+  continuation: 'bridge-inquiry-continuation-v1',
+});
+export const BRIDGE_INQUIRY_LIMITS = Object.freeze({
+  maxPairs: 3,
+  claimsPerAnchor: 8,
+  claimsBoth: 8,
+});
 
-export interface InquiryPlace { placeId: string; code: string; name: string }
+export interface InquiryPlace {
+  placeId: string;
+  code: string;
+  name: string;
+}
 export interface InquirySubstrateClaim {
-  key: string; statement: string; sourceTitle: string;
+  key: string;
+  statement: string;
+  sourceTitle: string;
   /** A `supports` quote on a current snapshot (`claim_is_supported`). */
   supported: boolean;
   links: readonly { code: string; role: 'subject' | 'object' | 'mechanism' | 'context' }[];
@@ -41,10 +60,26 @@ export interface InquiryCandidateInput {
   asked: readonly (readonly [string, string])[];
 }
 /** `roles` (claims naming both sides only): each side's role in the claim, in the validator's terms. */
-export interface OfferedClaim { key: string; statement: string; sourceTitle: string; roles?: Record<string, string> }
+export interface OfferedClaim {
+  key: string;
+  statement: string;
+  sourceTitle: string;
+  roles?: Record<string, string>;
+}
 /** A relation, with its direction, that the pair's own claims could carry (bridge-validator-v1). */
-export interface AdmissibleRelation { relationType: 'explains' | 'compares_mechanism' | 'analogous_in'; fromConcept: string; toConcept: string }
-export interface InquiryPair { a: InquiryPlace; b: InquiryPlace; claimsA: OfferedClaim[]; claimsB: OfferedClaim[]; both: OfferedClaim[]; admissible: AdmissibleRelation[] }
+export interface AdmissibleRelation {
+  relationType: 'explains' | 'compares_mechanism' | 'analogous_in';
+  fromConcept: string;
+  toConcept: string;
+}
+export interface InquiryPair {
+  a: InquiryPlace;
+  b: InquiryPlace;
+  claimsA: OfferedClaim[];
+  claimsB: OfferedClaim[];
+  both: OfferedClaim[];
+  admissible: AdmissibleRelation[];
+}
 
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const pairKey = (x: string, y: string) => (x < y ? `${x}\0${y}` : `${y}\0${x}`);
@@ -52,7 +87,14 @@ const pairKey = (x: string, y: string) => (x < y ? `${x}\0${y}` : `${y}\0${x}`);
 function ancestors(parentOf: ReadonlyMap<string, string | null>, code: string): string[] {
   const out: string[] = [];
   const seen = new Set([code]);
-  for (let p = parentOf.get(code) ?? null; p !== null && !seen.has(p); p = parentOf.get(p) ?? null) { out.push(p); seen.add(p); }
+  for (
+    let p = parentOf.get(code) ?? null;
+    p !== null && !seen.has(p);
+    p = parentOf.get(p) ?? null
+  ) {
+    out.push(p);
+    seen.add(p);
+  }
   return out;
 }
 
@@ -66,12 +108,17 @@ function linksAbout(claim: InquirySubstrateClaim, chain: readonly string[]): Map
   for (const link of claim.links) {
     if (link.role === 'context') continue;
     const distance = chain.indexOf(link.code);
-    if (distance >= 0 && (found.get(link.code) ?? Infinity) > distance) found.set(link.code, distance);
+    if (distance >= 0 && (found.get(link.code) ?? Infinity) > distance)
+      found.set(link.code, distance);
   }
   return found;
 }
 
-const offered = (c: InquirySubstrateClaim): OfferedClaim => ({ key: c.key, statement: c.statement, sourceTitle: c.sourceTitle });
+const offered = (c: InquirySubstrateClaim): OfferedClaim => ({
+  key: c.key,
+  statement: c.statement,
+  sourceTitle: c.sourceTitle,
+});
 
 /** The role a claim gives one side: that of its nearest non-context link on the side's chain. */
 function roleOn(claim: InquirySubstrateClaim, chain: readonly string[]): string | undefined {
@@ -86,27 +133,42 @@ function roleOn(claim: InquirySubstrateClaim, chain: readonly string[]): string 
 
 export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] {
   const places = [...input.places].sort((x, y) => byCode(x.code, y.code));
-  const claims = input.claims.filter(c => c.supported);
-  const chain = new Map(places.map(p => [p.code, [p.code, ...ancestors(input.parentOf, p.code)]]));
-  const blocked = new Set([...input.connections, ...input.suppressed].map(r => pairKey(r.from, r.to)));
+  const claims = input.claims.filter((c) => c.supported);
+  const chain = new Map(
+    places.map((p) => [p.code, [p.code, ...ancestors(input.parentOf, p.code)]]),
+  );
+  const blocked = new Set(
+    [...input.connections, ...input.suppressed].map((r) => pairKey(r.from, r.to)),
+  );
   for (const [x, y] of input.asked) blocked.add(pairKey(x, y));
 
   const pairs: (InquiryPair & { named: boolean })[] = [];
   for (let i = 0; i < places.length; i += 1) {
     for (let j = i + 1; j < places.length; j += 1) {
-      const a = places[i]!, b = places[j]!;
-      const chainA = chain.get(a.code)!, chainB = chain.get(b.code)!;
+      const a = places[i]!,
+        b = places[j]!;
+      const chainA = chain.get(a.code)!,
+        chainB = chain.get(b.code)!;
       // A place and its own ancestor are one branch: depth, which the validator refuses as a bridge.
-      if (chainA.includes(b.code) || chainB.includes(a.code) || blocked.has(pairKey(a.code, b.code))) continue;
+      if (
+        chainA.includes(b.code) ||
+        chainB.includes(a.code) ||
+        blocked.has(pairKey(a.code, b.code))
+      )
+        continue;
       const sideA: { claim: InquirySubstrateClaim; distance: number }[] = [];
       const sideB: typeof sideA = [];
       const both: InquirySubstrateClaim[] = [];
       for (const claim of claims) {
-        const aboutA = linksAbout(claim, chainA), aboutB = linksAbout(claim, chainB);
+        const aboutA = linksAbout(claim, chainA),
+          aboutB = linksAbout(claim, chainB);
         // It names both only through two different concepts: a claim about a shared ancestor names neither.
-        const ownA = [...aboutA.keys()].filter(code => !aboutB.has(code));
-        const ownB = [...aboutB.keys()].filter(code => !aboutA.has(code));
-        if (ownA.length > 0 && ownB.length > 0) { both.push(claim); continue; }
+        const ownA = [...aboutA.keys()].filter((code) => !aboutB.has(code));
+        const ownB = [...aboutB.keys()].filter((code) => !aboutA.has(code));
+        if (ownA.length > 0 && ownB.length > 0) {
+          both.push(claim);
+          continue;
+        }
         // Otherwise it is offered to one side only, the nearer (ties to A), so the reply's citation of it
         // is credited where it was offered, never guessed (#153).
         const distanceA = aboutA.size > 0 ? Math.min(...aboutA.values()) : Infinity;
@@ -115,12 +177,24 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
         if (distanceA <= distanceB) sideA.push({ claim, distance: distanceA });
         else sideB.push({ claim, distance: distanceB });
       }
-      const rank = (list: typeof sideA) => list.sort((x, y) => x.distance - y.distance || byCode(x.claim.key, y.claim.key))
-        .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor).map(x => offered(x.claim));
-      const claimsA = rank(sideA), claimsB = rank(sideB);
+      const rank = (list: typeof sideA) =>
+        list
+          .sort((x, y) => x.distance - y.distance || byCode(x.claim.key, y.claim.key))
+          .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor)
+          .map((x) => offered(x.claim));
+      const claimsA = rank(sideA),
+        claimsB = rank(sideB);
       // A claim naming both says which role each side plays in it: "explains" is carried by those roles.
-      const named = both.sort((x, y) => byCode(x.key, y.key)).slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
-        .map(c => ({ ...offered(c), roles: { [a.code]: roleOn(c, chainA) ?? 'subject', [b.code]: roleOn(c, chainB) ?? 'subject' } }));
+      const named = both
+        .sort((x, y) => byCode(x.key, y.key))
+        .slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
+        .map((c) => ({
+          ...offered(c),
+          roles: {
+            [a.code]: roleOn(c, chainA) ?? 'subject',
+            [b.code]: roleOn(c, chainB) ?? 'subject',
+          },
+        }));
       // Only a pair the validator could admit is worth a paid request (review I1): the connecting claim
       // must name both sides, and each side needs a claim the offer gives to that side.
       if (named.length === 0 || claimsA.length === 0 || claimsB.length === 0) continue;
@@ -130,17 +204,36 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
       // relation, which an unconnected pair never has.
       const explains = new Map<string, AdmissibleRelation>();
       for (const c of named) {
-        const ra = c.roles![a.code], rb = c.roles![b.code];
-        if (ra === 'mechanism' && rb !== 'mechanism') explains.set(`${a.code}>${b.code}`, { relationType: 'explains', fromConcept: a.code, toConcept: b.code });
-        if (rb === 'mechanism' && ra !== 'mechanism') explains.set(`${b.code}>${a.code}`, { relationType: 'explains', fromConcept: b.code, toConcept: a.code });
+        const ra = c.roles![a.code],
+          rb = c.roles![b.code];
+        if (ra === 'mechanism' && rb !== 'mechanism')
+          explains.set(`${a.code}>${b.code}`, {
+            relationType: 'explains',
+            fromConcept: a.code,
+            toConcept: b.code,
+          });
+        if (rb === 'mechanism' && ra !== 'mechanism')
+          explains.set(`${b.code}>${a.code}`, {
+            relationType: 'explains',
+            fromConcept: b.code,
+            toConcept: a.code,
+          });
       }
-      const admissible: AdmissibleRelation[] = [...[...explains.values()].sort((x, y) => byCode(x.fromConcept, y.fromConcept)),
-        { relationType: 'compares_mechanism', fromConcept: a.code, toConcept: b.code }, { relationType: 'analogous_in', fromConcept: a.code, toConcept: b.code }];
+      const admissible: AdmissibleRelation[] = [
+        ...[...explains.values()].sort((x, y) => byCode(x.fromConcept, y.fromConcept)),
+        { relationType: 'compares_mechanism', fromConcept: a.code, toConcept: b.code },
+        { relationType: 'analogous_in', fromConcept: a.code, toConcept: b.code },
+      ];
       pairs.push({ a, b, claimsA, claimsB, both: named, admissible, named: named.length > 0 });
     }
   }
   return pairs
-    .sort((x, y) => Number(y.named) - Number(x.named) || byCode(x.a.code, y.a.code) || byCode(x.b.code, y.b.code))
+    .sort(
+      (x, y) =>
+        Number(y.named) - Number(x.named) ||
+        byCode(x.a.code, y.a.code) ||
+        byCode(x.b.code, y.b.code),
+    )
     .slice(0, BRIDGE_INQUIRY_LIMITS.maxPairs)
     .map(({ named: _named, ...pair }) => pair);
 }
@@ -168,37 +261,69 @@ export const INQUIRY_PAIRS_MARKER = 'Offered pairs (JSON):';
 /** One native content block of an assistant turn, exactly as the provider returned it (ADR-0042 §1). */
 export type AssistantBlock = { readonly type: string; readonly [field: string]: unknown };
 /** A refused turn a continuation carries: the assistant's blocks in their original order, and the validator's reason codes. */
-export interface ContinuationTurn { assistant: readonly AssistantBlock[]; reasons: readonly string[] }
-export interface InquiryRequestRoute { model: string; maxOutputTokens: number; thinking: 'disabled' | 'adaptive' }
-
-const continuationPrompt = (reasons: readonly string[]) => [
-  `The system checked that proposal and refused it for these reasons: ${reasons.join(', ')}.`,
-  'Reply again with exactly one JSON object, as specified: a corrected proposal for an offered pair, or {"none": true} if the offered claims cannot support one.',
-].join('\n');
-
-export function serializeBridgeInquiryRequest(pairs: readonly InquiryPair[], route: InquiryRequestRoute, turns: readonly ContinuationTurn[] = []): Uint8Array {
-  const claim = (c: OfferedClaim) => ({ key: c.key, statement: c.statement, source: c.sourceTitle, ...(c.roles ? { roles: c.roles } : {}) });
-  // Codes, names and claims only: no place, universe or reader identifier leaves the process.
-  const offeredPairs = pairs.map((p, index) => ({
-    index, a: { code: p.a.code, name: p.a.name }, b: { code: p.b.code, name: p.b.name },
-    claimsAboutA: p.claimsA.map(claim), claimsAboutB: p.claimsB.map(claim), claimsNamingBoth: p.both.map(claim),
-    admissible: p.admissible.map((r, i) => ({ index: i, ...r })),
-  }));
-  return new TextEncoder().encode(canonical({
-    model: route.model,
-    max_tokens: route.maxOutputTokens,
-    // Disabled: a single JSON reply, and hidden reasoning would spend the bounded output budget. A route
-    // that accepts that cost may think; its thinking blocks then travel back, in place, in a continuation.
-    thinking: { type: route.thinking },
-    system: SYSTEM,
-    messages: [
-      { role: 'user', content: `${INQUIRY_PAIRS_MARKER}\n${canonical(offeredPairs)}` },
-      ...turns.flatMap(t => [{ role: 'assistant', content: t.assistant }, { role: 'user', content: continuationPrompt(t.reasons) }]),
-    ],
-  }));
+export interface ContinuationTurn {
+  assistant: readonly AssistantBlock[];
+  reasons: readonly string[];
+}
+export interface InquiryRequestRoute {
+  model: string;
+  maxOutputTokens: number;
+  thinking: 'disabled' | 'adaptive';
 }
 
-export type InquiryShapeReason = 'not_one_json_object' | 'reply_keys' | 'payload_invalid' | 'pair_not_offered' | 'relation_not_admissible' | 'claim_not_offered';
+const continuationPrompt = (reasons: readonly string[]) =>
+  [
+    `The system checked that proposal and refused it for these reasons: ${reasons.join(', ')}.`,
+    'Reply again with exactly one JSON object, as specified: a corrected proposal for an offered pair, or {"none": true} if the offered claims cannot support one.',
+  ].join('\n');
+
+export function serializeBridgeInquiryRequest(
+  pairs: readonly InquiryPair[],
+  route: InquiryRequestRoute,
+  turns: readonly ContinuationTurn[] = [],
+): Uint8Array {
+  const claim = (c: OfferedClaim) => ({
+    key: c.key,
+    statement: c.statement,
+    source: c.sourceTitle,
+    ...(c.roles ? { roles: c.roles } : {}),
+  });
+  // Codes, names and claims only: no place, universe or reader identifier leaves the process.
+  const offeredPairs = pairs.map((p, index) => ({
+    index,
+    a: { code: p.a.code, name: p.a.name },
+    b: { code: p.b.code, name: p.b.name },
+    claimsAboutA: p.claimsA.map(claim),
+    claimsAboutB: p.claimsB.map(claim),
+    claimsNamingBoth: p.both.map(claim),
+    admissible: p.admissible.map((r, i) => ({ index: i, ...r })),
+  }));
+  return new TextEncoder().encode(
+    canonical({
+      model: route.model,
+      max_tokens: route.maxOutputTokens,
+      // Disabled: a single JSON reply, and hidden reasoning would spend the bounded output budget. A route
+      // that accepts that cost may think; its thinking blocks then travel back, in place, in a continuation.
+      thinking: { type: route.thinking },
+      system: SYSTEM,
+      messages: [
+        { role: 'user', content: `${INQUIRY_PAIRS_MARKER}\n${canonical(offeredPairs)}` },
+        ...turns.flatMap((t) => [
+          { role: 'assistant', content: t.assistant },
+          { role: 'user', content: continuationPrompt(t.reasons) },
+        ]),
+      ],
+    }),
+  );
+}
+
+export type InquiryShapeReason =
+  | 'not_one_json_object'
+  | 'reply_keys'
+  | 'payload_invalid'
+  | 'pair_not_offered'
+  | 'relation_not_admissible'
+  | 'claim_not_offered';
 export type InquiryReply =
   | { kind: 'proposal'; payload: BridgeProposalPayload }
   | { kind: 'none' }
@@ -207,15 +332,23 @@ export type InquiryReply =
 /** Reply v2 (prompt v4): the model picks an offered pair and one of its admissible relations by
  * index, cites offered claims, and writes the prose; the system composes the typed proposal, so
  * the direction and each claim's side come from the offer, never from the model's reading of it. */
-const proposalReply = z.object({
-  pair: z.number().int().min(0), relation: z.number().int().min(0),
-  mechanism: bridgeProposalPayload.shape.mechanism, prerequisites: bridgeProposalPayload.shape.prerequisites,
-  limitations: bridgeProposalPayload.shape.limitations, cite: z.array(semanticKey).min(1).max(12),
-  counterevidence: bridgeProposalPayload.shape.counterevidence,
-}).strict();
+const proposalReply = z
+  .object({
+    pair: z.number().int().min(0),
+    relation: z.number().int().min(0),
+    mechanism: bridgeProposalPayload.shape.mechanism,
+    prerequisites: bridgeProposalPayload.shape.prerequisites,
+    limitations: bridgeProposalPayload.shape.limitations,
+    cite: z.array(semanticKey).min(1).max(12),
+    counterevidence: bridgeProposalPayload.shape.counterevidence,
+  })
+  .strict();
 
 export function parseBridgeInquiryReply(text: string, pairs: readonly InquiryPair[]): InquiryReply {
-  const shape = (reason: InquiryShapeReason): InquiryReply => ({ kind: 'shape', reasons: ['shape', reason] });
+  const shape = (reason: InquiryShapeReason): InquiryReply => ({
+    kind: 'shape',
+    reasons: ['shape', reason],
+  });
   const value = wholeObject(text);
   if (!value) return shape('not_one_json_object');
   const keys = Object.keys(value);
@@ -228,18 +361,36 @@ export function parseBridgeInquiryReply(text: string, pairs: readonly InquiryPai
   if (!pair) return shape('pair_not_offered');
   const relation = pair.admissible[r.relation];
   if (!relation) return shape('relation_not_admissible');
-  const has = (list: readonly OfferedClaim[], key: string) => list.some(c => c.key === key);
+  const has = (list: readonly OfferedClaim[], key: string) => list.some((c) => c.key === key);
   const supports = (key: string): 'from' | 'to' | 'mechanism' | null =>
-    has(pair.both, key) ? 'mechanism'
-      : has(pair.claimsA, key) ? (pair.a.code === relation.fromConcept ? 'from' : 'to')
-        : has(pair.claimsB, key) ? (pair.b.code === relation.fromConcept ? 'from' : 'to') : null;
+    has(pair.both, key)
+      ? 'mechanism'
+      : has(pair.claimsA, key)
+        ? pair.a.code === relation.fromConcept
+          ? 'from'
+          : 'to'
+        : has(pair.claimsB, key)
+          ? pair.b.code === relation.fromConcept
+            ? 'from'
+            : 'to'
+          : null;
   const cite = [...new Set(r.cite)];
-  const offered = (key: string) => has(pair.both, key) || has(pair.claimsA, key) || has(pair.claimsB, key);
-  if (cite.some(key => supports(key) === null) || r.counterevidence.claimKeys.some(key => !offered(key))) return shape('claim_not_offered');
+  const offered = (key: string) =>
+    has(pair.both, key) || has(pair.claimsA, key) || has(pair.claimsB, key);
+  if (
+    cite.some((key) => supports(key) === null) ||
+    r.counterevidence.claimKeys.some((key) => !offered(key))
+  )
+    return shape('claim_not_offered');
   const payload = bridgeProposalPayload.safeParse({
-    fromConcept: relation.fromConcept, toConcept: relation.toConcept, relationType: relation.relationType,
-    mechanism: r.mechanism, prerequisites: r.prerequisites, limitations: r.limitations,
-    evidence: cite.map(key => ({ claimKey: key, supports: supports(key)! })), counterevidence: r.counterevidence,
+    fromConcept: relation.fromConcept,
+    toConcept: relation.toConcept,
+    relationType: relation.relationType,
+    mechanism: r.mechanism,
+    prerequisites: r.prerequisites,
+    limitations: r.limitations,
+    evidence: cite.map((key) => ({ claimKey: key, supports: supports(key)! })),
+    counterevidence: r.counterevidence,
   });
   if (!payload.success) return shape('payload_invalid');
   return { kind: 'proposal', payload: payload.data };

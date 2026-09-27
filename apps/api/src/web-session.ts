@@ -21,9 +21,13 @@ export type WebSessionConfig = { secret: Buffer; webOrigin: string | null };
 export function webSessionConfig(env: NodeJS.ProcessEnv = process.env): WebSessionConfig {
   const production = env.NODE_ENV === 'production';
   const configured = env.KS_CSRF_SECRET;
-  if (production && (!configured || Buffer.byteLength(configured) < 32)) throw new Error('KS_CSRF_SECRET (32+ bytes) is required in production');
+  if (production && (!configured || Buffer.byteLength(configured) < 32))
+    throw new Error('KS_CSRF_SECRET (32+ bytes) is required in production');
   if (production && !env.KS_WEB_ORIGIN) throw new Error('KS_WEB_ORIGIN is required in production');
-  return { secret: configured ? Buffer.from(configured) : randomBytes(32), webOrigin: env.KS_WEB_ORIGIN?.replace(/\/+$/, '') ?? null };
+  return {
+    secret: configured ? Buffer.from(configured) : randomBytes(32),
+    webOrigin: env.KS_WEB_ORIGIN?.replace(/\/+$/, '') ?? null,
+  };
 }
 
 /** A value that is not valid percent-encoding was never set by this API (`sessionCookie` encodes
@@ -52,16 +56,21 @@ export const clearedSessionCookie = `${SESSION_COOKIE}=; Path=/v1; HttpOnly; Sec
 
 /** Derived, never stored: binds the CSRF token to this session without revealing the session token. */
 export function csrfToken(secret: Buffer, sessionToken: string): string {
-  return createHmac('sha256', secret).update(`csrf:${createHash('sha256').update(sessionToken).digest('hex')}`).digest('hex');
+  return createHmac('sha256', secret)
+    .update(`csrf:${createHash('sha256').update(sessionToken).digest('hex')}`)
+    .digest('hex');
 }
 
 function sameToken(a: string, b: string): boolean {
-  const x = Buffer.from(a), y = Buffer.from(b);
+  const x = Buffer.from(a),
+    y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
 declare module 'fastify' {
-  interface FastifyRequest { ksCookieSession?: string }
+  interface FastifyRequest {
+    ksCookieSession?: string;
+  }
 }
 
 /**
@@ -73,13 +82,19 @@ export function registerWebSession(app: FastifyInstance, config: WebSessionConfi
     if (req.url.startsWith('/v1/auth/')) return;
     const cookie = readCookie(req.headers.cookie, SESSION_COOKIE);
     if (!cookie) return;
-    if (req.headers.authorization) throw new HttpError(400, 'A request carries one credential, not two');
+    if (req.headers.authorization)
+      throw new HttpError(400, 'A request carries one credential, not two');
     if (!SAFE_METHODS.has(req.method)) {
       const origin = req.headers.origin;
       const site = req.headers['sec-fetch-site'];
-      const sameOrigin = typeof origin === 'string' ? origin === config.webOrigin : site === 'same-origin';
+      const sameOrigin =
+        typeof origin === 'string' ? origin === config.webOrigin : site === 'same-origin';
       const token = req.headers['x-csrf-token'];
-      if (!sameOrigin || typeof token !== 'string' || !sameToken(token, csrfToken(config.secret, cookie))) {
+      if (
+        !sameOrigin ||
+        typeof token !== 'string' ||
+        !sameToken(token, csrfToken(config.secret, cookie))
+      ) {
         throw new HttpError(403, 'This change needs the page’s own request token');
       }
     }

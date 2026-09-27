@@ -99,6 +99,22 @@ Install SDK packages sequentially: concurrent Android CLI downloads produced a t
 
 ## Verification and secrets
 
+### API and package TypeScript style
+
+From the repository root, after sourcing `scripts/env.sh`, run `pnpm format` to format
+`apps/api/**/*.ts` and the editable TypeScript in `packages`. `pnpm format:check` checks the same
+files without writing, and `pnpm lint` runs Biome's scoped TypeScript rules. The seven
+`packages/contracts/src/cutroom-v1` files are excluded because their exact bytes are pinned by
+SHA-256 in `source.json`. These commands do not touch Web, Android, worker source, or applied SQL
+migrations.
+
+The SQL pass formats static PostgreSQL strings of at least 100 characters passed directly to
+`.query(...)`. It leaves short statements inline and skips dynamic templates, SQL comments, and
+escape syntax for manual review. It changes SQL whitespace and keyword case only; keep parameter
+placeholders and quoted values intact when reviewing a formatting diff. The original-session lock
+query in `reasoning-context-session.ts` retains its leading bytes because an integration test
+observes that exact text in `pg_stat_activity` during a lock wait.
+
 `python3 scripts/android-journey.py` (after sourcing scripts/env.sh) creates a disposable PostgreSQL database, runs API/worker on port4311, installs a separate `.journey` app, and proves process-death restoration, keep/recreation, unavailable-server behavior and compact-screen recovery. It preserves the normal development database and app. Receipts/screenshots go to ignored artifacts/android-journey; reviewed snapshots belong in docs/journeys/evidence.
 
 `pnpm exec tsx scripts/run-isolated-journey.ts` creates disposable actual/decoy databases and a dynamic API port, verifies real HTTP/worker/database lineage, and rejects the wrong verifier database. It accepts DATABASE_URL from the environment when no local `.env` exists and is exercised in CI.

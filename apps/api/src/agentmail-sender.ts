@@ -29,7 +29,11 @@ export const AGENTMAIL_TIMEOUT_MS = 10_000;
  * unbounded response (same discipline as `apps/worker/src/cutroom/http-client.ts`'s `readBody`). */
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
-export type AgentMailFailureReason = 'http_error' | 'timeout' | 'network_error' | 'malformed_response';
+export type AgentMailFailureReason =
+  | 'http_error'
+  | 'timeout'
+  | 'network_error'
+  | 'malformed_response';
 
 /**
  * Everything this module ever throws. Deliberately carries only fields safe to hand an operator: an
@@ -44,7 +48,11 @@ export class AgentMailSendError extends Error {
   readonly reason: AgentMailFailureReason;
   readonly messageId: string | null;
 
-  constructor(reason: AgentMailFailureReason, httpStatus: number | null = null, messageId: string | null = null) {
+  constructor(
+    reason: AgentMailFailureReason,
+    httpStatus: number | null = null,
+    messageId: string | null = null,
+  ) {
     super(`AgentMail send failed: ${reason}`);
     this.name = 'AgentMailSendError';
     this.httpStatus = httpStatus;
@@ -135,7 +143,10 @@ function parseSendResponse(raw: string | null): ParsedSendResponse | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
   if (typeof record.message_id !== 'string' || record.message_id.length === 0) return null;
-  return { messageId: record.message_id, threadId: typeof record.thread_id === 'string' ? record.thread_id : null };
+  return {
+    messageId: record.message_id,
+    threadId: typeof record.thread_id === 'string' ? record.thread_id : null,
+  };
 }
 
 /** Best-effort extraction of a message id from an error-status body, purely as extra debugging

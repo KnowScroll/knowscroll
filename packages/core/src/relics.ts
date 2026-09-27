@@ -13,13 +13,22 @@ export type RelicFacts =
   /** Whether a source correction changed the place after it was kept; whether the reader set it aside. */
   | { kind: 'place'; correctedSinceKept: boolean; setAside: boolean }
   /** The Scroll's revision when kept and now; how many claims it was kept on have since lost their support. */
-  | { kind: 'passage' | 'answer'; keptRevision: number; currentRevision: number; unsupportedClaims: number; seemsWrong: boolean };
+  | {
+      kind: 'passage' | 'answer';
+      keptRevision: number;
+      currentRevision: number;
+      unsupportedClaims: number;
+      seemsWrong: boolean;
+    };
 
 function corrected(f: RelicFacts): boolean {
   switch (f.kind) {
-    case 'connection': return f.bridgeStatus !== 'admitted';
-    case 'place': return f.correctedSinceKept;
-    default: return f.currentRevision !== f.keptRevision || f.unsupportedClaims > 0;
+    case 'connection':
+      return f.bridgeStatus !== 'admitted';
+    case 'place':
+      return f.correctedSinceKept;
+    default:
+      return f.currentRevision !== f.keptRevision || f.unsupportedClaims > 0;
   }
 }
 

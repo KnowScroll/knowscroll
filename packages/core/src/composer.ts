@@ -44,9 +44,18 @@ export type ComposerSignalInputs = {
   sourceExposureCount: number;
 };
 
-export type ComposerWeights = { unreadBonus: number; exposurePenalty: number; recencyBonus: number };
+export type ComposerWeights = {
+  unreadBonus: number;
+  exposurePenalty: number;
+  recencyBonus: number;
+};
 
-export type ComposerPolicy = { version: string; weights: ComposerWeights; slateSize: number; maxPerSource: number };
+export type ComposerPolicy = {
+  version: string;
+  weights: ComposerWeights;
+  slateSize: number;
+  maxPerSource: number;
+};
 
 /** One retrieval-time candidate with only the signals ADR-0028 section 2 permits a ranking to
  * read: exposure count and recency (derived from `exposure`/`ledger`), and the source identity
@@ -98,8 +107,17 @@ function tiebreakKey(assetId: string): number {
  * recorded facts, never a provider call. An unread candidate outranks any exposed one by the
  * policy's own declared margin; among exposed candidates, fewer prior exposures and a longer gap
  * since the last one score higher. */
-function scoreSignal(weights: ComposerWeights, unread: boolean, exposureCount: number, recencyDays: number | null): number {
-  return (unread ? weights.unreadBonus : 0) - weights.exposurePenalty * exposureCount + weights.recencyBonus * (recencyDays ?? 0);
+function scoreSignal(
+  weights: ComposerWeights,
+  unread: boolean,
+  exposureCount: number,
+  recencyDays: number | null,
+): number {
+  return (
+    (unread ? weights.unreadBonus : 0) -
+    weights.exposurePenalty * exposureCount +
+    weights.recencyBonus * (recencyDays ?? 0)
+  );
 }
 
 function explanationKeyFor(unread: boolean): string {
@@ -155,24 +173,37 @@ export function rankSignalCandidates(
 ): RankedComposerItem[] {
   const kept = new Set(keptIds);
   const scored = candidates
-    .filter(c => !kept.has(c.asset.assetId))
-    .map(c => {
+    .filter((c) => !kept.has(c.asset.assetId))
+    .map((c) => {
       const unread = c.exposureCount === 0;
-      const recencyDays = unread || c.lastExposedAtMs === null ? null : Math.max(0, Math.floor((nowMs - c.lastExposedAtMs) / MS_PER_DAY));
-      return { c, unread, recencyDays, score: scoreSignal(policy.weights, unread, c.exposureCount, recencyDays) };
+      const recencyDays =
+        unread || c.lastExposedAtMs === null
+          ? null
+          : Math.max(0, Math.floor((nowMs - c.lastExposedAtMs) / MS_PER_DAY));
+      return {
+        c,
+        unread,
+        recencyDays,
+        score: scoreSignal(policy.weights, unread, c.exposureCount, recencyDays),
+      };
     })
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       // Coverage tie-break (#113/ADR-0029 amendment): among candidates the score cannot separate,
       // the source with fewer recorded exposures in this universe wins — never a code-constant
       // preference for a particular source, only what this universe's own history already records.
-      if (a.c.sourceExposureCount !== b.c.sourceExposureCount) return a.c.sourceExposureCount - b.c.sourceExposureCount;
+      if (a.c.sourceExposureCount !== b.c.sourceExposureCount)
+        return a.c.sourceExposureCount - b.c.sourceExposureCount;
       const hashDiff = tiebreakKey(a.c.asset.assetId) - tiebreakKey(b.c.asset.assetId);
       if (hashDiff !== 0) return hashDiff;
       // Only reached on an actual hash collision (astronomically unlikely for 32 bits over a
       // realistic candidate count): fall back to the raw id so the order stays a strict total
       // order rather than depending on unstable sort implementation behavior.
-      return a.c.asset.assetId < b.c.asset.assetId ? -1 : a.c.asset.assetId > b.c.asset.assetId ? 1 : 0;
+      return a.c.asset.assetId < b.c.asset.assetId
+        ? -1
+        : a.c.asset.assetId > b.c.asset.assetId
+          ? 1
+          : 0;
     });
 
   const perSource = new Map<string, number>();
@@ -183,7 +214,8 @@ export function rankSignalCandidates(
     if (used >= policy.maxPerSource) continue;
     const explanationKey = explanationKeyFor(entry.unread);
     const template = templates[explanationKey];
-    if (template === undefined) throw new Error(`No registered composer_explanation_template for '${explanationKey}'`);
+    if (template === undefined)
+      throw new Error(`No registered composer_explanation_template for '${explanationKey}'`);
     const inputs: ComposerSignalInputs = {
       exposureCount: entry.c.exposureCount,
       lastExposedAt: entry.unread ? null : new Date(entry.c.lastExposedAtMs!).toISOString(),

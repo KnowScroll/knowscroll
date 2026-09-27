@@ -16,11 +16,18 @@ import type pg from 'pg';
 import { uuid } from '../../../packages/contracts/src/index.ts';
 import type { AuthScope } from '../../../packages/db/src/index.ts';
 import { observeOfferedGaps } from '../../../packages/db/src/inventory/demand.ts';
-import { listEncounterBranches, openBranch, recordConnectionFeedback } from '../../../packages/db/src/semantic/branches.ts';
+import {
+  listEncounterBranches,
+  openBranch,
+  recordConnectionFeedback,
+} from '../../../packages/db/src/semantic/branches.ts';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { HttpError } from './errors.ts';
 
-export type Authenticated = <T>(authorization: string | undefined, fn: (scope: AuthScope, client: pg.PoolClient) => Promise<T>) => Promise<T>;
+export type Authenticated = <T>(
+  authorization: string | undefined,
+  fn: (scope: AuthScope, client: pg.PoolClient) => Promise<T>,
+) => Promise<T>;
 
 export function registerSemanticRoutes(app: FastifyInstance, authenticated: Authenticated): void {
   app.get<{ Params: { assetId: string } }>('/v1/assets/:assetId/branches', async (req, reply) => {

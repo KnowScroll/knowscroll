@@ -21,7 +21,13 @@ export interface AttentionPolicy {
   returnBonus: number;
   returnGapHours: number;
   roleWeights: Record<ConceptRole, number>;
-  anchored: { episodes: number; daysActive: number; voluntary: number; sourceFamilies: number; mass: number };
+  anchored: {
+    episodes: number;
+    daysActive: number;
+    voluntary: number;
+    sourceFamilies: number;
+    mass: number;
+  };
   dormant: { mass: number; idleDays: number };
 }
 
@@ -51,7 +57,11 @@ export interface EpisodeEvidence {
   marks: readonly { eventId: string; kind: MarkKind; atMs: number }[];
 }
 
-export interface NegativeEvidence { ref: string; atMs: number; concepts: readonly string[] }
+export interface NegativeEvidence {
+  ref: string;
+  atMs: number;
+  concepts: readonly string[];
+}
 
 export type AccountState = 'seen' | 'anchored' | 'dormant';
 
@@ -80,7 +90,12 @@ export interface AttentionAccount {
 const DAY = 86_400_000;
 const day = (ms: number) => Math.floor(ms / DAY);
 
-export function decayedMass(mass: number, fromMs: number, toMs: number, halfLifeDays: number): number {
+export function decayedMass(
+  mass: number,
+  fromMs: number,
+  toMs: number,
+  halfLifeDays: number,
+): number {
   return mass * Math.pow(2, -Math.max(0, toMs - fromMs) / (halfLifeDays * DAY));
 }
 
@@ -90,12 +105,20 @@ export function computeAttentionAccounts(
   nowMs: number,
   policy: AttentionPolicy = ATTENTION_V1,
 ): Map<string, AttentionAccount> {
-  type Working = AttentionAccount & { markDays: Set<number>; families: Set<string>; offered: number; lastEpisodeAtMs: number | null };
+  type Working = AttentionAccount & {
+    markDays: Set<number>;
+    families: Set<string>;
+    offered: number;
+    lastEpisodeAtMs: number | null;
+  };
   const accounts = new Map<string, Working>();
-  const ordered = [...episodes].sort((a, b) => a.atMs - b.atMs || (a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0));
+  const ordered = [...episodes].sort(
+    (a, b) =>
+      a.atMs - b.atMs || (a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0),
+  );
 
   for (const episode of ordered) {
-    const kinds = new Set(episode.marks.map(m => m.kind));
+    const kinds = new Set(episode.marks.map((m) => m.kind));
     const voluntary = episode.marks.length > 0;
     for (const link of episode.concepts) {
       const credit = policy.roleWeights[link.role];
@@ -103,18 +126,43 @@ export function computeAttentionAccounts(
       let a = accounts.get(link.code);
       if (!a) {
         a = {
-          concept: link.code, mass: 0, massAtMs: nowMs, episodes: 0, voluntary: 0, markKinds: { keep: 0, branch: 0, ask: 0 },
-          returns: 0, daysActive: 0, spanDays: 0, sourceFamilies: 0, exposureShare: 0, negatives: 0,
-          firstAtMs: episode.atMs, lastAtMs: episode.atMs, lastMarkAtMs: null, state: 'seen',
+          concept: link.code,
+          mass: 0,
+          massAtMs: nowMs,
+          episodes: 0,
+          voluntary: 0,
+          markKinds: { keep: 0, branch: 0, ask: 0 },
+          returns: 0,
+          daysActive: 0,
+          spanDays: 0,
+          sourceFamilies: 0,
+          exposureShare: 0,
+          negatives: 0,
+          firstAtMs: episode.atMs,
+          lastAtMs: episode.atMs,
+          lastMarkAtMs: null,
+          state: 'seen',
           evidence: { episodeIds: [], markIds: [], negativeIds: [] },
-          markDays: new Set(), families: new Set(), offered: 0, lastEpisodeAtMs: null,
+          markDays: new Set(),
+          families: new Set(),
+          offered: 0,
+          lastEpisodeAtMs: null,
         };
         accounts.set(link.code, a);
       }
-      let weight = policy.baseWeight + policy.voluntaryWeight * Math.min(kinds.size, policy.maxVoluntaryKinds);
-      const separated = a.lastEpisodeAtMs !== null && episode.atMs - a.lastEpisodeAtMs >= policy.returnGapHours * 3_600_000;
-      if (voluntary && separated) { weight += policy.returnBonus; a.returns += 1; }
-      a.mass += credit * weight * Math.pow(2, -Math.max(0, nowMs - episode.atMs) / (policy.halfLifeDays * DAY));
+      let weight =
+        policy.baseWeight + policy.voluntaryWeight * Math.min(kinds.size, policy.maxVoluntaryKinds);
+      const separated =
+        a.lastEpisodeAtMs !== null &&
+        episode.atMs - a.lastEpisodeAtMs >= policy.returnGapHours * 3_600_000;
+      if (voluntary && separated) {
+        weight += policy.returnBonus;
+        a.returns += 1;
+      }
+      a.mass +=
+        credit *
+        weight *
+        Math.pow(2, -Math.max(0, nowMs - episode.atMs) / (policy.halfLifeDays * DAY));
       a.episodes += 1;
       if (episode.systemOffered) a.offered += 1;
       a.lastEpisodeAtMs = episode.atMs;
@@ -143,12 +191,23 @@ export function computeAttentionAccounts(
   for (const [code, a] of accounts) {
     const markDays = [...a.markDays].sort((x, y) => x - y);
     const account: AttentionAccount = {
-      concept: a.concept, mass: round(a.mass), massAtMs: nowMs, episodes: a.episodes, voluntary: a.voluntary,
-      markKinds: a.markKinds, returns: a.returns, daysActive: markDays.length,
+      concept: a.concept,
+      mass: round(a.mass),
+      massAtMs: nowMs,
+      episodes: a.episodes,
+      voluntary: a.voluntary,
+      markKinds: a.markKinds,
+      returns: a.returns,
+      daysActive: markDays.length,
       spanDays: markDays.length ? markDays[markDays.length - 1]! - markDays[0]! : 0,
-      sourceFamilies: a.families.size, exposureShare: a.episodes ? round(a.offered / a.episodes) : 0,
-      negatives: a.negatives, firstAtMs: a.firstAtMs, lastAtMs: a.lastAtMs, lastMarkAtMs: a.lastMarkAtMs,
-      state: 'seen', evidence: a.evidence,
+      sourceFamilies: a.families.size,
+      exposureShare: a.episodes ? round(a.offered / a.episodes) : 0,
+      negatives: a.negatives,
+      firstAtMs: a.firstAtMs,
+      lastAtMs: a.lastAtMs,
+      lastMarkAtMs: a.lastMarkAtMs,
+      state: 'seen',
+      evidence: a.evidence,
     };
     account.state = stateOf(account, nowMs, policy);
     out.set(code, account);
@@ -158,9 +217,17 @@ export function computeAttentionAccounts(
 
 /** State lines are routing hints. Anchoring needs acts on separate days from separate sources;
  * watching can never cross it. Dormancy is an anchored-shaped history whose mass has faded. */
-export function stateOf(a: Omit<AttentionAccount, 'state'>, nowMs: number, policy: AttentionPolicy = ATTENTION_V1): AccountState {
+export function stateOf(
+  a: Omit<AttentionAccount, 'state'>,
+  nowMs: number,
+  policy: AttentionPolicy = ATTENTION_V1,
+): AccountState {
   const t = policy.anchored;
-  const shaped = a.episodes >= t.episodes && a.daysActive >= t.daysActive && a.voluntary >= t.voluntary && a.sourceFamilies >= t.sourceFamilies;
+  const shaped =
+    a.episodes >= t.episodes &&
+    a.daysActive >= t.daysActive &&
+    a.voluntary >= t.voluntary &&
+    a.sourceFamilies >= t.sourceFamilies;
   if (!shaped) return 'seen';
   if (a.mass >= t.mass) return 'anchored';
   const idle = a.lastMarkAtMs === null ? Infinity : (nowMs - a.lastMarkAtMs) / DAY;

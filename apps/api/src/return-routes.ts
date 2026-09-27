@@ -15,7 +15,13 @@
 import type { FastifyInstance } from 'fastify';
 import { uuid } from '../../../packages/contracts/src/index.ts';
 import { acknowledgeAway, readAway, ReturnError } from '../../../packages/db/src/away.ts';
-import { keepRelic, listRelics, readPassages, recordObjection, releaseRelic } from '../../../packages/db/src/relics.ts';
+import {
+  keepRelic,
+  listRelics,
+  readPassages,
+  recordObjection,
+  releaseRelic,
+} from '../../../packages/db/src/relics.ts';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 
@@ -28,20 +34,31 @@ type Paged = { Querystring: { page?: string } };
 
 export function registerReturnRoutes(app: FastifyInstance, authenticated: Authenticated): void {
   app.get<Paged>('/v1/away', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => readAway(client, scope, req.query.page).catch(http));
+    const result = await authenticated(req.headers.authorization, (scope, client) =>
+      readAway(client, scope, req.query.page).catch(http),
+    );
     return reply.header('Cache-Control', 'no-store').send(result);
   });
   app.post('/v1/away/acknowledge', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => acknowledgeAway(client, scope, req.body).catch(http));
+    const result = await authenticated(req.headers.authorization, (scope, client) =>
+      acknowledgeAway(client, scope, req.body).catch(http),
+    );
     return reply.header('Cache-Control', 'no-store').send(result);
   });
   app.get<Paged>('/v1/relics', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => listRelics(client, scope, req.query.page).catch(http));
+    const result = await authenticated(req.headers.authorization, (scope, client) =>
+      listRelics(client, scope, req.query.page).catch(http),
+    );
     return reply.header('Cache-Control', 'no-store').send(result);
   });
   app.post('/v1/relics', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => keepRelic(client, scope, req.body).catch(http));
-    return reply.code(result.created ? 201 : 200).header('Cache-Control', 'no-store').send(result.body);
+    const result = await authenticated(req.headers.authorization, (scope, client) =>
+      keepRelic(client, scope, req.body).catch(http),
+    );
+    return reply
+      .code(result.created ? 201 : 200)
+      .header('Cache-Control', 'no-store')
+      .send(result.body);
   });
   app.post<{ Params: { relicId: string } }>('/v1/relics/:relicId/release', async (req, reply) => {
     const result = await authenticated(req.headers.authorization, (scope, client) => {
@@ -51,12 +68,18 @@ export function registerReturnRoutes(app: FastifyInstance, authenticated: Authen
     return reply.header('Cache-Control', 'no-store').send(result);
   });
   app.post('/v1/objections', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => recordObjection(client, scope, req.body).catch(http));
-    return reply.code(result.created ? 201 : 200).header('Cache-Control', 'no-store').send(result.body);
+    const result = await authenticated(req.headers.authorization, (scope, client) =>
+      recordObjection(client, scope, req.body).catch(http),
+    );
+    return reply
+      .code(result.created ? 201 : 200)
+      .header('Cache-Control', 'no-store')
+      .send(result.body);
   });
   app.get<{ Params: { assetId: string } }>('/v1/scrolls/:assetId/passages', async (req, reply) => {
     const result = await authenticated(req.headers.authorization, (scope, client) => {
-      if (!uuid.safeParse(req.params.assetId).success) throw new HttpError(400, 'Invalid Scroll ID');
+      if (!uuid.safeParse(req.params.assetId).success)
+        throw new HttpError(400, 'Invalid Scroll ID');
       return readPassages(client, scope, req.params.assetId).catch(http);
     });
     return reply.header('Cache-Control', 'no-store').send(result);

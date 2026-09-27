@@ -12,7 +12,9 @@ import type { Authenticated } from './semantic-routes.ts';
 
 export function registerInventoryRoutes(app: FastifyInstance, authenticated: Authenticated): void {
   app.get('/v1/inventory', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) => readInventory(client, scope));
+    const result = await authenticated(req.headers.authorization, (scope, client) =>
+      readInventory(client, scope),
+    );
     return reply.header('Cache-Control', 'no-store').send(result);
   });
 }
