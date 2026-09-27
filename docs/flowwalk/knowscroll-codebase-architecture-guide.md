@@ -1,1210 +1,838 @@
-# FlowWalk: KnowScroll codebase, architecture, program design, and data flow
+# FlowWalk: KnowScroll architecture and codebase guide
 
-> **Source snapshot:** `c9c3e72c9a428059625d25906280a51b96b45fde` on 2026-09-21.
+> **Source reviewed:** `df8ff2fb4fe1ef66e5283ece3b45b192dc776e97` (`origin/main`) on 2026-09-27.
 >
-> **Scope:** the current KnowScroll repository, plus the separate Cutroom HTTP boundary.
+> **Runtime observed:** no listener on `127.0.0.1:4310` or `127.0.0.1:4392`; `pnpm state` could not reach PostgreSQL on `127.0.0.1:55432`. This is only a dated observation, not a guarantee about another machine or a later process.
 >
-> **Honesty rule:** the target architecture is the map of intended responsibilities; code, migrations, tests, and observed runtime determine what exists today.
+> **Owner database:** the last repository receipt still says migrations `0001`–`0009`. Source now contains 37 ordered migration files through `0040`. This review did not connect to, migrate, or modify the owner database.
+>
+> **Honesty rule:** target documents explain the intended product. Code and migrations explain what can execute. Tests and receipts explain what was proved in a named environment. None alone proves production deployment or owner acceptance.
 
-This guide answers four questions:
-
-1. What system was KnowScroll designed to become?
-2. What code and database structures actually exist now?
-3. What happens, in execution order, when a person signs in, encounters a Scroll, records exposure, keeps it, sees a world, changes privacy state, or requests generated media?
-4. Where does the current implementation match the planned architecture, where is it deliberately narrower, and where are the dangerous gaps?
-
-It is written as a guided reading path rather than a directory listing. The unit of explanation is a product feature and its runtime flow.
+This guide starts with the architecture KnowScroll planned in [the target index](../architecture/target/00-README.md), then follows the implementation that now exists. The language is simple, but the links and diagrams go down to real routes, functions, locks, tables, and failure boundaries.
 
 ---
 
-## 1. Start here
+## 1. The shortest accurate explanation
 
-Open [the target architecture index](../architecture/target/00-README.md#L11) first. It gives the vocabulary and the intended division of responsibility:
+KnowScroll is a personal discovery system. A person encounters a **Reel** or **Scroll**, and the system records defensible facts: what was offered, what became visible, and what the person explicitly kept, asked, followed, doubted, or set aside. It does not turn those acts into claims about the person's identity or beliefs.
 
-- the **Ledger** records what happened;
-- the **Composer** chooses an immediately available Reel or Scroll without a model call;
-- the **Steward** and reasoning plane investigate possible meaning asynchronously;
-- the **Cartographer** proposes changes to the personal universe;
-- the **Quartermaster** identifies missing experiences and looks for supply;
-- the **Inventory/Gates** boundary decides what content is safe and eligible to serve.
+The central design rule is:
 
-Then open [the implemented architecture index](../architecture/README.md#L1). Its key distinction is that solid arrows describe implemented bootstrap paths while dashed arrows describe target paths.
+> A model may suggest text or a relationship. Deterministic code and PostgreSQL decide whether it may become product state.
 
-The best first code file is [apps/api/src/app.ts](../../apps/api/src/app.ts#L92). It is the narrow waist of the current system: almost every user-visible flow enters there, authentication is applied there, and calls fan out into deterministic core logic and PostgreSQL-owned state.
+The implementation now has four substantial paths:
 
-### Recommended first reading path
+1. a fast encounter path: feed → visible exposure → Keep/Ask/branch;
+2. a deterministic personal-world path: attention → semantic Places → foundations, Rooms, Relics, and return changes;
+3. a bounded reasoning path: authorized Ask answers and background connection inquiries through the worker;
+4. a shared supply path: record content demand → reuse/join/fund → write and validate a Scroll.
 
-1. [docs/architecture/target/00-README.md](../architecture/target/00-README.md#L11) — intended vocabulary and full design.
-2. [docs/architecture/target/01-OVERVIEW.md](../architecture/target/01-OVERVIEW.md#L17) — the six intended responsibilities and three logical planes.
-3. [apps/api/src/app.ts](../../apps/api/src/app.ts#L92) — real HTTP entry points and transactions.
-4. [packages/db/src/identity.ts](../../packages/db/src/identity.ts#L71) — universe-first authentication and privacy-epoch authority.
-5. [packages/core/src/composer.ts](../../packages/core/src/composer.ts#L149) — the pure deterministic ranking function.
-6. [apps/worker/src/project.ts](../../apps/worker/src/project.ts#L19) — the actual deterministic projection worker.
-7. [packages/db/src/worlds.ts](../../packages/db/src/worlds.ts#L45) — the implemented, deliberately modest world derivation.
-8. [packages/db/src/privacy.ts](../../packages/db/src/privacy.ts#L27) — clear, pause, export, and reset behavior.
-9. [apps/worker/src/generation/worker.ts](../../apps/worker/src/generation/worker.ts#L1) — the Cutroom reconciliation chain.
-10. [apps/web/vite.config.ts](../../apps/web/vite.config.ts#L1) and [apps/web/src/api/client.ts](../../apps/web/src/api/client.ts#L1) — the browser-no-bearer-token design.
-11. [apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt#L1) — Android's state machine and recovery rules.
-12. [docs/product/v1-release.md](../product/v1-release.md#L1) — the actual release bar, which remains much larger than the implemented slice.
+Generated video has a deep lower-half integration, but it is still blocked before real release eligibility. Social/Blend is deliberately deferred.
 
 ---
 
-## 2. How to interpret status in this guide
+## 2. Target architecture versus implementation
 
-| Label | Meaning |
-| --- | --- |
-| **Implemented** | A real source path exists and has direct tests or journey evidence. This still does not prove the owner database is migrated or that a process is running. |
-| **Implemented, local/dev only** | Code works under the loopback or disposable environment but is deliberately blocked from production. |
-| **Contract-only** | Types, tables, interfaces, or helper primitives exist, but no product consumer completes the flow. |
-| **Stand-in** | A real integration boundary runs, but one or more upstream components use synthetic implementations. |
-| **Blocked** | The code intentionally cannot advance because an authority, provider, witness, identity carrier, or product decision is absent. |
-| **Target-only** | The idea exists in the adopted target documents but has no current implementation. |
-| **Defect/risk** | Current source contradicts a product rule or can produce stale, misleading, or unsafe behavior. |
-
-The repository has several different kinds of truth. Use them in this order:
-
-```mermaid
-flowchart LR
-    P[Product law and v1 scope] --> A[Accepted ADRs]
-    A --> C[Contracts and migrations]
-    C --> S[Exact source revision]
-    S --> T[Tests and journey receipts]
-    T --> R[Observed named runtime]
-    R --> O[Owner acceptance]
-```
-
-No step automatically proves the one after it. A migration in source does not prove the owner database has applied it. A green test does not prove a real provider was called. A working backend route does not prove either UI exposes it.
-
----
-
-## 3. The planned architecture, in plain language
-
-The planned system has three logical planes, not necessarily three services:
+The target architecture describes three logical planes. They are responsibilities, not necessarily separate services.
 
 ```mermaid
 flowchart TB
-    subgraph Personal[Personal domain plane]
-        UI[Reel, Scroll, World, Room, Blend]
-        API[Authorized ingest and reads]
-        Ledger[(Ledger and projections)]
-        Composer[Composer]
-        World[Chart, hypotheses, investigations]
-        UI --> API --> Ledger
-        Ledger --> World
-        Composer --> UI
-        World --> Composer
-    end
-
-    subgraph Compute[Shared reasoning plane]
-        Jobs[(Jobs, steps, attempts)]
-        Scheduler[Fair scheduler and admission]
-        Runtime[Model runtime and tools]
-        Proposal[Typed proposal]
-        Jobs --> Scheduler --> Runtime --> Proposal
-    end
-
-    subgraph Supply[Shared content plane]
-        Demand[Content demand]
-        Inventory[(Inventory)]
-        Cutroom[Cutroom HTTP service]
-        Gates[Import and publication gates]
-        Demand --> Inventory
-        Demand --> Cutroom --> Gates --> Inventory
-    end
-
-    Ledger -. wakes .-> Jobs
-    World -. context .-> Runtime
-    Proposal -. validate and apply .-> Ledger
-    World -. missing experience .-> Demand
-    Inventory --> Composer
+  subgraph Personal[Personal domain plane]
+    UI[Reel and Scroll clients]
+    API[Authorized API]
+    Ledger[(Ledger and personal state)]
+    Composer[Composer]
+    Atlas[Chart, Places, Rooms, Relics]
+    UI --> API --> Ledger
+    Ledger --> Atlas --> Composer --> UI
+  end
+  subgraph Reasoning[Shared reasoning plane]
+    Jobs[(Jobs, attempts, receipts)]
+    Fair[Fair scheduler]
+    Model[Worker-only model transport]
+    Proposal[Typed proposal]
+    Jobs --> Fair --> Model --> Proposal
+  end
+  subgraph Supply[Shared content plane]
+    Demand[Content demand]
+    Inventory[(Shared supply)]
+    Cutroom[External Cutroom]
+    Gates[Import and publication gates]
+    Demand --> Inventory
+    Demand -. video demand not connected .-> Cutroom --> Gates --> Inventory
+  end
+  Ledger --> Jobs
+  Proposal --> Atlas
+  Atlas --> Demand
 ```
 
-The essential design idea is not “lots of agents.” It is controlled separation:
+The big change since the first guide is that the semantic middle is no longer merely planned. Concepts, claims, corrections, admitted bridges, attention accounts, hypotheses, Places, foundation Stars, Ask answers, background inquiries, Rooms, Relics, and Scroll demand now have implemented code and database state.
 
-- immediate serving is deterministic and fast;
-- observations are stored with causal lineage;
-- expensive interpretation happens later through bounded jobs;
-- models propose; deterministic code validates and applies;
-- generated content enters the same inventory only after import, evidence, and quality gates;
-- private reasons stay separate from shared content;
-- a behavior is evidence, never proof of a belief, identity, or learning state.
+The whole target is still not implemented. A persistent Steward, rich long-running inhabitants, predictions, full Chronicle, galaxy/hole/ruin evolution, social projection and Blend, video demand through the Quartermaster, real Cutroom providers, Visual Witness, production deployment, and complete desktop parity remain absent, deferred, or blocked.
 
-That conceptual shape is still sound. The current source implements a useful subset of the personal plane, much of the execution safety spine, and a surprisingly deep generation/import/publication chain. It does **not** implement the semantic interpretation, Steward, full Cartographer, Quartermaster planning, rooms/residents, or social plane.
+### Status words
+
+| Status | Meaning |
+| --- | --- |
+| **Implemented** | Real source path plus direct tests or journey evidence exists. |
+| **Implemented, conditional** | The path runs only when configuration, consent, or a worker transport is enabled. |
+| **Stand-in** | The boundary is real but an upstream provider or input is synthetic. |
+| **Contract-only** | Tables, types, or primitives exist without a complete product consumer. |
+| **Blocked** | Code deliberately cannot advance without an external dependency or owner input. |
+| **Target-only** | Described in target architecture, with no present implementation. |
 
 ---
 
-## 4. Current system at one glance
+## 3. Current system architecture
 
 ```mermaid
 flowchart LR
-    Mobile[Android app\nIMPLEMENTED] --> API[Fastify API\nIMPLEMENTED]
-    Web[React/Vite web\nDEV-ONLY] --> Proxy[Vite loopback proxy\nTOKEN INJECTED SERVER-SIDE]
-    Proxy --> API
-
-    API --> Core[packages/core\nPURE COMPOSER]
-    API --> Contracts[packages/contracts\nZOD/WIRE SHAPES]
-    API --> PG[(PostgreSQL\n59 tables incl. ledger)]
-
-    PG --> Projector[Projection worker\nIMPLEMENTED]
-    Projector --> PG
-
-    PG -. contract primitives .-> Reasoning[Reasoning admission, fairness, context\nCONTRACT-ONLY FOR PRODUCT EXECUTION]
-    Reasoning -. provider port refuses ready .-> Models[External models\nBLOCKED]
-
-    PG --> Generation[Generation worker\nIMPLEMENTED OPERATOR PATH]
-    Generation --> Cutroom[External Cutroom HTTP\nREAL SERVICE, STAND-IN PROVIDERS]
-    Cutroom --> Import[Verified media import\nIMPLEMENTED]
-    Import --> Gates[Publication gates\nWITNESS UNAVAILABLE]
-    Gates --> Inventory[Reel inventory + media route\nTEST ELIGIBILITY IMPLEMENTED]
-    Inventory --> API
+  Android[Android app\nIMPLEMENTED, primary surface]
+  Web[React web\nPARTIAL, cookie auth implemented]
+  Proxy[Vite loopback proxy\nDEV bearer or cookie mode]
+  API[Fastify API\nIMPLEMENTED]
+  Contracts[packages/contracts\nWIRE SCHEMAS]
+  Core[packages/core\nPURE POLICIES]
+  DB[(PostgreSQL\n113 tables incl. migration ledger)]
+  Worker[Main worker\nPROJECTION + ANSWERS + INQUIRIES + SUPPLY]
+  Maint[Maintenance process\nRETIREMENT]
+  Gen[Generation worker\nOPERATOR PATH]
+  Cutroom[Cutroom HTTP\nREAL SERVICE BOUNDARY]
+  Providers[Model/video providers\nMIXED: real MiniMax proof, Cutroom stand-ins]
+  Media[KnowScroll media store]
+  Witness[Visual Witness\nABSENT]
+  Android --> API
+  Web --> Proxy --> API
+  API --> Contracts
+  API --> Core
+  API --> DB
+  Worker --> Core
+  Worker --> DB
+  Worker --> Providers
+  Maint --> DB
+  Gen --> DB
+  Gen --> Cutroom --> Providers
+  Gen --> Media --> API
+  Gen -. real eligibility requires .-> Witness
 ```
 
-### Component map
+### Component ownership
 
-| Component | What it owns now | Status | Important limitation |
-| --- | --- | --- | --- |
-| `packages/contracts` | Zod contracts for API-adjacent domain data, reasoning, Cutroom wire, generation, publication, inventory, worlds | **Implemented** | Not every browser response is generated directly from one shared schema; client/server drift has already caused a dead web surface. |
-| `packages/core` | Pure Composer ranking and explanation rendering | **Implemented** | This is not the target multi-term utility engine. It uses exposure count, recency, unread state, and source coverage only. |
-| `packages/db` | Pool/transactions, migrations, authentication, privacy, reasoning storage/admission/fairness/context, worlds, composer signal reads | **Implemented**, with some **contract-only** consumers | It carries far more capability than the currently wired product. Several rows describe legal future work rather than live behavior. |
-| `apps/api` | Authentication, admission, idempotency, reads, response shaping, media serving | **Implemented** | No provider or Cutroom calls by design. Production web identity is unresolved. |
-| `apps/worker` | Keep projection, maintenance, generation reconciliation/import, publication evaluation/minting, bounded certification tools | Mixed **implemented** and **contract-only** | There is no ordinary product reasoning loop; generation/publication is operator-oriented and blocked at real eligibility. |
-| `apps/web` | Universe, Scroll reader, Keep, Trace revisit, systems, privacy panel | **Implemented, local/dev only** | It cannot build for production by default because the browser must never hold a bearer token and no server session carrier exists. |
-| `apps/mobile` | Native Android reader, exposure, Keep, saved Trace revisit, privacy clear, device sign-out, worlds/system UI | **Implemented** for the current slice | No real magic-link enrollment UI, Reel playback, Ask, rooms, or social. |
-| Cutroom | Separate run engine reached over HTTP | **Real boundary with stand-in providers** | ffmpeg is real; model/image/video/voice inputs are not real providers in the current proof. KnowScroll does not modify Cutroom. |
-| Visual Witness | Vision-backed evidence/continuity inspection | **Blocked / absent** | `witness_alignment` returns unavailable, so a real generated Reel cannot become eligible. |
+| Component | What it owns now | Current truth |
+| --- | --- | --- |
+| `packages/contracts` | Wire shapes for bootstrap, semantic branches, Composer explanations, Atlas, away state, inquiries, Rooms, Relics, inventory, reasoning, generation and Cutroom | **Implemented.** Clients still have local parsers, so drift tests remain necessary. |
+| `packages/core` | Pure policies: Composer v2/v3/v4, bridge validator, attention/hypotheses, Cartographer, Chronicle wording, answer/inquiry validation, Room keeper, Relic state, Scroll checks, Quartermaster | **Implemented.** It imports no DB, HTTP, provider, or UI code. |
+| `packages/db` | Transactions, authority, migrations, encounter ledger, privacy, semantic state, reasoning, worlds, Atlas, Rooms, Relics, return and inventory | **Implemented.** It is the largest correctness boundary. |
+| `apps/api` | HTTP admission, authentication, idempotency, same-transaction writes, response shaping, CSRF and media authorization | **Implemented.** It never calls a model or Cutroom. |
+| `apps/worker` | Keep projection, Ask answers, inquiries, correction catch-up, Scroll supply, reasoning maintenance, Cutroom generation/import and publication tools | **Implemented in distinct loops.** Some loops require configured transports. |
+| `apps/web` | Cookie sign-in, Scroll reader, Keep, privacy/account deletion, system view and “What led here” | **Implemented but behind Android.** Production hosting and feature parity are unfinished. |
+| `apps/mobile` | Sign-in, private session vault, Cable, Scroll/Reel readers, Ask, branches, Atlas/Places, return, Rooms, Relics, privacy/account controls | **Implemented for the current personal slice.** Release inputs and physical-device acceptance remain. |
+| Cutroom | Separate HTTP video engine | **Real boundary with stand-in upstream providers in recorded proof.** |
 
-### A subtle monorepo detail
-
-`apps/api`, `apps/worker`, `packages/core`, `packages/db`, and `packages/contracts` are logical source boundaries compiled from the root TypeScript project. Only `apps/web` currently has its own `package.json`. The server-side modules import each other through relative source paths. This keeps the early system simple, but it means ownership rules are enforced by review and tests rather than by package-manager dependency declarations.
-
----
-
-## 5. Program design and dependency rules
-
-### 5.1 Direction of dependency
-
-The intended dependency direction is:
+### Dependency direction
 
 ```mermaid
 flowchart TD
-    UI[apps/mobile or apps/web] --> HTTP[HTTP contract]
-    API[apps/api] --> Contracts[packages/contracts]
-    API --> Core[packages/core]
-    API --> DB[packages/db]
-    Worker[apps/worker] --> Contracts
-    Worker --> DB
-    Core --> Contracts
-    DB --> Contracts
-    Worker --> External[Cutroom / provider ports]
+  Mobile[apps/mobile] --> HTTP[HTTP contracts]
+  Web[apps/web] --> HTTP
+  API[apps/api] --> Contracts[packages/contracts]
+  API --> Core[packages/core]
+  API --> DB[packages/db]
+  Worker[apps/worker] --> Core
+  Worker --> Contracts
+  Worker --> DB
+  Worker --> External[MiniMax / Cutroom]
 ```
 
-Important prohibitions:
+The useful boundary is what each area is allowed to know:
 
-- `packages/core` must not import database, HTTP, provider, or UI code.
-- API request handlers do not call models or Cutroom.
-- provider credentials live only in worker-side processes.
-- Cutroom host filesystem paths are never mobile/browser URLs.
-- models never directly mutate domain state.
-- every authenticated mutation locks the universe before locking session/domain/job rows.
+- `core` receives facts and returns decisions. It cannot read PostgreSQL or call a provider.
+- `db` loads facts, holds locks, applies decisions, and records history.
+- `api` authenticates and admits user-facing operations.
+- `worker` owns slow, asynchronous, external, or catch-up work.
+- clients render state and preserve retry identities; they do not own policy or provider keys.
 
-### 5.2 Why the universe lock is central
+### API route map
 
-The universe row is the serialization point for privacy and authority.
+This is the current user-facing HTTP surface, grouped by job rather than file:
 
-[authenticateAndLock](../../packages/db/src/identity.ts#L71) does this:
+| Job | Routes | Implementation |
+| --- | --- | --- |
+| Health and authority | `GET /health`, `GET /v1/session`, `POST /v1/session/revoke`, `GET /v1/session/csrf` | `app.ts`, `identity.ts`, `web-session.ts` |
+| Sign-in | `POST /v1/auth/magic-link`, `GET /v1/auth/confirm`, `POST /v1/auth/session`, `POST /v1/auth/web-session` | `sign-in-routes.ts`, `sign-in.ts` |
+| Encounter | `GET /v1/feed`, `POST /v1/exposures`, `POST /v1/interactions`, `POST /v1/asks`, `GET /v1/events/:eventId` | `app.ts` plus Composer/Ask DB modules |
+| Saved state | `GET /v1/universe`, `GET /v1/traces/:eventId`, `GET /v1/worlds` | `app.ts`, `trace-revisit.ts`, `worlds.ts` |
+| Explanations/corrections | `GET /v1/decisions/:decisionId/why`, `POST /v1/encounters/feedback`, `GET /v1/assets/:assetId/branches`, `POST /v1/branches`, `POST /v1/connections/feedback` | `composer-routes.ts`, `semantic-routes.ts` |
+| Ask answer | `POST/GET /v1/asks/:askId/answer`, `POST /v1/asks/:askId/answer/cancel` | `answer-routes.ts` |
+| Places | `GET /v1/atlas`, `GET /v1/atlas/deltas/:deltaId`, `POST /v1/atlas/places/:placeId/reject` | `atlas-routes.ts` |
+| Background inquiry | `PUT /v1/inquiries/consent`, `GET /v1/inquiries` | `inquiry-routes.ts` |
+| Return/Relics | `GET /v1/away`, `POST /v1/away/acknowledge`, `GET/POST /v1/relics`, `POST /v1/relics/:relicId/release`, `POST /v1/objections`, `GET /v1/scrolls/:assetId/passages` | `return-routes.ts` |
+| Rooms | `GET /v1/rooms/:roomId`, `GET /v1/rooms/deltas/:deltaId`, `POST /v1/rooms/:roomId/set-aside` | `room-routes.ts` |
+| Inventory | `GET /v1/inventory` | `inventory-routes.ts` |
+| Privacy/account | `POST /v1/history/clear`, `POST /v1/privacy/pause`, `resume`, `export`, `reset`, `POST /v1/account/delete` | `app.ts`, `privacy.ts` |
+| Media | `GET/HEAD /v1/media/:sha256` | `app.ts`, `media.ts` |
 
-1. Hash the supplied bearer token.
-2. Read only the candidate `universe_id`.
-3. Lock that universe row.
-4. Re-read and lock the `device_session`.
-5. Confirm it is unrevoked, unexpired, and has the same privacy epoch as the universe.
-6. Only then allow the route body to read or write private state.
+All private routes converge on the same authenticated transaction helper. Route modules do not create weaker side doors around the universe lock.
+
+---
+
+## 4. The universe lock and privacy epoch
+
+Every private mutation uses one row as the serialization point: `universe`.
+
+[authenticateAndLock](../../packages/db/src/identity.ts) hashes the credential to find a candidate universe. It then locks the universe, re-reads the session under that lock, and checks revocation, expiry, ownership, and privacy epoch. A session read before waiting is not durable authorization.
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
-    participant A as API
-    participant U as universe row
-    participant S as device_session row
-    C->>A: Authorization bearer token
-    A->>S: Find candidate universe by token hash
-    A->>U: SELECT ... FOR UPDATE
-    A->>S: Re-read session FOR UPDATE
-    S-->>A: active + unexpired + epoch matches
-    A->>A: execute route transaction
-    A-->>C: response
+  participant C as Client
+  participant A as API
+  participant U as universe row
+  participant S as device_session row
+  C->>A: cookie or bearer request
+  A->>S: hash lookup for candidate universe
+  A->>U: SELECT FOR UPDATE
+  A->>S: re-read and lock session
+  S-->>A: active, unexpired, same epoch
+  A->>A: route work in this transaction
+  A-->>C: commit and respond
 ```
 
-This solves a common race: a request may have looked authorized before waiting, while a reset or revocation commits during that wait. The second read under the universe lock prevents the stale request from continuing.
+The worker follows the same rule. It may discover a candidate without locking it, but it locks the universe before the job and rechecks the epoch and source rows. Old-epoch work is discarded, not applied.
 
-### 5.3 Transaction boundaries
+The common lock order is:
 
-The API wraps authenticated handlers in one PostgreSQL transaction ([app.ts](../../apps/api/src/app.ts#L115)). This means a feed decision and its `decision_signal` rows commit together, and an exposure event, `exposure` row, and world recomputation commit together.
+```text
+universe → session/domain row → reasoning job → shared scheduler/resource rows
+```
 
-The deterministic projection worker also uses a short transaction. External calls are explicitly outside database transactions. The generation worker persists exact request bytes and dispatch identity before HTTP, then records accepted/refused/unknown outcomes after the call. This avoids holding database locks across network time and preserves the uncertainty window instead of pretending delivery is exactly once.
-
----
-
-## 6. Feature map
-
-| Feature | Entry point | Core implementation | Persistent state | Current result |
-| --- | --- | --- | --- | --- |
-| Magic-link request | `POST /v1/auth/magic-link` | `registerSignInRoutes` → `requestMagicLink` → sender | `account`, `sign_in_token` | Real single-owner issuance; generic 202; delivery through sink or AgentMail |
-| Magic-link confirmation | `GET /v1/auth/confirm` | `confirmSignInToken` | read-only `sign_in_token` | Safe for link-scanner prefetch; does not consume |
-| Session creation | `POST /v1/auth/session` | `consumeSignInToken` | `device_session`, `sign_in_token`, `universe.account_id` | One-time token consumption; returns bearer session |
-| Feed | `GET /v1/feed` | candidate query → signals → pure Composer | `decision`, `decision_signal` | Three-item deterministic slate; Scroll default; Reel opt-in |
-| Exposure | `POST /v1/exposures` | decision check → causal event → world projection | `ledger`, `exposure`, `world*` | Visibility becomes recorded evidence and updates geography |
-| Keep | `POST /v1/interactions` | exposure validation → event + job | `ledger`, `job` | Accepted asynchronously and idempotently |
-| Keep projection | projection worker | `projectOne` | `trace`, `accounts`, `universe`, `job` | Saved Trace and kept-set update, exactly-once by constraints/idempotency |
-| Trace revisit | `GET /v1/traces/:eventId` | `readTraceRevisit` | read-only causal join | Returns original verified snapshot or fails closed |
-| Ask | `POST /v1/asks` | `recordExplicitAsk` | `ledger`, `explicit_ask` | `recorded_only`; no answer or provider job |
-| Worlds/system | exposure hook; `GET /v1/worlds` | `projectWorldsForEncounter`, `readWorldSystem` | `world`, `world_member`, `world_system`, `world_system_member` | Worlds grouped by exact shared source URL; one system per universe |
-| Pause/resume | privacy routes | `setRecordingPaused` | `universe`, `privacy_recording_receipt` | DB refuses new Ledger writes while paused |
-| Export | `POST /v1/privacy/export` | `exportUniverse` | live reads + `privacy_export_receipt` | Partial personal export; known omission of world projection rows |
-| Reset | `POST /v1/privacy/reset` | `resetPersonalUniverse` | erases personal event/projection families, increments epoch, revokes sessions | Stronger than Clear, but leaves stale world-system rows today |
-| Reasoning safety spine | internal factories/tests | admission, fairness, contexts, attempts, settlement, retirement | 30+ reasoning tables | Deep primitives exist; ordinary product dispatch remains disabled |
-| Generation | generation worker/CLI | brief → budget → attempt → Cutroom → import | generation tables + media store | Reconciliation/import implemented; upstream providers stand in |
-| Publication | publication CLI/helpers | seven gates → availability → mint inventory asset | gate rows, `generated_reel`, `asset` | Test eligibility works; real eligibility blocked by Visual Witness |
-| Web product | browser navigation | `ReaderStore` + React components | namespaced browser state; no token | Local/dev only; production identity carrier absent |
-| Android product | `AppViewModel` + Compose | state machine + `ApiClient` + `StateStore` | private device state fenced by universe/epoch | Strong recovery for current Scroll slice; broader v1 absent |
+This is why Reset, Clear, an Ask result, an inquiry, and a Keep projection cannot legally race past one another into a newer privacy epoch.
 
 ---
 
-## 7. Database architecture
+## 5. Database: complete shape at source head
 
-### 7.1 Why PostgreSQL is more than storage here
+There are **37 SQL migration files** through `0040`, creating **112 product tables**. `schema_migrations`, created by the runner, makes **113 tables** in a fully migrated database. The runner takes an advisory transaction lock, validates checksums, requires the applied rows to be an ordered prefix, and applies remaining files in lexical order. [RELEASED.txt](../../packages/db/migrations/RELEASED.txt) prevents a migration from being inserted behind a released one.
 
-The database is an active correctness boundary. Application code proposes transactions; PostgreSQL independently rejects states that violate identity, lineage, immutability, privacy, accounting, publication, and projection rules.
+This describes source. The last owner receipt still reports `0001`–`0009`.
 
-There are 58 product tables across the migration source, plus `schema_migrations`, for 59 total tables in a fully migrated database. The physical files are numbered through `0024` with deliberate gaps; there are 21 SQL files, not 24 files.
+### 5.1 Every table, grouped by responsibility
 
-### 7.2 Schema families
+For exact column types, defaults, every check, and every index, the named migration family is the authority.
 
-#### Encounter, identity, and causal history
+| Family | Tables | Migrations |
+| --- | --- | --- |
+| Identity and encounter | `account`, `universe`, `device_session`, `sign_in_token`, `asset`, `accounts`, `decision`, `exposure`, `ledger`, `job`, `trace`, `explicit_ask`, `worker_heartbeat` | `0001`–`0003`, `0009`, `0016` |
+| Privacy receipts | `history_clear_receipt`, `privacy_recording_receipt`, `privacy_export_receipt`, `privacy_reset_receipt`, `account_deletion_receipt` | `0003`, `0020`, `0030` |
+| Reasoning private graph/accounting | `reasoning_job`, `reasoning_step`, `reasoning_attempt`, `reasoning_context`, `reasoning_context_read`, `reasoning_context_payload`, `reasoning_context_dependency`, `reasoning_context_job_session`, `reasoning_context_job_ask`, `reasoning_accounting`, `reasoning_bucket`, `reasoning_permit`, `reasoning_reservation`, `reasoning_receipt`, `reasoning_settlement`, `reasoning_settlement_adjustment` | `0004`, `0005`, `0007`, `0008`, `0010`–`0012` |
+| Fair scheduling | `reasoning_fairness_policy`, `reasoning_fairness_scheduler`, `reasoning_fairness_class`, `reasoning_fairness_universe`, `reasoning_fairness_ready`, `reasoning_fairness_attempt`, `reasoning_fairness_delta` | `0006` |
+| Generated Reel supply | `cutroom_engine`, `generation_brief`, `generation_budget_grant`, `generation_job`, `cutroom_attempt`, `cutroom_event`, `media_object`, `generated_reel`, `publication_policy`, `publication_gate_result` | `0013`, `0014` |
+| Original source worlds | `world_derivation_method`, `world`, `world_member`, `world_system`, `world_system_member` | `0017`, `0025` |
+| Composer records | `composer_policy`, `composer_explanation_template`, `decision_signal`, `attention_account`, `attention_transition`, `personal_hypothesis`, `encounter_feedback`, `composer_reason_template`, `decision_candidate`, `decision_context` | `0022`–`0024`, `0027`, `0037` |
+| Shared semantic substrate | `semantic_seed_load`, `evidence_family`, `semantic_source`, `source_snapshot`, `concept`, `claim`, `claim_concept`, `claim_support`, `concept_relation`, `asset_concept`, `asset_claim`, `semantic_proposal`, `bridge`, `bridge_evidence`, `semantic_correction`, `semantic_correction_effect` | `0026` |
+| Private semantic actions | `branch_open`, `connection_feedback`, `correction_catch_up` | `0026`, `0034` |
+| Ask answers | `ask_answer_route`, `ask_answer_owner_bucket`, `ask_answer_request`, `ask_answer` | `0028` |
+| Atlas | `atlas_place`, `atlas_delta` | `0029`, `0031` |
+| Background inquiries | `background_inquiry_route`, `background_inquiry_owner_bucket`, `background_inquiry_consent`, `background_inquiry_consent_request`, `inquiry_mail`, `background_inquiry`, `background_inquiry_continuation` | `0032`, `0036` |
+| Return and Relics | `away_acknowledgement`, `relic`, `reader_objection` | `0033`, `0039` |
+| Model-written Scrolls | `source_material`, `scroll_writing` | `0035` |
+| Idea Rooms | `room`, `room_delta`, `room_inhabitant` | `0038` |
+| Inventory/demand | `content_demand`, `scroll_writing_route`, `scroll_material_candidate`, `supply_request`, `demand_waiter`, `encounter_binding` | `0040` |
 
-`account`, `universe`, `device_session`, `sign_in_token`, `asset`, `accounts`, `decision`, `exposure`, `ledger`, `job`, `trace`, `explicit_ask`, `history_clear_receipt`, `worker_heartbeat`
-
-This is the shortest path through the product:
+### 5.2 Encounter, authority, and projection
 
 ```mermaid
 erDiagram
-    account ||--o| universe : owns
-    universe ||--o{ device_session : authorizes
-    account ||--o{ sign_in_token : requests
-    universe ||--o{ decision : selects
-    decision ||--o{ exposure : shown_as
-    asset ||--o{ exposure : displayed
-    exposure ||--|| ledger : caused_by
-    ledger ||--o| job : enqueues
-    job ||--o| trace : projects
-    asset ||--o{ trace : saved
+  ACCOUNT ||--o| UNIVERSE : owns
+  ACCOUNT ||--o{ SIGN_IN_TOKEN : receives
+  UNIVERSE ||--o{ DEVICE_SESSION : authorizes
+  UNIVERSE ||--|| ACCOUNTS : projects
+  UNIVERSE ||--o{ DECISION : composes
+  DECISION ||--o{ EXPOSURE : permits
+  ASSET ||--o{ EXPOSURE : shown_as
+  EXPOSURE ||--|| LEDGER : records
+  LEDGER ||--o| LEDGER : causes
+  LEDGER ||--o| JOB : enqueues
+  JOB ||--o| TRACE : projects
+  ASSET ||--o{ TRACE : saved
+  LEDGER ||--o| EXPLICIT_ASK : pairs_with
 ```
 
-The Ledger row is the causal event. `exposure` is the structured fact about a visible item. A Keep is another Ledger row whose `causation_id` points to the exposure event. `job` makes deterministic projection asynchronous. `trace` is a rebuildable projection, not the source event.
+Key facts:
 
-#### Reasoning private graph and retained accounting
+- `universe.id` is the private scope and lock key; `privacy_epoch` only moves forward.
+- session/token hashes are unique SHA-256-shaped values; raw session tokens are not stored.
+- `decision` records one Composer slate and policy/ranking version.
+- `ledger` is ordered by `seq`, idempotent by `(universe_id, client_key)`, and stores causation.
+- one Keep event creates one projection `job`; `trace` is derived state.
 
-`reasoning_job`, `reasoning_context`, `reasoning_context_read`, `reasoning_context_payload`, `reasoning_context_dependency`, `reasoning_context_job_session`, `reasoning_context_job_ask`, `reasoning_step`, `reasoning_attempt`, `reasoning_accounting`, `reasoning_bucket`, `reasoning_permit`, `reasoning_reservation`, `reasoning_receipt`, `reasoning_settlement`, `reasoning_settlement_adjustment`
+### 5.3 Semantic model, Atlas, Rooms, and Relics
 
-These tables separate private work from minimal retained cost/liability evidence. A privacy clear can remove context and private outputs while preserving enough accounting to reconcile a provider receipt that arrives late.
+```mermaid
+erDiagram
+  SEMANTIC_SOURCE ||--o{ SOURCE_SNAPSHOT : versions
+  SOURCE_SNAPSHOT ||--o{ CLAIM_SUPPORT : supports
+  CLAIM ||--o{ CLAIM_SUPPORT : receives
+  CLAIM ||--o{ CLAIM_CONCEPT : concerns
+  CONCEPT ||--o{ CLAIM_CONCEPT : classifies
+  CONCEPT ||--o{ CONCEPT : parent_of
+  SEMANTIC_PROPOSAL ||--o| BRIDGE : admits
+  BRIDGE ||--o{ BRIDGE_EVIDENCE : cites
+  CLAIM ||--o{ BRIDGE_EVIDENCE : evidence
+  UNIVERSE ||--o{ BRANCH_OPEN : follows
+  UNIVERSE ||--o{ CONNECTION_FEEDBACK : corrects
+  UNIVERSE ||--o{ ATLAS_PLACE : contains
+  ATLAS_PLACE ||--o{ ATLAS_DELTA : changes_by
+  ATLAS_PLACE ||--o{ ROOM : hosts
+  ROOM ||--o{ ROOM_INHABITANT : seats
+  ROOM ||--o{ ROOM_DELTA : changes_by
+  UNIVERSE ||--o{ RELIC : keeps
+```
 
-#### Fair scheduling
+The shared substrate and private universe are separate. Sources, claims, concepts, and shared bridges can be reused. Branches, feedback, hypotheses, attention, Places, Rooms, Relics, demands, and bindings are private. A reader correction changes that reader's path; it does not rewrite shared knowledge. An operator source correction can invalidate shared evidence and trigger deterministic catch-up.
 
-`reasoning_fairness_policy`, `reasoning_fairness_scheduler`, `reasoning_fairness_class`, `reasoning_fairness_universe`, `reasoning_fairness_ready`, `reasoning_fairness_attempt`, `reasoning_fairness_delta`
+### 5.4 Reasoning
 
-This family implements bounded class turns and per-universe turns, not a process-local queue. It is durable across restart and designed so unknown remote work cannot be accidentally refunded as though it were never sent.
+```mermaid
+erDiagram
+  UNIVERSE ||--o{ REASONING_JOB : owns
+  REASONING_JOB ||--o{ REASONING_STEP : contains
+  REASONING_STEP ||--o{ REASONING_ATTEMPT : tries
+  REASONING_JOB ||--o| REASONING_CONTEXT : seals
+  REASONING_CONTEXT ||--o{ REASONING_CONTEXT_PAYLOAD : contains
+  REASONING_CONTEXT ||--o{ REASONING_CONTEXT_DEPENDENCY : binds
+  REASONING_ATTEMPT ||--o| REASONING_RESERVATION : reserves
+  REASONING_ATTEMPT ||--o| REASONING_PERMIT : permits
+  REASONING_ATTEMPT ||--o{ REASONING_RECEIPT : observes
+  REASONING_ATTEMPT ||--|| REASONING_ACCOUNTING : retains
+  REASONING_ATTEMPT ||--o{ REASONING_SETTLEMENT : settles
+  REASONING_SETTLEMENT ||--o{ REASONING_SETTLEMENT_ADJUSTMENT : adjusts
+  REASONING_JOB ||--o| REASONING_FAIRNESS_READY : schedules
+  REASONING_FAIRNESS_ATTEMPT ||--o{ REASONING_FAIRNESS_DELTA : accounts
+```
 
-#### Generated media supply
+Private context may be erased while minimal accounting survives. A late provider receipt may still create a financial obligation even when it no longer has authority to create personal output.
 
-`cutroom_engine`, `generation_brief`, `generation_budget_grant`, `generation_job`, `cutroom_attempt`, `cutroom_event`, `media_object`, `generated_reel`, `publication_policy`, `publication_gate_result`
+### 5.5 Demand and shared supply
 
-The key distinction is between:
+```mermaid
+erDiagram
+  UNIVERSE ||--o{ CONTENT_DEMAND : needs
+  CONCEPT ||--o{ CONTENT_DEMAND : about
+  CONTENT_DEMAND ||--o{ DEMAND_WAITER : waits
+  SUPPLY_REQUEST ||--o{ DEMAND_WAITER : shared_by
+  SCROLL_WRITING_ROUTE ||--o{ SUPPLY_REQUEST : sends
+  SCROLL_MATERIAL_CANDIDATE ||--o{ SUPPLY_REQUEST : funds
+  SUPPLY_REQUEST ||--o| SCROLL_WRITING : produces
+  CONTENT_DEMAND ||--o{ ENCOUNTER_BINDING : receives
+  ASSET ||--o{ ENCOUNTER_BINDING : binds
+```
 
-- an editorial **brief**;
-- permission and budget to attempt generation;
-- one exact **Cutroom request** and its uncertain remote outcome;
-- imported, content-addressed bytes;
-- an evaluated generated Reel;
-- a separately minted inventory `asset` that clients can receive.
+Demand, waiters, and bindings are private. Supply requests and written Scrolls are shared and name no universe. Two readers can wait on one request without sharing why they needed it.
 
-#### Worlds and systems
+### 5.6 Rules PostgreSQL enforces itself
 
-`world_derivation_method`, `world`, `world_member`, `world_system`, `world_system_member`
+- `ledger_pause_guard` refuses new Ledger events while recording is paused.
+- migration checksums and prefix ordering prevent silent schema-history rewrites.
+- sign-in tokens expire within 15 minutes and are consumed once.
+- Ask event/fact pairs must agree, and Ask facts are immutable.
+- reasoning policies, receipts, settlements, sealed contexts, attempts, and fairness deltas have append-only or one-way guards.
+- Composer policies/templates are immutable; deferred constraints verify candidate coverage, scores, ranks, and diversity.
+- a bridge requires an admitted proposal and the evidence slice the validator used.
+- source correction propagation is a deferred database invariant.
+- an Atlas Place/foundation change requires its matching delta in the same transaction.
+- Room and inhabitant changes require matching Room history.
+- an admitted model-written Scroll needs a matching snapshot hash and asset; a refusal cannot carry an asset.
+- real generated-Reel eligibility needs the publication-gate set; `test_eligible` is confined to disposable databases.
+- live generation grants are capped, and job/attempt identity cannot be rebound after dispatch.
+- account deletion is allowed only inside its guarded transaction and leaves an address-free receipt.
 
-Current geography is intentionally modest. A unique source URL becomes one shared world. A universe gets a system when it has exposures to Scrolls belonging to one or more worlds. This is evidence-backed grouping, not semantic clustering.
-
-#### Privacy receipts
-
-`privacy_recording_receipt`, `privacy_export_receipt`, `privacy_reset_receipt`
-
-These provide exact retry identities and immutable evidence that an operation was applied. A receipt is not automatically proof that every intended downstream side effect occurred; the transaction and database constraints must make that correspondence true.
-
-#### Composer evidence
-
-`composer_policy`, `composer_explanation_template`, `decision_signal`
-
-The selected policy and each candidate's inputs, score, rank, and explanation key are persisted so the ranking can be independently recomputed.
-
-### 7.3 Examples of rules enforced in PostgreSQL
-
-The following are not merely TypeScript promises:
-
-- session ownership and privacy epoch are represented by composite foreign keys;
-- Ledger client keys are unique within a universe;
-- one `job` belongs to one causal event;
-- immutable policies cannot be updated or deleted;
-- reasoning receipts and settlements are append-only evidence;
-- permits, reservations, attempts, and closure states have shape constraints;
-- sign-in tokens are immutable except for one legal consumption transition;
-- live generation spend is capped and stand-in outputs are confined to disposable databases;
-- imported media objects and Cutroom events are immutable;
-- publication policies and gate results are immutable;
-- a Reel inventory asset must match its generated-Reel provenance;
-- Composer rank/score/input shapes and policy versions are checked;
-- world and system counts are recomputed by triggers when projection rows are written;
-- pause is enforced by a `BEFORE INSERT` trigger on `ledger`.
-
-This is a deliberate and mostly good choice: the database protects invariants even if a caller bypasses normal application helpers.
-
-### 7.4 Important database weaknesses found in the current source
-
-1. **Reset leaves world projection rows behind.** `resetPersonalUniverse` deletes `exposure`, `ledger`, `decision`, `trace`, and `job`, but does not delete or recompute `world_system` and `world_system_member` ([privacy.ts](../../packages/db/src/privacy.ts#L246)). `GET /v1/worlds` is a pure read of those projection rows ([worlds.ts](../../packages/db/src/worlds.ts#L190)). After reset, stale personal geography can still be returned.
-2. **Export omits worlds.** `exportUniverse` does not select `world_system` or `world_system_member` ([privacy.ts](../../packages/db/src/privacy.ts#L151)). The export therefore does not contain every personal projection the application can display.
-3. **World count triggers validate projection writes, not every source mutation.** Changing underlying membership or exposure rows later can leave already-written counts stale unless the projection is recomputed.
-4. **A generated-Reel availability guard is update-focused.** A direct insertion path can potentially start a row in an eligible state before the normal update guard runs. Application helpers do not do this, but the schema claim is stronger than the schema currently proves.
-5. **Composer constraints verify the recorded row shape, not the full calculation.** PostgreSQL checks ranks, scores, required inputs, and immutability, but it does not independently recompute the TypeScript score formula or coverage comparison.
+This makes development failures louder, but prevents a second writer or later refactor from bypassing product law.
 
 ---
 
-## 8. Flow 1 — magic-link sign-in
-
-### Purpose
-
-Turn possession of the configured owner's mailbox into an ordinary `device_session`, without exposing whether an arbitrary submitted address is the owner and without letting email scanners consume the link.
+## 6. Magic-link sign-in without a browser bearer token
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser/mail client
-    participant API as Fastify API
-    participant DB as PostgreSQL
-    participant Mail as AgentMail or dev sink
-
-    B->>API: POST /v1/auth/magic-link {email}
-    API->>DB: advisory lock + rate counts
-    API->>DB: insert hashed sign_in_token if owner and allowed
-    API->>Mail: bounded one-shot send
-    API-->>B: 202 requested (always generic)
-    B->>API: GET /v1/auth/confirm?token=...
-    API->>DB: read-only validity check
-    API-->>B: {valid}
-    B->>API: POST /v1/auth/session {token}
-    API->>DB: universe lock, token row lock, consume once
-    DB-->>API: new device_session + bearer token
-    API-->>B: session response
+  participant P as Person
+  participant W as Web page
+  participant A as API
+  participant M as Mail sender
+  participant DB as PostgreSQL
+  P->>A: POST /v1/auth/magic-link
+  A->>DB: requestMagicLink()
+  A->>M: send /sign-in#token=...
+  A-->>P: generic 202
+  P->>W: open fragment link
+  W->>A: POST /v1/auth/web-session
+  A->>DB: consumeSignInToken()
+  A-->>W: HttpOnly cookie + CSRF token
+  W->>A: later /v1 request with cookie
+  A->>A: cookie bridge adds internal bearer header
+  A->>DB: authenticateAndLock()
 ```
 
-### Code path
+Real code: [sign-in-routes.ts](../../apps/api/src/sign-in-routes.ts), [sign-in.ts](../../packages/db/src/sign-in.ts), [web-session.ts](../../apps/api/src/web-session.ts), and [Root.tsx](../../apps/web/src/Root.tsx).
 
-1. [registerSignInRoutes](../../apps/api/src/sign-in-routes.ts#L33) parses the request and always returns a generic `202`.
-2. [requestMagicLink](../../packages/db/src/sign-in.ts#L124) normalizes the address, takes an advisory lock, enforces account/fingerprint windows, creates random material on both owner and non-owner paths, and stores only the token hash.
-3. The sender is either a development sink or bounded AgentMail client. Delivery failure is sanitized and not reflected differently to the caller.
-4. [confirmSignInToken](../../packages/db/src/sign-in.ts#L180) is read-only. An automated link preview cannot consume the token.
-5. [consumeSignInToken](../../packages/db/src/sign-in.ts#L223) discovers the candidate account/universe, locks the universe, locks the token row, rechecks expiry/consumption, optionally adopts the bootstrap universe, mints a new device session, and consumes the sign-in token exactly once.
+The browser never receives the session bearer token. It gets an unreadable cookie and derived CSRF token. Unsafe cookie requests need same-origin evidence and `X-CSRF-Token`. Android uses `/v1/auth/session` and stores its bearer credential in encrypted `SessionVault`.
 
-### What is implemented and what is not
-
-- **Implemented:** backend magic-link lifecycle, AgentMail delivery boundary, one-time consumption, ordinary session issuance.
-- **Implemented evidence:** the repository records a real-mail disposable proof and replay refusal.
-- **Not implemented on web:** a lawful production mechanism for carrying the resulting session without exposing its bearer token to browser JavaScript.
-- **Not implemented on Android:** a complete owner-facing magic-link enrollment/consume experience.
+Implemented: owner magic link, generic response, scanner-safe confirmation, one-time use, web cookie, CSRF, Android vault, sign-out, and deletion. Open: production domain/mail, owner keystore, deployed same-origin web, recovery operations, and final acceptance. Vite still refuses an ordinary production build because deployment is unfinished; its loopback proxy supports dev bearer and cookie modes.
 
 ---
 
-## 9. Flow 2 — encounter, exposure, Keep, and deterministic projection
-
-This is the most important implemented vertical slice.
+## 7. Encounter → exposure → Keep → projection
 
 ```mermaid
 sequenceDiagram
-    participant UI as Mobile/Web
-    participant API as apps/api
-    participant Core as packages/core Composer
-    participant DB as PostgreSQL
-    participant W as projection worker
-
-    UI->>API: GET /v1/feed
-    API->>DB: authenticate + lock universe
-    API->>DB: assets, account, signal snapshots, policy, templates
-    API->>Core: rankSignalCandidates(...)
-    Core-->>API: ranked slate + reasons + inputs
-    API->>DB: decision + decision_signal rows
-    API-->>UI: decisionId, epoch, items
-
-    UI->>API: POST /v1/exposures
-    API->>DB: validate decision and epoch
-    API->>DB: ledger(exposure) + exposure
-    API->>DB: recompute worlds/system in same transaction
-    API-->>UI: exposureId + eventId
-
-    UI->>API: POST /v1/interactions kind=keep
-    API->>DB: validate exposure and exact asset
-    API->>DB: ledger(keep) + job atomically
-    API-->>UI: accepted
-
-    W->>DB: claim pending job with SKIP LOCKED
-    W->>DB: lock universe, recheck epoch and causation
-    W->>DB: insert trace; update accounts + universe; complete job
-    UI->>API: GET /v1/universe or GET /v1/events/:eventId
-    API-->>UI: projected Trace/current revision
+  participant C as Client
+  participant A as API
+  participant CO as Composer
+  participant DB as PostgreSQL
+  participant W as Worker
+  C->>A: GET /v1/feed?kinds=Scroll,Reel&exclude=...
+  A->>DB: lock authority + load eligible state
+  A->>CO: composeSemantic(state, policy)
+  CO-->>A: slate + every candidate record
+  A->>DB: decision/context/candidates
+  A-->>C: decisionId + up to 3 items
+  C->>A: POST /v1/exposures after visible draw
+  A->>DB: ledger(exposure) + exposure
+  A->>DB: world projection + personal-model refresh
+  C->>A: POST /v1/interactions
+  A->>DB: ledger(keep) + project_keep job
+  W->>DB: lock, recheck, trace, accounts, complete
 ```
 
-### Step-by-step
+Selection is not exposure. The client records exposure only after visible draw; for a Reel it is tied to the first media frame. Keep requires that exact exposure and creates a causally linked Ledger event. Replaying the same request ID returns the first result; reusing it with different content is a conflict.
 
-#### A. Feed selection is not exposure
+[projectOne](../../apps/worker/src/project.ts) makes no external call. It locks the universe, rechecks job/event/epoch, inserts the Trace once, increments projection revisions, and completes the job. Stale work is discarded.
 
-`GET /v1/feed` starts at [app.ts](../../apps/api/src/app.ts#L215). It creates a decision and persists the exact slate, but it does not claim the person saw any item.
-
-This distinction matters because network prefetch, a hidden tab, or a rendered-but-occluded component is not evidence of attention. Both clients send `POST /v1/exposures` only when their UI-specific visibility rule says the item was genuinely visible.
-
-#### B. Exposure has causal lineage
-
-The API confirms:
-
-- the decision belongs to this universe;
-- the decision privacy epoch matches the current session;
-- the asset was actually in that decision;
-- a reused client exposure ID has the same payload.
-
-It then inserts both the generic `ledger` event and structured `exposure` row in one transaction ([app.ts](../../apps/api/src/app.ts#L250)). The exposure row points back to its decision and event.
-
-#### C. Keep requires the exposure
-
-`POST /v1/interactions` refuses an asset without the matching exposure. The Keep Ledger event points to the exposure event through causation. The event and projection `job` are inserted atomically, so there cannot be an accepted Keep with no durable work item.
-
-#### D. Projection is short and deterministic
-
-[projectOne](../../apps/worker/src/project.ts#L21) never calls a provider. It:
-
-1. selects a pending job;
-2. locks the universe;
-3. re-reads the job and causal event;
-4. discards the job if its privacy epoch is stale;
-5. creates the `trace` idempotently;
-6. updates `accounts.kept_asset_ids` and revisions only when the trace was newly inserted;
-7. completes the job.
-
-The worker's `SKIP LOCKED` query distributes independent universes, but correctness still comes from the universe lock, rechecks, unique keys, and one transaction—not from the lease/select query alone.
-
-### Failure behavior
-
-- Reusing an idempotency key with different content returns `409`.
-- A stale decision/exposure returns `409` rather than attaching old evidence to a new privacy epoch.
-- A projection failure increments attempts and retries; after five attempts it becomes failed.
-- A privacy reset that wins the lock makes old work discard instead of recreating erased state.
+The exposure transaction also updates the legacy exact-source world projection and the newer semantic personal model, making evidence and immediate deterministic effects atomic.
 
 ---
 
-## 10. Flow 3 — Composer ranking (`composer-signals-v2`)
+## 8. Composer v3, v4 shadow, and explanations
 
-### What the current Composer actually optimizes
+The default is `composer-semantic-v3`. `composer-signals-v2` remains selectable and immutable. `composer-semantic-v4` is registered and compared in shadow; it changes only final hash mixing so sequential editorial IDs and random Reel IDs do not cluster differently.
 
-It is a deterministic exposure-aware library selector, not the target architecture's full recommendation system.
+| Family | Meaning |
+| --- | --- |
+| `continue` | more about a recent explicit act, question, or fulfilled demand |
+| `deepen` | a narrower idea inside something acted on |
+| `bridge` | cross an admitted sourced relationship |
+| `challenge` | show supported contradictory evidence |
+| `revisit` | return after later activity made an old encounter relevant |
+| `frontier` | deliberately enter an unseen root domain |
+| `seed` | cold-start frontier |
+| `fallback` | keep the remaining library reachable |
 
-The score is:
+The score in [semantic.ts](../../packages/core/src/composer/semantic.ts) is:
 
 ```text
-(unread ? 100 : 0) - 10 × exposureCount + 1 × recencyDays
+continuity + useful + depth + novelty + return relevance + prior
+- redundancy - fatigue - 10 × exposure count
 ```
 
-The policy then selects at most three items and at most two from the same source. The immutable row is registered by migration `0024`.
+All weights are `1`; term sizes live in the immutable policy. The seen penalty is larger than any relevance swing, so fewer-showing tiers come first. Hard gates remove kept items, current-trip items, and routes the reader suppressed. Selection then enforces three items, at most two per source, at most one per concept, and a rolling exploration floor.
 
-### Inputs
+Every candidate is stored in `decision_candidate`, including gates, terms, score, rank, evidence, explanation key, concept, bridge, and family. `decision_context` stores seed, quotas, and served window. `GET /v1/decisions/:decisionId/why?assetId=...` reconstructs the sentence only from that record.
 
-[loadComposerSignalCandidates](../../packages/db/src/composer-signals.ts#L36) reads:
+The older v2 coverage guarantee prefers, after score ties, the source with fewer recorded exposures, then a deterministic hash. Coverage advances only after exposure, not feed generation. V3 strengthens this with the `10 × seen count` tier.
 
-- exposure count for this asset;
-- most recent exposure time;
-- whether it is unread;
-- source URL/title;
-- total exposures for the candidate's whole source in this universe;
-- one database clock reading used for every candidate's recency.
-
-It does **not** read inferred interests, dwell time, likes, embeddings, model output, or social behavior.
-
-### Ordering
-
-[rankSignalCandidates](../../packages/core/src/composer.ts#L149) applies:
-
-1. exclude kept assets;
-2. compute the score;
-3. higher score first;
-4. if tied, lower `sourceExposureCount` first;
-5. if still tied, stable FNV-1a hash of `assetId`;
-6. if the 32-bit hashes collide, raw `assetId`;
-7. walk the ordered list and enforce `maxPerSource=2` until the three-item slate is full.
-
-### Coverage guarantee, precisely stated
-
-The v2 tie-break fixes a real starvation defect in v1: once a person records exposures, a source that has fewer recorded exposures gets priority among score-tied candidates. The test fixture showed every source by decision 3 against an asserted bound of 6.
-
-The guarantee is conditional:
-
-- the client must record exposure after the offer;
-- candidates must remain eligible;
-- the comparison must reach the tie-break;
-- the library and slate policy must satisfy the diversity assumptions.
-
-Repeatedly calling `GET /v1/feed` without recording an exposure does not advance `sourceExposureCount`; the same order may repeat forever. Therefore “every source is eventually offered” is not a theorem about feed reads alone. It is a property of the closed loop **offer → visible exposure → next decision**.
-
-### Explainability
-
-Each selected candidate gets a registered explanation key and a rendered reason based on stored inputs. `decision_signal` persists rank, score, inputs, and key. This is strong auditability: a later reader can recompute the explanation and ordering from recorded evidence.
+Honest limit: mechanics are tested and emulator-inspected, but the owner has not completed multi-day usefulness judgment or selected v4 as default.
 
 ---
 
-## 11. Flow 4 — evidence-backed worlds and systems
-
-The target architecture describes semantic planets, routes, systems, galaxies, rooms, hypotheses, and Cartographer proposals. The implementation is intentionally smaller.
-
-### Current derivation
+## 9. Semantic substrate → Places → foundations → Rooms
 
 ```mermaid
 flowchart LR
-    Asset[asset.source_url] --> World[world\n1 per exact source URL]
-    Asset --> Member[world_member]
-    Exposure[universe exposure] --> System[world_system\n1 per universe/method]
-    Member --> SystemMember[world_system_member]
-    Exposure --> SystemMember
+  Snap[source snapshot + hash] --> Claims[claims and support]
+  Claims --> Proposal[typed bridge proposal]
+  Proposal --> Validator[bridge-validator-v1]
+  Validator -->|admit| Bridge[bridge + evidence slice]
+  Validator -->|refuse| Refused[recorded refusal]
+  Exposure[exposure / Keep / Ask / branch] --> Attention[attention-v1]
+  Attention --> Cartographer[cartographer-v2]
+  Bridge --> Cartographer
+  Cartographer --> Places[atlas_place + atlas_delta]
+  Places --> Foundation[foundation rule]
+  Places --> Keeper[keeper-v1]
+  Keeper --> Rooms[room + inhabitants + deltas]
 ```
 
-[deriveWorlds](../../packages/db/src/worlds.ts#L61) groups all assets by exact `source_url`. That gives a shared world catalog. No model, embedding, topic classifier, or inferred meaning is involved.
+The substrate is shared and evidence-backed. A bridge exists only if [bridge-validator.ts](../../packages/core/src/semantic/bridge-validator.ts) accepts a typed proposal against a recorded read set. Corrections can revoke support and bridge eligibility.
 
-[deriveWorldSystemForUniverse](../../packages/db/src/worlds.ts#L129) includes a world in a universe's system when that universe has at least one exposure to one of the world's Scrolls.
+[refreshPersonalModel](../../packages/db/src/semantic/personal-model.ts) recomputes bounded attention and rule-based hypotheses from explicit acts. Watch time is not a positive signal. It applies Cartographer deltas, Rooms, and correction-sensitive inventory changes in the same locked transaction.
 
-[projectWorldsForEncounter](../../packages/db/src/worlds.ts#L185) runs inside `POST /v1/exposures`' transaction. This is why a system is current immediately after a recorded exposure rather than waiting for the background Keep worker.
+[planPlaces](../../packages/core/src/atlas/cartographer.ts) forms planets, narrower regions, and nearby sightings. Every transition has an `atlas_delta` with causal class and evidence. A foundation is a live planet/region with sourced support to at least three things across at least two other live Places. Attention alone cannot create one.
 
-`GET /v1/worlds` calls [readWorldSystem](../../packages/db/src/worlds.ts#L194), which is deliberately read-only and does not repair stale state.
+[planRooms](../../packages/core/src/rooms/keeper.ts) opens a Room when the same question is carried on separate days in one Place. Inhabitants are deterministic sourced positions: reader-of-record, doubter, connector. This is a narrow v1 Room, not the target's long-running autonomous society.
 
-### What this proves
-
-- which exact sources exist in the library;
-- which source-backed worlds this universe has actually encountered;
-- counts of source Scrolls and distinct seen Scrolls;
-- deterministic reconstruction from stored evidence.
-
-### What it does not prove
-
-- that two sources are semantically related;
-- that a person understands or cares about the source;
-- that a “system” has conceptual meaning;
-- that target Cartographer evolution, place lineage, routes, moons, rooms, or galaxies exist.
-
-The user interface may look cosmic, but the current geography is an evidence-backed source grouping. That is honest and useful as a first layer, as long as the visual metaphor is not mistaken for semantic intelligence.
+Android renders Places and Rooms. Positions, orbits, moons, continents, currents, and clouds are labelled illustrative. Mapped identities and relationships are source-backed; decorative geometry is not evidence.
 
 ---
 
-## 12. Flow 5 — privacy lifecycle
+## 10. Ask answers and background inquiries
 
-### Pause and resume
+There are two product model paths, both worker-owned.
 
-`POST /v1/privacy/pause` and `/resume` use the same authenticated universe-lock transaction as other private routes. [setRecordingPaused](../../packages/db/src/privacy.ts#L101) updates `universe.recording_paused_at` and appends an immutable receipt.
-
-Migration `0020` adds a `ledger_pause_guard`. While paused, inserts for exposure, Keep, and Ask events fail in PostgreSQL even if an application path forgets to check.
-
-Important nuance: feed reads still create `decision` and `decision_signal` rows. Pause therefore means **stop recording new Ledger observations**, not “the system stores no new rows whatsoever.” Product copy should make this scope explicit.
-
-### Export
-
-`POST /v1/privacy/export` checks the expected epoch every time, re-reads current data, and returns:
-
-- account email when one is bound;
-- universe revision/epoch/pause status;
-- Accounts kept set;
-- decisions, Ledger, exposures, Traces, jobs;
-- device-session metadata without token hashes;
-- limited reasoning job/step/receipt/accounting facts.
-
-It intentionally omits internal private reasoning context. It unintentionally or at least dangerously omits world-system projection rows that the UI can show.
-
-### Clear history
-
-`POST /v1/history/clear` advances the privacy epoch, rolls the caller's session forward, erases scoped event/projection/reasoning-private rows, clears Accounts, and preserves the shared library and the calling session.
-
-### Reset
-
-`POST /v1/privacy/reset` performs the same central erasure and epoch advance but revokes **every** session, including the caller. That makes reset stronger than Clear.
+### Deliberate Scroll Ask
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Active
-    Active --> Paused: pause (same epoch)
-    Paused --> Active: resume (same epoch)
-    Active --> Cleared: clear history
-    Paused --> Cleared: clear history
-    Cleared --> Active: caller session advances to new epoch
-    Active --> Reset: reset
-    Paused --> Reset: reset
-    Reset --> SignedOut: all sessions revoked
+sequenceDiagram
+  participant C as Client
+  participant A as API
+  participant DB as PostgreSQL
+  participant W as Worker
+  participant M as MiniMax or fixture
+  C->>A: POST /v1/asks
+  A->>DB: ledger ask + explicit_ask
+  C->>A: POST /v1/asks/:askId/answer
+  A->>DB: seal source-only context + queue
+  W->>DB: fair claim + fresh authority checks
+  W->>M: one bounded request
+  M-->>W: one-object proposal
+  W->>W: validate quotes and result shape
+  W->>DB: apply answer/refusal under universe lock
+  C->>A: GET /v1/asks/:askId/answer
 ```
 
-### Critical defect
+The answer is limited to the current Scroll. Quotes are matched against source text. A proposal becomes `answered`, `not_in_source`, `rejected`, or `failed`. The API queues and reads; it never calls the provider.
 
-Reset deletes exposures but leaves the already-projected `world_system` and membership rows. Because the read path does not recompute, the UI can still receive worlds derived from erased exposures. This is a v1 privacy blocker, not merely cleanup debt.
+### Background bridge inquiry
 
-The correct repair should be decided explicitly:
+Consent is scoped to a universe/epoch with a daily limit. When the Cartographer forms or changes a Place, `inquiry_mail` records a coalesced cause. The worker opens due work, seals pair/claim context, makes one request, and submits any relationship through the deterministic bridge validator. A weak suggestion is refused or recorded as none; it does not become a connection.
 
-- delete per-universe system projection rows during Clear/Reset;
-- or recompute them after erasure and prove the result is empty;
-- and include the world projection in export or explain why it is excluded.
+Pause, consent-off, Clear, Reset, expiry, and stale context prevent application. An in-flight reply can settle accounting but is discarded if authority is gone.
 
-The database receipt should also structurally prove the intended effect, not only the new epoch and session count.
+Bounded live MiniMax calls prove named transport and validation runs, not universal answer quality, continuous availability, or a general Steward.
 
 ---
 
-## 13. Flow 6 — reasoning safety spine
+## 11. Return, typed Relics, and corrections
 
-This is the easiest subsystem to overstate because it has many migrations and tests.
+`GET /v1/away` lists changes the reader did not cause since their acknowledgement: inquiry outcomes, correction-driven Place changes, Room changes, and changes to connections seen or kept. `POST /v1/away/acknowledge` only moves the marker forward.
 
-### What exists
+Relics preserve a connection, Place, passage, or accepted answer. [relicState](../../packages/core/src/relics.ts) derives `current`, `corrected`, or `doubted` when read. Kept wording remains visible, but current evidence decides whether it still stands. “Let go” removes the private Relic, not shared source history.
 
-- durable reasoning jobs, steps, attempts, contexts, read sets, receipts, settlements, permits, and reservations;
-- privacy-epoch fences and session-bound context compilation;
-- exact input/policy hashes;
-- atomic capacity reservation;
-- durable class/universe fairness;
-- single-use dispatch authorization;
-- explicit unknown remote outcomes;
-- cumulative settlement and late accounting;
-- idle cancellation/deadline closure;
-- seven-day private-graph retirement for safely terminal work;
-- thirty-day retained accounting cleanup only after all duties close;
-- maintenance process;
-- a single-invocation transport seam;
-- a separate MiniMax certification path using synthetic cases.
+Correction catch-up compares each universe's `corrections_seen` with the shared correction count. A failure defers that universe rather than holding the batch. Paused universes do not evolve in the background.
 
-### What does not exist
+---
 
-[reasoningReadiness](../../apps/worker/src/providers/port.ts#L8) returns `adapter_not_implemented`. [invokeReasoningOnce](../../apps/worker/src/reasoning/invoke.ts#L27) has no ordinary worker wiring or real product transport. Explicit Ask remains `recorded_only` and does not authorize a job or answer.
+## 12. Privacy lifecycle
+
+```mermaid
+flowchart TD
+  Pause[POST /v1/privacy/pause] --> P1[set recording_paused_at]
+  P1 --> P2[withdraw inquiries and private demands]
+  P2 --> Guard[DB refuses new Ledger events]
+  Resume[POST /v1/privacy/resume] --> R1[clear recording_paused_at]
+  Export[POST /v1/privacy/export] --> E1[read current personal rows]
+  E1 --> E2[data + immutable manifest receipt]
+  Clear[POST /v1/history/clear] --> C1[advance epoch]
+  C1 --> C2[roll calling session forward]
+  C2 --> C3[erase personal history/projections]
+  Reset[POST /v1/privacy/reset] --> X1[advance epoch]
+  X1 --> X2[erase same personal state]
+  X2 --> X3[revoke every session]
+  Delete[POST /v1/account/delete] --> D1[Reset scope + tokens + account]
+  D1 --> D2[address-free receipt]
+```
+
+All routes enter through `authenticateAndLock`. Clear/Reset now erase inventory bindings, Relics, away markers, answers, inquiries, reasoning private state, projection jobs, Traces, personal model, semantic history, exposures, world systems, Ledger, decisions, and Accounts projection. The old guide's stale world-system defect was fixed by migration `0025`.
+
+Export includes semantic history, attention/hypotheses, answers, inquiries, away state, Relics/objections, and inventory demand. It excludes shared source material and supply because they are not one person's history.
+
+Pause does not advance the epoch or erase history. Reset does, and revokes every session. Account deletion removes sign-in identity while preserving a non-identifying receipt.
+
+---
+
+## 13. Content demand and Quartermaster
+
+A demand is created by real reading: a Place has no unseen Scroll left, or a continuation reaches a concept with nothing unseen.
+
+The pure [decideDemand](../../packages/core/src/inventory/quartermaster.ts) uses fixed order:
+
+1. **reuse** an eligible unseen Scroll in the subtree;
+2. **join** an open shared request for that concept;
+3. **fund** one request from unwritten allowlisted material if budget remains;
+4. **cannot_meet** with `no_route`, `no_budget`, `request_failed`, `checks_failed`, or `no_material`.
+
+Adaptation and video have no v1 route here. The decision records `adapt: unavailable`.
+
+When configured, the Scroll supply loop takes the oldest request. It passes quota/readiness, marks it `sending`, consumes its held unit, and invokes one transport. An ambiguous request is never retried. [write-scroll.ts](../../apps/worker/src/scrolls/write-scroll.ts) accepts only one object passing `scroll-checks-v2`; invented/copied quotes are refused.
+
+One bounded live inventory request was sent and refused by the checks. Mechanics and refusal are proved; current evidence does not show a model-written Scroll served through this demand loop.
+
+---
+
+## 14. Generated Reel through Cutroom
 
 ```mermaid
 flowchart LR
-    Ask[Explicit Ask] --> Fact[(explicit_ask)]
-    Fact -. separate authorization required .-> Job[(reasoning_job)]
-    Job --> Context[sealed context]
-    Context --> Fair[fair claim + reservations]
-    Fair --> Permit[dispatch permit]
-    Permit -. UNWIRED .-> Provider[real model adapter]
-    Provider -. no product path .-> Proposal[typed proposal]
-    Proposal -. absent validation/apply consumer .-> World[domain state]
+  Intent[editorial brief] --> Grant[budget grant]
+  Grant --> Job[generation_job]
+  Job --> Attempt[exact bytes + request id]
+  Attempt --> Cutroom[Cutroom HTTP]
+  Cutroom --> Events[cursor-checked events]
+  Events --> Import[contained MP4 + probe + hash]
+  Import --> Media[media_object]
+  Media --> Gates[publication gates]
+  Gates -->|disposable stand-in only| Test[test_eligible]
+  Gates -. Witness absent .-> Block[real eligible BLOCKED]
+  Test --> Mint[asset kind Reel]
+  Mint --> Feed[GET /v1/feed]
+  Feed --> Player[/v1/media/:sha256]
 ```
 
-### Why build so much before the provider loop?
+The worker persists exact dispatch identity before HTTP. After ambiguous submission it reconciles by the original request ID; it does not invent a second. Events need monotonic cursors. Import rejects paths outside the Cutroom root, symlinks/non-files, oversized or invalid MP4s, probe mismatch, and changed hashes. Bytes move into KnowScroll-controlled storage.
 
-The difficult problems are not “call a model” but:
+A finished Cutroom run is not automatically eligible. Release is blocked because:
 
-- do not send work after a privacy reset;
-- do not double-charge or double-dispatch after a lost response;
-- preserve unknown liabilities;
-- bind context to exact evidence and session authority;
-- prevent one universe or job class from monopolizing shared capacity;
-- retire private content without deleting accounting evidence needed for late reconciliation.
+1. joined Cutroom proof uses upstream stand-in providers;
+2. Visual Witness is absent, so `witness_alignment` is unavailable;
+3. real eligibility therefore cannot complete;
+4. Quartermaster does not route video demand here;
+5. no owner production host/provider run or real-media quality acceptance exists.
 
-The repository has addressed these deeply. The architectural risk is the opposite: the safety spine may become expensive to evolve before a real semantic consumer demonstrates which abstractions are necessary. The next product reasoning slice should be narrow and end-to-end, not another layer of unused primitives.
+Android playback, first-frame exposure, Why, and Scroll continuation work with supplied/test-eligible media. That does not prove real generated video.
 
 ---
 
-## 14. Flow 7 — generated Reel through Cutroom
+## 15. Client program design
 
-### Current chain
-
-```mermaid
-flowchart LR
-    Brief[generation_brief] --> Budget[generation_budget_grant]
-    Budget --> Job[generation_job]
-    Job --> Attempt[cutroom_attempt\nexact bytes persisted]
-    Attempt --> HTTP[Cutroom HTTP]
-    HTTP --> Events[cutroom_event cursor]
-    Events --> Result[finished result]
-    Result --> Import[verify path + MP4 + ffprobe + hash]
-    Import --> Media[(media_object)]
-    Media --> Reel[generated_reel imported]
-    Reel --> Gates[7 publication gates]
-    Gates -->|test stand-in only| TestEligible[test_eligible]
-    Gates -. witness unavailable .-> Blocked[real eligible blocked]
-    TestEligible --> Mint[asset kind Reel]
-    Mint --> Feed[GET /v1/feed?kinds=Scroll,Reel]
-    Feed --> MediaRoute[GET/HEAD /v1/media/:sha256]
-```
-
-### Dispatch and uncertainty
-
-The generation worker persists the canonical request body, request ID, digest, engine identity, and attempt before authorizing a send. It never holds a PostgreSQL transaction across the HTTP call.
-
-If the submit response is lost, it records `unknown`, looks up the original request ID, and only resends the identical bytes under a bounded policy. A 404 is an observation, not proof the original request never arrived.
-
-### Import
-
-The import port verifies that:
-
-- the result path is absolute and contained within the configured Cutroom artifact root;
-- it is not a symlink, directory, missing, empty, or oversized;
-- the file is a real MP4 with the required shape/duration/fast-start properties;
-- the content hash and byte size are computed from the imported file;
-- the final storage key belongs to KnowScroll's content-addressed media store;
-- database lineage matches the completed attempt and provider mode.
-
-This is a real host boundary, not a fake file-copy helper.
-
-### Publication
-
-The publication evaluator runs a versioned list of gates. Current gates cover lineage, sources, engine record, media conformance, truth label, repetition, and witness alignment.
-
-`witness_alignment` is structurally unavailable because Visual Witness does not exist. Real availability therefore remains blocked. Stand-in output can reach `test_eligible` only in disposable test databases. Minting is a separate explicit step ([mint.ts](../../apps/worker/src/publication/mint.ts#L53)).
-
-### Serving
-
-An eligible/test-eligible generated Reel can be minted as an `asset` of kind `Reel`. Existing clients see Scrolls only. A client must explicitly request `kinds=Scroll,Reel`. Media is served from KnowScroll's own authenticated content-addressed route with `GET`, `HEAD`, and Range support—not from a Cutroom filesystem path.
-
-### Where the chain is blocked
-
-1. Cutroom's upstream model/image/video/voice/sensor providers are stand-ins.
-2. Visual Witness is absent.
-3. There is no owner-facing generation request flow.
-4. Neither released UI plays Reels.
-5. The current mint/publication sequence is operator-oriented rather than one joined autonomous supply loop.
-
-The chain is much more implemented than old documents claim, but it is still not a real generated-Reel product journey.
-
----
-
-## 15. Web architecture and ADR-0022
-
-### The security rule
-
-Browser JavaScript must never hold a bearer token.
-
-[vite.config.ts](../../apps/web/vite.config.ts#L1) keeps the development token in the Node-side Vite process and injects the `Authorization` header only on the proxied request. The browser calls relative `/v1/*` URLs. [ApiClient](../../apps/web/src/api/client.ts#L1) has no token field or authorization-header code.
-
-The Vite server:
-
-- binds loopback only;
-- refuses a non-loopback API target;
-- injects the bearer token from server-side environment only;
-- refuses a production build by default;
-- has a test-only build escape hatch used to inspect the bundle for secret leakage.
-
-### Browser program design
+### Android
 
 ```mermaid
 flowchart TD
-    React[React components] --> Store[ReaderStore state machine]
-    Store --> Client[ApiClient + Zod validation]
-    Store --> Local[ReaderStorage\nuniverse+epoch namespaced]
-    Client --> Proxy[Vite server proxy]
-    Proxy --> API[Fastify API]
+  Screens[Compose screens] --> VMs[AppViewModel + feature ViewModels]
+  VMs --> Data[ApiClient + typed data modules]
+  VMs --> Store[StateStore + SessionVault]
+  Data --> API[Fastify API]
+  Reel[ReelPlayer + SafeMediaDataSource] --> API
 ```
 
-The state machine lives in a framework-independent class, not inside React components. React subscribes and renders. This makes retries, stale-response rejection, and privacy reconciliation testable without a browser.
+[AppViewModel.kt](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt) owns navigation and authority fencing. Separate view models own account/privacy, return, and inquiries. `StateStore` preserves retry/navigation envelopes; `SessionVault` encrypts the session. Responses are discarded if navigation version, universe, or epoch changed.
 
-The store owns:
+`SpatialAtlas` owns camera, pan, pinch, travel, and Place interaction. `ScrollScreen` renders typed blocks and Ask/connection/passage sheets. `ReelScreen` owns playback, Why, and continuation. Release refuses without HTTPS API, signing values, and App Links host.
 
-- Universe/Scroll/Trace/System/Privacy screens;
-- visible exposure identity;
-- idempotent Keep identity;
-- discovery retry/rest behavior;
-- reading-position persistence;
-- stale private-state purging on universe/epoch changes;
-- pause/resume/export/reset state.
+Emulator evidence is extensive, but physical-phone performance and owner usefulness/visual acceptance remain open.
 
-### Production block
+### Web
 
-A real web sign-in cannot simply put the returned session token in local storage, a cookie readable by JavaScript, or a React state object. The missing design is a server-carried session such as an HTTP-only secure cookie/BFF boundary that maps browser requests to a server-held KnowScroll device session while preserving CSRF, rotation, revocation, expiry, and recovery behavior.
+The web client is React/Vite. `ReaderStore` is the state machine; components are mainly views. `ApiClient` uses same-origin `/v1`, strict parsers, cookie credentials, and in-memory CSRF. `Root` replaces the reader tree after real session loss.
 
-Until that exists, the production build refusal is correct. Removing it or copying the token into browser code would violate the accepted boundary rather than complete identity.
-
-### Drift risk
-
-The web app validates responses with local Zod schemas. A prior merge added a server field while the hand-written client fixture and client schema remained mutually consistent but wrong, producing a dead surface while typecheck/unit/CI were green. Shared contract derivation and a real web journey in CI are critical, not optional cleanup.
+The earlier CI hole is fixed: reader, owner, and Why journeys now run in CI. The earlier claim that web identity had no design is obsolete; HttpOnly cookie + CSRF is implemented. Feature catch-up, hosting/configuration, deployment proof, and acceptance remain. Owner direction defers catch-up to `#171` near Cutroom completion.
 
 ---
 
-## 16. Android architecture
+## 16. Worker versus API
 
-### Layering
+| API owns | Worker owns |
+| --- | --- |
+| authenticate the current request | claim asynchronous work fairly |
+| hold universe lock for request admission | re-lock and recheck after waiting |
+| validate body and idempotency | call configured provider transports |
+| record exposure, Keep, Ask, branch, feedback, consent | validate proposals before apply |
+| queue Ask-answer work | settle success/refusal/failure/unknown |
+| return Atlas, Rooms, Relics, away and inventory | Keep projection, catch-up, Scroll supply |
+| authorize media before streaming | own provider credentials |
+| never call model or Cutroom | never expose provider keys to clients |
+
+Generation is a separate worker entry point because its lease/reconciliation/import loop differs. Reasoning retirement is a separate maintenance process so cleanup cannot silently become projection.
+
+---
+
+## 17. Match to the planned architecture
+
+| Target role | Current match |
+| --- | --- |
+| Ledger | **Strong.** Causation, idempotency, epochs, explicit acts, projection separation. |
+| Accounts | **Partial but real.** Keep projection, attention, narrow hypotheses; not a psychological profile. |
+| Composer | **Substantial.** Families, gates, terms, exploration, explanations, corrections, immutable policies. |
+| Substrate | **Substantial.** Sources, hashes, claims, concepts, support, bridges, read sets, corrections. |
+| Cartographer/Chart | **Useful first version.** Places, sightings, foundations, deltas. No galaxies, holes, ruins, full history explorer. |
+| Steward | **Not a persistent actor.** Ask/inquiry workers are bounded tasks. |
+| Reasoning plane | **Deep and partly live.** Fair admission, contexts, attempts, Ask/inquiry consumers; not a general agent runtime. |
+| Idea Rooms | **Narrow v1.** Repeated questions, sourced positions, correction effects; no resident memory/planning. |
+| Quartermaster | **Scroll v1.** Reuse/join/fund/cannot-meet; no adaptation or video demand. |
+| Inventory | **Two real halves.** Scroll supply and generated-Reel inventory are not yet one planner. |
+| Cutroom | **Lower chain implemented; real release blocked.** |
+| Social/Blend | **Deferred, not implemented.** |
+
+The architecture still follows the original direction. The useful divergence is that narrow, rule-based roles were built instead of waiting for one intelligent Steward. This creates inspectable behavior while preserving future boundaries.
+
+---
+
+## 18. Honest assessment
+
+### What is genuinely strong
+
+1. **Authority survives races.** Universe-first locks and post-wait checks are consistent.
+2. **Explanation is data.** Composer evidence and Atlas/Room deltas are recorded at decision time.
+3. **Models have narrow power.** Each model path has one-call rules, closed shapes, validators, and stale-authority refusal.
+4. **Private/shared state is separated.** Personal reasons can be erased while shared supply survives; accounting can survive private-context deletion.
+5. **PostgreSQL enforces product law.** Many invariants are not merely handler comments.
+6. **Failure is honest.** Unknown, refusal, expiry, stale epoch, missing witness, no route/budget, and correction withdrawal are distinct.
+7. **The product is visible.** Android exposes Ask, Places, returns, Rooms, Relics, Reels, explanations, and privacy controls.
+
+### Where it will strain
+
+1. **The schema is large for a single-user pre-release product.** 112 product tables increase migration, deletion-order, onboarding, and operations cost.
+2. **`apps/api/src/app.ts` is still a hotspot.** Route modules helped, but key encounter orchestration stays concentrated.
+3. **The main worker is a scheduler of schedulers.** Projection, answers, inquiries, catch-up, and supply share one process loop.
+4. **Two world models coexist.** Legacy exact-source worlds and semantic Atlas Places duplicate language and privacy work.
+5. **Client parity is intentionally broken.** Android leads; web catch-up is deferred, while full v1 still requires desktop.
+6. **Evidence volume can hide product quality.** Tests prove mechanics, not that recommendations or Rooms are useful.
+7. **Target names can overstate agency.** “Inhabitant” and “Quartermaster” need plain evidence labels in UI and docs.
+
+### Decisions I would tighten
+
+1. Retire or quarantine legacy `world*` once Atlas fully owns user-facing geography.
+2. Split worker loops into independently deployable processes before real traffic, keeping fairness in PostgreSQL.
+3. Join generated video and generated Scroll supply under one explicit demand-to-inventory design.
+4. Generate a database reference from a migrated disposable DB so all columns, constraints, indexes, and relationships cannot drift from this guide.
+5. Make usefulness evaluation a release gate with a repeatable owner protocol.
+6. Keep the persistent Steward deferred until a visible need cannot be solved by a smaller deterministic worker.
+
+---
+
+## 19. Critical path to personal v1
+
+Social/Blend and journey F are deferred. Personal journeys A–E and G–I remain on mobile and desktop, with real Cutroom for C.
 
 ```mermaid
 flowchart TD
-    Compose[Compose screens] --> VM[AppViewModel]
-    VM --> API[ApiClient]
-    VM --> Store[StateStore]
-    API --> Server[Fastify API]
+  A[Current Android personal product]
+  U[Owner usefulness/visual review]
+  P[Physical-phone performance]
+  R[Domain + mail + keystore + release API]
+  W[Web catch-up and deployment]
+  C[Real Cutroom providers]
+  V[Visual Witness + real gates]
+  J[Joined real Reel path]
+  O[Owner acceptance + recovery proof]
+  A --> U
+  A --> P
+  R --> W
+  C --> V --> J
+  W --> O
+  U --> O
+  P --> O
+  J --> O
 ```
 
-`AppViewModel` is the central state machine. It owns the current universe, screen, Scroll/revisit session, Keep state, system state, clear-history state, sign-out state, navigation version, and observed privacy scope.
+Actual blockers:
 
-### Recovery principles
+- owner domain, mail, signing key, release API origin, and App Links verification;
+- physical-device performance/accessibility judgment;
+- multi-day recommendation usefulness judgment and v3/v4 decision;
+- web catch-up and production deployment proof;
+- real Cutroom providers, Visual Witness, and one joined generated-Reel journey;
+- prediction journey H is not built;
+- final owner acceptance and recovery/rollback evidence.
 
-- An exposure is recorded only after a resumed, visibly drawn Scroll.
-- Ambiguous actions reuse the same saved request/client identity.
-- A response is ignored if its navigation version, universe, epoch, or item identity is no longer current.
-- A higher observed privacy epoch purges private cached state.
-- An older server epoch fails closed.
-- A restored ambiguous sign-out is resolved before the token is used for another request.
-- Trace revisit is read-only and never records a new exposure.
+No longer blockers:
 
-This is careful mobile program design. The main limitation is scope: the state machine implements the current reader slice, not the full target interaction system of continuous horizontal branches, Ask results, Reel playback, rooms, or social travel.
-
----
-
-## 17. Target architecture versus implemented architecture
-
-| Target chapter/responsibility | Current match | Status and divergence |
-| --- | --- | --- |
-| Ledger/event architecture | Events, causation, epochs, decisions, exposures, idempotency, projection jobs exist | **Strong partial match.** No general outbox/subscription/high-water event fabric for all target modules. |
-| Accounts | Kept asset IDs and revision exist | **Narrow implementation.** No episode model, decay, semantic accounts, or broader observation tallies. |
-| Composer | Deterministic fast path, recorded receipt/signals, diversity, coverage | **Useful partial match.** No candidate families, bridge candidates, exploration policy, learned evaluation, or target multi-term utility. |
-| Substrate | Asset source fields and causal source lineage | **Mostly target-only.** No shared concept/claim/relation graph. |
-| Cartographer/Chart | Source-derived worlds/system and Traces | **Early stand-in for geography.** No proposal/apply lifecycle, semantic routes, splits/merges, galaxies, holes, ruins, or Chronicle. |
-| Steward | Reasoning storage/context primitives | **Target-only product role.** No persistent coordinating identity or investigation loop. |
-| Reasoning runtime | Admission, fairness, attempts, receipts, one-call seam, maintenance | **Deep contract-only spine.** No ordinary provider adapter, proposal consumer, or product result. |
-| Ask | Literal source fact with exact exposure/session lineage | **Implemented source capture only.** Returns `recorded_only`; no answer. |
-| Quartermaster | Generation briefs/budgets/jobs can be created by operator helpers | **No target planner.** No content-demand detection, reuse/adapt/join decision, or horizon planning. |
-| Inventory/content plane | Scroll inventory, Reel minting, media objects, eligibility states | **Substantial partial match.** No shared-demand waiter/binding model or complete autonomous supply flow. |
-| Cutroom adapter | Strict HTTP client, reconciliation, operator host, import | **Real boundary with stand-ins.** Real providers and live content-quality proof absent. |
-| Gates/quality | Versioned publication gates, fingerprints, hard database rules | **Partial match.** Visual Witness unavailable; broader corpus/editorial monitoring absent. |
-| Rooms/residents | None | **Target-only.** |
-| Social/Blend/Projector | None | **Target-only.** |
-| Mobile experience | Cosmos reader, Keep, Traces, sources, worlds/system, clear/sign-out | **Implemented slice.** No complete journeys B–H. |
-| Desktop experience | Cosmos reader/system/privacy on React/Vite | **Local/dev implementation.** Production identity and deployment blocked. |
-
-### Does the current system still match the original plan?
-
-At the level that matters most, yes:
-
-- immediate serving is deterministic;
-- models do not sit in the swipe path;
-- events retain causation;
-- privacy epochs fence stale work;
-- providers and Cutroom are worker-side boundaries;
-- models cannot directly write domain state;
-- inventory eligibility is separate from generation completion;
-- behavior is not promoted into inferred belief.
-
-At the product-capability level, only a minority of the plan exists. The current system is best described as:
-
-> a robust evidence and execution foundation with a polished sourced-reader slice, early evidence-backed geography, a contract-heavy reasoning spine, and a mostly implemented but honestly blocked generated-media supply chain.
-
-It is not yet the emergent semantic universe described by the target documents.
+- basic web token-free identity: cookie + CSRF exists;
+- stale world projection after Clear/Reset: migration `0025` fixes it;
+- CI never exercising web: reader, owner, and Why journeys run;
+- basic Rooms/inhabitants: narrow Idea Rooms v1 exists;
+- all product reasoning being disabled: bounded Ask-answer and inquiry consumers exist.
 
 ---
 
-## 18. Where the architecture is strongest
+## 20. Best code-reading path
 
-### 18.1 Causal and privacy lineage
+### Session 1: authority and an encounter
 
-Decisions, exposures, Keep events, jobs, Traces, contexts, and provider attempts carry explicit ownership and epoch lineage. This makes “why does this row exist?” answerable and lets reset invalidate old work without guessing.
+1. [target README](../architecture/target/00-README.md)
+2. [API composition](../../apps/api/src/app.ts)
+3. [identity lock](../../packages/db/src/identity.ts)
+4. [pure Composer](../../packages/core/src/composer/semantic.ts)
+5. [Composer persistence](../../packages/db/src/composer/semantic.ts)
+6. [Keep projection](../../apps/worker/src/project.ts)
 
-### 18.2 Deterministic/model separation
+Explain why selection is not exposure and Keep needs an exposure event.
 
-The design consistently keeps auth, budgets, ranking, state transitions, publication eligibility, and proposal application in code/database control. The model boundary is treated as uncertain external execution rather than magical trusted computation.
+### Session 2: evidence becomes geography
 
-### 18.3 Failure honesty
+1. [semantic seed](../../packages/db/src/semantic/seed.ts)
+2. [bridge validator](../../packages/core/src/semantic/bridge-validator.ts)
+3. [personal model](../../packages/db/src/semantic/personal-model.ts)
+4. [Cartographer](../../packages/core/src/atlas/cartographer.ts)
+5. [Atlas persistence](../../packages/db/src/atlas.ts)
+6. [Room keeper](../../packages/core/src/rooms/keeper.ts)
 
-Unknown remote outcomes are first-class. The system does not translate transport loss into “not sent” or silently retry a possibly-paid call with fresh identity. This is unusually good.
+Separate a shared claim, private act, bridge, Place, and decorative geography.
 
-### 18.4 Database-backed invariants
+### Session 3: bounded model work
 
-Critical policies survive a buggy caller. Immutable evidence, privacy pause, provider-mode constraints, spend caps, lineage, and projection counts have database enforcement rather than only comments.
+1. [answer validator](../../packages/core/src/reasoning/ask-answer.ts)
+2. [answer admission/storage](../../packages/db/src/reasoning-answers.ts)
+3. [answer worker](../../apps/worker/src/reasoning/answer-worker.ts)
+4. [inquiry contract](../../packages/core/src/reasoning/bridge-inquiry.ts)
+5. [inquiry worker](../../apps/worker/src/reasoning/inquiry-worker.ts)
+6. [main loop](../../apps/worker/src/main.ts)
 
-### 18.5 Client recovery design
+Find the last authority check before result application.
 
-Both UI clients preserve request identities, validate response shapes, and discard stale responses. Android's universe/epoch fencing and cold-start ordering are particularly careful.
+### Session 4: privacy and supply
 
-### 18.6 Honest integration boundaries
+1. [privacy](../../packages/db/src/privacy.ts)
+2. [inventory demand](../../packages/db/src/inventory/demand.ts)
+3. [Quartermaster](../../packages/core/src/inventory/quartermaster.ts)
+4. [Scroll writer](../../apps/worker/src/scrolls/write-scroll.ts)
+5. [supply worker](../../apps/worker/src/scrolls/supply-worker.ts)
 
-Cutroom stays a separate service. KnowScroll imports bytes into its own storage, never exposes host paths, and does not call a finished remote run “published.” That separation is exactly right.
+Explain which rows are private/shared and what Pause/Clear/Reset do.
 
----
+### Session 5: clients and generated media
 
-## 19. Where the architecture will strain
+1. [web Root](../../apps/web/src/Root.tsx), [ApiClient](../../apps/web/src/api/client.ts), then `ReaderStore`
+2. Android `ApiClient.kt`, `SessionVault.kt`, `StateStore.kt`, then [AppViewModel.kt](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt)
+3. [generation worker](../../apps/worker/src/generation/worker.ts)
+4. [verified import](../../apps/worker/src/generation/import.ts)
+5. [publication evaluation](../../apps/worker/src/publication/evaluate.ts)
+6. [Reel player](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/reel/ReelPlayer.kt)
 
-### 19.1 The database is carrying the future product before the product exists
-
-Reasoning has many tables, constraints, and lifecycle paths without one ordinary end-to-end semantic result. This protects future execution, but it raises change cost. A narrow live reasoning slice may reveal that some abstractions were optimized too early.
-
-### 19.2 One API file is becoming the orchestration hub
-
-`apps/api/src/app.ts` contains authentication wrappers, feed assembly, ranking orchestration, exposure admission, world projection calls, Keep admission, Ask, events, privacy routes, and media route registration. The behavior is readable today, but continued growth will make transactional ownership and contract review harder. Split by feature while keeping one shared authenticated transaction helper.
-
-### 19.3 Logical packages are not mechanically isolated
-
-The pure-core rule is documented and respected, but server modules use direct relative source imports. Dependency boundaries could drift without an import-graph check or actual package manifests.
-
-### 19.4 Projection freshness is not uniform
-
-Worlds update synchronously on exposure; Traces update asynchronously on Keep; privacy deletion manually enumerates tables; reads do not repair projections. This mixture is valid, but every projection needs an explicit lifecycle matrix: creation trigger, rebuild source, update event, erase rule, export rule, and read consistency.
-
-### 19.5 Client/server contracts can drift
-
-The dead-web incident proved unit fixtures can agree with a stale client schema while both disagree with the server. Shared schemas or generated contract tests should replace hand-copied shapes.
-
-### 19.6 The current system view may over-communicate meaning
-
-Exact source grouping is a safe derivation, but “planet/system” language can feel semantically richer than the data. The UI must preserve the explanation that geography is derived from recorded sources, not inferred mastery or affinity.
-
-### 19.7 Current operational state can be ambiguous
-
-The state command can read one configured database while detecting an API process that points at another. Runtime inspection should bind the listening process, database name, migration head, source revision, and worker heartbeat into one receipt.
+Distinguish “Cutroom finished,” “imported,” “eligible,” “minted,” “served,” and “played.”
 
 ---
 
-## 20. Decisions this review would change or tighten
+## 21. Glossary
 
-1. **Keep ADR-0022's no-token rule, but finish its server-session architecture before more web product work.** The boundary is correct; leaving the production carrier unspecified creates a permanent local-demo trap.
-2. **Treat world projection erase/export as part of the projection contract, not a privacy-route detail.** Every personal projection should declare how it is rebuilt, erased, and exported.
-3. **Add the Composer coverage condition to product language.** Coverage advances on recorded exposure, not on feed generation.
-4. **Make the database prove real-eligibility entry on both INSERT and UPDATE.** Application discipline is insufficient for a rule advertised as database-enforced.
-5. **Require one thin end-to-end reasoning result before broadening the runtime spine.** For example: one authorized Ask, one sealed context, one bounded real/fake provider call, one validated evidence-linked proposal, one visible result, and full reset/recovery proof.
-6. **Derive browser response schemas and fixtures from shared contracts.** The cost is small compared with another green-CI dead surface.
-7. **Run a real web journey in CI.** Unit tests and typechecking cannot prove the app boots against the API contract.
-8. **Do not call source-derived systems “semantic worlds” without a qualifier.** The implementation is evidence-backed geography, not semantic clustering.
-
----
-
-## 21. Critical path to full v1
-
-The accepted release is all journeys A–I on mobile and desktop with real video integration and owner acceptance. The shortest credible dependency order is:
-
-```mermaid
-flowchart TD
-    P0[Fix privacy projection erasure/export and CI journey gap]
-    P1[Production identity\nweb server session + mobile enrollment/recovery]
-    P2[One joined reasoning path\nAsk to visible evidence-linked result]
-    P3[Semantic bridge and revisable world proposal/apply]
-    P4[Real Cutroom providers + Visual Witness]
-    P5[Reel eligibility, playback, branching on both clients]
-    P6[Rooms and bounded inhabitants]
-    P7[Social projection, visits, Blend, revocation]
-    P8[Joined journeys A-I + recovery + owner acceptance]
-    P0 --> P1 --> P2 --> P3
-    P2 --> P4 --> P5
-    P3 --> P6 --> P7
-    P5 --> P8
-    P7 --> P8
-```
-
-### Immediate blockers
-
-- owner database remains behind current migration source and must be rolled forward through an evidence-backed operational plan;
-- privacy reset/export has a world-projection correctness gap;
-- CI does not run the web journey;
-- timing-sensitive tests have produced repeated flakes;
-- production web identity has no token-free browser carrier;
-- ordinary reasoning provider execution is not wired;
-- Cutroom real providers and Visual Witness are upstream blockers;
-- rooms/inhabitants and social are not started;
-- neither client implements the full Reel/Scroll/branch/Ask/room/social experience.
+- **Account:** single-owner sign-in identity.
+- **Universe:** private authority, epoch, and lock scope.
+- **Privacy epoch:** generation number; old authority cannot act in a new epoch.
+- **Ledger:** ordered causal exposure, Keep, and Ask facts.
+- **Decision:** persisted Composer slate; not visibility evidence.
+- **Exposure:** evidence that a selected encounter became visible.
+- **Trace:** derived saved projection of a Keep.
+- **Substrate:** shared sources, snapshots, claims, concepts, support, and bridges.
+- **Attention account:** bounded decaying evidence tally; not an identity claim.
+- **Hypothesis:** revisable rule state with limited permitted uses.
+- **Place:** private semantic geography anchored in acts and supported structure.
+- **Sighting:** nearby supported structure not yet a personal Place.
+- **Foundation:** Place with enough sourced load-bearing relations.
+- **Room:** persistent question in a Place with deterministic sourced positions.
+- **Relic:** kept connection, Place, passage, or answer with derived current state.
+- **Composer:** pure deterministic selection policy.
+- **Cartographer:** pure planner for Place/foundation changes.
+- **Quartermaster:** pure decision over recorded content demand.
+- **Reasoning job:** bounded external-work identity, not an autonomous agent.
+- **Unknown outcome:** provider may have received a call, but local result is unproved.
+- **Cutroom:** separate HTTP video-generation service.
+- **Visual Witness:** required evidence/continuity inspection for real Reel publication; absent.
+- **Stand-in:** synthetic provider proving mechanics without claiming real output.
 
 ---
 
-## 22. Tests and evidence: what each layer proves
+## 22. Bottom line
 
-| Evidence | What it proves | What it does not prove |
-| --- | --- | --- |
-| Typecheck | Static TypeScript/Kotlin shape consistency | Runtime integration or UX |
-| Unit/contract tests | Pure policies, parsers, state machines, individual SQL constraints | Real process boundaries or provider behavior |
-| PostgreSQL integration tests | Actual transactions, locks, triggers, constraints | A deployed owner database or complete UI |
-| Isolated journeys | Joined API/worker/database behavior in disposable environments | Owner runtime or live providers |
-| Web Playwright | Browser/API/worker journey, layout and accessibility when included | Android behavior or production auth |
-| Android emulator journey | Real Compose lifecycle, process death/rotation, API behavior | Desktop or real media quality |
-| Cutroom stand-in journey | HTTP protocol, restart/reconciliation, import | Real upstream model/video execution |
-| Live provider proof | One real external call and returned evidence | Product usefulness or full journey |
-| Owner acceptance | Experience meets the intended product judgment | Exhaustive correctness |
+KnowScroll is no longer mainly “a careful backend plus a Scroll demo.” It now has a coherent personal path from recorded acts through semantic discovery, Places, explanations, bounded reasoning, return changes, Rooms, Relics, and demand-driven Scroll supply, with a substantial Android experience over it.
 
-### Useful commands
+The strongest decision remains separation of suggestion from authority: pure policies decide from recorded facts, PostgreSQL enforces invariants, and models cannot directly write product truth. The newer work follows the target without pretending its grander agents already exist.
 
-```sh
-pnpm typecheck
-pnpm test
-pnpm verify:journey
-pnpm --filter web typecheck
-pnpm --filter web test
-pnpm --filter web e2e
-pnpm state
-```
-
-Run destructive privacy verification only against disposable universes. A passing build is never a substitute for a joined journey.
-
----
-
-## 23. Guided IDE reading sequence
-
-### Session 1 — understand the target and the real boundary
-
-1. Open [target 00 README](../architecture/target/00-README.md#L26). Focus on the six ideas.
-2. Open [target overview](../architecture/target/01-OVERVIEW.md#L17). Compare the six responsibilities with the component table in this guide.
-3. Open [apps/api/src/app.ts](../../apps/api/src/app.ts#L92). Scan route registration from top to bottom; do not inspect SQL details yet.
-4. Open [packages/db/src/identity.ts](../../packages/db/src/identity.ts#L71). Trace the exact lock order.
-
-Stop when you can explain why the universe row must be locked before the session row.
-
-### Session 2 — trace one encounter
-
-1. Start at [GET `/v1/feed`](../../apps/api/src/app.ts#L215).
-2. Move to [signal loading](../../packages/db/src/composer-signals.ts#L36).
-3. Move to [pure ranking](../../packages/core/src/composer.ts#L149).
-4. Return to [decision persistence](../../apps/api/src/app.ts#L235).
-5. Continue through [POST `/v1/exposures`](../../apps/api/src/app.ts#L250).
-6. Continue through [POST `/v1/interactions`](../../apps/api/src/app.ts#L283).
-7. Finish at [projectOne](../../apps/worker/src/project.ts#L21).
-
-Stop when you can identify the decision ID, exposure ID, exposure event ID, Keep event ID, job ID, and Trace identity.
-
-### Session 3 — understand privacy and projection
-
-1. Read [clearScrollHistory](../../packages/db/src/privacy.ts#L27).
-2. Read [pause/resume](../../packages/db/src/privacy.ts#L96).
-3. Read [exportUniverse](../../packages/db/src/privacy.ts#L151).
-4. Read [resetPersonalUniverse](../../packages/db/src/privacy.ts#L246).
-5. Read [world projection](../../packages/db/src/worlds.ts#L117).
-6. Compare the deletion list with `world_system` and `world_system_member`.
-
-Stop when you can explain exactly why stale worlds survive reset today.
-
-### Session 4 — understand reasoning without mistaking it for a product
-
-1. Open [provider port](../../apps/worker/src/providers/port.ts#L1) and observe readiness is false.
-2. Open [reasoning admission](../../packages/db/src/reasoning-admission.ts#L15) to understand claim/reserve/authorize/recover.
-3. Open [reasoning context](../../packages/db/src/reasoning-context.ts#L247) to see evidence sealing.
-4. Open [single invocation seam](../../apps/worker/src/reasoning/invoke.ts#L33).
-5. Open [maintenance](../../apps/worker/src/reasoning/maintenance-main.ts#L17).
-
-Stop when you can distinguish durable primitives from an actually wired provider loop.
-
-### Session 5 — trace generated media
-
-1. Start at [generation worker](../../apps/worker/src/generation/worker.ts#L1).
-2. Follow the Cutroom HTTP client and storage transition helpers.
-3. Read the import tests around real MP4 containment, hashing, probing, and idempotency.
-4. Open [publication evaluation](../../apps/worker/src/publication/evaluate.ts#L172).
-5. Find `witness_alignment` and see why it returns unavailable.
-6. Open [mintReelAsset](../../apps/worker/src/publication/mint.ts#L53).
-7. Return to [feedCandidates](../../apps/api/src/app.ts#L59) and the media route.
-
-Stop when you can name the exact boundary between “Cutroom finished,” “KnowScroll imported,” “publication gates passed,” “inventory asset minted,” and “client can play.”
-
-### Session 6 — compare clients
-
-1. Web: [vite.config.ts](../../apps/web/vite.config.ts#L1), [ApiClient](../../apps/web/src/api/client.ts#L1), then `ReaderStore`.
-2. Android: `ApiClient.kt`, `StateStore.kt`, then [AppViewModel.kt](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt#L1).
-3. Compare how both preserve retry identity and purge stale private state.
-4. Note where web has privacy controls Android does not, and where Android has device sign-out not present in web.
-
----
-
-## 24. File-by-file reference
-
-| File | Role | Easy misunderstanding |
-| --- | --- | --- |
-| `docs/architecture/target/00-README.md` | Index to intended complete engine | It is explicitly target design, not runtime truth. |
-| `docs/architecture/README.md` | Current architecture boundary | Some status prose lags later implementation; verify code. |
-| `apps/api/src/app.ts` | Main HTTP composition root | A successful route does not imply either UI exposes it. |
-| `packages/db/src/identity.ts` | Session authority and lock ordering | The initial token lookup is not durable authorization; the re-read after universe lock is. |
-| `packages/core/src/composer.ts` | Pure ranking | It is not the full target Composer. |
-| `packages/db/src/composer-signals.ts` | Bounded signal snapshot | Coverage uses recorded exposures, not feed decisions. |
-| `apps/worker/src/project.ts` | Keep projection | This worker is not the reasoning runtime. |
-| `packages/db/src/worlds.ts` | Source-backed geography | “World” currently means a source URL group. |
-| `packages/db/src/privacy.ts` | Clear/pause/export/reset | Current deletion/export lists omit world projections. |
-| `packages/db/src/reasoning-*` | Execution correctness primitives | A rich schema does not mean product reasoning is active. |
-| `apps/worker/src/providers/port.ts` | Product provider seam | Readiness deliberately remains false. |
-| `apps/worker/src/generation/*` | Cutroom job/reconciliation/import | Real service integration still uses stand-in providers. |
-| `apps/worker/src/publication/*` | Gate evaluation and inventory minting | `test_eligible` is not real eligibility. |
-| `apps/web/vite.config.ts` | Token-hiding local proxy | This is not a production auth solution. |
-| `apps/web/src/state/readerStore.ts` | Web state machine | React components are views; most behavioral logic is here. |
-| `apps/mobile/.../AppViewModel.kt` | Android state machine | UI recovery depends on navigation version + universe + epoch checks. |
-| `packages/db/migrations/*.sql` | Structural truth and database enforcement | Migration files in source do not prove a named database applied them. |
-
----
-
-## 25. Glossary
-
-- **Account:** The single-owner sign-in identity. It can own a universe.
-- **Universe:** The private authority and serialization scope for one person's state.
-- **Privacy epoch:** A monotonically increasing generation number. Old sessions/jobs/data references cannot act in a new epoch.
-- **Ledger:** Ordered causal domain events such as exposure, Keep, and Ask. It records what happened, not why the person cared.
-- **Decision:** One persisted Composer slate. It is not evidence of visibility.
-- **Exposure:** Evidence that a selected item became genuinely visible according to the client contract.
-- **Keep:** An explicit action causally linked to an exposure.
-- **Trace/Relic:** A saved, rebuildable projection of a Keep that lets the person revisit the verified source snapshot.
-- **Accounts:** Recomputable policy inputs. Currently a kept-asset set and revision, not a psychological model.
-- **Composer:** Pure deterministic policy selecting eligible Reel/Scroll encounters.
-- **Projection:** Derived state that can be recomputed from authoritative events or evidence rows.
-- **Universe lock:** `SELECT ... FOR UPDATE` on the universe row, used to serialize privacy and authority-sensitive work.
-- **Privacy receipt:** Immutable record of an idempotent privacy operation.
-- **Context:** Canonical, hashed, typed evidence supplied to a reasoning job.
-- **Attempt:** One potentially paid model request identity.
-- **Permit/reservation:** Durable authorization and capacity/budget held before dispatch.
-- **Unknown outcome:** A remote call may have happened, but the local process cannot prove its result.
-- **Settlement:** Accounting interpretation of durable provider evidence.
-- **World:** In current code, a deterministic group keyed by exact source URL.
-- **System:** The collection of source-backed worlds a universe has exposed evidence for.
-- **Steward:** Target persistent coordinating intelligence for a universe; not implemented as a product actor.
-- **Cartographer:** Target role that proposes semantic world structure; current source grouping is not it.
-- **Quartermaster:** Target role that identifies missing content and chooses reuse/adapt/join/generate; not implemented.
-- **Cutroom:** Separate HTTP video-generation service. KnowScroll integrates but does not own its implementation.
-- **Visual Witness:** Required vision/evidence inspection step for real Reel publication; absent today.
-- **Eligibility:** Permission for an imported asset to enter inventory. It is separate from generation completion.
-- **Stand-in:** A synthetic upstream component used to verify integration mechanics without claiming real provider output.
-
----
-
-## 26. Target chapter-by-chapter implementation map
-
-This table connects every chapter in `docs/architecture/target` to current source. It is useful when a target term appears in a design discussion and you need to know whether there is a real consumer behind it.
-
-| Target chapter | Intended subject | Current implementation status |
-| --- | --- | --- |
-| `00-README` | Whole-engine index and vocabulary | **Adopted direction.** Still explicitly a target index. |
-| `01-OVERVIEW` | Six responsibilities and three planes | **Architectural shape retained.** Personal plane is partial; reasoning and supply planes have foundations; social/rooms absent. |
-| `02-RESEARCH-FINDINGS` | External patterns and rejected alternatives | **Decision background only.** It informs ADRs but is not executable evidence. |
-| `03-ARCHITECTURE` | Processes, subscribers, wake rules, call graph | **Partially realized.** API, projection worker, maintenance, and generation worker exist. Steward/Cartographer/Quartermaster/Projector subscriber graph does not. |
-| `04-EVENT-ARCHITECTURE` | Ledger envelope, topics, cursors, dirty scopes, proposals | **Bootstrap subset.** Ordered Ledger/causation/epochs exist; a generic subscription/cursor/dirty-scope fabric does not power product modules. |
-| `05-DATA-STATE-MODEL` | Eleven logical stores | **Some stores implemented deeply.** Ledger, Accounts subset, execution spine, and media supply exist; Substrate, hypotheses, rooms, Steward memory, and social do not. |
-| `06-USER-WORLD-MODEL` | Evidence, episodes, accounts, routes, hypotheses | **Very narrow.** Exposure/Keep evidence and a kept set exist. Episodes, semantic credit, hypotheses, and route/state-line model do not. |
-| `07-UNIVERSE-EVOLUTION` | Planets, systems, moons, galaxies, holes, lineage | **Source-backed first layer only.** Exact-source worlds and one system exist; semantic evolution/state machine does not. |
-| `08-RECOMMENDATION` | Candidate families and transparent multi-term utility | **Small real Composer.** Exposure/recency/source coverage and diversity exist; candidate families, bridge supply, exploration, and richer utility do not. |
-| `09-INTERDIMENSIONAL-CABLE` | Global discovery surface and branching | **Reader/feed fragment only.** Deliberate next and rest exist; continuous branch stack/channel system does not. |
-| `10-CORE-AGENT` | Persistent Steward and investigations | **Target-only.** Context/admission primitives are prerequisites, not a Steward. |
-| `11-IDEA-ROOMS` | Rooms, residents, commitments, artifacts | **Not started.** |
-| `12-PERSISTENT-AGENTS` | Bounded resident/visitor agent lifecycle | **Not started as product.** General job lifecycle ideas exist but no inhabitants. |
-| `13-SOCIAL-BLEND` | Visits, projections, Blend, revocation | **Not started.** Session revocation is not social revocation. |
-| `14-QUALITY-ANTI-SLOP` | Hard gates, soft ranking, fingerprints, monitors | **Partial.** Publication hard gates and two fingerprints exist; wider judge/corpus/admin loop does not. |
-| `15-VIDEO-SDK-INTEGRATION` | Quartermaster-to-Cutroom lifecycle | **Lower half implemented.** Strict HTTP, reconciliation, import, gates, minting, serving exist; demand horizons and real providers do not. |
-| `16-FEEDBACK-LOOPS` | Self-confirmation and supply/social/model-collapse dampers | **Mostly design safeguards.** Some are embodied in source/exposure discipline; no complete evaluation system measures the loops. |
-| `17-SCALING-COST` | Capacity, price assumptions, growth path | **Admission/accounting primitives implemented.** Scale scenarios remain illustrative and unproved. |
-| `18-IMPLEMENTATION-PHASES` | E0–E6 sequencing | **E0 partially deep; E1 partial; E4 lower chain partial.** E2/E3/E5/E6 remain largely open. |
-| `19-OPEN-QUESTIONS` | Settled and experimental decisions | **Historical review guide.** Later ADRs supersede some open points. |
-| `20-WORKED-TRACES` | Fourteen target failure/user journeys | **A few mechanics covered.** Privacy reset and unknown dispatch have primitives; most user-level traces are not product journeys. |
-| `21-REASONING-RUNTIME` | Durable steps and provider boundary | **Strong contract implementation, unwired product execution.** |
-| `22-GLOBAL-EXECUTION` | Fair scheduling, admission, receipts, observability | **Strong SQL foundation.** No active fleet/ordinary provider traffic proves the full plane. |
-| `23-CONTENT-DEMAND-AND-INVENTORY` | Demand, reuse/adapt/join/generate, shared waiters | **Inventory/generation artifacts exist.** Demand planning, reuse equivalence, bindings, and multi-waiter lifecycle are absent. |
-| `24-REVIEW-GUIDE` | Founder decision path | **Historical architecture approval aid.** Current v1 scope and ADRs now control delivery. |
-| `25-JOURNEY-AND-DATA-FLOWS` | Target sequence and logical ER views | **Reference comparison.** Several names map to current tables, but the document remains a proposed complete engine, not a runtime trace. |
-
-## 27. Bottom line
-
-KnowScroll's current architecture still follows the strongest parts of the adopted target:
-
-- deterministic serving;
-- causal evidence;
-- privacy-fenced authority;
-- bounded external execution;
-- models as proposers, not state owners;
-- separate content generation and publication;
-- no inference of inner state from behavior alone.
-
-The implementation is also much deeper than “a feed prototype”: it has serious session/epoch locking, deterministic projection, audited ranking receipts, source-backed geography, a rich reasoning execution safety spine, and a real Cutroom reconciliation/import boundary.
-
-But it is not yet the target product. The semantic bridge, Steward, Cartographer proposal loop, content-demand planner, rooms, residents, social projection, real generated media, Reel playback, production web identity, and journeys B–H remain absent or blocked. Before adding more architecture, fix the privacy projection gap, make web integration unavoidable in CI, complete production identity, and prove one narrow reasoning result end to end.
-
-That sequence preserves the original architecture's intent while forcing the next work to create visible product truth rather than additional unused machinery.
+The main risk has changed. It is no longer that nothing consumes the architecture. It is that implementation has become broad and structurally expensive before real-use quality, production deployment, desktop parity, physical-device performance, and real video are accepted. The next work should be integration and judgment work—not another layer of abstract machinery.
