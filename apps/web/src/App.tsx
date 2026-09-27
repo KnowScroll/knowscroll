@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
-import { ApiClient } from './api/client.ts';
+import type { ApiClient } from './api/client.ts';
+import { KeepScreen } from './components/KeepScreen.tsx';
 import { PrivacyScreen } from './components/PrivacyScreen.tsx';
 import { ScrollScreen } from './components/ScrollScreen.tsx';
 import { SystemScreen } from './components/SystemScreen.tsx';
@@ -8,9 +9,22 @@ import { useReaderStore } from './hooks/useReaderStore.ts';
 import { ReaderStore } from './state/readerStore.ts';
 import { createBrowserStorage } from './state/storage.ts';
 
-export function App() {
+export interface AppProps {
+  /** Owned by `Root` (#135): the one `ApiClient` instance for the whole page, so the CSRF token
+   * `SignInPage` fed it (or that a lazy 403 discovers) survives every reader action without a
+   * reload. `App` never constructs its own -- Root is the only place a bare `new ApiClient()` is
+   * still built, matching the pre-#135 default this class's own tests never exercised directly. */
+  apiClient: ApiClient;
+  /** Fired on a 401 from any authenticated call, a real sign-out, or a real account deletion
+   * (`ReaderStore`'s own `onSignedOut`, forwarded verbatim, including its `verify` argument --
+   * see that class's doc comment) -- `Root` uses it to swap this whole reader tree for the
+   * signed-out screen. */
+  onSignedOut: (message: string | null, verify: boolean) => void;
+}
+
+export function App({ apiClient, onSignedOut }: AppProps) {
   const storage = useMemo(() => createBrowserStorage(), []);
-  const store = useMemo(() => new ReaderStore(new ApiClient(), storage), [storage]);
+  const store = useMemo(() => new ReaderStore(apiClient, storage, onSignedOut), [apiClient, storage, onSignedOut]);
   const state = useReaderStore(store);
 
   useEffect(() => {
@@ -24,7 +38,7 @@ export function App() {
   }, [state.toast, store]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-screen={state.screen}>
       {state.toast && (
         <div className="toast" role="status" aria-live="polite">
           {state.toast}
@@ -41,16 +55,19 @@ export function App() {
           onOpenTrace={trace => store.openTrace(trace)}
           onEnterSystem={() => store.enterSystem()}
           onOpenPrivacy={() => store.openPrivacy()}
+          onOpenKeep={() => store.openKeep()}
           onRetry={() => store.retryUniverse()}
         />
       )}
       {state.screen === 'system' && (
-        <SystemScreen state={state.system} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} onEnterScroll={() => store.enterScroll()} />
+        <SystemScreen state={state.system} onOpenKeep={() => store.openKeep()} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} onEnterScroll={() => store.enterScroll()} />
       )}
+      {state.screen === 'keep' && <KeepScreen state={state.universe} onReturn={() => store.returnToUniverse()} onEnterScroll={() => store.enterScroll()} onOpenTrace={trace => store.openTrace(trace)} />}
       {state.screen === 'privacy' && (
         <PrivacyScreen
           universe={state.universe}
           privacy={state.privacy}
+          onOpenKeep={() => store.openKeep()}
           onReturn={() => store.closePrivacy()}
           onPause={() => store.pauseRecording()}
           onResume={() => store.resumeRecording()}
@@ -60,6 +77,10 @@ export function App() {
           onConfirmReset={typed => store.confirmReset(typed)}
           onAcknowledgeReset={() => store.acknowledgeReset()}
           onEnterScroll={() => store.enterScroll()}
+          onSignOut={() => store.signOut()}
+          onBeginDeleteAccount={() => store.beginDeleteAccount()}
+          onCancelDeleteAccount={() => store.cancelDeleteAccount()}
+          onConfirmDeleteAccount={typed => store.confirmDeleteAccount(typed)}
         />
       )}
       {(state.screen === 'scroll' || state.screen === 'revisit') && (
@@ -67,10 +88,16 @@ export function App() {
           state={state.scroll}
           onVisible={assetId => store.onVisible(assetId)}
           onKeep={() => store.keep()}
+          onOpenKeep={() => store.openKeep()}
           onNext={() => store.nextScroll()}
           onReturn={() => store.returnToUniverse()}
           onRetry={() => store.retryScrollLoad()}
           onReadingPosition={(assetId, position) => store.updateReadingPosition(assetId, position)}
+          why={state.why}
+          onOpenWhy={() => store.openWhy()}
+          onCloseWhy={() => store.closeWhy()}
+          onRetryWhy={() => store.retryWhy()}
+          onCorrect={kind => store.correctEncounter(kind)}
         />
       )}
     </div>

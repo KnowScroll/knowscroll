@@ -1,0 +1,21 @@
+{
+  "totalPssKb": 125534,
+  "nativePssKb": 11786,
+  "dalvikPssKb": 6990,
+  "phaseP95Ms": {
+    "layout": 0.324208,
+    "draw": 11.238667,
+    "sync": 0.281542,
+    "gpu": 23.884167,
+    "queue": 20.324019
+  },
+  "iterations": 12,
+  "frames": 477,
+  "p50Ms": 29.760084,
+  "p95Ms": 52.292897,
+  "maxMs": 115.028266,
+  "over16_67ms": 475,
+  "droppedMetricReports": 0,
+  "clock": "real time; accessibility input; no Compose test animation clock",
+  "device": "API36 emulator debug, 1080x2400, font1.0, motion1.0"
+}

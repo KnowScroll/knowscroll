@@ -157,7 +157,9 @@ test('Ask authority rechecks session expiry after a physical bucket wait and rol
    }
    assert.equal(expired,true);
    await blocker.query('COMMIT');
-   await assert.rejects(pending,error=>error instanceof ReasoningDenied&&error.code==='context_inactive_session');
+   // #153 (ADR-0042 §6.1): a head whose context is refused after the wait is skipped, like any other ineligible head.
+   const result=await pending;
+   assert.ok(result.kind!=='admitted'&&result.observations.some(o=>o.kind==='ineligible'&&o.reason==='context_inactive_session'),JSON.stringify(result));
   }finally{
    await blocker.query('ROLLBACK');blocker.release();if(pending)await pending.catch(()=>{});
   }

@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.ReaderSheetRecreationTest:...
+
+Time: 16.707
+
+OK (3 tests)
+
+

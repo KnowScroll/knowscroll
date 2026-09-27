@@ -74,7 +74,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.knowscroll.mobile/.MainActivity
 ```
 
-Emulator API URL is `http://10.0.2.2:4310`, forwarding to host loopback. On a USB device, use `adb reverse tcp:4310 tcp:4310` and build with `KS_DEBUG_API_BASE=http://127.0.0.1:4310` in local.properties. Never bind this development API publicly. Cleartext is allowed only in debug. Release variants are disabled until real identity and deployment controls exist.
+Emulator API URL is `http://10.0.2.2:4310`, forwarding to host loopback. On a USB device, use `adb reverse tcp:4310 tcp:4310` and build with `KS_DEBUG_API_BASE=http://127.0.0.1:4310` in local.properties. Never bind this development API publicly. Cleartext is allowed only in debug. A release build refuses until the owner's signing and API inputs are given; see [release inputs](release-inputs.md).
 
 Run `./scripts/studio.sh` for the IDE with SSD indexes/plugins/logs and the same Gradle/SDK environment. Android Studio may show first-run setup; point it at the existing SSD SDK rather than installing another SDK internally.
 
@@ -107,6 +107,6 @@ Install SDK packages sequentially: concurrent Android CLI downloads produced a t
 
 `pnpm exec tsx scripts/run-isolated-history-journey.ts` verifies J003 across two disposable universes. `python3 scripts/android-history-journey.py` uses ports4311/4316 and the separate `.journey` app to verify confirmation, clear, a genuinely lost HTTP response, force-stop restoration and epoch-driven cache removal. Run Android journey scripts sequentially with one booted emulator.
 
-`pnpm test` creates a uniquely named `knowscroll_test_*` database and removes only that disposable database. `pnpm verify:journey` mutates the selected real development universe by keeping one asset; library exhaustion is an honest result. [J001](../journeys/J001.md) separates API and Android proof.
+`pnpm test` creates a uniquely named `knowscroll_test_*` database, migrates and seeds it, and runs each test file alone in its own copy of it; it removes only those disposable databases. A file never sees another file's rows, so a test cannot depend on the order files run in. `pnpm verify:journey` mutates the selected real development universe by keeping one asset; library exhaustion is an honest result. [J001](../journeys/J001.md) separates API and Android proof.
 
 No provider key is needed for these journeys. The separate [MiniMax certification CLI](minimax-certification.md) implements ADR-0011: fixed synthetic requests, subscription-only route, fresh quota checks and durable bounded reservations. Ordinary jobs remain provider-free; #7 still owns the full Reasoning Plane. The owner-reported token allowance does not establish arbitrary cash spending permission. The Cutroom task needs `CUTROOM_BASE_URL`, a reachable host and a safe artifact import route. Configure secrets locally or in a deployment secret store; never put them in mobile, GitHub issues, evidence or commits. Withhold provider credentials from processes that do not need them.

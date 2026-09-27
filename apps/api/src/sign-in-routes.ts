@@ -15,6 +15,7 @@ import {
 import { createMagicLinkSender, type MagicLinkSender } from './magic-link-sender.ts';
 import { describeSendFailure } from './agentmail-sender.ts';
 import { HttpError } from './errors.ts';
+import { csrfToken, sessionCookie, type WebSessionConfig } from './web-session.ts';
 
 function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.KS_API_BASE_URL;
@@ -22,7 +23,7 @@ function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   return `http://127.0.0.1:${env.PORT ?? 4310}`;
 }
 
-export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRateLimits): void {
+export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRateLimits, webSession?: WebSessionConfig): void {
   // Resolved lazily and cached, exactly like `resolveMediaRoot()`: a caller that never requests a
   // magic link never needs `KS_DEV_ROOT` set, and a production-mode process only refuses here at
   // the moment this route is actually exercised (main.ts already refuses every production start
@@ -41,7 +42,12 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
       requesterFingerprint: fingerprint,
     }, limits));
     if (issued) {
-      const link = `${resolveApiBaseUrl()}/v1/auth/confirm?token=${encodeURIComponent(issued.token)}`;
+      // ADR-0034: with a web origin configured the link opens the web sign-in page and carries the
+      // token in the fragment, which no server log or Referer ever receives; the page posts it.
+      const webOrigin = process.env.KS_WEB_ORIGIN?.replace(/\/+$/, '');
+      const link = webOrigin
+        ? `${webOrigin}/sign-in#token=${encodeURIComponent(issued.token)}`
+        : `${resolveApiBaseUrl()}/v1/auth/confirm?token=${encodeURIComponent(issued.token)}`;
       // Best-effort delivery, exactly like a real mail provider: a send failure (including a
       // misconfigured sink or a rejected AgentMail request) never distinguishes this response from
       // any other — it is swallowed here rather than surfaced as a 500 only reachable on the
@@ -84,6 +90,25 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
       expiresAt: session.expiresAt,
       accountId: session.accountId,
       origin: 'magic_link',
+    });
+  });
+
+  // ADR-0034: the same consumption for the desktop page, answered with a cookie the page cannot read
+  // and the CSRF token it must send with every change; never the session token itself.
+  app.post('/v1/auth/web-session', async (req, reply) => {
+    if (!webSession) throw new HttpError(404, 'Not found');
+    const body = req.body as Record<string, unknown> | undefined;
+    const rawToken = typeof body?.token === 'string' ? body.token : '';
+    const session = await transaction(client => consumeSignInToken(client, rawToken));
+    return reply.code(200).header('set-cookie', sessionCookie(session.token, session.expiresAt)).header('Cache-Control', 'no-store').send({
+      sessionId: session.sessionId,
+      deviceId: session.deviceId,
+      universeId: session.universeId,
+      privacyEpoch: session.privacyEpoch,
+      expiresAt: session.expiresAt,
+      accountId: session.accountId,
+      origin: 'magic_link',
+      csrfToken: csrfToken(webSession.secret, session.token),
     });
   });
 }

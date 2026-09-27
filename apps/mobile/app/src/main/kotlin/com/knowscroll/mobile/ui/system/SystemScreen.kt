@@ -1,27 +1,17 @@
 package com.knowscroll.mobile.ui.system
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
@@ -31,19 +21,15 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -52,35 +38,34 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knowscroll.mobile.R
-import com.knowscroll.mobile.data.WorldSummary
-import com.knowscroll.mobile.data.WorldSystemResponse
+import com.knowscroll.mobile.ui.AtlasEvidenceState
+import com.knowscroll.mobile.ui.AtlasState
+import com.knowscroll.mobile.ui.PlaceRejectState
+import com.knowscroll.mobile.ui.RoomState
 import com.knowscroll.mobile.ui.SystemState
 import com.knowscroll.mobile.ui.common.BottomCompass
 import com.knowscroll.mobile.ui.common.CompassTab
 import com.knowscroll.mobile.ui.common.CosmosBackground
+import com.knowscroll.mobile.ui.keep.FoundConnectionSheet
+import com.knowscroll.mobile.ui.keep.KeepControls
+import com.knowscroll.mobile.ui.keep.ReturnSheet
 import com.knowscroll.mobile.ui.theme.Cosmos
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.sin
 
 /**
- * The system level (#116, ADR-0028/#113): the same depth the web lane draws
- * (`claude/116-system-view`'s `SystemScreen.tsx`), read from the same `GET /v1/worlds` contract
- * (docs/product/ui-system.md sec.5b/5c; `packages/db/src/worlds.ts`'s `readWorldSystem`). A body
- * per real `world` the API actually returned -- a centre, an orbit, a name and a mono status line
- * -- but nothing here is invented. Every name, count and link comes straight from the response;
- * a body's position on the ring is decorative (no ranking signal exists to place it honestly), and
- * that is the only thing about a body that is decoration -- its identity and its numbers never are.
+ * #134: the reader's own live places (ADR-0036) on the shared spatial engine (`SpatialAtlas`) --
+ * their planets, regions and sightings. Detail is local navigation, and Back returns to the same
+ * system. The ADR-0028 worlds response only says whether anything has been encountered yet: #161,
+ * a world is one source and its only name is that source's, so no world is ever drawn.
  *
- * Section 4b: no desktop head band, no 1050/700px breakpoints. The head band's *job* survives as a
- * single leading row above the stage instead of a 66px fixed bar: back, where this came from
- * ("Derived from recorded sources, never inferred" -- methodology, not a data value), the kind
- * label. Bottom compass stays present and still navigates, but marks **nothing** current: sec.4b/5b
- * name exactly three destinations (Atlas/Cable/Keep) and System is not one of them. Marking Atlas
- * would read, to a sighted reader and to a screen reader through `Role.Tab`'s selected state, as
- * "you are at Atlas" -- which is not true of someone standing on the system level. The web surface
- * marks nothing here for the same reason (#121), and the two surfaces have to read as one product.
+ * #134 (ADR-0039 §6): the map opens with a quiet "While you were away" when something changed that
+ * the reader did not cause ([AwaySection]); a found connection opens its evidence in a sheet with
+ * "Keep" and "Seems wrong". [away] is defaulted so every other call site is unchanged.
+ *
+ * #163 (ADR-0045): a place's Idea Rooms open over its sheet ([RoomSheet]); [rooms] is defaulted
+ * the same way.
+ *
+ * #165 (ADR-0044): a place's sheet offers Keep too; [keeps] carries what the reader already kept or
+ * doubted and the choices, for places and found connections alike.
  */
 @Composable
 fun SystemScreen(
@@ -89,30 +74,247 @@ fun SystemScreen(
     onRetry: () -> Unit,
     onEnterScroll: () -> Unit,
     onOpenKeep: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // #134: defaulted so the fixed-state `ui/fidelity` tests of the empty and unavailable system
+    // keep compiling unchanged.
+    atlasState: AtlasState = AtlasState.Idle,
+    placeRejectState: PlaceRejectState = PlaceRejectState.Idle,
+    evidenceState: AtlasEvidenceState = AtlasEvidenceState.Idle,
+    onRequestSetAside: (String) -> Unit = {},
+    onCancelSetAside: () -> Unit = {},
+    onConfirmSetAside: () -> Unit = {},
+    onOpenEvidence: (String) -> Unit = {},
+    onCloseEvidence: () -> Unit = {},
+    away: AwayControls? = null,
+    rooms: RoomControls? = null,
+    /** #165: Keep on a place and on a found connection, and what the reader already kept or doubted. */
+    keeps: KeepControls = KeepControls(),
+    // #164: "New for you" in a place sheet opens that Scroll in the reader.
+    onOpenBoundScroll: (String) -> Unit = {},
 ) {
+    val cameraStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    var inspection by rememberSaveable { mutableStateOf(false) }
+    var selectedPlaceId by rememberSaveable { mutableStateOf<String?>(null) }
+    var focusedRegionId by rememberSaveable { mutableStateOf<String?>(null) }
+    // #134 review I3: a place opened directly from the Places list (any depth, any kind) takes
+    // priority over the camera-driven selection below -- see onOpenPlaceFromList.
+    var listOpenedPlaceId by rememberSaveable { mutableStateOf<String?>(null) }
+    val atlas = (atlasState as? AtlasState.Loaded)?.response
+    val places = atlas?.places.orEmpty()
+    val focusedPlaceId = listOpenedPlaceId ?: focusedRegionId ?: selectedPlaceId
+    val focusedPlace = focusedPlaceId?.let { id -> places.firstOrNull { it.placeId == id } }
+    LaunchedEffect(atlas, focusedPlaceId) {
+        if (focusedPlaceId != null && atlas != null && focusedPlace == null) {
+            // The place this sheet was showing is gone (e.g. it was just set aside).
+            inspection = false; focusedRegionId = null; selectedPlaceId = null; listOpenedPlaceId = null
+        }
+    }
+    // Opens a place's own sheet directly from the Places list, regardless of its depth or kind --
+    // never routed through the camera/marker selection, which only ever understands a planet.
+    fun openPlaceFromList(placeId: String) {
+        listOpenedPlaceId = placeId
+        selectedPlaceId = topmostAncestor(places, placeId)
+        inspection = true
+    }
+    // #134: the found connection whose evidence sheet is open, while the list still carries it.
+    var openConnectionId by rememberSaveable { mutableStateOf<String?>(null) }
+    val openConnection = away?.let { controls -> openConnectionId?.let { awayFound(controls.state, it) } }
+    val openRoom = rooms?.takeIf { it.state !is RoomState.Closed }
+    // The place's sheet and a room open over it close together.
+    fun closeInspection() { inspection = false; rooms?.onClose?.invoke() }
+    BackHandler { if (selectedPlaceId != null) selectedPlaceId = null else onReturn() }
+
     Box(modifier = modifier.fillMaxSize()) {
         CosmosBackground()
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
             SystemHeadBand(onReturn)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (state) {
-                    is SystemState.Idle, is SystemState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                            Text(stringResource(R.string.system_loading), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+                if (state is SystemState.Loaded) {
+                    if (state.response.system?.worlds.isNullOrEmpty()) EmptySystem(onEnterScroll)
+                    else {
+                        Column(
+                            Modifier.fillMaxSize()
+                                .then(
+                                    if (inspection || openConnection != null) Modifier.clearAndSetSemantics {} else Modifier
+                                )
+                        ) {
+                            Text(
+                                "Your system",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Cosmos.Cream,
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                            )
+                            // #134 review I4: never a subtitle derived from an atlas that has not
+                            // actually loaded -- while a first load/refresh is in flight or has
+                            // failed, `places` is empty and this would otherwise read a false
+                            // "0 PLACES · 0 SIGHTINGS".
+                            if (atlas != null)
+                                Text(
+                                    placesSubtitle(places),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Cosmos.MutedOnDark,
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                )
+                            // #134 review M2: the positions are hash-derived and illustrative; only
+                            // what is mapped (the places themselves, their sightings, how they
+                            // connect) is real. #131: the orbit rings, every planet's moon and all
+                            // land art (continents, currents, clouds) are decoration too, and say so.
+                            Text(
+                                "Positions, orbits, moons and land art are illustrative — what's mapped and how it connects is real.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Cosmos.MutedOnDark,
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                            )
+                            if (atlas != null && places.none { it.kind == "planet" })
+                                Text(
+                                    "Places form when you come back to a subject on different days.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Cosmos.MutedOnDark,
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                )
+                            // #134 (ADR-0039): under the labels, above the map; absent unless there
+                            // is something unacknowledged.
+                            if (away != null)
+                                AwaySection(
+                                    away, onOpenConnection = { openConnectionId = it },
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                                )
+                            cameraStates.SaveableStateProvider("camera") {
+                                if (atlas == null)
+                                    // #134 review I4: never mount the map with empty data -- that fires
+                                    // SpatialAtlas's own deselect effect and clears a perfectly good
+                                    // selection/sheet for nothing. A loading line, or the real error
+                                    // with Retry.
+                                    PlacesUnavailable(atlasState, onRetry, Modifier.weight(1f).fillMaxWidth())
+                                else
+                                    SpatialAtlas(
+                                        markers = planetMarkersOf(places),
+                                        selectedId = selectedPlaceId,
+                                        onSelect = { selectedPlaceId = it; listOpenedPlaceId = null },
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        collectionLabel = "Places",
+                                        actionLabel = "Explore place: ",
+                                        onDeselect = { selectedPlaceId = null; inspection = false; listOpenedPlaceId = null },
+                                        onInspect = { listOpenedPlaceId = null; inspection = true },
+                                        sightings = sightingMarkersOf(places),
+                                        regions = selectedPlaceId?.let { regionAreasOf(places, it) } ?: emptyList(),
+                                        regionsEmptyMessage = "No regions yet — a region forms when you anchor a narrower subject.",
+                                        regionActionLabel = "Explore region: ",
+                                        onFocusedRegionChanged = { focusedRegionId = it },
+                                        listSheetContent = { closeSheet ->
+                                            PlacesListSheetContent(
+                                                atlas = atlas,
+                                                evidenceState = evidenceState,
+                                                onOpenEvidence = onOpenEvidence,
+                                                onOpenPlace = { placeId -> closeSheet(); openPlaceFromList(placeId) },
+                                            )
+                                        },
+                                    )
+                            }
+                        }
+                        if (inspection && atlas != null && focusedPlace != null) {
+                            Box(
+                                Modifier.fillMaxSize()
+                                    .clickable { closeInspection() }
+                                    .semantics { contentDescription = "Dismiss place inspection" }
+                            )
+                            Surface(
+                                modifier =
+                                    Modifier.align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .heightIn(max = 480.dp),
+                                color = Cosmos.Cream,
+                                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                            ) {
+                                com.knowscroll.mobile.ui.theme.PosterTheme {
+                                    // Recording paused: no room is set aside until the reader resumes.
+                                    if (openRoom != null) RoomSheet(openRoom, keeps.paused)
+                                    else
+                                        PlaceDetail(
+                                            place = focusedPlace,
+                                            atlas = atlas,
+                                            rejectState = placeRejectState,
+                                            evidenceState = evidenceState,
+                                            onClose = { inspection = false },
+                                            onRequestSetAside = onRequestSetAside,
+                                            onCancelSetAside = onCancelSetAside,
+                                            onConfirmSetAside = onConfirmSetAside,
+                                            onOpenEvidence = onOpenEvidence,
+                                            onCloseEvidence = onCloseEvidence,
+                                            onOpenRoom = { rooms?.onOpen?.invoke(it) },
+                                            keeps = keeps,
+                                            onOpenScroll = onOpenBoundScroll,
+                                        )
+                                }
+                            }
+                        } else if (openConnection != null) {
+                            ReturnSheet(onDismiss = { openConnectionId = null }) {
+                                FoundConnectionSheet(found = openConnection, keeps = keeps, onClose = { openConnectionId = null })
+                            }
                         }
                     }
-                    is SystemState.Unavailable -> SystemUnavailable(state.message, onRetry)
-                    is SystemState.Loaded -> SystemBody(state.response)
-                }
+                } else
+                    when (state) {
+                        // Never animate private world content out while authority is being
+                        // rechecked.
+                        is SystemState.Idle,
+                        is SystemState.Loading ->
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = Cosmos.Teal,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Text(
+                                        stringResource(R.string.system_loading),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Cosmos.MutedOnDark,
+                                    )
+                                }
+                            }
+                        is SystemState.Unavailable -> SystemUnavailable(state.message, onRetry)
+                        is SystemState.Loaded -> Unit
+                    }
             }
-            BottomCompass(
-                selected = null,
-                onSelectAtlas = onReturn,
-                onSelectCable = onEnterScroll,
-                onSelectKeep = onOpenKeep
-            )
+
+            BottomCompass(CompassTab.Atlas, onReturn, onEnterScroll, onOpenKeep)
+        }
+    }
+    BackHandler(enabled = inspection) { closeInspection() }
+    // A room open over its place closes first, back to the place's sheet.
+    BackHandler(enabled = openRoom != null) { openRoom?.onClose?.invoke() }
+    // #134: a connection gone from the list (marked as seen, a new epoch) closes its sheet; Back
+    // closes an open one first.
+    LaunchedEffect(openConnection == null) { if (openConnection == null) openConnectionId = null }
+    BackHandler(enabled = openConnection != null) { openConnectionId = null }
+}
+
+/** #134 review I4: shown in place of the Places map itself while the atlas has not (yet, or not
+ * currently) loaded -- a loading line, or the real error with a Retry that reuses the same
+ * [onRetry] the rest of this screen already offers (re-fetches worlds and the atlas together). */
+@Composable
+private fun PlacesUnavailable(atlasState: AtlasState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (atlasState is AtlasState.Unavailable) {
+            val retryDescription = "Retry loading your places"
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Your places are unavailable", style = MaterialTheme.typography.titleMedium, color = Cosmos.Coral)
+                Text(atlasState.message, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+                OutlinedButton(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = retryDescription },
+                ) { Text("Retry") }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(color = Cosmos.Teal, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                Text("Loading your places…", style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
+            }
         }
     }
 }
@@ -123,28 +325,38 @@ private fun SystemHeadBand(onReturn: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Surface(
-            color = Cosmos.Cream.copy(alpha = 0.94f), contentColor = Cosmos.InkOnCream,
+            color = Cosmos.Cream.copy(alpha = 0.94f),
+            contentColor = Cosmos.InkOnCream,
             shape = RoundedCornerShape(percent = 50),
-            modifier = Modifier.heightIn(min = 48.dp)
-                .clickable(onClickLabel = backDescription, onClick = onReturn)
-                .semantics { contentDescription = backDescription }
+            modifier =
+                Modifier.heightIn(min = 48.dp)
+                    .clickable(onClickLabel = backDescription, onClick = onReturn)
+                    .semantics { contentDescription = backDescription },
         ) {
             Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
-                Text("‹ Universe", fontWeight = FontWeight(800), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "‹ Universe",
+                    fontWeight = FontWeight(800),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
         Text(
             stringResource(R.string.system_head_origin),
-            style = MaterialTheme.typography.bodyMedium, color = Cosmos.Teal,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f)
+            style = MaterialTheme.typography.bodyMedium,
+            color = Cosmos.Teal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
         )
         Text(
             stringResource(R.string.system_kind_label),
-            style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark
+            style = MaterialTheme.typography.labelMedium,
+            color = Cosmos.MutedOnDark,
         )
     }
 }
@@ -154,211 +366,48 @@ private fun SystemUnavailable(message: String, onRetry: () -> Unit) {
     val retryDescription = stringResource(R.string.system_retry_description)
     Column(
         Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             stringResource(R.string.system_unavailable_title),
-            style = MaterialTheme.typography.titleLarge, color = Cosmos.Coral,
-            modifier = Modifier.semantics { heading() }
+            style = MaterialTheme.typography.titleLarge,
+            color = Cosmos.Coral,
+            modifier = Modifier.semantics { heading() },
         )
         Text(message, style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
         OutlinedButton(
             onClick = onRetry,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Cosmos.Cream),
-            modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = retryDescription }
-        ) { Text(stringResource(R.string.action_retry)) }
+            modifier =
+                Modifier.heightIn(min = 48.dp).semantics { contentDescription = retryDescription },
+        ) {
+            Text(stringResource(R.string.action_retry))
+        }
     }
 }
 
 @Composable
-private fun SystemBody(response: WorldSystemResponse) {
-    val system = response.system
-    if (system == null) {
-        // The empty system (ADR-0028: `system` is `null` until this universe's own exposures have
-        // actually reached at least one world's evidence) is a designed state that says nothing
-        // has been encountered yet -- never an error, and never drawn as one.
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(stringResource(R.string.system_empty_eyebrow), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-            Text(
-                stringResource(R.string.system_empty_title),
-                style = MaterialTheme.typography.headlineMedium, color = Cosmos.InkOnDark,
-                modifier = Modifier.semantics { heading() }
-            )
-            Text(stringResource(R.string.system_empty_body), style = MaterialTheme.typography.bodyMedium, color = Cosmos.MutedOnDark)
-        }
-        return
-    }
-    val worlds = system.worlds
+private fun EmptySystem(onEnterScroll: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(stringResource(R.string.system_eyebrow), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-        Text(
-            stringResource(R.string.system_title),
-            style = MaterialTheme.typography.displayLarge, color = Cosmos.InkOnDark,
-            modifier = Modifier.semantics { heading() }
-        )
-        Text(systemSubtitle(worlds), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-        SystemOrbit(worlds)
-    }
-}
-
-/** `${worlds.size} WORLD(S) · ${totalScrolls} SCROLL(S) RECORDED · ${totalSeen} SEEN` -- every
- * number is a straight sum of the real per-world counts the API returned, never derived from
- * anything this client computed on its own. Mirrors the web lane's own `systemSubtitle()`. */
-private fun systemSubtitle(worlds: List<WorldSummary>): String {
-    val totalScrolls = worlds.sumOf { it.scrollCount }
-    val totalSeen = worlds.sumOf { it.seenCount }
-    val worldWord = if (worlds.size == 1) "WORLD" else "WORLDS"
-    val scrollWord = if (totalScrolls == 1) "SCROLL" else "SCROLLS"
-    return "${worlds.size} $worldWord · $totalScrolls $scrollWord RECORDED · $totalSeen SEEN"
-}
-
-/**
- * The orbit diagram: a centre and one real ring, holding every world the API returned. A world's
- * position on the ring is decorative -- no ranking signal exists to place a world honestly closer
- * or farther, so every body sits on the one real orbit, evenly spaced by the order the API
- * returned them in. Starting the spread at angle 0 (the wide axis), not -π/2 (the top): the web
- * lane (`claude/116-system-view`) hit exactly the bug this avoids -- starting at the top put two
- * worlds directly above and below the centre, running each label column through the sun.
- */
-@Composable
-private fun SystemOrbit(worlds: List<WorldSummary>) {
-    val listDescription = stringResource(R.string.system_worlds_list_description)
-    BoxWithConstraints(
-        Modifier.fillMaxWidth().aspectRatio(16f / 10f)
-            .semantics { contentDescription = listDescription }
-    ) {
-        val w = maxWidth
-        val h = maxHeight
-        Canvas(Modifier.fillMaxSize()) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f
-            val rx = size.width * 0.4f
-            val ry = size.height * 0.24f
-            drawOval(
-                color = ringColor,
-                topLeft = Offset(cx - rx, cy - ry),
-                size = Size(rx * 2, ry * 2),
-                style = Stroke(width = 1.5f)
-            )
-            drawCircle(color = sunColor, radius = size.height * 0.09f, center = Offset(cx, cy))
-        }
-        worlds.forEachIndexed { index, world ->
-            val (leftFraction, topFraction) = worldBodyFraction(index, worlds.size)
-            // Found by actually running this at 840x1680/font-scale 1.3 (docs/product/ui-system.md
-            // sec.7's own second required phone size): a fixed 0.33 amplitude still clips on a
-            // narrower screen -- there is no single amplitude that fits every width, since it was
-            // never bounded by the box's own real size. Clamped here instead: the label column's
-            // raw fraction-based x can now never leave [0, w-150dp], regardless of screen width.
-            val rawX = w * leftFraction - 75.dp
-            val clampedX = rawX.coerceIn(0.dp, (w - 150.dp).coerceAtLeast(0.dp))
-            WorldBody(
-                world = world,
-                modifier = Modifier.width(150.dp)
-                    .offset(x = clampedX, y = h * topFraction - 45.dp)
-            )
-        }
-    }
-}
-
-private val ringColor = Cosmos.Cream.copy(alpha = 0.22f)
-private val sunColor = Cosmos.Yellow
-
-/** Pure geometry, deliberately factored out of the `@Composable` so it is directly unit-testable
- * (`SystemGeometryTest`) without Robolectric/Compose: where the [index]th of [total] world bodies
- * sits on the ring, as a `(leftFraction, topFraction)` pair of the orbit box's own width/height --
- * exactly the web lane's own `left = 50 + cos(angle)*40`, `top = 50 + sin(angle)*30` (as fractions,
- * not percent). Spreading starts at angle 0 (the wide axis), never -π/2 (the top): the web lane
- * (`claude/116-system-view`) hit exactly the bug starting at the top causes -- two bodies land
- * directly above and below the centre, both at the same horizontal fraction, so their label
- * columns run straight through the sun. */
-internal fun worldBodyFraction(index: Int, total: Int): Pair<Float, Float> {
-    val angle = (index.toFloat() / max(total, 1)) * 2f * PI.toFloat()
-    // Found by actually running this on-device (emulator-5554): the web lane's own 0.4/0.3
-    // amplitude puts a body's ~150dp-wide label column right at the orbit box's horizontal edge,
-    // and on a phone that edge is close to the physical screen edge -- the rightmost world's title
-    // and tag clipped off-screen. Pulled in to 0.33/0.28 so the label column has margin to fit
-    // beside the point it is centred on; still spans nearly the full ring, still decorative.
-    val leftFraction = 0.5f + cos(angle) * 0.33f
-    val topFraction = 0.5f + sin(angle) * 0.28f
-    return leftFraction to topFraction
-}
-
-/** ADR-0028's `seen_count >= 1` guard means `GET /v1/worlds` only ever returns a world this
- * universe has encountered at least once, so "fully vs partially reached" (never "seen vs not") is
- * the one honest, database-verified distinction available to draw. Pure and unit-tested
- * (`SystemGeometryTest`) separately from the Compose tree that reads it. */
-internal fun isWorldFullyExplored(world: WorldSummary): Boolean =
-    world.scrollCount > 0 && world.seenCount >= world.scrollCount
-
-/** One real body: its name, its two counts and its source link all come straight from [world]. */
-@Composable
-private fun WorldBody(world: WorldSummary, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    var browserUnavailable by remember(world.worldId) { mutableStateOf(false) }
-    val fullyExplored = isWorldFullyExplored(world)
-    val scrollWord = if (world.scrollCount == 1) "SCROLL" else "SCROLLS"
-    val statusLine = "${world.scrollCount} $scrollWord · ${world.seenCount} SEEN"
-    val tag = stringResource(if (fullyExplored) R.string.system_fully_explored else R.string.system_more_to_explore)
-    val openDescription = stringResource(R.string.system_open_source_description, world.sourceTitle)
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
-            Canvas(Modifier.fillMaxSize()) {
-                val ringRadius = (size.minDimension / 2f) - 2f
-                if (fullyExplored) {
-                    drawCircle(color = Cosmos.Green, radius = ringRadius, style = Stroke(width = 5f))
-                } else {
-                    drawCircle(
-                        color = Cosmos.Teal2, radius = ringRadius,
-                        style = Stroke(width = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 7f)))
-                    )
-                }
-            }
-            Box(Modifier.size(34.dp).clip(CircleShape).background(Cosmos.Teal))
-        }
-        Text(world.sourceTitle, style = MaterialTheme.typography.titleMedium, color = Cosmos.InkOnDark, textAlign = TextAlign.Center)
-        Text(statusLine, style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnDark)
-        SystemTag(tag, fullyExplored)
-        Surface(
-            color = Cosmos.Teal, contentColor = Cosmos.InkOnCream,
-            shape = RoundedCornerShape(percent = 50),
-            modifier = Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp)
-                .clickable(onClickLabel = openDescription) {
-                    browserUnavailable = runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(world.sourceUrl)))
-                    }.isFailure
-                }
-                .semantics { contentDescription = openDescription }
-        ) {
-            Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.action_open_source), fontWeight = FontWeight(800), style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        if (browserUnavailable) Text(
-            stringResource(R.string.reader_browser_unavailable),
-            style = MaterialTheme.typography.labelMedium, color = Cosmos.Coral, textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun SystemTag(label: String, fullyExplored: Boolean) {
-    Surface(
-        color = if (fullyExplored) Cosmos.Green else Cosmos.Dark,
-        contentColor = if (fullyExplored) Cosmos.InkOnCream else Cosmos.Teal2,
-        shape = RoundedCornerShape(percent = 50),
-        border = if (fullyExplored) null else BorderStroke(1.dp, Cosmos.Teal2)
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            label, style = MaterialTheme.typography.labelMedium,
-            color = if (fullyExplored) Cosmos.InkOnCream else Cosmos.Teal2,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            stringResource(R.string.system_empty_eyebrow),
+            style = MaterialTheme.typography.labelMedium,
+            color = Cosmos.MutedOnDark,
         )
+        Text(
+            stringResource(R.string.system_empty_title),
+            style = MaterialTheme.typography.headlineMedium,
+            color = Cosmos.InkOnDark,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            stringResource(R.string.system_empty_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Cosmos.MutedOnDark,
+        )
+        OutlinedButton(onClick = onEnterScroll) { Text("Show me something ↗") }
     }
 }

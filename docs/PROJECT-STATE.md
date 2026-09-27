@@ -1,5 +1,230 @@
 # Project state
 
+## 2026-09-25 Android: Idea Rooms, typed Relics, "more about this" and release readiness (#72)
+
+On the Android test app:
+
+- **Idea Rooms.** A question you ask about the same place on two days opens a room there, under your own words. Two readings that disagree take seats and hold sourced claims. A source correction can unseat one while you are away, and the return says so.
+- **Keep and doubt more things.** You can keep or doubt a place, a single passage of a Scroll, or an answer, as well as a connection. Keep lists every kind and says whether it still stands, was corrected, or was marked by you.
+- **More about a place you have read in full.** When you have read everything about a place, KnowScroll records that you want more. It can have a new Scroll written in its own words from public material. The place sheet says "Being written", "New for you" or why there is nothing more. A correction withdraws such a Scroll and tells you.
+  - One live attempt this session was refused by KnowScroll's own checks, so no model-written Scroll was served through this path yet.
+- **Release readiness.** The release build refuses to build without your keystore and the app's https address, and invents none of them. Your domain (for opening sign-in links in the app) and the production mail credentials are applied at release time, as `docs/operations/release-inputs.md` describes. A mailed sign-in link will open the app's sign-in screen. Upgrading and rolling back the database are written down. Privacy controls no longer resend a refused request.
+- **Acceptance** on the emulator: the everyday journeys work end to end, and in a matched frame-timing test of the Atlas the app is no slower than before this work. Two things were fixed on the way: the way back along a followed connection is readable at the largest text size, and exports always go through the system's save dialog. Predictions are not built yet.
+
+Still waiting on you: your domain, mail credentials and keystore; a physical phone for performance; your usefulness review (including whether the new Composer becomes the default); then Cutroom (#9). The web catch-up (#171) and Social (#137) are deferred.
+
+## 2026-09-25 Android: sources hidden, corrections reach you while away, model-written Scrolls, Reels that explain themselves (#72)
+
+On the Android test app, readers no longer see any source. A source correction now reaches your
+places while you are away, and "While you were away" says what changed. The Cable serves Scrolls a
+model wrote in its own words from public-domain pages; each claim was checked word for word against
+the page, which is kept privately. Reels explain why they appeared and continue into related Scrolls.
+If you close the Ask sheet, or the app is killed, a pending answer is picked up again. Background
+connection-finding can repair a refused proposal once, keeping its reasoning private. Still ahead:
+Idea Rooms (#163, in review), typed Relics (#165), inventory (#164), release readiness (#168) and
+the acceptance matrix (#170).
+
+## 2026-09-24 What is left, and how the next session works (#72)
+
+Six phases: #131 is done. #132–#136 continue as twelve concrete issues (#160–#171). The next
+session is Android-first and tests every feature by hand on the emulator. Sources stay out of
+readers' sight but still check every fact, and new Scrolls will be written by the model in its own
+words. After #160–#170, what remains is Cutroom, the web catch-up, the owner's release inputs and
+acceptance. See [the continuation handoff](handoffs/2026-09-24-android-first-continuation.md).
+
+## 2026-09-24 KnowScroll tells you what changed while you were away, and you can keep a connection as a Relic (#134)
+
+When you come back to the Atlas, a short "While you were away" section lists only what happened
+without you:
+- a connection KnowScroll found between two of your places, or one it looked for that did not hold up;
+- a place that changed because a source was corrected;
+- a connection you had seen or kept that a correction withdrew.
+
+A found connection opens with its sentence and sources. You can keep it as a Relic or say it seems
+wrong. Relics sit at the top of Keep, and each one says whether it still stands, was corrected by a
+later source change, or was marked by you as seeming wrong. The kept wording stays readable either
+way. "Mark as seen" clears the section. Rooms and other kinds of Relic are not built yet.
+
+## 2026-09-24 KnowScroll can look for connections between your places in the background (#132)
+
+The phone's Privacy & account screen now has a switch, "Look for connections between my places",
+with a daily limit. Each time a new place forms, KnowScroll asks the model once, showing it only
+the two places' names and their sourced claims. The model's suggestion becomes a connection only if
+KnowScroll's own checks confirm it; the screen lists what was looked for and what came of it. In
+live tests the checks refused every weak suggestion. After the request was made more structured,
+one real connection got through ("Gravity explains The Sun"), and it now appears as a continuation
+where either side is read. Suggestions are still often refused, and with today's small library
+there are few pairs to look at.
+
+## 2026-09-24 Frame timing re-measured, and a broken device check repaired (#136)
+
+Measured side by side on the same emulator, the current app is as fast as PR130's baseline at the
+slow end and faster in the middle. It does redraw more work per frame, which is the next thing to
+cut. It is still not smooth on the emulator, and there is no phone measurement yet. A device check
+for the "why this appeared" sheet and sign-out, broken since the reader's feed changed, works
+again. Every device check now protects the owner's running preview (only the command that sets up
+the preview replaces it on purpose): it refuses to start rather
+than risk it, and leaves it alone unless the run actually replaced it. If the preview is signed in
+with an emailed link, the owner has to sign out first, or accept signing in again afterwards.
+
+## 2026-09-24 The desktop reader explains why a Scroll appeared (#133)
+
+On the web, "Why this appeared" now shows the recorded reason and the steps that led to the Scroll,
+as the phone app does. The reader can say "less like this" or "wrong connection", and the page says
+what each one changes. It works by keyboard. The panel is hidden in very narrow windows.
+
+## 2026-09-24 A place that holds others up (foundation Stars, #131/#134)
+
+When one of the reader's places explains several of their other places, and sources say so, it
+becomes a foundation. On Android it is drawn brighter, and its sheet lists what it holds up and the
+claims behind each connection. It stops being one, with the reason recorded, when a source is
+corrected or the reader sets one of those places aside. Reading alone never makes a foundation. With
+today's small library this happens only around Gravity, and only if Orbits and Star formation become
+places, which needs more Scrolls from a second source.
+
+## 2026-09-24 Owner sign-in, privacy and account deletion on both clients (#135)
+
+The Android app no longer needs a baked-in development token: the owner signs in with an emailed
+link, and the session is encrypted on the device. The desktop web app signs in the same way with a
+cookie its page never sees. Both clients can pause and resume recording, export, reset, and delete
+the account and its history in one step. Upgrading a copy of the owner's real database was
+rehearsed and verified without touching the original. Not built: tapping the emailed link straight
+into the app (it is pasted), and a production mail provider.
+
+## 2026-09-24 The reader's places (#134, first slice)
+
+Reading about a subject on different days, from more than one source, now forms a place in the
+reader's own Atlas. Nearby subjects they have not met yet show as sightings, with the sourced claim
+that connects them. Every change can be opened to see why it happened, and the reader can set a
+place aside. It is not authored and not decorative. Not built yet: rooms, relics, away-time work,
+foundation stars, model naming, and the Reel reader's link into places.
+
+## 2026-09-24 Scroll Ask answers (#132)
+
+A reader can now ask a question about a Scroll and, on a separate deliberate tap, get an answer
+drawn only from that Scroll: quotes checked word for word, where the Scroll stops said plainly, or
+"This Scroll doesn't say." A reply that does not hold up is not shown. It runs through the worker
+with a real provider on the subscription route (bounded live proof: 28 requests), never from the
+API. Not built: answers for Reels, multi-Scroll answers, a quality benchmark beyond one Scroll.
+
+## 2026-09-24 Composer v3, the reader's why and correction (#133, #131 hypotheses)
+
+The feed is now composed by `composer-semantic-v3` from the reader's own recorded acts and the
+admitted substrate: it continues, deepens, crosses sourced bridges, challenges, revisits, steps
+outside on a rolling exploration floor, or falls back honestly, and it records why. On Android the
+reader can see what led to a Scroll and correct the route without editing a profile. Private
+attention accounts and revisable hypotheses exist and are erasable and exportable. Usefulness has
+not been judged by a person; the offline comparison shows behaviour only. Ask remains recorded-only
+(#132); worlds remain source-derived (#134); the frame regression is unaccepted.
+
+## 2026-09-24 semantic substrate and live continuations (#131, PR140)
+
+A source-backed semantic substrate now exists (ADR-0031, migration 0026): claims quote hashed
+source snapshots, and a bridge between two ideas is admitted only by a deterministic validator
+whose inputs are recorded for replay. Android offers live continuations drawn only from admitted
+bridges, lets the reader inspect the mechanism, its limits and its cited evidence, follow one and
+return to the exact reading position, or hide one for themselves. Source corrections revoke
+dependent bridges. Pause, Clear/Reset and export cover the new private history.
+
+The Composer is still `composer-signals-v2` on main; `composer-semantic-v3` (ADR-0032) is on the
+`133-semantic-composer` lane. Ask stays recorded-only; worlds are still source-derived; the frame
+regression is unaccepted. Evidence levels reached for this slice: source, implementation checks,
+fixture, real local service, and a real emulator journey. No live provider, release UI or owner
+acceptance.
+
+## 2026-09-24 current delivery scope
+
+PR130 is merged at `f89e625`; its Android visual direction has owner approval. Algorithm
+completion is not implied: Composer is still the recorded-signal v2 engine, Ask recorded-only,
+ordinary product reasoning disabled, worlds source-derived, and detailed topic/branch preview
+authored. The existing frame regression remains unaccepted.
+
+The owner requests completion of [six verified implementation phases](handoffs/2026-09-24-core-to-android.md) under #72:
+#131 semantic foundations, #132 product reasoning, #133 full Composer,
+#134 living worlds/inventory/Android, #135 owner access/privacy/release clients,
+#136 continuous verification/performance/acceptance. All are initially Todo; this documentation
+implements no new capability. Continuous verification begins immediately with implementation.
+
+Cutroom #9 is owner-led and last; Social/Blend #137 is a deferred future epic under ADR-0026.
+Old #11 and #57 are closed as superseded, not completed; #57's unresolved cause transfers to
+#123/#136. #97/#115/#123 remain open. Component epics stay open with current phase links.
+Project1 and #72 carry the same scope, and the next session must maintain them throughout work.
+
+## 2026-09-23 direct native Atlas — PR130 continuation
+
+The Android continuation preserves PR130 and replaces cluttered, sheet-first entry
+with a compact Universe system, visible ship flight, isolated planet/moon, related
+continent geometry and directly tappable topics. An explicitly authored graph opens
+the existing rich Scroll and actual supplied Reel, preserving exact camera/topic and
+reading/playback/branch origins. Source worlds retain secondary source inspection.
+
+[Current evidence](journeys/evidence/android-direct-2026-09-23/README.md) records
+94 units and 22 native scenario/configuration passes, two bounded MiniMax-M3 reviews,
+real-time motion and matched profiles. The final p95 range **52.29–66.56 ms** regresses
+against **47.40 ms** baseline; smoothness is unaccepted. The original preview runtime
+on4322 and owner history are preserved; owner `knowscroll` was not migrated or reset.
+The owner authorizes PR130 merge; consult the PR for exact final CI/merge status.
+#72, full-v1, manual visual/input acceptance, physical-device performance and live
+semantic/provider gates remain open. Earlier dated state below is historical.
+
+## 2026-09-22 Android living universe and explicit Cable — review branch
+
+The Android-only #72 successor from merged PR129 adds a moving native orbital map,
+stable identities and continuous camera into explicitly authored continent/local
+geography; integrated cream selectors; poster content; an actual Scroll/Reel feed
+filter; and a visible debug journey preview with three rich Scrolls, three supplied
+videos and authored branches. Scope-bound restoration, cancellable feed reads,
+compact video layout and privacy purge have runtime evidence. See the
+[audit](design/2026-09-22-android-living-universe.md) and
+[evidence](journeys/evidence/android-living-2026-09-22/README.md).
+
+This is branch delivery for review, not a merge, owner-runtime migration, live
+semantic/branch transport, generated-media proof or full-v1 acceptance. The owner
+has only an emulator available now. Fresh frame p95 is 67.37–71.34 ms versus 67.81 ms
+baseline despite lower draw cost; performance remains unaccepted. The owner database
+remains at 0001–0009, observed read-only. New preview lifecycle is recorded on 4322;
+the old 4320 runtime is preserved. Verify current processes rather than treating this
+file as a guarantee that a runtime is still alive. #72 remains open.
+
+
+## 2026-09-22 merge authorization / owner preview
+
+The owner authorized merging PR #129 and viewing the latest Android build. The API36 `.journey`
+preview is running with isolated API/worker on4320, two kept encounters and labelled supplied test
+video; no owner database changes. See the checkpoint for its ignored lifecycle receipt and live
+PR/issue for merge completion. Earlier draft/no-merge statements below are historical. Full-v1,
+physical-device performance and the missing native/backend integration gates remain open.
+
+## 2026-09-22 Android spatial successor — branch delivery, not full v1
+
+The Android-only successor on draft PR #129 adds a native pan/pinch Atlas, camera-preserving world
+inspection, actual Media3 Reel playback through the eligible-media API, visible continuation
+affordances, and a typed native rich-Scroll renderer. Authority-aware pause/camera restoration,
+private UI cache removal and gesture arbitration are part of this change. Existing Web and shared
+privacy implementation remain unchanged in this phase. No owner database migration or provider
+run occurred.
+
+[Native evidence](journeys/evidence/android-spatial-2026-09-22/README.md) separates real API/media
+behavior from test-only rich/branch previews and debug-emulator profiling. Supplied MP4 playback
+is verified; live Cutroom generation, live branch/rich transport, source-scoped discovery, semantic
+region/galaxy evolution and production-device smoothness are not thereby implemented. The
+[Android audit](design/2026-09-22-android-spatial.md) lists the exact seams and next dependencies.
+Keep #72 and full v1 acceptance open. Earlier dated observations below are historical.
+
+## 2026-09-22 refinement branch update — not full v1
+
+The #72 refinement branch adds coherent Cosmos typography/navigation, textured source-backed
+worlds with local detail/back, a real Web Keep collection, responsive Atlas layouts and improved
+native reader hierarchy. Android preserves inspection only across freshly confirmed authority.
+Runtime testing found and fixes the ADR-0028 stale private system after Clear; migration 0025 also
+applies this cleanup to Reset without erasing shared source catalog rows. This is branch delivery,
+not owner-runtime deployment. See the [audit and remaining gaps](design/2026-09-21-ui-audit.md)
+and [dated runtime evidence](journeys/evidence/ui-refinement-2026-09-21/README.md).
+
+The Living Observatory's semantic evolution and continuous scale experience are not implemented
+by decorative globes. Native privacy parity, production identity, real Reels, journeys A–I and
+owner acceptance remain release work. Earlier dated status below is retained for provenance.
+
 Updated: 2026-09-20 (Asia/Kolkata). **Reasoning, privacy and reliability primitives verified as before; September 20 adds a pinned local Cutroom service boundary (#89), the desktop web reader (#92), Android reader explanation and device sign-out (#91), and generated-Reel supply through verified media import (#94). No real provider, publication, serving or playback; owner runtime is still behind source. Next milestone: Owner Alpha.** Current owner/runtime/host decisions are summarized in [CHECKPOINT](CHECKPOINT.md). This file describes durable status; it does not guarantee a process is running now. Run `pnpm state` for a timestamped observation.
 
 ## v1 release scope

@@ -17,6 +17,7 @@ type UniverseLane={universe_id:string;credit:string;candidate_cursor:string;read
 type Ready=FairnessReadyInput&{seq:string;charge:string;queueAgeMs:number;deadlineMissed:boolean};
 type Discovery={state:State;lane:Lane;klass:FairnessClass;universe:UniverseLane|undefined;ready:Ready|undefined};
 const deny=(code:string):never=>{throw new ReasoningDenied(code);};
+const INELIGIBLE_HEAD=['stale_context','unknown_step','step_not_pending','retry_not_supported','invalid_deadline','policy_limit_exceeded','policy_version_mismatch'];
 const nextClass=(klass:FairnessClass)=>(FAIRNESS_CLASSES.indexOf(klass)+1)%FAIRNESS_CLASSES.length;
 const cap=(value:bigint,maximum:number)=>value>BigInt(maximum)?BigInt(maximum):value;
 async function tx<T>(db:pg.Pool,body:(client:pg.PoolClient)=>Promise<T>):Promise<T>{
@@ -54,6 +55,14 @@ async function discover(db:pg.Pool,version:string,inspectHead=true):Promise<Disc
  }
  return {state,lane,klass,universe,ready:ready?decode(ready):undefined};
 }
+/** #177: a scheduler's probes run one at a time. Each one that progresses moves the single generation,
+ * so concurrent probes can only fence each other: one that found the head's universe held by another
+ * probe committed a blocked round under it, and two in step did so until both spent every probe.
+ * Taken first, while nothing else is held, so it adds no edge to the universe-first lock order. */
+const FAIRNESS_PROBE_LOCK=0x0fa1_0177;
+async function lockProbe(client:pg.PoolClient,version:string):Promise<void>{
+ await client.query('SELECT pg_advisory_xact_lock($1::int,hashtext($2))',[FAIRNESS_PROBE_LOCK,version]);
+}
 async function lockCursor(client:pg.PoolClient,version:string,d:Discovery):Promise<void>{
  const state=(await client.query<State>('SELECT * FROM reasoning_fairness_scheduler WHERE policy_version=$1 FOR UPDATE',[version])).rows[0];
  if(!state||state.generation!==d.state.generation||state.class_cursor!==d.state.class_cursor)return deny('fairness_cas_retry');
@@ -87,6 +96,7 @@ async function bypass(client:pg.PoolClient,version:string,d:Discovery,remove=fal
  */
 async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessScheduleInput,d:Discovery):Promise<{event:FairnessObservation;terminalExpiry?:true;admitted?:Omit<FairnessScheduled,'observations'|'probes'>}>{
  return tx(db,async client=>{
+  await lockProbe(client,input.policyVersion);
   if(!d.universe){await lockCursor(client,input.policyVersion,d);d.lane.credit=String(BigInt(d.lane.credit)<0n?d.lane.credit:0);d.lane.remaining=null;closeInner(d);await save(client,input.policyVersion,d,true);return {event:observation(d,'no_candidate','empty_class')};}
   const domain=(await client.query<{privacy_epoch:number}>('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED',[d.universe.universe_id])).rows[0];
   if(!domain){await lockCursor(client,input.policyVersion,d);closeInner(d);await save(client,input.policyVersion,d);return {event:observation(d,'temporarily_blocked','universe_locked')};}
@@ -135,7 +145,9 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
   try{
    preflight=await preflightAttemptInTransaction(client,authority,d.ready,async hook=>{await lockCursor(hook,input.policyVersion,d);locked=true;});
   }catch(error){
-   if(!(error instanceof ReasoningDenied)||!['stale_context','unknown_step','step_not_pending','retry_not_supported','invalid_deadline','policy_limit_exceeded','policy_version_mismatch'].includes(error.code))throw error;
+   // A head whose sealed context no longer holds (`context_*`) is skipped like any other ineligible head:
+   // its own sweep withdraws it, never sent, and the round never waits for that sweep (#153).
+   if(!(error instanceof ReasoningDenied)||!(INELIGIBLE_HEAD.includes(error.code)||error.code.startsWith('context_')))throw error;
    if(!locked)await lockCursor(client,input.policyVersion,d);await bypass(client,input.policyVersion,d);return {event:observation(d,'ineligible',error.code)};
   }
   if(preflight.physicallyFits!=='fit'){
@@ -172,15 +184,9 @@ async function probe(db:pg.Pool,authority:ReasoningAuthority,input:FairnessSched
  });
 }
 
-export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority):ReasoningFairness{
- return {
-  async installPolicy(input){const {policy,hash}=validateFairnessPolicy(input);await tx(db,async client=>{
-   await client.query('INSERT INTO reasoning_fairness_policy(version,policy_hash,config) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[policy.version,hash,JSON.stringify(policy)]);
-   if((await policyFor(client,policy.version)).hash!==hash)deny('fairness_policy_changed');
-   await client.query('INSERT INTO reasoning_fairness_scheduler(policy_version) VALUES($1) ON CONFLICT DO NOTHING',[policy.version]);
-   for(const klass of FAIRNESS_CLASSES)await client.query('INSERT INTO reasoning_fairness_class(policy_version,class) VALUES($1,$2) ON CONFLICT DO NOTHING',[policy.version,klass]);
-  });return {version:policy.version,hash};},
-  async enqueue(input){await tx(db,async client=>{
+/** Enqueue inside the caller's transaction, so a Job's creation and its ready membership commit
+ * together (ADR-0033). Same checks and lock order as `enqueue`. */
+export async function enqueueFairInTransaction(client:pg.PoolClient,input:FairnessReadyInput):Promise<void>{
    const {policy}=await policyFor(client,input.policyVersion);if(!FAIRNESS_CLASSES.includes(input.class))deny('invalid_fairness_class');const charge=fairnessCharge(policy,input.inputTokensUpperBound,input.maxOutputTokens);
    const universe=(await client.query('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',[input.universeId])).rows[0];if(universe?.privacy_epoch!==input.privacyEpoch)deny('stale_epoch');
    const job=(await client.query('SELECT * FROM reasoning_job WHERE id=$1 FOR UPDATE',[input.jobId])).rows[0];
@@ -193,7 +199,17 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
    await client.query(`INSERT INTO reasoning_fairness_ready(job_id,step_id,context_id,universe_id,privacy_epoch,class,policy_version,request_id,request_hash,input_tokens_upper_bound,max_output_tokens,cost_ceiling_micro_usd,deadline,permit_ttl_ms,charge) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,[input.jobId,input.stepId,input.contextId,input.universeId,input.privacyEpoch,input.class,input.policyVersion,input.requestId,input.requestHash,input.inputTokensUpperBound,input.maxOutputTokens,input.costCeilingMicroUsd,input.deadline,input.permitTtlMs,charge]);
    await client.query('UPDATE reasoning_fairness_universe SET ready_count=ready_count+1 WHERE policy_version=$1 AND class=$2 AND universe_id=$3',[input.policyVersion,input.class,input.universeId]);
    await client.query('UPDATE reasoning_fairness_scheduler SET generation=generation+1 WHERE policy_version=$1',[input.policyVersion]);
-  });},
+}
+
+export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority):ReasoningFairness{
+ return {
+  async installPolicy(input){const {policy,hash}=validateFairnessPolicy(input);await tx(db,async client=>{
+   await client.query('INSERT INTO reasoning_fairness_policy(version,policy_hash,config) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[policy.version,hash,JSON.stringify(policy)]);
+   if((await policyFor(client,policy.version)).hash!==hash)deny('fairness_policy_changed');
+   await client.query('INSERT INTO reasoning_fairness_scheduler(policy_version) VALUES($1) ON CONFLICT DO NOTHING',[policy.version]);
+   for(const klass of FAIRNESS_CLASSES)await client.query('INSERT INTO reasoning_fairness_class(policy_version,class) VALUES($1,$2) ON CONFLICT DO NOTHING',[policy.version,klass]);
+  });return {version:policy.version,hash};},
+  async enqueue(input){await tx(db,client=>enqueueFairInTransaction(client,input));},
   async schedule(input){
    if(!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/.test(input.owner)||!Number.isInteger(input.leaseMs)||input.leaseMs<1||input.leaseMs>REASONING_ADMISSION_LIMITS.maxLeaseMs)deny('invalid_fairness_lease');
    const {policy}=await policyFor(db,input.policyVersion);const observations:FairnessObservation[]=[];let lastProgress:{generation:string;klass:FairnessClass}|undefined;
@@ -201,12 +217,13 @@ export function createReasoningFairness(db:pg.Pool,authority:ReasoningAuthority)
     const d=await discover(db,input.policyVersion);
     if(d.state.paused)return {kind:'policy_paused',observations:[...observations,observation(d,'policy_paused')],probes};
     try{const result=await probe(db,authority,input,d);lastProgress=result.terminalExpiry?undefined:{generation:(BigInt(d.state.generation)+1n).toString(),klass:d.klass};observations.push(result.event);if(result.admitted)return {...result.admitted,observations,probes};}
-    catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused','policy_binding_changed','expired_lease_or_job'].includes(error.code))throw error;observations.push(observation(d,error.code==='fairness_policy_paused'?'policy_paused':'temporarily_blocked',error.code));}
+    // A context that changed between a head's preflight and its reservation is one more such race.
+    catch(error){if(!(error instanceof ReasoningDenied)||!(['fairness_cas_retry','fairness_policy_paused','policy_binding_changed','expired_lease_or_job'].includes(error.code)||error.code.startsWith('context_')))throw error;observations.push(observation(d,error.code==='fairness_policy_paused'?'policy_paused':'temporarily_blocked',error.code));}
    }
    // A bounded scan cannot establish absence. Yield its current class opportunity
    // without granting a quantum or resetting any unfinished spend allowance.
    const d=await discover(db,input.policyVersion,false);
-   try{if(lastProgress?.generation===d.state.generation&&lastProgress.klass===d.klass)await tx(db,async client=>{await lockCursor(client,input.policyVersion,d);await save(client,input.policyVersion,d,true);});}catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused'].includes(error.code))throw error;}
+   try{if(lastProgress?.generation===d.state.generation&&lastProgress.klass===d.klass)await tx(db,async client=>{await lockProbe(client,input.policyVersion);await lockCursor(client,input.policyVersion,d);await save(client,input.policyVersion,d,true);});}catch(error){if(!(error instanceof ReasoningDenied)||!['fairness_cas_retry','fairness_policy_paused'].includes(error.code))throw error;}
    const distinct=new Set(observations.map(x=>x.kind));const kind=distinct.size===1&&observations[0]!.kind!=='no_candidate'?observations[0]!.kind:'scan_exhausted';
    return {kind:kind as FairnessNoWork['kind'],observations:[...observations,{kind:'scan_exhausted',reason:'probe_budget'}],probes:policy.maxProbes};
   },

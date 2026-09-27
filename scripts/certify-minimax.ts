@@ -16,9 +16,10 @@ import {
   type PublicCertificationReport,
 } from '../apps/worker/src/providers/certification-journal.ts';
 import {createMiniMaxCertificationAdapter} from '../apps/worker/src/providers/minimax-certification.ts';
+import {checkMiniMaxQuota,MINIMAX_QUOTA_URL,validateQuotaResponse,type QuotaObservation} from '../apps/worker/src/providers/minimax-quota.ts';
+export {checkMiniMaxQuota,MINIMAX_QUOTA_URL,validateQuotaResponse};
 
 export const MINIMAX_CERTIFICATION_BASE_URL = 'https://api.minimax.io/anthropic/v1';
-export const MINIMAX_QUOTA_URL = 'https://www.minimax.io/v1/token_plan/remains';
 
 const JSON_PROMPT = 'Return only this JSON object, with no markdown or extra keys: {"classification":"certification-ok","count":3}';
 const TOOL_PROMPT = 'Call lookup_fact exactly once with topic set to Saturn. Do not answer from memory. After the tool result, return only its JSON object with no markdown or extra keys.';
@@ -30,43 +31,10 @@ const TOOL: NativeTool = {
 };
 
 type AdapterFactory = (options: MiniMaxCertificationOptions) => MiniMaxCertificationAdapter;
-type QuotaObservation = {intervalRemainingPercent:number;weeklyRemainingPercent:number};
 type RunDependencies = {fetch?:typeof fetch; createAdapter:AdapterFactory; now?:()=>Date};
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-export function validateQuotaResponse(value: unknown): QuotaObservation {
-  if (!object(value) || !object(value.base_resp) || value.base_resp.status_code !== 0 || !Array.isArray(value.model_remains)) {
-    throw new Error('MiniMax quota response failed validation');
-  }
-  const general = value.model_remains.filter((entry) => object(entry) && entry.model_name === 'general');
-  if (general.length !== 1) throw new Error('MiniMax quota response must contain exactly one general model window');
-  const entry = general[0]!;
-  const interval = entry.current_interval_remaining_percent;
-  const weekly = entry.current_weekly_remaining_percent;
-  if (typeof interval !== 'number' || !Number.isFinite(interval) || typeof weekly !== 'number' || !Number.isFinite(weekly) ||
-      interval < 25 || interval > 100 || weekly < 25 || weekly > 100) {
-    throw new Error('MiniMax general quota is missing, ambiguous, or below the certification floor');
-  }
-  return {intervalRemainingPercent:interval, weeklyRemainingPercent:weekly};
-}
-
-export async function checkMiniMaxQuota(apiKey: string, fetchImpl: typeof fetch = fetch, signal?: AbortSignal): Promise<QuotaObservation> {
-  let response: Response;
-  try {
-    response = await fetchImpl(MINIMAX_QUOTA_URL, {
-      method:'GET',
-      headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},
-      redirect:'manual',
-      signal,
-    });
-  } catch { throw new Error('MiniMax quota preflight transport failed'); }
-  if (response.status !== 200) throw new Error('MiniMax quota preflight did not return HTTP 200');
-  let value: unknown;
-  try { value = await response.json(); } catch { throw new Error('MiniMax quota response was not JSON'); }
-  return validateQuotaResponse(value);
 }
 
 function parseExactJson(text: string, expected: Record<string, string | number | boolean>): boolean {

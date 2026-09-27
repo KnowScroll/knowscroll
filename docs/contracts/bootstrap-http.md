@@ -13,7 +13,14 @@ Base URL: http://127.0.0.1:4310. Android emulator uses http://10.0.2.2:4310. All
 - POST /v1/exposures body {decisionId,assetId,clientExposureId:UUID} → {exposureId,eventId}. Only after visible display; retry same clientExposureId. First exposure event is retained. Works identically for a Reel candidate: no new event kind, no change to privacy epochs.
 - POST /v1/interactions body {clientEventId:UUID,exposureId,assetId,kind:"keep"} → {eventId,jobId,status:"accepted"}. Same clientEventId is idempotent; conflicting payload returns 409. UI says Kept only after accepted; async projection may lag. Works identically for a Reel: the same `keep` Ledger kind and the same `trace` row, projected by the same deterministic worker — a kept Reel is excluded from future feed candidates exactly like a kept Scroll.
 - GET /v1/worlds → {derivationMethod:"shared_source_v1", system:null|{systemId,worlds:[{worldId,sourceTitle,sourceUrl,scrollCount:number,seenCount:number}]}}. [ADR-0030](../decisions/0028-evidence-backed-worlds.md): a world is the set of `asset` rows sharing one recorded `(sourceTitle,sourceUrl)` — no inference, no ranking. `system` is `null` until this universe's own exposures have actually reached at least one world's evidence; it is never an empty object. `scrollCount` is the world's total recorded Scrolls (database-verified, universe-independent); `seenCount` is how many of them this universe has an exposure row for. Kept current by `POST /v1/exposures` itself (same transaction, same universe lock) — never lags behind a request that already returned 201.
-- POST /v1/asks body {clientAskId:UUID,exposureId:UUID,expectedPrivacyEpoch:number,question:string} → 201 {askId,eventId,status:"recorded_only"}. Literal question is nonblank, valid Unicode with no NUL, at most 4096 UTF-8 bytes; route JSON envelope limit 32768 bytes. UUID spelling is canonicalized, question text is preserved exactly. Idempotency is per original session/clientAskId: exact replay returns the same receipt; changed text/exposure conflicts with 409. Expected privacy epoch is checked before replay. A current, same-universe exposed **Scroll** with unchanged selected asset is required; no same-session exposure provenance is claimed. A changed source requires a new encounter. This stores a private source fact until Clear History; it creates no answer, queue, Job, Trace or provider work. No mobile Ask control is enabled. See [ADR-0016](../decisions/0016-explicit-ask-facts.md). **A Reel exposure is refused (422):** migration 0009's own Ask lineage guard requires the exposed candidate to name `kind:"Scroll"`, and the application check ahead of it (`selectedCurrentScroll`) already refuses a non-Scroll asset before that guard is even reached. ADR-0025 records this as a limitation rather than working around it; Ask on a Reel belongs to whichever slice gives Ask an answer.
+- GET /v1/atlas → {policyVersion, places:[{placeId, kind:"planet"|"region"|"sighting", parentPlaceId, anchor:{code,name,description}, basis:{kind,from,to,claim|null,bridge|null}|null, attention:{state,episodes,daysActive,sourceFamilies}|null (null for sightings), scrolls:{total,seen}, formedAt, formedBy, demand:{demandId,status:"waiting"|"bound"|"cannot_meet",reason|null,scroll:{assetId,title}|null,withdrawn}|null}], relations:[{fromPlaceId,toPlaceId,kind,claim|null,bridge|null}], chronicle:[{deltaId,placeId,parentPlaceId,kind,causalClass,at,line}] (≤20, newest first)} ([ADR-0036](../decisions/0036-reader-places-cartographer.md); strict contract `packages/contracts/src/atlas.ts`).
+- GET /v1/atlas/deltas/:deltaId → one change with its evidence (own universe only; 404 otherwise).
+- POST /v1/atlas/places/:placeId/reject body {expectedPrivacyEpoch} → the new atlas. 409 while recording is paused or on a stale epoch; a sighting cannot be set aside; repeating it is the same answer.
+- GET /v1/inventory → {privacyEpoch, demands:[{demandId, status:"waiting"|"bound"|"cannot_meet"|"cancelled", decision:"reuse"|"join"|"fund"|"cannot_meet"|null, reason|null, concept:{code,name}, causes:["exhaustion"|"branch_gap"], scroll:{assetId,title}|null, withdrawn, origin:{bridgeId,exposureId}|null, createdAt, changedAt}] (≤50, most recently changed first)} ([ADR-0046](../decisions/0046-content-inventory.md); strict contract `packages/contracts/src/inventory.ts`). Read only: a demand is recorded by the reading that observed the need (the feed, a continuation opened or offered) and met by the worker. It names a concept and, once bound, a Scroll: never a source. The atlas carries each place's live demand.
+- POST /v1/asks body {clientAskId:UUID,exposureId:UUID,expectedPrivacyEpoch:number,question:string} → 201 {askId,eventId,status:"recorded_only"}. Literal question is nonblank, valid Unicode with no NUL, at most 4096 UTF-8 bytes; route JSON envelope limit 32768 bytes. UUID spelling is canonicalized, question text is preserved exactly. Idempotency is per original session/clientAskId: exact replay returns the same receipt; changed text/exposure conflicts with 409. Expected privacy epoch is checked before replay. A current, same-universe exposed **Scroll** with unchanged selected asset is required; no same-session exposure provenance is claimed. A changed source requires a new encounter. This stores a private source fact until Clear History; it creates no answer, queue, Job, Trace or provider work. Android offers Ask and, as a separate tap, Get an answer (ADR-0033). See [ADR-0016](../decisions/0016-explicit-ask-facts.md). **A Reel exposure is refused (422):** migration 0009's own Ask lineage guard requires the exposed candidate to name `kind:"Scroll"`, and the application check ahead of it (`selectedCurrentScroll`) already refuses a non-Scroll asset before that guard is even reached. ADR-0025 records this as a limitation rather than working around it; Ask on a Reel belongs to whichever slice gives Ask an answer.
+- POST /v1/asks/:askId/answer body {clientRequestId:UUID,expectedPrivacyEpoch:number} → 202 {askId,jobId,status:"queued"} ([ADR-0033](../decisions/0033-authorized-scroll-ask-answers.md)). Only the session that recorded the Ask, recording not paused, current epoch, an enabled route; 409 otherwise, 503 when no answer route is enabled. The same clientRequestId replays its receipt. The API never calls a provider.
+- GET /v1/asks/:askId/answer → {askId,status:"queued"|"running"|"answered"|"not_in_source"|"rejected"|"failed"|"cancelled"|"unavailable",answer:string|null,basis:[{quote}],limits:string|null,reasons:[string],requestedAt,answeredAt:string|null}. Quotes are verbatim from the Scroll; reasons are content-free codes.
+- POST /v1/asks/:askId/answer/cancel body {expectedPrivacyEpoch:number} → the answer view with status "cancelled" while it has not started; 409 once it has.
 - GET /v1/events/:eventId → {eventId,causationId:string|null,exposureId:string|null,kind,jobId:string|null,jobStatus:string|null,projected:boolean}
 
 Errors: {error:string}; non-2xx is failure. No server/provider stack traces. No synthetic fallback when unreachable. A retained action becomes a Trace/Relic reference, never an inferred planet or learning claim. API polling universe can observe projection revision after a worker commits. Feed returns a new decision each request and uses Accounts to avoid already-kept content; this is a real deterministic first policy, not the full target Composer.
@@ -21,6 +28,14 @@ Errors: {error:string}; non-2xx is failure. No server/provider stack traces. No 
 Unknown, expired, revoked and old-epoch sessions return generic 401. Foreign decisions/exposures fail 422; foreign events return 404. Retained older-epoch references fail 409 before idempotency replay. History clear removes old records, so erased references use the existing missing-reference 422/404 behavior. Epoch-invalidated jobs still present report `jobStatus:"discarded"`, `projected:false`; history clear removes its universe's jobs with the rest of its bootstrap encounter data. Full account deletion, semantic reset and pause personalization remain separate scope.
 
 Mobile reads title/summary/body/sources; Source opens the actual URL. Home begins as an honest empty universe and offers Enter Scroll. After keep, return restores origin and refreshes traces. Show visible connection error/retry. Do not add unavailable Ask/Friends/Reel buttons as fake working features.
+
+## Encounter-derived worlds after erasure (2026-09-22, #72 / #4)
+
+Clear and Reset remove the authenticated universe's private system and system memberships in their
+existing transaction. After Clear, `GET /v1/worlds` returns `system:null` until fresh encounters;
+Reset revokes the caller, so that session receives 401. Shared catalog worlds, source assets and
+other universes remain intact. An exact Clear receipt replay does not erase a system derived from
+later encounters. No response shape changes; ADR-0010/0030 and migration 0025 govern this cleanup.
 
 ## Saved Trace source revisit
 
@@ -107,3 +122,66 @@ inbox both present) and **never falls back** to the development sink — a deplo
 real mail refuses to start rather than quietly writing links to a local file. This is redundant with,
 but independent of, `apps/api/src/main.ts` already refusing to start any production-mode process at
 all.
+
+## Semantic continuations (2026-09-24, #131, ADR-0031)
+
+`GET /v1/assets/:assetId/branches` → `EncounterBranchesResponse` (`packages/contracts/src/semantic.ts`):
+up to four continuations along admitted, non-suppressed bridges touching the encounter's primary or
+secondary concepts, each with relation, travel `direction` (`forward`/`reverse`), plain
+`relationPhrase`, mechanism, limitations, prerequisites, cited evidence (claim statement + source)
+and one target Scroll. An empty list carries `emptyReason`
+(`no_semantic_annotation` | `no_admitted_bridge` | `no_eligible_target`); it is never filled with
+unrelated inventory. `Cache-Control: no-store`. 404 for an unknown asset.
+
+`POST /v1/branches` `{clientBranchId, fromExposureId, bridgeId, targetAssetId, expectedPrivacyEpoch}`
+→ 201 `BranchOpenResponse`: the feed decision shape (`decisionId`, `items[1]`, …) plus
+`branch.{branchOpenId, recorded, bridgeId, relationType, direction}`. The server re-checks the
+branch against the current substrate; a revoked or suppressed one is 409. Stale epoch 409; key
+reuse with a different payload 409; an exposure from another universe 422. Exact retry returns
+the original decision. While recording is paused the target is still served, but `recorded` is
+false, `decisionId` and `branch.branchOpenId` are null, and no decision, Ledger event or branch row
+is written; a client must not try to expose that target. Otherwise expose the target with the
+returned `decisionId` exactly like a feed item.
+
+`POST /v1/connections/feedback` `{clientFeedbackId, bridgeId, expectedPrivacyEpoch, objection:
+not_useful|seems_wrong}` → 201 receipt. Suppresses that connection for this universe only; never a
+retraction of shared knowledge. Allowed while paused (a correction control, not attention).
+
+Clear and Reset erase branch opens, feedback and universe-scoped proposals/bridges; export includes
+them under `semantic` with row counts `branchOpens`, `connectionFeedback`, `semanticProposals`.
+
+### Composer v3: why and correction (#133, ADR-0032)
+
+`GET /v1/feed?kinds=…&exclude=<id,…>` is ranked by `composer-semantic-v3` by default
+(`composer-signals-v2` and `composer-semantic-v4`, ADR-0043 §7, stay configured alternatives). `exclude` (optional, at most 256 UUIDs) names
+what this discovery trip already has on screen or opened; v3 gates those with `current_encounter`.
+A client skips exactly the ids it sent (the current Scroll last, at most 256), so the trip ends only
+when every unkept Scroll it has not opened is used up; past 256 an older opened Scroll may return.
+Malformed, oversized or repeated: 400. The item shape is unchanged; each decision records every candidate it
+considered (`decision_candidate`: family, gate, terms, score, rank, evidence path) and its served
+window and quotas (`decision_context`).
+
+`GET /v1/decisions/:decisionId/why?assetId=` → 200 `WhyResponseWire` for an encounter this
+universe was served: `family`, the rendered `reason` (identical to the served one), `evidence`
+steps built from recorded ids (`mark` with `eventId`, `bridge`, `question`, `outside`), `terms`,
+`quotas` and the `corrections` it supports. 404 for a gated or unserved candidate, another
+universe's decision, or a decision recorded by another policy (branch targets, v2). 400 for a
+malformed id.
+
+`POST /v1/encounters/feedback` `{clientFeedbackId, decisionId, assetId, kind:
+less_like_this|wrong_connection, expectedPrivacyEpoch}` → 201 receipt with the suppressed route
+(`family`, `concept`, `bridgeId`, `until`, 14 days). The route is the one recorded when the encounter
+was served, never re-derived. `wrong_connection` only on a bridge candidate (it also records the
+ADR-0031 personal suppression); an unmapped fallback has no route (422); an unserved encounter is
+422; a stale epoch or a key reused with other content is 409; an exact retry returns the original
+receipt. Allowed while paused. Clear/Reset erase it with attention accounts, transitions and
+hypotheses; export carries them under `personalModel`.
+
+### Reels explain and continue like Scrolls (#167, ADR-0043)
+
+No wire shape changes. A Reel is minted carrying its source Scroll's concepts (same roles), so the
+three routes above apply to a Reel encounter unchanged: `…/why` returns its recorded family, reason
+and evidence path; `POST /v1/encounters/feedback` corrects its route; `GET /v1/assets/:id/branches`
+lists continuations from its concepts, whose targets are Scrolls, and `POST /v1/branches` accepts a
+Reel exposure as `fromExposureId`. The feed composes from the reader's whole history whatever `kinds`
+asks for: a Reel kept in Reel mode grounds the next Scroll, and the reverse.

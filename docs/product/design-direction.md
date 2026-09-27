@@ -1,12 +1,45 @@
 # Product behavior and visual direction
 
-## Which reference wins?
+## September23 direct exploration refinement
 
-The owner explicitly selected [Cosmos](references/cosmos.html) as the primary visual reference and [Living Observatory](references/living-observatory.html) for journey/world behavior. Their original scripted controls remain reference material, not application code or proof of backend behavior.
+The six references in `artifacts/android-living/next-session` supersede the prior
+spatial implementation: compact contextual topic cards, spacious Universe/system,
+and direct ship → planet → continent → topic → content navigation. Preserve the
+approved poster Scroll. Oversized colliding globes/labels and sheet-first planet
+entry are rejected. Source/truth inspection remains secondary. See the
+[direct Atlas audit](../design/2026-09-23-android-direct-atlas.md). Authored preview
+links are explicit examples; no inference, Keep-moon semantics or social state is
+accepted by importing a prototype.
 
-**Cosmos contributes:** dark blue space (`#03101a`), warm cream (`#fffdf2`), teal/coral/yellow accents; rounded thumb-sized navigation; modern Bricolage Grotesque / Instrument Sans typography; a visible ship/location and continuous approach/return; cartographic coastlines, sea, clouds, compass and nested scale. Native bootstrap uses system sans until font licensing/bundling is implemented. No network font dependency is needed to open the app.
+## Which reference wins? (owner direction, 2026-09-22)
 
-**Living Observatory contributes:** effortless entry; a Reel that opens an interactive Scroll without losing its origin; question-led exploration, deliberate Keep, source access, explainable bridges, situated Idea Rooms and changes while away. Preserve the question and orientation through transitions. Label modelled encounters and fictional inhabitants plainly.
+Android has two intentional registers. The first four owner images (planet/moon,
+continent zoom, solar system, station sheet) plus Living Atlas/Cosmos govern spatial
+Universe, system and geography. Keep the dark blue space, teal oceans, angular land,
+orbits, clouds and cream inspection sheets. Hybrid Set's cream survey map must not
+replace that spatial ground.
+
+Hybrid Set's **poster/Kiosk** register governs Scroll, Reel/Cable and non-spatial
+content: Bricolage Grotesque, DM Mono labels, cream `#FFFBF0`, ink `#111`, cobalt
+`#2C46E8`, yellow `#FFE44D`, teal `#14C79B`, decisive outlines and thumb-sized controls.
+Fonts are bundled with their OFL licences. Instruments remain native Compose/Media3.
+
+The fifth owner image is explicitly **rejected**: a generic dark-grey Worlds alert
+with teal text links. Use an integrated cream selector with clear hierarchy and
+accessible full-row targets, while retaining list access to offscreen worlds.
+
+The original references live at `/Volumes/Mrigesh SSD/Knowscroll-v2/docs/design/`:
+`hybrid-set.standalone.html`, `2026-09-06-living-atlas.html`, `2026-09-08-cosmos.html`.
+Owner PNGs are in `artifacts/android-spatial/next-session/` in the original product
+checkout. They were visually inspected and the actual HTML styles/source inspected.
+Browser policy denied local replay; this establishes no observed reference-motion
+or motion-equivalence claim. The [delivery audit](../design/2026-09-22-android-living-universe.md)
+records native observations separately. This direction supersedes older all-Cosmos
+or all-kiosk guidance, without changing product laws or full-v1 acceptance.
+
+Living Observatory continues to inform journey behavior: preserve question and
+origin, effortless entry, explicit Keep, source access and explainable bridges.
+Reference social activity, inference and generation are not implemented capability.
 
 ## Resolve prototype rules against product laws
 
@@ -16,7 +49,7 @@ The owner explicitly selected [Cosmos](references/cosmos.html) as the primary vi
 - A ship animation must preserve agency and support reduced motion; the illustrative travel duration is not a required delay.
 - Background specks carry no semantic identity. Typed objects need lineage, explanation and revision rules.
 
-The previous kiosk/survey-sheet design contract remains historical. It does not override the owner's latest Cosmos choice. Truth state must remain explicit and distinguishable; the full renderer decision is tracked in #3.
+Truth state remains explicit and distinguishable in both registers; the full renderer decision remains tracked in #3.
 
 ## What the first slice proves
 

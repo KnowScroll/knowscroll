@@ -1,0 +1,64 @@
+{
+  "at": "2026-09-24T10:05:20.365719+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_2130496a0b7a796b",
+  "apiPort": 4333,
+  "source": "d4d95868b32b3d1a0e1858c4062d1742452dc0c1",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "inquiry",
+  "journey": {
+    "inquiryId": "4634211a-5da4-42cf-8ea7-3667e0cc186c",
+    "status": "did_not_hold_up",
+    "reasons": [
+      "counterevidence_cited_as_support"
+    ],
+    "bridgeId": null,
+    "statusesSeen": [
+      "waiting",
+      "looking",
+      "did_not_hold_up"
+    ],
+    "consent": {
+      "enabled": true,
+      "dailyLimit": 3,
+      "usedToday": 1
+    },
+    "sunPlaceId": "9ca97c7d-105f-4b4c-8ad1-bb9d33ed8013",
+    "gravityPlaceId": "ed3fac59-5e71-4b09-9f24-9e3b27c27ed4",
+    "deltaIds": {
+      "gravityFormed": "d6413f3f-47ea-4722-a137-da4144d0cf26"
+    }
+  },
+  "lineage": {
+    "inquiryAdmitted": 0,
+    "jobBackgroundDirtyCompleted": 0,
+    "attempts": 1,
+    "dispatches": 1,
+    "modelProposalAdmitted": 0,
+    "universeBridgeAdmitted": 0,
+    "universeBridges": 0,
+    "inquiryStatus": "rejected",
+    "mailCausedByGravityFormed": 1,
+    "mailOnInquiry": 1,
+    "gravityFormedFromReading": 1,
+    "suppliedSunUnread": 1,
+    "suppliedSunMailed": 0,
+    "consentRequestsBeforeMail": 1,
+    "consentEnabled": true,
+    "routeTransport": "minimax",
+    "requestHash": "0a94a82d0f9153c7db0375d456a1235794490736fd409dddcb908dd5e871b3fa",
+    "inputBytes": 5619,
+    "inquiryStatuses": [
+      "rejected"
+    ]
+  },
+  "providerCalls": 1,
+  "limits": [
+    "Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); the admission is bridge-validator-v1's. No prompt or reply text is kept.",
+    "Editorial substrate; cartographer and validator as shipped, bench thresholds.",
+    "Debug API36 emulator, not a physical device.",
+    "The Sun was formed by the real Cartographer from a supplied account (zero readings), before consent, because the library cannot anchor it from reading (one source family); Gravity formed from this run's reading after consent.",
+    "The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.",
+    "Coalescing delay shortened to 3 s for the journey route."
+  ]
+}

@@ -1,5 +1,9 @@
 import type { ReaderApi } from '../../src/api/client.ts';
 import type {
+  AccountDeletionReceipt,
+  AccountDeletionRequest,
+  EncounterFeedbackReceipt,
+  EncounterFeedbackRequest,
   EventStatus,
   ExposureResponse,
   FeedResponse,
@@ -11,6 +15,7 @@ import type {
   PrivacyResetRequest,
   TraceRevisit,
   Universe,
+  WhyResponse,
   WorldSystemResponse,
 } from '../../src/api/types.ts';
 
@@ -28,6 +33,13 @@ export class FakeApi implements ReaderApi {
   resumeQueue: Array<PrivacyRecordingReceipt | Error> = [];
   privacyExportQueue: Array<PrivacyExportResult | Error> = [];
   resetQueue: Array<PrivacyResetReceipt | Error> = [];
+  // `take()` treats a plain `undefined` element as "queue empty" (`next === undefined` above), so
+  // a void success is queued as the sentinel `'ok'` here rather than `undefined` itself.
+  sessionRevokeQueue: Array<'ok' | Error> = [];
+  accountDeleteQueue: Array<AccountDeletionReceipt | Error> = [];
+  /** #133: `null` is the honest 404 ("no recorded explanation"), exactly as `ApiClient.getWhy` returns it. */
+  whyQueue: Array<WhyResponse | null | Error> = [];
+  feedbackQueue: Array<EncounterFeedbackReceipt | Error> = [];
 
   exposureCalls: Array<{ decisionId: string; assetId: string; clientExposureId: string }> = [];
   interactionCalls: Array<{ clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }> = [];
@@ -35,6 +47,12 @@ export class FakeApi implements ReaderApi {
   resumeCalls: PrivacyLifecycleRequest[] = [];
   privacyExportCalls: PrivacyLifecycleRequest[] = [];
   resetCalls: PrivacyResetRequest[] = [];
+  sessionRevokeCalls = 0;
+  accountDeleteCalls: AccountDeletionRequest[] = [];
+  whyCalls: Array<{ decisionId: string; assetId: string }> = [];
+  feedbackCalls: EncounterFeedbackRequest[] = [];
+  /** When set, `postEncounterFeedback` stays in flight until this resolves (a correction still being sent). */
+  feedbackGate: Promise<void> | null = null;
   feedCalls = 0;
   universeCalls = 0;
   worldsCalls = 0;
@@ -50,12 +68,17 @@ export class FakeApi implements ReaderApi {
     this.universeCalls++;
     return this.take(this.universeQueue, 'getUniverse');
   }
-  async getFeed(): Promise<FeedResponse> {
+  feedExcludes: string[][] = [];
+  async getFeed(exclude: Iterable<string> = []): Promise<FeedResponse> {
     this.feedCalls++;
+    this.feedExcludes.push([...exclude]);
     return this.take(this.feedQueue, 'getFeed');
   }
+  /** When set, `postExposure` stays in flight until this resolves (an exposure still being recorded). */
+  exposureGate: Promise<void> | null = null;
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {
     this.exposureCalls.push(body);
+    if (this.exposureGate) await this.exposureGate;
     return this.take(this.exposureQueue, 'postExposure');
   }
   async postInteraction(body: { clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }): Promise<InteractionResponse> {
@@ -87,6 +110,23 @@ export class FakeApi implements ReaderApi {
   async postPrivacyReset(body: PrivacyResetRequest): Promise<PrivacyResetReceipt> {
     this.resetCalls.push(body);
     return this.take(this.resetQueue, 'postPrivacyReset');
+  }
+  async postSessionRevoke(): Promise<void> {
+    this.sessionRevokeCalls++;
+    await this.take(this.sessionRevokeQueue, 'postSessionRevoke');
+  }
+  async postAccountDelete(body: AccountDeletionRequest): Promise<AccountDeletionReceipt> {
+    this.accountDeleteCalls.push(body);
+    return this.take(this.accountDeleteQueue, 'postAccountDelete');
+  }
+  async getWhy(decisionId: string, assetId: string): Promise<WhyResponse | null> {
+    this.whyCalls.push({ decisionId, assetId });
+    return this.take(this.whyQueue, 'getWhy');
+  }
+  async postEncounterFeedback(body: EncounterFeedbackRequest): Promise<EncounterFeedbackReceipt> {
+    this.feedbackCalls.push(body);
+    if (this.feedbackGate) await this.feedbackGate;
+    return this.take(this.feedbackQueue, 'postEncounterFeedback');
   }
 }
 
@@ -159,6 +199,18 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
       reasoningSteps: 0,
       reasoningReceipts: 0,
       reasoningAccounting: 0,
+      branchOpens: 0,
+      connectionFeedback: 0,
+      semanticProposals: 0,
+      attentionAccounts: 0,
+      hypotheses: 0,
+      encounterFeedback: 0,
+      askAnswers: 0,
+      inquiries: 0,
+      awayAcknowledgements: 0,
+      relics: 0,
+      objections: 0,
+      demands: 0,
     },
     account: { email: 'owner@example.com' },
     universe: { id: universeOf().universeId, revision: 1, privacyEpoch: 0, recordingPausedAt: null },
@@ -170,6 +222,12 @@ export function privacyExportResultOf(overrides: Partial<PrivacyExportResult> = 
     jobs: [],
     deviceSessions: [],
     reasoning: { jobs: [], steps: [], receipts: [], accounting: [] },
+    semantic: { branchOpens: [], connectionFeedback: [], proposals: [], bridges: [] },
+    personalModel: { attentionAccounts: [], attentionTransitions: [], hypotheses: [], encounterFeedback: [], atlasPlaces: [], atlasDeltas: [], rooms: [], roomInhabitants: [], roomDeltas: [] },
+    askAnswers: [],
+    inquiries: { consent: [], consentRequests: [], mail: [], inquiries: [] },
+    returns: { acknowledgements: [], relics: [], objections: [] },
+    inventory: { demands: [], waiters: [], bindings: [] },
     ...overrides,
   };
 }
@@ -181,6 +239,43 @@ export function privacyResetReceiptOf(overrides: Partial<PrivacyResetReceipt> = 
     epochAfter: 1,
     sessionsRevoked: 1,
     resetAt: '2026-09-21T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** #133: a recorded "why" for a bridge encounter -- a keep, then the sourced connection it crossed
+ * (the shape `composer-semantic-v3` records; see tests/composer-semantic-http.test.ts). */
+export function whyOf(overrides: Partial<WhyResponse> = {}): WhyResponse {
+  return {
+    decisionId: '40000000-0000-4000-8000-000000000001',
+    assetId: feedItem().assetId,
+    policyVersion: 'composer-semantic-v3',
+    family: 'bridge',
+    reason: 'A sourced connection from “A rhythm the ocean keeps”: Tides is explained by Gravity',
+    evidence: [
+      {
+        kind: 'mark',
+        markKind: 'keep',
+        assetId: '10000000-0000-4000-8000-000000000002',
+        title: 'A rhythm the ocean keeps',
+        at: '2026-09-24T10:00:00.000Z',
+        eventId: '50000000-0000-4000-8000-000000000001',
+      },
+      { kind: 'bridge', bridgeId: '60000000-0000-4000-8000-000000000001', sentence: 'Tides is explained by Gravity' },
+    ],
+    terms: { continuity: 0, useful: 0.2, depth: 1.2, novelty: 0.5, returnRelevance: 0, prior: 0, redundancy: 0, fatigue: 0, seen: 0 },
+    quotas: ['exploration:bridge'],
+    corrections: ['less_like_this', 'wrong_connection'],
+    corrected: [],
+    ...overrides,
+  };
+}
+
+export function encounterFeedbackReceiptOf(overrides: Partial<EncounterFeedbackReceipt> = {}): EncounterFeedbackReceipt {
+  return {
+    feedbackId: '70000000-0000-4000-8000-000000000001',
+    kind: 'less_like_this',
+    suppressed: { family: 'bridge', concept: 'earth.tides', bridgeId: '60000000-0000-4000-8000-000000000001', until: '2026-10-08T10:00:00.000Z' },
     ...overrides,
   };
 }

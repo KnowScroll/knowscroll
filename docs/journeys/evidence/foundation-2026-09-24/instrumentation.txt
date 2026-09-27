@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.FoundationJourneyTest:.
+
+Time: 24.068
+
+OK (1 test)
+
+

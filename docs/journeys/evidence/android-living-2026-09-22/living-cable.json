@@ -1,0 +1,12 @@
+{
+  "modeRestoration": true,
+  "readingPositionRetained": true,
+  "exactRetryIdentityRetained": true,
+  "authoredPreview": true,
+  "liveBranches": false,
+  "horizontalBothDirections": true,
+  "toggleMidGesture": true,
+  "scrollReadingOwnsVertical": true,
+  "recreation": true,
+  "backgroundForeground": true
+}

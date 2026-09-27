@@ -1,0 +1,15 @@
+{
+  "totalPssKb": 149748,
+  "result": "passed",
+  "explicitReelDiscoveryVerified": true,
+  "verticalDiscoveryOutcome": "library-exhausted",
+  "pausedAcrossAuthorityRecheck": true,
+  "realVideoRendered": true,
+  "originCameraRestored": true,
+  "frameCount": 480,
+  "p50Ms": 18.281234,
+  "p95Ms": 56.834051,
+  "over16_67ms": 452,
+  "build": "debug API36 emulator",
+  "liveBranchIntegration": false
+}

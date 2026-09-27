@@ -22,18 +22,11 @@ class ReaderExplainTest {
         assertEquals("Trimmed but not rewritten", explainReasonText("  Trimmed but not rewritten  "))
     }
 
-    @Test fun documentedIsTheOnlyStateThatPromisesTheSourcesControl() {
-        assertTrue(explainShowsSourcesNote("documented"))
-        for (state in listOf("synthesis", "interpretation", "disputed", "modelled", "counterfactual", "fictional", "unknown-future-state")) {
-            assertFalse(explainShowsSourcesNote(state))
-        }
-    }
-
     @Test fun everyDefinedTruthStateHasAFixedMeaningFromSection12() {
         assertEquals("Directly supported by strong cited evidence.", truthStateMeaning("documented"))
-        assertEquals("A source-grounded explanation produced by the system.", truthStateMeaning("synthesis"))
+        assertEquals("An evidence-grounded explanation produced by the system.", truthStateMeaning("synthesis"))
         assertEquals("A reasoned perspective rather than settled fact.", truthStateMeaning("interpretation"))
-        assertEquals("Credible sources materially disagree.", truthStateMeaning("disputed"))
+        assertEquals("Credible evidence materially disagrees.", truthStateMeaning("disputed"))
         assertEquals("Produced by an explicit simulation or causal model.", truthStateMeaning("modelled"))
         assertEquals("Explores a world that did not occur.", truthStateMeaning("counterfactual"))
         assertEquals("Invented for narrative or play.", truthStateMeaning("fictional"))
@@ -44,14 +37,30 @@ class ReaderExplainTest {
     }
 
     @Test fun discoveryOriginNeverClaimsAnInterestOrSavedTrace() {
-        val text = explainOriginText(ReaderOrigin.Discovery)
+        val text = explainOriginText(ReaderOrigin.Discovery, "Scroll")
         assertTrue(text.contains("deliberate discovery"))
         assertFalse(text.contains("interest", ignoreCase = true))
         assertFalse(text.contains("kept", ignoreCase = true))
     }
 
+    /** #161: no meaning or origin points the reader at a source. */
+    @Test fun noMeaningOrOriginPointsAtASource() {
+        val states = listOf("documented", "synthesis", "interpretation", "disputed", "modelled", "counterfactual", "fictional")
+        val origins = listOf(ReaderOrigin.Discovery, ReaderOrigin.SavedTrace("event-a", "2026-09-17T00:00:00.000Z"),
+            ReaderOrigin.Branch("Gravity pulls", "Gravity explains Tides", recorded = false))
+        val copy = states.mapNotNull(::truthStateMeaning) + origins.flatMap { origin -> listOf("Scroll", "Reel").map { explainOriginText(origin, it) } }
+        assertEquals(emptyList<String>(), copy.filter(::pointsAtASource))
+    }
+
+    /** #167: the Reel reader shares this sheet, so its words name the encounter actually on screen. */
+    @Test fun theOriginAndAnAbsentReasonNameTheKindOfEncounter() {
+        assertEquals("You opened this Reel through deliberate discovery from your universe.", explainOriginText(ReaderOrigin.Discovery, "Reel"))
+        assertEquals("No explanation was recorded for this Reel.", noReasonRecorded("Reel"))
+        assertEquals("No explanation was recorded for this Scroll.", noReasonRecorded("Scroll"))
+    }
+
     @Test fun savedTraceOriginStatesOnlyTheKeptDateTheApiReturned() {
-        val text = explainOriginText(ReaderOrigin.SavedTrace("event-a", "2026-09-17T00:00:00.000Z"))
+        val text = explainOriginText(ReaderOrigin.SavedTrace("event-a", "2026-09-17T00:00:00.000Z"), "Scroll")
         assertTrue(text.contains("2026-09-17T00:00:00.000Z"))
         assertFalse(text.contains("interest", ignoreCase = true))
     }

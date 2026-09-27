@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { explicitAskInput, exposureInput, historyClearInput, interactionInput, privacyLifecycleInput, privacyResetInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
+import { explicitAskInput, exposureInput, historyClearInput, interactionInput, privacyLifecycleInput, privacyResetInput, accountDeletionInput, uuid, type ScrollAsset } from '../../../packages/contracts/src/index.ts';
 import { parseFeedKinds, type FeedAsset, type ReelAssetDisplay } from '../../../packages/contracts/src/inventory.ts';
 import {
   pool,
@@ -12,18 +12,32 @@ import {
   resumeRecording,
   exportUniverse,
   resetPersonalUniverse,
+  deleteAccount,
   revokeSession,
   UnauthorizedSession,
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
-import { COMPOSER_SIGNALS_V2, rankSignalCandidates } from '../../../packages/core/src/composer.ts';
-import { loadComposerExplanationTemplates, loadComposerPolicy, loadComposerSignalCandidates } from '../../../packages/db/src/composer-signals.ts';
+import { COMPOSER_SIGNALS_V2 } from '../../../packages/core/src/composer.ts';
+import { COMPOSER_SEMANTIC_V3, COMPOSER_SEMANTIC_V4 } from '../../../packages/core/src/composer/semantic.ts';
+import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts';
+import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
+import { observeExhaustion } from '../../../packages/db/src/inventory/demand.ts';
+import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
 import {listSavedTraces,readTraceRevisit,TraceRevisitError} from '../../../packages/db/src/trace-revisit.ts';
 import { SHARED_SOURCE_V1, projectWorldsForEncounter, readWorldSystem } from '../../../packages/db/src/worlds.ts';
 import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
+import { clearedSessionCookie, csrfToken, registerWebSession, webSessionConfig } from './web-session.ts';
 import { registerSignInRoutes } from './sign-in-routes.ts';
+import { registerSemanticRoutes } from './semantic-routes.ts';
+import { registerComposerRoutes } from './composer-routes.ts';
+import { registerAnswerRoutes } from './answer-routes.ts';
+import { registerAtlasRoutes } from './atlas-routes.ts';
+import { registerInquiryRoutes } from './inquiry-routes.ts';
+import { registerReturnRoutes } from './return-routes.ts';
+import { registerRoomRoutes } from './room-routes.ts';
+import { registerInventoryRoutes } from './inventory-routes.ts';
 import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
 
 function bearerToken(authorization: string | undefined): string {
@@ -89,7 +103,17 @@ async function feedCandidates(client: import('pg').PoolClient, kinds: readonly (
   return merged;
 }
 
-export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits } = {}) {
+/** `exclude`: up to 256 comma-separated asset UUIDs, or absent. Null when malformed. */
+export function parseFeedExclude(value: unknown): Set<string> | null {
+  if (value === undefined || value === '') return new Set();
+  if (typeof value !== 'string') return null; // a repeated parameter arrives as an array: refuse it, never throw
+  const ids = value.split(',');
+  if (ids.length > 256 || ids.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) return null;
+  return new Set(ids.map(id => id.toLowerCase()));
+}
+
+export function buildApp(developmentToken: string, options: { mediaRoot?: string; magicLinkLimits?: MagicLinkRateLimits; composerPolicy?: typeof COMPOSER_SIGNALS_V2 | typeof COMPOSER_SEMANTIC_V3 | typeof COMPOSER_SEMANTIC_V4 } = {}) {
+  const composerPolicy = options.composerPolicy ?? COMPOSER_SEMANTIC_V3;
   if (developmentToken.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
   // Resolved once at build time (deployment configuration, never per-request data), but only
   // actually required the first time the media route is hit: a caller that never touches
@@ -101,8 +125,10 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof UnauthorizedSession) return reply.code(401).send({ error: 'Unauthorized' });
     const status = error instanceof Error && 'statusCode' in error ? Number(error.statusCode) : 500;
-    const code = Number.isInteger(status) && status >= 400 && status < 500 ? status : 500;
-    return reply.code(code).send({ error: code >= 500 ? 'Internal operation failed' : (error as Error).message });
+    // A deliberately unavailable capability (503, e.g. answers not enabled) keeps its safe message;
+    // every other 5xx stays generic so internal failures never leak details.
+    const code = Number.isInteger(status) && ((status >= 400 && status < 500) || status === 503) ? status : 500;
+    return reply.code(code).send({ error: code === 500 ? 'Internal operation failed' : (error as Error).message });
   });
 
   app.addHook('onReady', async () => { await ensureDevelopmentSession(developmentToken); });
@@ -110,7 +136,11 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
   // ADR-0026: real sign-in (magic link, single owner account). Additive — every route above and
   // below is unchanged, and a session this mints authenticates through the exact same
   // `authenticateAndLock` path as a development-token session.
-  registerSignInRoutes(app, options.magicLinkLimits);
+  // ADR-0034: the desktop session cookie. Its hook runs before every authenticated route and hands
+  // a checked cookie to the same authentication path as a bearer token.
+  const webSession = webSessionConfig();
+  registerWebSession(app, webSession);
+  registerSignInRoutes(app, options.magicLinkLimits, webSession);
 
   const authenticated = <T>(
     authorization: string | undefined,
@@ -119,6 +149,22 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     const scope = await authenticateAndLock(client, bearerToken(authorization));
     return fn(scope, client);
   });
+
+  // #131: semantic continuations and connection feedback, through the same authenticated path.
+  registerSemanticRoutes(app, authenticated);
+  registerComposerRoutes(app, authenticated);
+  // #132: Ask answers — the reader's fresh authority, state and cancellation; no provider in this process.
+  registerAnswerRoutes(app, authenticated);
+  // #134: the reader's places, from anchored attention (ADR-0036).
+  registerAtlasRoutes(app, authenticated);
+  // #132: background bridge inquiries — standing consent and what was looked for (ADR-0038); no provider here.
+  registerInquiryRoutes(app, authenticated);
+  // #134: what changed while the reader was away, and the Relics they keep (ADR-0039).
+  registerReturnRoutes(app, authenticated);
+  // #163: the reader's Idea Rooms, their inhabitants and their setting aside (ADR-0045).
+  registerRoomRoutes(app, authenticated);
+  // #164: the reader's content demands and what met them (ADR-0046); nothing is written here.
+  registerInventoryRoutes(app, authenticated);
 
   app.get('/health', async () => { await pool.query('SELECT 1'); return { status: 'ok', database: true }; });
 
@@ -129,7 +175,15 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       if (!emptyObject(req.body)) throw new HttpError(400, 'Invalid revoke request');
       await revokeSession(client, scope);
     });
+    if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
     return reply.code(204).send();
+  });
+
+  // ADR-0034: the page's CSRF token for its cookie session (derived; survives reloads and tabs).
+  app.get('/v1/session/csrf', async (req, reply) => {
+    await authenticated(req.headers.authorization, async () => undefined);
+    if (!req.ksCookieSession) throw new HttpError(400, 'Only a cookie session has a CSRF token');
+    return reply.header('Cache-Control', 'no-store').send({ csrfToken: csrfToken(webSession.secret, req.ksCookieSession) });
   });
 
   app.post('/v1/history/clear', async (req, reply) => {
@@ -180,6 +234,18 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     return reply.code(200).send(receipt);
   });
 
+  // ADR-0035: delete the account and all personal history. The calling session is deleted with
+  // it, so a cookie session also gets its cookie cleared.
+  app.post('/v1/account/delete', async (req, reply) => {
+    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
+      const parsed = accountDeletionInput.safeParse(req.body);
+      if (!parsed.success) throw new HttpError(400, 'Invalid account deletion request');
+      return deleteAccount(client, scope, parsed.data);
+    });
+    if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
+    return reply.code(200).send(receipt);
+  });
+
   app.get('/v1/universe', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const universe = (await client.query('SELECT revision, privacy_epoch, recording_paused_at FROM universe WHERE id=$1', [scope.universeId])).rows[0];
     const traces = await listSavedTraces(client,scope);
@@ -212,38 +278,25 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
     return reply.header('Cache-Control','no-store').send(result);
   });
 
-  app.get<{ Querystring: { kinds?: string } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
+  app.get<{ Querystring: { kinds?: string; exclude?: string | string[] } }>('/v1/feed', async req => authenticated(req.headers.authorization, async (scope, client) => {
     const kinds = parseFeedKinds(req.query.kinds);
     if (kinds === null) throw new HttpError(400, 'Invalid kinds parameter');
+    // #133: what this discovery trip already has on screen or opened. The client skips those, so
+    // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason.
+    const exclude = parseFeedExclude(req.query.exclude);
+    if (exclude === null) throw new HttpError(400, 'Invalid exclude parameter');
     const account = (await client.query('SELECT * FROM accounts WHERE universe_id=$1', [scope.universeId])).rows[0];
     const assets = await feedCandidates(client, kinds);
 
-    // ADR-0028 (#114/#5): real retrieval-time signals, a versioned policy and a registered
-    // explanation vocabulary, all fetched with bounded SQL — never a provider call
-    // (packages/core/AGENTS.md, ADR-0016). `policy_version` stays 'editorial-unkept-v1' (section 1:
-    // retrieval itself is unchanged); `ranking_version` records the policy that actually ordered
-    // and explained this slate, so migration 0017's own invariants apply to every decision from
-    // here on. composer-signals-v2 (#113/ADR-0029 amendment, migration 0021): adds a coverage
-    // tie-break over v1's hash-only one so a source cannot sit behind another indefinitely;
-    // composer-signals-v1 stays registered but is never loaded by any code path from here on.
-    const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V2);
-    const templates = await loadComposerExplanationTemplates(client);
-    const { candidates, nowMs } = await loadComposerSignalCandidates(client, scope.universeId, assets);
-    const ranked = rankSignalCandidates(candidates, account.kept_asset_ids, policy, templates, nowMs);
-    const items = ranked.map(r => r.item);
-
-    const decisionId = randomUUID();
-    await client.query(
-      'INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch,ranking_version) VALUES($1,$2,$3,$4,$5,$6,$7)',
-      [decisionId, scope.universeId, account.revision, 'editorial-unkept-v1', JSON.stringify(items), scope.privacyEpoch, policy.version],
-    );
-    for (const r of ranked) {
-      await client.query(
-        `INSERT INTO decision_signal(id,decision_id,universe_id,asset_id,rank,retrieval_score,inputs,explanation_key)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [randomUUID(), decisionId, scope.universeId, r.item.assetId, r.rank, r.retrievalScore, JSON.stringify(r.inputs), r.explanationKey],
-      );
-    }
+    // The ranking policy is deployment configuration recorded on every decision: composer-semantic-v3
+    // (ADR-0032) by default; composer-signals-v2 (ADR-0028/0029) and composer-semantic-v4 (v3 with a
+    // fair tie-break, ADR-0043 §7) remain selectable and immutable.
+    const { decisionId, items } = composerPolicy === COMPOSER_SIGNALS_V2
+      ? await composeAndRecordV2(client, scope, assets, account)
+      // v3 gates kept encounters itself and records them, so "why not that" has an answer.
+      : await composeAndRecordV3(client, scope, assets, account.revision, exclude, composerPolicy);
+    // ADR-0046 §1: a place this reader has now seen in full is a need, recorded with the semantic decision that saw it.
+    if (composerPolicy !== COMPOSER_SIGNALS_V2) await observeExhaustion(client, scope, decisionId);
     return { decisionId, universeId: scope.universeId, accountRevision: account.revision, privacyEpoch: scope.privacyEpoch, items };
   }));
 
@@ -270,6 +323,8 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
       // is the one deterministic projection step that must never lag behind it.
       await projectWorldsForEncounter(client, scope.universeId);
+      // ADR-0032: the private personal model follows the same evidence, in the same transaction.
+      await refreshPersonalModel(client, scope.universeId);
       return { exposureId, eventId };
     });
     return reply.code(201).send(result);
@@ -299,6 +354,7 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       const jobId = randomUUID();
       await client.query('INSERT INTO ledger(id,universe_id,kind,client_key,causation_id,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6,$7)', [eventId, scope.universeId, 'keep', body.clientEventId, exposure.event_id, JSON.stringify(body), scope.privacyEpoch]);
       await client.query('INSERT INTO job(id,universe_id,event_id,kind,privacy_epoch) VALUES($1,$2,$3,$4,$5)', [jobId, scope.universeId, eventId, 'project_keep', scope.privacyEpoch]);
+      await refreshPersonalModel(client, scope.universeId);
       return { eventId, jobId, status: 'accepted' };
     });
     return reply.code(202).send(result);
@@ -309,7 +365,9 @@ export function buildApp(developmentToken: string, options: { mediaRoot?: string
       const parsed = explicitAskInput.safeParse(req.body);
       if (!parsed.success) throw new HttpError(400, 'Invalid Ask');
       try {
-        return await recordExplicitAsk(client, scope, parsed.data);
+        const receipt = await recordExplicitAsk(client, scope, parsed.data);
+        await refreshPersonalModel(client, scope.universeId);
+        return receipt;
       } catch (error) {
         if (!(error instanceof ExplicitAskError)) throw error;
         if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Ask');

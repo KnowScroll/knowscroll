@@ -95,7 +95,7 @@ class RealJourneyTest {
         compose.onNodeWithContentDescription("Enter Scroll").performClick()
         waitText(expected.title)
         compose.waitUntil(10000){store().read()?.exposureId?.isNotEmpty()==true}
-        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasText("SOURCE"))
+        compose.onNodeWithContentDescription("Scroll reading content").performScrollToNode(hasContentDescription("Get the next Scroll"))
         compose.waitUntil(10000){(store().read()?.readingPosition ?: 0)>0}
         val session=store().read() ?: error("Scroll retry envelope was not persisted")
         val exposureRetry=ApiClient().postExposure(ExposureRequest(session.decisionId,session.item.assetId,session.clientExposureId))
@@ -167,7 +167,7 @@ class RealJourneyTest {
         capture("j001-recovered")
     }
     @Test fun sourcedScrollKeepAndReturn() = runBlocking {
-        if (BuildConfig.APPLICATION_ID.endsWith(".journey")) {
+        if (com.knowscroll.mobile.JourneyBuild.isJourney(BuildConfig.APPLICATION_ID)) {
             InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("ks_session_v1", android.content.Context.MODE_PRIVATE).edit().clear().commit()
             compose.activityRule.scenario.recreate()
         }

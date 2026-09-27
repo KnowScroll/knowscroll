@@ -149,6 +149,16 @@ operation's exact boundary stated rather than implied. `packages/db/src/privacy.
 remain unimplemented; none of this is reachable until those land. The next migration number after
 `0017` and ADR number after `0028` are free for whichever lane implements the routes.
 
+## 2026-09-22 successor — derived-system erasure (#72 / #4)
+
+Reset's inheritance of Clear now includes removal of the caller universe's encounter-derived
+`world_system_member` and `world_system` rows, in the same locked transaction after exposures.
+Shared source catalog rows remain. Migration 0025 allows system deletion only once its universe's
+exposures are gone; it erases no existing records itself. This closes the stale-world gap recorded
+in ADR-0028 without changing Reset's receipt, retry or session-revocation contract. Delivery and
+verification are scoped in the [refinement evidence](../journeys/evidence/ui-refinement-2026-09-21/README.md);
+native pause/export/Reset UI parity remains outstanding.
+
 ## Sources / verification
 
 ADR-0009, ADR-0010, ADR-0026's `sign_in_token_guard`, and target `04-EVENT-ARCHITECTURE.md`

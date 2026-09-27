@@ -1,0 +1,39 @@
+{
+  "at": "2026-09-24T02:02:32.747302+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_32f881caec635a5a",
+  "apiPort": 4333,
+  "source": "cb2ac300078982e6ab1d05fea373e3d72fc13512",
+  "package": "com.knowscroll.mobile.journey",
+  "journey": {
+    "originAssetId": "10000000-0000-4000-8000-000000000001",
+    "originTitle": "An orbit is not a perfect circle",
+    "originExposureId": "1bda3c45-5a7e-40ec-84a7-b35110df54f1",
+    "originPosition": 1293,
+    "targetAssetId": "20000000-0000-4000-8000-000000000001",
+    "targetTitle": "The pull you can't see",
+    "branchDecisionId": "509f8e2e-7352-41f4-b3b5-81f63004dd2f",
+    "targetExposureId": "ceff170e-e336-4a67-bf8c-d28ac2739607",
+    "bridgeId": "8d429553-af23-4635-bdcd-d1b31eb5eed6",
+    "recorded": true,
+    "relationSentence": "Orbit is explained by Gravity",
+    "skippedBeforeConnected": 0,
+    "offeredAtObjection": 1,
+    "offeredAfterObjection": 0
+  },
+  "lineage": {
+    "branchEvents": 1,
+    "branchCausedByOriginExposure": 1,
+    "branchOpenDecision": 1,
+    "targetExposedThroughBranchDecision": 1,
+    "seemsWrong": 1,
+    "sharedBridgesStillAdmitted": 6,
+    "personalProposals": 0
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Editorial substrate and bridges; no model-proposed bridge.",
+    "Debug API36 emulator, not a physical device.",
+    "Continuations are Scroll-only; Reels carry no concept annotations yet."
+  ]
+}

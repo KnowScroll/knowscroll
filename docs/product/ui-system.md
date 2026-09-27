@@ -1,5 +1,16 @@
 # The agreed interface, written down
 
+> September23 refinement: direct native exploration and compact topic cards take
+> precedence over the old sheet-first flow. See [direct Atlas](../design/2026-09-23-android-direct-atlas.md).
+
+> **Android reference precedence — 2026-09-22:** Spatial screens follow the first four
+> owner images and Living Atlas/Cosmos; content follows Hybrid Set poster/Kiosk.
+> The fifth image's generic grey Worlds dialog is rejected. See
+> [design direction](design-direction.md#which-reference-wins-owner-direction-2026-09-22)
+> and the [native audit](../design/2026-09-22-android-living-universe.md).
+> The older single-register specifications below remain provenance, not an override.
+
+
 Status: extraction, not invention. Every value below is taken from the two references the owner
 already chose in [design direction](design-direction.md): [Cosmos](references/cosmos.html) for the
 visual language and [Living Observatory](references/living-observatory.html) for journey behaviour
@@ -188,7 +199,7 @@ as strict; it governs the *content*, not whether the surface exists.
 | The unexplored nebula | **The real unread remainder** of the finite library, counted, not decorated |
 | `DAY n ▸` | the real age of the universe |
 | Status pill | a real recency or state, or omitted |
-| State pill on the reader | the real truth state plus the real source count — `DOCUMENTED · 3 SOURCES` |
+| State pill on the reader | the real truth state — `DOCUMENTED` (owner decision 2026-09-24: readers never see a source, so no source count; sources stay internal for checking) |
 | Stage | a Scroll is text, so the stage is typographic rather than video; a Reel uses the video stage once one is eligible |
 | "Not so fast" | **no contract exists** — not drawn until one does |
 | Dock | **Cable** (read), **Atlas** (universe), **Keep** (Traces) are real. **Ask** has no contract on web, so the dock carries three entries, not four |

@@ -9,6 +9,7 @@ import test from 'node:test';
 import pg from 'pg';
 import {generationBrief, type GenerationBrief} from '../packages/contracts/src/generation.ts';
 import * as storage from '../apps/worker/src/generation/storage.ts';
+import {drainStrayJobs} from './helpers/generation-fixture.ts';
 
 const databaseUrl = process.env.DATABASE_URL ?? (() => { throw new Error('DATABASE_URL required'); })();
 const databaseName = new URL(databaseUrl).pathname.slice(1);
@@ -90,21 +91,10 @@ function isDenied(code: string) {
   return (error: unknown) => error instanceof storage.GenerationDenied && error.code === code;
 }
 
-/** `pnpm test` runs every `tests/*.test.ts` file against one shared disposable database, and
- * `storage.claimJob` claims the globally oldest ready job. Draining any pre-existing `queued`
- * job away first (a benign, non-destructive status change) keeps every claim below deterministic
- * regardless of what another file in this run may have left behind. */
-async function drainStrayQueuedJobs(): Promise<void> {
-  for (;;) {
-    const claimed = await storage.claimJob(pool, {owner: 'generation-admission-test-sweep', leaseMs: 60_000});
-    if (!claimed) return;
-  }
-}
-
 test('ADR-0023 generation storage: admission, lease/fence, dispatch, outcomes, events, settlement', async (t) => {
   assetId = (await pool.query<{id: string}>('SELECT id FROM asset ORDER BY editorial_order LIMIT 1')).rows[0]?.id as string;
   assert.ok(assetId, 'the seeded library has at least one asset');
-  await drainStrayQueuedJobs();
+  await drainStrayJobs(pool, 'generation-admission-test-sweep');
   try {
 
   await t.test('admission is all-or-nothing; exactly at cap admits, one cent over refuses', async () => {
@@ -159,13 +149,9 @@ test('ADR-0023 generation storage: admission, lease/fence, dispatch, outcomes, e
 
     // This runtime slice refuses ANY live-engine job outright (owner decision 2026-09-20, ADR-0023
     // section 2). A live engine is checked before the grant at all, so this needs no live-mode
-    // grant row here: migration 0013's cumulative 200-cent live-grant cap is a single shared
-    // database-wide total, and `generation-contract.test.ts` (a different lane's file, sharing
-    // this same disposable database within one `pnpm test` run) already exercises that boundary
-    // exactly at its limit. Creating an additional live grant here would risk breaking that file's
-    // assertions depending on file execution order, so `grant_mode_mismatch` (standin engine vs.
-    // live grant) is intentionally left unexercised in this file; it is covered indirectly by
-    // migration 0013's own admission trigger, which `generation-contract.test.ts` already proves.
+    // grant row here. `grant_mode_mismatch` (standin engine vs. live grant) is left to migration
+    // 0013's own admission trigger, which `generation-contract.test.ts` proves at the cumulative
+    // live-grant cap.
     const liveEngineId = await freshEngine('live');
     await assert.rejects(
       storage.createJob(pool, {briefId, engineId: liveEngineId, grantId, until: 'video', budgetCents: 100, deadlineAt: future()}),

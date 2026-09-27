@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { TRUTH_STATE_MEANING } from '../api/types.ts';
+import { TRUTH_STATE_MEANING, type EncounterFeedbackKind } from '../api/types.ts';
 import { useVisibleExposure } from '../hooks/useVisibleExposure.ts';
 import type { DiscoveryState, KeepState } from '../state/discovery.ts';
-import type { ScrollView } from '../state/readerStore.ts';
+import type { ScrollView, WhyView } from '../state/readerStore.ts';
+import { WhatLedHere } from './WhatLedHere.tsx';
 
 const SCROLL_STEP = 160;
 
@@ -57,9 +58,28 @@ export interface ScrollScreenProps {
   onKeep: () => void;
   onNext: () => void;
   onReturn: () => void;
+  onOpenKeep?: () => void;
   onRetry: () => void;
   onReadingPosition: (assetId: string, position: number) => void;
+  /** #133: the store's recorded explanation of the encounter on screen ("What led here"). Optional
+   * and additive: without it the "Why this appeared" panel is exactly what it was before. */
+  why?: WhyView;
+  onOpenWhy?: () => void;
+  onCloseWhy?: () => void;
+  onRetryWhy?: () => void;
+  onCorrect?: (kind: EncounterFeedbackKind) => void;
 }
+
+/** The "What led here" controls, grouped so ReadingStage's parameters stay readable. */
+interface WhyControls {
+  view?: WhyView;
+  onOpen: () => void;
+  onClose: () => void;
+  onRetry: () => void;
+  onCorrect: (kind: EncounterFeedbackKind) => void;
+}
+
+const noop = () => {};
 
 /** Only these seven truth states have a documented presentation (definition.md sec.12); anything
  * else falls back to the neutral base `.truth-pill` tint rather than guessing a colour. */
@@ -70,7 +90,21 @@ function truthPillClassName(truthState: string): string {
   return KNOWN_TRUTH_STATES.has(slug) ? `truth-pill state-${slug}` : 'truth-pill';
 }
 
-export function ScrollScreen({ state, onVisible, onKeep, onNext, onReturn, onRetry, onReadingPosition }: ScrollScreenProps) {
+export function ScrollScreen({
+  state,
+  onVisible,
+  onKeep,
+  onNext,
+  onReturn,
+  onOpenKeep = onReturn,
+  onRetry,
+  onReadingPosition,
+  why,
+  onOpenWhy = noop,
+  onCloseWhy = noop,
+  onRetryWhy = noop,
+  onCorrect = noop,
+}: ScrollScreenProps) {
   if (state.status === 'reading') {
     return (
       <ReadingStage
@@ -79,13 +113,14 @@ export function ScrollScreen({ state, onVisible, onKeep, onNext, onReturn, onRet
         onVisible={onVisible}
         onKeep={onKeep}
         onNext={onNext}
-        onReturn={onReturn}
+        onReturn={onReturn} onOpenKeep={onOpenKeep}
         onReadingPosition={onReadingPosition}
+        why={{ view: why, onOpen: onOpenWhy, onClose: onCloseWhy, onRetry: onRetryWhy, onCorrect }}
       />
     );
   }
   if (state.status === 'unavailable') {
-    return <RestScreen title="This Scroll is unavailable" message={state.message} exhausted={false} onReturn={onReturn} onRetry={onRetry} retryable={state.retryable} />;
+    return <RestScreen title="This Scroll is unavailable" message={state.message} exhausted={false} onReturn={onReturn} onOpenKeep={onOpenKeep} onRetry={onRetry} retryable={state.retryable} />;
   }
   if (state.status === 'exhausted') {
     return (
@@ -93,7 +128,7 @@ export function ScrollScreen({ state, onVisible, onKeep, onNext, onReturn, onRet
         title="You've reached the end of the current library"
         message="There is no unread sourced Scroll left right now. Check back later, or revisit a saved Trace."
         exhausted
-        onReturn={onReturn}
+        onReturn={onReturn} onOpenKeep={onOpenKeep}
         onRetry={onRetry}
         retryable
       />
@@ -108,16 +143,8 @@ export function ScrollScreen({ state, onVisible, onKeep, onNext, onReturn, onRet
   );
 }
 
-/**
- * The same three-entry dock as the Universe (ui-system.md sec.5b: "the frame
- * every level shares"), missing from the reader until now. Cable ("read a
- * Scroll") is the one already current while reading, matching how Atlas
- * marks itself current on the Universe; Atlas and Keep both return there --
- * this build has no separate "your saved Traces" screen to deep-link into
- * (sec.5b's own table: Keep names the real saved Traces, which live on the
- * Universe itself), so both honestly land on the one screen that shows them.
- */
-function ScrollDock({ onReturn }: { onReturn: () => void }) {
+/** Shared destinations remain reachable from reading, rest and recovery. */
+function ScrollDock({ onReturn, onOpenKeep = onReturn }: { onReturn: () => void; onOpenKeep?: () => void }) {
   return (
     <nav className="universe-dock" aria-label="Main navigation">
       <button type="button" className="dock-button current" aria-current="page" onClick={() => {}} aria-label="Cable — read a Scroll">
@@ -132,7 +159,7 @@ function ScrollDock({ onReturn }: { onReturn: () => void }) {
         </span>
         Atlas
       </button>
-      <button type="button" className="dock-button" onClick={onReturn} aria-label="Keep — your saved Traces">
+      <button type="button" className="dock-button" onClick={onOpenKeep} aria-label="Keep — your saved Traces">
         <span className="dock-icon" aria-hidden="true">
           ▱
         </span>
@@ -147,6 +174,7 @@ function RestScreen({
   message,
   exhausted,
   onReturn,
+  onOpenKeep = onReturn,
   onRetry,
   retryable,
 }: {
@@ -154,6 +182,7 @@ function RestScreen({
   message: string;
   exhausted: boolean;
   onReturn: () => void;
+  onOpenKeep?: () => void;
   onRetry: () => void;
   retryable: boolean;
 }) {
@@ -172,7 +201,7 @@ function RestScreen({
           </button>
         </div>
       </div>
-      <ScrollDock onReturn={onReturn} />
+      <ScrollDock onReturn={onReturn} onOpenKeep={onOpenKeep} />
     </main>
   );
 }
@@ -183,18 +212,38 @@ function ReadingStage({
   onKeep,
   onNext,
   onReturn,
+  onOpenKeep = onReturn,
   onReadingPosition,
+  why,
 }: {
   state: Extract<ScrollView, { status: 'reading' }>;
   onVisible: (assetId: string) => void;
   onKeep: () => void;
   onNext: () => void;
   onReturn: () => void;
+  onOpenKeep?: () => void;
   onReadingPosition: (assetId: string, position: number) => void;
+  why: WhyControls;
 }) {
   const { item } = state;
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
+  const whyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  // Held in a ref so the keyboard listener below (re-bound only when a panel opens or closes) always
+  // reaches the current store callbacks.
+  const whyRef = useRef(why);
+  whyRef.current = why;
+  const openWhy = useCallback(() => {
+    setSourcesOpen(false);
+    setWhyOpen(true);
+    whyRef.current.onOpen();
+  }, []);
+  /** `restoreFocus`: Escape hands focus back to the trigger, so a keyboard reader is never left on <body>. */
+  const closeWhy = useCallback((restoreFocus: boolean) => {
+    setWhyOpen(false);
+    whyRef.current.onClose();
+    if (restoreFocus) whyTriggerRef.current?.focus();
+  }, []);
   const stageRef = useRef<HTMLElement | null>(null);
   const [stageNode, setStageNode] = useState<HTMLElement | null>(null);
   const stageRefCallback = useCallback((node: HTMLElement | null) => {
@@ -217,7 +266,10 @@ function ReadingStage({
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let current = restored;
     let depth = scrollFraction(restored);
-    const onScroll = () => {
+    const onScroll = (event: Event) => {
+      // A breakpoint can reset the old scroll owner before resize is dispatched.
+      // Its queued scroll event must not overwrite the last known depth with the new owner's zero.
+      if (owner() !== current || event.target !== current) return;
       // Read synchronously: by the time a resize handler runs, the element that
       // was scrolling has already been reset to zero and the depth is gone.
       depth = scrollFraction(owner());
@@ -274,7 +326,7 @@ function ReadingStage({
       if (event.key === 'Escape') {
         event.preventDefault();
         if (whyOpen) {
-          setWhyOpen(false);
+          closeWhy(true);
           return;
         }
         if (sourcesOpen) {
@@ -296,13 +348,13 @@ function ReadingStage({
       }
       if ((event.key === 's' || event.key === 'S') && !sourcesOpen) {
         event.preventDefault();
-        setWhyOpen(false);
+        if (whyOpen) closeWhy(false);
         setSourcesOpen(true);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [sourcesOpen, whyOpen, onNext, onReturn]);
+  }, [sourcesOpen, whyOpen, onNext, onReturn, closeWhy]);
 
   const originLabel = state.origin.type === 'saved-trace' ? 'Saved Trace · revisiting a kept Scroll' : 'Deliberate discovery · a new sourced encounter';
   const truthMeaning = TRUTH_STATE_MEANING[item.truthState] ?? 'No documented meaning is defined for this truth state.';
@@ -326,7 +378,7 @@ function ReadingStage({
             type="button"
             className="pill cream"
             onClick={() => {
-              setWhyOpen(false);
+              if (whyOpen) closeWhy(false);
               setSourcesOpen(v => !v);
             }}
             aria-expanded={sourcesOpen}
@@ -339,14 +391,22 @@ function ReadingStage({
             type="button"
             className="pill cream"
             aria-expanded={whyOpen}
-            onClick={() => {
-              setSourcesOpen(false);
-              setWhyOpen(v => !v);
-            }}
+            ref={whyTriggerRef}
+            onClick={() => (whyOpen ? closeWhy(false) : openWhy())}
           >
             Why this appeared
           </button>
-          <WhyThisAppeared item={item} origin={originLabel} truthMeaning={truthMeaning} open={whyOpen} />
+          {whyOpen && (
+            <WhyThisAppeared
+              item={item}
+              origin={originLabel}
+              truthMeaning={truthMeaning}
+              // Only an explanation of *this* Scroll is ever shown here.
+              whyView={why.view?.status === 'open' && why.view.assetId === item.assetId ? why.view : undefined}
+              onCorrect={why.onCorrect}
+              onRetry={why.onRetry}
+            />
+          )}
         </aside>
         <article
           className="reading-column"
@@ -392,7 +452,7 @@ function ReadingStage({
         {sourcesOpen && <SourceRail item={item} truthMeaning={truthMeaning} onClose={() => setSourcesOpen(false)} />}
       </div>
       <p className="keyboard-help">Keyboard: ↓ reads on, then takes the next discovery · N next · S sources · Escape or Home returns to Universe.</p>
-      <ScrollDock onReturn={onReturn} />
+      <ScrollDock onReturn={onReturn} onOpenKeep={onOpenKeep} />
     </main>
   );
 }
@@ -401,17 +461,25 @@ function WhyThisAppeared({
   item,
   origin,
   truthMeaning,
-  open,
+  whyView,
+  onCorrect,
+  onRetry,
 }: {
   item: { reason: string; truthState: string };
   origin: string;
   truthMeaning: string;
-  open: boolean;
+  whyView?: Extract<WhyView, { status: 'open' }>;
+  onCorrect: (kind: EncounterFeedbackKind) => void;
+  onRetry: () => void;
 }) {
-  if (!open) return null;
+  // Focus moves into the panel when it opens, like the source panel (SourceRail below).
+  const panelRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, []);
   const reasonText = item.reason.trim().length > 0 ? item.reason : 'No explanation recorded.';
   return (
-    <section className="why-this-appeared" aria-label="Why this appeared">
+    <section className="why-this-appeared" aria-label="Why this appeared" ref={panelRef} tabIndex={-1}>
       <dl>
         <dt>Reason</dt>
         <dd>{reasonText}</dd>
@@ -422,6 +490,7 @@ function WhyThisAppeared({
         <dt>Origin</dt>
         <dd>{origin}</dd>
       </dl>
+      {whyView && <WhatLedHere view={whyView} onCorrect={onCorrect} onRetry={onRetry} />}
     </section>
   );
 }

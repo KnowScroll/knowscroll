@@ -1,5 +1,609 @@
 # Shared delivery checkpoint
 
+## 2026-09-25 Android-first continuation, Waves 3–4 and the acceptance matrix (coordinator)
+
+Main moved from `d009225` to `bb86ad9`, then this PR. Every slice was used by hand on the API36
+emulator as `com.knowscroll.mobile.journeytest`. After each run PreviewWatch confirmed the owner's
+preview was unchanged.
+
+- **#163 Idea Rooms** (#184, ADR-0045, migration 0038):
+  - A question carried on two days opens a room on its place, under the reader's own words.
+  - Inhabitants hold sourced positions. A source correction unseats one, as away news.
+- **Test isolation** (#188): each test file runs alone in its own copy of the migrated, seeded
+  database, dropped with `--force`. The shared library had grown until a cold reader's Scroll sat
+  beyond one feed trip's 256 skips (#186's CI). Cross-file renames and owner addresses had failed
+  later files (#177).
+- **#165 typed Relics** (#186, ADR-0044, migration 0039):
+  - A place, a passage and an answer are kept or doubted. Corrected beats doubted.
+  - #159's M4–M8 are done. The return pages at ten, in one order, room changes included.
+  - Review fixes: the cursor's kinds are the item union's own; an answer is kept only while every
+    claim of its Scroll is supported; guard and indexes; the Inquiries card marks withdrawn claims.
+- **#164 inventory** (#187, ADR-0046, migration 0040):
+  - Demand is recorded from real reading. The pure Quartermaster reuses, joins, funds or says why
+    it cannot. Supply is shared; bindings are private.
+  - Review fixes: one supply lock (a two-reader deadlock test failed first); an unsent cancellation
+    no longer uses up its material; the place names a bound Scroll only while it would be served;
+    the withdrawn Scroll is paged.
+  - One bounded live MiniMax request through the writing loop was sent once and refused by the
+    checks.
+- **#183, #177** (#191):
+  - A correction shrinks a Reel's continuations. Minting takes the substrate lock.
+  - The Reel chooser is the reader's own; Reel mode survives a continuation.
+  - Reasoning probes run one at a time. Sign-in tests pin their owner. Fixture timeouts are split.
+- **#182, #181** (#190):
+  - An accepted answer is watched after navigation, and never after a purge (review fix, test
+    failed first).
+  - Refused quotes carry `quote-diagnosis-v1` codes. Model-written claims are left out of
+    inquiries.
+  - One session ledger for every live tool.
+- **#168 release readiness** (#189, ADR-0047):
+  - A release build that refuses without the owner's inputs, with R8, and a signed throwaway
+    release in CI.
+  - App Links fill the sign-in field in a single-top activity. Nothing leaves by backup or
+    transfer.
+  - Four privacy-control fixes. Upgrade and rollback are documented, and a populated 0009 fixture
+    upgrades to head.
+- **#170 acceptance matrix** (this PR, `docs/journeys/evidence/acceptance-matrix-2026-09-25/`):
+  - Journeys A/B/D/E/G/H/I by hand. Predictions are not built.
+  - Frame timing matched and interleaved against `b77a971`: p95 50.86 vs 50.64 ms, no regression.
+    PR130's `81431cc` would need the owner's preview package.
+  - Cold start median 2,466 ms. PSS 81–106 MB. No ANR or crash.
+  - Text at 0.85–2.0× and reduced motion checked, TalkBack enabled. 0 unlabelled controls and
+    0 under 48 dp.
+  - Fixed on the way: the reader's way back was cut to "…"; the export's journey-only path;
+    raw-HTTP fixtures that reset connections.
+- **Process.**
+  - Migration numbers went to merge order: 0038 rooms, 0039 relics, 0040 inventory.
+  - MiniMax session ledger: 72 → 74 of 190 (one inventory request, one inquiry request).
+  - Agent runs: 26 of 30.
+  - A `cut` of the hands-on `stack.env` (JSON) printed that disposable stack's development token
+    and the local Postgres role's password into the coordinator's session. The owner may want to
+    rotate that local role's password.
+
+## 2026-09-25 Android-first continuation, Waves 0–2 (coordinator)
+
+Main moved from `485faf7` to `d009225`. Every slice was used by hand on the API36 emulator as
+`com.knowscroll.mobile.journeytest`. After each run PreviewWatch confirmed the owner's preview was
+unchanged.
+
+- **Wave 0:**
+  - #172: the continuation handoff.
+  - #173: `scripts/android-hands-on.py`, a disposable stack that stays up for hands-on use: `up`,
+    `shot`, `sql`, `exec`, `restart`, `reinstall`, `down`.
+- **#160 correction refresh** (#174, ADR-0040, migration 0034):
+  - The worker's catch-up pass refreshes readers behind the correction log, keyed on the log's row
+    count.
+  - A universe whose refresh fails is deferred to the back of the next pass.
+  - Seen by hand: a correction while away is shown on return, a pause holds the catch-up, Clear
+    erases it.
+- **#161 hidden sources** (#176): no source name, URL, publisher, licence or count on any Android
+  surface.
+  - The world layer is removed; the reader's places are the map.
+  - The specs record the owner decision.
+  - All touched journeys pass. `trace-revisit` had been stale on main since #130 and was repaired.
+- **#169 CI flakes** (#175): pg-pool-end, generation-runtime leases, engine origin collisions and a
+  view-model race were root-caused and fixed. Unestablished causes are in #177.
+- **#162 model-written Scrolls** (#178, ADR-0041, migration 0035):
+  - Allowlisted public-domain material is stored privately; MiniMax-M3 writes in its own words; the
+    deterministic `scroll-checks-v2` decide admission.
+  - Live batch: 35 requests, 18 admitted.
+  - Read on the emulator with no source visible. Follow-ups are in #181.
+- **#166 reasoning** (#179, ADR-0042, migration 0036):
+  - Native continuation as a bounded repair, with the thinking blocks as protected data.
+  - Optional children on one budget, two new triggers, #153 done.
+  - Android Ask recovers after a kill, and reopening the sheet resumes watching.
+  - Live: two runs, 2 requests; the continuation step itself was not observed live. Follow-ups are
+    in #182.
+- **#167 Reels** (#180, ADR-0043, migration 0037):
+  - Reels carry their Scroll's concepts and have a Why sheet and continuations.
+  - `composer-semantic-v4` runs in shadow, fixing v3's cold-start clustering (20/40 → 2/40).
+  - Follow-ups are in #183.
+- **Process.**
+  - Migration numbers were reassigned to merge order (`RELEASED.txt` forbids inserting a number
+    behind a released one).
+  - The MiniMax session ledger stands at 72 of 190.
+  - Agent runs so far: 15 of 30.
+
+## 2026-09-24 Wave 0: a hands-on stack for the test app (lane `72-hands-on`)
+
+`scripts/android-hands-on.py up` creates a `knowscroll_test_hands_*` database (migrated, seeded), starts
+the API on a never-owner port (default 4341) and the worker, runs optional `--seed` scripts against
+the live API, adds optional `--reel` MP4s, builds and installs `com.knowscroll.mobile.journeytest`, and
+stays up until `down`. `shot`, `sql`, `exec`, `restart api|worker` and `reinstall` reach the same
+stack; `down` writes PreviewWatch's `preview-untouched.json`, stops the processes and drops the
+database. Smoke run: stack up, feed opened on the emulator, worker restarted, down with the preview
+unchanged and the database dropped.
+
+## 2026-09-24 session stop: owner decisions, remaining work as issues, Android-first handoff (lane `72-continuation-handoff`)
+
+The owner stopped the first coordinator session after #158 merged (main `485faf7`). The next session
+runs in ultracode mode from [the continuation handoff](handoffs/2026-09-24-android-first-continuation.md),
+which includes strict agent limits and the order of the waves.
+
+Owner decisions:
+- Readers never see a source. It stays internal for checking: claims, validator, corrections and
+  provenance are unchanged.
+- A model writes Scrolls in its own words from fetched material. OpenStax is excluded; its pages say
+  CC BY-NC-SA.
+- MiniMax gets 150 more requests (155 available), same route rules.
+- UI is Android-only for now. The web catches up with Cutroom at the end.
+- The domain, mail credentials and keystore arrive at the end of the release work.
+- Still needed later from the owner: a real-use review of the recommendations, and a physical
+  Android phone.
+
+Remaining work is component issues #160–#171, all on Project 1:
+- #160 correction refresh (ADR-0040 proposed here: race-safe catch-up keyed on the correction count);
+- #161 hide sources on Android;
+- #162 model-written Scrolls;
+- #163 Idea Rooms;
+- #164 inventory;
+- #165 typed Relics;
+- #166 reasoning follow-ons;
+- #167 Reels;
+- #168 release readiness;
+- #169 flakes;
+- #170 acceptance matrix;
+- #171 web catch-up (deferred).
+
+No open issue was fulfilled, so none was closed; component epics keep their unfinished acceptance.
+
+## 2026-09-24 #134 the return and connection Relics (lane `134-return-relics`)
+
+ADR-0039, migration 0033. `GET /v1/away` lists what the reader did not cause since their marker:
+- background inquiry outcomes;
+- source-correction place changes, with their chronicle line;
+- corrections to a connection they were shown or kept.
+
+`POST /v1/away/acknowledge` moves the marker forward only, and never while paused. Connection Relics
+are private and immutable, and carry their provenance. Their state (`current`, `corrected`,
+`doubted`) is derived each time they are read, and "Let go" removes one. Clear, Reset and deletion
+erase both tables before the inquiries and bridges they name; export carries both. On Android, the
+Atlas has a quiet "While you were away" section, a found connection's sheet offers Keep and Seems
+wrong, and Keep lists Relics above Traces.
+
+Proven by:
+- pure tests 7 and DB/API tests 7;
+- Android 425 plus lint;
+- the emulator `return` journey. The app is in the background while the worker finds the
+  connection. On return the reader keeps it, doubts it and marks the changes as seen, then leaves
+  again. A real operator source correction revokes the connection meanwhile, and the Relic shows it
+  corrected. SQL lineage is checked.
+
+See the [evidence](journeys/evidence/return-relics-2026-09-24/README.md). Not in this slice: rooms,
+inhabitants, other kinds of Relic, and the web client.
+
+## 2026-09-24 #136 device test runs no longer install over the owner's preview (lane `136-test-app-id`)
+
+The nine device test runners now build and install their own app, `com.knowscroll.mobile.journeytest`
+(`KS_APP_ID_SUFFIX=.journeytest`). The owner's preview, `com.knowscroll.mobile.journey`, is built and
+installed only by `scripts/android-living-preview.py`, which sets no suffix. Its verification mode
+(without `--keep`) still replaces the preview, under the full preserve/restore guard. The debug-only
+journey behaviour (authored previews, the export written to the app's cache) is enabled by one
+helper, `JourneyBuild.isJourney`, for both packages. Instrumented tests use the same helper. The test
+runners use `PreviewWatch`: it records the preview's APK hashes and fails the run if they changed.
+It never pulls data, never refuses a signed-in preview, and never reinstalls or clears anything.
+Proven by the emulator `places` journey passing as `journeytest` with the preview's APK hash
+unchanged.
+
+## 2026-09-24 #135 web Reset retry after a failure (lane `135-web-reset-retry`)
+
+A failed Reset's own Confirm is the retry (same request id) and Cancel closes it. Before, both did
+nothing. A 401 after a lost response says the Reset may have completed; it never claims a receipt.
+Proven by store tests (3 failed first) and by the real web owner journey with injected network
+failures: one Reset where nothing reached the API, then the retry and its receipt, and one Reset
+that landed with its response lost. The journey fails without the change. See the
+[evidence](journeys/evidence/web-reset-retry-2026-09-24/README.md).
+
+## 2026-09-24 #132 background bridge inquiries (lane `132-background-inquiries`)
+
+ADR-0038 with a same-day amendment, migration 0032. This is the first consumer of the reasoning
+runtime's `background_inquiry` class and `dirty` wake. The reader's standing consent (with a daily
+limit) is the authority. A place the Cartographer forms mails one coalesced inquiry. The worker
+opens it with fresh authority and seals a small context: unconnected pairs of the reader's places
+and their supported claims. It sends one request, never replayed. The model picks an admissible
+relation and cites offered claims; the system composes the typed proposal; `bridge-validator-v1`,
+unchanged, decides. An admitted bridge is the reader's own continuation. Android's Privacy &
+account has the switch, the limit, and the list of what was looked for.
+
+Verification: pure 14, DB/API/worker 35 (fixture: coalescing, limit, consent/pause/Clear queued and
+in flight, off-then-on and pause-then-resume during a call, a reply after the deadline, stale
+context, crash without replay, fairness against a direct Ask), backend suite, Android 347 + lint. The emulator `inquiry` journey passed with the fixture: consent, reading forms
+Gravity, the inquiry is found, the continuation appears, and SQL lineage matches. Live MiniMax-M3
+(owner authorisation, subscription route, preflight, ledger): 7 requests, 29 → 35/40. The first
+four were refused by the validator, which led to the structured reply. Then one admitted bridge
+("Gravity explains The Sun", visible from 3 Scrolls), one honest "none", and one refusal on the
+device, whose journey now accepts any validated live outcome and checks the screen for it. See the
+[evidence](journeys/evidence/background-inquiries-2026-09-24/README.md). No prompt or reply text
+is in Git.
+
+The fresh review's fix pass: pairs are offered only when each side has a claim of its own, the
+since-sealing guards are proven by mutants, a late reply fails as `expired` at once (found while
+testing), and the Android wording is fixed. The deferred items are in #153.
+
+## 2026-09-24 #131 decorative Places art labelled (lane `131-illustrative-art`)
+
+The Places layer's line now reads "Positions, orbits, moons and land art are illustrative — what's
+mapped and how it connects is real.", so no decorative orbit ring, moon, continent, current or cloud
+implies verified knowledge. This is #131's last open item. `PlacesScreenTest` was updated first; Android units, lint
+and the emulator `places` journey pass. See the
+[evidence](journeys/evidence/illustrative-art-2026-09-24/README.md).
+
+## 2026-09-24 #136 verification harness: matched frame phases, preserved preview, #91 journey repaired (lane `136-frame-timing`)
+
+`AtlasProfileTest` now records every frame phase and one row per frame. Every device runner that
+installs the `.journey` app (the semantic, profile and #91 explain runners, the six older ones and
+`android-living-preview.py` in its verification mode) now goes through
+`scripts/android_preview.py`. Only `android-living-preview.py --keep`, the preview's own setup,
+installs it deliberately. The guard:
+- it refuses, touching nothing, if the preview cannot be backed up or holds a keystore-sealed
+  signed-in session;
+- it restores only if the run actually replaced the preview;
+- it verifies every file by hash.
+
+Matched profiles on a quiet host, baseline `81431cc` against main at `a9b5e1c`, interleaved (see the
+[profile evidence](journeys/evidence/frame-profile-2026-09-24/README.md)): equal p95 (67.6 vs
+67.4 ms) and better p50 (33.8 → 29.5 ms). One early baseline run under a different host state
+matched the old 47.40 ms, so host state moves absolute numbers by about 50%.
+Recomposition p95 roughly doubled (10.1 → 19.7 ms), with more draw and swap; that is the next
+target. Smoothness is not accepted: almost every emulator frame is over 16.67 ms.
+
+The #91 reader-explain journey was failing on main from harness rot. Its proxy missed
+`/v1/feed?kinds=`, and it looked for saved Traces on the universe screen instead of in Keep by
+title. It now passes 9/9 ([evidence](journeys/evidence/reader-explain-2026-09-24/README.md)).
+
+## 2026-09-24 #133 "What led here" on the desktop web (lane `133-web-why`)
+
+This reaches parity with Android's journey G on the web reader. "Why this appeared" now loads the
+recorded explanation for the Scroll being read (`GET /v1/decisions/:id/why`). It shows the family
+that chose it, one line per recorded step, and the corrections that path supports: "Less like
+this", and "Wrong connection" where a connection was crossed. Each correction says what it does
+before and after, is idempotent under its request id across retries and reopening, and goes
+through the CSRF-aware client. A path that was never recorded (404, or a saved Trace) is shown
+honestly. Parsing is strict, and the web's zod schemas are guarded against the contracts by
+`contractsDrift`. Web units 199 (15 → 18 files). A new journey, `run-web-why-journey.ts`, uses a
+real cookie sign-in and a disposable database with the substrate, and checks lineage in SQL (the
+v3 decision, the cited keep, exactly one `less_like_this` under the page's request id, bridges
+unchanged). The reader journey passes 50/50. CI's web-journey job now also runs the owner (#135)
+and why journeys. [Evidence](journeys/evidence/web-why/last-run-receipt.json).
+
+## 2026-09-24 #131/#134 foundation Stars (lane `131-foundation-stars`)
+
+ADR-0037, migration 0031, `cartographer-v2`. A live planet or region whose anchor explains, or
+comes before, at least three things across at least two of the reader's other live places, each
+connection sourced, is recognised as a foundation. Attention plays no part. Recognition and
+withdrawal are deltas (`foundation_recognised`/`substrate_neighbourhood`; `foundation_withdrawn`
+with `source_correction` or `reader_correction`), and setting a place aside re-evaluates in the
+same transaction. The schema refuses the flag on a sighting and any flag change without a delta.
+The atlas returns `foundation: {holdsUp, relations}` per place. Android parses it strictly, draws
+the marker brighter and says "Foundation", adds "· Foundation" in the list, shows what it holds up
+with each connection's claim in the sheet, and explains both deltas' evidence.
+
+Verification on `d51af5b` (main merged, review fixes in): pure 7 (a kind mutant killed), HTTP 5,
+backend 844+13, Android 194 + lint (web 87 on `6f8a910`, untouched since), and the emulator `foundation` journey with SQL lineage,
+plus the places journey again. A fresh review found stale foundation connections, a rejection that
+re-ran the whole Cartographer, and an unsupported screenshot claim; all fixed test-first. Gravity formed from the device's reading and was recognised in the same transaction;
+setting Tides aside withdrew it. Tides, Orbit and Star formation were placed from supplied accounts
+(labelled; the library cannot anchor the last two from reading). The first device run showed each
+connection twice on the sheet, fixed test-first. See the
+[evidence](journeys/evidence/foundation-2026-09-24/README.md). Preview restored; no provider call.
+Merge after #147 (0030 before 0031).
+
+## 2026-09-24 #135 owner access, privacy and release clients (lane `135-owner-access`)
+
+ADR-0034, ADR-0035, migration 0030. Server: a desktop session cookie (HttpOnly, Secure,
+SameSite=Strict) minted from a magic link, whose page never sees a token. Every change needs an
+HMAC CSRF token and a same origin, and there is one credential per request. The emailed link is
+`<origin>/sign-in#token=…`. Account deletion erases, in one transaction, what Reset erases plus
+sessions, sign-in tokens, dated privacy receipts and the account, leaving an address-free
+tombstone; schema guards allow those deletions only inside it. A read-only snapshot of the owner
+database was restored into a disposable clone, and only the clone was migrated and verified (re-run after the review with 0029 and 0030: 9 → 27 migrations, every row and checksum kept). Web:
+a signed-out screen, the `/sign-in` page, CSRF in the client, sign-out and deletion, and a
+cookie-mode proxy. Android: magic-link sign-in with a Keystore-encrypted session, and a Privacy &
+account screen (pause/resume, export, Reset, delete, sign out) at parity with web.
+
+Verification (after the review fixes): web-session 6, account-deletion 6 (3 mutants), backend suite, web units, Android
+units + lint, the web owner journey (Playwright, cookie mode) and the emulator owner journey with
+SQL checks; see the [evidence](journeys/evidence/owner-access-2026-09-24/README.md). Four initial
+device failures are recorded there, including a launch crash that the JVM tests had missed.
+Preview restored; the owner database was only read.
+
+## 2026-09-24 #134 first slice — the reader's places (lane `134-living-worlds`)
+
+ADR-0036; migration 0029 (`atlas_place`/`atlas_delta`). A pure
+Cartographer (`cartographer-v1`) runs in the personal-model refresh, never while paused: an
+anchored concept becomes a free planet or a region of the nearest anchored ancestor (two parent
+hops). Planets and regions offer up to five sightings: never-shown concepts one active typed
+relation or admitted bridge away. A revoked relation retires its sighting, and the reader can set a
+place aside for good. Every change is an immutable delta with a causal class and evidence; a
+deferred constraint trigger refuses a place change without one. `GET /v1/atlas`,
+`GET /v1/atlas/deltas/:id` and `POST /v1/atlas/places/:id/reject` go through a strict contract.
+Android: a Places | Sources choice on the System screen (Sources unchanged). Places shows the live
+planets, regions and sightings on the accepted Atlas visuals, and a place sheet with its account,
+Scroll counts, sightings with their claims, chronicle lines that open their evidence, and "Set
+aside". Authored geography stays for Sources and the labelled preview.
+
+A fresh-context review found 1 blocking defect (a sighting whose subject the reader then read stayed
+live with attention; Android refused the atlas) and 4 important ones; all fixed test-first. A
+second, verification review found nothing blocking; its important findings (a false empty Places
+while loading or after a failure, claim-backed sightings first overall, an anchored sighting
+promoted before a revoked basis retires it, honest wording) were fixed test-first as well.
+Verification on `bfd9843` (main merged at `95f7481`): pure 12 (4 mutants), HTTP 6, backend 832+13,
+web 87, Android 183 units + lint, and the emulator places journey with SQL lineage; see the
+[evidence](journeys/evidence/places-2026-09-24/README.md). Preview restored; no provider call.
+
+## 2026-09-24 #132 authorized Scroll Ask answers (lane `132-product-reasoning`)
+
+Branch `claude/132-product-reasoning` on main `6a56b24`. ADR-0033 (with the validator-v2
+amendment); migration 0028 appended to `RELEASED.txt`. A recorded Ask becomes an answer only on a
+fresh reader action (`POST /v1/asks/:askId/answer`) from the Ask's own session, when recording is
+not paused and an answer route is enabled. The API only records the request; the worker schedules
+it fairly (ADR-0019 plane: fairness, admission, one invocation, reconciliation), sends exactly the
+reserved bytes once through the worker-only transport (fixture or MiniMax-M3 subscription route
+with quota preflight), and applies provider text only through the answer validator (v2): one JSON
+object, every basis quote verbatim in the sealed Scroll, bounded, nothing about the reader.
+Otherwise the answer is `rejected` with content-free reason codes. Unknown outcomes hold their
+remote slot and are never retried. Clear/Reset erase requests and answers; export carries them.
+Android: Ask sheet with "Get an answer", answered/not-in-source/rejected/failed states, cancel.
+
+Live, bounded (28 of 40 authorized requests): v1 rejected every reply to the Android journey's
+yes/no question because MiniMax wrapped basis quotes differently; v2 projects items to their quote
+and keeps every other rule; 0/5 → 5/5 answered with verified quotes, then answered on the emulator.
+A fresh-context review found 2 blocking defects (all-space quotes passed; an attempt admitted but
+never sent left the Job and its remote slot stuck) and 8 important ones; a verification review of
+those fixes found 3 more (a signed-out reader broke the recovery sweep; a reply recorded but never
+applied stayed open; the reader check let "you are curious" through). All were fixed test-first and
+the evidence regenerated from clean commits. Verification: core 10, lifecycle 12, recovery 3,
+signed-out 1, crash 1, transport 7, backend 814+13, Android 130 units, fixture and live emulator
+journeys with DB lineage; see the
+[evidence](journeys/evidence/ask-answers-2026-09-24/README.md). Preview restored after every run;
+owner database untouched.
+
+## 2026-09-24 #97 reader sheets survive recreation (lane `97-reader-sheet-restore`)
+
+The Sources, Why and Connections sheet flags are hoisted to `ScrollScreen`, above the state `when`
+that briefly unmounted them while `onForeground()` restored the stored Scroll after recreation (a
+second mount cannot consume a Bundle-restored value). Verified on the real stack with the emulator:
+`OK (3 tests)`, all three sheets restored; Android 112 units and lint. The first device run failed
+2 of 3 on test isolation (recorded in the [evidence](journeys/evidence/reader-sheets-2026-09-24/README.md)).
+Preview restored and verified.
+
+## 2026-09-24 #133 Composer v3 + #131 attention accounts and hypotheses (lane `133-semantic-composer`)
+
+Branch `claude/133-semantic-composer` on main `b0281db`. ADR-0032; migration 0027 appended to
+`RELEASED.txt`. `composer-semantic-v3` is the feed's default policy (`composer-signals-v2` stays
+registered, immutable and selectable). It records every considered candidate (`decision_candidate`)
+and its served window/quotas (`decision_context`); commit-time triggers refuse a self-contradicting
+decision. Attention accounts (`attention-v1`) and rule hypotheses (`hypothesis-rules-v1`: direction,
+open question) are recomputed in the transaction that records a keep, exposure, branch, Ask or
+correction; Clear/Reset erase them and export carries them. `GET /v1/decisions/:id/why` and
+`POST /v1/encounters/feedback` (journey G). Android: **What led here** and **Less like this** /
+**Wrong connection** in the Scroll reader's why sheet.
+
+Ruling recorded in ADR-0032 §3: a *seen* encounter is reranked below every unseen one, never gated.
+Seen-gating broke the established exhaustion contract (7 of 48 web-journey specs failed), and a
+soft penalty made readers run out early in the offline comparison. Verification: pure 15+9,
+HTTP 11 with 6 mutation checks, backend 778+13, Android 107 units, the web journey and the emulator
+why journey with DB lineage checked, and an offline v2-vs-v3 comparison (behaviour, not
+usefulness). Feed latency is ~20 ms at 500 Scrolls (was ~225 ms). See the
+[evidence](journeys/evidence/composer-v3-2026-09-24/README.md). No provider call; MiniMax 0/40.
+
+## 2026-09-24 #131 first slice — semantic substrate, validated bridges, live Android continuations (PR140)
+
+Worktree `131-semantic-foundations`, branch `claude/131-semantic-foundations`. ADR-0031; migration
+0026 appended to `RELEASED.txt`. Delivered: immutable source-backed claims on hashed snapshots;
+bridges admitted only by the pure `bridge-validator-v1` from a recorded, replayable read-set slice;
+commit-time database guards; deterministic correction propagation (and seed-load revalidation);
+live continuations with branch lineage (`branch` Ledger event caused by the origin exposure, a
+branch decision, `branch_open`); personal "not useful / seems wrong"; pause, Clear/Reset erasure
+and export. 23 editorial Scrolls and a 9-source substrate (32 concepts, 60 claims, 71/71 quotes
+verified against persisted snapshots, 6 admitted bridges, 4 tempting ones refused).
+
+Verification: backend 756/756, web 79/79, Android 102 units + lint, emulator journey `OK` with the
+database lineage checked in SQL (see the
+[evidence](journeys/evidence/semantic-2026-09-24/README.md)). Two fresh-context reviews: the first
+found 1 blocking + 6 important defects, all fixed test-first; the verification review found 2 more
+important ones, also fixed. The web journey now seeds its own three-Scroll fixture
+(`apps/web/e2e/fixtures/reader-library.json`), because it proves reader mechanics over a finite
+library and the product library grew. No provider call; MiniMax budget used 0/40.
+
+Not done in #131: hypotheses, uncertainty and decay (ADR-0032, lane `133-semantic-composer`), and
+evidence-backed geography semantics. Deferred minors are listed on PR140. The owner's `.journey`
+preview (4322) was restored and verified after every emulator run; owner database `knowscroll`
+untouched.
+
+## 2026-09-24 six-phase personal delivery and tracker cleanup
+
+Owner asks for all six remaining phases to be implemented with continuous verification and
+maintainable code, prioritizing recommendation/reasoning/world formation connected to Android.
+The complete [next-session implementation handoff](handoffs/2026-09-24-core-to-android.md) is authoritative for this wave.
+Execution issues: #131 semantic foundations, #132 product reasoning, #133 full Composer, #134 living
+worlds/inventory/Android, #135 owner access/privacy/release clients, #136 verification, performance and acceptance.
+Phase6 starts with phase1; every slice needs runtime and visible-result evidence. This update
+records scope and tracking only, not completion of any phase.
+
+PR130 is merged as `f89e6257c8120b3b2e6aad3397dbd7be9c52530b`; the owner says the Android
+result looks great. Preserve it; visual approval does not accept the documented frame regression.
+Cutroom #9 remains owner-led and last. Social/Blend is a separate deferred future epic #137
+under single-user ADR-0026, superseding #11's older planning entry. #57 is consolidated into
+#123/#136 without claiming the original missing acknowledgement was explained. #97, #115 and
+#123 remain open. Component epics retain unfinished acceptance and updated phase links.
+
+Project1's README/statuses and #72 now carry this sequence. Future sessions must update issues,
+Project1, checkpoint and PROJECT-STATE as they implement and verify, not only at the end.
+#72 remains open for applicable personal, required Android/desktop and final real-video gates.
+The handoff docs worktree is `72-core-delivery-handoff`; implementation starts from freshly
+verified main in named SSD worktrees. Preserve existing previews and owner data.
+
+## 2026-09-23 direct Android Atlas — #72 / PR130 continuation
+
+Continue the SSD worktree `72-android-living-universe`, branch
+`codex/72-android-living-universe`. PR130's `81431cc` implementation was preserved;
+this continuation adds direct ship/planet/continent/topic/content navigation,
+collision-free square touch targets, readable compact labels, secondary source
+inspection, and exact content/origin restoration in an explicit authored Atlas.
+The owner now authorizes merging PR130; older no-merge text below is historical.
+Check PR130 for final-head CI and merge status. **#72/full-v1 remains open.**
+
+All six current reference images and four original spatial images were inspected;
+Cosmos/Living Atlas source read, denied browser replay not bypassed. Poster Scroll,
+Cable mode banks, actual Media3 playback and existing privacy contracts are preserved.
+See [design decisions](design/2026-09-23-android-direct-atlas.md) and
+[verification, motion and captures](journeys/evidence/android-direct-2026-09-23/README.md).
+
+Local checks: TypeScript typecheck; Android debug/test assemble, lint and **94 units**;
+**22 scenario/configuration runs**, including direct/compact/reduced-motion input,
+continuous two-pointer pinch, globe-rim tap, branch/read return, recreation, supplied
+Reel playback/background/epoch purge, source-world privacy, reader retry/revocation,
+Cable exposures, dense worlds and sky-clock lifecycle. One Robolectric Saved Traces
+idling timeout was retained; isolated tests and the complete rerun passed unchanged.
+This was not a native app ANR. No provider or owner-database changes.
+
+Matched untouched `81431cc` baseline: p50 **26.30 ms**, p95 **47.40 ms**. After runs:
+p50 **29.76 / 30.94 ms**, p95 **52.29 / 66.56 ms** on the same API36 host-GPU,
+4096MiB/4-core emulator. **Frame timing regresses; smoothness is not accepted.**
+No ANR observed during this run does not explain or resolve every prior ANR cause.
+
+The existing API4322/worker and disposable
+`knowscroll_test_native_76cf2b52091ca64c` are preserved. Original `.journey` state was
+saved before the test wave; restoration with the final APK and the additional owner-route check passed. Receipts are under
+ignored `artifacts/android-direct` and summarized in the dated evidence. Recheck
+runtime health before use. Owner DB `knowscroll` remains at nine migrations, read-only.
+
+Owner route: **Universe → Authored Atlas → Orbit laboratory → Orbits → tap globe →
+North coast → topic → Open**. Supplied demos uses the same route to actual test MP4s.
+Mac emulator's documented pinch method is Command + primary-button drag; Android
+two-pointer input is verified, but the available computer-use tool could not manually
+drive that desktop modifier bridge. Native trackpad pinch is not assumed.
+
+Next: owner visual/manual-input review and performance work; separately scope live
+semantic/rich/branch transport and the remaining #72/full-v1 gates. No social,
+mastery, provider-generation or semantic-emergence proof is claimed.
+
+## 2026-09-22 Android living universe / Cable — #72 review branch
+
+Started from verified merged PR129, `origin/main` at `91e5b72`, in SSD worktree
+`/Volumes/Mrigesh SSD/knowscroll-worktrees/72-android-living-universe`, branch
+`codex/72-android-living-universe`. Implementation is `9e38146`, with verification
+and compact-layout/export/socket fixes `38bf753` / `cd00057` / `518c0c3`. No merge or #72 closure is
+authorized. Original checkout and the pre-existing port 4320 preview are preserved.
+
+Read the [implementation/visual audit](design/2026-09-22-android-living-universe.md)
+and [current evidence](journeys/evidence/android-living-2026-09-22/README.md). The
+owner's new durable priority is dark spatial Cosmos/Living Atlas + first four
+images, poster/Kiosk Hybrid Set for content, and explicit rejection of image 5's
+grey Worlds dialog. All five images and actual HTML source/styles were inspected;
+local browser replay was denied and not bypassed.
+
+Native work now includes orbiting moons with lifecycle/reduced-motion pause, stable
+ID-derived map positions, pan/pinch camera travel into labelled authored continents
+and local detail, integrated cream Worlds/Station selectors, an explicit filtered
+Scroll/Reel Cable toggle, and an owner-accessible authored preview. The preview has
+three supplied playable videos and three rich Scrolls with actual authored branches.
+Camera, asset/revision origin, reading position, retry envelopes and privacy scope
+are retained or purged as appropriate. Compact video layout reserves playback space.
+No preview exposure/Keep/generation is posted; API/database counts verify that limit.
+
+Final checks: typecheck, Android assemble/lint, 92 unit tests and 16 emulator
+scenario/configuration runs passed, plus the visible owner preview setup.
+All functional evidence uses `.journey` and disposable databases. The owner confirmed
+**emulator only for now; physical phone later**. Read-only recheck of owner `knowscroll`
+still finds only migrations 0001–0009; no owner migration/reset occurred. No raw video,
+personal Reel capture, token or provider call is committed or represented as generation.
+The new owner preview uses port 4322; its ignored lifecycle receipt is
+`artifacts/android-living/preview/runtime.json` in the new worktree. Verify its health
+and PIDs before reuse/cleanup, as with the older 4320 receipt in the original checkout.
+
+The fresh matched debug profile baseline was p95 **67.81 ms**. Three spatial runs
+measured **67.37, 67.45, 71.34 ms**, draw p95 **10.66–12.59 ms** versus 18.22, and PSS
+**129,164–131,685 KiB** versus 131,278. Draw cost improved; total frame performance and
+memory are not accepted improvements. Median worsened. Keep the historical previous
+regression evidence, and profile on a physical device before smoothness acceptance.
+
+Two implementation worker attempts stalled and their drafts were not integrated.
+A bounded MiniMax-M3 source review completed; confirmed restoration findings and
+runtime-discovered defects were fixed and tested centrally. Review/usage receipts
+are in the evidence directory. Live branch/rich transport, semantic hierarchy,
+source-scoped discovery, actual social presence, real Cutroom generation and full-v1
+acceptance remain open. No Web or shared contract changes were made.
+
+## 2026-09-22 owner-authorized merge and interactive preview
+
+The owner explicitly requested restarting the emulator and merging the delivered code. This
+supersedes the earlier no-merge instruction for PR #129 only; #72/full-v1 acceptance remains open.
+Implementation revision is `b14fd38`. Merge completion is recorded on PR129 and #72; verify their
+live Git state rather than treating the older draft snapshots below as current.
+
+The visible API36 emulator now runs the latest separate `.journey` app against a fresh disposable
+`knowscroll_test_native_*` database on API port 4320. The preview has two kept editorial encounters
+admitted through real exposure/Keep routes, plus the explicitly labelled supplied TEST MEDIA Reel.
+API/worker are intentionally left running for owner inspection. Ignored local lifecycle receipt:
+`artifacts/android-spatial/preview/runtime.json` (process IDs/database); startup log:
+`artifacts/android-spatial/preview-start.log`. Owner app/data/schema were not cleared or migrated.
+
+Merge review rechecked migration0025 and Clear/Reset: deletion remains inside the authenticated
+transaction, after exposure erasure, scoped to the caller; exact replay precedes deletion; shared
+catalog and other universes are preserved. This was coordinator self-review, not an independent
+privacy-lane sign-off. Both Android CI runs and the PR backend run passed at `b14fd38`; the other
+backend run hit a random test-fixture origin collision in `publication-http.test.ts` and was rerun.
+Check final-head CI before merging. The rendering regression and missing live integration contracts
+remain as documented below; merging is not production performance or full-v1 acceptance.
+
+## 2026-09-22 Android spatial delivery — #72 / draft PR #129
+
+Owner sequencing decision: Android only (native canvas, Reel playback, branching seams, rich
+Scrolls, motion and performance). Do not improve Web in this phase; full v1 still requires both
+clients and journeys A–I. Continue the actual unmerged PR129 branch from `c9f699f`; no merge or
+issue closure authorized. See [native audit/checklist](design/2026-09-22-android-spatial.md).
+
+Live start: Git clean at the handoff revision, PR open/draft and historical CI green. PostgreSQL
+was down and emulator absent; restarted dedicated SSD cluster and API36 emulator. Owner schema
+read-only observation remains 0001–0009 with stale worker heartbeat; no owner migration/reset.
+Runtime checks use disposable databases and `.journey` only. User authorized local Google-Drive
+videos for playback tests. Physical phone availability remains unknown. Browser policy blocked
+local reference replay; inspect reference source/captures without claiming observed motion.
+
+Native implementation now includes a full available Atlas viewport with pan/pinch, cancellable
+inspection travel and scope-bound camera return; real Media3 playback with first-frame exposure,
+strict media URL/redirect handling and authority-aware paused state; and typed rich/branch seams.
+Runtime work repaired sheet Back, return during in-flight exposure, two-marker pinch cancellation
+and pause lost across authority refresh. Fixtures remain labelled tests and use actual authorized
+MP4 bytes. Live region/relationship hierarchy, world-filtered discovery, branch/rich transport,
+consumer generation status and saved-Reel revisit still need the contracts listed in the audit.
+
+Receipts, captures, commands and diagnostic before/after frame/memory measurements are in
+[Android spatial evidence](journeys/evidence/android-spatial-2026-09-22/README.md). All tests use
+`.journey` and disposable databases; only an API36 emulator is available. Debug/emulator metrics
+are not production-smoothness acceptance. Final checks: typecheck, assemble/lint, 86 units and
+11 emulator scenarios passed. The matched profile regressed: p95 64.34 → 83.95 ms and PSS
+113,660 → 126,570 KiB; investigate draw/queue costs on a physical profileable build. Review the draft and captures, then prioritize the
+listed shared-contract dependencies and physical-device profiling. Do not merge/close #72 or
+claim full v1 from this delivery. Web follow-up is recorded only; no Web edits were made.
+
+## 2026-09-22 UI refinement successor — #72 / #4
+
+Draft delivery: [PR #129](https://github.com/KnowScroll/knowscroll/pull/129), implementation head
+`e6782b6` (plus this delivery-link update), not merged. Local verification passed: 714 backend,
+76 Web units / 50 browser journeys, 82 Android units / 7 emulator scenarios.
+
+Current local branch: `codex/72-ui-experience-audit`, started from clean `c9c3e72` on the
+external SSD. The dated [audit](design/2026-09-21-ui-audit.md) supersedes earlier claims of visual
+completion below. Both actual clients were inspected before changes. Shared local typography,
+cartographic source-backed worlds, local world inspection, consistent navigation, real Web Keep,
+responsive layouts and native reader hierarchy are implemented. Final evidence lives in
+[journeys/evidence/ui-refinement-2026-09-21](journeys/evidence/ui-refinement-2026-09-21/README.md).
+
+Native foreground/recreation retains System/Keep only after same-universe, same-epoch reconciliation.
+The privacy journey reproduced the old stale-system-after-Clear defect; migration 0025 and both
+Clear/Reset now erase that private projection transactionally. Shared source catalog and exact-retry
+boundaries remain. Request privacy-lane review (#4) on the draft before merge. No owner migration,
+owner data reset or provider run occurred. Test data/app are separate and disposable.
+
+**Not full v1:** region/Star/galaxy evolution, relationships, world-scoped discovery, native
+pause/export/Reset parity, production identity recovery, real Reels and journeys A–I remain open.
+Do not render fictional growth to fill these gaps. Next action: review final captures and the draft
+against the canonical references, then specify the remaining evidence-backed evolution contracts.
+The older snapshot below is retained as historical evidence, not current branch/runtime truth.
+
 Updated 2026-09-20 (Claude Code coordinator). Coordinator-owned current steering object, not a
 transcript. Replace this snapshot when reality changes; preserve prior evidence and rationale through
 Git, issues and [delivery history](operations/delivery-history.md).

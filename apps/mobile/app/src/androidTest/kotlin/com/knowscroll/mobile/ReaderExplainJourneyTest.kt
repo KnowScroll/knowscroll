@@ -33,7 +33,7 @@ class ReaderExplainJourneyTest {
     private fun store() = StateStore(instrumentation.targetContext)
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") {
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName)) {
             "Explain-sheet verification requires the separate journey app"
         }
     }
@@ -75,7 +75,8 @@ class ReaderExplainJourneyTest {
     private fun writeReceipt(name: String, value: JSONObject) =
         File(instrumentation.targetContext.filesDir, name).writeText(value.toString(2))
 
-    @Test fun explainSheetShowsDiscoveryReasonTruthAndSourcesNote() = runBlocking {
+    /** #161: the sheet explains the truth state without ever pointing at a source. */
+    @Test fun explainSheetShowsDiscoveryReasonAndTruthButNoSource() = runBlocking {
         openReaderFresh()
         val opened = store().read() ?: error("Expected a persisted reading session")
         // Accessible, thumb-sized control per Law 13.
@@ -84,16 +85,17 @@ class ReaderExplainJourneyTest {
         assertVisible(opened.item.reason)
         assertVisible("DOCUMENTED")
         assertVisible("Directly supported by strong cited evidence.")
-        assertVisible("Sources below show this evidence.")
+        compose.onAllNodesWithText("Sources below show this evidence.").assertCountEquals(0)
+        compose.onAllNodesWithText(opened.item.sourceTitle, substring = true).assertCountEquals(0)
         assertVisible("You opened this Scroll through deliberate discovery from your universe.")
         screenshot("explain-discovery.png")
         compose.onNodeWithContentDescription("Close why this appeared").assertHeightIsAtLeast(48.dp).performClick()
         waitReading()
         writeReceipt("explain-discovery.json", JSONObject().apply {
-            put("scenario", "explainSheetShowsDiscoveryReasonTruthAndSourcesNote")
+            put("scenario", "explainSheetShowsDiscoveryReasonAndTruthButNoSource")
             put("assetId", opened.item.assetId); put("reason", opened.item.reason)
             put("truthState", opened.item.truthState); put("originDiscovery", true)
-            put("sourcesNoteShown", true)
+            put("sourceShown", false)
         })
     }
 
@@ -129,19 +131,22 @@ class ReaderExplainJourneyTest {
         }
         val eventId = traceEventId ?: error("Separate worker did not project the UI Keep")
         val revisit = api.getTraceRevisit(eventId)
-        val traceDescription = "Reopen saved Scroll $eventId"
-        // The Universe screen refreshes on its own reconciliation cycle; if the
-        // freshly projected card is not visible yet, an extra Home refetch catches up.
-        compose.waitUntil(15_000) {
-            compose.onAllNodesWithContentDescription(traceDescription).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithContentDescription("Return to the universe").fetchSemanticsNodes().isNotEmpty()
+        // Saved Traces live in Keep (the dock), each described by its Scroll's title (#72 audit A4);
+        // the Keep screen reads the universe when it opens, so a card projected just after is
+        // caught by opening it once more.
+        val traceDescription = "Reopen saved Scroll ${kept.item.title}"
+        var found = false
+        repeat(3) {
+            if (found) return@repeat
+            compose.waitUntil(15_000) { compose.onAllNodesWithText("Keep").fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodesWithText("Keep")[0].performClick()
+            found = runCatching {
+                compose.waitUntil(8_000) { compose.onAllNodesWithContentDescription(traceDescription).fetchSemanticsNodes().isNotEmpty() }
+            }.isSuccess
+            if (!found) compose.onAllNodesWithText("Atlas")[0].performClick()
         }
-        if (compose.onAllNodesWithContentDescription(traceDescription).fetchSemanticsNodes().isEmpty()) {
-            val home = compose.onAllNodesWithContentDescription("Return to the universe")
-            if (home.fetchSemanticsNodes().isNotEmpty()) home[0].performClick()
-            compose.waitUntil(15_000) { compose.onAllNodesWithContentDescription(traceDescription).fetchSemanticsNodes().isNotEmpty() }
-        }
-        compose.onNodeWithContentDescription(traceDescription).assertIsDisplayed().performClick()
+        check(found) { "Keep never showed the saved Scroll" }
+        compose.onNodeWithContentDescription(traceDescription).performScrollTo().assertIsDisplayed().performClick()
         waitText("SAVED FROM YOUR KEEP")
         openExplainSheet()
         assertVisible("No explanation was recorded for this Scroll.")
@@ -159,7 +164,7 @@ class ReaderExplainJourneyTest {
         openExplainSheet()
         val before = store().read() ?: error("Expected a persisted reading session")
         compose.activityRule.scenario.recreate()
-        // Mirrors the existing Sources sheet: recreation may or may not keep the sheet
+        // Mirrors the other reader sheets: recreation may or may not keep the sheet
         // open (rememberSaveable through the same key), so both outcomes are handled
         // and the observed one is reported rather than assumed.
         waitReading()

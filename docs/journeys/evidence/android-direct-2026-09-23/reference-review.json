@@ -1,0 +1,16 @@
+{
+  "id": "20260923-203353-read-only-bounded-review-fb6e",
+  "model": "MiniMax-M3",
+  "provider": "minimax",
+  "status": "done",
+  "exit_code": 0,
+  "tokens": {
+    "estimated_total": 138792,
+    "input": 1650,
+    "output": 8246,
+    "cache_read": 128896,
+    "total": 138792,
+    "cost_usd": 0.018124
+  },
+  "disposition": "Pointers verified centrally. Rejected recommendation to omit ship: conflicts with explicit owner brief. Old source line references and inferred acceptance statements are not runtime proof."
+}

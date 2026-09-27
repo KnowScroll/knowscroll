@@ -11,7 +11,7 @@ import org.junit.Test
  * the spec clause -- stated plainly rather than overclaimed:
  *
  * - **Sheet motion**: ModalBottomSheet's entrance/exit animation is a real, running animation
- *   today (SourceSheet/ExplainSheet in ScrollScreen.kt). Whether it already happens to respect the
+ *   today (ExplainSheet in ScrollScreen.kt). Whether it already happens to respect the
  *   platform's animator duration scale depends on internals of the pinned Compose/Material3
  *   version, not on any code in this app -- nothing here reads or reacts to that setting. Proving
  *   the actual suspended-vs-not behaviour needs either an instrumented/emulator run (a Robolectric

@@ -48,6 +48,14 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(reasonText.length).toBeGreaterThan(0);
     await expect(page.getByText('DOCUMENTED', { exact: false }).first()).toBeVisible();
     await expect(page.getByText(/Directly supported by strong cited evidence/).first()).toBeVisible();
+    // #133: "What led here" reads the recorded explanation back from the API. This fixture library
+    // carries no substrate (no concepts, no bridges), so the Composer could only serve this Scroll
+    // as an unmapped fallback: an honest empty path, and nothing offered to correct. The full path
+    // and its correction are journey G (e2e-why/, scripts/run-web-why-journey.ts).
+    const whatLedHere = page.getByRole('region', { name: 'What led here' });
+    await expect(whatLedHere.getByText('Nothing you did led here; it was offered so nothing in the library stays hidden.')).toBeVisible();
+    await expect(whatLedHere.getByText('fallback', { exact: true })).toBeVisible();
+    await expect(whatLedHere.getByRole('group', { name: 'Correct this route' })).toHaveCount(0);
 
     // Source rail: keyboard toggle ('s'), attributes on the outbound link.
     await stage.focus();
@@ -60,6 +68,10 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(href).toMatch(/^https:\/\//);
 
     // Verify against the real backend: the stored exposure event genuinely exists and is an "exposure".
+    // The poll above only proves the request was sent; the receipt is persisted when the response
+    // lands. Wait for that effect (the same idiom as the reload test below) rather than assume the
+    // UI steps in between outlast the response — on a loaded runner they did not (main 91f2a5d).
+    await expect.poll(async () => (await readStoredSession(page))?.exposureEventId ?? '', { timeout: 8000 }).not.toBe('');
     const stored = await readStoredSession(page);
     expect(stored?.exposureEventId).toBeTruthy();
     const eventResponse = await apiFetch(`/v1/events/${stored!.exposureEventId}`);
@@ -123,7 +135,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
 
     await page.getByRole('button', { name: 'Return to Universe' }).click();
     // This is the run's first Keep: the real stage now has 1 kept Trace (ui-system.md sec.5c).
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     const trace = page.getByRole('button', { name: new RegExp(`Revisit the saved Trace: ${title}`) });
     await expect(trace).toBeVisible();
 
@@ -149,7 +161,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
   test('a saved-Trace revisit is read-only: verified origin, no new exposure, exact return', async ({ page }) => {
     await page.goto('/');
     // 1 Trace already kept by this point in the run.
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     const traceButton = page.getByRole('button', { name: /Revisit the saved Trace/ }).first();
     await expect(traceButton).toBeVisible();
 
@@ -165,7 +177,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     expect(exposureRequests).toHaveLength(0);
 
     await page.getByRole('button', { name: 'Return to Universe' }).click();
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
   });
 
   test('reload restores the current Scroll and its retry envelope from storage', async ({ page }) => {

@@ -1,0 +1,734 @@
+{
+  "at": "2026-09-24T20:03:13.694Z",
+  "database": "knowscroll_test_hands_ff16f8644a16",
+  "transport": "minimax",
+  "model": "MiniMax-M3",
+  "apply": true,
+  "versions": {
+    "prompt": "scroll-writing-prompt-v1",
+    "reply": "scroll-reply-v1",
+    "checks": "scroll-checks-v1",
+    "hosts": "material-hosts-v1"
+  },
+  "planSha256": "b4bea35572826aa317a43fc661179835cc20f3780aeee7ab6501f17bc78cc2ee",
+  "counts": {
+    "planned": 35,
+    "admitted": 18,
+    "refused": 17,
+    "alreadyDecided": 0,
+    "ready": 0,
+    "notSent": 0,
+    "failed": 0,
+    "notAttempted": 0
+  },
+  "stopped": null,
+  "ledger": {
+    "used": 70,
+    "cap": 190
+  },
+  "items": [
+    {
+      "index": 0,
+      "url": "https://spaceplace.nasa.gov/what-is-gravity/en/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "6a1aff97efab168c9d401f23cf3249c911f4a4b0fb73760013adfd3f9947ad52",
+      "requestSha256": "dbb42ae511e57ccaee3f632041bc83b513c32b97f353ca68bacc629229f2c750",
+      "inputBytes": 6033,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1259,
+        "outputTokens": 876,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "8fea15b0-3938-4c8f-a3a5-3e69dca26ab0",
+      "writingId": "a48ba53e-5a49-4557-a5a0-6353be858875"
+    },
+    {
+      "index": 1,
+      "url": "https://spaceplace.nasa.gov/seasons/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "6fa553f7a9b76a77518a58bb5794d4ea8658672f2c0e82d121d36742e491a31d",
+      "requestSha256": "082db757d542f0c541e6e52d33c3435eaf05a8dc026c007f67b12dc13a76fb76",
+      "inputBytes": 6286,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1378,
+        "outputTokens": 840,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "613af51a-e11a-4f17-93ec-d86d9a4fc129"
+    },
+    {
+      "index": 2,
+      "url": "https://spaceplace.nasa.gov/greenhouse/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "23ea85811e634169a2311ace40bc56218e6ec6a92840ba4748c1c052793f298a",
+      "requestSha256": "4c2eaa3c1d09e7bda6205b1990138257732b85e5d87e1cc1af02005f4c709bc5",
+      "inputBytes": 10285,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2187,
+        "outputTokens": 740,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "c810f019-4723-4097-9f64-56ca94c5866b"
+    },
+    {
+      "index": 3,
+      "url": "https://spaceplace.nasa.gov/years-on-other-planets/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "f708dd950619f1ecdf09fef6566ef56578694e743ed6afe9b35ac942a6908f12",
+      "requestSha256": "29a6df9d00e73d1916d32e3b5e33ee4784a158b6698d755cb49976b2a46a9fa9",
+      "inputBytes": 5529,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1268,
+        "outputTokens": 569,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "ab712675-bbc5-4d0e-8b16-d708b174e248"
+    },
+    {
+      "index": 4,
+      "url": "https://spaceplace.nasa.gov/all-about-the-sun/en/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "a19d3e513acdefcad09568f33a57a9045c443d74f2647b4cbb65a68fb144c12c",
+      "requestSha256": "e722018094f5d58f948e7e9e9ff5cad30211c40ea11af3a8fe7b635c9d9a45db",
+      "inputBytes": 7011,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1557,
+        "outputTokens": 786,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "b09dc3d9-cac7-47a3-b62e-d2ee32481337",
+      "writingId": "4d7b1b02-6f06-46cd-9526-63ddeb120785"
+    },
+    {
+      "index": 5,
+      "url": "https://spaceplace.nasa.gov/sun-age/en/",
+      "status": "refused",
+      "reasons": [
+        "shape_invalid"
+      ],
+      "materialSha256": "eea5c53c691a23c7489db40ccf7bd91a7fa4295a14830f8cad052bcfbe0a487e",
+      "requestSha256": "43e9d7231ffed362c56903d5e06c095b3b7b87279d5409cc9661f34746b576cf",
+      "inputBytes": 3918,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 901,
+        "outputTokens": 578,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "42ee9668-4099-4b05-b640-5e1cdf792469"
+    },
+    {
+      "index": 6,
+      "url": "https://spaceplace.nasa.gov/sun-compare/en/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "cdbb1784b986cc99993e3ee569b3167d1da8316e550b02feff902b17a5829a6e",
+      "requestSha256": "281e77a8554053eb9aa5d4eae96792bfa3e993b8b350efc77d9bb7f85400394c",
+      "inputBytes": 4374,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 977,
+        "outputTokens": 622,
+        "cacheReadTokens": 147,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "cb8d045d-adf2-43ae-9416-1e20b0fcf929",
+      "writingId": "e66e29fc-7675-4940-a0e6-81911d29bb7d"
+    },
+    {
+      "index": 7,
+      "url": "https://spaceplace.nasa.gov/moon-phases/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "046544c94c72f5d1d1e1b74ca8632dc1cd43c202da753d9b98c5dd8934dd399f",
+      "requestSha256": "9653dfb789f7ee965f7d257d1dcd98df393c72bd0818177ea1944d82197fb53e",
+      "inputBytes": 6168,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1511,
+        "outputTokens": 678,
+        "cacheReadTokens": null,
+        "cacheWriteTokens": null,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "602df909-03c8-4792-9f76-baa492f6b1ac"
+    },
+    {
+      "index": 8,
+      "url": "https://spaceplace.nasa.gov/sun-heat/en/",
+      "status": "refused",
+      "reasons": [
+        "shape_invalid"
+      ],
+      "materialSha256": "e63c4f4dc9cb61655cfd8d0232ae66db127032d5c911e163c6497213c3401566",
+      "requestSha256": "b2f6accadc35e002d1bfcf97faf0156fc13bfe30ab950402a4eafb2a474daf2c",
+      "inputBytes": 4855,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1075,
+        "outputTokens": 726,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "9763aecc-4e29-4faf-9438-aa793450d5eb"
+    },
+    {
+      "index": 9,
+      "url": "https://spaceplace.nasa.gov/solar-activity/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "a7945515c0e4b35c9e2dde5a8d32a3e51ff8c6cc66d73ba6d871cb556d8138e5",
+      "requestSha256": "5eb3ffc730cd45c2b4f9823323bbfcca11d8b656d8546f87b631cea603dde6d4",
+      "inputBytes": 5730,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1223,
+        "outputTokens": 713,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "ddb34b9b-0dfe-4052-bffe-d1988fa50618"
+    },
+    {
+      "index": 10,
+      "url": "https://spaceplace.nasa.gov/supernova/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "9762ad9549567e9b38e51da572f528f4c0cced499792b6c488a6ca5e6735d411",
+      "requestSha256": "77038ffa347b324cc56249d9e9a379a6faa4a9544cf9266b2624a22c81a88891",
+      "inputBytes": 7018,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1492,
+        "outputTokens": 761,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "f89ee6be-265a-4ab0-88e7-1544d24da9a1"
+    },
+    {
+      "index": 11,
+      "url": "https://spaceplace.nasa.gov/nebula/en/",
+      "status": "refused",
+      "reasons": [
+        "copied_passage",
+        "beat_count"
+      ],
+      "materialSha256": "6028aa9e6d717354cbdd74e66b01fe1c0eb3b53deb27fb2f9f3548aa2b9eda4a",
+      "requestSha256": "b7e3c3b7f25d103a40a69578e1bf546eb985dd3be227f07562565ad2cc2f709b",
+      "inputBytes": 5142,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1145,
+        "outputTokens": 678,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "7f43b8c3-d712-46f7-b76e-9c12026b9984"
+    },
+    {
+      "index": 12,
+      "url": "https://spaceplace.nasa.gov/black-holes/en/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "f05e78ac622e46346d0e2842adc09e17440509a382d3c968cde849d69388e6b8",
+      "requestSha256": "5a9989bd04eb4aff64796c9423b9a3af99768ef6ccc754b040c3104b249a4a60",
+      "inputBytes": 4601,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1012,
+        "outputTokens": 732,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "fe06280e-f98a-4fa5-be20-a03f0a686073",
+      "writingId": "bd337c8f-b23e-4edb-8852-78b749817eaa"
+    },
+    {
+      "index": 13,
+      "url": "https://spaceplace.nasa.gov/moon-distance/en/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "0e672dbcc7ac07f39fbbacfbf56e9925b6b67a7fd852854818b714e12d046add",
+      "requestSha256": "c591da3e2e9b6b3314c9a6acbf5e996a0ff0b8f7ce47507f87468fec6126e382",
+      "inputBytes": 5166,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1158,
+        "outputTokens": 560,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "cd73cfb9-5aff-4c86-a004-246a88ec5f44"
+    },
+    {
+      "index": 14,
+      "url": "https://science.nasa.gov/moon/tides/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "495fc3f27c70dd007d9c83dabf8953ebe93cd80aaf61e0dd75efb6490bcaf5a2",
+      "requestSha256": "3b65ffaa9073334b5a8d600d67b829243d0e1d35f2f552ab86e455037fc7f9d8",
+      "inputBytes": 11667,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2445,
+        "outputTokens": 1017,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "714b5eae-0e12-4861-9d83-73d2b839b39c",
+      "writingId": "c9377f95-9352-4908-b68c-87eceb4b9f16"
+    },
+    {
+      "index": 15,
+      "url": "https://science.nasa.gov/moon/facts/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "07a4104eaabd0d0407fa4fdc1a1d292095925d36063ab43daee726ecf0db2bd4",
+      "requestSha256": "ae2f3c2ddba492a353a4d3fea86743d95b82152c56433b73438fba6392fd10d8",
+      "inputBytes": 11686,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2455,
+        "outputTokens": 919,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "0f0208e6-c7c5-47d7-b071-99278cc755f9"
+    },
+    {
+      "index": 16,
+      "url": "https://science.nasa.gov/earth/facts/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material",
+        "copied_passage"
+      ],
+      "materialSha256": "5ecf128cc032c8fbb4e1a200732dbaafca1a641ca4a363bde6fd9168c26be526",
+      "requestSha256": "8a5787a5a7ddf2f79bc7a3e17abb78631e75dd5f094edfa7516da0994c81f8ad",
+      "inputBytes": 12750,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2713,
+        "outputTokens": 814,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "70393e55-5b37-464b-ae29-08def396ee3c"
+    },
+    {
+      "index": 17,
+      "url": "https://science.nasa.gov/climate-change/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "dda6f2186cb4064bd942923cf53ead6698d8d91351d8b093c6bba080cea6efbc",
+      "requestSha256": "263393f22e62bdb19801ded24c0d6ca73931b644df1d034a0ce1b476a7063363",
+      "inputBytes": 7690,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1337,
+        "outputTokens": 777,
+        "cacheReadTokens": 256,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "8c3afd23-48db-41a5-b860-f518c777c840",
+      "writingId": "c3bd6a10-df8d-4b79-a698-60d7ae73b616"
+    },
+    {
+      "index": 18,
+      "url": "https://science.nasa.gov/sun/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "49c71bee37c0c32040c8d40ea2425563e2f0c1815b5f92d96cb1538abfb37c98",
+      "requestSha256": "aea4cdf01a3cbb884ad9642206795ee654e5e93075570c2f88666f5183c7e6f0",
+      "inputBytes": 6216,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1318,
+        "outputTokens": 713,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "674d1f6e-ddbf-4a5a-b1b1-b83178b25018",
+      "writingId": "3d0c1ac1-8a17-4f82-b10b-0103ecdc4525"
+    },
+    {
+      "index": 19,
+      "url": "https://science.nasa.gov/moon/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material",
+        "copied_passage"
+      ],
+      "materialSha256": "f18476be23d6b23328242441e809bc4de688c45ecf6e70f604590c8c07cd25a6",
+      "requestSha256": "4d9d1b526092c51d7088cce9438dbf2297824da32af29bc50951fac423dc2340",
+      "inputBytes": 8635,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1827,
+        "outputTokens": 742,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "100d5334-ebba-42f8-9f00-e200b4ef71fe"
+    },
+    {
+      "index": 20,
+      "url": "https://science.nasa.gov/universe/stars/types/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material",
+        "copied_passage"
+      ],
+      "materialSha256": "23c2dc4d81618d850ce3f23d361aa8f3c427f5d6dde86b6bb49aa6efaddd13f0",
+      "requestSha256": "a1b3d7d9bee56d85bb793ec29e20bb3fbce1179c15ee6fe9772591ad5edcbef3",
+      "inputBytes": 11474,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2406,
+        "outputTokens": 1050,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "8a9d7e70-d4a5-464f-b2f6-8c350b2cb704"
+    },
+    {
+      "index": 21,
+      "url": "https://science.nasa.gov/solar-system/solar-system-facts/",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "50718b0ba6d133b0c259ff080f29c1bdd228b6161753672829a4b1b2bb0fa3d9",
+      "requestSha256": "10a39040e41fbd14f83c4a3d705b4cbef356d0568a9c84ee5419e51693da0089",
+      "inputBytes": 9665,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2083,
+        "outputTokens": 844,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "86e6603f-2b20-41a5-8890-ca6a73f595cb"
+    },
+    {
+      "index": 22,
+      "url": "https://science.nasa.gov/climate-change/evidence/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "156ff2456c0ec8ed7c67bc5a4fc7e1fc3bfd3ad55dffb214f3e832288795e812",
+      "requestSha256": "22665e305d7e99af12df916a6097599ce2405720f476baac116e02c67167687e",
+      "inputBytes": 15825,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 3819,
+        "outputTokens": 795,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "48926b38-b573-4f75-915f-46d68d898107",
+      "writingId": "1f30d1d8-2e32-4f54-b26c-30b554fce83d"
+    },
+    {
+      "index": 23,
+      "url": "https://science.nasa.gov/climate-change/causes/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "a2f6286af23391bf339b567ad0c79dc92bf4099cf74475c7e7e642ff6e090b0d",
+      "requestSha256": "fdae6ec9d32d3248d150493912dcd3d95b395c268fe18dd5674b0c5f52c552e0",
+      "inputBytes": 10529,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2173,
+        "outputTokens": 732,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "19929540-241a-4757-bc8d-33e9012b8ada",
+      "writingId": "3e853f85-2bd8-4a68-8222-e8ee91cf3c72"
+    },
+    {
+      "index": 24,
+      "url": "https://science.nasa.gov/climate-change/effects/",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "30cee5799842d7e398fcb738247bd479e216c2a5b06c36dc491d5473eb375924",
+      "requestSha256": "ff67b943596ddc11b629700cf22efa3595304da74c2d437c41bc4507603b46a9",
+      "inputBytes": 12915,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 2195,
+        "outputTokens": 829,
+        "cacheReadTokens": 484,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "5b93b002-300a-46f6-984d-7df2fc9eabff",
+      "writingId": "97170cf5-1a91-49db-97c9-feb81e7f952e"
+    },
+    {
+      "index": 25,
+      "url": "https://oceanservice.noaa.gov/facts/tides.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "5a461ada00ed4f4bfd4b2dd6ed588d0af68a1186982496f02aeda24e1f022480",
+      "requestSha256": "0c7d1471dfac165711fb0287799674f29ef1cfcfaca1c17b4fb18286083ef536",
+      "inputBytes": 3416,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 730,
+        "outputTokens": 583,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "a46e6df0-d9d4-4c44-b152-b42aac525290",
+      "writingId": "df3cc629-a6ee-42b5-907c-3466e0117f8c"
+    },
+    {
+      "index": 26,
+      "url": "https://oceanservice.noaa.gov/facts/springtide.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "2f9112ae49006b1338bd261ad22e26374acb821943d0e25057ebbb3aec03d9f1",
+      "requestSha256": "2c749ba81d431aca30191904f136bb551a5758d1383f937bd4b047bf22ced9a2",
+      "inputBytes": 5709,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1053,
+        "outputTokens": 801,
+        "cacheReadTokens": 256,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "dca17b69-ca8a-4109-a92d-ca7bb83afdab",
+      "writingId": "869bfdb0-8005-4f9c-9541-eca626e6ca56"
+    },
+    {
+      "index": 27,
+      "url": "https://oceanservice.noaa.gov/facts/kingtide.html",
+      "status": "refused",
+      "reasons": [
+        "quote_not_in_material"
+      ],
+      "materialSha256": "192ffe28555f9e6cefef2c1bb0341cb31b926967d13513c614cb5d3aca43bd5a",
+      "requestSha256": "af9c49e3ccb8dd7f91f31b7128f216277c822eef3d4c0af3c67b405f3c987c5a",
+      "inputBytes": 4089,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 587,
+        "outputTokens": 527,
+        "cacheReadTokens": 384,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "3e8fcace-0078-4c3b-aaf3-eb21aa337990"
+    },
+    {
+      "index": 28,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides01_intro.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "b6104f7de9f6307a0d4a961d1f4bb89074b19c255254e2c4e096aed54510c402",
+      "requestSha256": "113d9835c9eab55bdbbc8db8d4f1c86c852ac50a8cd38e2c3cff2fe4b3e6f359",
+      "inputBytes": 4662,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 968,
+        "outputTokens": 733,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "5d158d0a-6254-47ef-89c5-4c19de186381",
+      "writingId": "1438148f-21e6-46df-9b79-c2043ddd5910"
+    },
+    {
+      "index": 29,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides02_cause.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "c604b7c5cb9f795d5b7895121236dfbe5423e8e6b8c4ea32ef54f5d787052e54",
+      "requestSha256": "a334f9039aba4aaf15db855e2d4fe0347c91fe216085d21b0568785ec87b1187",
+      "inputBytes": 5366,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1116,
+        "outputTokens": 783,
+        "cacheReadTokens": 148,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "696121e4-0bb8-4050-8e15-792e60db2b0b",
+      "writingId": "e965736a-2a5e-4285-ad29-684539174718"
+    },
+    {
+      "index": 30,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "bf5e19f8fedc1c72d0e4dd326b63688b8dad638310451e116d5a3838b65ea288",
+      "requestSha256": "07c06fc50baf60c7447b14998650a2c85c04e6c1ab85f14975d19226d86d5f40",
+      "inputBytes": 5033,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1059,
+        "outputTokens": 938,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "e61f88ae-82c3-42d3-be4d-c2542ae21606",
+      "writingId": "d8778b30-ec7f-45c4-b640-acdcc31cf573"
+    },
+    {
+      "index": 31,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides04_angle.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "5568baa1e04439da7cf37734e9fe1b2a0b4fd6206445fd7fa6731bd385697dd8",
+      "requestSha256": "cbb46ce6a985e6a0c49c6638952adba90ba4f83fb39f9ed8d472753b1da2bbf4",
+      "inputBytes": 4419,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 931,
+        "outputTokens": 880,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "378c023f-c810-4cdc-8b59-0fb60d33ab33",
+      "writingId": "91325500-4de8-42a3-b8e3-27a6ba182cdd"
+    },
+    {
+      "index": 32,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides05_lunarday.html",
+      "status": "refused",
+      "reasons": [
+        "shape_invalid"
+      ],
+      "materialSha256": "e99ce62121bb82dc5eaa4a5194255e433ba745b675871c211012fa7af28b4ad3",
+      "requestSha256": "ab6db608d9bd09edeb8cca3f93628493f460e95253ec9540c95d1ce09574ef39",
+      "inputBytes": 4860,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1054,
+        "outputTokens": 782,
+        "cacheReadTokens": 128,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": null,
+      "writingId": "6992df24-586e-41e2-a89a-dc1aaee7a65c"
+    },
+    {
+      "index": 33,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides06_variations.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "d77a43791913c299d2ad7aaa083e888b08c86933c9749c631a2ff060f27056f9",
+      "requestSha256": "2eeddca86cc6aee9ca329da550304f5ca55e1a12bcc512eb94b4a2adb265b3f2",
+      "inputBytes": 5992,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 1049,
+        "outputTokens": 939,
+        "cacheReadTokens": 384,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "ee4f3955-74c3-49f9-81de-09c4f5ea4466",
+      "writingId": "407b6c55-7bf8-4111-bb31-57f898b0c199"
+    },
+    {
+      "index": 34,
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides07_cycles.html",
+      "status": "admitted",
+      "reasons": [],
+      "materialSha256": "abd77fd5e5ee9d08ed017d5baa386f72570beaef46fdf21a71706ae1e60d3b73",
+      "requestSha256": "74cec41d2fe3bbfd755a8f34197f63a47dbf0833369098af248fdfc6d2e1b07a",
+      "inputBytes": 5672,
+      "httpStatus": 200,
+      "usage": {
+        "inputTokens": 822,
+        "outputTokens": 812,
+        "cacheReadTokens": 512,
+        "cacheWriteTokens": 0,
+        "costMicroUsd": null
+      },
+      "assetId": "b9b25e9f-4314-4db6-af31-b87636e4eaab",
+      "writingId": "8b6d8148-6c8b-4031-979c-862303947de8"
+    }
+  ]
+}

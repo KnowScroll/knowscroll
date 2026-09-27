@@ -1,0 +1,54 @@
+{
+  "reviewer": "MiniMax-M3 via pi-orchestra",
+  "run": "20260922-231431-read-only-final-correctn-543b",
+  "exitCode": 0,
+  "tokensTotal": 193954,
+  "costUsd": 0.014676,
+  "dispositions": [
+    {
+      "finding": "Failed first mode load restores old kind on restart",
+      "result": "Confirmed and fixed. Selected-kind bank is authoritative; missing envelope retains selected-kind retry state. Added cold-store regression."
+    },
+    {
+      "finding": "Trace fetch can overwrite mode switch",
+      "result": "Rejected after source verification. Trace result checks navigationVersion and epoch after await; UI mutations run on the main dispatcher. Cable tabs are not mounted for Trace revisit."
+    },
+    {
+      "finding": "Mode switch interleaves between selectDiscovery and store.write",
+      "result": "Rejected after source verification. No suspension point exists in that main-thread block; version/epoch checks follow the HTTP await."
+    },
+    {
+      "finding": "Unavailable live Reel swipe opens explanation",
+      "result": "Intentional honest behavior for the absent live contract. Actual branches are user-testable in the explicit authored preview. No fabricated live relationship."
+    }
+  ],
+  "coordinatorRuntimeFixes": [
+    "active session pointer on mode return",
+    "camera holder across authority revalidation",
+    "fixed image placeholder size preserves nonzero branch reading position",
+    "asset/revision keyed preview Reel restoration"
+  ],
+  "otherDelegation": [
+    {
+      "run": "20260922-222419-read-only-bounded-androi-4e32",
+      "outcome": "Read-only initial review completed",
+      "tokensTotal": 115247,
+      "costUsd": 0.015776
+    },
+    {
+      "run": "20260922-222511-implement-bounded-androi-ea44",
+      "outcome": "Stalled exit124; no draft accepted",
+      "estimatedTotalReported": 5537113
+    },
+    {
+      "run": "20260922-224025-recovery-of-stalled-run-6157",
+      "outcome": "Only permitted tighter retry also stalled exit124; no draft accepted",
+      "estimatedTotalReported": 1046059
+    }
+  ],
+  "usageBoundary": "Estimated totals are runner char estimates with duplicated partial streams, not exact model usage. Review receipts are exact where present. pio stats is account-wide, not this task.",
+  "postRunQuota": {
+    "fiveHourRemainingPercent": 87,
+    "weeklyRemainingPercent": 95
+  }
+}

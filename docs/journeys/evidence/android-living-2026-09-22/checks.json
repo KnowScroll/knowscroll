@@ -1,0 +1,104 @@
+{
+  "source": "518c0c3b343a8870356c572197be5dc192b3d13b",
+  "main": "91e5b72a088f1d949c8b58de2b0a0d021230a517",
+  "typecheck": "passed (exit 0)",
+  "androidBuild": [
+    "assembleDebug",
+    "assembleDebugAndroidTest",
+    "lintDebug",
+    "testDebugUnitTest"
+  ],
+  "androidBuildResult": "passed",
+  "unit": {
+    "tests": 92,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "emulator": "API36 arm64, host GPU, separate com.knowscroll.mobile.journey",
+  "scenarios": [
+    {
+      "name": "worlds",
+      "passed": 3,
+      "localLog": "artifacts/android-living/verified-worlds.log"
+    },
+    {
+      "name": "readers",
+      "passed": 4,
+      "localLog": "artifacts/android-living/verified-readers.log"
+    },
+    {
+      "name": "native",
+      "passed": 4,
+      "localLog": "artifacts/android-living/verified-native.log"
+    },
+    {
+      "name": "cable",
+      "passed": 1,
+      "localLog": "artifacts/android-living/verified-cable.log"
+    },
+    {
+      "name": "privacy",
+      "passed": 1,
+      "localLog": "artifacts/android-living/verified-privacy.log"
+    },
+    {
+      "name": "atlas",
+      "passed": 1,
+      "localLog": "artifacts/android-living/verified-atlas-rerun.log"
+    },
+    {
+      "name": "clock",
+      "passed": 1,
+      "localLog": "artifacts/android-living/final-clock.txt"
+    },
+    {
+      "name": "compactCable",
+      "passed": 1,
+      "localLog": "artifacts/android-living/compact-cable-rerun.log"
+    }
+  ],
+  "sourceBoundary": "Final functional suites ran at cd00057; atlas rerun and retained preview at 518c0c3. The latter changes only SO_REUSEADDR in the Python runner. Clock test precedes final content-only fixes; clock implementation unchanged.",
+  "providerCalls": 0,
+  "ownerDatabaseMutation": false,
+  "scenarioConfigRuns": 16,
+  "visiblePreviewSetup": {
+    "passed": 1,
+    "runtime": {
+      "database": "knowscroll_test_native_76cf2b52091ca64c",
+      "apiPort": 4322,
+      "pids": [
+        66636,
+        66637
+      ],
+      "source": "518c0c3b343a8870356c572197be5dc192b3d13b",
+      "package": "com.knowscroll.mobile.journey",
+      "fixture": true,
+      "compact": false,
+      "providerCalls": 0,
+      "createdAt": "2026-09-22T18:23:26.201060+00:00"
+    },
+    "health": "4322 and original 4320: status ok, database true",
+    "display": "1080x2400, font scale 1.0"
+  },
+  "localMotion": {
+    "path": "artifacts/android-living/verification/LivingAtlasJourneyTest/living-motion.mp4",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1080,
+          "height": 2400
+        },
+        {},
+        {}
+      ],
+      "format": {
+        "duration": "30.643733",
+        "size": "4523553"
+      }
+    }
+  }
+}

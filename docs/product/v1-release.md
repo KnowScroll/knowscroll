@@ -2,11 +2,29 @@
 
 Status: accepted owner scope, 2026-09-16; implementation and release acceptance remain incomplete. Release tracker: [#72](https://github.com/KnowScroll/knowscroll/issues/72).
 
-## Owner decision
+## September 24 current scope and delivery order
+
+This dated owner direction supersedes the September16 inclusion of Social/Blend in the current
+personal release. ADR-0026 already accepts exactly one owner account; the owner now asks for
+Social/Blend as a separate future project item. It is preserved in [deferred #137](https://github.com/KnowScroll/knowscroll/issues/137),
+which replaces #11; it is not implemented or silently discarded. JourneyF/shared social rooms
+are future acceptance there, not a blocker for the current single-user release.
+
+Implement all six personal phases [#131–#136](../handoffs/2026-09-24-core-to-android.md),
+with runtime verification and maintainability throughout: semantic foundations, product reasoning,
+complete Composer, living worlds/inventory connected to Android, owner access/privacy/release
+clients, and continuous verification/performance/acceptance. Android comes first; desktop remains
+required. Personal rooms, inhabitants, Relics, correction and away-time evolution remain in scope.
+
+The owner handles Cutroom #9 last. Preserve final generated-series/video acceptance as open;
+pre-video completion is not full-v1 completion. No new provider budget, deployment or owner-data
+mutation authority follows from this sequencing. Keep #72, Project1 and the handoff consistent.
+
+## Historical September16 owner decision
 
 **v1 is the entire documented user experience with the full polished UI, integrated with the real video harness and tested as one working product.** Owner Alpha is an intermediate delivery checkpoint. Completing a backend foundation, an isolated feature, a prototype or Owner Alpha does not complete v1.
 
-This decision supersedes the narrower suggestion that v1 could mean only Owner Alpha with video generation and social experience deferred. The existing [product definition](definition.md), including journeys A–I and the three delivery phases, supplies the functional scope. Bootstrap, Owner Alpha, Living Worlds and Worlds Collide remain useful sequencing milestones; none is an automatic exemption from the full-experience v1 gate. The earlier rough completion estimate for Owner Alpha is not a completion estimate for this larger v1.
+The September16 decision superseded the narrower Owner Alpha proposal. Its social inclusion is superseded by the dated single-user direction above; its real-video and full personal-experience requirements remain. The existing [product definition](definition.md), including journeys A–I and the three delivery phases, supplies the functional scope. Bootstrap, Owner Alpha, Living Worlds and Worlds Collide remain useful sequencing milestones; none is an automatic exemption from the full-experience v1 gate. The earlier rough completion estimate for Owner Alpha is not a completion estimate for this larger v1.
 
 Product laws, accepted ADRs and [visual/interaction direction](design-direction.md) remain authoritative. Reel and Scroll are the only consumption objects. KnowScroll owns evidence, meaning and publication; [Cutroom stays a separate HTTP service](../decisions/0007-cutroom-separate-http-service.md). Contract/schema names containing `v1` do not imply that the product release is complete.
 
@@ -19,7 +37,7 @@ Product laws, accepted ADRs and [visual/interaction direction](design-direction.
 | Discovery and reasoning | Useful sourced inventory, retrieval/ranking/diversity, continuous branches, authorized questions and results, bounded execution and recovery; behavior is evidence rather than proof of belief | #5, #7, #8, #66 |
 | Personal and living worlds | Evidence-backed semantic bridges, revisable hypotheses, explained geography, world changes while away, rooms, bounded inhabitants and typed Relics, with source lineage and safe execution | #6, #10 |
 | Video and generated encounters | Real Cutroom generation integrated through validated import, truth/continuity checks, eligible inventory, mobile playback and continuing branches | #8, #9 |
-| Social experience | Selected shared projections, visits, co-voyage/shared rooms and revocable Blend, with independent private universes and permission boundaries | #11 |
+| Deferred social experience | Selected projections, visits, co-voyage/shared rooms and revocable Blend; future multi-user acceptance, outside current single-user release | #137 (supersedes #11) |
 | Acceptance and operations | Joined runtime proof, owner experience review, release build/deployment/recovery evidence and explicit defect/limitation disposition | #12 |
 
 The product definition remains the detailed checklist; this table does not narrow it. Native Android remains the chosen first implementation. Full v1 must demonstrate both the mobile and desktop release UI against the product definition's §9.5 interaction contracts, with one coherent experience across them. Implementation order does not waive either surface; excluding one requires a later explicit owner scope reduction recorded here and in #72.
@@ -42,14 +60,14 @@ Fixtures are valid for fault coverage but cannot establish live Cutroom integrat
 
 ## End-to-end acceptance
 
-All nine [core product journeys](definition.md#10-core-user-journeys) must have revision-bound receipts using the real joined components and release UI:
+The applicable personal [core product journeys](definition.md#10-core-user-journeys) require revision-bound receipts using real joined components and release UI. JourneyC completes after owner-led Cutroom; JourneyF is preserved for deferred #137:
 
 - A: replace a doomscroll reflex with effortless discovery and a useful trace.
 - B: follow a continuous branch, interact, disagree, enter its world and retain a Relic.
 - C: ask for a continuing generated series, inspect assumptions and watch truth-labelled results and alternatives.
 - D: discover an emerging world and inspect why it appeared.
 - E: return to a source-backed world change produced by bounded work while away.
-- F: visit a friend's selected projection and use a temporary Blend without leaking or merging private state.
+- F (deferred #137): visit a friend's selected projection and use a temporary Blend without leaking or merging private state.
 - G: inspect and correct a wrong connection through evidence-safe controls.
 - H: revisit a prediction and its evidence without the system declaring a psychological truth.
 - I: pause, export, clear/reset or leave with correct personal/shared ownership consequences.
@@ -60,6 +78,6 @@ For each journey, #12 records the intended outcome, UI entry/return, exact build
 
 ## Completion and tracking rule
 
-Keep #72 open until every release area above and journeys A–I have implementation, joined-runtime evidence and owner acceptance linked. Component issues retain their detailed acceptance; a completed child prerequisite does not close a broad epic. Track capability coverage, remaining dependencies and blockers rather than calculating v1 completion from closed issue counts. Any future scope reduction must be an explicit owner decision recorded here and in #72.
+Keep #72 open until every applicable personal release area and journeys A–E/G–I have implementation, joined-runtime evidence and owner acceptance linked, including final real Cutroom for C. Deferred social area/JourneyF is tracked separately in #137. Component issues retain their detailed acceptance; a completed child prerequisite does not close a broad epic. Track capability coverage, remaining dependencies and blockers rather than calculating v1 completion from closed issue counts. Any future scope reduction must be an explicit owner decision recorded here and in #72.
 
 Current foundation evidence remains in [PROJECT-STATE](../PROJECT-STATE.md). The bounded #66 context and #75 lifecycle prerequisites are implemented; execution authorization, result acceptance and the broader product dependencies remain open. Writing this contract changes release scope and coordination only; it implements no UI, video integration or product capability.

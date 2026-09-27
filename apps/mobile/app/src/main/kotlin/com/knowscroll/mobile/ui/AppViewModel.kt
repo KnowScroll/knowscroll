@@ -4,8 +4,16 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.knowscroll.mobile.BuildConfig
+import com.knowscroll.mobile.data.AndroidKeyStoreSessionVault
 import com.knowscroll.mobile.data.ApiClient
 import com.knowscroll.mobile.data.ApiException
+import com.knowscroll.mobile.data.AtlasDelta
+import com.knowscroll.mobile.data.AtlasResponse
+import com.knowscroll.mobile.data.RoomDetail
+import com.knowscroll.mobile.data.CredentialProvider
+import com.knowscroll.mobile.data.cableModeFor
+import com.knowscroll.mobile.data.VaultCredentialProvider
 import com.knowscroll.mobile.data.ExposureRequest
 import com.knowscroll.mobile.data.HistoryClearRequest
 import com.knowscroll.mobile.data.HistoryClearReceipt
@@ -18,11 +26,35 @@ import com.knowscroll.mobile.data.TraceRevisit
 import com.knowscroll.mobile.data.TraceRevisitSession
 import com.knowscroll.mobile.data.Universe
 import com.knowscroll.mobile.data.WorldSystemResponse
+import com.knowscroll.mobile.data.BranchFrom
+import com.knowscroll.mobile.data.BranchOpenRequest
+import com.knowscroll.mobile.data.PendingAsk
+import com.knowscroll.mobile.data.WatchedAnswer
+import com.knowscroll.mobile.data.questionIsValid
+import com.knowscroll.mobile.ui.branch.BranchOpenConflict
+import com.knowscroll.mobile.ui.branch.BranchPanel
+import com.knowscroll.mobile.ui.why.WhyAvailability
+import com.knowscroll.mobile.ui.why.WhyPanel
+import com.knowscroll.mobile.ui.why.correctedText
+import com.knowscroll.mobile.ui.branch.branchAvailabilityOf
+import com.knowscroll.mobile.ui.branch.branchOpenConflict
+import com.knowscroll.mobile.ui.ask.AnswerRequestConflict
+import com.knowscroll.mobile.ui.ask.AskPanel
+import com.knowscroll.mobile.ui.ask.AskStage
+import com.knowscroll.mobile.ui.ask.answerRequestConflict
+import com.knowscroll.mobile.ui.ask.askToWatchOnReopen
+import com.knowscroll.mobile.ui.ask.cancelAlreadyStarted
+import com.knowscroll.mobile.ui.ask.reopenedAskPanel
+import com.knowscroll.mobile.ui.ask.requestWatchedAnswer
+import com.knowscroll.mobile.ui.ask.stageAfterPoll
+import com.knowscroll.mobile.ui.system.SetAsideConflict
+import com.knowscroll.mobile.ui.system.setAsideConflict
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 sealed interface Screen {
@@ -32,9 +64,9 @@ sealed interface Screen {
     /** docs/product/ui-system.md sec.5b's Keep destination: a read-only view over the already
      * loaded universe's real Traces. No network fetch of its own -- see `openKeep()`. */
     data object Keep: Screen
-    /** docs/product/ui-system.md sec.5b/5c's system level (#116, ADR-0028/#113): a read-only view
-     * of the real, derived worlds/system geography. No network fetch of its own on entry into
-     * this sealed value -- see `enterSystem()`. */
+    /** docs/product/ui-system.md sec.5b/5c's system level (#116, ADR-0036): a read-only view of the
+     * reader's places. No network fetch of its own on entry into this sealed value -- see
+     * `enterSystem()`. */
     data object System: Screen
 }
 sealed interface UniverseState {
@@ -57,6 +89,8 @@ sealed interface ReaderOrigin {
     data object Discovery:ReaderOrigin
     /** keptAt is the original Keep Ledger's created_at, verbatim from the Trace revisit receipt. */
     data class SavedTrace(val eventId:String,val keptAt:String):ReaderOrigin
+    /** #131: opened by taking a sourced connection from [fromTitle]; Back returns there exactly. */
+    data class Branch(val fromTitle:String,val relationSentence:String,val recorded:Boolean):ReaderOrigin
 }
 sealed interface KeepState {
     data object Idle:KeepState
@@ -75,10 +109,10 @@ sealed interface HistoryClearState {
     data class SessionUnavailable(val message:String):HistoryClearState
 }
 
-/** ADR-0028/#113: a read-only view of the real, derived worlds/system geography (docs/product/
- * ui-system.md sec.5b/5c, #116). Mirrors the web lane's `SystemView` (`claude/116-system-view`'s
- * `apps/web/src/state/readerStore.ts`): never persisted across process death, unlike `ScrollState`
- * -- a fresh entry always re-reads `GET /v1/worlds` rather than risking a stale count. */
+/** Whether this universe has encountered anything yet, read from `GET /v1/worlds` (ADR-0028/#113).
+ * #161: a world is one source, so Android only tells from it whether anything was encountered; the
+ * System screen draws the reader's places ([AtlasState]) and never a world. Never persisted across
+ * process death, unlike `ScrollState`: a fresh entry always re-reads it. */
 sealed interface SystemState {
     data object Idle:SystemState
     data object Loading:SystemState
@@ -86,18 +120,79 @@ sealed interface SystemState {
     data class Unavailable(val message:String):SystemState
 }
 
+/** #134: the reader's live places (ADR-0036, `GET /v1/atlas`). Loaded alongside [SystemState] but
+ * independent of it -- a failure here shows its own error and Retry in place of the map, never
+ * failing the whole System screen. Never restored across process death, same as [SystemState]: a
+ * fresh entry always re-reads the atlas. */
+sealed interface AtlasState {
+    data object Idle:AtlasState
+    data object Loading:AtlasState
+    data class Loaded(val response:AtlasResponse):AtlasState
+    data class Unavailable(val message:String):AtlasState
+}
+
+/** #134: "Set aside" on a planet/region, mirroring [HistoryClearState]/[SignOutState]'s own
+ * confirm/cancel/confirm shape. */
+sealed interface PlaceRejectState {
+    data object Idle:PlaceRejectState
+    data class Confirming(val placeId:String):PlaceRejectState
+    data class Sending(val placeId:String):PlaceRejectState
+    data class Failed(val placeId:String,val message:String):PlaceRejectState
+}
+
+/** #134: a chronicle line's evidence (`GET /v1/atlas/deltas/:deltaId`), opened on demand. */
+sealed interface AtlasEvidenceState {
+    data object Idle:AtlasEvidenceState
+    data class Loading(val deltaId:String):AtlasEvidenceState
+    data class Loaded(val deltaId:String,val delta:AtlasDelta):AtlasEvidenceState
+    data class Failed(val deltaId:String,val message:String):AtlasEvidenceState
+}
+
+/** #163: the Idea Room whose sheet is open (ADR-0045, `GET /v1/rooms/:roomId`), read afresh each
+ * time it opens and never restored across process death, like [AtlasState]. */
+sealed interface RoomState {
+    data object Closed:RoomState
+    data class Loading(val roomId:String):RoomState
+    data class Loaded(val room:RoomDetail):RoomState
+    data class Failed(val roomId:String,val message:String):RoomState
+}
+
+/** #163: "Set this room aside", with the same confirm/cancel shape as [PlaceRejectState]. */
+sealed interface RoomSetAsideState {
+    data object Idle:RoomSetAsideState
+    data class Confirming(val roomId:String):RoomSetAsideState
+    data class Sending(val roomId:String):RoomSetAsideState
+    data class Failed(val roomId:String,val message:String):RoomSetAsideState
+}
+
 class AppViewModel(application:Application,private val savedState:SavedStateHandle):AndroidViewModel(application) {
-    private val api=ApiClient()
+    // #135: the signed-in session if one exists; otherwise, only in a debug build, the baked-in
+    // development token; otherwise no credential at all (release builds have none, matching the
+    // existing MissingToken refusal). Exposed so the reader can hand the exact same resolved
+    // token to the media route (ReelScreen's `mediaToken`), which is authenticated outside
+    // ApiClient's own request path.
+    private val vault = AndroidKeyStoreSessionVault(application)
+    val credentialProvider: CredentialProvider =
+        VaultCredentialProvider(vault, BuildConfig.KS_DEV_TOKEN, BuildConfig.DEBUG)
+    private val api=ApiClient(credential=credentialProvider)
     private val store=StateStore(application)
+    private var feedJob: kotlinx.coroutines.Job? = null
+    private var pendingCableMode: String? = null
+    private val _cableMode = MutableStateFlow(store.readCableMode()); val cableMode = _cableMode.asStateFlow()
     private var session:ScrollSession?=null
     private var revisit:TraceRevisitSession?=null
     private var observedPrivacyEpoch=store.readObservedPrivacyEpoch()
     private var observedUniverseId=store.readObservedUniverseId()
     private var busy=false
+    /** #123: the exposure being recorded for the Scroll on screen, so a Keep tapped meanwhile joins
+     * it instead of being dropped as busy. The join belongs to this one exposure. */
+    private var exposing:ExposureInFlight<kotlinx.coroutines.Deferred<ScrollSession>>?=null
     private var signOutBusy=false
     private var reconciling=false
     private var reconcileAfterCurrent:Boolean?=null
+    private val _authorityReady=MutableStateFlow(false); val authorityReady=_authorityReady.asStateFlow()
     private var ready=false
+        set(value) { field=value; _authorityReady.value=value }
     private var navigationVersion=0L
     private val visited=store.readVisited().toMutableSet()
     private val _screen=MutableStateFlow<Screen>(Screen.Universe); val screen=_screen.asStateFlow()
@@ -106,7 +201,32 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private val _historyClear=MutableStateFlow<HistoryClearState>(HistoryClearState.Idle); val historyClear=_historyClear.asStateFlow()
     private val _signOut=MutableStateFlow<SignOutState>(SignOutState.Idle); val signOut=_signOut.asStateFlow()
     private val _system=MutableStateFlow<SystemState>(SystemState.Idle); val system=_system.asStateFlow()
+    /** #134: the reader's live places, alongside [_system] -- see [refreshAtlas]. */
+    private val _atlas=MutableStateFlow<AtlasState>(AtlasState.Idle); val atlas=_atlas.asStateFlow()
+    private val _placeReject=MutableStateFlow<PlaceRejectState>(PlaceRejectState.Idle); val placeReject=_placeReject.asStateFlow()
+    private val _atlasEvidence=MutableStateFlow<AtlasEvidenceState>(AtlasEvidenceState.Idle); val atlasEvidence=_atlasEvidence.asStateFlow()
+    private var evidenceJob:kotlinx.coroutines.Job?=null
+    /** #163: the open Idea Room and its setting aside. */
+    private val _room=MutableStateFlow<RoomState>(RoomState.Closed); val room=_room.asStateFlow()
+    private val _roomSetAside=MutableStateFlow<RoomSetAsideState>(RoomSetAsideState.Idle); val roomSetAside=_roomSetAside.asStateFlow()
+    private var roomJob:kotlinx.coroutines.Job?=null
     private val _toast=MutableStateFlow<String?>(null); val toast=_toast.asStateFlow()
+    /** #131: live continuations for the Scroll being read (null when none apply). */
+    private val _branches=MutableStateFlow<BranchPanel?>(null); val branches=_branches.asStateFlow()
+    private var branchJob:kotlinx.coroutines.Job?=null
+    /** Origins a reader branched away from, newest last; validated against scope before use. */
+    private val branchTrail=store.readBranchTrail().toMutableList()
+    /** Same key and payload after an ambiguous objection (in-memory; objections are idempotent). */
+    private val pendingFeedback=mutableMapOf<String,String>()
+    /** #133: the recorded "why" of the encounter on screen, loaded when the reader asks for it. */
+    private val _why=MutableStateFlow<WhyPanel?>(null); val why=_why.asStateFlow()
+    private var whyJob:kotlinx.coroutines.Job?=null
+    /** Same key after an ambiguous correction; corrections are idempotent by key. */
+    private val pendingCorrections=mutableMapOf<String,String>()
+    /** #132: the Ask/answer panel for the Scroll on screen -- Composing until the reader asks,
+     * then Recording/Recorded/Requesting/Waiting/Final, never fetched or requested automatically. */
+    private val _ask=MutableStateFlow<AskPanel?>(null); val ask=_ask.asStateFlow()
+    private var askPollJob:kotlinx.coroutines.Job?=null
 
     init {
         val restored=signOutRestoreState(store.readPendingSignOut(),store.readSignedOut())
@@ -123,13 +243,81 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun consumeToast(){_toast.value=null}
-    fun onForeground(){if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)}
+    fun onForeground(){
+        // #135: this instance can outlive its own sign-out; a new sign-in cleared the mark.
+        _signOut.value=signOutStateOnForeground(_signOut.value,store.readSignedOut())
+        if(_signOut.value !is SignOutState.SignedOut)reconcilePrivacy(restoreStoredScroll=true)
+    }
     fun retryUniverse()=reconcilePrivacy(restoreStoredScroll=store.readScreen() in setOf("scroll","revisit"),queueIfBusy=true)
     fun retryScrollLoad(){
         val pending=revisit
         if(_screen.value is Screen.TraceRevisit && pending!=null)loadTraceRevisit(pending)
         else if(_screen.value is Screen.TraceRevisit)return
         else enterScroll()
+    }
+
+    fun enterScrollFromSystem() {
+        if(busy || reconciling || !ready)return
+        savedState["readerFromSystem"] = true
+        enterScroll()
+    }
+
+    /** #164 (ADR-0046 §6): "New for you" in a place sheet. The Composer serves a Scroll bound to the
+     * reader's own need first, so this is a new discovery from the System that takes that Scroll when
+     * the feed offers it (it may have been withdrawn or read meanwhile); Back returns to the System. */
+    fun openBoundScroll(assetId:String) {
+        if(busy || reconciling || !ready || store.readPendingClear()!=null)return
+        savedState["readerFromSystem"] = true
+        loadNext(preferredAssetId=assetId)
+    }
+
+    fun returnFromReader() {
+        pendingCableMode=null
+        if(returnAlongBranch())return
+        branchTrail.clear();store.writeBranchTrail(branchTrail)
+        _branches.value=null
+        askPollJob?.cancel();askPollJob=null
+        if(savedState.get<Boolean>("readerFromSystem") == true) {
+            savedState["readerFromSystem"] = false
+            // Returning must work while an exposure is in flight. Invalidate only its UI
+            // callback; its persisted retry identity remains available for reconciliation.
+            navigationVersion++
+            _screen.value = Screen.System
+            _system.value = SystemState.Loading
+            savedState["screen"] = "universe"
+            store.writeScreen("universe")
+            reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
+        } else returnToUniverse()
+    }
+
+    fun onMediaAuthorityFailure() {
+        purgeForScope(observedUniverseId, observedPrivacyEpoch)
+        failClosed("This video is no longer available. Reconnect to check your session.")
+    }
+
+    /** GET cancellation invalidates UI delivery. In-flight writes finish with their original envelope. */
+    fun selectCableMode(kind: String) {
+        require(kind in setOf("Scroll", "Reel"))
+        if (kind == _cableMode.value) { pendingCableMode = null; return }
+        if (!ready || reconciling || (busy && feedJob?.isActive != true)) { pendingCableMode = kind; return }
+        navigationVersion++
+        feedJob?.cancel(); feedJob = null
+        busy = false
+        session?.let(store::write)
+        discardRevisit()
+        _cableMode.value = kind; store.writeCableMode(kind)
+        session = runCatching { store.readCableSession(kind) }.getOrNull()?.takeIf {
+            it.universeId == observedUniverseId && it.privacyEpoch == observedPrivacyEpoch
+        }
+        val retained = session
+        if (retained != null) { store.write(retained); show(retained) } else loadNext()
+    }
+
+    private fun drainCableMode() {
+        val next = pendingCableMode ?: return
+        if (busy || reconciling || !ready) return
+        pendingCableMode = null
+        if (_screen.value is Screen.Scroll) selectCableMode(next)
     }
 
     fun enterScroll(){
@@ -184,7 +372,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 when {
                     e is ApiException.Server && e.statusCode==409 -> {
                         discardRevisit()
-                        _scroll.value=ScrollState.Unavailable("This saved Scroll's source has changed and cannot be reopened.",retryable=false)
+                        _scroll.value=ScrollState.Unavailable("This saved Scroll has changed and cannot be reopened.",retryable=false)
                     }
                     e is ApiException.Protocol || e is ApiException.Server && e.statusCode in setOf(400,404,422) -> {
                         discardRevisit()
@@ -204,7 +392,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         if(!busy && !reconciling && ready && store.readPendingClear()==null && canRequestDiscovery(reading.keep,reading.discovery))loadNext(preserveReading=true)
     }
 
-    private fun loadNext(preserveReading:Boolean=false){
+    private fun loadNext(preserveReading:Boolean=false,preferredAssetId:String?=null){
         if(busy || reconciling || !ready || store.readPendingClear()!=null)return
         val reading=if(preserveReading)_scroll.value as? ScrollState.Reading else null
         busy=true
@@ -219,15 +407,20 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             store.writeScreen("scroll")
             _scroll.value=ScrollState.Loading
         }
-        viewModelScope.launch {
+        feedJob = viewModelScope.launch {
             try {
-                val feed=api.getFeed()
+                // The trip skips exactly what it told the feed it opened (#133), so a capped list can
+                // only bring back an old Scroll, never end the trip while unopened ones remain.
+                val trip=tripExclude(visited,reading?.item?.assetId ?: session?.item?.assetId)
+                val feed=api.getFeed(_cableMode.value,trip)
                 if(!operationIsCurrent(version,epoch))return@launch
-                when(val selected=selectDiscovery(feed,universeId,epoch,visited,reading?.item?.assetId ?: session?.item?.assetId)){
+                when(val selected=selectDiscovery(feed,universeId,epoch,trip.toSet(),null,preferredAssetId)){
                     DiscoverySelection.InvalidScope -> {
                         purgeForScope(feed.universeId,feed.privacyEpoch)
                         failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
                     }
+                    DiscoverySelection.PreferredGone ->
+                        _scroll.value=ScrollState.Unavailable(getApplication<Application>().getString(com.knowscroll.mobile.R.string.bound_scroll_gone),retryable=false)
                     DiscoverySelection.Exhausted -> {
                         if(reading!=null){
                             (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Exhausted)}
@@ -238,6 +431,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                         if(!operationIsCurrent(version,epoch))return@launch
                         session?.let{visited.add(it.item.assetId);store.writeVisited(visited)}
                         discardRevisit()
+                        // A newly discovered encounter starts a fresh line of travel.
+                        branchTrail.clear();store.writeBranchTrail(branchTrail)
                         store.write(next);session=next;show(next)
                     }
                 }
@@ -250,47 +445,431 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 } else if(reading!=null){
                     (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(discovery=DiscoveryState.Failed)}
                 } else _scroll.value=ScrollState.Unavailable(message(e))
-            } finally{if(version==navigationVersion)busy=false}
+            } finally{if(version==navigationVersion){busy=false;feedJob=null;drainCableMode()}}
         }
     }
 
     private fun show(value:ScrollSession){
         if(value.privacyEpoch!=observedPrivacyEpoch || value.universeId!=observedUniverseId || store.readPendingClear()!=null)return
+        // #132: an Ask flow belongs to the encounter that started it; leaving that Scroll stops
+        // polling for it (the sheet itself is already hidden by the UI's own assetId filter).
+        if(_ask.value?.assetId!=value.item.assetId){askPollJob?.cancel();askPollJob=null}
+        val mode=cableModeFor(value,_cableMode.value)
+        _cableMode.value=mode;store.writeCableMode(mode)
         _screen.value=Screen.Scroll(value.item.assetId)
         savedState["screen"]="scroll"
         store.writeScreen("scroll")
         _scroll.value=ScrollState.Reading(
             value.item,value.exposureId,value.exposureEventId,
             if(value.keepJobId.isEmpty())KeepState.Idle else KeepState.Kept(value.keepJobId),
-            value.readingPosition
+            value.readingPosition,
+            origin=value.branchFrom?.let{ReaderOrigin.Branch(it.fromTitle,it.relationSentence,it.recorded)} ?: ReaderOrigin.Discovery
         )
+        val panel=_branches.value
+        if(panel==null || panel.assetId!=value.item.assetId || panel.availability is BranchAvailability.Failed)refreshBranches(value.item)
+    }
+
+    /** #131: a read of the live continuations of a Scroll or (#167) a Reel; never blocks reading, never retried blindly. */
+    private fun refreshBranches(item:ScrollItem,message:String?=null){
+        branchJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        // A refresh of the same encounter keeps the current list until the answer arrives: flashing
+        // the shorter Loading rail under a reader moves the document they are reading.
+        // A message (such as a withdrawn connection) rides through the refresh instead of being lost to it.
+        if(_branches.value?.assetId!=item.assetId || _branches.value?.availability is BranchAvailability.Failed)
+            _branches.value=BranchPanel(item.assetId,BranchAvailability.Loading,message=message)
+        else _branches.value=_branches.value?.copy(opening=null,message=message)
+        branchJob=viewModelScope.launch {
+            try {
+                val result=api.getBranches(item.assetId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_scroll.value as? ScrollState.Reading)?.item?.assetId!=item.assetId)return@launch
+                if(result.privacyEpoch!=epoch){reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true);return@launch}
+                _branches.value=BranchPanel(item.assetId,branchAvailabilityOf(result,item),result.branches,message=message)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if((_scroll.value as? ScrollState.Reading)?.item?.assetId!=item.assetId)return@launch
+                if(e is ApiException.MissingToken || e is ApiException.Server && e.statusCode==401){purgeForScope(universeId,epoch);failClosed(message(e))}
+                else _branches.value=BranchPanel(item.assetId,BranchAvailability.Failed)
+            }
+        }
+    }
+
+    fun retryBranches(){(_scroll.value as? ScrollState.Reading)?.item?.let(::refreshBranches)}
+
+    /** #131: take a live continuation. The origin is exposed first (a branch starts from a real
+     * encounter), the request envelope is persisted before dispatch, and the origin — with its
+     * exact reading position — is pushed onto the return trail only once the target is served. */
+    fun openBranch(branchId:String){
+        if(busy || reconciling || !ready || store.readPendingClear()!=null)return
+        val panel=_branches.value ?: return
+        val branch=panel.branches.firstOrNull{it.branchId==branchId} ?: return
+        val current=session ?: return
+        if(current.item.assetId!=panel.assetId || panel.opening!=null)return
+        busy=true
+        val version=++navigationVersion
+        val epoch=observedPrivacyEpoch
+        _branches.value=panel.copy(opening=branchId,message=null)
+        viewModelScope.launch {
+            try {
+                val exposed=recordExposure(current,version,epoch)
+                if(!operationIsCurrent(version,epoch,current))return@launch
+                session=exposed
+                val request=store.readPendingBranch()?.takeIf{
+                    it.fromExposureId==exposed.exposureId && it.bridgeId==branch.bridgeId && it.targetAssetId==branch.targetAssetId &&
+                        it.expectedPrivacyEpoch==epoch && it.universeId==observedUniverseId
+                } ?: BranchOpenRequest(UUID.randomUUID().toString(),exposed.exposureId,branch.bridgeId,branch.targetAssetId,epoch,observedUniverseId)
+                    .also(store::writePendingBranch)
+                val receipt=api.openBranch(request)
+                if(!operationIsCurrent(version,epoch,exposed))return@launch
+                if(receipt.feed.universeId!=observedUniverseId || receipt.feed.privacyEpoch!=epoch){
+                    purgeForScope(receipt.feed.universeId,receipt.feed.privacyEpoch)
+                    failClosed(getApplication<Application>().getString(com.knowscroll.mobile.R.string.reader_scope_changed))
+                    return@launch
+                }
+                val next=ScrollSession(
+                    receipt.feed.decisionId,receipt.feed.items.single(),receipt.feed.privacyEpoch,receipt.feed.universeId,
+                    branchFrom=BranchFrom(exposed.item.assetId,exposed.item.title,branch.relationSentence,branch.bridgeId,receipt.recorded)
+                )
+                branchTrail.add(session ?: exposed);store.writeBranchTrail(branchTrail)
+                store.clearPendingBranch()
+                store.write(next);session=next;show(next)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion)return@launch
+                val conflict=(e as? ApiException.Server)?.let(::branchOpenConflict)
+                when {
+                    conflict==BranchOpenConflict.StaleEpoch -> {store.clearPendingBranch();reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                    conflict==BranchOpenConflict.Unavailable -> {
+                        store.clearPendingBranch()
+                        refreshBranches(current.item,"That connection is no longer available.")
+                    }
+                    invalidatesReader(e) -> {purgeForScope(current.universeId,epoch);failClosed(message(e))}
+                    else -> _branches.value=panel.copy(opening=null,message=message(e))
+                }
+            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+        }
+    }
+
+    /** #133: read the recorded explanation of the encounter on screen. Only an encounter this
+     * reader was served by the Composer has one; a branch target or saved Trace says so honestly. */
+    fun loadWhy(){
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        val current=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
+        if(reading.origin !is ReaderOrigin.Discovery || current.decisionId.isEmpty()){
+            _why.value=WhyPanel(current.decisionId,current.item.assetId,WhyAvailability.Unrecorded);return
+        }
+        val existing=_why.value
+        if(existing!=null && existing.decisionId==current.decisionId && existing.assetId==current.item.assetId && existing.availability !is WhyAvailability.Failed)return
+        whyJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        _why.value=WhyPanel(current.decisionId,current.item.assetId,WhyAvailability.Loading)
+        whyJob=viewModelScope.launch {
+            try {
+                val result=api.getWhy(current.decisionId,current.item.assetId)
+                if(epoch!=observedPrivacyEpoch || _why.value?.decisionId!=current.decisionId)return@launch
+                _why.value=_why.value?.copy(availability=result?.let{WhyAvailability.Ready(it)} ?: WhyAvailability.Unrecorded,
+                    corrected=(_why.value?.corrected ?: emptySet()) + (result?.corrected ?: emptyList()))
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(current.universeId,epoch);failClosed(message(e));return@launch}
+                if(_why.value?.decisionId==current.decisionId)_why.value=_why.value?.copy(availability=WhyAvailability.Failed)
+            }
+        }
+    }
+
+    /** #133 journey G: the reader corrects the route that chose this encounter. It never edits a
+     * profile and never retracts shared knowledge; it is private history like any other act. */
+    fun correctEncounter(kind:String){
+        if(!ready || reconciling)return
+        val panel=_why.value ?: return
+        val recorded=(panel.availability as? WhyAvailability.Ready)?.why ?: return
+        if(kind !in recorded.corrections || panel.sending!=null || kind in panel.corrected)return
+        val epoch=observedPrivacyEpoch
+        val id="${panel.decisionId}:${panel.assetId}:$kind"
+        val key=pendingCorrections.getOrPut(id){UUID.randomUUID().toString()}
+        _why.value=panel.copy(sending=kind,message=null)
+        viewModelScope.launch {
+            try {
+                api.postEncounterFeedback(key,panel.decisionId,panel.assetId,kind,epoch)
+                pendingCorrections.remove(id)
+                if(_why.value?.decisionId!=panel.decisionId || epoch!=observedPrivacyEpoch)return@launch
+                _why.value=_why.value?.copy(sending=null,corrected=(_why.value?.corrected ?: emptySet())+kind,message=correctedText(kind))
+                if(kind=="wrong_connection")(_scroll.value as? ScrollState.Reading)?.item?.takeIf{it.assetId==panel.assetId}?.let(::refreshBranches)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                val server=e as? ApiException.Server
+                when {
+                    server?.statusCode==409 -> {pendingCorrections.remove(id);_why.value=_why.value?.copy(sending=null);reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                    server?.statusCode==422 -> {pendingCorrections.remove(id);_why.value=_why.value?.copy(sending=null,message="This encounter has no route that can be corrected.")}
+                    invalidatesReader(e) -> {purgeForScope(observedUniverseId,epoch);failClosed(message(e))}
+                    else -> _why.value=_why.value?.copy(sending=null,message=message(e))
+                }
+            }
+        }
+    }
+
+    /** #131: "not useful" / "seems wrong" hides a connection for this reader only. */
+    fun objectToConnection(bridgeId:String,objection:String){
+        if(!ready || reconciling)return
+        val item=(_scroll.value as? ScrollState.Reading)?.item ?: return
+        val epoch=observedPrivacyEpoch
+        val key=pendingFeedback.getOrPut("$bridgeId:$objection"){UUID.randomUUID().toString()}
+        viewModelScope.launch {
+            try {
+                api.postConnectionFeedback(key,bridgeId,epoch,objection)
+                pendingFeedback.remove("$bridgeId:$objection")
+                if(epoch!=observedPrivacyEpoch)return@launch
+                _toast.value=getApplication<Application>().getString(com.knowscroll.mobile.R.string.connection_hidden)
+                if((_scroll.value as? ScrollState.Reading)?.item?.assetId==item.assetId)refreshBranches(item)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(e is ApiException.Server && e.statusCode==409){pendingFeedback.remove("$bridgeId:$objection");reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                else _toast.value=message(e)
+            }
+        }
+    }
+
+    /** #132: open the Ask sheet for the Scroll on screen. A panel already open for this same
+     * Scroll keeps its own stage, and an answer it was waiting for is watched again (closing the
+     * sheet stopped polling); a different Scroll starts fresh, unless it is the one whose answer the
+     * reader was waiting for when the process died (#166): that answer is picked up again and
+     * polled, never requested again. */
+    fun openAsk(){
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        _ask.value?.takeIf{it.assetId==reading.item.assetId}?.let{open->
+            askToWatchOnReopen(open,polling=askPollJob?.isActive==true)?.let{pollAnswer(it,reading.item.assetId,observedPrivacyEpoch)}
+            return
+        }
+        askPollJob?.cancel();askPollJob=null
+        val panel=reopenedAskPanel(reading.item.assetId,observedPrivacyEpoch,store.readWatchedAnswer())
+        _ask.value=panel
+        (panel.stage as? AskStage.Waiting)?.let{pollAnswer(it.askId,reading.item.assetId,observedPrivacyEpoch)}
+    }
+
+    /** The sheet closed: stop polling. The panel's own stage is left alone so reopening it (for
+     * the same Scroll) picks up exactly where the reader left it. */
+    fun closeAsk(){
+        askPollJob?.cancel();askPollJob=null
+    }
+
+    /** #132: record a question against the reader's current exposure of this Scroll -- the same
+     * exposure path `keep()` uses. Recording is separate from, and never triggers, requesting an
+     * answer: that is the reader's own next action. */
+    fun askQuestion(question:String){
+        if(busy || reconciling || !ready)return
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        val panel=_ask.value?.takeIf{it.assetId==reading.item.assetId} ?: return
+        if(panel.stage !is AskStage.Composing && panel.stage !is AskStage.Error)return
+        // Sent exactly as written (ADR-0016): the question is the reader's literal text.
+        if(!questionIsValid(question))return
+        val currentSession=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
+        busy=true
+        val version=navigationVersion
+        val epoch=observedPrivacyEpoch
+        _ask.value=panel.copy(stage=AskStage.Recording,question=question)
+        viewModelScope.launch {
+            try {
+                val exposed=recordExposure(currentSession,version,epoch)
+                if(!operationIsCurrent(version,epoch,currentSession))return@launch
+                session=exposed
+                val pending=store.readPendingAsk()?.takeIf{
+                    it.exposureId==exposed.exposureId && it.question==question && it.expectedPrivacyEpoch==epoch
+                } ?: PendingAsk(UUID.randomUUID().toString(),exposed.exposureId,epoch,question).also(store::writePendingAsk)
+                val receipt=api.postAsk(pending)
+                if(version!=navigationVersion || epoch!=observedPrivacyEpoch)return@launch
+                store.clearPendingAsk()
+                if(_ask.value?.assetId==reading.item.assetId)_ask.value=AskPanel(reading.item.assetId,AskStage.Recorded(receipt.askId),question)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion)return@launch
+                if(invalidatesReader(e)){purgeForScope(currentSession.universeId,epoch);failClosed(message(e))}
+                else if(_ask.value?.assetId==reading.item.assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(null,message(e)))
+            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+        }
+    }
+
+    /** #132: request an answer for a recorded Ask -- the reader's own, separate, explicit choice.
+     * Never dispatched by [askQuestion]. */
+    fun requestAnswer(){
+        if(busy || reconciling || !ready)return
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        val panel=_ask.value?.takeIf{it.assetId==reading.item.assetId} ?: return
+        // After an unclear failure the Ask is still recorded: the reader retries the same request
+        // (requestWatchedAnswer reuses its saved key), never a new question and a second paid request.
+        val askId=when(val stage=panel.stage){is AskStage.Recorded->stage.askId;is AskStage.Error->stage.askId;else->null} ?: return
+        val currentSession=session?.takeIf{it.item.assetId==reading.item.assetId} ?: return
+        busy=true
+        val version=navigationVersion
+        val epoch=observedPrivacyEpoch
+        _ask.value=panel.copy(stage=AskStage.Requesting)
+        viewModelScope.launch {
+            try {
+                // Accepted in this epoch, the answer is watched even if the reader has moved on (#182).
+                // Only polling follows the screen: a reader who left finds the sheet waiting when they
+                // reopen it, and reopening watches again (askToWatchOnReopen).
+                val watched=requestWatchedAnswer(store,WatchedAnswer(askId,reading.item.assetId,epoch,panel.question),api::requestAnswer,
+                    epochIsCurrent={epoch==observedPrivacyEpoch})
+                if(!watched || _ask.value?.assetId!=reading.item.assetId)return@launch
+                _ask.value=_ask.value?.copy(stage=AskStage.Waiting(askId,"queued"))
+                if(version==navigationVersion)pollAnswer(askId,reading.item.assetId,epoch)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion)return@launch
+                val conflict=(e as? ApiException.Server)?.let(::answerRequestConflict)
+                when {
+                    conflict==AnswerRequestConflict.StaleEpoch -> {store.clearPendingAnswerRequest();reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)}
+                    conflict==AnswerRequestConflict.Paused -> {
+                        store.clearPendingAnswerRequest()
+                        if(_ask.value?.assetId==reading.item.assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,
+                            getApplication<Application>().getString(com.knowscroll.mobile.R.string.ask_paused_request)))
+                    }
+                    conflict==AnswerRequestConflict.NotAsker -> {
+                        store.clearPendingAnswerRequest()
+                        if(_ask.value?.assetId==reading.item.assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,
+                            getApplication<Application>().getString(com.knowscroll.mobile.R.string.ask_not_asker)))
+                    }
+                    e is ApiException.Server && e.statusCode==503 -> {
+                        store.clearPendingAnswerRequest()
+                        if(_ask.value?.assetId==reading.item.assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,
+                            getApplication<Application>().getString(com.knowscroll.mobile.R.string.ask_answers_disabled)))
+                    }
+                    invalidatesReader(e) -> {purgeForScope(currentSession.universeId,epoch);failClosed(message(e))}
+                    else -> if(_ask.value?.assetId==reading.item.assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,message(e)))
+                }
+            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
+        }
+    }
+
+    /** #132: cancel a queued answer request. Only meaningful while it has not started; a 409
+     * means it already has, so this watches it instead of claiming a cancellation that did not
+     * happen. */
+    fun cancelAskAnswer(){
+        if(!ready || reconciling)return
+        val reading=_scroll.value as? ScrollState.Reading ?: return
+        val panel=_ask.value?.takeIf{it.assetId==reading.item.assetId} ?: return
+        val waiting=panel.stage as? AskStage.Waiting ?: return
+        if(waiting.status!="queued")return
+        askPollJob?.cancel();askPollJob=null
+        val epoch=observedPrivacyEpoch
+        val assetId=reading.item.assetId
+        viewModelScope.launch {
+            try {
+                val view=api.cancelAnswer(waiting.askId,epoch)
+                if(epoch!=observedPrivacyEpoch || _ask.value?.assetId!=assetId)return@launch
+                stopWatching(waiting.askId)
+                _ask.value=_ask.value?.copy(stage=AskStage.Final(waiting.askId,view))
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(epoch!=observedPrivacyEpoch || _ask.value?.assetId!=assetId)return@launch
+                if(e is ApiException.Server && cancelAlreadyStarted(e)){
+                    _ask.value=_ask.value?.copy(stage=AskStage.Waiting(waiting.askId,"running"))
+                    pollAnswer(waiting.askId,assetId,epoch)
+                } else if(invalidatesReader(e)){purgeForScope(observedUniverseId,epoch);failClosed(message(e))}
+                else {
+                    _ask.value=_ask.value?.copy(stage=AskStage.Waiting(waiting.askId,waiting.status))
+                    pollAnswer(waiting.askId,assetId,epoch)
+                }
+            }
+        }
+    }
+
+    /** #166: an answer that is final (or gone) is no longer waited for; a newer one is left alone. */
+    private fun stopWatching(askId:String){
+        if(store.readWatchedAnswer()?.askId==askId)store.clearWatchedAnswer()
+    }
+
+    /** #132: poll the answer view every ~1.5s, bounded to ~3 minutes. Stopped by the sheet
+     * closing or the Scroll changing (see [closeAsk], [show]); a stale scope or asset is ignored,
+     * never shown. */
+    private fun pollAnswer(askId:String,assetId:String,epoch:Long){
+        askPollJob?.cancel()
+        askPollJob=viewModelScope.launch {
+            val deadline=System.currentTimeMillis()+ASK_POLL_TIMEOUT_MS
+            while(true){
+                delay(ASK_POLL_INTERVAL_MS)
+                if(epoch!=observedPrivacyEpoch || (_scroll.value as? ScrollState.Reading)?.item?.assetId!=assetId)return@launch
+                try {
+                    val view=api.getAnswer(askId)
+                    if(epoch!=observedPrivacyEpoch || (_scroll.value as? ScrollState.Reading)?.item?.assetId!=assetId)return@launch
+                    if(view==null || view.askId!=askId){
+                        stopWatching(askId)
+                        if(_ask.value?.assetId==assetId)_ask.value=_ask.value?.copy(stage=AskStage.Error(askId,
+                            getApplication<Application>().getString(com.knowscroll.mobile.R.string.ask_answer_not_found)))
+                        return@launch
+                    }
+                    val next=stageAfterPoll(askId,view)
+                    if(_ask.value?.assetId==assetId)_ask.value=_ask.value?.copy(stage=next)
+                    if(next is AskStage.Final){stopWatching(askId);return@launch}
+                } catch(e:CancellationException){throw e}
+                catch(e:Exception){
+                    if(invalidatesReader(e)){purgeForScope(observedUniverseId,epoch);failClosed(message(e));return@launch}
+                    // A transient read failure keeps waiting rather than discarding the panel.
+                }
+                if(System.currentTimeMillis()>=deadline){
+                    if(_ask.value?.assetId==assetId)_ask.value=_ask.value?.copy(stage=AskStage.TimedOut(askId))
+                    return@launch
+                }
+            }
+        }
+    }
+
+    /** System Back from a Scroll opened by a connection returns to where the reader branched from,
+     * at their exact reading position. A trail from another scope is discarded, never shown. */
+    private fun returnAlongBranch():Boolean{
+        if(_screen.value !is Screen.Scroll || session?.branchFrom==null || branchTrail.isEmpty())return false
+        val origin=branchTrail.removeAt(branchTrail.lastIndex)
+        store.writeBranchTrail(branchTrail)
+        if(origin.universeId!=observedUniverseId || origin.privacyEpoch!=observedPrivacyEpoch || store.readPendingClear()!=null){
+            branchTrail.clear();store.writeBranchTrail(branchTrail);return false
+        }
+        // An exposure for the branch target may still be in flight: invalidate only its UI
+        // callback. Its persisted retry identity remains on the stored session.
+        navigationVersion++
+        busy=false
+        store.write(origin);session=origin;show(origin)
+        return true
+    }
+
+    /** Home and the Atlas compass leave the reader entirely; the branch trail ends with it. */
+    fun leaveReader(){
+        branchTrail.clear();store.writeBranchTrail(branchTrail)
+        returnFromReader()
     }
 
     /** Called by the resumed Compose screen after display frames, never by candidate retrieval. */
     fun onVisible(assetId:String){
         if(_screen.value is Screen.TraceRevisit)return
         val current=session ?: return
-        if(current.item.assetId!=assetId || current.exposureId.isNotEmpty() || busy || !ready)return
+        if(current.item.assetId!=assetId || current.exposureId.isNotEmpty() || current.decisionId.isEmpty() || busy || !ready)return
         val version=navigationVersion
         val epoch=observedPrivacyEpoch
         busy=true
+        val record=ExposureInFlight(current.clientExposureId,version,epoch,viewModelScope.async { recordExposure(current,version,epoch) })
+        exposing=record
         viewModelScope.launch {
             try {
-                val next=recordExposure(current,version,epoch)
-                if(operationIsCurrent(version,epoch)){session=next;show(next)}
+                val next=record.value.await()
+                // A Keep that joined this exposure shows its own result instead.
+                if(operationIsCurrent(version,epoch)){session=next;if(!record.joined)show(next)}
             } catch(e:Exception){
                 if(e is CancellationException)throw e
                 if(version==navigationVersion){
                     if(invalidatesReader(e)){purgeForScope(current.universeId,epoch);failClosed(message(e))}
-                    else _toast.value=message(e)
+                    else if(!record.joined)_toast.value=message(e) // a Keep that joined reports it itself
                 }
             }
-            finally{if(version==navigationVersion)busy=false}
+            finally{
+                if(exposing===record)exposing=null
+                if(version==navigationVersion && !record.joined){busy=false;drainCableMode()}
+            }
         }
     }
 
     private suspend fun recordExposure(value:ScrollSession,version:Long,epoch:Long):ScrollSession {
         if(value.exposureId.isNotEmpty())return value
+        // A continuation taken while recording was paused has no decision to record against.
+        if(value.decisionId.isEmpty())throw RecordingPaused()
         val receipt=api.postExposure(ExposureRequest(value.decisionId,value.item.assetId,value.clientExposureId))
         if(!operationIsCurrent(version,epoch,value))throw CancellationException("Stale exposure response")
         val latest=session?.takeIf{it.clientExposureId==value.clientExposureId && it.item.assetId==value.item.assetId} ?: value
@@ -301,18 +880,21 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun keep(){
-        if(busy || !ready)return
+        if(!ready)return
+        val start=keepStart(busy,exposing,session?.clientExposureId,navigationVersion,observedPrivacyEpoch)
+        if(start is KeepStart.Refuse)return
         if((_scroll.value as? ScrollState.Reading)?.origin is ReaderOrigin.SavedTrace)return
         val currentSession=session ?: return
         if(currentSession.keepJobId.isNotEmpty())return
         val currentState=_scroll.value as? ScrollState.Reading ?: return
         busy=true
+        if(start is KeepStart.Join)start.exposure.joined=true
         val version=navigationVersion
         val epoch=observedPrivacyEpoch
         _scroll.value=currentState.copy(keep=KeepState.Saving)
         viewModelScope.launch {
             try {
-                val exposed=recordExposure(currentSession,version,epoch)
+                val exposed=(start as? KeepStart.Join)?.exposure?.value?.await() ?: recordExposure(currentSession,version,epoch)
                 if(!operationIsCurrent(version,epoch,currentSession))return@launch
                 session=exposed
                 val receipt=api.postInteraction(InteractionRequest(exposed.clientEventId,exposed.exposureId,exposed.item.assetId,"keep"))
@@ -335,7 +917,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     if(invalidatesReader(e)){purgeForScope(currentSession.universeId,epoch);failClosed(message(e))}
                     else (_scroll.value as? ScrollState.Reading)?.let{_scroll.value=it.copy(keep=KeepState.Failed(message(e)))}
                 }
-            } finally{if(version==navigationVersion)busy=false}
+            } finally{if(version==navigationVersion){busy=false;drainCableMode()}}
         }
     }
 
@@ -350,6 +932,13 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
             return
         }
         val current=session ?: return
+        if (current.item.assetId != assetId && position >= 0 && ready && store.readPendingClear() == null) {
+            val parked = listOf("Scroll", "Reel").mapNotNull { store.readCableSession(it) }.firstOrNull {
+                it.item.assetId == assetId && it.universeId == observedUniverseId && it.privacyEpoch == observedPrivacyEpoch
+            }
+            if (parked != null) store.writeReadingPosition(assetId, position)
+            return
+        }
         if(current.item.assetId!=assetId || current.readingPosition==position || current.privacyEpoch!=observedPrivacyEpoch || store.readPendingClear()!=null)return
         val updated=current.copy(readingPosition=position)
         store.writeReadingPosition(assetId,position)
@@ -360,57 +949,35 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     }
 
     fun returnToUniverse(){
+        pendingCableMode=null
+        savedState["readerFromSystem"] = false
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
         visited.clear();store.writeVisited(visited)
+        branchTrail.clear();store.writeBranchTrail(branchTrail)
+        _branches.value=null
+        askPollJob?.cancel();askPollJob=null
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
         reconcilePrivacy(restoreStoredScroll=false,queueIfBusy=true)
     }
 
-    /** Opens the Keep destination (docs/product/ui-system.md sec.5b): a read-only list of real
-     * Traces. Deliberately does not call `reconcilePrivacy` -- that launches an async refetch
-     * which unconditionally resets `_screen` back to `Universe` once it completes (see
-     * `applyUniverse`'s final branch), which would race this navigation and silently bounce the
-     * reader back out of Keep. Instead it shows whatever `universe.traces` is already held
-     * immediately, then quietly refreshes it in place with `refreshUniverseInPlace` -- discovered
-     * necessary by actually running this: without it, keeping a Scroll from Cable and going
-     * straight to Keep (never passing back through Atlas) showed "nothing kept yet" for a Trace
-     * the server had already recorded. */
+    /** Reconcile authority before showing a fresh collection, retaining its destination only
+     * when the server confirms the same universe and privacy epoch. */
     fun openKeep(){
+        if(reconciling || !ready)return
+        pendingCableMode=null
         navigationVersion++
         if(_screen.value is Screen.TraceRevisit)discardRevisit()
+        store.writeScreen("universe")
         _screen.value=Screen.Keep
-        refreshUniverseInPlace()
+        reconcilePrivacy(restoreStoredScroll=true)
     }
 
-    /** Refetches `GET /v1/universe` and updates only `_universe` -- never `_screen` -- so callers
-     * outside the Scroll/TraceRevisit navigation machinery (currently just `openKeep`) can pick up
-     * a Trace projected after their last load without inheriting `reconcilePrivacy`'s screen
-     * resets. Still honours the same privacy invariants as `applyUniverse`: a stale/superseded
-     * response is dropped, and an increased epoch still purges through the normal `purgeForScope`
-     * path (which does reset `_screen` -- an epoch bump is exactly the case where leaving Keep
-     * showing possibly-cleared Traces would be wrong). */
-    private fun refreshUniverseInPlace(){
-        val version=navigationVersion
-        viewModelScope.launch {
-            val actual=try{api.getUniverse()}catch(e:Exception){return@launch}
-            if(version!=navigationVersion)return@launch
-            if(observedUniverseId.isNotBlank() && actual.universeId!=observedUniverseId){
-                purgeForScope(actual.universeId,actual.privacyEpoch);return@launch
-            }
-            if(actual.privacyEpoch<observedPrivacyEpoch)return@launch
-            if(actual.privacyEpoch>observedPrivacyEpoch)purgeForScope(actual.universeId,actual.privacyEpoch)
-            observedUniverseId=actual.universeId
-            observedPrivacyEpoch=store.observePrivacyState(actual.universeId,actual.privacyEpoch)
-            _universe.value=UniverseState.Loaded(actual)
-        }
-    }
-
-    /** The system level (#116, ADR-0028/#113): reads the real, derived worlds/system geography.
-     * Read-only -- it creates no event, holds no private per-Scroll session, and (mirroring the
-     * web lane's `enterSystem()`) is never restored from storage on process death: a fresh entry
-     * always re-reads `GET /v1/worlds` rather than risking a stale count. */
+    /** The system level (#116): `GET /v1/worlds` only decides whether anything has been encountered
+     * yet; the places come from the Atlas. Read-only -- it creates no event, holds no private
+     * per-Scroll session, and is never restored from storage on process death: a fresh entry always
+     * re-reads it. */
     fun enterSystem(){
         if(busy || reconciling || !ready)return
         busy=true
@@ -419,6 +986,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         val universeId=observedUniverseId
         _screen.value=Screen.System
         _system.value=SystemState.Loading
+        refreshAtlas(version,epoch,universeId)
         viewModelScope.launch {
             try {
                 val response=api.getWorldSystem()
@@ -437,6 +1005,37 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         }
     }
 
+    /** #134: the reader's live places, independent of [enterSystem]'s worlds fetch above -- a
+     * failure here shows its own error and Retry in place of the map, never failing the whole screen. */
+    private fun refreshAtlas(version:Long,epoch:Long,universeId:String){
+        // #134 review I4: keep showing the last loaded atlas while this same-scope refresh is in
+        // flight -- only Loading when nothing is loaded yet. A purge/scope change already resets
+        // _atlas to Idle before this runs again, so a Loaded value here is always this scope's own.
+        // Replacing it with Loading on every refresh (e.g. on return from the reader) would
+        // otherwise mount the Places map with no markers, firing its own deselect and reading a
+        // false "0 PLACES" until the new response lands.
+        if(_atlas.value !is AtlasState.Loaded)_atlas.value=AtlasState.Loading
+        viewModelScope.launch {
+            try {
+                val response=api.getAtlas()
+                if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _atlas.value=AtlasState.Loaded(response)
+                // #163: a room sheet left open (for example across a return) reads what the atlas
+                // just read, so a position a correction changed while away is not shown stale.
+                (_room.value as? RoomState.Loaded)?.let{rereadOpenRoom(it.room.roomId,epoch,universeId)}
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(version!=navigationVersion || epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                if(invalidatesReader(e)){
+                    purgeForScope(universeId,epoch)
+                    failClosed(message(e))
+                } else {
+                    _atlas.value=AtlasState.Unavailable(message(e))
+                }
+            }
+        }
+    }
+
     fun retrySystem(){
         if(_screen.value is Screen.System)enterSystem()
     }
@@ -445,10 +1044,174 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
      * universe -- unlike `returnToUniverse()`, nothing private was ever held here to purge. */
     fun returnFromSystem(){
         if(_screen.value !is Screen.System)return
-        navigationVersion++ // invalidates any in-flight getWorldSystem() so a stale response cannot land
+        navigationVersion++ // invalidates any in-flight getWorldSystem()/getAtlas() so a stale response cannot land
+        busy=false
         _screen.value=Screen.Universe
         savedState["screen"]="universe";store.writeScreen("universe")
         _system.value=SystemState.Idle
+        _atlas.value=AtlasState.Idle
+        closeAtlasSheets()
+    }
+
+    /** Everything opened over the places -- a set-aside, a line's evidence, a room -- closes with them. */
+    private fun closeAtlasSheets(){
+        _placeReject.value=PlaceRejectState.Idle
+        evidenceJob?.cancel();_atlasEvidence.value=AtlasEvidenceState.Idle
+        closeRoom()
+    }
+
+    /** #134: "Set aside" on a live planet or region (not a sighting -- the server refuses that). */
+    fun requestSetAside(placeId:String){
+        if(reconciling || !ready)return
+        val atlas=(_atlas.value as? AtlasState.Loaded)?.response ?: return
+        if(atlas.places.none{it.placeId==placeId && it.kind!="sighting"})return
+        _placeReject.value=PlaceRejectState.Confirming(placeId)
+    }
+
+    fun cancelSetAside(){
+        if(_placeReject.value is PlaceRejectState.Confirming)_placeReject.value=PlaceRejectState.Idle
+    }
+
+    fun confirmSetAside(){
+        val confirming=_placeReject.value as? PlaceRejectState.Confirming ?: return
+        if(!ready || reconciling)return
+        val placeId=confirming.placeId
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _placeReject.value=PlaceRejectState.Sending(placeId)
+        viewModelScope.launch {
+            try {
+                val response=api.rejectPlace(placeId,epoch)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _atlas.value=AtlasState.Loaded(response)
+                _placeReject.value=PlaceRejectState.Idle
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                setAsideFailed(e,universeId,epoch,idle={_placeReject.value=PlaceRejectState.Idle},fail={_placeReject.value=PlaceRejectState.Failed(placeId,it)})
+            }
+        }
+    }
+
+    /** A place or room that could not be set aside (#134/#163): a stale epoch reconciles, like every
+     * other mutation; recording being paused is said honestly (nothing personal was recorded). */
+    private fun setAsideFailed(e:Exception,universeId:String,epoch:Long,idle:()->Unit,fail:(String)->Unit){
+        val conflict=(e as? ApiException.Server)?.let(::setAsideConflict)
+        when {
+            conflict==SetAsideConflict.StaleEpoch -> {
+                idle()
+                reconcilePrivacy(restoreStoredScroll=true,queueIfBusy=true)
+            }
+            conflict==SetAsideConflict.Paused -> fail("Recording was paused, so nothing was set aside.")
+            // #134 review M6: a 409 these endpoints' own two known reasons don't explain is a
+            // generic failure, not a session-ending one -- never routed through invalidatesReader,
+            // which treats every 409 as reader-invalidating.
+            e is ApiException.Server && e.statusCode==409 -> fail("That change could not be completed. Try again.")
+            invalidatesReader(e) -> {purgeForScope(universeId,epoch);failClosed(message(e))}
+            else -> fail(message(e))
+        }
+    }
+
+    /** #163: opens an Idea Room's sheet from its place (ADR-0045). */
+    fun openRoom(roomId:String){
+        if(reconciling || !ready)return
+        roomJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _roomSetAside.value=RoomSetAsideState.Idle
+        _room.value=RoomState.Loading(roomId)
+        roomJob=viewModelScope.launch {
+            try {
+                val room=api.getRoom(roomId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_room.value as? RoomState.Loading)?.roomId!=roomId)return@launch
+                _room.value=RoomState.Loaded(room)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e));return@launch}
+                if((_room.value as? RoomState.Loading)?.roomId==roomId)_room.value=RoomState.Failed(roomId,message(e))
+            }
+        }
+    }
+
+    /** Replaces the open room's contents in place (no Loading flash); a room closed or changed meanwhile is left alone. */
+    private fun rereadOpenRoom(roomId:String,epoch:Long,universeId:String){
+        roomJob?.cancel()
+        roomJob=viewModelScope.launch {
+            try {
+                val room=api.getRoom(roomId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_room.value as? RoomState.Loaded)?.room?.roomId!=roomId)return@launch
+                _room.value=RoomState.Loaded(room)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e))}
+                // Otherwise the sheet keeps what it showed; the next open reads it again.
+            }
+        }
+    }
+
+    fun closeRoom(){
+        roomJob?.cancel()
+        _room.value=RoomState.Closed
+        _roomSetAside.value=RoomSetAsideState.Idle
+    }
+
+    /** #163: "Set this room aside" on the open room, while it is live. */
+    fun requestRoomSetAside(){
+        if(reconciling || !ready)return
+        val room=(_room.value as? RoomState.Loaded)?.room ?: return
+        if(room.state!="opened" && room.state!="arguing")return
+        _roomSetAside.value=RoomSetAsideState.Confirming(room.roomId)
+    }
+
+    fun cancelRoomSetAside(){
+        if(_roomSetAside.value is RoomSetAsideState.Confirming)_roomSetAside.value=RoomSetAsideState.Idle
+    }
+
+    /** One explicit request: the answer is the atlas without the room, and its sheet closes. */
+    fun confirmRoomSetAside(){
+        val confirming=_roomSetAside.value as? RoomSetAsideState.Confirming ?: return
+        if(!ready || reconciling)return
+        val roomId=confirming.roomId
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _roomSetAside.value=RoomSetAsideState.Sending(roomId)
+        viewModelScope.launch {
+            try {
+                val response=api.setRoomAside(roomId,UUID.randomUUID().toString(),epoch)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId)return@launch
+                _atlas.value=AtlasState.Loaded(response)
+                closeRoom()
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                setAsideFailed(e,universeId,epoch,idle={_roomSetAside.value=RoomSetAsideState.Idle},fail={_roomSetAside.value=RoomSetAsideState.Failed(roomId,it)})
+            }
+        }
+    }
+
+    /** #134: a chronicle line's evidence. A second tap on the same, already-open line closes it. */
+    fun openEvidence(deltaId:String){
+        val current=_atlasEvidence.value
+        if(current is AtlasEvidenceState.Loaded && current.deltaId==deltaId){_atlasEvidence.value=AtlasEvidenceState.Idle;return}
+        if(current is AtlasEvidenceState.Loading && current.deltaId==deltaId)return
+        evidenceJob?.cancel()
+        val epoch=observedPrivacyEpoch
+        val universeId=observedUniverseId
+        _atlasEvidence.value=AtlasEvidenceState.Loading(deltaId)
+        evidenceJob=viewModelScope.launch {
+            try {
+                val delta=api.getAtlasDelta(deltaId)
+                if(epoch!=observedPrivacyEpoch || universeId!=observedUniverseId || (_atlasEvidence.value as? AtlasEvidenceState.Loading)?.deltaId!=deltaId)return@launch
+                _atlasEvidence.value=AtlasEvidenceState.Loaded(deltaId,delta)
+            } catch(e:Exception){
+                if(e is CancellationException)throw e
+                if(invalidatesReader(e)){purgeForScope(universeId,epoch);failClosed(message(e));return@launch}
+                if((_atlasEvidence.value as? AtlasEvidenceState.Loading)?.deltaId==deltaId)_atlasEvidence.value=AtlasEvidenceState.Failed(deltaId,message(e))
+            }
+        }
+    }
+
+    fun closeEvidence(){
+        evidenceJob?.cancel()
+        _atlasEvidence.value=AtlasEvidenceState.Idle
     }
 
     fun requestHistoryClearConfirmation(){
@@ -524,8 +1287,8 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
      * navigation and pending-clear state is removed, and no control here will ever
      * reuse the now-dead token. */
     private fun completeSignOut(){
-        store.clearPendingSignOut()
-        store.writeSignedOut()
+        // #135: also clears the vault, so the account gate hands the app to the sign-in screen.
+        recordDeviceSignedOut(store,vault)
         purgeForScope(observedUniverseId,observedPrivacyEpoch)
         ready=false
         _signOut.value=SignOutState.SignedOut
@@ -600,11 +1363,16 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         reconciling=true;ready=false;busy=false
         if(retrySignOutFirst){signOutBusy=true;_signOut.value=SignOutState.Revoking}
         val version=++navigationVersion
+        val retainedDestination = if(restoreStoredScroll && (_screen.value is Screen.System || _screen.value is Screen.Keep)) _screen.value else null
+        val retainedUniverse=observedUniverseId
+        val retainedEpoch=observedPrivacyEpoch
         val storedScreen=store.readScreen()
-        val wantedScroll=restoreStoredScroll && storedScreen=="scroll"
-        val wantedRevisit=restoreStoredScroll && storedScreen=="revisit"
+        val wantedScroll=retainedDestination==null && restoreStoredScroll && storedScreen=="scroll"
+        val wantedRevisit=retainedDestination==null && restoreStoredScroll && storedScreen=="revisit"
         if(wantedScroll){_screen.value=Screen.Scroll("");_scroll.value=ScrollState.Loading}
         else if(wantedRevisit){_screen.value=Screen.TraceRevisit("");_scroll.value=ScrollState.Loading}
+        else if(retainedDestination is Screen.System){_system.value=SystemState.Loading;_universe.value=UniverseState.Loading}
+        else if(retainedDestination is Screen.Keep){_universe.value=UniverseState.Loading}
         else{_screen.value=Screen.Universe;_universe.value=UniverseState.Loading}
         viewModelScope.launch {
             try {
@@ -628,7 +1396,19 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                     _historyClear.value=HistoryClearState.Clearing
                     completeHistoryClear(api.clearScrollHistory(pending),pending,version)
                 } else {
-                    applyUniverse(actual,wantedScroll || wantedRevisit,version)
+                    val sameScope=actual.universeId==retainedUniverse && actual.privacyEpoch==retainedEpoch
+                    val destination=if(sameScope)retainedDestination ?: Screen.Universe else Screen.Universe
+                    applyUniverse(actual,wantedScroll || wantedRevisit,version,destination)
+                    if(destination is Screen.System && version==navigationVersion && ready){
+                        val response=api.getWorldSystem()
+                        if(version==navigationVersion && observedUniverseId==retainedUniverse && observedPrivacyEpoch==retainedEpoch){
+                            _system.value=SystemState.Loaded(response)
+                        }
+                        // #134: refreshes the reader's places on return to the System screen too,
+                        // e.g. after a keep off-screen formed or changed one (own coroutine: a
+                        // failure here must not fail the worlds refresh above).
+                        refreshAtlas(version,retainedEpoch,retainedUniverse)
+                    }
                 }
             } catch(e:Exception){
                 if(store.readPendingClear()!=null)handleHistoryClearFailure(e,version)
@@ -647,12 +1427,12 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
                 reconciling=false
                 val next=reconcileAfterCurrent
                 reconcileAfterCurrent=null
-                if(next!=null)reconcilePrivacy(next)
+                if(next!=null)reconcilePrivacy(next) else drainCableMode()
             }
         }
     }
 
-    private fun applyUniverse(actual:Universe,restoreStoredScroll:Boolean,version:Long){
+    private fun applyUniverse(actual:Universe,restoreStoredScroll:Boolean,version:Long,destination:Screen=Screen.Universe){
         if(version!=navigationVersion)return
         if(observedUniverseId.isNotBlank() && actual.universeId!=observedUniverseId){
             purgeForScope(actual.universeId,actual.privacyEpoch)
@@ -666,32 +1446,49 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
         _universe.value=UniverseState.Loaded(actual)
         _historyClear.value=HistoryClearState.Idle
         ready=true
-        val cached=if(restoreStoredScroll && store.readScreen()=="scroll")runCatching{store.read()}.getOrNull() else null
+        val restoringCable=restoreStoredScroll && store.readScreen()=="scroll"
+        val cached=if(restoringCable)runCatching{store.readSelectedCableSession()}.getOrNull() else null
         val cachedRevisit=if(restoreStoredScroll && store.readScreen()=="revisit")store.readRevisit() else null
         if(cached!=null && cached.privacyEpoch==observedPrivacyEpoch && cached.universeId==observedUniverseId && store.readPendingClear()==null){
             session=cached;show(cached)
         } else if(cachedRevisit!=null && cachedRevisit.privacyEpoch==observedPrivacyEpoch && cachedRevisit.universeId==observedUniverseId && store.readPendingClear()==null){
             revisit=cachedRevisit
             loadTraceRevisit(cachedRevisit,restoring=true)
+        } else if(restoringCable && cached==null && store.readPendingClear()==null){
+            session=null
+            _cableMode.value=store.readCableMode()
+            _screen.value=Screen.Scroll("")
+            _scroll.value=ScrollState.Unavailable("Opening ${_cableMode.value} was interrupted. Try again.")
         } else {
             if(cached!=null || cachedRevisit!=null || (restoreStoredScroll && store.readScreen()=="revisit"))purgeForScope(observedUniverseId,observedPrivacyEpoch)
-            _screen.value=Screen.Universe;savedState["screen"]="universe";store.writeScreen("universe")
+            _screen.value=destination;savedState["screen"]="universe";store.writeScreen("universe")
         }
     }
 
     private fun purgeForScope(universeId:String,epoch:Long){
+        pendingCableMode=null;feedJob?.cancel();feedJob=null
+        savedState["readerFromSystem"] = false
         store.purgePrivateState(universeId,epoch)
         observedUniverseId=store.readObservedUniverseId()
         observedPrivacyEpoch=store.readObservedPrivacyEpoch()
         session=null;visited.clear()
         revisit=null
+        branchJob?.cancel();branchTrail.clear();_branches.value=null;pendingFeedback.clear()
+        whyJob?.cancel();_why.value=null;pendingCorrections.clear()
+        askPollJob?.cancel();askPollJob=null;_ask.value=null
         _scroll.value=ScrollState.Idle
+        _system.value=SystemState.Idle
+        _atlas.value=AtlasState.Idle
+        closeAtlasSheets()
         _screen.value=Screen.Universe
         savedState["screen"]="universe"
     }
 
     private fun failClosed(reason:String){
         ready=false;session=null
+        _system.value=SystemState.Idle
+        _atlas.value=AtlasState.Idle
+        closeAtlasSheets()
         _screen.value=Screen.Universe
         _scroll.value=ScrollState.Idle
         _universe.value=UniverseState.Unavailable(reason)
@@ -714,6 +1511,7 @@ class AppViewModel(application:Application,private val savedState:SavedStateHand
     private fun message(e:Exception):String {
         if(e is CancellationException)throw e
         return when(e){
+            is RecordingPaused -> "Recording was paused when you opened this, so it is not being kept in your history."
             is ApiException.MissingToken -> "This development build is not connected yet."
             is ApiException.InteractionConflict -> "This action could not be matched. Your existing keep has not been changed."
             is ApiException.Server -> if(e.statusCode==401) "This device session is no longer available."
@@ -760,4 +1558,31 @@ internal suspend fun continueReconcilingAfterSignOutRetry(
     if(!retrySignOutFirst)return true
     retrySignOut()
     return !isSignedOutNow()
+}
+
+/** The reader holds a Scroll served while recording was paused: nothing personal may be written for it. */
+private class RecordingPaused : Exception("Recording is paused")
+
+/** #132: how often the answer view is polled, and how long the client waits before giving up on
+ * the server ever finishing the job (docs still consider the job live; the client just stops asking). */
+private const val ASK_POLL_INTERVAL_MS = 1_500L
+private const val ASK_POLL_TIMEOUT_MS = 180_000L
+
+/** #123: an exposure being recorded, and whether a Keep has joined it (then that Keep owns `busy`). */
+class ExposureInFlight<T>(val clientExposureId: String, val version: Long, val epoch: Long, val value: T, var joined: Boolean = false)
+
+/** #123: how a Keep tap starts. */
+sealed interface KeepStart<out T> {
+    data object Refuse : KeepStart<Nothing>
+    data object Fresh : KeepStart<Nothing>
+    data class Join<T>(val exposure: ExposureInFlight<T>) : KeepStart<T>
+}
+
+/** A Keep tapped while this Scroll's exposure (from this navigation and privacy epoch) is being
+ * recorded joins it, unless another Keep already has; anything else busy refuses the tap. */
+internal fun <T> keepStart(busy: Boolean, inFlight: ExposureInFlight<T>?, clientExposureId: String?, version: Long, epoch: Long): KeepStart<T> = when {
+    inFlight != null && !inFlight.joined && inFlight.version == version && inFlight.epoch == epoch &&
+        clientExposureId != null && inFlight.clientExposureId == clientExposureId -> KeepStart.Join(inFlight)
+    busy -> KeepStart.Refuse
+    else -> KeepStart.Fresh
 }

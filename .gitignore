@@ -2,6 +2,9 @@ node_modules/
 .env
 .env.*.local
 local.properties
+release.properties
+*.jks
+*.keystore
 .gradle/
 .kotlin/
 **/build/

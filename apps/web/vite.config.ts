@@ -1,13 +1,20 @@
 /**
- * ADR-0022 dev-auth proxy.
+ * ADR-0022 dev-auth proxy, and (#135) ADR-0034's cookie mode.
  *
  * The Vite dev/preview server binds 127.0.0.1 only and proxies `/v1/*` to a
- * configured loopback API (`KS_WEB_API_URL`), injecting `Authorization:
+ * configured loopback API (`KS_WEB_API_URL`). By default (`KS_WEB_AUTH` unset
+ * or `'bearer'`, unchanged from before #135) it injects `Authorization:
  * Bearer <token>` from `KS_DEV_TOKEN` on the outgoing proxied request only.
- * Both env vars are read here, in vite.config.ts (a Node-side file that is
- * never bundled for the browser) via `process.env`; neither name is ever
- * passed through `define`, `envPrefix`, or `import.meta.env`, so the token
- * cannot reach client JavaScript, the built bundle, or browser storage.
+ * With `KS_WEB_AUTH=cookie` it instead forwards the browser's own `Cookie`
+ * header unchanged (node-http-proxy already does this by default -- nothing
+ * extra is injected) and never sets `Authorization`, so a real `ks_session`
+ * cookie the desktop sign-in flow set authenticates the proxied request
+ * exactly as it would a direct same-origin request; `KS_DEV_TOKEN` is not
+ * required in this mode. Every env var here is read in vite.config.ts (a
+ * Node-side file that is never bundled for the browser) via `process.env`;
+ * none of them is ever passed through `define`, `envPrefix`, or
+ * `import.meta.env`, so no token or cookie value can reach client
+ * JavaScript, the built bundle, or browser storage.
  *
  * `vite build` (production bundling) refuses by default: production
  * identity (#2) does not exist, so there is no authenticated way to serve a
@@ -71,12 +78,24 @@ function enforceLoopbackBinding(): Plugin {
   };
 }
 
+/** `KS_WEB_AUTH`: `'bearer'` (the default, unchanged) or `'cookie'` (#135, ADR-0034). Any other
+ * value is a configuration error, not a silent fallback -- the same convention
+ * `resolveMailSenderSelection` in `apps/api/src/magic-link-sender.ts` uses for its own switch. */
+function resolveAuthMode(env: NodeJS.ProcessEnv): 'bearer' | 'cookie' {
+  const raw = env.KS_WEB_AUTH;
+  if (raw === undefined || raw === 'bearer') return 'bearer';
+  if (raw === 'cookie') return 'cookie';
+  throw new Error(`KS_WEB_AUTH must be 'bearer' or 'cookie' if set; got ${JSON.stringify(raw)}`);
+}
+
 function devAuthProxy(): Record<string, string | ProxyOptions> {
   const apiUrl = process.env.KS_WEB_API_URL;
+  const authMode = resolveAuthMode(process.env);
   const token = process.env.KS_DEV_TOKEN;
-  if (!apiUrl || !token) {
-    // No proxy target configured: /v1 requests will 404 from Vite's own server
-    // rather than silently succeeding unauthenticated against some default.
+  if (!apiUrl || (authMode === 'bearer' && !token)) {
+    // No proxy target configured (or, in the default bearer mode, no token to inject): /v1
+    // requests will 404 from Vite's own server rather than silently succeeding unauthenticated
+    // against some default.
     return {};
   }
   const target = new URL(apiUrl);
@@ -89,7 +108,10 @@ function devAuthProxy(): Record<string, string | ProxyOptions> {
       changeOrigin: true,
       configure(proxy) {
         proxy.on('proxyReq', proxyReq => {
-          proxyReq.setHeader('Authorization', `Bearer ${token}`);
+          // Cookie mode: the browser's own Cookie header is already forwarded unchanged by the
+          // proxy (node-http-proxy's default behaviour) -- nothing is injected here, and
+          // Authorization is never added, so only a real cookie session authenticates anything.
+          if (authMode === 'bearer') proxyReq.setHeader('Authorization', `Bearer ${token}`);
         });
         proxy.on('error', (error: Error, _req: IncomingMessage) => {
           // eslint-disable-next-line no-console

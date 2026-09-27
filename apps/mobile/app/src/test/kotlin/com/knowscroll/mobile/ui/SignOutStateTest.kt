@@ -53,4 +53,16 @@ class SignOutStateTest {
         // marker and clearing the pending flag; restoring afterward must be terminal.
         assertEquals(SignOutState.SignedOut, signOutRestoreState(pendingSignOut = false, signedOut = true))
     }
+
+    /** #135 review: the reader's view model can outlive its sign-out in the activity's store; once a
+     * new sign-in has cleared the persisted flag, coming back to the foreground revives it instead of
+     * keeping #91's dead end. While the flag stands, SignedOut stays terminal. */
+    @Test fun aReaderThatOutlivedItsSignOutRevivesOnceANewSignInClearedTheFlag() {
+        assertEquals(SignOutState.Idle, signOutStateOnForeground(SignOutState.SignedOut, persistedSignedOut = false))
+        assertEquals(SignOutState.SignedOut, signOutStateOnForeground(SignOutState.SignedOut, persistedSignedOut = true))
+        assertEquals(SignOutState.Confirming, signOutStateOnForeground(SignOutState.Confirming, persistedSignedOut = false))
+        assertEquals(SignOutState.Idle, signOutStateOnForeground(SignOutState.Idle, persistedSignedOut = false))
+        val retryable = SignOutState.Retryable(SIGN_OUT_AMBIGUOUS_MESSAGE)
+        assertEquals(retryable, signOutStateOnForeground(retryable, persistedSignedOut = false))
+    }
 }

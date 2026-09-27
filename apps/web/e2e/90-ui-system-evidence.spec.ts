@@ -46,7 +46,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     test(`reader, sources, why-this and Traces at ${viewport.name}`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
 
       // Universe with saved Traces: at least one already exists by this point in the run.
       await page.screenshot({ path: join(screenshotsDir, `universe-traces-${viewport.name}.png`), fullPage: true });
@@ -66,6 +66,8 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       // (docs/contracts/trace-revisit.md), so this also exercises the honest fallback copy.
       await page.getByRole('button', { name: 'Why this appeared' }).click();
       await expect(page.getByText('No explanation recorded.')).toBeVisible();
+      // #133: a saved Trace was never chosen by the Composer, so "What led here" says so plainly.
+      await expect(page.getByText('This step was not chosen by the Composer, so there is no recorded path to show.')).toBeVisible();
       await page.screenshot({ path: join(screenshotsDir, `reader-why-${viewport.name}.png`), fullPage: true });
       await page.getByRole('button', { name: 'Why this appeared' }).click();
     });
@@ -160,13 +162,19 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       return n.scrollTop / (n.scrollHeight - n.clientHeight);
     });
     expect(depth).toBeGreaterThan(0.5);
+    // Let the scroll event dispatch before resizing. A programmatic scrollTop followed by an
+    // immediate viewport change can land in one frame, where resize handlers run before scroll
+    // handlers, so the app has not yet seen the depth it must carry over. A reader cannot scroll
+    // and cross the breakpoint in the same frame; the race belonged to this test (#115 review).
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
     await page.setViewportSize({ width: 650, height: 420 });
     await expect.poll(() => stage.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
     const afterNarrow = await stage.evaluate(n => n.scrollTop / (n.scrollHeight - n.clientHeight));
     expect(afterNarrow, 'depth is preserved going narrow').toBeCloseTo(depth, 1);
 
-    // And back the other way.
+    // And back the other way (after the stage's own scroll event has dispatched, as above).
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.setViewportSize({ width: 1440, height: 420 });
     await expect.poll(() => article.evaluate(n => n.scrollTop)).toBeGreaterThan(0);
     const afterWide = await article.evaluate(n => n.scrollTop / (n.scrollHeight - n.clientHeight));
@@ -276,12 +284,12 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       // previous iteration's Scroll instead of a fresh Universe.
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible({ timeout: 15000 });
       await page.getByRole('button', { name: 'Enter Scroll' }).click();
       const exhaustedHeading = page.getByRole('heading', { name: /reached the end of the current library/ }).first();
       // Either immediately exhausted (if earlier specs already kept every asset) or reading with
       // room for a short deliberate Next walk -- both are honest outcomes of the same finite,
-      // unkept-only feed (content/editorial-scrolls.json has exactly three Scrolls). Wait for
+      // unkept-only feed (the journey seeds e2e/fixtures/reader-library.json: exactly three Scrolls). Wait for
       // *some* settled outcome first: `Next discovery`'s own actionability wait is not enough on
       // its own, because immediately after the click the button may not exist yet at all.
       await expect(page.getByRole('article').or(exhaustedHeading)).toBeVisible({ timeout: 15000 });
@@ -300,7 +308,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     test(`unavailable at ${viewport.name}`, async ({ page, setOutage }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
       await setOutage(true);
       try {
         await page.reload();
@@ -315,7 +323,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
   test('axe scan: Universe and Scroll reader carry no serious/critical violations', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     const universeResults = await new AxeBuilder({ page }).include('main').analyze();
     writeEvidence('axe-universe.json', universeResults);
     const universeSerious = universeResults.violations.filter(v => v.impact === 'serious' || v.impact === 'critical');
@@ -334,7 +342,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     await page.screenshot({ path: join(screenshotsDir, 'universe-reduced-motion-1440x900.png'), fullPage: true });
 
     await openSavedTrace(page);
@@ -344,11 +352,11 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
   test('keyboard-only pass: tab through every control, focus visible', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your first little world.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
     // Tab through every control the Universe screen currently has (however
     // many saved Traces already exist by this point in the run, plus Enter
     // Scroll), confirming each Tab lands on a real, visibly focused control.
-    const universeControlCount = await page.getByRole('button').count();
+    const universeControlCount = await page.getByRole('button', { disabled: false }).count();
     for (let i = 0; i < universeControlCount; i++) {
       await page.keyboard.press('Tab');
       await expect(page.locator(':focus')).toBeVisible();

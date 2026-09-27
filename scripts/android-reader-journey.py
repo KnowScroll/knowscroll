@@ -1,6 +1,6 @@
 """Issue74: real reader, HTTP/worker/PostgreSQL and explicit transport-loss fixture.
 
-Only disposable data and the separate .journey Android package are mutated.
+Only disposable data and the separate .journeytest Android package are mutated.
 The loopback proxy drops two feed sockets (one ApiClient operation including its
 retry); it never fabricates a successful response, source, or projection.
 """
@@ -19,6 +19,11 @@ import threading
 import time
 import urllib.request
 import uuid
+import sys as _sys
+from pathlib import Path as _Path
+_sys.dont_write_bytecode = True
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 
 root = Path.cwd()
 config = dict(line.split('=', 1) for line in Path('.env').read_text().splitlines()
@@ -36,10 +41,10 @@ env = {key: os.environ[key] for key in allowed if key in os.environ}
 env.update({key: '' for key in config})
 env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)),
            KS_DEV_TOKEN=config['KS_DEV_TOKEN'], PORT='4316', NODE_ENV='test',
-           KS_JOURNEY_API_URL='http://10.0.2.2:4311')
+           KS_JOURNEY_API_URL='http://10.0.2.2:4311', KS_APP_ID_SUFFIX='.journeytest')
 out = root / 'artifacts/android-reader-journey'
 out.mkdir(parents=True, exist_ok=True)
-package = 'com.knowscroll.mobile.journey'
+package = 'com.knowscroll.mobile.journeytest'
 processes = []
 created = False
 proxy = None
@@ -72,7 +77,7 @@ class Proxy(BaseHTTPRequestHandler):
             self.send_response(204 if revoked > 0 else 409)
             self.end_headers()
             return
-        is_feed = self.command == 'GET' and self.path == '/v1/feed'
+        is_feed = self.command == 'GET' and self.path.split('?', 1)[0] == '/v1/feed'
         with control_lock:
             drop = is_feed and control['remainingDrops'] > 0
             delay = control['remainingDrops'] == 2
@@ -150,7 +155,10 @@ def counts():
 
 receipt = None
 original_font = subprocess.check_output(['adb', 'shell', 'settings', 'get', 'system', 'font_scale'], text=True).strip()
+_preview_error = None
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
+    _guard.preserve()
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 4316))
     proxy = ThreadingHTTPServer(('127.0.0.1', 4311), Proxy)
@@ -158,7 +166,9 @@ try:
     run(['createdb', *args, name], env=adminenv)
     created = True
     run(['pnpm', 'db:migrate'], env=env)
-    run(['pnpm', 'db:seed'], env=env)
+    # A finite three-Scroll library (the web reader journey's fixture): this journey reaches the
+    # library's end, which the growing editorial library never does in a bounded run (#140, #136).
+    run(['pnpm', 'db:seed'], env={**env, 'KS_SEED_SCROLLS': 'apps/web/e2e/fixtures/reader-library.json', 'KS_SEED_SUBSTRATE': 'none'})
     service('api')
     service('worker')
     for _ in range(60):
@@ -178,9 +188,9 @@ try:
     run(['adb', 'shell', 'pm', 'clear', package])
     run(['adb', 'shell', 'wm', 'size', '840x1680'])
     run(['adb', 'shell', 'settings', 'put', 'system', 'font_scale', '1.3'])
-    instrument('ReaderJourneyTest', 'readerSourcesThresholdAndRest')
+    instrument('ReaderJourneyTest', 'readerThresholdAndRest')
     navigation = app_file('reader-navigation.json')
-    for filename in ('reader-navigation.png', 'reader-source.png', 'reader-rest.png'):
+    for filename in ('reader-navigation.png', 'reader-why.png', 'reader-rest.png'):
         app_file(filename)
     navigation_counts = counts()
     if navigation_counts['exposure'] != 3 or navigation_counts['ledger'] != 3:
@@ -200,7 +210,7 @@ try:
     if after_retry['exposure'] - before_retry['exposure'] != 2:
         raise RuntimeError('Expected one initial and one deliberate retry exposure')
     run(['adb', 'shell', 'pm', 'clear', package])
-    instrument('ReaderPrivacyJourneyTest', 'sourceSheetClearOnForeground')
+    instrument('ReaderPrivacyJourneyTest', 'whySheetClearOnForeground')
     privacy = app_file('reader-privacy.json')
     app_file('reader-privacy.png')
     if counts() != {'exposure': 0, 'ledger': 0, 'job': 0, 'trace': 0}:
@@ -229,6 +239,9 @@ try:
                'limits': ['Transport loss is deliberately injected; all successful content/state comes from real services',
                           'No owner visual acceptance or manual TalkBack traversal', 'No desktop, Reel, branch or live provider proof']}
 finally:
+    # Restore the owner's preview first (only if this run replaced it), so no later cleanup can hide it.
+    try: _guard.restore()
+    except Exception as _error: _preview_error = _error; print(f'PREVIEW RESTORE FAILED: {_error}', flush=True)
     cleanup_errors = []
     def clean(action):
         try:
@@ -257,3 +270,4 @@ finally:
         receipt['cleanup'] = {'databaseDropped': True, 'childrenExited': True, 'fontRestored': True, 'displaySizeReset': True}
         (out / 'release.json').write_text(json.dumps(receipt, indent=2) + '\n')
         print(json.dumps({'check': 'android-reader-74', 'result': 'passed', 'receipt': str(out / 'release.json')}))
+if _preview_error is not None: raise _preview_error

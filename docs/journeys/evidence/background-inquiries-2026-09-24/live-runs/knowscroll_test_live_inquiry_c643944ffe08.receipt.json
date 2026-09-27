@@ -1,0 +1,44 @@
+{
+  "at": "2026-09-24T09:46:50.482Z",
+  "mode": "live",
+  "database": "knowscroll_test_live_inquiry_c643944ffe08",
+  "model": "MiniMax-M3",
+  "simulated": "places formed from supplied anchored accounts (labelled), as in the inquiry journey; consent, mail, admission, the call and the validator are real",
+  "inquiries": [
+    {
+      "step": 1,
+      "placeFormed": [
+        "physics.gravity"
+      ],
+      "status": "did_not_hold_up",
+      "reasons": [
+        "direction_unsupported"
+      ],
+      "pairs": 1,
+      "found": null,
+      "requestSha256": "cf11e0ab8948863b509d758ca302d7a9a16b9563bfcd86106331a49092a0b7ea",
+      "inputBytes": 5458,
+      "accounting": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1355,
+        "output": 477
+      }
+    }
+  ],
+  "consent": {
+    "status": 200,
+    "available": true
+  },
+  "proposals": [
+    {
+      "status": "rejected",
+      "n": 1
+    }
+  ],
+  "dispatched": 1,
+  "sessionLedger": {
+    "used": 30,
+    "cap": 40
+  }
+}

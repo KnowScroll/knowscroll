@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-24T03:33:36.300Z",
+  "mode": "live",
+  "database": "knowscroll_test_live_answer_fd23ff87c0b0",
+  "model": "MiniMax-M3",
+  "asks": [
+    {
+      "label": "answerable",
+      "requestStatus": 202,
+      "status": "answered",
+      "reasons": [],
+      "basisQuotes": 2,
+      "answerChars": 351,
+      "answerSha256": "a04492315d6f90c59dd2557c63384237f31e8c485c5a5761db6838ad763811dd",
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 453,
+        "output": 199
+      }
+    },
+    {
+      "label": "not_in_source",
+      "requestStatus": 202,
+      "status": "not_in_source",
+      "reasons": [],
+      "basisQuotes": 0,
+      "answerChars": 0,
+      "answerSha256": null,
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 321,
+        "output": 50
+      }
+    }
+  ],
+  "dispatched": 2,
+  "sessionLedger": {
+    "used": 2,
+    "cap": 40
+  }
+}

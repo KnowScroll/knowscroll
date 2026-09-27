@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.AskAnswerJourneyTest:.
+
+Time: 12.732
+
+OK (1 test)
+
+

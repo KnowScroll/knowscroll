@@ -1,0 +1,566 @@
+"""#131/#134 live semantic Android journey: disposable API/worker/PostgreSQL with the editorial
+substrate, its own .journeytest app, no provider call and no owner-database access.
+
+Source scripts/env.sh first. The owner's running preview is the separate .journey app (#136): this
+runner never installs it, and `scripts/android_preview.py`'s PreviewWatch fails the run if the
+preview's APKs changed meanwhile.
+Receipts go to ignored artifacts/semantic-journey/<journey>; reviewed copies are committed.
+
+Journeys (KS_SEMANTIC_JOURNEY): `branch` (default, #131 live continuations), `why` (#133 the
+recorded path of a v3 encounter and the reader's "less like this"), `sheets` (#97 each reader
+sheet survives Activity recreation), `ask` (#132 an authorized answer through the worker;
+fixture transport unless KS_ASK_TRANSPORT=minimax opts into one bounded live request), `places`
+(#134 the reader's own live places, ADR-0036: seeds one day-old keep through the real API before
+instrumenting, via `scripts/atlas/seed-day-old-history.ts`, then the instrumented test supplies a
+real second day), `foundation` (#131/#134 ADR-0037: as `places`, after Tides, Orbit and Star
+formation are placed from supplied accounts by `scripts/atlas/seed-held-up-places.ts`; the reading
+forms Gravity, which is recognised as their foundation and withdrawn when Tides is set aside),
+`inquiry` (#132 ADR-0038 background bridge inquiries: `scripts/inquiries/seed-journey.ts` installs a
+fixture inquiry route (or, with KS_INQUIRY_TRANSPORT=minimax, one bounded live MiniMax-M3 request
+counted against the session ledger) with a short coalescing delay (KS_INQUIRY_COALESCING_SECONDS,
+default 3) and places The Sun from a supplied account before consent; the device turns consent on in Privacy & account, reads its way to
+Gravity as in `places`, sees the inquiry found and the new continuation; SQL verifies the Job,
+attempt, model proposal, admitted universe bridge and the mail's place_formed cause), `return`
+(#134 ADR-0039: as `inquiry`, but the app is in the background while the worker finds the
+connection; on return the Atlas's "While you were away" shows it, the reader inspects its evidence,
+keeps it as a Relic, marks it "seems wrong" and marks what changed as seen, then leaves again while
+the runner applies real operator source corrections -- the connection's mechanism source, and the
+source one of the reader's sightings rests on alone (#160, ADR-0040: `scripts/atlas/seed-unread-sighting.ts`
+supplies Solar wind on The Sun's horizon, which no reading can meet) -- and the worker's correction
+catch-up (every 2 s here) reaches the reader's places; on return the Atlas shows the correction and
+the place change, and the Relic shows it corrected; SQL verifies the inquiry closed while away, the
+Relic's provenance, the doubt, the revoked bridge, the forward marker, and a sighting retired as a
+source correction after the corrections with no reader action since) and `owner`
+(#135 the real, sign-in-backed owner identity and privacy-lifecycle screen -- see its own section 3
+below).
+"""
+from pathlib import Path
+from urllib.parse import urlparse, urlunparse
+import datetime, hashlib, io, json, os, secrets, signal, socket, subprocess, sys, tarfile, threading, time, urllib.request
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from android_preview import PreviewWatch  # noqa: E402
+
+root = Path.cwd()
+config = dict(line.split('=', 1) for line in (root / '.env').read_text().splitlines() if '=' in line and not line.startswith('#'))
+source = urlparse(config['DATABASE_URL'])
+assert source.hostname in ('127.0.0.1', 'localhost')
+port = int(os.environ.get('KS_SEMANTIC_PORT', '4333'))
+assert port not in (4310, 4320, 4322), 'never reuse an owner/preview port'
+name = 'knowscroll_test_semantic_' + secrets.token_hex(8)
+package = 'com.knowscroll.mobile.journeytest'
+journey_name = os.environ.get('KS_SEMANTIC_JOURNEY', 'branch')
+JOURNEYS = {
+    'branch': {'test': 'com.knowscroll.mobile.SemanticBranchJourneyTest', 'receipt': 'semantic-branch.json',
+               'captures': ('semantic-connections.png', 'semantic-branch-target.png', 'semantic-branch-return.png', 'semantic-hidden.png', 'semantic-failure.png')},
+    'why': {'test': 'com.knowscroll.mobile.SemanticWhyJourneyTest', 'receipt': 'why-journey.json',
+            'captures': ('why-path.png', 'why-corrected.png', 'why-failure.png')},
+    # #97: each reader sheet stays open across Activity recreation, on the real stack; #161: no reader shows a source.
+    'sheets': {'test': 'com.knowscroll.mobile.ReaderSheetRecreationTest', 'receipt': 'ask-sheet-recreate.json', 'tests': 3,
+               'captures': ('ask-sheet-recreate.png', 'explain-sheet-recreate.png', 'connections-sheet-recreate.png',
+                            'explain-sheet-recreate.json', 'connections-sheet-recreate.json')},
+    # #132: an authorized Ask answer through the worker, with the labelled fixture transport.
+    'ask': {'test': 'com.knowscroll.mobile.AskAnswerJourneyTest', 'receipt': 'ask-answer.json',
+            'captures': ('ask-recorded.png', 'ask-answer.png', 'ask-answer-failure.png')},
+    # #134: the reader's own places form, are inspected and set aside.
+    'places': {'test': 'com.knowscroll.mobile.PlacesJourneyTest', 'receipt': 'places-journey.json',
+               'captures': ('places-system.png', 'places-sheet.png', 'places-evidence.png', 'places-setaside.png', 'places-failure.png')},
+    # #131/#134: a place that holds others up (ADR-0037) is recognised, inspected and withdrawn.
+    'foundation': {'test': 'com.knowscroll.mobile.FoundationJourneyTest', 'receipt': 'foundation-journey.json',
+                   'captures': ('foundation-system.png', 'foundation-sheet.png', 'foundation-evidence.png', 'foundation-marker.png', 'foundation-withdrawn.png', 'foundation-failure.png')},
+    # #132 (ADR-0038): consent, a place formation that mails an inquiry, a fixture-found bridge, its continuation.
+    'inquiry': {'test': 'com.knowscroll.mobile.BackgroundInquiryJourneyTest', 'receipt': 'inquiry-journey.json',
+                'captures': ('inquiry-consent-off.png', 'inquiry-consent-on.png', 'inquiry-found.png', 'inquiry-continuation.png', 'inquiry-outcome.png', 'inquiry-failure.png')},
+    # #134 (ADR-0039): real background work while the app is away, the return, a kept Relic, the reader's
+    # doubt, and a source correction applied while away again that the Relic then shows.
+    'return': {'test': 'com.knowscroll.mobile.ReturnJourneyTest', 'receipt': 'return-journey.json',
+               'captures': ('return-away.png', 'return-evidence.png', 'return-relic.png', 'return-doubted.png',
+                            'return-corrected-away.png', 'return-corrected-relic.png', 'return-failure.png')},
+    # #135: magic-link sign-in with no dev token, privacy parity, account deletion.
+    'owner': {'test': 'com.knowscroll.mobile.journey.OwnerAccountJourneyTest', 'receipt': 'owner-account.json',
+              'captures': ('owner-01-sign-in.png', 'owner-02-link-requested.png', 'owner-03-signed-in.png',
+                           'owner-04-reading.png', 'owner-05-privacy.png', 'owner-06-paused.png', 'owner-07-resumed.png',
+                           'owner-08-exported.png', 'owner-09-delete-confirm.png', 'owner-10-deleted.png')},
+}
+if journey_name not in JOURNEYS: sys.exit(f'unknown journey {journey_name}; choose one of {sorted(JOURNEYS)}')
+spec = JOURNEYS[journey_name]
+# #132: the Ask journey is fixture-backed unless KS_ASK_TRANSPORT=minimax opts into one live request,
+# counted against the same bounded session ledger as scripts/run-live-answer-experiment.ts.
+ask_transport = os.environ.get('KS_ASK_TRANSPORT', 'fixture')
+if ask_transport not in ('fixture', 'minimax'): sys.exit('KS_ASK_TRANSPORT is fixture or minimax')
+# #132: the inquiry journey likewise is fixture-backed unless KS_INQUIRY_TRANSPORT=minimax opts into one
+# bounded live request (the route caps it at one), counted against the same session ledger.
+inquiry_transport = os.environ.get('KS_INQUIRY_TRANSPORT', 'fixture')
+if inquiry_transport not in ('fixture', 'minimax'): sys.exit('KS_INQUIRY_TRANSPORT is fixture or minimax')
+live_run = (journey_name == 'ask' and ask_transport == 'minimax') or (journey_name in ('inquiry', 'return') and inquiry_transport == 'minimax')
+# #153/#181: a live run holds the session ledger from its allowance check until its count is written, through
+# scripts/lib/session-ledger.ts, under the one lock every live tool counts under; a run whose requests cannot
+# be counted keeps it for counting by hand.
+def session_ledger(*arguments):
+    return json.loads(subprocess.check_output(['pnpm', 'exec', 'tsx', 'scripts/lib/session-ledger.ts', *arguments], text=True))
+if live_run:
+    try: held_ledger = session_ledger('hold', '1')
+    except subprocess.CalledProcessError: sys.exit('Refusing: the session ledger cannot be held (see above).')
+out = root / 'artifacts/semantic-journey' / journey_name
+out.mkdir(parents=True, exist_ok=True)
+# The owner's preview is never installed here; its APKs are checked unchanged at the end (#136).
+guard = PreviewWatch('com.knowscroll.mobile.journey', out)
+allowed = ('PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_AVD_HOME',
+           'ANDROID_USER_HOME', 'GRADLE_USER_HOME', 'JAVA_HOME', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR')
+env = {key: os.environ[key] for key in allowed if key in os.environ}
+env.update({key: '' for key in config})
+env.update(DATABASE_URL=urlunparse(source._replace(path='/' + name)), KS_DEV_TOKEN=secrets.token_hex(32), NODE_ENV='test',
+           PORT=str(port), KS_JOURNEY_API_URL=f'http://10.0.2.2:{port}', KS_APP_ID_SUFFIX='.journeytest', KS_MEDIA_ROOT=str(out / 'media'))
+owner_email = 'owner-journey@knowscroll.test'
+if journey_name == 'owner':
+    # ADR-0026 section 2 / ADR-0034 section 6: the API needs an owner address to accept a
+    # magic-link request for, and (to exercise the fragment-token parser, not just the bare
+    # confirm-URL query one) a configured web origin. KS_DEV_ROOT is overridden to a scratch
+    # directory so the sign-in development sink this run writes is never the real machine's --
+    # the exact isolation tests/signin-http.test.ts already requires of itself.
+    # Fresh per run: a sink left by an earlier run holds an already-used link.
+    scratch_dev_root = out / 'dev-root' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    scratch_dev_root.mkdir(mode=0o700, parents=True, exist_ok=False)
+    env.update(KS_OWNER_EMAIL=owner_email, KS_WEB_ORIGIN='https://owner-journey.knowscroll.test', KS_DEV_ROOT=str(scratch_dev_root))
+# The API process still needs a real (>=24 char) KS_DEV_TOKEN -- buildApp() refuses a short one
+# outright, and other routes in this same disposable stack still use it (ensureDevelopmentSession).
+# Only the *Gradle build*'s KS_DEV_TOKEN must be empty for the owner journey, so its compiled
+# BuildConfig.KS_DEV_TOKEN is blank and the app has no dev-token fallback (#135's whole point: the
+# sign-in screen, not a baked-in session, is what has to gate this build). Every other journey's
+# Gradle build is unaffected -- gradle_env is just env itself.
+gradle_env = {**env, 'KS_DEV_TOKEN': ''} if journey_name == 'owner' else env
+args = ['-h', source.hostname, '-p', str(source.port or 5432), '-U', source.username]
+admin = {**env, 'PGPASSWORD': source.password or ''}
+processes, created = [], False
+
+def run(command, **kwargs): return subprocess.run(command, check=True, **kwargs)
+def adb(*command): return subprocess.check_output(['adb', *command], text=True).strip()
+def sql(query):
+    return subprocess.check_output(['psql', *args, '-d', name, '-Atqc', query], env=admin, text=True).strip()
+
+try:
+    # 1. Record the owner's preview APKs (this run never installs it).
+    guard.preserve()
+
+    # 2. Disposable stack with the editorial substrate.
+    with socket.socket() as probe: probe.bind(('127.0.0.1', port))
+    run(['createdb', *args, name], env=admin); created = True
+    run(['pnpm', 'db:migrate'], env=env, stdout=subprocess.DEVNULL)
+    seeded = subprocess.check_output(['pnpm', 'db:seed'], env=env, text=True)
+    assert 'editorial bridges admitted' in seeded, seeded
+    worker_env = dict(env)
+    if journey_name == 'ask':
+        # The route itself caps a live run at one request; the key reaches the worker's environment only.
+        run(['pnpm', 'exec', 'tsx', 'scripts/answers/install-route.ts'], env={**env, 'KS_ANSWER_TRANSPORT': ask_transport, 'KS_ANSWER_REQUEST_CAP': '1'}, stdout=subprocess.DEVNULL)
+        worker_env['KS_ANSWER_TRANSPORT'] = ask_transport
+        if ask_transport == 'minimax':
+            key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
+            if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
+            worker_env['MINIMAX_API_KEY'] = key
+    if journey_name in ('inquiry', 'return'):
+        # ADR-0038 section 2: the labelled fixture unless KS_INQUIRY_TRANSPORT=minimax (one live request; the
+        # key reaches the worker's environment only). The route itself is installed by
+        # scripts/inquiries/seed-journey.ts once the API is up (it needs the reader's universe).
+        worker_env.update(KS_INQUIRY_TRANSPORT=inquiry_transport, KS_INQUIRY_FIXTURE_MODE='proposal')
+        if inquiry_transport == 'minimax':
+            key = subprocess.check_output(['security', 'find-generic-password', '-s', 'minimax_api_key', '-w'], text=True).strip()
+            if not key.startswith('sk-cp-'): raise RuntimeError('Refusing: the Keychain key is not a subscription (sk-cp-) key')
+            worker_env['MINIMAX_API_KEY'] = key
+    if journey_name == 'return':
+        # ADR-0040: the worker catches a reader up with the correction log every 2 s here (60 s by
+        # default), well within the device's wait while it is away.
+        worker_env['KS_CORRECTION_REFRESH_INTERVAL_MS'] = '2000'
+    for role in ('api', 'worker'):
+        log = (out / (role + '.log')).open('w')
+        processes.append((subprocess.Popen(['pnpm', 'dev:' + role], env=worker_env if role == 'worker' else env, stdout=log, stderr=log, start_new_session=True), log))
+    for attempt in range(100):
+        try:
+            with urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=1): break
+        except Exception:
+            if attempt == 99: raise
+            time.sleep(.1)
+
+    # A receipt or capture left by an earlier run must never be read as this run's.
+    for stale in (spec['receipt'], *spec['captures']):
+        if (out / stale).exists(): (out / stale).unlink()
+
+    # 2.5. `places`/`foundation`: one day-old keep through the real API, before instrumenting -- the
+    # instrumented test supplies the real second day itself (see scripts/atlas/seed-day-old-history.ts).
+    # `foundation` first places Tides, Orbit and Star formation from supplied accounts (labelled;
+    # see scripts/atlas/seed-held-up-places.ts), then takes the same day-old keep.
+    # `inquiry` first installs the fixture inquiry route and places The Sun from a supplied account,
+    # BEFORE the device turns consent on (so it mails nothing), then takes the same day-old keep.
+    # `return` does the same after loading Solar wind, supplied journey knowledge on The Sun's horizon.
+    if journey_name in ('places', 'foundation', 'inquiry', 'return'):
+        seed_env = {**env, 'KS_ATLAS_SEED_API_BASE': f'http://127.0.0.1:{port}',
+                    'KS_INQUIRY_COALESCING_SECONDS': os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '20' if journey_name == 'return' else '3'),
+                    'KS_INQUIRY_TRANSPORT': inquiry_transport}
+        seeds = ({'foundation': ['scripts/atlas/seed-held-up-places.ts'], 'inquiry': ['scripts/inquiries/seed-journey.ts'],
+                  'return': ['scripts/atlas/seed-unread-sighting.ts', 'scripts/inquiries/seed-journey.ts']}.get(journey_name, [])
+                 + ['scripts/atlas/seed-day-old-history.ts'])
+        for seed in seeds:
+            seeded = subprocess.check_output(['pnpm', 'exec', 'tsx', seed], env=seed_env, text=True, cwd=root)
+            print(seeded, flush=True)
+
+    # 3. Separate journey build against this stack only (gradle_env: KS_DEV_TOKEN empty for `owner`).
+    run(['./gradlew', ':app:assembleDebug', ':app:assembleDebugAndroidTest', '--console', 'plain', '-q'], cwd=root / 'apps/mobile', env=gradle_env)
+    for apk in ('debug/app-debug.apk', 'androidTest/debug/app-debug-androidTest.apk'):
+        run(['adb', 'install', '-r', str(root / 'apps/mobile/app/build/outputs/apk' / apk)], stdout=subprocess.DEVNULL)
+    adb('shell', 'pm', 'clear', package)
+    instrument_args = ['-e', 'class', spec['test']]
+    if journey_name == 'inquiry' and inquiry_transport == 'minimax':
+        # A live model may honestly find nothing or propose what the validator refuses: any validated outcome.
+        instrument_args += ['-e', 'inquiryExpect', 'any']
+    watcher = None
+    correction = {}
+    if journey_name == 'return':
+        # ADR-0039: the second time away, the publisher of the kept connection's mechanism source withdraws
+        # it -- an operator correction through the real tool, applied only once the device has kept the
+        # connection, doubted it, marked what changed as seen and then written, from the background, that it
+        # left. ADR-0040: then the source one of the reader's live sightings rests on alone is withdrawn too,
+        # so the worker's catch-up changes a place while the app is away. Shared knowledge in this
+        # disposable database only.
+        def withdraw(source_key):
+            return subprocess.run(['pnpm', 'exec', 'tsx', 'scripts/substrate/correct-source.ts', '--source', source_key, '--action', 'revoked',
+                                   '--reason', 'Journey: the publisher withdrew this page while the reader was away', '--apply'],
+                                  env=env, cwd=root, capture_output=True, text=True)
+        def correct_when_away(deadline=time.time() + 300):
+            while time.time() < deadline:
+                ready = sql("""SELECT (SELECT count(*) FROM relic) > 0 AND (SELECT count(*) FROM connection_feedback WHERE objection='seems_wrong') > 0
+                              AND (SELECT count(*) FROM away_acknowledgement) > 0""")
+                left = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/return-left-again.txt'], capture_output=True).stdout == b'left'
+                if ready == 't' and left:
+                    key = sql("""SELECT s.key FROM relic r JOIN bridge_evidence e ON e.bridge_id=r.bridge_id
+                        JOIN claim_support cs ON cs.claim_id=e.claim_id AND cs.support_kind='supports'
+                        JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='current' JOIN semantic_source s ON s.id=ss.source_id
+                        ORDER BY (e.supports='mechanism') DESC, s.key LIMIT 1""")
+                    applied = withdraw(key)
+                    correction.update(sourceKey=key, applied=applied.returncode == 0, at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                    if applied.returncode != 0:
+                        correction['error'] = applied.stderr.strip()[-300:]
+                        return
+                    sighting_key = sql("""SELECT s.key FROM atlas_place p
+                        JOIN claim_support cs ON cs.claim_id=(p.basis->'ref'->>'claimId')::uuid AND cs.support_kind='supports'
+                        JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='current' JOIN semantic_source s ON s.id=ss.source_id
+                        WHERE p.kind='sighting' AND p.state='live' AND NOT EXISTS (SELECT 1 FROM claim_support o
+                          JOIN source_snapshot os ON os.id=o.snapshot_id AND os.status='current'
+                          WHERE o.claim_id=cs.claim_id AND o.support_kind='supports' AND os.source_id<>ss.source_id)
+                        ORDER BY s.key LIMIT 1""")
+                    if not sighting_key:
+                        correction.update(applied=False, error='no live sighting rests on one current source alone')
+                        return
+                    applied = withdraw(sighting_key)
+                    correction.update(sightingSourceKey=sighting_key, applied=applied.returncode == 0)
+                    if applied.returncode != 0: correction['error'] = applied.stderr.strip()[-300:]
+                    return
+                time.sleep(0.5)
+            correction.update(applied=False, error='the device never both finished its first return and left again')
+        watcher = threading.Thread(target=correct_when_away, daemon=True)
+        watcher.start()
+    if journey_name == 'owner':
+        instrument_args += ['-e', 'ownerEmail', owner_email]
+        # A background thread polls this run's own scratch development sink (never the real
+        # KS_DEV_ROOT) and, once the owner's magic-link request writes it, pushes its content into
+        # the *device app's own* files dir -- the link never otherwise crosses onto the device.
+        # `sh -c "..."` runs nested inside `run-as` so the redirect lands in the app's own sandbox
+        # (a bare `run-as <pkg> ... > file` would instead redirect at the adb-shell level, as the
+        # `shell` user, outside the app's data directory entirely).
+        sink_path = scratch_dev_root / 'sign-in' / 'magic-link.txt'
+        push_done = threading.Event()
+        watch_started = time.time()
+        def watch_and_push_magic_link(deadline=time.time() + 90):
+            while time.time() < deadline and not push_done.is_set():
+                if sink_path.exists() and sink_path.stat().st_mtime >= watch_started:
+                    content = sink_path.read_text()
+                    # A freshly installed app may not have created its files dir yet: create it, and
+                    # keep retrying until the push lands rather than letting one early failure end it.
+                    if content.strip() and subprocess.run(['adb', 'shell', f'run-as {package} sh -c "mkdir -p files && cat > files/magic-link.txt"'],
+                                                          input=content.encode(), capture_output=True).returncode == 0:
+                        push_done.set()
+                        return
+                time.sleep(0.5)
+        watcher = threading.Thread(target=watch_and_push_magic_link, daemon=True)
+        watcher.start()
+    result = subprocess.check_output(['adb', 'shell', 'am', 'instrument', '-w', *instrument_args,
+                                      package + '.test/androidx.test.runner.AndroidJUnitRunner'], text=True, timeout=420)
+    if watcher is not None:
+        watcher.join(timeout=5)
+        if journey_name == 'owner' and not push_done.is_set(): print('warning: the magic-link watcher never found a link to push', flush=True)
+    (out / 'instrumentation.txt').write_text(result); print(result, flush=True)
+    for filename in (spec['receipt'], *spec['captures']):
+        capture = subprocess.run(['adb', 'exec-out', 'run-as', package, 'cat', 'files/' + filename], capture_output=True)
+        if capture.returncode == 0 and (filename.endswith('.json') or capture.stdout.startswith(b'\x89PNG')): (out / filename).write_bytes(capture.stdout)
+    expected = 'OK (1 test)' if spec.get('tests', 1) == 1 else f"OK ({spec['tests']} tests)"
+    if expected not in result:
+        raise RuntimeError(f'Semantic {journey_name} journey failed' + (f'; correction watcher: {correction or "not yet fired"}' if journey_name == 'return' else ''))
+
+    # 4. Verify the causal lineage the UI claimed, in the database itself.
+    journey = json.loads((out / spec['receipt']).read_text())
+    if journey_name == 'sheets':
+        receipts = [json.loads((out / f).read_text()) for f in (spec['receipt'], 'explain-sheet-recreate.json', 'connections-sheet-recreate.json') if (out / f).exists()]
+        # Tests that launch back into a persisted reading session share its exposure.
+        exposure_ids = sorted({r['exposureId'] for r in receipts if 'exposureId' in r})
+        lineage = {'sheetsRestored': sum(1 for r in receipts if r.get('sheetRestoredAfterRecreation') is True),
+                   'connectionsReached': any(r.get('scenario') == 'connectionsSheetSurvivesRecreationWhenAvailable' for r in receipts),
+                   'exposuresRecorded': int(sql("SELECT count(*) FROM exposure WHERE id IN (" + ",".join(f"'{e}'" for e in exposure_ids) + ")") if exposure_ids else 0)}
+        assert lineage['sheetsRestored'] >= 2 and lineage['exposuresRecorded'] == len(exposure_ids) >= 1, lineage
+        journey = {'receipts': receipts}
+        limits = ['Debug API36 emulator, not a physical device.', 'Recreation via ActivityScenario.recreate(), not a physical rotation.']
+    elif journey_name == 'ask':
+        a = journey['askId']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'answerStatus', (SELECT status FROM ask_answer WHERE ask_id='{a}'),
+      'basisQuotes', (SELECT jsonb_array_length(basis) FROM ask_answer WHERE ask_id='{a}'),
+      'jobCompleted', (SELECT count(*) FROM ask_answer_request r JOIN reasoning_job j ON j.id=r.job_id WHERE r.ask_id='{a}' AND j.status='completed'),
+      'dispatches', (SELECT count(*) FROM ask_answer_request r JOIN reasoning_attempt at ON at.job_id=r.job_id
+          JOIN reasoning_accounting ac ON ac.attempt_id=at.id WHERE r.ask_id='{a}' AND ac.dispatch_id IS NOT NULL),
+      'askLedgerEvents', (SELECT count(*) FROM ledger WHERE kind='ask'))"""))
+        ok = (lineage['answerStatus'] == journey['status'] and lineage['answerStatus'] in ('answered', 'not_in_source')
+              and lineage['basisQuotes'] == journey['basisQuotes'] and lineage['jobCompleted'] == 1 and lineage['dispatches'] == 1)
+        assert ok, lineage
+        limits = (['Live MiniMax-M3 through the subscription route, one request; the answer text stays in the dropped database.',
+                   'Debug API36 emulator, not a physical device.'] if ask_transport == 'minimax' else
+                  ['Fixture answer transport (labelled); no provider call.', 'Debug API36 emulator, not a physical device.'])
+    elif journey_name == 'why':
+        d, a = journey['decisionId'], journey['assetId']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'servedByV3', (SELECT count(*) FROM decision d JOIN decision_candidate dc ON dc.decision_id=d.id
+          WHERE d.id='{d}' AND d.ranking_version='composer-semantic-v3' AND dc.asset_id='{a}' AND dc.rank IS NOT NULL),
+      'citedKeepRecorded', (SELECT count(*) FROM decision_candidate dc CROSS JOIN LATERAL jsonb_array_elements(dc.evidence) s
+          JOIN ledger l ON l.id=(s->>'eventId')::uuid WHERE dc.decision_id='{d}' AND dc.asset_id='{a}' AND dc.rank IS NOT NULL
+          AND s->>'kind'='mark' AND l.kind='keep'),
+      'lessLikeThis', (SELECT count(*) FROM encounter_feedback WHERE decision_id='{d}' AND asset_id='{a}' AND kind='less_like_this'),
+      'tripExcludedGated', (SELECT count(*) FROM decision_candidate WHERE decision_id='{journey['afterSkipDecisionId']}'
+          AND asset_id='{journey['skippedAssetId']}' AND gate='current_encounter'),
+      'attentionAccounts', (SELECT count(*) FROM attention_account),
+      'sharedBridgesStillAdmitted', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status='admitted'))"""))
+        ok = (lineage['servedByV3'] == 1 and lineage['citedKeepRecorded'] >= 1 and lineage['lessLikeThis'] == 1 and lineage['tripExcludedGated'] >= 1
+              and lineage['attentionAccounts'] >= 1 and lineage['sharedBridgesStillAdmitted'] == 6)
+        assert ok, lineage
+        limits = ['Editorial substrate; composer-semantic-v3 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'Scroll reader only; the Reel reader has no why sheet yet.']
+    elif journey_name == 'owner':
+        # ADR-0035: deletion erases the account, every sign-in token and device session, and the
+        # dated privacy receipts -- so pause/resume having actually written a receipt can only be
+        # checked from what the app itself observed *before* the delete step ran (the content-free
+        # test receipt's own booleans), never from the post-delete database, which is exactly what
+        # this SQL half proves is now empty.
+        lineage = json.loads(sql("""SELECT json_build_object(
+      'accountRows', (SELECT count(*) FROM account),
+      'accountDeletionReceipts', (SELECT count(*) FROM account_deletion_receipt),
+      'deviceSessions', (SELECT count(*) FROM device_session),
+      'signInTokens', (SELECT count(*) FROM sign_in_token))"""))
+        ok = (lineage['accountRows'] == 0 and lineage['accountDeletionReceipts'] == 1
+              and lineage['deviceSessions'] == 0 and lineage['signInTokens'] == 0
+              and journey.get('signedInViaPastedMagicLink') and journey.get('readARealScroll')
+              and journey.get('pausedRecording') and journey.get('resumedRecording')
+              and journey.get('exportedToAppCache') and journey.get('accountDeleted')
+              and journey.get('returnedToSignInWithDeletedMessage'))
+        assert ok, (lineage, journey)
+        limits = ['Single-owner v1 (ADR-0026): one account only, so this proves deletion, not multi-account isolation.',
+                  'Debug API36 emulator, not a physical device.',
+                  'Export is asserted via the app-cache file the journey build writes instead of the system SAF picker.']
+    elif journey_name == 'places':
+        p, formed_id, rejected_id = journey['placeId'], journey['deltaIds']['formed'], journey['deltaIds']['rejected']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'placeFormedPersonalExploration', (SELECT count(*) FROM atlas_delta WHERE id='{formed_id}' AND place_id='{p}'
+          AND kind='place_formed' AND causal_class='personal_exploration'),
+      'rejectionDeltaReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{rejected_id}' AND place_id='{p}'
+          AND kind='place_rejected' AND causal_class='reader_correction'),
+      'placeStateRejected', (SELECT count(*) FROM atlas_place WHERE id='{p}' AND state='rejected'),
+      'formedEpisodes', (SELECT jsonb_array_length(evidence->'account'->'episodeIds') FROM atlas_delta WHERE id='{formed_id}'),
+      'formedMarks', (SELECT jsonb_array_length(evidence->'account'->'markIds') FROM atlas_delta WHERE id='{formed_id}'),
+      'formedDaysActive', (SELECT (evidence->'account'->>'daysActive')::int FROM atlas_delta WHERE id='{formed_id}'))"""))
+        ok = (lineage['placeFormedPersonalExploration'] == 1 and lineage['rejectionDeltaReaderCorrection'] == 1 and lineage['placeStateRejected'] == 1
+              and lineage['formedEpisodes'] >= 3 and lineage['formedMarks'] >= 2 and lineage['formedDaysActive'] >= 2)
+        assert ok, lineage
+        limits = ['Editorial substrate; cartographer-v1 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
+                  'One live planet inspected end to end; sightings appear only for neighbours this walk has not shown.']
+    elif journey_name == 'foundation':
+        g, t, ids = journey['gravityPlaceId'], journey['tidesPlaceId'], journey['deltaIds']
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'gravityFormedFromReading', (SELECT count(*) FROM atlas_delta WHERE id='{ids['gravityFormed']}' AND place_id='{g}' AND kind='place_formed'
+          AND causal_class='personal_exploration' AND jsonb_array_length(evidence->'account'->'episodeIds') >= 3
+          AND (evidence->'account'->>'daysActive')::int >= 2),
+      'recognisedSubstrate', (SELECT count(*) FROM atlas_delta WHERE id='{ids['recognised']}' AND place_id='{g}'
+          AND kind='foundation_recognised' AND causal_class='substrate_neighbourhood'),
+      'recognisedConnections', (SELECT jsonb_array_length(evidence->'relations') FROM atlas_delta WHERE id='{ids['recognised']}'),
+      'recognisedInGravitysFormingTransaction', (SELECT count(*) FROM atlas_delta f JOIN atlas_delta r ON r.id='{ids['recognised']}'
+          WHERE f.id='{ids['gravityFormed']}' AND r.txid = f.txid),
+      'tidesRejectedReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{ids['tidesRejected']}' AND place_id='{t}'
+          AND kind='place_rejected' AND causal_class='reader_correction'),
+      'withdrawnReaderCorrection', (SELECT count(*) FROM atlas_delta WHERE id='{ids['withdrawn']}' AND place_id='{g}'
+          AND kind='foundation_withdrawn' AND causal_class='reader_correction'),
+      'gravityLoadBearingNow', (SELECT load_bearing FROM atlas_place WHERE id='{g}'),
+      'suppliedHeldUpPlaces', (SELECT count(*) FROM atlas_delta d JOIN atlas_place p ON p.id=d.place_id WHERE d.kind='place_formed'
+          AND p.id <> '{g}' AND jsonb_array_length(d.evidence->'account'->'episodeIds') = 0))"""))
+        ok = (lineage['gravityFormedFromReading'] == 1 and lineage['recognisedSubstrate'] == 1 and lineage['recognisedConnections'] == 3
+              and lineage['recognisedInGravitysFormingTransaction'] == 1 and lineage['tidesRejectedReaderCorrection'] == 1 and lineage['withdrawnReaderCorrection'] == 1
+              and lineage['gravityLoadBearingNow'] is False and lineage['suppliedHeldUpPlaces'] == 3)
+        assert ok, lineage
+        limits = ['Editorial substrate; cartographer-v2 with bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'Tides, Orbit and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because '
+                  'the library cannot anchor Orbit or Star formation from two source families; Gravity formed from this run\'s reading.',
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.']
+    elif journey_name == 'inquiry':
+        i, b, formed, sun = journey['inquiryId'], journey['bridgeId'], journey['deltaIds']['gravityFormed'], journey['sunPlaceId']
+        # The bridge exists only for a found outcome (a live run may end otherwise; see instrument_args).
+        bridge_match = f"br.id='{b}'" if b else 'false'
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'inquiryAdmitted', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND status='admitted'),
+      'jobBackgroundDirtyCompleted', (SELECT count(*) FROM background_inquiry q JOIN reasoning_job j ON j.id=q.job_id WHERE q.id='{i}'
+          AND j.class='background_inquiry' AND j.wake_kind='dirty' AND j.dirty_scope='inquiry:bridge_between_places' AND j.status='completed'
+          AND j.through_sequence=(SELECT max(m.sequence) FROM inquiry_mail m WHERE m.inquiry_id='{i}')),
+      'attempts', (SELECT count(*) FROM background_inquiry q JOIN reasoning_attempt at ON at.job_id=q.job_id WHERE q.id='{i}'),
+      'dispatches', (SELECT count(*) FROM background_inquiry q JOIN reasoning_attempt at ON at.id=q.attempt_id AND at.job_id=q.job_id
+          JOIN reasoning_accounting ac ON ac.attempt_id=at.id WHERE q.id='{i}' AND ac.dispatch_id IS NOT NULL),
+      'modelProposalAdmitted', (SELECT count(*) FROM background_inquiry q JOIN semantic_proposal p ON p.id=q.proposal_id WHERE q.id='{i}'
+          AND p.proposer_kind='model' AND p.proposer_ref=q.attempt_id::text AND p.scope_kind='universe' AND p.universe_id=q.universe_id
+          AND p.privacy_epoch=q.privacy_epoch AND p.status='admitted'),
+      'universeBridgeAdmitted', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}'
+          AND {bridge_match} AND br.scope_kind='universe' AND br.universe_id=q.universe_id AND br.status='admitted'),
+      'universeBridges', (SELECT count(*) FROM bridge WHERE scope_kind='universe'),
+      'inquiryStatus', (SELECT status FROM background_inquiry WHERE id='{i}'),
+      'mailCausedByGravityFormed', (SELECT count(*) FROM inquiry_mail m JOIN atlas_delta d ON d.id=m.cause_delta_id WHERE m.inquiry_id='{i}'
+          AND d.id='{formed}' AND d.kind='place_formed' AND d.causal_class='personal_exploration'),
+      'mailOnInquiry', (SELECT count(*) FROM inquiry_mail WHERE inquiry_id='{i}'),
+      'gravityFormedFromReading', (SELECT count(*) FROM atlas_delta WHERE id='{formed}' AND jsonb_array_length(evidence->'account'->'episodeIds') >= 3
+          AND (evidence->'account'->>'daysActive')::int >= 2),
+      'suppliedSunUnread', (SELECT count(*) FROM atlas_delta WHERE place_id='{sun}' AND kind='place_formed'
+          AND jsonb_array_length(evidence->'account'->'episodeIds') = 0),
+      'suppliedSunMailed', (SELECT count(*) FROM inquiry_mail m JOIN atlas_delta d ON d.id=m.cause_delta_id WHERE d.place_id='{sun}'),
+      'consentRequestsBeforeMail', (SELECT count(*) FROM background_inquiry_consent_request r WHERE r.enabled
+          AND r.requested_at < (SELECT min(m.created_at) FROM inquiry_mail m WHERE m.inquiry_id='{i}')),
+      'consentEnabled', (SELECT bool_and(enabled) FROM background_inquiry_consent),
+      'routeTransport', (SELECT transport FROM background_inquiry_route WHERE enabled),
+      'requestHash', (SELECT request_hash FROM background_inquiry WHERE id='{i}'),
+      'inputBytes', (SELECT input_bytes FROM background_inquiry WHERE id='{i}'),
+      'inquiryStatuses', (SELECT json_agg(status ORDER BY first_mail_at) FROM background_inquiry))"""))
+        found = journey.get('status', 'found') == 'found'
+        path_ok = (lineage['attempts'] == 1 and lineage['dispatches'] == 1 and lineage['mailCausedByGravityFormed'] == 1
+                   and lineage['gravityFormedFromReading'] == 1 and lineage['suppliedSunUnread'] == 1 and lineage['suppliedSunMailed'] == 0
+                   and lineage['consentRequestsBeforeMail'] >= 1 and lineage['consentEnabled'] is True
+                   and lineage['routeTransport'] == inquiry_transport and journey['consent']['usedToday'] == 1)
+        # Found: the model's proposal was admitted and is the reader's own bridge. Anything else: nothing admitted.
+        outcome_ok = ((lineage['inquiryAdmitted'] == 1 and lineage['jobBackgroundDirtyCompleted'] == 1 and lineage['modelProposalAdmitted'] == 1
+                       and lineage['universeBridgeAdmitted'] == 1) if found else (lineage['inquiryAdmitted'] == 0 and lineage['universeBridges'] == 0))
+        ok = path_ok and outcome_ok
+        assert ok, lineage
+        limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
+                   'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else
+                  'Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
+                  'Editorial substrate; cartographer and validator as shipped, bench thresholds.', 'Debug API36 emulator, not a physical device.',
+                  'The Sun was formed by the real Cartographer from a supplied account (zero readings), before consent, because the library '
+                  'cannot anchor it from reading (one source family); Gravity formed from this run\'s reading after consent.',
+                  'The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run.',
+                  f"Coalescing delay shortened to {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '3')} s for the journey route."]
+    elif journey_name == 'return':
+        i, b, rid = journey['inquiryId'], journey['bridgeId'], journey['relicId']
+        found = journey['inquiryStatus'] == 'found'
+        # The device saw the inquiry still open when it left, and found when it came back: the work
+        # happened while it was away (the device's clock is never compared with the database's).
+        away_work = journey['statusWhenLeft'] == 'waiting'
+        assert found and away_work and correction.get('applied') is True, (journey['inquiryStatus'], journey['statusWhenLeft'], correction)
+        change = journey['placeChange']
+        withdrawn = f"('{correction['sourceKey']}','{correction['sightingSourceKey']}')"
+        corrections_at = f"""(SELECT min(c.created_at) FROM semantic_correction c JOIN source_snapshot ss ON ss.id=c.target_id
+          JOIN semantic_source s ON s.id=ss.source_id WHERE s.key IN {withdrawn})"""
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'inquiryAdmitted', (SELECT count(*) FROM background_inquiry WHERE id='{i}' AND status='admitted'),
+      'inquiryFoundTheBridge', (SELECT count(*) FROM background_inquiry q JOIN bridge br ON br.proposal_id=q.proposal_id WHERE q.id='{i}' AND br.id='{b}'),
+      'jobBackgroundDirtyCompleted', (SELECT count(*) FROM background_inquiry q JOIN reasoning_job j ON j.id=q.job_id WHERE q.id='{i}'
+          AND j.class='background_inquiry' AND j.wake_kind='dirty' AND j.status='completed'),
+      'relicKeptWithProvenance', (SELECT count(*) FROM relic WHERE id='{rid}' AND kind='connection' AND bridge_id='{b}' AND inquiry_id='{i}'
+          AND validator_version='bridge-validator-v1' AND jsonb_array_length(cited_claim_keys) >= 3),
+      'relics', (SELECT count(*) FROM relic),
+      'seemsWrong', (SELECT count(*) FROM connection_feedback WHERE bridge_id='{b}' AND objection='seems_wrong'),
+      'bridgeRevokedByCorrection', (SELECT count(*) FROM bridge WHERE id='{b}' AND status='revoked'),
+      'markers', (SELECT count(*) FROM away_acknowledgement),
+      'markerAfterFound', (SELECT count(*) FROM away_acknowledgement a JOIN background_inquiry q ON q.id='{i}'
+          WHERE a.through >= date_trunc('milliseconds', q.closed_at)),
+      'sharedBridgesStillAdmittedOrRevoked', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status IN ('admitted','revoked')),
+      'sightingRetiredByCorrection', (SELECT count(*) FROM atlas_delta d JOIN atlas_place p ON p.id=d.place_id WHERE d.id='{change['deltaId']}'
+          AND p.id='{change['placeId']}' AND d.kind='sighting_retired' AND d.causal_class='source_correction' AND p.kind='sighting' AND p.state='retired'),
+      'sightingBasisWithdrawn', (SELECT count(*) FROM atlas_place p WHERE p.id='{change['placeId']}' AND EXISTS (SELECT 1 FROM claim_support cs
+          JOIN source_snapshot ss ON ss.id=cs.snapshot_id AND ss.status='revoked' JOIN semantic_source s ON s.id=ss.source_id
+          WHERE cs.claim_id=(p.basis->'ref'->>'claimId')::uuid AND s.key IN {withdrawn})),
+      'placeChangedAfterTheCorrections', (SELECT count(*) FROM atlas_delta WHERE id='{change['deltaId']}' AND created_at > {corrections_at}),
+      'readerEventsSinceTheCorrections', (SELECT count(*) FROM ledger WHERE created_at > {corrections_at}),
+      'caughtUp', (SELECT count(*) FROM correction_catch_up WHERE corrections_seen=(SELECT count(*) FROM semantic_correction)))"""))
+        # ADR-0040: a sighting the corrections took away, retired by the worker's catch-up with no reader action.
+        expected = {'inquiryAdmitted': 1, 'inquiryFoundTheBridge': 1, 'jobBackgroundDirtyCompleted': 1,
+                    'relicKeptWithProvenance': 1, 'relics': 1, 'seemsWrong': 1, 'bridgeRevokedByCorrection': 1,
+                    'sightingRetiredByCorrection': 1, 'sightingBasisWithdrawn': 1, 'placeChangedAfterTheCorrections': 1,
+                    'readerEventsSinceTheCorrections': 0, 'caughtUp': 1}
+        assert {k: lineage[k] for k in expected} == expected and lineage['markers'] == 1 and lineage['markerAfterFound'] == 1, lineage
+        assert journey['relicStates'] == ['current', 'doubted', 'corrected'], journey['relicStates']
+        lineage['correction'] = {'sourceKey': correction['sourceKey'], 'sightingSourceKey': correction['sightingSourceKey'], 'applied': correction['applied']}
+        limits = [('Live inquiry transport: one MiniMax-M3 request on the subscription route (quota preflight, session ledger); '
+                   'the admission is bridge-validator-v1\'s. No prompt or reply text is kept.') if inquiry_transport == 'minimax' else
+                  'Fixture inquiry transport (labelled): the proposal is the fixture\'s, the admission is bridge-validator-v1\'s; no provider call.',
+                  '"Away" is the app in the background (Home) while the worker and the operator corrections run; not days away.',
+                  'The source corrections are operator actions through scripts/substrate/correct-source.ts in the disposable database: '
+                  'the kept connection\'s mechanism source, then the source a live sighting rests on alone.',
+                  'The Sun was formed from a supplied account (labelled), as in the inquiry journey.',
+                  'Solar wind is supplied journey knowledge (labelled; scripts/atlas/seed-unread-sighting.ts): one concept, claim and '
+                  'relation from The Sun on a journey-only source. No Scroll is about it, so the walk cannot meet it.',
+                  'The worker\'s correction catch-up runs every 2 s in this journey (60 s by default).',
+                  f"Coalescing delay {os.environ.get('KS_INQUIRY_COALESCING_SECONDS', '20')} s, so the inquiry runs after the app has left.",
+                  'Debug API36 emulator, not a physical device.']
+    else:
+        lineage = json.loads(sql(f"""SELECT json_build_object(
+      'branchEvents', (SELECT count(*) FROM ledger WHERE kind='branch'),
+      'branchCausedByOriginExposure', (SELECT count(*) FROM ledger l JOIN exposure e ON e.event_id=l.causation_id
+          WHERE l.kind='branch' AND e.id='{journey['originExposureId']}'),
+      'branchOpenDecision', (SELECT count(*) FROM branch_open WHERE decision_id='{journey['branchDecisionId']}' AND bridge_id='{journey['bridgeId']}'
+          AND from_exposure_id='{journey['originExposureId']}' AND target_asset_id='{journey['targetAssetId']}'),
+      'targetExposedThroughBranchDecision', (SELECT count(*) FROM exposure WHERE id='{journey['targetExposureId']}' AND decision_id='{journey['branchDecisionId']}'),
+      'seemsWrong', (SELECT count(*) FROM connection_feedback WHERE objection='seems_wrong'),
+      'sharedBridgesStillAdmitted', (SELECT count(*) FROM bridge WHERE universe_id IS NULL AND status='admitted'),
+      'personalProposals', (SELECT count(*) FROM semantic_proposal WHERE universe_id IS NOT NULL))"""))
+        expected = {'branchEvents': 1, 'branchCausedByOriginExposure': 1, 'branchOpenDecision': 1, 'targetExposedThroughBranchDecision': 1,
+                    'seemsWrong': 1, 'sharedBridgesStillAdmitted': 6, 'personalProposals': 0}
+        assert lineage == expected, lineage
+        limits = ['Editorial substrate and bridges; no model-proposed bridge.', 'Debug API36 emulator, not a physical device.',
+                  'Continuations are Scroll-only; Reels carry no concept annotations yet.']
+    receipt = {'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'result': 'passed', 'database': name, 'apiPort': port,
+               'source': subprocess.check_output(['git', 'describe', '--always', '--dirty', '--abbrev=40'], text=True).strip(), 'package': package,
+               'journeyName': journey_name, 'journey': journey, 'lineage': lineage,
+               'providerCalls': lineage.get('dispatches', 0) if live_run else 0, 'limits': limits}
+    (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    print(json.dumps(lineage), flush=True)
+finally:
+    cleanup_errors = []
+    def attempt(label, step):
+        try: step()
+        except Exception as error: cleanup_errors.append(f'{label}: {error}')
+    # 5. Verify the owner's preview first, so no later cleanup failure can hide a change to it
+    # (and only if this run replaced it at all).
+    attempt('restore preview', guard.restore)
+    for child, log in processes:
+        def stop(child=child):
+            if child.poll() is None: os.killpg(child.pid, signal.SIGTERM); child.wait(timeout=15)
+        attempt('stop ' + ' '.join(child.args[-1:]), stop)
+        log.close()
+    # A live request counts against the session allowance whether or not the journey passed.
+    def count_live():
+        dispatched = int(sql('SELECT count(*) FROM reasoning_accounting WHERE dispatch_id IS NOT NULL') or 0)
+        session_ledger('record', held_ledger['token'], str(dispatched), name, f'android-{journey_name}-journey')
+    if created and live_run:
+        before_count = len(cleanup_errors)
+        attempt('count live requests', count_live)
+        # A live request that cannot be counted keeps its database and the ledger lock, so it can be counted by hand.
+        if len(cleanup_errors) > before_count: created = False
+    elif live_run: attempt('release the session ledger', lambda: session_ledger('release', held_ledger['token']))  # no database was created, so nothing was sent
+    # Outcome codes only (status, validator reasons, usage counts), never question or answer text.
+    def record_outcome():
+        (out / 'answer-outcome.json').write_text(sql("""SELECT coalesce(json_agg(json_build_object('status', a.status, 'reasons', a.reasons,
+          'validator', a.validator_version, 'httpStatus', rr.http_status, 'inputTokens', rr.input_tokens, 'outputTokens', rr.output_tokens)), '[]')
+          FROM ask_answer a LEFT JOIN reasoning_receipt rr ON rr.attempt_id=a.attempt_id""") + '\n')
+    if created and journey_name == 'ask': attempt('record answer outcome', record_outcome)
+    if created: attempt('drop database', lambda: run(['dropdb', '--if-exists', *args, name], env=admin))
+    # The owner run's scratch dev root holds a sign-in link: it never outlives the run.
+    if journey_name == 'owner': attempt('remove scratch dev root', lambda: __import__('shutil').rmtree(scratch_dev_root, ignore_errors=True))
+    if cleanup_errors: raise RuntimeError('cleanup incomplete: ' + '; '.join(cleanup_errors))

@@ -1,0 +1,103 @@
+{
+  "at": "2026-09-24T04:24:34.358Z",
+  "mode": "live",
+  "database": "knowscroll_test_live_answer_24b1e55af3df",
+  "model": "MiniMax-M3",
+  "asks": [
+    {
+      "label": "android-question-1",
+      "requestStatus": 202,
+      "status": "rejected",
+      "reasons": [
+        "shape_invalid",
+        "shape_basis_item"
+      ],
+      "basisQuotes": 0,
+      "answerChars": 0,
+      "answerSha256": null,
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 175
+      }
+    },
+    {
+      "label": "android-question-2",
+      "requestStatus": 202,
+      "status": "rejected",
+      "reasons": [
+        "shape_invalid",
+        "shape_basis_item"
+      ],
+      "basisQuotes": 0,
+      "answerChars": 0,
+      "answerSha256": null,
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 189
+      }
+    },
+    {
+      "label": "android-question-3",
+      "requestStatus": 202,
+      "status": "rejected",
+      "reasons": [
+        "shape_invalid",
+        "shape_basis_item"
+      ],
+      "basisQuotes": 0,
+      "answerChars": 0,
+      "answerSha256": null,
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 167
+      }
+    },
+    {
+      "label": "android-question-4",
+      "requestStatus": 202,
+      "status": "rejected",
+      "reasons": [
+        "shape_invalid",
+        "shape_basis_item"
+      ],
+      "basisQuotes": 0,
+      "answerChars": 0,
+      "answerSha256": null,
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 168
+      }
+    },
+    {
+      "label": "android-question-5",
+      "requestStatus": 202,
+      "status": "rejected",
+      "reasons": [
+        "shape_invalid",
+        "shape_basis_item"
+      ],
+      "basisQuotes": 0,
+      "answerChars": 0,
+      "answerSha256": null,
+      "accountingState": "responded",
+      "httpStatus": 200,
+      "usage": {
+        "input": 1,
+        "output": 168
+      }
+    }
+  ],
+  "dispatched": 5,
+  "sessionLedger": {
+    "used": 10,
+    "cap": 40
+  }
+}

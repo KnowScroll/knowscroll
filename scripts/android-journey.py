@@ -4,18 +4,26 @@ Run from repository root after sourcing scripts/env.sh. No provider mocks.
 from pathlib import Path
 from urllib.parse import urlparse,urlunparse
 import subprocess,os,uuid,time,json
+import sys as _sys
+from pathlib import Path as _Path
+_sys.dont_write_bytecode = True
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from android_preview import PreviewWatch  # noqa: E402  (#136: the owner's .journey preview)
 root=Path.cwd();config=dict(l.split('=',1) for l in Path('.env').read_text().splitlines() if '=' in l and not l.startswith('#'))
 u=urlparse(config['DATABASE_URL']);name='knowscroll_test_'+uuid.uuid4().hex
 adminenv={**os.environ,'PGPASSWORD':u.password or ''}
 args=['-h',u.hostname,'-p',str(u.port or 5432),'-U',u.username]
-env={**os.environ,**config,'DATABASE_URL':urlunparse(u._replace(path='/'+name)),'PORT':'4311','KS_JOURNEY_API_URL':'http://10.0.2.2:4311'}
+env={**os.environ,**config,'DATABASE_URL':urlunparse(u._replace(path='/'+name)),'PORT':'4311','KS_JOURNEY_API_URL':'http://10.0.2.2:4311','KS_APP_ID_SUFFIX':'.journeytest'}
 out=root/'artifacts/android-journey';out.mkdir(parents=True,exist_ok=True)
 processes=[]
 def run(cmd,**kw):return subprocess.run(cmd,check=True,**kw)
 def service(script):
  log=(out/(script.replace(':','-')+'.log')).open('w')
  p=subprocess.Popen(['pnpm',script],env=env,stdout=log,stderr=log,start_new_session=True);processes.append((p,log));return p
+_preview_error = None
+_guard = PreviewWatch('com.knowscroll.mobile.journey', _Path.cwd() / 'artifacts' / 'preview-guard' / _Path(__file__).stem)
 try:
+ _guard.preserve()
  run(['createdb',*args,name],env=adminenv)
  run(['pnpm','db:migrate'],env=env);run(['pnpm','db:seed'],env=env)
  api=service('dev:api');worker=service('dev:worker')
@@ -27,7 +35,7 @@ try:
  else:raise RuntimeError('Journey API did not start')
  run(['./gradlew',':app:assembleDebug',':app:assembleDebugAndroidTest','--console','plain'],cwd='apps/mobile',env=env)
  for apk in ['app/build/outputs/apk/debug/app-debug.apk','app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk']:run(['adb','install','-r','apps/mobile/'+apk])
- package='com.knowscroll.mobile.journey'
+ package='com.knowscroll.mobile.journeytest'
  run(['adb','shell','pm','clear',package])
  def instrument(method):
   result=subprocess.check_output(['adb','shell','am','instrument','-w','-e','class','com.knowscroll.mobile.RealJourneyTest#'+method,package+'.test/androidx.test.runner.AndroidJUnitRunner'],text=True)
@@ -81,6 +89,9 @@ try:
  hashes['scripts/android-journey.py']=hashlib.sha256(Path('scripts/android-journey.py').read_bytes()).hexdigest()
  (out/'environment.json').write_text(json.dumps({'git':head,'observedAt':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),'sourceSha256':hashes,'database':'isolated disposable PostgreSQL','apiPort':4311,'emulator':'API36 arm64','displayDensity':display_density,'regularSize':regular_size,'compactSize':compact_size,'processDeath':{'displaySize':process_size,'forceStopPid':before_pid,'relaunchPid':after_pid,'readingPosition':process_receipt['readingPosition'],'sameRetryIdentity':True,'exposureRows':exposure_count,'exposureLedgerRows':exposure_ledger_count,'keepLedgerRows':keep_count},'result':'passed'},indent=2)+'\n')
 finally:
+ # Restore the owner's preview first (only if this run replaced it), so no later cleanup can hide it.
+ try: _guard.restore()
+ except Exception as _error: _preview_error = _error; print(f'PREVIEW RESTORE FAILED: {_error}', flush=True)
  run(['adb','shell','wm','size','reset'])
  import signal
  for p,log in processes:
@@ -90,3 +101,4 @@ finally:
    except subprocess.TimeoutExpired:os.killpg(p.pid,signal.SIGKILL)
   log.close()
  subprocess.run(['dropdb',*args,'--if-exists',name],env=adminenv,check=True)
+if _preview_error is not None: raise _preview_error

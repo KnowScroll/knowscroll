@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Release-only manifest (#168, ADR-0047). Merges with the main manifest. The sign-in link the API
+  mails, the web origin's /sign-in page with the token in its fragment, opens this app once the
+  owner's domain serves /.well-known/assetlinks.json for it (docs/operations/release-inputs.md).
+  The host placeholder defaults to links.knowscroll.invalid, which can never be verified. The
+  activity only fills the sign-in field with the link; the reader still signs in. Debug builds
+  declare no link filter and keep pasting the link.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity android:name=".MainActivity">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="${appLinksHost}" android:path="/sign-in" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

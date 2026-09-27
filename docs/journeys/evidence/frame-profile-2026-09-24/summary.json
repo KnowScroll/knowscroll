@@ -1,0 +1,223 @@
+{
+  "at": "2026-09-24",
+  "device": "API36 emulator (host GPU), the configuration the PR130 profiles used",
+  "order": "baseline-1, baseline-2 alone; then after-3, baseline-3, after-4, baseline-4, after-5, baseline-5 interleaved on a quiet host",
+  "runs": [
+    {
+      "label": "baseline-1",
+      "side": "baseline",
+      "source": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f-dirty",
+      "mainSourceSha256": "c25f1070cdb0db0f0d87a24d389362aabca735b34bddccbbe1c7d622f90951af",
+      "frames": 446,
+      "p50Ms": 25.89,
+      "p95Ms": 44.15,
+      "maxMs": 80.74,
+      "over16_67ms": 445,
+      "phaseP95Ms": {
+        "layout": 0.08,
+        "draw": 8.81,
+        "sync": 0.08,
+        "gpu": 24.03,
+        "queue": 12.08,
+        "input": 0.0,
+        "animation": 13.94,
+        "commandIssue": 1.74,
+        "swap": 13.67
+      },
+      "totalPssKb": 128679
+    },
+    {
+      "label": "baseline-2",
+      "side": "baseline",
+      "source": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f-dirty",
+      "mainSourceSha256": "c25f1070cdb0db0f0d87a24d389362aabca735b34bddccbbe1c7d622f90951af",
+      "frames": 643,
+      "p50Ms": 33.76,
+      "p95Ms": 67.48,
+      "maxMs": 151.11,
+      "over16_67ms": 642,
+      "phaseP95Ms": {
+        "layout": 0.12,
+        "draw": 10.14,
+        "sync": 0.24,
+        "gpu": 21.09,
+        "queue": 26.72,
+        "input": 0.0,
+        "animation": 9.67,
+        "commandIssue": 4.22,
+        "swap": 11.87
+      },
+      "totalPssKb": 128243
+    },
+    {
+      "label": "baseline-3",
+      "side": "baseline",
+      "source": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f-dirty",
+      "mainSourceSha256": "c25f1070cdb0db0f0d87a24d389362aabca735b34bddccbbe1c7d622f90951af",
+      "frames": 632,
+      "p50Ms": 33.86,
+      "p95Ms": 67.74,
+      "maxMs": 151.06,
+      "over16_67ms": 631,
+      "phaseP95Ms": {
+        "layout": 0.11,
+        "draw": 11.17,
+        "sync": 0.3,
+        "gpu": 21.46,
+        "queue": 25.5,
+        "input": 0.0,
+        "animation": 10.48,
+        "commandIssue": 4.35,
+        "swap": 11.47
+      },
+      "totalPssKb": 128513
+    },
+    {
+      "label": "baseline-4",
+      "side": "baseline",
+      "source": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f-dirty",
+      "mainSourceSha256": "c25f1070cdb0db0f0d87a24d389362aabca735b34bddccbbe1c7d622f90951af",
+      "frames": 605,
+      "p50Ms": 34.0,
+      "p95Ms": 67.77,
+      "maxMs": 134.28,
+      "over16_67ms": 601,
+      "phaseP95Ms": {
+        "layout": 0.21,
+        "draw": 11.18,
+        "sync": 0.23,
+        "gpu": 20.42,
+        "queue": 27.49,
+        "input": 0.0,
+        "animation": 16.68,
+        "commandIssue": 4.78,
+        "swap": 11.44
+      },
+      "totalPssKb": 125907
+    },
+    {
+      "label": "baseline-5",
+      "side": "baseline",
+      "source": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f-dirty",
+      "mainSourceSha256": "c25f1070cdb0db0f0d87a24d389362aabca735b34bddccbbe1c7d622f90951af",
+      "frames": 666,
+      "p50Ms": 33.8,
+      "p95Ms": 65.91,
+      "maxMs": 151.86,
+      "over16_67ms": 665,
+      "phaseP95Ms": {
+        "layout": 0.13,
+        "draw": 10.36,
+        "sync": 0.23,
+        "gpu": 21.31,
+        "queue": 24.0,
+        "input": 0.0,
+        "animation": 9.66,
+        "commandIssue": 4.67,
+        "swap": 12.69
+      },
+      "totalPssKb": 128467
+    },
+    {
+      "label": "after-3",
+      "side": "after",
+      "source": "6cfbbadcfbecbbca43d33c5290d60b6fd536f8de",
+      "mainSourceSha256": "2f8a831a7f1faacfd65ac8938e30aa3906c16eea4ddc60f4440094899648f9c3",
+      "frames": 561,
+      "p50Ms": 29.36,
+      "p95Ms": 66.8,
+      "maxMs": 118.15,
+      "over16_67ms": 559,
+      "phaseP95Ms": {
+        "layout": 0.17,
+        "draw": 13.61,
+        "sync": 0.22,
+        "gpu": 23.52,
+        "queue": 24.7,
+        "input": 0.0,
+        "animation": 20.62,
+        "commandIssue": 5.71,
+        "swap": 14.73
+      },
+      "totalPssKb": 128559
+    },
+    {
+      "label": "after-4",
+      "side": "after",
+      "source": "6cfbbadcfbecbbca43d33c5290d60b6fd536f8de",
+      "mainSourceSha256": "2f8a831a7f1faacfd65ac8938e30aa3906c16eea4ddc60f4440094899648f9c3",
+      "frames": 573,
+      "p50Ms": 29.53,
+      "p95Ms": 67.61,
+      "maxMs": 134.69,
+      "over16_67ms": 570,
+      "phaseP95Ms": {
+        "layout": 0.2,
+        "draw": 14.86,
+        "sync": 0.18,
+        "gpu": 23.58,
+        "queue": 23.41,
+        "input": 0.0,
+        "animation": 18.17,
+        "commandIssue": 5.52,
+        "swap": 15.39
+      },
+      "totalPssKb": 130476
+    },
+    {
+      "label": "after-5",
+      "side": "after",
+      "source": "6cfbbadcfbecbbca43d33c5290d60b6fd536f8de",
+      "mainSourceSha256": "2f8a831a7f1faacfd65ac8938e30aa3906c16eea4ddc60f4440094899648f9c3",
+      "frames": 658,
+      "p50Ms": 29.61,
+      "p95Ms": 67.35,
+      "maxMs": 134.55,
+      "over16_67ms": 656,
+      "phaseP95Ms": {
+        "layout": 0.16,
+        "draw": 12.86,
+        "sync": 0.24,
+        "gpu": 23.44,
+        "queue": 24.17,
+        "input": 0.0,
+        "animation": 19.66,
+        "commandIssue": 5.18,
+        "swap": 15.68
+      },
+      "totalPssKb": 128555
+    }
+  ],
+  "medians": {
+    "baseline": {
+      "p50Ms": 33.83,
+      "p95Ms": 67.61,
+      "phaseP95Ms": {
+        "layout": 0.12,
+        "draw": 10.77,
+        "sync": 0.23,
+        "gpu": 21.2,
+        "queue": 26.11,
+        "input": 0.0,
+        "animation": 10.07,
+        "commandIssue": 4.51,
+        "swap": 11.67
+      }
+    },
+    "after": {
+      "p50Ms": 29.53,
+      "p95Ms": 67.35,
+      "phaseP95Ms": {
+        "layout": 0.17,
+        "draw": 13.61,
+        "sync": 0.22,
+        "gpu": 23.52,
+        "queue": 24.17,
+        "input": 0.0,
+        "animation": 19.66,
+        "commandIssue": 5.52,
+        "swap": 15.39
+      }
+    }
+  }
+}

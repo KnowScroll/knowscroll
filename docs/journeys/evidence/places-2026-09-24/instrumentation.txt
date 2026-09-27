@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.PlacesJourneyTest:.
+
+Time: 17.751
+
+OK (1 test)
+
+

@@ -15,25 +15,32 @@ describe('SystemScreen', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
 
     // Real per-world counts, not dressed up.
-    expect(screen.getByText('9 SCROLLS · 2 SEEN')).toBeInTheDocument();
-    expect(screen.getByText('8 SCROLLS · 8 SEEN')).toBeInTheDocument();
+    expect(screen.getByText('2 of 9 Scrolls encountered')).toBeInTheDocument();
+    expect(screen.getByText('8 of 8 Scrolls encountered')).toBeInTheDocument();
 
     // The subtitle states only the real number of worlds and Scrolls.
-    expect(screen.getByText('2 WORLDS · 17 SCROLLS RECORDED · 10 SEEN')).toBeInTheDocument();
+    expect(screen.getByText('2 worlds, connected by your exploration.')).toBeInTheDocument();
   });
 
-  it('gives a fully explored world and a partially explored world visibly distinct treatment', () => {
-    const response = worldSystemOf();
-    render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
-
-    expect(screen.getByText('MORE TO EXPLORE')).toBeInTheDocument();
-    expect(screen.getByText('FULLY EXPLORED')).toBeInTheDocument();
+  it('opens a local world and closes it before leaving the system', () => {
+    const onReturn = vi.fn();
+    render(<SystemScreen state={{ status: 'loaded', response: worldSystemOf() }} onReturn={onReturn} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore world: NASA · Stars' }));
+    expect(screen.getByRole('heading', { name: 'NASA · Stars' })).toHaveFocus();
+    expect(screen.getByText(/All currently available Scrolls/)).toBeInTheDocument();
+    expect(screen.queryByText('FULLY EXPLORED')).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onReturn).not.toHaveBeenCalled();
+    expect(screen.getByRole('list', { name: 'Worlds in your system' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onReturn).toHaveBeenCalledTimes(1);
   });
 
   it('links each world to its real source, opening in a new tab', () => {
     const response = worldSystemOf();
     render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Explore world: NASA · Stars' }));
     const link = screen.getByRole('link', { name: /Open source: NASA · Stars/ });
     expect(link).toHaveAttribute('href', 'https://example.com/stars');
     expect(link).toHaveAttribute('target', '_blank');
@@ -44,8 +51,8 @@ describe('SystemScreen', () => {
     const response = worldSystemOf({ system: null });
     render(<SystemScreen state={{ status: 'loaded', response }} onReturn={vi.fn()} onRetry={vi.fn()} onEnterScroll={vi.fn()} />);
 
-    expect(screen.getByText('Nothing has been encountered yet')).toBeInTheDocument();
-    expect(screen.getByText(/There is no system yet because nothing has been encountered/)).toBeInTheDocument();
+    expect(screen.getByText('Your first world is waiting.')).toBeInTheDocument();
+    expect(screen.getByText(/Read a Scroll and its source/)).toBeInTheDocument();
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
   });
 
@@ -54,12 +61,12 @@ describe('SystemScreen', () => {
     const state: SystemView = { status: 'unavailable', message: 'Connection interrupted.' };
     render(<SystemScreen state={state} onReturn={vi.fn()} onRetry={onRetry} onEnterScroll={vi.fn()} />);
 
-    expect(screen.getByRole('heading', { name: 'The system is unavailable' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry loading the system' }));
+    expect(screen.getByRole('heading', { name: 'Your system is unavailable' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('carries the dock, the frame every level shares, marking no entry as current', () => {
+  it('carries the dock, the frame every level shares, marking Atlas as the containing destination', () => {
     const onEnterScroll = vi.fn();
     const onReturn = vi.fn();
     render(
@@ -70,7 +77,7 @@ describe('SystemScreen', () => {
     expect(dock).toBeInTheDocument();
     // System is not one of the dock's three destinations, so marking one current would tell the
     // reader they are somewhere they are not.
-    expect(dock.querySelector('[aria-current]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Atlas — your universe' })).toHaveAttribute('aria-current', 'page');
 
     fireEvent.click(screen.getByRole('button', { name: 'Cable — read a Scroll' }));
     expect(onEnterScroll).toHaveBeenCalledTimes(1);

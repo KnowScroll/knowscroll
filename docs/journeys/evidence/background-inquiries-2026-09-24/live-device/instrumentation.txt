@@ -1,0 +1,8 @@
+
+com.knowscroll.mobile.BackgroundInquiryJourneyTest:.
+
+Time: 30.331
+
+OK (1 test)
+
+

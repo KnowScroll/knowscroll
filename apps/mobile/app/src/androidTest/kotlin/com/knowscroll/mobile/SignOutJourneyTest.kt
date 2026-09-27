@@ -31,7 +31,7 @@ class SignOutJourneyTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") {
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName)) {
             "Sign-out verification requires the separate journey app"
         }
     }
@@ -44,7 +44,7 @@ class SignOutJourneyTest {
     }
 
     private fun control(path: String, body: JSONObject): Int {
-        val connection = (URL(BuildConfig.KS_DEBUG_API_BASE + path).openConnection() as HttpURLConnection)
+        val connection = (URL(BuildConfig.KS_API_BASE + path).openConnection() as HttpURLConnection)
         return try {
             connection.requestMethod = "POST"; connection.connectTimeout = 5_000; connection.readTimeout = 5_000
             connection.doOutput = true; connection.setRequestProperty("Content-Type", "application/json")

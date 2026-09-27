@@ -21,7 +21,9 @@ test('provisions isolated identities and authenticates only the matching scope',
 test('explicit universe must exist and session scope follows its current epoch', async () => {
  await assert.rejects(provisionIdentity({universeId:randomUUID()}),/Universe not found/);
  const selected=await provisionIdentity({universeId:OWNER_ID,deviceId:randomUUID(),expiresInHours:1});
- assert.equal(selected.scope.universeId,OWNER_ID); assert.equal(selected.scope.privacyEpoch,0);
+ // The owner universe is shared by the suite (account deletion advances its epoch): read the current one.
+ const current=(await pool.query('SELECT privacy_epoch FROM universe WHERE id=$1',[OWNER_ID])).rows[0].privacy_epoch;
+ assert.equal(selected.scope.universeId,OWNER_ID); assert.equal(selected.scope.privacyEpoch,current);
 });
 
 test('development enrollment never extends or reactivates its session', async () => {

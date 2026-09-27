@@ -31,7 +31,7 @@ class ReaderAuthorityJourneyTest {
     private fun store() = StateStore(instrumentation.targetContext)
 
     private fun guardJourneyApp() {
-        check(instrumentation.targetContext.packageName == "com.knowscroll.mobile.journey") {
+        check(com.knowscroll.mobile.JourneyBuild.isJourney(instrumentation.targetContext.packageName)) {
             "Reader authority verification requires the separate journey app"
         }
     }
@@ -59,7 +59,7 @@ class ReaderAuthorityJourneyTest {
     }
 
     private fun revokeJourneySessions(): Int {
-        val connection = URL(BuildConfig.KS_DEBUG_API_BASE + "/__journey/revoke-sessions")
+        val connection = URL(BuildConfig.KS_API_BASE + "/__journey/revoke-sessions")
             .openConnection() as HttpURLConnection
         return try {
             connection.requestMethod = "POST"
@@ -105,7 +105,7 @@ class ReaderAuthorityJourneyTest {
         compose.waitUntil(15_000) {
             store().read() == null && store().readVisited().isEmpty() &&
                 compose.onAllNodesWithContentDescription("Scroll reading content").fetchSemanticsNodes().isEmpty() &&
-                compose.onAllNodesWithContentDescription("Sources for this Scroll").fetchSemanticsNodes().isEmpty()
+                compose.onAllNodesWithContentDescription("Why this Scroll appeared").fetchSemanticsNodes().isEmpty()
         }
         compose.onAllNodesWithText(before.item.title).assertCountEquals(0)
         assertEquals("universe", store().readScreen())
@@ -125,7 +125,7 @@ class ReaderAuthorityJourneyTest {
             put("nextFeed401FailedClosed", true)
             put("readerCachePurged", true)
             put("visitedPurged", true)
-            put("sourceControlRemoved", true)
+            put("readerControlsRemoved", true)
             put("oldPageAbsent", true)
             put("result", "passed")
         })

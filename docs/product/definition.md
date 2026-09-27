@@ -887,7 +887,10 @@ Agent activity can alter the world only through typed deltas and risk gates. Cos
 
 ## 12. Truth, provenance, and fictional boundaries
 
-Every encounter has one primary truth state:
+Every encounter has one primary truth state. Owner decision (2026-09-24): readers never see a source.
+Where the table below requires source access or sources, they are kept internally and used for
+checking (claims, the validator, corrections, provenance); readers see the truth state and the claims,
+never where they came from.
 
 | State | Meaning | Required presentation |
 |---|---|---|

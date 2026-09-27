@@ -28,7 +28,13 @@ export function CosmosBackground(): ReactElement {
       }
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.clearRect(0, 0, width, height);
+      context.globalAlpha = 1;
       context.fillStyle = '#03101a';
+      context.fillRect(0, 0, width, height);
+      const atmosphere = context.createRadialGradient(width * .58, height * .43, 0, width * .58, height * .43, Math.max(width, height) * .52);
+      atmosphere.addColorStop(0, '#123c422e');
+      atmosphere.addColorStop(1, '#03101a00');
+      context.fillStyle = atmosphere;
       context.fillRect(0, 0, width, height);
       const palette = ['#B7C3CC', '#8FA3B0', '#E9E3CE', '#33C4B4'];
       // A fixed linear congruential generator: seeded, deterministic, decorative only.

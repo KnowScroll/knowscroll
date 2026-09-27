@@ -1,0 +1,38 @@
+{
+  "inquiryId": "a502ae3f-8829-4534-acb4-41f95b2a3d14",
+  "status": "found",
+  "bridgeId": "950874c1-8822-4410-a5bf-ffb1f8b19e3f",
+  "relationType": "compares_mechanism",
+  "pairs": [
+    [
+      "astro.sun",
+      "physics.gravity"
+    ]
+  ],
+  "bridgeConcepts": [
+    "astro.sun",
+    "physics.gravity"
+  ],
+  "evidenceCount": 3,
+  "statusesSeen": [
+    "waiting",
+    "found"
+  ],
+  "inquiriesListed": 1,
+  "consent": {
+    "enabled": true,
+    "dailyLimit": 3,
+    "usedToday": 1
+  },
+  "sunPlaceId": "150dc23f-76d4-4500-b8b6-e088f2917304",
+  "gravityPlaceId": "b31a9ae5-45f0-4b2a-ad0b-f3227767ef85",
+  "deltaIds": {
+    "gravityFormed": "64db06e0-55e4-4734-9561-be7cd54fbe9c"
+  },
+  "continuation": {
+    "originAssetId": "20000000-0000-4000-8000-000000000012",
+    "targetAssetId": "20000000-0000-4000-8000-000000000001",
+    "direction": "forward",
+    "walkedPast": 0
+  }
+}

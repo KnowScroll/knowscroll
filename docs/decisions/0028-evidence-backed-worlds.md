@@ -161,6 +161,17 @@ left alone here rather than modified unilaterally, since privacy-lifecycle scope
 belong to whichever lane owns ADR-0010 (tracked as #4 elsewhere in this delivery). No coordinator
 review of this consumer has happened yet.
 
+## 2026-09-22 successor — encounter erasure (#72 / #4)
+
+The gap recorded above was reproduced by the Android foreground/privacy journey: Clear removed
+the encounters but `GET /v1/worlds` still returned their private system. The refinement branch
+extends ADR-0010's transaction to erase that universe's system members and system after exposures.
+Reset inherits the same cleanup. Migration 0025 changes only the deletion guard, not existing data;
+shared catalog worlds, members and assets survive. Exact Clear replay returns before this cleanup,
+so later encounters are not erased. See [ADR-0010](0010-clear-scroll-history.md) and the dated
+[refinement evidence](../journeys/evidence/ui-refinement-2026-09-21/README.md). This successor
+does not rewrite the historical delivery boundary above or claim owner-runtime deployment.
+
 ## Sources / verification
 
 `packages/db/migrations/0017_evidence_backed_worlds.sql`. Evidence for "two sources today":

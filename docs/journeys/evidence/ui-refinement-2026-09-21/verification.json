@@ -1,0 +1,25 @@
+{
+  "result": "passed",
+  "at": "2026-09-21T19:22:50.145949+00:00",
+  "commands": {
+    "pnpm typecheck": "passed",
+    "pnpm test": {
+      "passed": 714,
+      "failed": 0,
+      "database": "isolated knowscroll_test_*; dropped by runner"
+    },
+    "pnpm --filter web typecheck": "passed",
+    "pnpm --filter web test": {
+      "passed": 76
+    }
+  },
+  "sourceSha256": {
+    "packages/db/src/privacy.ts": "1112a77a6fe8afd78a968c91a690dca42418e15b7e25b0fe7b956cf1ca9057c9",
+    "packages/db/migrations/0025_world_system_privacy_erasure.sql": "80d77b20bf8eeda617185b89af4998fb8bc06d196fdb200f5756393aee6d3479",
+    "tests/worlds.test.ts": "75b079aa696741ec45b16002a6bd4b12205f75a2ab0172dc4471e3d426518415"
+  },
+  "limits": [
+    "No owner database migration or provider dispatch.",
+    "Source hashes identify tested privacy changes; runtime receipts separately identify UI runs."
+  ]
+}

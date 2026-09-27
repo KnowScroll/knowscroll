@@ -1,0 +1,16 @@
+{
+  "database": "knowscroll_test_native_2ed0339a4d35f6ee",
+  "apiPort": 4323,
+  "pids": [
+    97395,
+    97396
+  ],
+  "source": "81431cc1575e0b8ad8d8f8dfd19de67881c3c53f",
+  "mainSourceSha256": "6006a037190f58f7c88611e9ec541e91374521d334999ea8d03c0aa4ce0e13eb",
+  "package": "com.knowscroll.mobile.journey",
+  "fixture": true,
+  "compact": false,
+  "reducedMotion": false,
+  "providerCalls": 0,
+  "createdAt": "2026-09-23T15:39:23.937820+00:00"
+}

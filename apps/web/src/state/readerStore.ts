@@ -7,9 +7,10 @@
  * A React hook subscribes via useSyncExternalStore (src/hooks/useReaderStore.ts);
  * this file has no DOM/React dependency so its logic is directly unit-testable.
  */
-import { ApiException, describeApiError, invalidatesReader, isUnauthorized, type ReaderApi } from '../api/client.ts';
-import { RESET_CONFIRMATION } from '../api/types.ts';
+import { ApiException, describeApiError, invalidatesReader, isUnauthorized, mayHaveLanded, type ReaderApi } from '../api/client.ts';
+import { ACCOUNT_DELETE_CONFIRMATION, ACCOUNT_DELETE_TYPED_WORD, RESET_CONFIRMATION } from '../api/types.ts';
 import type {
+  EncounterFeedbackKind,
   EventStatus,
   FeedItem,
   FeedResponse,
@@ -18,9 +19,10 @@ import type {
   Trace,
   TraceRevisit,
   Universe,
+  WhyResponse,
   WorldSystemResponse,
 } from '../api/types.ts';
-import { canRequestDiscovery, selectDiscovery, type DiscoveryState, type KeepState } from './discovery.ts';
+import { canRequestDiscovery, selectDiscovery, tripExclude, type DiscoveryState, type KeepState } from './discovery.ts';
 import type { ReaderStorage, RevisitSession, ScrollSession } from './storage.ts';
 
 function randomUuid(): string {
@@ -65,17 +67,24 @@ export type SystemView =
   | { status: 'loaded'; response: WorldSystemResponse }
   | { status: 'unavailable'; message: string };
 
-export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy';
+export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy' | 'keep';
 
 /** ADR-0030/#119: pause, export and reset. Every mutating action carries the `kind` it is acting
  * on and, once sent, the one `requestId` that intent keeps across any retry (server-side replay
  * key) -- a manual retry after `failed` reuses it rather than minting a fresh one, exactly like
- * `ScrollSession.clientEventId` already does for Keep. */
-export type PrivacyActionKind = 'pause' | 'resume' | 'export' | 'reset';
+ * `ScrollSession.clientEventId` already does for Keep.
+ *
+ * `'sign-out'`/`'delete-account'` (#135, ADR-0034/ADR-0035) share this same one-action-at-a-time
+ * machinery: sign-out needs no confirmation step (like pause/resume), account deletion needs its
+ * own typed-confirmation gate (like reset, `'confirming-delete'` below) -- but neither ends inside
+ * this panel the way reset's `'reset-complete'` does, since both hand off to the app's sign-in
+ * screen instead (`onSignedOut`, this class's third constructor argument). */
+export type PrivacyActionKind = 'pause' | 'resume' | 'export' | 'reset' | 'sign-out' | 'delete-account';
 
 export type PrivacyActionState =
   | { status: 'idle' }
   | { status: 'confirming-reset' }
+  | { status: 'confirming-delete' }
   | { status: 'pending'; kind: PrivacyActionKind; requestId: string }
   | { status: 'failed'; kind: PrivacyActionKind; requestId: string; message: string }
   | { status: 'export-ready'; requestId: string; result: PrivacyExportResult }
@@ -86,12 +95,48 @@ export type PrivacyActionState =
  * never a copy of their own that could drift from it. */
 export type PrivacyView = { status: 'idle' } | { status: 'open'; action: PrivacyActionState };
 
+/** #133: what the "What led here" panel can honestly say about the encounter on screen.
+ * `unrecorded` is absence, not failure: a saved Trace (no Composer decision) or the server's 404. */
+export type WhyAvailability =
+  | { status: 'loading' }
+  | { status: 'loaded'; why: WhyResponse }
+  | { status: 'unrecorded' }
+  | { status: 'failed'; message: string };
+
+/** The outcome of the reader's last correction here, for the panel to say in words. */
+export type WhyNotice =
+  | { kind: 'corrected'; correction: EncounterFeedbackKind }
+  | { kind: 'no-route' }
+  | { kind: 'failed'; correction: EncounterFeedbackKind; message: string };
+
+/**
+ * #133 (ADR-0032 §5, journey G): the recorded explanation of the encounter being read -- its feed
+ * decision and Scroll -- and the reader's corrections of it. Never persisted across reload, like
+ * `SystemView`: reopening always re-reads what is recorded now. `corrected` is what the server
+ * reported plus what this page has since recorded, so no correction is offered twice.
+ */
+export type WhyView =
+  | { status: 'closed' }
+  | {
+      status: 'open';
+      decisionId: string;
+      assetId: string;
+      availability: WhyAvailability;
+      /** The correction being sent, if any: every correction control waits until it settles. */
+      sending: EncounterFeedbackKind | null;
+      corrected: EncounterFeedbackKind[];
+      notice: WhyNotice | null;
+    };
+
+const WHY_CLOSED: WhyView = { status: 'closed' };
+
 export interface ReaderState {
   screen: Screen;
   universe: UniverseView;
   scroll: ScrollView;
   system: SystemView;
   privacy: PrivacyView;
+  why: WhyView;
   toast: string | null;
 }
 
@@ -104,6 +149,7 @@ export class ReaderStore {
     scroll: { status: 'idle' },
     system: { status: 'idle' },
     privacy: { status: 'idle' },
+    why: WHY_CLOSED,
     toast: null,
   };
   private readonly listeners = new Set<Listener>();
@@ -112,12 +158,55 @@ export class ReaderStore {
   private observedPrivacyEpoch: number;
   private observedUniverseId: string;
   private busy = false;
+  /** The exposure being recorded for the Scroll on screen, so a Keep tapped meanwhile joins it
+   * instead of being dropped as "busy" (#123). The join belongs to this one exposure: `joined`
+   * means a Keep now owns `busy` and what the reader sees next; `version`/`epoch` stop a Keep from
+   * joining an exposure started before the last navigation. */
+  private exposing: { clientExposureId: string; version: number; epoch: number; promise: Promise<ScrollSession>; joined: boolean } | null = null;
   private reconciling = false;
   private ready = false;
   private navigationVersion = 0;
   private readonly visited: Set<string>;
+  /** #135 review: whether any deletion attempt in this page may have been applied without an answer
+   * (see `mayHaveLanded`) -- whatever its requestId, so Cancel and a fresh confirmation after a lost
+   * response still read a 401 as "deleted" (verification N3). See `confirmDeleteAccount`. */
+  private deletionMayHaveLanded = false;
+  /** The same fact for Reset (#135, from #119): Reset also ends the calling session inside its own
+   * transaction (ADR-0030), so a 401 after a lost response may mean the Reset itself happened. */
+  private resetMayHaveLanded = false;
+  /** #133: the latest "why" read; an older one that lands after it (a quick close and reopen) is dropped. */
+  private whyRequest = 0;
+  /** #133: one clientFeedbackId per correction intent (`decision:asset:kind`), reused by every retry
+   * of that intent until the server answers -- the route is replay-keyed on it, so a fresh id per
+   * retry would record one correction twice. Private history: purged with the rest. */
+  private readonly pendingCorrections = new Map<string, string>();
 
-  constructor(private readonly api: ReaderApi, private readonly storage: ReaderStorage) {
+  /**
+   * `onSignedOut` (#135) is optional and additive: every test and caller that predates it keeps
+   * working unchanged. It fires whenever this store learns the reader is no longer authenticated --
+   * a 401 from any authenticated call (alongside the existing fail-closed Unavailable universe,
+   * never in place of it), a real `signOut()`, a real `confirmDeleteAccount()`, or a `confirmReset()`
+   * whose 401 follows an attempt that may have landed -- carrying a deletion-specific message for
+   * deletion ("deleted" only when a deletion was, or may have been, applied; otherwise that the
+   * session ended before it was sent), a "may have completed" message for that Reset, and `null`
+   * otherwise.
+   *
+   * Its second argument, `verify`, tells the caller whether this needs confirming before it acts
+   * on it: `true` for an *ambient* 401 hit during ordinary reads (this store has no way to know
+   * whether the deployment even has a sign-in surface -- a bearer/dev-proxy session has none, and
+   * for that shape an ambient 401 is exactly the existing fail-closed-and-retry flow, not a reason
+   * to show a screen with nothing useful on it); `false` for `signOut()`/`confirmDeleteAccount()`
+   * and that `confirmReset()` case,
+   * which the reader asked for directly and which always deserve a real answer regardless of
+   * deployment shape. The app uses `ApiClient.isBearerSession()` to settle a `true` case; this
+   * class itself has no notion of screens outside its own five and makes no such deployment
+   * assumption on its own.
+   */
+  constructor(
+    private readonly api: ReaderApi,
+    private readonly storage: ReaderStorage,
+    private readonly onSignedOut?: (message: string | null, verify: boolean) => void,
+  ) {
     this.observedPrivacyEpoch = storage.readObservedPrivacyEpoch();
     this.observedUniverseId = storage.readObservedUniverseId();
     this.visited = storage.readVisited();
@@ -187,7 +276,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.set({ system: { status: 'unavailable', message: describeApiError(error) } });
         }
@@ -206,6 +295,7 @@ export class ReaderStore {
   returnFromSystem(): void {
     if (this.state.screen !== 'system') return;
     this.navigationVersion++; // invalidates any in-flight getWorlds() so a stale response cannot land
+    this.busy = false;
     this.set({ screen: 'universe', system: { status: 'idle' } });
   }
 
@@ -285,7 +375,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.setPrivacyAction({ status: 'failed', kind, requestId, message: describeApiError(error) });
         }
@@ -316,7 +406,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.setPrivacyAction({ status: 'failed', kind: 'export', requestId, message: describeApiError(error) });
         }
@@ -337,8 +427,15 @@ export class ReaderStore {
 
   cancelReset(): void {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (!this.resetConfirmationOpen()) return;
     this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** The typed-confirmation panel is showing: freshly opened, or after a failed attempt, whose own
+   * Confirm is the retry (same requestId, via `nextPrivacyRequestId`), as for account deletion. */
+  private resetConfirmationOpen(): boolean {
+    const action = this.currentPrivacyAction();
+    return action !== null && (action.status === 'confirming-reset' || (action.status === 'failed' && action.kind === 'reset'));
   }
 
   /** Refuses to send anything unless `typed` is exactly the wire contract's own confirmation
@@ -347,7 +444,7 @@ export class ReaderStore {
   confirmReset(typed: string): void {
     if (this.busy || this.reconciling || !this.ready) return;
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
-    if (this.state.privacy.action.status !== 'confirming-reset') return;
+    if (!this.resetConfirmationOpen()) return;
     if (typed !== RESET_CONFIRMATION) return;
     const requestId = this.nextPrivacyRequestId('reset');
     const epoch = this.observedPrivacyEpoch;
@@ -370,16 +467,28 @@ export class ReaderStore {
         this.session = null;
         this.revisit = null;
         this.visited.clear();
+        this.pendingCorrections.clear();
         this.ready = false; // the calling session is revoked server-side; nothing else may act as it until re-authenticated
-        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' } });
+        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' }, why: WHY_CLOSED });
         this.setPrivacyAction({ status: 'reset-complete', receipt });
       })
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error) && (this.resetMayHaveLanded || mayHaveLanded(error))) {
+          // An earlier attempt may have reset the universe and ended this session with it; the
+          // receipt never arrived, so say only that it may have completed. Every local private
+          // artifact goes; the epoch fence stays at what was observed (unlike deletion, the
+          // universe is the same one, and a fence ahead of the server would refuse it if the
+          // Reset did not in fact land). The next sign-in observes the real epoch.
+          this.storage.purgePrivateState(universeId, epoch);
+          this.onSignedOut?.('Your session ended. The Reset may have completed, but the connection dropped before it was confirmed. Sign in to see your universe.', false);
+          return;
+        }
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
+          if (mayHaveLanded(error)) this.resetMayHaveLanded = true;
           this.setPrivacyAction({ status: 'failed', kind: 'reset', requestId, message: describeApiError(error) });
         }
       })
@@ -394,6 +503,241 @@ export class ReaderStore {
     if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
     if (this.state.privacy.action.status !== 'reset-complete') return;
     this.reconcilePrivacy(false);
+  }
+
+  // ---------- Sign-out and account deletion (#135, ADR-0034/ADR-0035) ----------
+
+  /** No confirmation step (like pause/resume, unlike reset/delete-account below): ending this
+   * session destroys nothing recorded. A failure shows a real, retryable failed state rather than
+   * pretending the reader signed out -- the one exception is a session that turns out to already be
+   * gone (401), which is indistinguishable from success from here and is treated as one. */
+  signOut(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    this.busy = true;
+    const version = this.navigationVersion;
+    const universeId = this.observedUniverseId;
+    const epoch = this.observedPrivacyEpoch;
+    this.setPrivacyAction({ status: 'pending', kind: 'sign-out', requestId: '' });
+    this.api
+      .postSessionRevoke()
+      .then(() => {
+        if (version !== this.navigationVersion) return;
+        this.finishSignOut(universeId, epoch);
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error)) {
+          this.finishSignOut(universeId, epoch); // already gone -- the same outcome the caller asked for
+          return;
+        }
+        this.setPrivacyAction({ status: 'failed', kind: 'sign-out', requestId: '', message: describeApiError(error) });
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** The session this browser held is over: its local reading traces (session, revisit, visited,
+   * last kept) go with it, as Android's sign-out already does; the observed epoch is kept. */
+  private finishSignOut(universeId: string, epoch: number): void {
+    this.storage.purgePrivateState(universeId, epoch);
+    this.onSignedOut?.(null, false);
+  }
+
+  /** Behind an explicit typed word (#135, ADR-0035): this only opens the confirmation UI. Nothing
+   * is sent until `confirmDeleteAccount` is called with the exact matching word. */
+  beginDeleteAccount(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (this.state.privacy.action.status !== 'idle') return;
+    this.setPrivacyAction({ status: 'confirming-delete' });
+  }
+
+  cancelDeleteAccount(): void {
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (!this.deleteConfirmationOpen()) return;
+    this.setPrivacyAction({ status: 'idle' });
+  }
+
+  /** The typed-confirmation panel is showing: freshly opened, or after a failed attempt, whose own
+   * Confirm is the retry (same requestId, via `nextPrivacyRequestId`). */
+  private deleteConfirmationOpen(): boolean {
+    const action = this.currentPrivacyAction();
+    return action !== null && (action.status === 'confirming-delete' || (action.status === 'failed' && action.kind === 'delete-account'));
+  }
+
+  /** Refuses to send anything unless `typed` is exactly the panel's own short confirmation word
+   * (`ACCOUNT_DELETE_TYPED_WORD`) -- the panel already gates its Confirm control on this; this check
+   * is defence in depth, not the only gate. The wire literal actually sent
+   * (`ACCOUNT_DELETE_CONFIRMATION`) is a different, longer string the reader never has to type. */
+  confirmDeleteAccount(typed: string): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    if (this.state.screen !== 'privacy' || this.state.privacy.status !== 'open') return;
+    if (!this.deleteConfirmationOpen()) return;
+    if (typed !== ACCOUNT_DELETE_TYPED_WORD) return;
+    const requestId = this.nextPrivacyRequestId('delete-account');
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.busy = true;
+    const version = this.navigationVersion;
+    this.setPrivacyAction({ status: 'pending', kind: 'delete-account', requestId });
+    this.api
+      .postAccountDelete({ requestId, expectedPrivacyEpoch: epoch, confirmation: ACCOUNT_DELETE_CONFIRMATION })
+      .then(receipt => {
+        if (version !== this.navigationVersion) return;
+        this.finishAccountDeletion(universeId, receipt.epochAfter);
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (isUnauthorized(error)) {
+          if (this.deletionMayHaveLanded || mayHaveLanded(error)) {
+            // ADR-0035 sec.5: the calling session is deleted inside the same transaction, so a
+            // retry after a lost response gets 401 -- and an earlier attempt of this very request
+            // may be what deleted it. The exact new epoch is unknown (the receipt never arrived),
+            // but the deletion always advances it by exactly one (ADR-0035 sec.2/`epochAfter`).
+            this.finishAccountDeletion(universeId, epoch + 1);
+          } else {
+            // Nothing of this request can have been applied: the session had already ended
+            // (expired, or signed out/reset elsewhere) before it was sent. The account remains.
+            this.storage.purgePrivateState(universeId, epoch);
+            this.onSignedOut?.('Your session ended before the deletion was sent. Sign in and try again.', false);
+          }
+          return;
+        }
+        if (mayHaveLanded(error)) this.deletionMayHaveLanded = true;
+        this.setPrivacyAction({ status: 'failed', kind: 'delete-account', requestId, message: describeApiError(error) });
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  /** Shared by the ordinary-success and 401-after-a-possibly-applied-attempt paths above: clears every cached private
+   * artifact this browser held (ADR-0035's "clear local reader storage") and hands off to the app's
+   * sign-in screen with the one deletion-specific message. Nothing else in this store's own state
+   * needs updating -- the app unmounts this whole reader tree the moment `onSignedOut` fires. */
+  private finishAccountDeletion(universeId: string, epochAfter: number): void {
+    this.storage.purgePrivateState(universeId, epochAfter);
+    this.onSignedOut?.('Your account and history were deleted.', false);
+  }
+
+  // ---------- What led here (#133, ADR-0032 §5, journey G) ----------
+
+  /**
+   * Opens the explanation of the encounter on screen: the feed decision that served it and its
+   * Scroll (the same pair its exposure was recorded under). A saved Trace was never chosen by the
+   * Composer, so it has nothing recorded to show and nothing is asked. Nothing is read while the
+   * reader is not ready -- signed out, failed closed or reconciling a privacy change.
+   */
+  openWhy(): void {
+    if (!this.ready || this.reconciling) return;
+    const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
+    if (!reading) return;
+    if (reading.origin.type !== 'discovery') {
+      this.set({ why: { status: 'open', decisionId: '', assetId: reading.item.assetId, availability: { status: 'unrecorded' }, sending: null, corrected: [], notice: null } });
+      return;
+    }
+    const session = this.session;
+    if (!session || session.item.assetId !== reading.item.assetId) return;
+    if (session.privacyEpoch !== this.observedPrivacyEpoch || session.universeId !== this.observedUniverseId) return;
+    const current = this.state.why;
+    if (current.status === 'open' && current.decisionId === session.decisionId && current.assetId === session.item.assetId && current.availability.status !== 'failed') return;
+    if (session.decisionId === '') {
+      this.set({ why: { status: 'open', decisionId: '', assetId: session.item.assetId, availability: { status: 'unrecorded' }, sending: null, corrected: [], notice: null } });
+      return;
+    }
+    this.loadWhy(session.decisionId, session.item.assetId);
+  }
+
+  closeWhy(): void {
+    if (this.state.why.status !== 'closed') this.set({ why: WHY_CLOSED });
+  }
+
+  /** A failed read's own retry; anything else is already showing the truth. */
+  retryWhy(): void {
+    const view = this.state.why;
+    if (!this.ready || this.reconciling || view.status !== 'open' || view.availability.status !== 'failed') return;
+    this.loadWhy(view.decisionId, view.assetId, view.corrected);
+  }
+
+  private loadWhy(decisionId: string, assetId: string, corrected: EncounterFeedbackKind[] = []): void {
+    const request = ++this.whyRequest;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ why: { status: 'open', decisionId, assetId, availability: { status: 'loading' }, sending: null, corrected, notice: null } });
+    this.api
+      .getWhy(decisionId, assetId)
+      .then(why => {
+        const view = this.openWhyFor(decisionId, assetId);
+        if (request !== this.whyRequest || epoch !== this.observedPrivacyEpoch || !view) return;
+        const known = new Set([...view.corrected, ...(why?.corrected ?? [])]);
+        this.set({ why: { ...view, availability: why ? { status: 'loaded', why } : { status: 'unrecorded' }, corrected: [...known] } });
+      })
+      .catch((error: unknown) => {
+        if (epoch !== this.observedPrivacyEpoch) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+          return;
+        }
+        const view = this.openWhyFor(decisionId, assetId);
+        if (request !== this.whyRequest || !view) return;
+        this.set({ why: { ...view, availability: { status: 'failed', message: describeApiError(error) } } });
+      });
+  }
+
+  private openWhyFor(decisionId: string, assetId: string): Extract<WhyView, { status: 'open' }> | null {
+    const view = this.state.why;
+    return view.status === 'open' && view.decisionId === decisionId && view.assetId === assetId ? view : null;
+  }
+
+  /**
+   * Journey G: "less like this" / "wrong connection" on the route that chose this encounter. It
+   * never edits a profile and never retracts shared knowledge; it is private history like any other
+   * act. Only a correction the recorded explanation supports, not already made, and with none in
+   * flight, is sent -- with the privacy epoch this page last observed, and the one clientFeedbackId
+   * its intent keeps across every retry.
+   */
+  correctEncounter(kind: EncounterFeedbackKind): void {
+    if (!this.ready || this.reconciling) return;
+    const view = this.state.why;
+    if (view.status !== 'open' || view.availability.status !== 'loaded') return;
+    if (!view.availability.why.corrections.includes(kind) || view.corrected.includes(kind) || view.sending !== null) return;
+    const { decisionId, assetId } = view;
+    const intent = `${decisionId}:${assetId}:${kind}`;
+    const clientFeedbackId = this.pendingCorrections.get(intent) ?? randomUuid();
+    this.pendingCorrections.set(intent, clientFeedbackId);
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ why: { ...view, sending: kind, notice: null } });
+    this.api
+      .postEncounterFeedback({ clientFeedbackId, decisionId, assetId, kind, expectedPrivacyEpoch: epoch })
+      .then(() => {
+        this.pendingCorrections.delete(intent);
+        const current = this.openWhyFor(decisionId, assetId);
+        if (epoch !== this.observedPrivacyEpoch || !current) return;
+        const corrected = current.corrected.includes(kind) ? current.corrected : [...current.corrected, kind];
+        this.set({ why: { ...current, sending: null, corrected, notice: { kind: 'corrected', correction: kind } } });
+      })
+      .catch((error: unknown) => {
+        if (epoch !== this.observedPrivacyEpoch) return;
+        if (error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 422) {
+          // Definitively refused: nothing was recorded, so this intent's key is spent.
+          this.pendingCorrections.delete(intent);
+          const current = this.openWhyFor(decisionId, assetId);
+          if (current) this.set({ why: { ...current, sending: null, notice: { kind: 'no-route' } } });
+          return;
+        }
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+          return;
+        }
+        // Possibly applied (a lost response) or not: either way the retry resends the same key.
+        const current = this.openWhyFor(decisionId, assetId);
+        if (current) this.set({ why: { ...current, sending: null, notice: { kind: 'failed', correction: kind, message: describeApiError(error) } } });
+      });
   }
 
   /** A Trace has an explicit origin and never becomes a new discovery or exposure (docs/contracts/trace-revisit.md). */
@@ -421,7 +765,7 @@ export class ReaderStore {
     const version = ++this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
     this.storage.writeScreen('revisit');
-    this.set({ screen: 'revisit', scroll: { status: 'loading' } });
+    this.set({ screen: 'revisit', scroll: { status: 'loading' }, why: WHY_CLOSED });
     this.api
       .getTraceRevisit(requested.eventId)
       .then(receipt => {
@@ -462,7 +806,7 @@ export class ReaderStore {
           this.set({ scroll: { status: 'unavailable', message: 'This saved Scroll is unavailable.', retryable: false } });
         } else if (invalidatesReader(error)) {
           this.purgeForScope(requested.universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           this.set({ scroll: { status: 'unavailable', message: describeApiError(error), retryable: true } });
         }
@@ -493,12 +837,15 @@ export class ReaderStore {
       this.storage.writeScreen('scroll');
       this.set({ screen: 'scroll', scroll: { status: 'loading' } });
     }
+    // The trip skips exactly what it told the feed it opened (#133): a capped list can only bring
+    // back an old Scroll, never end the trip while unopened ones remain.
+    const openedAssetId = reading?.item.assetId ?? this.session?.item.assetId;
+    const trip = tripExclude(this.visited, openedAssetId);
     this.api
-      .getFeed()
+      .getFeed(trip)
       .then((feed: FeedResponse) => {
         if (!this.operationIsCurrent(version, epoch)) return;
-        const currentAssetId = reading?.item.assetId ?? this.session?.item.assetId;
-        const selection = selectDiscovery(feed, universeId, epoch, this.visited, currentAssetId);
+        const selection = selectDiscovery(feed, universeId, epoch, new Set(trip), undefined);
         if (selection.kind === 'invalid-scope') {
           this.purgeForScope(feed.universeId, feed.privacyEpoch);
           this.failClosed('Your session moved to a different universe or privacy state. Reconnect to continue.');
@@ -537,7 +884,7 @@ export class ReaderStore {
         if (version !== this.navigationVersion || (this.state.screen !== 'scroll' && this.state.screen !== 'revisit')) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else if (reading) {
           const current = this.state.scroll;
           if (current.status === 'reading') this.set({ scroll: { ...current, discovery: 'failed' } });
@@ -553,7 +900,11 @@ export class ReaderStore {
   private show(value: ScrollSession): void {
     if (value.privacyEpoch !== this.observedPrivacyEpoch || value.universeId !== this.observedUniverseId) return;
     this.storage.writeScreen('scroll');
+    // The panel explains one encounter: showing another one closes it (a Keep of the same one does not).
+    const why = this.state.why;
+    const sameEncounter = why.status === 'open' && why.decisionId === value.decisionId && why.assetId === value.item.assetId;
     this.set({
+      why: sameEncounter ? why : WHY_CLOSED,
       screen: 'scroll',
       scroll: {
         status: 'reading',
@@ -576,24 +927,30 @@ export class ReaderStore {
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
     this.busy = true;
-    this.recordExposure(current, version, epoch)
+    const record = { clientExposureId: current.clientExposureId, version, epoch, promise: this.recordExposure(current, version, epoch), joined: false };
+    this.exposing = record;
+    record.promise
       .then(next => {
         if (this.operationIsCurrent(version, epoch, next)) {
           this.session = next;
-          this.show(next);
+          // A Keep that joined this exposure shows its own result; showing this one would
+          // briefly put its "Keeping…" back to idle.
+          if (!record.joined) this.show(next);
         }
       })
       .catch((error: unknown) => {
         if (version !== this.navigationVersion) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(current.universeId, epoch);
-          this.failClosed(describeApiError(error));
-        } else {
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else if (!record.joined) {
+          // A Keep that joined reports this failure itself.
           this.set({ toast: describeApiError(error) });
         }
       })
       .finally(() => {
-        if (version === this.navigationVersion) this.busy = false;
+        if (this.exposing === record) this.exposing = null;
+        if (version === this.navigationVersion && !record.joined) this.busy = false;
       });
   }
 
@@ -612,7 +969,12 @@ export class ReaderStore {
   }
 
   keep(): void {
-    if (this.busy || !this.ready) return;
+    // A reader who taps Keep while this Scroll's exposure is still being recorded is not ignored:
+    // the Keep waits for that same exposure (#123). Anything else busy still refuses the tap.
+    const record = this.exposing;
+    const join = record && !record.joined && record.version === this.navigationVersion && record.epoch === this.observedPrivacyEpoch
+      && this.session?.clientExposureId === record.clientExposureId ? record : null;
+    if ((this.busy && !join) || !this.ready) return;
     if (this.state.scroll.status === 'reading' && this.state.scroll.origin.type === 'saved-trace') return;
     const currentSession = this.session;
     if (!currentSession || currentSession.keepJobId !== '') return;
@@ -621,8 +983,9 @@ export class ReaderStore {
     this.busy = true;
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
+    if (join) join.joined = true;
     this.set({ scroll: { ...currentState, keep: { status: 'saving' } } });
-    this.recordExposure(currentSession, version, epoch)
+    (join ? join.promise : this.recordExposure(currentSession, version, epoch))
       .then(exposed => {
         if (!this.operationIsCurrent(version, epoch, exposed)) return Promise.reject(new StaleOperationError());
         this.session = exposed;
@@ -654,7 +1017,7 @@ export class ReaderStore {
         if (!this.operationIsCurrent(version, epoch, currentSession)) return;
         if (invalidatesReader(error)) {
           this.purgeForScope(currentSession.universeId, epoch);
-          this.failClosed(describeApiError(error));
+          this.failClosed(describeApiError(error), isUnauthorized(error));
         } else {
           const current = this.state.scroll;
           if (current.status === 'reading') this.set({ scroll: { ...current, keep: { status: 'failed', message: describeApiError(error) } } });
@@ -700,17 +1063,22 @@ export class ReaderStore {
     if (reading?.item.assetId === assetId) this.set({ scroll: { ...reading, readingPosition: position } });
   }
 
-  returnToUniverse(): void {
+  openKeep(): void {
+    if (this.reconciling || !this.ready) return;
+    this.returnToUniverse('keep');
+  }
+
+  returnToUniverse(destination: 'universe' | 'keep' = 'universe'): void {
     this.navigationVersion++;
     if (this.state.screen === 'revisit') this.discardRevisit();
     this.visited.clear();
     this.storage.writeVisited(this.visited);
     this.storage.writeScreen('universe');
-    this.set({ screen: 'universe', scroll: { status: 'idle' } });
-    this.reconcilePrivacy(false);
+    this.set({ screen: destination, scroll: { status: 'idle' }, why: WHY_CLOSED });
+    this.reconcilePrivacy(false, destination);
   }
 
-  private reconcilePrivacy(restoreStoredScroll: boolean): void {
+  private reconcilePrivacy(restoreStoredScroll: boolean, destination: 'universe' | 'keep' = 'universe'): void {
     if (this.reconciling) return;
     this.reconciling = true;
     this.ready = false;
@@ -719,9 +1087,9 @@ export class ReaderStore {
     const storedScreen = this.storage.readScreen();
     const wantedScroll = restoreStoredScroll && storedScreen === 'scroll';
     const wantedRevisit = restoreStoredScroll && storedScreen === 'revisit';
-    if (wantedScroll) this.set({ screen: 'scroll', scroll: { status: 'loading' } });
-    else if (wantedRevisit) this.set({ screen: 'revisit', scroll: { status: 'loading' } });
-    else this.set({ screen: 'universe', universe: { status: 'loading' } });
+    if (wantedScroll) this.set({ screen: 'scroll', scroll: { status: 'loading' }, why: WHY_CLOSED });
+    else if (wantedRevisit) this.set({ screen: 'revisit', scroll: { status: 'loading' }, why: WHY_CLOSED });
+    else this.set({ screen: destination, universe: { status: 'loading' }, why: WHY_CLOSED });
     this.api
       .getUniverse()
       .then(actual => {
@@ -730,9 +1098,9 @@ export class ReaderStore {
         const bindingChanged = localUniverse !== '' && localUniverse !== actual.universeId;
         if (bindingUnknown || bindingChanged) {
           this.purgeForScope(actual.universeId, actual.privacyEpoch);
-          this.applyUniverse(actual, false, version);
+          this.applyUniverse(actual, false, version, destination);
         } else {
-          this.applyUniverse(actual, wantedScroll || wantedRevisit, version);
+          this.applyUniverse(actual, wantedScroll || wantedRevisit, version, destination);
         }
       })
       .catch((error: unknown) => {
@@ -740,14 +1108,14 @@ export class ReaderStore {
           const scope = this.revisit;
           this.purgeForScope(scope?.universeId || this.observedUniverseId, Math.max(this.observedPrivacyEpoch, scope?.privacyEpoch ?? 0));
         }
-        this.failClosed(describeApiError(error));
+        this.failClosed(describeApiError(error), isUnauthorized(error));
       })
       .finally(() => {
         this.reconciling = false;
       });
   }
 
-  private applyUniverse(actual: Universe, restoreStoredScroll: boolean, version: number): void {
+  private applyUniverse(actual: Universe, restoreStoredScroll: boolean, version: number, destination: 'universe' | 'keep' = 'universe'): void {
     if (version !== this.navigationVersion) return;
     if (this.observedUniverseId !== '' && actual.universeId !== this.observedUniverseId) {
       this.purgeForScope(actual.universeId, actual.privacyEpoch);
@@ -772,7 +1140,7 @@ export class ReaderStore {
     } else {
       if (cached || cachedRevisit || (restoreStoredScroll && this.storage.readScreen() === 'revisit')) this.purgeForScope(this.observedUniverseId, this.observedPrivacyEpoch);
       this.storage.writeScreen('universe');
-      this.set({ screen: 'universe' });
+      this.set({ screen: destination });
     }
   }
 
@@ -783,17 +1151,25 @@ export class ReaderStore {
     this.session = null;
     this.revisit = null;
     this.visited.clear();
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' } });
+    this.pendingCorrections.clear();
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
   }
 
-  private failClosed(reason: string): void {
+  /** `signedOut` (#135) is additive: every existing caller keeps landing on exactly the same
+   * fail-closed Unavailable universe it always did. When the underlying error was specifically a
+   * 401 (not merely any invalidating one -- see `isUnauthorized` at each call site), this also
+   * fires `onSignedOut`, so the app can show its sign-in screen instead of (or over) this dead end. */
+  private failClosed(reason: string, signedOut = false): void {
     this.ready = false;
     this.session = null;
+    this.pendingCorrections.clear();
+    if (signedOut) this.onSignedOut?.(null, true);
     this.set({
       screen: 'universe',
       scroll: { status: 'idle' },
       system: { status: 'idle' },
       privacy: { status: 'idle' },
+      why: WHY_CLOSED,
       universe: { status: 'unavailable', message: reason },
     });
   }

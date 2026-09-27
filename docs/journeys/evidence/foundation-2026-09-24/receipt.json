@@ -1,0 +1,42 @@
+{
+  "at": "2026-09-24T08:58:16.370836+00:00",
+  "result": "passed",
+  "database": "knowscroll_test_semantic_44d9d1c9f91cc435",
+  "apiPort": 4333,
+  "source": "78e85e177897fbe93567c89e6804d9776be47994",
+  "package": "com.knowscroll.mobile.journey",
+  "journeyName": "foundation",
+  "journey": {
+    "gravityPlaceId": "c2874987-b318-4999-908c-1632463a76e8",
+    "heldUpPlaceIds": [
+      "7e06e119-03a6-450e-98bd-cd59ba30150f",
+      "16ec7004-c126-4426-aeae-af1fa697785d",
+      "c10143f4-3d91-4b6a-90bb-8d8d5ab2ca73"
+    ],
+    "tidesPlaceId": "c10143f4-3d91-4b6a-90bb-8d8d5ab2ca73",
+    "deltaIds": {
+      "gravityFormed": "426cda2b-8358-4736-a5fd-918c34868d08",
+      "recognised": "bb45b2b1-ac48-4fb5-983e-a77fec7cf474",
+      "tidesRejected": "3ac38c25-6ecf-48b5-9b37-bac3ca966144",
+      "withdrawn": "a53c44ad-16fa-49d7-a8c4-59ef2fd0d46c"
+    },
+    "connections": 3
+  },
+  "lineage": {
+    "gravityFormedFromReading": 1,
+    "recognisedSubstrate": 1,
+    "recognisedConnections": 3,
+    "recognisedInGravitysFormingTransaction": 1,
+    "tidesRejectedReaderCorrection": 1,
+    "withdrawnReaderCorrection": 1,
+    "gravityLoadBearingNow": false,
+    "suppliedHeldUpPlaces": 3
+  },
+  "providerCalls": 0,
+  "limits": [
+    "Editorial substrate; cartographer-v2 with bench thresholds.",
+    "Debug API36 emulator, not a physical device.",
+    "Tides, Orbit and Star formation were formed by the real Cartographer from supplied accounts (zero readings), because the library cannot anchor Orbit or Star formation from two source families; Gravity formed from this run's reading.",
+    "The first day is seeded through the real API and its rows moved back 24 hours; the second day is the device run."
+  ]
+}

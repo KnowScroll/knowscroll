@@ -1,0 +1,20 @@
+# KnowScroll mobile — release inputs template (#168, ADR-0047)
+#
+# Copy this file to release.properties and fill it in, or set the same names as environment
+# variables (they win over this file). NEVER commit release.properties or a keystore; the .gitignore
+# at the repo root excludes both. A release build refuses, naming what is missing, until the signing
+# values and the API base are set. Debug builds read none of this. Where each value comes from and
+# how to verify it: docs/operations/release-inputs.md.
+
+## The owner's release keystore: an absolute path to a file outside this repository.
+KS_RELEASE_STORE_FILE=
+KS_RELEASE_STORE_PASSWORD=
+KS_RELEASE_KEY_ALIAS=
+KS_RELEASE_KEY_PASSWORD=
+
+## The API the release app talks to, https:// only (release allows no cleartext). No default.
+KS_RELEASE_API_BASE=
+
+## Optional: the host whose /sign-in links open the app -- the host of the API's KS_WEB_ORIGIN.
+## Unset, App Links stay on links.knowscroll.invalid and the reader pastes the link.
+KS_APP_LINKS_HOST=

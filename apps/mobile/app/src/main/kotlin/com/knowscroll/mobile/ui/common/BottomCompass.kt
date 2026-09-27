@@ -24,74 +24,56 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.knowscroll.mobile.R
 import com.knowscroll.mobile.ui.theme.Cosmos
+import com.knowscroll.mobile.ui.theme.Poster
 
 /** Which section the bottom compass currently marks as active. */
 enum class CompassTab { Atlas, Cable, Keep }
 
-/**
- * docs/product/ui-system.md section 4b: "Bottom compass, taken from Living Observatory's own
- * `.dock`: floating rather than docked to the edge, centred, 25px from the bottom, 18px radius,
- * 6px padding, 5px between entries, each entry 13px/18px padding at 12px type, with the current
- * entry marked". Section 5b names the destinations that actually exist once a contract backs
- * them: "**Cable** (read), **Atlas** (universe), **Keep** (Traces) are real" -- the same three
- * the web build (#110) shipped. Android's own §4b draft shipped before the Keep contract
- * (`GET /v1/universe`'s `traces`, `GET /v1/traces/:eventId`) was wired up on this client, and
- * named its two placeholders "Home"/"Scroll"; now that Keep has real data this compass grows the
- * third entry exactly as that section said it would, and takes the same three names web did so
- * the two surfaces read as the same product rather than diverging on new labels of their own.
- *
- * "Floating" here means visually floating (rounded, shadowed, inset from the edge) rather than an
- * edge-to-edge bar — not that it is drawn as an absolutely-positioned overlay on top of screen
- * content. It is laid out as the last row of the screen's own column instead, so it can never cover
- * an interactive control underneath it — the exact failure mode #110's evidence README recorded
- * three times on the desktop surface (rails and sheets clipping or hiding reachable controls).
- * Recorded as a deviation from the literal word "floating", not from its intent.
- *
- * `selected` is nullable because a level can exist that is not one of the three. The system level
- * (#116) is reached from Atlas and returns to it, but it is not Atlas: marking Atlas current there
- * would tell the reader -- and, through `Role.Tab`'s selected state, a screen reader -- that they
- * are somewhere they are not. On that level nothing is marked, which is what the web surface does
- * for the same reason (#121). The dock is still drawn and still navigates.
- */
+/** Shared Cable / Atlas / Keep order. Nested System and World screens belong to Atlas.
+ * The dock reserves its own layout space so it never covers content or actions. */
 @Composable
 fun BottomCompass(
     selected: CompassTab?,
     onSelectAtlas: () -> Unit,
     onSelectCable: () -> Unit,
     onSelectKeep: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    poster: Boolean = false
 ) {
-    Box(modifier.fillMaxWidth().padding(bottom = 25.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().padding(bottom = if (poster) 10.dp else 25.dp), contentAlignment = Alignment.Center) {
         // docs/product/ui-system.md section 5b's dock recipe: `rgba(6,26,39,.78)` translucent fill,
         // a hairline `rgba(255,255,255,.12)` border. Deviation: the reference's own
         // `backdrop-filter: blur(12px)` (blurring whatever sits behind the dock) is not
         // implemented -- that needs API 31+ RenderEffect plumbing this app does not have -- so
         // only the translucency, border and shadow are real; nothing here fakes the blur.
         Surface(
-            color = Cosmos.SpaceRaised.copy(alpha = 0.78f),
-            contentColor = Cosmos.InkOnDark,
+            color = if (poster) Poster.Paper else Cosmos.SpaceRaised.copy(alpha = 0.78f),
+            contentColor = if (poster) Poster.Ink else Cosmos.InkOnDark,
             shape = RoundedCornerShape(22.dp),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-            shadowElevation = 10.dp
+            border = if (poster) BorderStroke(2.dp, Poster.Ink) else BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+            shadowElevation = if (poster) 0.dp else 10.dp
         ) {
             Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                // Audit D3 (#72): shared dock order is Cable / Atlas / Keep on every level --
+                // Cable (read) first, Atlas (universe) middle, Keep (Traces) last -- matching
+                // the brief's wording and the audit's reading.
                 CompassEntry(
-                    glyph = "◐",
-                    label = stringResource(R.string.compass_atlas),
-                    selected = selected == CompassTab.Atlas,
-                    onClick = onSelectAtlas
-                )
-                CompassEntry(
-                    glyph = "≡",
+                    glyph = "~",
                     label = stringResource(R.string.compass_cable),
                     selected = selected == CompassTab.Cable,
-                    onClick = onSelectCable
+                    poster = poster, onClick = onSelectCable
                 )
                 CompassEntry(
-                    glyph = "✦",
+                    glyph = "◎",
+                    label = stringResource(R.string.compass_atlas),
+                    selected = selected == CompassTab.Atlas,
+                    poster = poster, onClick = onSelectAtlas
+                )
+                CompassEntry(
+                    glyph = "▱",
                     label = stringResource(R.string.compass_keep),
                     selected = selected == CompassTab.Keep,
-                    onClick = onSelectKeep
+                    poster = poster, onClick = onSelectKeep
                 )
             }
         }
@@ -99,10 +81,10 @@ fun BottomCompass(
 }
 
 @Composable
-private fun CompassEntry(glyph: String, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CompassEntry(glyph: String, label: String, selected: Boolean, onClick: () -> Unit, poster: Boolean) {
     Surface(
-        color = if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent,
-        contentColor = if (selected) Cosmos.InkOnDark else Cosmos.InkOnDark.copy(alpha = 0.7f),
+        color = if (poster && selected) Poster.Cobalt else if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent,
+        contentColor = if (poster) { if (selected) Poster.Paper else Poster.Ink } else if (selected) Cosmos.InkOnDark else Cosmos.InkOnDark.copy(alpha = 0.7f),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .heightIn(min = 48.dp)
@@ -113,7 +95,7 @@ private fun CompassEntry(glyph: String, label: String, selected: Boolean, onClic
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(glyph, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(label, fontSize = 10.5.sp, fontWeight = FontWeight(700))
+            Text(label, fontSize = if (poster) 13.sp else 10.5.sp, fontWeight = FontWeight(700))
         }
     }
 }

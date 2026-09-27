@@ -110,14 +110,15 @@ test('rejects foreign, stale, altered, and conflicting Ask sources without expos
   assert.equal((await ask(owner.token,{...body,question:'A different literal question'})).statusCode,409);
   assert.equal((await ask(owner.token,{...body,exposureId:randomUUID()})).statusCode,409);
 
-  const ambiguous=await expose(owner.token,await feed(owner.token));
-  const candidates=(await pool.query<{candidates:Record<string,unknown>[]}>('SELECT candidates FROM decision WHERE id=$1',[ambiguous.body.decisionId])).rows[0]!.candidates;
-  // ADR-0028: a real decision's `ranking_version` requires its `decision_signal` rows to name
-  // exactly its own `candidates` (migration 0017's coverage trigger). This fixture hand-fabricates
-  // an impossible candidates array no ranking ever produced purely to exercise the Ask route's own
-  // ambiguity check, so it also clears `ranking_version` — the decision is no longer describable
-  // as having been ranked by any policy, which is the truth here.
-  await pool.query('UPDATE decision SET candidates=$2,ranking_version=NULL WHERE id=$1',[ambiguous.body.decisionId,JSON.stringify([...candidates,{...candidates[0],kind:'Reel'}])]);
+  // An impossible candidates array no ranking ever produced, purely to exercise the Ask route's own
+  // ambiguity check. It is its own fixture decision (no ranking version) rather than an edit of a
+  // recorded one: a recorded decision's ranking is fixed (ADR-0032, migration 0027).
+  const served=await feed(owner.token);
+  const candidates=(await pool.query<{candidates:Record<string,unknown>[]}>('SELECT candidates FROM decision WHERE id=$1',[served.decisionId])).rows[0]!.candidates;
+  const fixtureDecision=randomUUID();
+  await pool.query(`INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch) VALUES($1,$2,0,'ask-ambiguity-fixture',$3,0)`,
+    [fixtureDecision,owner.scope.universeId,JSON.stringify([...candidates,{...candidates[0],kind:'Reel'}])]);
+  const ambiguous=await expose(owner.token,{...served,decisionId:fixtureDecision});
   const ambiguousInput={clientAskId:randomUUID(),exposureId:ambiguous.receipt.exposureId,expectedPrivacyEpoch:0,question:'Which selected Scroll is this?'};
   assert.equal((await ask(owner.token,ambiguousInput)).statusCode,422);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM explicit_ask WHERE session_id=$1 AND client_ask_id=$2',[owner.scope.sessionId,ambiguousInput.clientAskId])).rows[0].count,0);

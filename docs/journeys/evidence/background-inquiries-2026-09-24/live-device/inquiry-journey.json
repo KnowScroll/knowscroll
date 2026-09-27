@@ -1,0 +1,23 @@
+{
+  "inquiryId": "4634211a-5da4-42cf-8ea7-3667e0cc186c",
+  "status": "did_not_hold_up",
+  "reasons": [
+    "counterevidence_cited_as_support"
+  ],
+  "bridgeId": null,
+  "statusesSeen": [
+    "waiting",
+    "looking",
+    "did_not_hold_up"
+  ],
+  "consent": {
+    "enabled": true,
+    "dailyLimit": 3,
+    "usedToday": 1
+  },
+  "sunPlaceId": "9ca97c7d-105f-4b4c-8ad1-bb9d33ed8013",
+  "gravityPlaceId": "ed3fac59-5e71-4b09-9f24-9e3b27c27ed4",
+  "deltaIds": {
+    "gravityFormed": "d6413f3f-47ea-4722-a137-da4144d0cf26"
+  }
+}

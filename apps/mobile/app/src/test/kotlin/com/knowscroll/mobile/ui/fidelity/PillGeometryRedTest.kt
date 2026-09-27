@@ -14,9 +14,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.knowscroll.mobile.data.Capabilities
 import com.knowscroll.mobile.data.Universe
-import com.knowscroll.mobile.data.WorldSummary
-import com.knowscroll.mobile.data.WorldSystem
-import com.knowscroll.mobile.data.WorldSystemResponse
 import com.knowscroll.mobile.ui.HistoryClearState
 import com.knowscroll.mobile.ui.SignOutState
 import com.knowscroll.mobile.ui.SystemState
@@ -53,17 +50,13 @@ import org.robolectric.annotation.GraphicsMode
  * will still be caught here.
  *
  * `@GraphicsMode(NATIVE)` (#116 addition): the system-level tests below measure controls whose
- * size depends on real wrapped text (`WorldBody`'s title/status/tag have no fixed width). Under
- * Robolectric's default (legacy) graphics mode, text measures at a degenerate ~1dp per character
- * -- confirmed directly: a bare `Text("plainA")` measured 6dp x 36dp for six characters, and
- * `MaterialTheme.typography.titleMedium` text wrapped almost one character per line, starving the
- * "Open source" button of the vertical budget its own `heightIn(min = 48.dp)` needs and collapsing
- * it to ~6dp under this file's original class-level default. NATIVE mode (Roborazzi/Robolectric's
- * real rendering path, already used by `ScreenshotEvidenceTest`/`TruthPillRedTest` for the same
- * reason) gives real font metrics -- the same fixture then measures the title at a normal ~94dp
- * single line and the button at its real, correct 48dp. This is a test-environment property, not a
- * production layout defect; the four pre-existing tests above do not depend on text-width
- * measurement (Material3's own fixed button minimum, not glyph metrics) and are unaffected.
+ * size depends on real wrapped text. Under Robolectric's default (legacy) graphics mode, text
+ * measures at a degenerate ~1dp per character -- confirmed directly: a bare `Text("plainA")`
+ * measured 6dp x 36dp for six characters. NATIVE mode (Roborazzi/Robolectric's real rendering
+ * path, already used by `ScreenshotEvidenceTest`/`TruthPillRedTest` for the same reason) gives real
+ * font metrics. This is a test-environment property, not a production layout defect; the four
+ * pre-existing tests above do not depend on text-width measurement (Material3's own fixed button
+ * minimum, not glyph metrics) and are unaffected.
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
@@ -96,6 +89,41 @@ class PillGeometryRedTest {
                 "MaterialTheme.typography.labelLarge is currently $size.",
             13.sp,
             size
+        )
+    }
+
+    /** Audit D1 (#72): displayLarge is now weight 800 (spec section 2: 700-800). The previous
+     * Light weight is what the audit captured as the system reading like a different product. */
+    @Test
+    fun `displayLarge is weight 800 so headings read with the spec's Cosmos authority`() {
+        var weight by mutableStateOf<FontWeight?>(null)
+        composeRule.setContent {
+            KnowScrollTheme {
+                weight = MaterialTheme.typography.displayLarge.fontWeight
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(
+            "Audit D1 (#72): displayLarge must be weight 700-800 per docs/product/ui-system.md " +
+                "section 2. Current value: $weight.",
+            FontWeight(800), weight
+        )
+    }
+
+    /** Audit D1 (#72): headlineMedium is now weight 700. */
+    @Test
+    fun `headlineMedium is weight 700 so section and system headings read with the spec's authority`() {
+        var weight by mutableStateOf<FontWeight?>(null)
+        composeRule.setContent {
+            KnowScrollTheme {
+                weight = MaterialTheme.typography.headlineMedium.fontWeight
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(
+            "Audit D1 (#72): headlineMedium must be weight 700 per docs/product/ui-system.md " +
+                "section 2. Current value: $weight.",
+            FontWeight(700), weight
         )
     }
 
@@ -229,27 +257,6 @@ class PillGeometryRedTest {
         assertTrue(
             "docs/product/ui-system.md section 4b: touch targets are at least 48dp. Measured $height.",
             height >= 48.dp
-        )
-    }
-
-    @Test
-    fun `open source pill on the loaded system screen is at least 48dp tall`() {
-        val world = WorldSummary("w1", "NASA . Stars", "https://science.nasa.gov/universe/stars/", 1, 1)
-        composeRule.setContent {
-            KnowScrollTheme {
-                SystemScreen(
-                    state = SystemState.Loaded(WorldSystemResponse("shared_source_v1", WorldSystem("s1", listOf(world)))),
-                    onReturn = {}, onRetry = {}, onEnterScroll = {}, onOpenKeep = {}
-                )
-            }
-        }
-        val bounds = composeRule.onNodeWithContentDescription("Open NASA . Stars in browser")
-            .getUnclippedBoundsInRoot()
-        val height = bounds.bottom - bounds.top
-        val width = bounds.right - bounds.left
-        assertTrue(
-            "docs/product/ui-system.md section 4b: touch targets are at least 48dp. Measured ${height}x$width.",
-            height >= 48.dp && width >= 48.dp
         )
     }
 
