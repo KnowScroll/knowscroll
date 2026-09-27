@@ -665,7 +665,273 @@ The architecture still follows the original direction. The useful divergence is 
 
 ---
 
-## 18. Honest assessment
+## 18. Architecture drift: planned versus current
+
+### The short judgment
+
+The project has **moderate architecture drift**.
+
+That does not mean the implementation has abandoned the plan. Its most important laws remain recognizably intact: events retain causation, private authority is guarded by a universe lock and privacy epoch, recommendation is deterministic, models return proposals rather than writing product truth, expensive work is admitted before it runs, and generated media must pass gates before publication.
+
+The material drift is in **how those laws are assembled into a running system**. The target described a general event-driven engine with reusable subscribers, dirty scopes, one persistent Steward, a generic model runtime, a unified content-demand planner, and rich autonomous Rooms. The current code usually reaches each product capability through a narrower feature-specific path: direct transactional projection, specialized queues, bounded Ask and inquiry workers, deterministic Room positions, Scroll-only demand, and a separate operator-created Reel-generation chain.
+
+The fairest summary is:
+
+| Dimension | Drift | Judgment |
+| --- | --- | --- |
+| Product laws and safety boundaries | **Low** | The implementation still follows the target's deepest constraints. |
+| Package and service boundaries | **Low to moderate** | Core, database, API, worker, clients, and Cutroom still have distinct roles; worker responsibilities have split into more processes. |
+| Event and projection topology | **Moderate** | Direct feature calls and specialized catch-up paths replaced much of the planned generic subscriber/reducer machinery. |
+| Steward and reasoning design | **High** | Real bounded reasoning exists, but the persistent Steward and general agent runtime do not. |
+| World and Room behavior | **Moderate to high** | Atlas is real; autonomous residents, journals, and independent Room work are not. Two world representations also coexist. |
+| Content demand and generation | **High** | Scroll demand and generated-Reel production are two separate systems rather than one Quartermaster-controlled supply path. |
+| Client and social scope | **High in completeness, lower in architecture** | Android leads, web is behind, and Social/Blend is deferred. These are explicit delivery choices, but they leave the target experience incomplete. |
+| Persistence choice | **Low and mostly beneficial** | PostgreSQL arrived earlier than the target's small-host progression, strengthening invariants at the cost of operational weight. |
+
+These labels are evidence-based judgments, not percentages calculated by a tool. In plain language: **the foundation still points in the planned direction, but several intended general systems have become separate vertical feature implementations.**
+
+### Planned end-to-end flow
+
+The target architecture in [the overview](../architecture/target/01-OVERVIEW.md), [the detailed architecture](../architecture/target/03-ARCHITECTURE.md), and [content demand design](../architecture/target/23-CONTENT-DEMAND-AND-INVENTORY.md) described this logical path:
+
+```mermaid
+flowchart LR
+  UI[Reel / Scroll clients]
+  ING[Ingest and API]
+  LED[(Ledger / event log)]
+  SUB[Generic subscribers and cursors]
+  RED[Cheap reducers and Accounts]
+  DIRTY[Dirty scopes / high-water marks]
+  STEW[Persistent Steward and investigations]
+  SCH[Fair scheduler and admission]
+  RT[Generic model runtime]
+  PROP[Typed proposal]
+  VAL[Validator and deterministic reducer]
+  CHART[(Chart / World)]
+  QM[Quartermaster]
+  DEM[(ContentDemand)]
+  RES{Reuse, adapt, join, or generate}
+  CUT[Cutroom / generation host]
+  GATE[Evidence and publication gates]
+  INV[(Inventory)]
+  COMP[Composer]
+
+  UI --> ING --> LED
+  LED --> SUB --> RED --> CHART
+  SUB --> DIRTY --> STEW --> SCH --> RT --> PROP --> VAL --> LED
+  CHART --> QM --> DEM --> RES
+  RES --> INV
+  RES --> CUT --> GATE --> INV
+  INV --> COMP --> UI
+```
+
+The important architectural idea was not the boxes' names. It was a repeated control loop:
+
+1. record an immutable fact;
+2. let deterministic subscribers update cheap state;
+3. mark expensive scopes dirty instead of running a model inline;
+4. admit and schedule expensive work fairly;
+5. accept only a typed proposal;
+6. validate and apply it deterministically;
+7. record the result back into the ledger;
+8. satisfy content demand through one inventory system;
+9. let Composer choose only from eligible inventory.
+
+### Current end-to-end flow
+
+The current source implements a more direct collection of vertical paths:
+
+```mermaid
+flowchart LR
+  UI[Android lead / partial web]
+  API[Fastify API]
+  AUTH[Session, CSRF, universe lock, epoch]
+  TX[Feature transaction]
+  LED[(Exposure / Keep / Ask and causal rows)]
+  PM[refreshPersonalModel]
+  CART[Deterministic Cartographer]
+  ATLAS[(Atlas Places / foundations)]
+  ROOM[Deterministic Room keeper]
+  MW[Main worker loop]
+  ASK[Ask-answer worker]
+  INQ[Bridge-inquiry worker]
+  SUP[Scroll supply worker]
+  DEM[(Scroll content demand)]
+  SINV[(Scroll inventory)]
+  OP[Operator brief / grant]
+  GW[Generation worker]
+  CUT[Cutroom]
+  IMPORT[Import and publication gates]
+  RINV[(Generated Reel inventory)]
+  COMP[Composer semantic-v3; v4 shadow]
+
+  UI --> API --> AUTH --> TX --> LED
+  TX --> PM --> CART --> ATLAS
+  PM --> ROOM
+  LED --> MW
+  MW --> ASK
+  MW --> INQ
+  MW --> SUP --> DEM --> SINV
+  OP --> GW --> CUT --> IMPORT --> RINV
+  SINV --> COMP
+  RINV --> COMP
+  ATLAS --> COMP --> UI
+```
+
+The two diagrams end at a similar user loop, but the middle is materially different:
+
+- There is no single generic event-subscriber bus coordinating every projection. API and database functions often call the next deterministic projection directly inside the request transaction.
+- `refreshPersonalModel` and the Cartographer form a concrete semantic path, not a generic “all world state is written by one reducer” mechanism.
+- Ask answers and bridge inquiries use real admission, attempts, validation, and post-wait authority checks, but they are specialized consumers rather than children of one persistent Steward.
+- The main worker multiplexes projection, answer, inquiry, correction, and Scroll-supply loops. Generation and reasoning retirement use separate process entry points.
+- Scroll demand can reuse, join, fund, or refuse supply. Generated Reel work begins from an operator brief and grant; it is not created by that demand planner.
+- Composer can rank both eligible object types, but that shared last mile should not be mistaken for unified upstream supply planning.
+
+### Current versus expected, flow by flow
+
+#### A. Encounter and world update
+
+| Step | Expected flow | Current flow | Meaning |
+| --- | --- | --- | --- |
+| Selection | Composer reads eligible inventory and an Account/World view. | Semantic Composer reads candidate families, evidence, policy and current personal state. | **Aligned.** Current ranking is narrower and concrete. |
+| Visibility | A ledger event records the encounter. | `POST /v1/exposures` records actual visibility separately from the feed decision. | **Strong alignment.** This preserves the central evidence law. |
+| User act | Keep/Ask enters Ingest and the Ledger. | API locks the universe, checks epoch/idempotency, and writes the causal act. | **Strong alignment.** |
+| Projection | Generic subscribers advance cheap reducers and dirty scopes. | Feature code directly calls deterministic projection; worker catch-up handles missed/asynchronous work. | **Moderate topology drift.** Simpler now, but each new projection needs its own recovery design. |
+| World change | Cartographer proposes; validator/reducer applies; change returns to Ledger. | `refreshPersonalModel` supplies evidence to the pure Cartographer; database code applies Atlas changes and records deltas in the transaction. | **Principle aligned, mechanism drifted.** The model still cannot author geography. |
+| Room change | Persistent residents can investigate and update Rooms over time. | The Room keeper derives sourced positions and correction effects deterministically. | **Large capability gap.** Current Rooms are useful views, not autonomous rooms. |
+
+```mermaid
+flowchart TB
+  subgraph Expected
+    E1[Keep / Ask event] --> E2[Ledger subscriber]
+    E2 --> E3[Account reducer]
+    E2 --> E4[Dirty scope]
+    E4 --> E5[Steward investigation]
+    E5 --> E6[Validated proposal]
+    E6 --> E7[Chart reducer]
+  end
+  subgraph Current
+    C1[Keep / Ask route] --> C2[Locked feature transaction]
+    C2 --> C3[refreshPersonalModel]
+    C3 --> C4[Cartographer plan]
+    C4 --> C5[Atlas apply + delta]
+    C3 --> C6[Room keeper]
+  end
+  E1 -. same causal input .-> C1
+  E7 -. same deterministic authority goal .-> C5
+```
+
+#### B. Reasoning and the planned Steward
+
+| Expected | Current | Drift judgment |
+| --- | --- | --- |
+| One persistent Steward per universe notices dirty scopes and owns investigations. | No persistent Steward identity or continuous per-universe process exists. | **High drift/incompleteness.** |
+| Investigations can create bounded children through a generic scheduler/runtime. | Ask-answer and bridge-inquiry jobs are separate bounded schemas and workers. | **Useful specialization.** It proves the safety pattern without general agency. |
+| One model runtime owns provider invocation and typed proposal handling. | Shared reasoning primitives exist, but consumers and proposal contracts remain feature-specific; the provider transport is not a general tool-using agent runtime. | **Moderate to high drift.** |
+| Reducers alone turn accepted proposals into engine state. | Specialized database functions validate and apply accepted results, usually with their own stale-authority checks. | **Law preserved; abstraction changed.** |
+
+This is one place where the current code may be healthier than an early literal implementation of the target. A persistent agent would add cost, nondeterminism, recovery state, and harder privacy erasure before the product has proved that it needs autonomous investigation. The risk is not that Steward is absent. The risk is allowing every future model feature to invent another private queue, lease protocol, and result lifecycle instead of extracting the common runtime once repetition is clear.
+
+#### C. Content demand and generated supply
+
+```mermaid
+flowchart TB
+  subgraph Expected_unified_supply[Expected: one demand-to-inventory loop]
+    EW[World gap] --> ED[ContentDemand: intent, evidence, audience, modality, budget]
+    ED --> ER{Resolve}
+    ER -->|reuse| EI[Eligible inventory]
+    ER -->|adapt| EI
+    ER -->|join/fund| EJ[Shared work]
+    EJ --> EI
+    ER -->|generate| EC[Cutroom or writer]
+    EC --> EG[Evidence and quality gates]
+    EG --> EI
+  end
+
+  subgraph Current_split_supply[Current: two upstream systems]
+    CA[Atlas gap] --> CD[Scroll demand]
+    CD --> CQ{reuse / join / fund / cannot meet}
+    CQ --> CS[Scroll writer]
+    CS --> CI[Scroll inventory]
+
+    CO[Operator brief + grant] --> CG[Generation job]
+    CG --> CC[Cutroom]
+    CC --> CP[Import + witness/publication gates]
+    CP --> CR[Reel inventory]
+  end
+```
+
+This is the most consequential structural drift because it can become permanent duplication:
+
+- The planned `ContentDemand` was modality-aware and could decide whether to reuse, adapt, share, or generate either consumption object.
+- The implemented demand path is currently Scroll-specific.
+- The generated-Reel path has serious grant, lease, receipt, import, and publication machinery, but begins from an operator-controlled request rather than a discovered inventory gap.
+- The two paths finally meet at eligible inventory and Composer, not at planning, budgeting, or reuse.
+
+The safe direction is not to force both workers into one process. It is to give both a common demand and settlement language while keeping Scroll writing and Cutroom generation as separate executors.
+
+#### D. Clients, Rooms, and Social
+
+| Target | Current | Classification |
+| --- | --- | --- |
+| Mobile and desktop expose the full personal universe. | Android is the leading product surface; web identity is correct but feature catch-up and deployment remain. | **Sequencing drift** until web catches up; architecture drift only if Android-only assumptions enter contracts. |
+| Rooms contain persistent residents with memory, journals, and independent work. | Rooms show deterministic, sourced positions derived from current evidence. | **Major planned capability absent.** The name is ahead of the implementation. |
+| Projector and Social/Blend connect shareable projections without leaking private state. | Social/Blend is explicitly deferred. | **Scope deferral**, not a secretly implemented subsystem. |
+| The universe can be explored as a rich historical Chart. | Atlas Places, sightings, foundations, deltas, returns, Relics, and corrections exist; legacy exact-source worlds also remain. | **Partial convergence with duplication risk.** |
+
+### What is drift, and what is merely unfinished?
+
+This distinction matters when judging the project:
+
+| Situation | Classification | Why |
+| --- | --- | --- |
+| Social/Blend is intentionally deferred and has no hidden substitute. | **Unfinished scope** | The planned boundary has not been contradicted. |
+| Persistent Steward is absent while bounded reasoning workers exist. | **Simplification plus incompleteness** | The current mechanism covers a subset without claiming full agency. |
+| Direct projection calls replace the planned generic subscriber/reducer topology. | **Architecture drift** | The same responsibility is now owned through a different runtime path. |
+| Scroll demand and Reel generation use separate planners and entry conditions. | **Architecture drift** | Two systems own what the target assigned to one Quartermaster/demand loop. |
+| PostgreSQL is used from the start. | **Deliberate implementation drift** | It strengthens locks and constraints but raises local/operational cost. |
+| Main worker duties are split from generation and retirement processes. | **Healthy operational refinement** | Lease and recovery shapes differ; the logical ownership boundary remains. |
+| Composer uses a three-item slate and concrete semantic signals rather than the target's richer eight-item sketch. | **Policy-level drift** | It is replaceable behind the same pure selection boundary. |
+| Legacy `world*` and Atlas both survive. | **Accumulated architecture debt** | Two representations compete for vocabulary, privacy work, and future ownership. |
+
+### Healthy drift versus concerning drift
+
+Healthy drift:
+
+1. **PostgreSQL early.** It makes universe locks, unique idempotency keys, constraints, leases, and destructive privacy operations enforceable now.
+2. **Small deterministic roles before autonomous roles.** Cartographer, Composer, Room keeper, and Quartermaster decisions are testable and inspectable.
+3. **Separate generation process.** Cutroom work has a distinct lease, reconciliation, and import lifecycle and should not block the encounter loop.
+4. **Specialized first consumers of reasoning.** Ask and inquiry establish real admission and stale-authority patterns before a generic agent runtime is justified.
+5. **Android-first delivery.** This is a reasonable sequencing choice as long as public contracts and auth remain client-neutral.
+
+Concerning drift:
+
+1. **No common projection substrate.** Every direct or worker projection needs its own cursor, catch-up, idempotency, correction, and erasure reasoning.
+2. **Split supply planning.** Scroll and Reel supply can develop incompatible budget, sharing, demand, and settlement semantics.
+3. **Two world models.** Legacy worlds and Atlas invite duplicated UI language and inconsistent privacy handling.
+4. **A broad main worker loop.** One process coordinates several queues with different latency and failure characteristics.
+5. **Feature-specific reasoning protocols multiplying.** A third or fourth consumer would be the signal to extract shared job/runtime semantics rather than copy another lifecycle.
+6. **Names outrunning behavior.** Steward, inhabitants, Rooms, and Quartermaster can make a deterministic first version sound more autonomous than it is.
+
+### Is the implementation still converging on the target?
+
+**Yes, but convergence is no longer automatic.** The project remains aligned at the level that is hardest to retrofit later: authority, evidence, privacy, deterministic application, provider isolation, and publication gates. That is valuable. The divergence is in seams that can still be joined, but only through explicit decisions.
+
+The next architecture checkpoints should be observable, not aspirational:
+
+1. **One world vocabulary:** Atlas becomes the sole user-facing geography and legacy `world*` is retired or formally quarantined.
+2. **One projection contract:** synchronous and asynchronous projections share a documented idempotency, cursor/catch-up, correction, and epoch protocol even if no message broker is introduced.
+3. **One demand language:** Reel and Scroll supply settle against a shared demand identity, budget, evidence, and outcome model; executors remain separate.
+4. **One reasoning lifecycle:** new model consumers reuse admission, attempts, unknown outcomes, authority rechecks, validation, and settlement instead of adding private variants.
+5. **Explicit Room decision:** either build resident identity/memory/journal semantics or rename the current deterministic feature so product language matches fact.
+6. **Client-neutral contracts:** Android can lead delivery, but no core capability should require Android-only state.
+7. **Steward stays earned:** introduce a persistent Steward only when multiple dirty scopes need durable cross-feature investigation that the smaller workers cannot express.
+
+If those seams are joined, today's specializations are stepping stones. If they are not, the codebase will keep the target's vocabulary while operating as several parallel products.
+
+---
+
+## 19. Honest assessment
 
 ### What is genuinely strong
 
@@ -698,7 +964,7 @@ The architecture still follows the original direction. The useful divergence is 
 
 ---
 
-## 19. Critical path to personal v1
+## 20. Critical path to personal v1
 
 Social/Blend and journey F are deferred. Personal journeys A–E and G–I remain on mobile and desktop, with real Cutroom for C.
 
@@ -743,7 +1009,7 @@ No longer blockers:
 
 ---
 
-## 20. Best code-reading path
+## 21. Best code-reading path
 
 ### Session 1: authority and an encounter
 
@@ -801,7 +1067,7 @@ Distinguish “Cutroom finished,” “imported,” “eligible,” “minted,�
 
 ---
 
-## 21. Glossary
+## 22. Glossary
 
 - **Account:** single-owner sign-in identity.
 - **Universe:** private authority, epoch, and lock scope.
@@ -829,7 +1095,7 @@ Distinguish “Cutroom finished,” “imported,” “eligible,” “minted,�
 
 ---
 
-## 22. Bottom line
+## 23. Bottom line
 
 KnowScroll is no longer mainly “a careful backend plus a Scroll demo.” It now has a coherent personal path from recorded acts through semantic discovery, Places, explanations, bounded reasoning, return changes, Rooms, Relics, and demand-driven Scroll supply, with a substantial Android experience over it.
 
