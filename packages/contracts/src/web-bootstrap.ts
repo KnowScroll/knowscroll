@@ -24,12 +24,21 @@
 import { z } from 'zod';
 
 export const capabilitiesSchema = z
-  .object({ reasoning: z.boolean(), reels: z.boolean(), worldEvolution: z.boolean() })
+  .object({
+    reasoning: z.boolean(),
+    reels: z.boolean(),
+    worldEvolution: z.boolean(),
+  })
   .strict();
 export type Capabilities = z.infer<typeof capabilitiesSchema>;
 
 export const traceSchema = z
-  .object({ eventId: z.string(), assetId: z.string(), title: z.string(), createdAt: z.string() })
+  .object({
+    eventId: z.string(),
+    assetId: z.string(),
+    title: z.string(),
+    createdAt: z.string(),
+  })
   .strict();
 export type Trace = z.infer<typeof traceSchema>;
 

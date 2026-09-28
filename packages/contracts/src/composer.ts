@@ -5,32 +5,59 @@
  */
 import { z } from 'zod';
 
-export const encounterFeedbackKind = z.enum(['less_like_this', 'wrong_connection']);
+export const encounterFeedbackKind = z.enum([
+  'less_like_this',
+  'wrong_connection',
+]);
 export type EncounterFeedbackKind = z.infer<typeof encounterFeedbackKind>;
 
-export const encounterFeedbackInput = z.object({
-  clientFeedbackId: z.string().uuid(),
-  decisionId: z.string().uuid(),
-  assetId: z.string().uuid(),
-  kind: encounterFeedbackKind,
-  expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
-}).strict();
+export const encounterFeedbackInput = z
+  .object({
+    clientFeedbackId: z.string().uuid(),
+    decisionId: z.string().uuid(),
+    assetId: z.string().uuid(),
+    kind: encounterFeedbackKind,
+    expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+  })
+  .strict();
 export type EncounterFeedbackInput = z.infer<typeof encounterFeedbackInput>;
 
 export type EvidenceStepWire =
-  | { kind: 'mark'; markKind: 'keep' | 'branch' | 'ask'; assetId: string; title: string; at: string; eventId: string }
+  | {
+      kind: 'mark';
+      markKind: 'keep' | 'branch' | 'ask';
+      assetId: string;
+      title: string;
+      at: string;
+      eventId: string;
+    }
   | { kind: 'bridge'; bridgeId: string; sentence: string }
   | { kind: 'question'; concept: string }
   | { kind: 'outside'; domain: string }
   /** ADR-0046: the reader's own recorded need this Scroll was bound to. */
-  | { kind: 'demand'; demandId: string; bindingId: string; concept: string; placeId: string | null; origin: { bridgeId: string; exposureId: string } | null };
+  | {
+      kind: 'demand';
+      demandId: string;
+      bindingId: string;
+      concept: string;
+      placeId: string | null;
+      origin: { bridgeId: string; exposureId: string } | null;
+    };
 
 /** `GET /v1/decisions/:decisionId/why?assetId=` */
 export interface WhyResponseWire {
   decisionId: string;
   assetId: string;
   policyVersion: string;
-  family: 'continue' | 'deepen' | 'bridge' | 'challenge' | 'revisit' | 'frontier' | 'seed' | 'fallback';
+  family:
+    | 'continue'
+    | 'deepen'
+    | 'bridge'
+    | 'challenge'
+    | 'revisit'
+    | 'frontier'
+    | 'seed'
+    | 'fallback';
   reason: string;
   evidence: EvidenceStepWire[];
   terms: Record<string, number>;
@@ -45,7 +72,12 @@ export interface WhyResponseWire {
 export interface EncounterFeedbackReceipt {
   feedbackId: string;
   kind: EncounterFeedbackKind;
-  suppressed: { family: string; concept: string | null; bridgeId: string | null; until: string };
+  suppressed: {
+    family: string;
+    concept: string | null;
+    bridgeId: string | null;
+    until: string;
+  };
 }
 
 /** Days a "less like this" route stays suppressed for the reader (`feedback-v1`). */

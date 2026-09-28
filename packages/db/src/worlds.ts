@@ -58,18 +58,37 @@ export interface SystemResult {
  * assets are withdrawn, never deleted (ADR-0025), so a world's evidence is never removed out from
  * under it by this module.
  */
-export async function deriveWorlds(client: pg.PoolClient, method: string = SHARED_SOURCE_V1): Promise<WorldRow[]> {
-  const sources = (await client.query<{ source_title: string; source_url: string; scroll_count: string }>(
-    // Grouped by URL alone, because the URL is what identifies a source; the title is a label that
-     // legitimately varies for the same source. Grouping by the pair produced two groups that both
-     // resolved to one world, and the second group's assets then failed the membership guard --
-     // every exposure against a library with one such variant returned 500.
-     // The representative title is chosen deterministically (lowest by collation) so the same
-     // evidence always yields the same world row.
-    `SELECT min(source_title) AS source_title, source_url,
-            count(*) FILTER (WHERE kind = 'Scroll') AS scroll_count
-     FROM asset GROUP BY source_url`,
-  )).rows;
+export async function deriveWorlds(
+  client: pg.PoolClient,
+  method: string = SHARED_SOURCE_V1,
+): Promise<WorldRow[]> {
+  const sources = (
+    await client.query<{
+      source_title: string;
+      source_url: string;
+      scroll_count: string;
+    }>(
+      // Grouped by URL alone, because the URL is what identifies a source; the title is a label that
+      // legitimately varies for the same source. Grouping by the pair produced two groups that both
+      // resolved to one world, and the second group's assets then failed the membership guard --
+      // every exposure against a library with one such variant returned 500.
+      // The representative title is chosen deterministically (lowest by collation) so the same
+      // evidence always yields the same world row.
+      `
+      SELECT
+        min(source_title) AS source_title,
+        source_url,
+        count(*) FILTER (
+          WHERE
+            kind = 'Scroll'
+        ) AS scroll_count
+      FROM
+        asset
+      GROUP BY
+        source_url
+    `,
+    )
+  ).rows;
 
   const out: WorldRow[] = [];
   for (const source of sources) {
@@ -79,24 +98,36 @@ export async function deriveWorlds(client: pg.PoolClient, method: string = SHARE
     // error, surfaced as a 500 on a perfectly legitimate encounter. `ON CONFLICT DO NOTHING` makes
     // the race a no-op and the following read always finds the winner's row.
     await client.query(
-      `INSERT INTO world(id,derivation_method,source_title,source_url) VALUES($1,$2,$3,$4)
-       ON CONFLICT (derivation_method, source_url) DO NOTHING`,
+      `
+        INSERT INTO
+          world (id, derivation_method, source_title, source_url)
+        VALUES
+          ($1, $2, $3, $4)
+        ON CONFLICT (derivation_method, source_url) DO NOTHING
+      `,
       [randomUUID(), method, source.source_title, source.source_url],
     );
-    const settled = (await client.query<{ id: string }>(
-      'SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2',
-      [method, source.source_url],
-    )).rows[0];
+    const settled = (
+      await client.query<{ id: string }>(
+        'SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2',
+        [method, source.source_url],
+      )
+    ).rows[0];
     // The insert above either created this row or lost the race to a transaction that did; either
     // way it exists by now, and its absence would mean the unique key no longer matches the lookup.
-    if (!settled) throw new Error(`world row missing for source after insert: ${source.source_url}`);
+    if (!settled)
+      throw new Error(
+        `world row missing for source after insert: ${source.source_url}`,
+      );
     const worldId = settled.id;
 
-    const members = (await client.query<{ id: string }>(
-      // Membership follows the same identity as the grouping: the source URL.
-      'SELECT id FROM asset WHERE source_url=$1',
-      [source.source_url],
-    )).rows;
+    const members = (
+      await client.query<{ id: string }>(
+        // Membership follows the same identity as the grouping: the source URL.
+        'SELECT id FROM asset WHERE source_url=$1',
+        [source.source_url],
+      )
+    ).rows;
     for (const member of members) {
       await client.query(
         'INSERT INTO world_member(world_id,asset_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
@@ -109,7 +140,12 @@ export async function deriveWorlds(client: pg.PoolClient, method: string = SHARE
       'UPDATE world SET scroll_count=$2, computed_at=clock_timestamp() WHERE id=$1',
       [worldId, scrollCount],
     );
-    out.push({ worldId, sourceTitle: source.source_title, sourceUrl: source.source_url, scrollCount });
+    out.push({
+      worldId,
+      sourceTitle: source.source_title,
+      sourceUrl: source.source_url,
+      scrollCount,
+    });
   }
   return out;
 }
@@ -131,25 +167,47 @@ export async function deriveWorldSystemForUniverse(
   universeId: string,
   method: string = SHARED_SOURCE_V1,
 ): Promise<SystemResult | null> {
-  const seen = (await client.query<{
-    world_id: string; source_title: string; source_url: string; scroll_count: number; seen_count: string;
-  }>(
-    `SELECT w.id AS world_id, w.source_title, w.source_url, w.scroll_count,
-            count(DISTINCT m.asset_id) AS seen_count
-     FROM world w
-     JOIN world_member m ON m.world_id = w.id
-     JOIN asset a ON a.id = m.asset_id AND a.kind = 'Scroll'
-     JOIN exposure e ON e.asset_id = a.id AND e.universe_id = $1
-     WHERE w.derivation_method = $2
-     GROUP BY w.id, w.source_title, w.source_url, w.scroll_count`,
-    [universeId, method],
-  )).rows;
+  const seen = (
+    await client.query<{
+      world_id: string;
+      source_title: string;
+      source_url: string;
+      scroll_count: number;
+      seen_count: string;
+    }>(
+      `
+      SELECT
+        w.id AS world_id,
+        w.source_title,
+        w.source_url,
+        w.scroll_count,
+        count(DISTINCT m.asset_id) AS seen_count
+      FROM
+        world w
+        JOIN world_member m ON m.world_id = w.id
+        JOIN asset a ON a.id = m.asset_id
+        AND a.kind = 'Scroll'
+        JOIN exposure e ON e.asset_id = a.id
+        AND e.universe_id = $1
+      WHERE
+        w.derivation_method = $2
+      GROUP BY
+        w.id,
+        w.source_title,
+        w.source_url,
+        w.scroll_count
+    `,
+      [universeId, method],
+    )
+  ).rows;
   if (seen.length === 0) return null;
 
-  const existing = (await client.query<{ id: string }>(
-    'SELECT id FROM world_system WHERE universe_id=$1 AND derivation_method=$2',
-    [universeId, method],
-  )).rows[0];
+  const existing = (
+    await client.query<{ id: string }>(
+      'SELECT id FROM world_system WHERE universe_id=$1 AND derivation_method=$2',
+      [universeId, method],
+    )
+  ).rows[0];
   const systemId = existing?.id ?? randomUUID();
   if (!existing) {
     await client.query(
@@ -162,13 +220,24 @@ export async function deriveWorldSystemForUniverse(
   for (const row of seen) {
     const seenCount = Number(row.seen_count);
     await client.query(
-      `INSERT INTO world_system_member(system_id,world_id,seen_count) VALUES($1,$2,$3)
-       ON CONFLICT (system_id,world_id) DO UPDATE SET seen_count=EXCLUDED.seen_count, computed_at=clock_timestamp()`,
+      `
+        INSERT INTO
+          world_system_member (system_id, world_id, seen_count)
+        VALUES
+          ($1, $2, $3)
+        ON CONFLICT (system_id, world_id) DO UPDATE
+        SET
+          seen_count = EXCLUDED.seen_count,
+          computed_at = clock_timestamp()
+      `,
       [systemId, row.world_id, seenCount],
     );
     worlds.push({
-      worldId: row.world_id, sourceTitle: row.source_title, sourceUrl: row.source_url,
-      scrollCount: Number(row.scroll_count), seenCount,
+      worldId: row.world_id,
+      sourceTitle: row.source_title,
+      sourceUrl: row.source_url,
+      scrollCount: Number(row.scroll_count),
+      seenCount,
     });
   }
   return { systemId, worlds };
@@ -182,7 +251,10 @@ export async function deriveWorldSystemForUniverse(
  * trivially provable to reconstruct identical output from the recorded rows alone, which a
  * hand-maintained incremental counter would not be.
  */
-export async function projectWorldsForEncounter(client: pg.PoolClient, universeId: string): Promise<void> {
+export async function projectWorldsForEncounter(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
   await deriveWorlds(client);
   await deriveWorldSystemForUniverse(client, universeId);
 }
@@ -196,23 +268,45 @@ export async function readWorldSystem(
   universeId: string,
   method: string = SHARED_SOURCE_V1,
 ): Promise<SystemResult | null> {
-  const system = (await client.query<{ id: string }>(
-    'SELECT id FROM world_system WHERE universe_id=$1 AND derivation_method=$2',
-    [universeId, method],
-  )).rows[0];
+  const system = (
+    await client.query<{ id: string }>(
+      'SELECT id FROM world_system WHERE universe_id=$1 AND derivation_method=$2',
+      [universeId, method],
+    )
+  ).rows[0];
   if (!system) return null;
 
-  const worlds = (await client.query<{
-    world_id: string; source_title: string; source_url: string; scroll_count: number; seen_count: number;
-  }>(
-    `SELECT w.id AS world_id, w.source_title, w.source_url, w.scroll_count, m.seen_count
-     FROM world_system_member m JOIN world w ON w.id = m.world_id
-     WHERE m.system_id = $1
-     ORDER BY w.source_title`,
-    [system.id],
-  )).rows.map(row => ({
-    worldId: row.world_id, sourceTitle: row.source_title, sourceUrl: row.source_url,
-    scrollCount: Number(row.scroll_count), seenCount: Number(row.seen_count),
+  const worlds = (
+    await client.query<{
+      world_id: string;
+      source_title: string;
+      source_url: string;
+      scroll_count: number;
+      seen_count: number;
+    }>(
+      `
+      SELECT
+        w.id AS world_id,
+        w.source_title,
+        w.source_url,
+        w.scroll_count,
+        m.seen_count
+      FROM
+        world_system_member m
+        JOIN world w ON w.id = m.world_id
+      WHERE
+        m.system_id = $1
+      ORDER BY
+        w.source_title
+    `,
+      [system.id],
+    )
+  ).rows.map((row) => ({
+    worldId: row.world_id,
+    sourceTitle: row.source_title,
+    sourceUrl: row.source_url,
+    scrollCount: Number(row.scroll_count),
+    seenCount: Number(row.seen_count),
   }));
   return { systemId: system.id, worlds };
 }

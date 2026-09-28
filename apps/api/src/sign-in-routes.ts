@@ -3,7 +3,10 @@
  * its own module (mirroring `media.ts`) so `app.ts` only wires it in, rather than growing further.
  */
 import type { FastifyInstance } from 'fastify';
-import { magicLinkRequestInput, signInConfirmQuery } from '../../../packages/contracts/src/index.ts';
+import {
+  magicLinkRequestInput,
+  signInConfirmQuery,
+} from '../../../packages/contracts/src/index.ts';
 import { transaction } from '../../../packages/db/src/index.ts';
 import {
   confirmSignInToken,
@@ -12,10 +15,17 @@ import {
   type MagicLinkRateLimits,
   requesterFingerprint,
 } from '../../../packages/db/src/sign-in.ts';
-import { createMagicLinkSender, type MagicLinkSender } from './magic-link-sender.ts';
+import {
+  createMagicLinkSender,
+  type MagicLinkSender,
+} from './magic-link-sender.ts';
 import { describeSendFailure } from './agentmail-sender.ts';
 import { HttpError } from './errors.ts';
-import { csrfToken, sessionCookie, type WebSessionConfig } from './web-session.ts';
+import {
+  csrfToken,
+  sessionCookie,
+  type WebSessionConfig,
+} from './web-session.ts';
 
 function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.KS_API_BASE_URL;
@@ -23,7 +33,11 @@ function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   return `http://127.0.0.1:${env.PORT ?? 4310}`;
 }
 
-export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRateLimits, webSession?: WebSessionConfig): void {
+export function registerSignInRoutes(
+  app: FastifyInstance,
+  limits?: MagicLinkRateLimits,
+  webSession?: WebSessionConfig,
+): void {
   // Resolved lazily and cached, exactly like `resolveMediaRoot()`: a caller that never requests a
   // magic link never needs `KS_DEV_ROOT` set, and a production-mode process only refuses here at
   // the moment this route is actually exercised (main.ts already refuses every production start
@@ -37,10 +51,16 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
     const fingerprint = requesterFingerprint(req.ip);
     // `limits` is injected only by tests that need many links inside one window; production
     // always uses the documented defaults in packages/db/src/sign-in.ts.
-    const issued = await transaction(client => requestMagicLink(client, {
-      email: parsed.data.email,
-      requesterFingerprint: fingerprint,
-    }, limits));
+    const issued = await transaction((client) =>
+      requestMagicLink(
+        client,
+        {
+          email: parsed.data.email,
+          requesterFingerprint: fingerprint,
+        },
+        limits,
+      ),
+    );
     if (issued) {
       // ADR-0034: with a web origin configured the link opens the web sign-in page and carries the
       // token in the fragment, which no server log or Referer ever receives; the page posts it.
@@ -60,7 +80,13 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
       try {
         await resolvedSender().send({ to: parsed.data.email, link });
       } catch (error) {
-        console.error(JSON.stringify({ service: 'api', event: 'magic_link_send_failed', ...describeSendFailure(error) }));
+        console.error(
+          JSON.stringify({
+            service: 'api',
+            event: 'magic_link_send_failed',
+            ...describeSendFailure(error),
+          }),
+        );
       }
     }
     return reply.code(202).send({ status: 'requested' });
@@ -68,8 +94,11 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
 
   app.get('/v1/auth/confirm', async (req, reply) => {
     const parsed = signInConfirmQuery.safeParse(req.query);
-    if (!parsed.success) throw new HttpError(400, 'Invalid confirmation request');
-    const valid = await transaction(client => confirmSignInToken(client, parsed.data.token));
+    if (!parsed.success)
+      throw new HttpError(400, 'Invalid confirmation request');
+    const valid = await transaction((client) =>
+      confirmSignInToken(client, parsed.data.token),
+    );
     return reply.code(200).send({ valid });
   });
 
@@ -80,7 +109,9 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
     // unknown or tampered one.
     const body = req.body as Record<string, unknown> | undefined;
     const rawToken = typeof body?.token === 'string' ? body.token : '';
-    const session = await transaction(client => consumeSignInToken(client, rawToken));
+    const session = await transaction((client) =>
+      consumeSignInToken(client, rawToken),
+    );
     return reply.code(200).send({
       sessionToken: session.token,
       sessionId: session.sessionId,
@@ -99,16 +130,22 @@ export function registerSignInRoutes(app: FastifyInstance, limits?: MagicLinkRat
     if (!webSession) throw new HttpError(404, 'Not found');
     const body = req.body as Record<string, unknown> | undefined;
     const rawToken = typeof body?.token === 'string' ? body.token : '';
-    const session = await transaction(client => consumeSignInToken(client, rawToken));
-    return reply.code(200).header('set-cookie', sessionCookie(session.token, session.expiresAt)).header('Cache-Control', 'no-store').send({
-      sessionId: session.sessionId,
-      deviceId: session.deviceId,
-      universeId: session.universeId,
-      privacyEpoch: session.privacyEpoch,
-      expiresAt: session.expiresAt,
-      accountId: session.accountId,
-      origin: 'magic_link',
-      csrfToken: csrfToken(webSession.secret, session.token),
-    });
+    const session = await transaction((client) =>
+      consumeSignInToken(client, rawToken),
+    );
+    return reply
+      .code(200)
+      .header('set-cookie', sessionCookie(session.token, session.expiresAt))
+      .header('Cache-Control', 'no-store')
+      .send({
+        sessionId: session.sessionId,
+        deviceId: session.deviceId,
+        universeId: session.universeId,
+        privacyEpoch: session.privacyEpoch,
+        expiresAt: session.expiresAt,
+        accountId: session.accountId,
+        origin: 'magic_link',
+        csrfToken: csrfToken(webSession.secret, session.token),
+      });
   });
 }
