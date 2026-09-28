@@ -29,7 +29,13 @@ import { loadSupplyFacts, lockSupply, openRequest } from './supply.ts';
 const MAX_CAUSES = 8;
 
 type Cause =
-  | { kind: 'exhaustion'; decisionId: string; placeId: string; seen: number; total: number }
+  | {
+      kind: 'exhaustion';
+      decisionId: string;
+      placeId: string;
+      seen: number;
+      total: number;
+    }
   | { kind: 'branch_gap'; bridgeId: string; exposureId: string };
 type Trigger =
   | 'demand_written'
@@ -62,12 +68,17 @@ interface DemandRow {
 }
 
 const causeKey = (c: Cause) =>
-  c.kind === 'exhaustion' ? `exhaustion:${c.placeId}` : `branch_gap:${c.bridgeId}:${c.exposureId}`;
+  c.kind === 'exhaustion'
+    ? `exhaustion:${c.placeId}`
+    : `branch_gap:${c.bridgeId}:${c.exposureId}`;
 const stamped = (value: object) => JSON.stringify(value);
 const APPEND = (column: string, param: string) =>
   `${column} || jsonb_build_array(${param}::jsonb || jsonb_build_object('at', clock_timestamp()))`;
 
-async function isPaused(client: pg.PoolClient, universeId: string): Promise<boolean> {
+async function isPaused(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<boolean> {
   return (
     await client.query<{ paused: boolean }>(
       'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
@@ -76,7 +87,9 @@ async function isPaused(client: pg.PoolClient, universeId: string): Promise<bool
   ).rows[0]!.paused;
 }
 
-async function conceptParents(client: pg.PoolClient): Promise<Map<string, string | null>> {
+async function conceptParents(
+  client: pg.PoolClient,
+): Promise<Map<string, string | null>> {
   return new Map(
     (
       await client.query<{ code: string; parent: string | null }>(
@@ -185,7 +198,12 @@ export async function observeExhaustion(
 export async function observeBranchGap(
   client: pg.PoolClient,
   scope: AuthScope,
-  gap: { concept: string; bridgeId: string; exposureId: string; served: string | null },
+  gap: {
+    concept: string;
+    bridgeId: string;
+    exposureId: string;
+    served: string | null;
+  },
 ): Promise<void> {
   if (await isPaused(client, scope.universeId)) return;
   const within = withinConcept(await conceptParents(client), gap.concept);
@@ -196,7 +214,9 @@ export async function observeBranchGap(
   )
     return;
   const conceptId = (
-    await client.query<{ id: string }>('SELECT id FROM concept WHERE code=$1', [gap.concept])
+    await client.query<{ id: string }>('SELECT id FROM concept WHERE code=$1', [
+      gap.concept,
+    ])
   ).rows[0]!.id;
   await observeNeed(
     client,
@@ -214,7 +234,11 @@ export async function observeOfferedGaps(
   client: pg.PoolClient,
   scope: AuthScope,
   originAssetId: string,
-  branches: readonly { bridgeId: string; toConcept: { code: string }; seen: boolean }[],
+  branches: readonly {
+    bridgeId: string;
+    toConcept: { code: string };
+    seen: boolean;
+  }[],
 ): Promise<void> {
   const seen = branches.filter((b) => b.seen);
   if (seen.length === 0) return;
@@ -284,15 +308,21 @@ async function observeNeed(
     return decide(client, id, 'demand_written', serving);
   }
   const joined =
-    live.causes.length < MAX_CAUSES && !live.causes.some((c) => causeKey(c) === causeKey(cause));
+    live.causes.length < MAX_CAUSES &&
+    !live.causes.some((c) => causeKey(c) === causeKey(cause));
   if (joined)
-    await client.query(`UPDATE content_demand SET causes = ${APPEND('causes', '$2')} WHERE id=$1`, [
-      live.id,
-      stamped(cause),
-    ]);
+    await client.query(
+      `UPDATE content_demand SET causes = ${APPEND('causes', '$2')} WHERE id=$1`,
+      [live.id, stamped(cause)],
+    );
   // A waiting demand waits for its request; any other meets its need again.
   if (live.status !== 'waiting')
-    await decide(client, live.id, joined ? 'cause_joined' : 'need_observed', serving);
+    await decide(
+      client,
+      live.id,
+      joined ? 'cause_joined' : 'need_observed',
+      serving,
+    );
 }
 
 async function decide(
@@ -375,7 +405,13 @@ async function decide(
     candidates: supply.candidates,
     settled,
   });
-  const applied = await apply(client, demand, decision, waiter, supply.route?.id ?? null);
+  const applied = await apply(
+    client,
+    demand,
+    decision,
+    waiter,
+    supply.route?.id ?? null,
+  );
   const entry: DecisionEntry = {
     version: decision.version,
     adapt: decision.adapt,
@@ -386,7 +422,9 @@ async function decide(
   const last = demand.decisions.at(-1);
   const changed =
     !last ||
-    (['decision', 'reason', 'assetId', 'requestId'] as const).some((k) => last[k] !== entry[k]);
+    (['decision', 'reason', 'assetId', 'requestId'] as const).some(
+      (k) => last[k] !== entry[k],
+    );
   if (
     !changed &&
     demand.status === applied.status &&
@@ -397,7 +435,14 @@ async function decide(
   await client.query(
     `UPDATE content_demand SET status=$2, decision=$3, reason=$4, changed_at=clock_timestamp(),
        decisions = CASE WHEN $5 THEN ${APPEND('decisions', '$6')} ELSE decisions END WHERE id=$1`,
-    [demandId, applied.status, decision.decision, entry.reason ?? null, changed, stamped(entry)],
+    [
+      demandId,
+      applied.status,
+      decision.decision,
+      entry.reason ?? null,
+      changed,
+      stamped(entry),
+    ],
   );
 }
 
@@ -423,7 +468,9 @@ async function apply(
   switch (decision.decision) {
     case 'reuse':
       await bind(client, demand, decision.assetId);
-      await settle(waiter?.asset_id === decision.assetId ? 'bound' : 'released');
+      await settle(
+        waiter?.asset_id === decision.assetId ? 'bound' : 'released',
+      );
       return { status: 'bound', ref: { assetId: decision.assetId } };
     case 'join':
       if (waiter?.request_id !== decision.requestId) {
@@ -448,7 +495,11 @@ async function apply(
   }
 }
 
-async function wait(client: pg.PoolClient, demand: DemandRow, requestId: string): Promise<void> {
+async function wait(
+  client: pg.PoolClient,
+  demand: DemandRow,
+  requestId: string,
+): Promise<void> {
   await client.query(
     `
     INSERT INTO
@@ -463,13 +514,23 @@ async function wait(client: pg.PoolClient, demand: DemandRow, requestId: string)
     VALUES
       ($1, $2, $3, $4, $5, 'waiting')
   `,
-    [randomUUID(), demand.id, demand.universe_id, demand.privacy_epoch, requestId],
+    [
+      randomUUID(),
+      demand.id,
+      demand.universe_id,
+      demand.privacy_epoch,
+      requestId,
+    ],
   );
 }
 
 /** A private binding. It keeps the place whose exhaustion caused the need and, for a continuation's
  * gap, its origin (ADR-0046 §4), from the demand's latest cause of each kind. */
-async function bind(client: pg.PoolClient, demand: DemandRow, assetId: string): Promise<void> {
+async function bind(
+  client: pg.PoolClient,
+  demand: DemandRow,
+  assetId: string,
+): Promise<void> {
   const latest = <K extends Cause['kind']>(kind: K) =>
     [...demand.causes]
       .reverse()
@@ -569,7 +630,10 @@ export async function redecideForSupply(
   ).rows;
   const byUniverse = new Map<string, string[]>();
   for (const r of rows)
-    byUniverse.set(r.universe_id, [...(byUniverse.get(r.universe_id) ?? []), r.id]);
+    byUniverse.set(r.universe_id, [
+      ...(byUniverse.get(r.universe_id) ?? []),
+      r.id,
+    ]);
   let decided = 0;
   for (const [universeId, demands] of byUniverse) {
     decided += await transaction(async (client) => {
@@ -707,13 +771,25 @@ export async function cancelDemands(
 }
 
 /** Clear/Reset/deletion (after the epoch advanced): bindings name places, bridges and exposures, so they go before all three. */
-export async function eraseInventory(client: pg.PoolClient, universeId: string): Promise<void> {
-  await client.query('DELETE FROM encounter_binding WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM demand_waiter WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM content_demand WHERE universe_id=$1', [universeId]);
+export async function eraseInventory(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
+  await client.query('DELETE FROM encounter_binding WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM demand_waiter WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM content_demand WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
-export async function exportInventory(client: pg.PoolClient, universeId: string) {
+export async function exportInventory(
+  client: pg.PoolClient,
+  universeId: string,
+) {
   const q = async (sql: string) => (await client.query(sql, [universeId])).rows;
   return {
     demands:

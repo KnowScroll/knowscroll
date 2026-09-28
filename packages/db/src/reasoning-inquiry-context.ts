@@ -31,7 +31,11 @@ import {
   type ReasoningContextCheck,
   type ReasoningScope,
 } from './reasoning-runtime-policy.ts';
-import { canonicalJson, lockSubstrateShared, sha256 } from './semantic/read-set.ts';
+import {
+  canonicalJson,
+  lockSubstrateShared,
+  sha256,
+} from './semantic/read-set.ts';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 export type InquiryContextValidation =
@@ -39,7 +43,8 @@ export type InquiryContextValidation =
   | { valid: false; reason: InquiryContextRefusal };
 
 const codepoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const iso = (v: Date | string) => (v instanceof Date ? v : new Date(v)).toISOString();
+const iso = (v: Date | string) =>
+  (v instanceof Date ? v : new Date(v)).toISOString();
 
 function sortDependencies(reads: InquiryDependency[]): InquiryDependency[] {
   const unique = new Map<string, InquiryDependency>();
@@ -49,7 +54,10 @@ function sortDependencies(reads: InquiryDependency[]): InquiryDependency[] {
   );
 }
 
-function policyDigest(policy: unknown, scope: ReasoningScope): { version: string; hash: string } {
+function policyDigest(
+  policy: unknown,
+  scope: ReasoningScope,
+): { version: string; hash: string } {
   const resolved = validateReasoningPolicy(policy, scope).policy;
   return {
     version: resolved.policyVersion,
@@ -63,7 +71,9 @@ function policyDigest(policy: unknown, scope: ReasoningScope): { version: string
         policy: {
           ...resolved,
           requiredDimensions: [...resolved.requiredDimensions].sort(),
-          buckets: [...resolved.buckets].sort((a, b) => codepoint(a.bucketId, b.bucketId)),
+          buckets: [...resolved.buckets].sort((a, b) =>
+            codepoint(a.bucketId, b.bucketId),
+          ),
         },
       }),
     ),
@@ -73,8 +83,18 @@ function policyDigest(policy: unknown, scope: ReasoningScope): { version: string
 // The one source title a claim is shown with: its first current supporting source, by key.
 const CLAIM_SOURCE = `(SELECT s.title FROM claim_support cs JOIN source_snapshot ss ON ss.id = cs.snapshot_id AND ss.status = 'current'
   JOIN semantic_source s ON s.id = ss.source_id WHERE cs.claim_id = cl.id AND cs.support_kind = 'supports' ORDER BY s.key LIMIT 1)`;
-const claimHash = (c: { key: string; statement: string; sourceTitle: string }) =>
-  sha256(canonicalJson({ key: c.key, statement: c.statement, sourceTitle: c.sourceTitle }));
+const claimHash = (c: {
+  key: string;
+  statement: string;
+  sourceTitle: string;
+}) =>
+  sha256(
+    canonicalJson({
+      key: c.key,
+      statement: c.statement,
+      sourceTitle: c.sourceTitle,
+    }),
+  );
 
 /** Everything the pure selection reads, for one universe and epoch. Caller holds the universe lock. */
 export async function readInquiryInputs(
@@ -272,11 +292,16 @@ export async function sealInquiryContext(
   ).rows[0];
   if (!job) throw new ReasoningDenied('context_unsupported');
   const policy = policyDigest(await resolvePolicy(client, scope), scope);
-  if (policy.version !== job.policy_version) throw new ReasoningDenied('context_changed_policy');
+  if (policy.version !== job.policy_version)
+    throw new ReasoningDenied('context_changed_policy');
   const sealedAt = iso(
-    (await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!.now,
+    (await client.query<{ now: Date }>('SELECT clock_timestamp() AS now'))
+      .rows[0]!.now,
   );
-  const own = { universeId: input.universeId, privacyEpoch: input.privacyEpoch };
+  const own = {
+    universeId: input.universeId,
+    privacyEpoch: input.privacyEpoch,
+  };
   const dependencies = sortDependencies([
     {
       kind: 'inquiry',
@@ -294,7 +319,11 @@ export async function sealInquiryContext(
       { kind: 'place', id: p.b.placeId, ...own, code: p.b.code },
       { kind: 'pair', from: p.a.code, to: p.b.code },
       ...[...p.claimsA, ...p.claimsB, ...p.both].map(
-        (c): InquiryDependency => ({ kind: 'claim', key: c.key, hash: claimHash(c) }),
+        (c): InquiryDependency => ({
+          kind: 'claim',
+          key: c.key,
+          hash: claimHash(c),
+        }),
       ),
     ]),
   ]);
@@ -317,7 +346,10 @@ export async function sealInquiryContext(
   });
   if (!parsed.success) throw new ReasoningDenied('context_malformed');
   const canonicalPayload = canonicalJson(parsed.data);
-  if (Buffer.byteLength(canonicalPayload, 'utf8') > INQUIRY_CONTEXT_LIMITS.maxBytes)
+  if (
+    Buffer.byteLength(canonicalPayload, 'utf8') >
+    INQUIRY_CONTEXT_LIMITS.maxBytes
+  )
     throw new ReasoningDenied('context_bounds_exceeded');
   // The facts it rests on must hold now, in this transaction, or nothing is sealed.
   const refusal = await currentRefusal(client, parsed.data);
@@ -367,7 +399,13 @@ export async function sealInquiryContext(
       VALUES
         ($1, $2, $3, $4, $5)
     `,
-      [input.contextId, input.universeId, input.privacyEpoch, row.identity, row.value],
+      [
+        input.contextId,
+        input.universeId,
+        input.privacyEpoch,
+        row.identity,
+        row.value,
+      ],
     );
   }
   await client.query(
@@ -607,8 +645,11 @@ async function currentRefusal(
       if (
         !now?.supported ||
         now.source_title === null ||
-        claimHash({ key: c.key, statement: now.statement, sourceTitle: now.source_title }) !==
-          claimHash(c)
+        claimHash({
+          key: c.key,
+          statement: now.statement,
+          sourceTitle: now.source_title,
+        }) !== claimHash(c)
       )
         return 'claim_changed';
     }
@@ -630,7 +671,8 @@ async function loadSealed(
   client: pg.PoolClient,
   scope: ReasoningContextCheck,
 ): Promise<
-  { payload: InquiryContextPayload; sealed: SealedRow } | { reason: InquiryContextRefusal }
+  | { payload: InquiryContextPayload; sealed: SealedRow }
+  | { reason: InquiryContextRefusal }
 > {
   const sealed = (
     await client.query<SealedRow>(
@@ -672,15 +714,22 @@ async function loadSealed(
       AND universe_id = $4
       AND privacy_epoch = $5
   `,
-      [scope.stepId, scope.jobId, scope.contextId, scope.universeId, scope.privacyEpoch],
+      [
+        scope.stepId,
+        scope.jobId,
+        scope.contextId,
+        scope.universeId,
+        scope.privacyEpoch,
+      ],
     )
   ).rowCount;
   if (!step) return { reason: 'foreign' };
   if (
     (
-      await client.query('SELECT 1 FROM reasoning_context_read WHERE context_id=$1', [
-        scope.contextId,
-      ])
+      await client.query(
+        'SELECT 1 FROM reasoning_context_read WHERE context_id=$1',
+        [scope.contextId],
+      )
     ).rowCount
   )
     return { reason: 'unsupported' };
@@ -727,7 +776,9 @@ async function loadSealed(
   try {
     const stored = rows
       .map((row) => {
-        const read = inquiryDependency.parse(JSON.parse(row.canonical_dependency));
+        const read = inquiryDependency.parse(
+          JSON.parse(row.canonical_dependency),
+        );
         if (
           canonicalJson(read) !== row.canonical_dependency ||
           inquiryDependencyKey(read) !== row.identity
@@ -819,7 +870,8 @@ export async function validateInquiryContext(
   )
     return { valid: false, reason: 'corrupt_seal' };
   if (!job.live) return { valid: false, reason: 'expired' };
-  if (job.policy_version !== scope.policyVersion) return { valid: false, reason: 'changed_policy' };
+  if (job.policy_version !== scope.policyVersion)
+    return { valid: false, reason: 'changed_policy' };
   if (phase === 'lock') await lockSubstrateShared(client);
   let policy: { version: string; hash: string };
   try {
@@ -832,10 +884,14 @@ export async function validateInquiryContext(
       scope,
     );
   } catch (error) {
-    if (error instanceof ReasoningDenied) return { valid: false, reason: 'changed_policy' };
+    if (error instanceof ReasoningDenied)
+      return { valid: false, reason: 'changed_policy' };
     throw error;
   }
-  if (policy.version !== scope.policyVersion || policy.hash !== payload.runtimePolicyHash)
+  if (
+    policy.version !== scope.policyVersion ||
+    policy.hash !== payload.runtimePolicyHash
+  )
     return { valid: false, reason: 'changed_policy' };
   const refusal = await currentRefusal(client, payload);
   if (refusal) return { valid: false, reason: refusal };

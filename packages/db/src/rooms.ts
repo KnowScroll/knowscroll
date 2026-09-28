@@ -18,7 +18,10 @@ import {
   type RoomResponse,
   type RoomSummary,
 } from '../../contracts/src/rooms.ts';
-import type { ConceptNode, TypedRelation } from '../../core/src/atlas/cartographer.ts';
+import type {
+  ConceptNode,
+  TypedRelation,
+} from '../../core/src/atlas/cartographer.ts';
 import {
   isLiveRoom,
   planRetirements,
@@ -76,16 +79,26 @@ const roomView = (r: RoomRow): RoomView => ({
   seats: r.seats,
 });
 
-async function loadRooms(client: pg.PoolClient, universeId: string): Promise<RoomView[]> {
+async function loadRooms(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<RoomView[]> {
   return (
-    await client.query<RoomRow>(`${ROOM_ROWS} ORDER BY r.created_at, r.id`, [universeId])
+    await client.query<RoomRow>(`${ROOM_ROWS} ORDER BY r.created_at, r.id`, [
+      universeId,
+    ])
   ).rows.map(roomView);
 }
 
 /** Every currently supported claim, the concepts it is about, and whether a current source qualifies or contradicts it. */
 async function loadClaims(client: pg.PoolClient): Promise<KeeperClaim[]> {
   return (
-    await client.query<{ id: string; key: string; about: string[]; doubt: KeeperClaim['doubt'] }>(
+    await client.query<{
+      id: string;
+      key: string;
+      about: string[];
+      doubt: KeeperClaim['doubt'];
+    }>(
       `
       SELECT
         cl.id,
@@ -126,7 +139,12 @@ async function loadClaims(client: pg.PoolClient): Promise<KeeperClaim[]> {
         cl.id
     `,
     )
-  ).rows.map((r) => ({ claimId: r.id, key: r.key, about: r.about, doubt: r.doubt }));
+  ).rows.map((r) => ({
+    claimId: r.id,
+    key: r.key,
+    about: r.about,
+    doubt: r.doubt,
+  }));
 }
 
 /** The admitted bridges among the relations: the claims each cites, and those its proposal recorded as counterevidence. */
@@ -134,10 +152,16 @@ async function loadBridges(
   client: pg.PoolClient,
   relations: readonly TypedRelation[],
 ): Promise<Map<string, KeeperBridge>> {
-  const ids = relations.flatMap((r) => ('bridgeId' in r.ref ? [r.ref.bridgeId] : []));
+  const ids = relations.flatMap((r) =>
+    'bridgeId' in r.ref ? [r.ref.bridgeId] : [],
+  );
   return new Map(
     (
-      await client.query<{ id: string; cites: string[]; counterevidence: string[] }>(
+      await client.query<{
+        id: string;
+        cites: string[];
+        counterevidence: string[];
+      }>(
         `
       SELECT
         b.id,
@@ -167,7 +191,10 @@ async function loadBridges(
     `,
         [ids],
       )
-    ).rows.map((r) => [r.id, { cites: r.cites, counterevidence: r.counterevidence }]),
+    ).rows.map((r) => [
+      r.id,
+      { cites: r.cites, counterevidence: r.counterevidence },
+    ]),
   );
 }
 
@@ -176,7 +203,12 @@ async function insertDelta(
   universeId: string,
   roomId: string,
   role: RoomRole | null,
-  d: { kind: string; causalClass: string; policyVersion: string; evidence: unknown },
+  d: {
+    kind: string;
+    causalClass: string;
+    policyVersion: string;
+    evidence: unknown;
+  },
   before: object | null,
   after: object,
 ): Promise<void> {
@@ -229,11 +261,21 @@ async function applyRoomDeltas(
   ).rows[0]!.privacy_epoch;
   const current = new Map<
     string,
-    { roomId: string; state: RoomState; askIds: readonly string[]; seats: Seats }
+    {
+      roomId: string;
+      state: RoomState;
+      askIds: readonly string[];
+      seats: Seats;
+    }
   >(
     rooms.map((r) => [
       r.roomId,
-      { roomId: r.roomId, state: r.state, askIds: r.askIds, seats: { ...r.seats } as Seats },
+      {
+        roomId: r.roomId,
+        state: r.state,
+        askIds: r.askIds,
+        seats: { ...r.seats } as Seats,
+      },
     ]),
   );
   for (const d of deltas) {
@@ -254,18 +296,34 @@ async function applyRoomDeltas(
         VALUES
           ($1, $2, $3, $4, $5, $6, $7)
       `,
-        [id, universeId, epoch, d.placeId, d.questionAskId, d.askIds, d.policyVersion],
+        [
+          id,
+          universeId,
+          epoch,
+          d.placeId,
+          d.questionAskId,
+          d.askIds,
+          d.policyVersion,
+        ],
       );
       await insertDelta(client, universeId, id, null, d, null, {
         state: 'opened',
         askIds: d.askIds,
       });
-      current.set(d.room, { roomId: id, state: 'opened', askIds: d.askIds, seats: {} });
+      current.set(d.room, {
+        roomId: id,
+        state: 'opened',
+        askIds: d.askIds,
+        seats: {},
+      });
       continue;
     }
     const room = current.get(d.room)!;
     if (d.kind === 'question_joined') {
-      await client.query('UPDATE room SET ask_ids=$2 WHERE id=$1', [room.roomId, d.askIds]);
+      await client.query('UPDATE room SET ask_ids=$2 WHERE id=$1', [
+        room.roomId,
+        d.askIds,
+      ]);
       await insertDelta(
         client,
         universeId,
@@ -279,7 +337,10 @@ async function applyRoomDeltas(
     } else if (d.kind === 'room_set_aside' || d.kind === 'room_retired') {
       // Its inhabitants are unseated with it.
       const state = d.kind === 'room_set_aside' ? 'set_aside' : 'retired';
-      await client.query('UPDATE room SET state=$2 WHERE id=$1', [room.roomId, state]);
+      await client.query('UPDATE room SET state=$2 WHERE id=$1', [
+        room.roomId,
+        state,
+      ]);
       await client.query(
         `UPDATE room_inhabitant SET seated=false, claims='[]' WHERE room_id=$1 AND seated`,
         [room.roomId],
@@ -309,11 +370,21 @@ async function applyRoomDeltas(
             seated = EXCLUDED.seated,
             claims = EXCLUDED.claims
         `,
-        [randomUUID(), room.roomId, universeId, d.role, claims.length > 0, JSON.stringify(claims)],
+        [
+          randomUUID(),
+          room.roomId,
+          universeId,
+          d.role,
+          claims.length > 0,
+          JSON.stringify(claims),
+        ],
       );
       // The ladder moves only with the doubter's seat, recorded by this same delta.
       if (d.state !== room.state)
-        await client.query('UPDATE room SET state=$2 WHERE id=$1', [room.roomId, d.state]);
+        await client.query('UPDATE room SET state=$2 WHERE id=$1', [
+          room.roomId,
+          d.state,
+        ]);
       await insertDelta(
         client,
         universeId,
@@ -335,7 +406,10 @@ async function applyRoomDeltas(
 export async function keepRooms(
   client: pg.PoolClient,
   universeId: string,
-  substrate: { concepts: readonly ConceptNode[]; relations: readonly TypedRelation[] },
+  substrate: {
+    concepts: readonly ConceptNode[];
+    relations: readonly TypedRelation[];
+  },
   places: readonly KeeperPlace[],
   asks: readonly KeeperAsk[],
 ): Promise<number> {
@@ -359,7 +433,12 @@ export async function retireRooms(
   places: readonly KeeperPlace[],
 ): Promise<number> {
   const rooms = await loadRooms(client, universeId);
-  return applyRoomDeltas(client, universeId, rooms, planRetirements(rooms, places));
+  return applyRoomDeltas(
+    client,
+    universeId,
+    rooms,
+    planRetirements(rooms, places),
+  );
 }
 
 /** `POST /v1/rooms/:roomId/set-aside`. Setting aside a room already set aside is the same answer. */
@@ -387,7 +466,8 @@ export async function setRoomAside(
   const room = rooms.find((r) => r.roomId === roomId);
   if (!room) throw new RoomError(404, 'Not found');
   if (room.state === 'set_aside') return;
-  if (!isLiveRoom(room)) throw new RoomError(409, 'Only a live room can be set aside');
+  if (!isLiveRoom(room))
+    throw new RoomError(409, 'Only a live room can be set aside');
   await applyRoomDeltas(client, scope.universeId, rooms, [
     planSetAside(room, parsed.data.clientRequestId),
   ]);
@@ -409,9 +489,10 @@ async function describeClaims(
         key: string;
         statement: string;
         truth_state: RoomClaim['truthState'];
-      }>('SELECT id, key, statement, truth_state FROM claim WHERE id = ANY($1::uuid[])', [
-        held.map((c) => c.claimId),
-      ])
+      }>(
+        'SELECT id, key, statement, truth_state FROM claim WHERE id = ANY($1::uuid[])',
+        [held.map((c) => c.claimId)],
+      )
     ).rows.map((r) => [r.id, r]),
   );
   return (c) => {
@@ -472,13 +553,20 @@ type DeltaRow = {
   role: RoomRole | null;
   policy_version: string;
   created_at: Date;
-  evidence: { asks?: AskEvidence[]; claims?: HeldClaim[]; previous?: HeldClaim[] };
+  evidence: {
+    asks?: AskEvidence[];
+    claims?: HeldClaim[];
+    previous?: HeldClaim[];
+  };
 };
 const DELTA_ROWS = `SELECT d.id, d.room_id, r.place_id, c.name AS place_name, d.kind, d.causal_class, d.role, d.policy_version, d.created_at, d.evidence
   FROM room_delta d JOIN room r ON r.id = d.room_id JOIN atlas_place p ON p.id = r.place_id JOIN concept c ON c.id = p.anchor_concept_id
   WHERE d.universe_id = $1`;
 
-const heldIn = (d: DeltaRow) => [...(d.evidence.claims ?? []), ...(d.evidence.previous ?? [])];
+const heldIn = (d: DeltaRow) => [
+  ...(d.evidence.claims ?? []),
+  ...(d.evidence.previous ?? []),
+];
 function change(d: DeltaRow, describe: (c: HeldClaim) => RoomClaim) {
   return {
     deltaId: d.id,
@@ -493,7 +581,10 @@ function change(d: DeltaRow, describe: (c: HeldClaim) => RoomClaim) {
       placeName: d.place_name,
     }),
     evidence: {
-      asks: (d.evidence.asks ?? []).map((a) => ({ askId: a.askId, day: a.day })),
+      asks: (d.evidence.asks ?? []).map((a) => ({
+        askId: a.askId,
+        day: a.day,
+      })),
       claims: (d.evidence.claims ?? []).map(describe),
       previous: (d.evidence.previous ?? []).map(describe),
     },
@@ -506,8 +597,12 @@ export async function readRoom(
   universeId: string,
   roomId: string,
 ): Promise<RoomResponse> {
-  const room = (await client.query<RoomRow>(`${ROOM_ROWS} AND r.id = $2`, [universeId, roomId]))
-    .rows[0];
+  const room = (
+    await client.query<RoomRow>(`${ROOM_ROWS} AND r.id = $2`, [
+      universeId,
+      roomId,
+    ])
+  ).rows[0];
   if (!room) throw new RoomError(404, 'Not found');
   const deltas = (
     await client.query<DeltaRow>(
@@ -537,8 +632,12 @@ export async function readRoomDelta(
   universeId: string,
   deltaId: string,
 ): Promise<RoomDeltaResponse> {
-  const d = (await client.query<DeltaRow>(`${DELTA_ROWS} AND d.id = $2`, [universeId, deltaId]))
-    .rows[0];
+  const d = (
+    await client.query<DeltaRow>(`${DELTA_ROWS} AND d.id = $2`, [
+      universeId,
+      deltaId,
+    ])
+  ).rows[0];
   if (!d) throw new RoomError(404, 'Not found');
   return {
     ...change(d, await describeClaims(client, heldIn(d))),
@@ -551,9 +650,16 @@ export async function readRoomDelta(
 // Privacy -------------------------------------------------------------------------------------
 
 /** Clear/Reset/deletion: before the places and Asks the rooms name. */
-export async function eraseRooms(client: pg.PoolClient, universeId: string): Promise<void> {
-  await client.query('DELETE FROM room_delta WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM room_inhabitant WHERE universe_id=$1', [universeId]);
+export async function eraseRooms(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
+  await client.query('DELETE FROM room_delta WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM room_inhabitant WHERE universe_id=$1', [
+    universeId,
+  ]);
   await client.query('DELETE FROM room WHERE universe_id=$1', [universeId]);
 }
 

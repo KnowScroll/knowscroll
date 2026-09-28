@@ -53,7 +53,11 @@ export const resolvedReasoningPolicy = z
   .strict();
 export type ResolvedReasoningPolicy = z.infer<typeof resolvedReasoningPolicy>;
 export type ReasoningBinding = z.infer<typeof binding>;
-export type ReasoningScope = { universeId: string; privacyEpoch: number; jobId: string };
+export type ReasoningScope = {
+  universeId: string;
+  privacyEpoch: number;
+  jobId: string;
+};
 export type ReasoningContextCheck = ReasoningScope & {
   stepId: string;
   contextId: string;
@@ -93,14 +97,21 @@ export function validateReasoningPolicy(
   const policy = result.data;
   const dims = new Set(policy.requiredDimensions),
     seen = new Set<string>();
-  if (dims.size !== policy.requiredDimensions.length || required.some((d) => !dims.has(d)))
+  if (
+    dims.size !== policy.requiredDimensions.length ||
+    required.some((d) => !dims.has(d))
+  )
     throw new ReasoningDenied('incomplete_policy');
   for (const b of policy.buckets) {
     if (seen.has(b.bucketId) || !dims.has(b.dimension))
       throw new ReasoningDenied('invalid_bucket_binding');
     seen.add(b.bucketId);
     const expectedScope =
-      b.dimension === 'owner_budget' ? 'owner' : b.dimension === 'job_budget' ? 'job' : 'shared';
+      b.dimension === 'owner_budget'
+        ? 'owner'
+        : b.dimension === 'job_budget'
+          ? 'job'
+          : 'shared';
     if (
       b.scope !== expectedScope ||
       b.scopeId !==
@@ -113,7 +124,12 @@ export function validateReasoningPolicy(
       throw new ReasoningDenied('foreign_bucket_binding');
     const rate = b.dimension.endsWith('_rate');
     if (
-      b.handling !== (b.dimension === 'remote_concurrency' ? 'remote' : rate ? 'rate' : 'budget') ||
+      b.handling !==
+        (b.dimension === 'remote_concurrency'
+          ? 'remote'
+          : rate
+            ? 'rate'
+            : 'budget') ||
       (rate && b.windowId === null)
     )
       throw new ReasoningDenied('invalid_bucket_semantics');
@@ -157,7 +173,9 @@ export function validateReasoningPolicy(
   };
   return {
     policy,
-    bindingHash: createHash('sha256').update(JSON.stringify(canonical)).digest('hex'),
+    bindingHash: createHash('sha256')
+      .update(JSON.stringify(canonical))
+      .digest('hex'),
   };
 }
 export function reservationAmount(

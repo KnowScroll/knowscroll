@@ -25,11 +25,17 @@ import type {
 
 const SUBSTRATE_LOCK = 0x5ea_0131;
 
-export async function lockSubstrateExclusive(client: pg.PoolClient): Promise<void> {
+export async function lockSubstrateExclusive(
+  client: pg.PoolClient,
+): Promise<void> {
   await client.query('SELECT pg_advisory_xact_lock($1)', [SUBSTRATE_LOCK]);
 }
-export async function lockSubstrateShared(client: pg.PoolClient): Promise<void> {
-  await client.query('SELECT pg_advisory_xact_lock_shared($1)', [SUBSTRATE_LOCK]);
+export async function lockSubstrateShared(
+  client: pg.PoolClient,
+): Promise<void> {
+  await client.query('SELECT pg_advisory_xact_lock_shared($1)', [
+    SUBSTRATE_LOCK,
+  ]);
 }
 
 /** Key-sorted JSON so the same payload always hashes the same. */
@@ -38,12 +44,16 @@ export function canonicalJson(value: unknown): string {
   if (value !== null && typeof value === 'object') {
     return `{${Object.keys(value as object)
       .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`)
+      .map(
+        (k) =>
+          `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`,
+      )
       .join(',')}}`;
   }
   return JSON.stringify(value);
 }
-export const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+export const sha256 = (text: string) =>
+  createHash('sha256').update(text, 'utf8').digest('hex');
 
 /** Everything the validator may consult. `universeId` adds that universe's own admitted bridges to
  * the duplicate check; shared bridges are always included. */
@@ -147,7 +157,12 @@ export async function loadBridgeReadSet(
   );
 
   const admittedBridges = (
-    await client.query<{ id: string; from_code: string; to_code: string; relation_type: string }>(
+    await client.query<{
+      id: string;
+      from_code: string;
+      to_code: string;
+      relation_type: string;
+    }>(
       `
       SELECT
         b.id,

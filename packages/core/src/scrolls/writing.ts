@@ -13,7 +13,10 @@
  * A quote it refuses is diagnosed with a code that carries no text (`quote-diagnosis-v1`).
  */
 import { z } from 'zod';
-import { claimConceptRole, conceptCode } from '../../../contracts/src/semantic.ts';
+import {
+  claimConceptRole,
+  conceptCode,
+} from '../../../contracts/src/semantic.ts';
 import { canonical, wholeObject } from '../reasoning/wire.ts';
 import { normalizeSnapshotText } from '../semantic/source-text.ts';
 
@@ -53,7 +56,10 @@ export interface ScrollRoute {
 export const scrollPlanItem = z
   .object({
     url: z.string().min(1).max(2000),
-    conceptCodes: z.array(conceptCode).min(1).max(SCROLL_LIMITS.offeredConcepts),
+    conceptCodes: z
+      .array(conceptCode)
+      .min(1)
+      .max(SCROLL_LIMITS.offeredConcepts),
   })
   .strict()
   .refine(
@@ -77,7 +83,8 @@ const SYSTEM = [
 ].join('\n');
 
 export const OFFERED_CONCEPTS_MARKER = 'Offered concepts (JSON):';
-export const MATERIAL_MARKER = 'Material (the visible text of one public-domain page):';
+export const MATERIAL_MARKER =
+  'Material (the visible text of one public-domain page):';
 
 /** The exact request bytes, with the longest word-boundary prefix of `material` that keeps the whole
  * request within `SCROLL_LIMITS.requestBytes`. */
@@ -86,7 +93,11 @@ export function serializeScrollWritingRequest(
   route: ScrollRoute,
 ): { body: Uint8Array; materialChars: number } {
   const concepts = canonical(
-    input.concepts.map((c) => ({ code: c.code, name: c.name, description: c.description })),
+    input.concepts.map((c) => ({
+      code: c.code,
+      name: c.name,
+      description: c.description,
+    })),
   );
   const bytes = (material: string) =>
     new TextEncoder().encode(
@@ -112,7 +123,10 @@ export function serializeScrollWritingRequest(
     over = input.material.length;
   while (over - fits > 1) {
     const mid = Math.floor((fits + over) / 2);
-    if (bytes(input.material.slice(0, mid)).length <= SCROLL_LIMITS.requestBytes) fits = mid;
+    if (
+      bytes(input.material.slice(0, mid)).length <= SCROLL_LIMITS.requestBytes
+    )
+      fits = mid;
     else over = mid;
   }
   const materialChars = Math.max(0, input.material.lastIndexOf(' ', fits));
@@ -126,7 +140,11 @@ const replySchema = z
     summary: text,
     beats: z.array(text),
     concepts: z
-      .array(z.object({ code: z.string(), role: z.enum(['primary', 'secondary']) }).strict())
+      .array(
+        z
+          .object({ code: z.string(), role: z.enum(['primary', 'secondary']) })
+          .strict(),
+      )
       .min(1)
       .max(SCROLL_LIMITS.offeredConcepts),
     claims: z.array(
@@ -135,7 +153,9 @@ const replySchema = z
           statement: text,
           truthState: z.literal('documented'),
           concepts: z
-            .array(z.object({ code: z.string(), role: claimConceptRole }).strict())
+            .array(
+              z.object({ code: z.string(), role: claimConceptRole }).strict(),
+            )
             .min(1)
             .max(6),
           quote: text,
@@ -147,12 +167,17 @@ const replySchema = z
   .strict();
 export type ScrollDraft = z.infer<typeof replySchema>;
 
-export type ScrollShapeReason = 'not_one_json_object' | 'reply_keys' | 'shape_invalid';
+export type ScrollShapeReason =
+  | 'not_one_json_object'
+  | 'reply_keys'
+  | 'shape_invalid';
 const REPLY_KEYS = ['beats', 'claims', 'concepts', 'summary', 'title'];
 
 export function parseScrollReply(
   text: string,
-): { kind: 'draft'; draft: ScrollDraft } | { kind: 'shape'; reason: ScrollShapeReason } {
+):
+  | { kind: 'draft'; draft: ScrollDraft }
+  | { kind: 'shape'; reason: ScrollShapeReason } {
   const value = wholeObject(text);
   if (!value) return { kind: 'shape', reason: 'not_one_json_object' };
   if (Object.keys(value).sort().join(',') !== REPLY_KEYS.join(','))
@@ -231,7 +256,8 @@ function words(text: string): string[] {
 }
 function runs(list: readonly string[], length: number): string[] {
   const out: string[] = [];
-  for (let i = 0; i + length <= list.length; i += 1) out.push(list.slice(i, i + length).join(' '));
+  for (let i = 0; i + length <= list.length; i += 1)
+    out.push(list.slice(i, i + length).join(' '));
   return out;
 }
 /**
@@ -256,11 +282,15 @@ const TYPOGRAPHY: readonly [RegExp, string][] = [
 const foldTypography = (text: string) =>
   TYPOGRAPHY.reduce((out, [from, to]) => out.replace(from, to), text);
 
-function diagnoseQuotes(quotes: readonly string[], material: string): QuoteDiagnosis[] {
+function diagnoseQuotes(
+  quotes: readonly string[],
+  material: string,
+): QuoteDiagnosis[] {
   const folded = foldTypography(material);
   const foldedCase = folded.toLowerCase();
   const materialWords = ` ${words(material).join(' ')} `;
-  const inMaterial = (run: string) => run.length > 0 && materialWords.includes(` ${run} `);
+  const inMaterial = (run: string) =>
+    run.length > 0 && materialWords.includes(` ${run} `);
   return quotes.map((quote) => {
     const q = foldTypography(quote);
     if (folded.includes(q)) return 'quote:typography';
@@ -278,7 +308,10 @@ const chars = (value: string) => Array.from(value).length;
 const within = (value: number, [min, max]: readonly [number, number]) =>
   value >= min && value <= max;
 
-export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext): ScrollVerdict {
+export function checkScrollDraft(
+  draft: ScrollDraft,
+  context: ScrollCheckContext,
+): ScrollVerdict {
   const checksVersion = SCROLL_WRITING_VERSIONS.checks;
   const L = SCROLL_LIMITS;
   const title = normalizeSnapshotText(draft.title);
@@ -298,30 +331,43 @@ export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext
   if (refusedQuotes.length > 0) found.add('quote_not_in_material');
   const copied = new Set(runs(words(context.material), L.maxSharedWords + 1));
   const prose = [title, summary, ...beats];
-  if (prose.some((part) => runs(words(part), L.maxSharedWords + 1).some((run) => copied.has(run))))
+  if (
+    prose.some((part) =>
+      runs(words(part), L.maxSharedWords + 1).some((run) => copied.has(run)),
+    )
+  )
     found.add('copied_passage');
   // v2 (review of #178): a bare domain names a source as surely as a URL, and claim statements reach
   // readers as evidence, so both are checked.
-  if ([...prose, ...claims.map((c) => c.statement)].some((part) => WEB_ADDRESS.test(part)))
+  if (
+    [...prose, ...claims.map((c) => c.statement)].some((part) =>
+      WEB_ADDRESS.test(part),
+    )
+  )
     found.add('mentions_web_address');
 
   if (!within(chars(title), L.titleChars)) found.add('title_length');
   if (!within(chars(summary), L.summaryChars)) found.add('summary_length');
   if (!within(beats.length, L.beats)) found.add('beat_count');
-  if (beats.some((b) => !within(chars(b), L.beatChars))) found.add('beat_length');
+  if (beats.some((b) => !within(chars(b), L.beatChars)))
+    found.add('beat_length');
   if (!within(claims.length, L.claims)) found.add('claim_count');
   if (claims.some((c) => !within(chars(c.statement), L.statementChars)))
     found.add('statement_length');
-  if (claims.some((c) => !within(chars(c.quote), L.quoteChars))) found.add('quote_length');
+  if (claims.some((c) => !within(chars(c.quote), L.quoteChars)))
+    found.add('quote_length');
 
   const offered = new Set(context.offered);
   const allCodes = [
     ...draft.concepts.map((c) => c.code),
     ...claims.flatMap((c) => c.concepts.map((l) => l.code)),
   ];
-  if (allCodes.some((code) => !context.known.has(code))) found.add('concept_unknown');
-  if (draft.concepts.some((c) => !offered.has(c.code))) found.add('concept_not_offered');
-  if (draft.concepts.filter((c) => c.role === 'primary').length !== 1) found.add('primary_not_one');
+  if (allCodes.some((code) => !context.known.has(code)))
+    found.add('concept_unknown');
+  if (draft.concepts.some((c) => !offered.has(c.code)))
+    found.add('concept_not_offered');
+  if (draft.concepts.filter((c) => c.role === 'primary').length !== 1)
+    found.add('primary_not_one');
   const distinct = (keys: string[]) => new Set(keys).size === keys.length;
   if (
     !distinct(draft.concepts.map((c) => c.code)) ||
@@ -330,7 +376,8 @@ export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext
     found.add('duplicate_concept');
   if (claims.some((c) => !c.concepts.some((l) => offered.has(l.code))))
     found.add('claim_concept_not_offered');
-  if (!claims.some((c) => c.supportKind === 'supports')) found.add('no_supporting_claim');
+  if (!claims.some((c) => c.supportKind === 'supports'))
+    found.add('no_supporting_claim');
 
   if (found.size > 0) {
     const diagnosed =
@@ -346,15 +393,29 @@ export function checkScrollDraft(draft: ScrollDraft, context: ScrollCheckContext
   }
   return {
     ok: true,
-    scroll: { title, summary, beats, body: beats.join('\n\n'), concepts: draft.concepts, claims },
+    scroll: {
+      title,
+      summary,
+      beats,
+      body: beats.join('\n\n'),
+      concepts: draft.concepts,
+      claims,
+    },
     checksVersion,
   };
 }
 
 /** A reply, parsed and then checked: the one verdict admission acts on. */
-export function judgeScrollReply(text: string, context: ScrollCheckContext): ScrollVerdict {
+export function judgeScrollReply(
+  text: string,
+  context: ScrollCheckContext,
+): ScrollVerdict {
   const reply = parseScrollReply(text);
   if (reply.kind === 'shape')
-    return { ok: false, reasons: [reply.reason], checksVersion: SCROLL_WRITING_VERSIONS.checks };
+    return {
+      ok: false,
+      reasons: [reply.reason],
+      checksVersion: SCROLL_WRITING_VERSIONS.checks,
+    };
   return checkScrollDraft(reply.draft, context);
 }

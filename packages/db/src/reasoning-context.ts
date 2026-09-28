@@ -26,8 +26,16 @@ import {
 } from './reasoning-runtime-policy.js';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
-type CompileInput = { contextId: string; jobId: string; keepEventIds: string[] };
-type ContextResult = { contextId: string; contentHash: string; readSetHash: string };
+type CompileInput = {
+  contextId: string;
+  jobId: string;
+  keepEventIds: string[];
+};
+type ContextResult = {
+  contextId: string;
+  contentHash: string;
+  readSetHash: string;
+};
 type LineageRow = {
   keep_id: string;
   keep_sequence: string;
@@ -117,7 +125,8 @@ function codepointCompare(left: string, right: string): number {
 
 function asIso(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime())) throw new Error('Invalid stored timestamp');
+  if (!Number.isFinite(date.getTime()))
+    throw new Error('Invalid stored timestamp');
   return date.toISOString();
 }
 
@@ -125,7 +134,9 @@ function dependencyIdentity(read: DirectContextDependency): string {
   return directContextDependencyKey(read);
 }
 
-function sortDependencies(reads: DirectContextDependency[]): DirectContextDependency[] {
+function sortDependencies(
+  reads: DirectContextDependency[],
+): DirectContextDependency[] {
   const unique = new Map<string, DirectContextDependency>();
   for (const read of reads) {
     const identity = dependencyIdentity(read);
@@ -139,10 +150,17 @@ function sortDependencies(reads: DirectContextDependency[]): DirectContextDepend
   );
 }
 
-function policyDigest(policy: unknown, scope: ReasoningScope): { version: string; hash: string } {
+function policyDigest(
+  policy: unknown,
+  scope: ReasoningScope,
+): { version: string; hash: string } {
   const resolved = validateReasoningPolicy(policy, scope).policy;
   const canonicalPolicy = {
-    scope: { jobId: scope.jobId, privacyEpoch: scope.privacyEpoch, universeId: scope.universeId },
+    scope: {
+      jobId: scope.jobId,
+      privacyEpoch: scope.privacyEpoch,
+      universeId: scope.universeId,
+    },
     policy: {
       ...resolved,
       requiredDimensions: [...resolved.requiredDimensions].sort(),
@@ -151,7 +169,10 @@ function policyDigest(policy: unknown, scope: ReasoningScope): { version: string
       ),
     },
   };
-  return { version: resolved.policyVersion, hash: canonicalHash(canonicalPolicy) };
+  return {
+    version: resolved.policyVersion,
+    hash: canonicalHash(canonicalPolicy),
+  };
 }
 
 function scrollFromRow(row: LineageRow): unknown {
@@ -173,7 +194,9 @@ function selectedCandidate(
 ):
   | { ok: true; asset: DirectContextPayload['assets'][number] }
   | { ok: false; reason: ContextRefusal } {
-  const candidates = Array.isArray(row.decision_candidates) ? row.decision_candidates : [];
+  const candidates = Array.isArray(row.decision_candidates)
+    ? row.decision_candidates
+    : [];
   const matched = candidates.filter(
     (candidate) =>
       typeof candidate === 'object' &&
@@ -181,7 +204,9 @@ function selectedCandidate(
       (candidate as Record<string, unknown>).assetId === row.asset_id,
   );
   if (matched.length !== 1) return { ok: false, reason: 'stale_lineage' };
-  const candidate = contextScroll.safeParse(candidateScroll(matched[0] as Record<string, unknown>));
+  const candidate = contextScroll.safeParse(
+    candidateScroll(matched[0] as Record<string, unknown>),
+  );
   if (!candidate.success) return { ok: false, reason: 'stale_lineage' };
   const current = contextScroll.safeParse(scrollFromRow(row));
   if (!current.success) return { ok: false, reason: 'stale_asset' };
@@ -223,7 +248,10 @@ function rowDependencies(
     universeId,
   });
   const candidate = contextScroll.parse(
-    (Array.isArray(row.decision_candidates) ? row.decision_candidates : []).find(
+    (Array.isArray(row.decision_candidates)
+      ? row.decision_candidates
+      : []
+    ).find(
       (value) =>
         typeof value === 'object' &&
         value !== null &&
@@ -271,7 +299,12 @@ function rowDependencies(
       assetId: row.asset_id,
       hash: candidateHash,
     },
-    { kind: 'asset', id: asset.assetId, revision: asset.revision, hash: canonicalHash(asset) },
+    {
+      kind: 'asset',
+      id: asset.assetId,
+      revision: asset.revision,
+      hash: canonicalHash(asset),
+    },
   ] as DirectContextDependency[];
 }
 
@@ -308,19 +341,33 @@ async function lockUniverse(
 
 async function currentSession(
   client: pg.PoolClient,
-  scope: { sessionId: string; deviceId?: string; universeId: string; privacyEpoch: number },
+  scope: {
+    sessionId: string;
+    deviceId?: string;
+    universeId: string;
+    privacyEpoch: number;
+  },
   lock: boolean,
 ): Promise<SessionRow | null> {
   const query = `SELECT id,device_id,universe_id,privacy_epoch,expires_at,revoked_at FROM device_session
     WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3 AND revoked_at IS NULL AND expires_at>clock_timestamp()${lock ? ' FOR UPDATE' : ''}`;
   const row =
-    (await client.query<SessionRow>(query, [scope.sessionId, scope.universeId, scope.privacyEpoch]))
-      .rows[0] ?? null;
-  if (row && scope.deviceId !== undefined && row.device_id !== scope.deviceId) return null;
+    (
+      await client.query<SessionRow>(query, [
+        scope.sessionId,
+        scope.universeId,
+        scope.privacyEpoch,
+      ])
+    ).rows[0] ?? null;
+  if (row && scope.deviceId !== undefined && row.device_id !== scope.deviceId)
+    return null;
   return row;
 }
 
-async function lockAssets(client: pg.PoolClient, assetIds: string[]): Promise<void> {
+async function lockAssets(
+  client: pg.PoolClient,
+  assetIds: string[],
+): Promise<void> {
   const sorted = [...new Set(assetIds)].sort(codepointCompare);
   const rows = await client.query<{ id: string }>(
     'SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',
@@ -418,7 +465,11 @@ function validLineagePayloads(row: LineageRow): boolean {
   )
     return false;
   const exposure = record(row.exposure_payload);
-  if (!exposure || Object.keys(exposure).length !== 4 || exposure.exposureId !== row.exposure_id)
+  if (
+    !exposure ||
+    Object.keys(exposure).length !== 4 ||
+    exposure.exposureId !== row.exposure_id
+  )
     return false;
   const parsed = exposureInput.safeParse({
     decisionId: exposure.decisionId,
@@ -449,12 +500,15 @@ function lineagePayload(
   const assets = new Map<string, DirectContextPayload['assets'][number]>();
   const dependencies: DirectContextDependency[] = [];
   for (const row of rows) {
-    if (row.decision_privacy_epoch !== epoch) return { reason: 'stale_lineage' };
+    if (row.decision_privacy_epoch !== epoch)
+      return { reason: 'stale_lineage' };
     const candidate = selectedCandidate(row);
     if (!candidate.ok) return candidate;
     facts.push(factFromRow(row));
     assets.set(candidate.asset.assetId, candidate.asset);
-    dependencies.push(...rowDependencies(row, universeId, epoch, candidate.asset));
+    dependencies.push(
+      ...rowDependencies(row, universeId, epoch, candidate.asset),
+    );
   }
   return {
     facts: facts.sort((left, right) =>
@@ -535,7 +589,11 @@ export async function compileDirectContext(
   resolvePolicy: PolicyResolver,
 ): Promise<ContextResult> {
   const request = parseInput(input);
-  await lockUniverse(client, authenticatedScope.universeId, authenticatedScope.privacyEpoch);
+  await lockUniverse(
+    client,
+    authenticatedScope.universeId,
+    authenticatedScope.privacyEpoch,
+  );
   const session = await currentSession(client, authenticatedScope, true);
   if (!session) deny('inactive_session');
   const job = await lockDirectJob(client, authenticatedScope, request.jobId);
@@ -597,11 +655,17 @@ export async function compileDirectContext(
       jobId: request.jobId,
     },
   );
-  const currentJob = await lockDirectJob(client, authenticatedScope, request.jobId);
-  if (!currentJob || currentJob.intentId !== job.intentId) deny('stale_lineage');
+  const currentJob = await lockDirectJob(
+    client,
+    authenticatedScope,
+    request.jobId,
+  );
+  if (!currentJob || currentJob.intentId !== job.intentId)
+    deny('stale_lineage');
   if (policy.version !== currentJob.policyVersion) deny('changed_policy');
   const current = await currentSession(client, authenticatedScope, true);
-  if (!current || asIso(current.expires_at) !== asIso(session.expires_at)) deny('inactive_session');
+  if (!current || asIso(current.expires_at) !== asIso(session.expires_at))
+    deny('inactive_session');
   const dependencies = sortDependencies([
     ...lineage.dependencies,
     {
@@ -613,7 +677,8 @@ export async function compileDirectContext(
     },
     { kind: 'runtime_policy', version: policy.version, hash: policy.hash },
   ]);
-  if (dependencies.length > DIRECT_CONTEXT_LIMITS.maxDependencies) deny('bounds_exceeded');
+  if (dependencies.length > DIRECT_CONTEXT_LIMITS.maxDependencies)
+    deny('bounds_exceeded');
   const payload = directContextPayload.safeParse({
     version: 1,
     kind: 'direct_scroll_evidence_v1',
@@ -641,7 +706,9 @@ export async function compileDirectContext(
   });
   if (!payload.success) deny('malformed');
   const canonicalPayload = canonical(payload.data);
-  if (Buffer.byteLength(canonicalPayload, 'utf8') > DIRECT_CONTEXT_LIMITS.maxBytes)
+  if (
+    Buffer.byteLength(canonicalPayload, 'utf8') > DIRECT_CONTEXT_LIMITS.maxBytes
+  )
     deny('bounds_exceeded');
   const contentHash = digest(canonicalPayload);
   const canonicalDependencies = payload.data.dependencies.map((read) => ({
@@ -657,7 +724,12 @@ export async function compileDirectContext(
       VALUES
         ($1, $2, $3, $4)
     `,
-      [request.jobId, authenticatedScope.universeId, authenticatedScope.privacyEpoch, current.id],
+      [
+        request.jobId,
+        authenticatedScope.universeId,
+        authenticatedScope.privacyEpoch,
+        current.id,
+      ],
     );
   await client.query(
     `
@@ -737,7 +809,11 @@ async function loadSealed(
   client: pg.PoolClient,
   scope: ReasoningContextCheck,
 ): Promise<
-  | { payload: DirectContextPayload; sealed: SealedRow; dependencies: DirectContextDependency[] }
+  | {
+      payload: DirectContextPayload;
+      sealed: SealedRow;
+      dependencies: DirectContextDependency[];
+    }
   | { reason: ContextRefusal }
 > {
   const sealed = (
@@ -781,7 +857,13 @@ async function loadSealed(
         AND universe_id = $4
         AND privacy_epoch = $5
     `,
-      [scope.stepId, scope.jobId, scope.contextId, scope.universeId, scope.privacyEpoch],
+      [
+        scope.stepId,
+        scope.jobId,
+        scope.contextId,
+        scope.universeId,
+        scope.privacyEpoch,
+      ],
     )
   ).rows[0];
   if (!step) return { reason: 'foreign' };
@@ -836,7 +918,9 @@ async function loadSealed(
   try {
     dependencies = sortDependencies(
       rows.map((row) => {
-        const parsed = directContextDependency.parse(JSON.parse(row.canonical_dependency));
+        const parsed = directContextDependency.parse(
+          JSON.parse(row.canonical_dependency),
+        );
         if (
           canonical(parsed) !== row.canonical_dependency ||
           dependencyIdentity(parsed) !== row.identity ||
@@ -881,7 +965,8 @@ function sameLineage(
   return (
     canonical(payload.facts) === canonical(lineage.facts) &&
     canonical(payload.assets) === canonical(lineage.assets) &&
-    canonical(sortDependencies(payloadLineage)) === canonical(lineage.dependencies)
+    canonical(sortDependencies(payloadLineage)) ===
+      canonical(lineage.dependencies)
   );
 }
 
@@ -926,7 +1011,11 @@ export async function validateDirectContext(
   )
     return { valid: false, reason: 'unsupported' };
   const job = (
-    await client.query<{ intent_id: string | null; policy_version: string; wake_kind: string }>(
+    await client.query<{
+      intent_id: string | null;
+      policy_version: string;
+      wake_kind: string;
+    }>(
       `
       SELECT
         intent_id,
@@ -944,7 +1033,8 @@ export async function validateDirectContext(
   ).rows[0];
   if (!job || job.wake_kind !== 'direct' || job.intent_id !== payload.intentId)
     return { valid: false, reason: 'stale_lineage' };
-  if (job.policy_version !== scope.policyVersion) return { valid: false, reason: 'changed_policy' };
+  if (job.policy_version !== scope.policyVersion)
+    return { valid: false, reason: 'changed_policy' };
   const binding = (
     await client.query<{ session_id: string }>(
       `
@@ -962,9 +1052,14 @@ export async function validateDirectContext(
   ).rows[0];
   if (!binding || binding.session_id !== payload.sessionId)
     return { valid: false, reason: 'corrupt_seal' };
-  const sessionDependency = payload.dependencies.find((read) => read.kind === 'session');
-  const policyDependency = payload.dependencies.find((read) => read.kind === 'runtime_policy');
-  if (!sessionDependency || !policyDependency) return { valid: false, reason: 'corrupt_seal' };
+  const sessionDependency = payload.dependencies.find(
+    (read) => read.kind === 'session',
+  );
+  const policyDependency = payload.dependencies.find(
+    (read) => read.kind === 'runtime_policy',
+  );
+  if (!sessionDependency || !policyDependency)
+    return { valid: false, reason: 'corrupt_seal' };
   if (
     canonical(expectedDependencyIdentities(payload)) !==
     canonical(payload.dependencies.map(dependencyIdentity).sort())
@@ -1008,7 +1103,8 @@ export async function validateDirectContext(
       },
     );
   } catch (error) {
-    if (error instanceof ReasoningDenied) return { valid: false, reason: 'changed_policy' };
+    if (error instanceof ReasoningDenied)
+      return { valid: false, reason: 'changed_policy' };
     throw error;
   }
   if (
@@ -1029,11 +1125,14 @@ export async function validateDirectContext(
   const lineage = lineagePayload(rows, scope.universeId, scope.privacyEpoch);
   if ('reason' in lineage) return { valid: false, reason: lineage.reason };
   if (!sameLineage(payload, lineage)) {
-    const currentAssets = new Map(lineage.assets.map((asset) => [asset.assetId, asset]));
+    const currentAssets = new Map(
+      lineage.assets.map((asset) => [asset.assetId, asset]),
+    );
     return {
       valid: false,
       reason: payload.assets.some(
-        (asset) => canonical(asset) !== canonical(currentAssets.get(asset.assetId)),
+        (asset) =>
+          canonical(asset) !== canonical(currentAssets.get(asset.assetId)),
       )
         ? 'stale_asset'
         : 'stale_lineage',
@@ -1060,11 +1159,18 @@ export async function validateDirectContext(
   };
 }
 
-export function createDirectContextAuthority(resolvePolicy: PolicyResolver): ReasoningAuthority {
+export function createDirectContextAuthority(
+  resolvePolicy: PolicyResolver,
+): ReasoningAuthority {
   return {
     resolvePolicy,
     async validateContext(client, scope, phase) {
-      const result = await validateDirectContext(client, scope, resolvePolicy, phase);
+      const result = await validateDirectContext(
+        client,
+        scope,
+        resolvePolicy,
+        phase,
+      );
       if (!result.valid) throw new ReasoningDenied(`context_${result.reason}`);
       return true;
     },

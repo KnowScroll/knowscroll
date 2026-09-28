@@ -43,7 +43,8 @@ export function chronicleLine(d: {
     case 'sighting_retired':
       if (d.causalClass === 'source_correction')
         return `${d.name} left the horizon: what it was based on changed.`;
-      if (d.causalClass === 'personal_exploration') return `You came across ${d.name}.`;
+      if (d.causalClass === 'personal_exploration')
+        return `You came across ${d.name}.`;
       return `${d.name} left the horizon.`;
     case 'place_rejected':
       return `You set ${d.name} aside.`;

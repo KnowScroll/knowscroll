@@ -108,6 +108,9 @@ files without writing, and `pnpm lint` runs Biome's scoped TypeScript rules. The
 SHA-256 in `source.json`. These commands do not touch Web, Android, worker source, or applied SQL
 migrations.
 
+Biome uses two-space indentation, single quotes, and an 80-character line width for these files.
+The narrower width wraps nested calls and conditions for review in a normal editor pane.
+
 The SQL pass formats static PostgreSQL strings of at least 100 characters passed directly to
 `.query(...)`. It leaves short statements inline and skips dynamic templates, SQL comments, and
 escape syntax for manual review. It changes SQL whitespace and keyword case only; keep parameter

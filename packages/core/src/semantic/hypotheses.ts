@@ -16,7 +16,10 @@ export type PermittedUse =
   | 'composer.continuity'
   | 'steward.context'
   | 'chronicle.wording';
-export type EvidenceRef = { kind: 'exposure' | 'mark' | 'ask' | 'feedback'; ref: string };
+export type EvidenceRef = {
+  kind: 'exposure' | 'mark' | 'ask' | 'feedback';
+  ref: string;
+};
 export type HypothesisStatus = 'active' | 'contested' | 'decayed';
 
 export interface HypothesisProposal {
@@ -67,7 +70,11 @@ export interface RuleInputs {
     concept: string | null;
     resolved: boolean;
   }[];
-  feedback: readonly { ref: string; atMs: number; concepts: readonly string[] }[];
+  feedback: readonly {
+    ref: string;
+    atMs: number;
+    concepts: readonly string[];
+  }[];
 }
 
 const DAY = 86_400_000;
@@ -83,14 +90,21 @@ export function proposeHypotheses(
     a < b ? -1 : a > b ? 1 : 0,
   )) {
     const recent = input.marks.filter(
-      (m) => m.concepts.includes(code) && input.nowMs - m.atMs <= policy.directionWindowDays * DAY,
+      (m) =>
+        m.concepts.includes(code) &&
+        input.nowMs - m.atMs <= policy.directionWindowDays * DAY,
     );
     const everMarked = input.marks.filter((m) => m.concepts.includes(code));
     if (everMarked.length === 0) continue;
     const counter = input.feedback.filter(
-      (f) => f.concepts.includes(code) && input.nowMs - f.atMs <= policy.contestWindowDays * DAY,
+      (f) =>
+        f.concepts.includes(code) &&
+        input.nowMs - f.atMs <= policy.contestWindowDays * DAY,
     );
-    const counterevidence: EvidenceRef[] = counter.map((f) => ({ kind: 'feedback', ref: f.ref }));
+    const counterevidence: EvidenceRef[] = counter.map((f) => ({
+      kind: 'feedback',
+      ref: f.ref,
+    }));
     const active = recent.length >= policy.directionMinMarks;
     const status: HypothesisStatus = !active
       ? 'decayed'
@@ -112,7 +126,10 @@ export function proposeHypotheses(
     if (assets.size === 1) {
       alternatives.push({
         statement: `The acts all concern one encounter and may not reach beyond it.`,
-        evidence: everMarked.map((m) => ({ kind: 'exposure', ref: m.exposureId })),
+        evidence: everMarked.map((m) => ({
+          kind: 'exposure',
+          ref: m.exposureId,
+        })),
       });
     }
     if (account.returns === 0) {
@@ -149,14 +166,23 @@ export function proposeHypotheses(
 
   const byConcept = new Map<string, RuleInputs['asks'][number][]>();
   for (const ask of input.asks)
-    if (ask.concept) byConcept.set(ask.concept, [...(byConcept.get(ask.concept) ?? []), ask]);
-  for (const [code, asks] of [...byConcept].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    if (ask.concept)
+      byConcept.set(ask.concept, [...(byConcept.get(ask.concept) ?? []), ask]);
+  for (const [code, asks] of [...byConcept].sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  )) {
     const open = asks.filter((a) => !a.resolved);
     const counter = input.feedback.filter(
-      (f) => f.concepts.includes(code) && input.nowMs - f.atMs <= policy.contestWindowDays * DAY,
+      (f) =>
+        f.concepts.includes(code) &&
+        input.nowMs - f.atMs <= policy.contestWindowDays * DAY,
     );
     const status: HypothesisStatus =
-      open.length === 0 ? 'decayed' : counter.length > 0 ? 'contested' : 'active';
+      open.length === 0
+        ? 'decayed'
+        : counter.length > 0
+          ? 'contested'
+          : 'active';
     out.push({
       kind: 'open_question',
       concept: code,
@@ -167,10 +193,16 @@ export function proposeHypotheses(
       alternatives: [
         {
           statement: `The Scroll it was asked on may already answer it.`,
-          evidence: asks.map((a) => ({ kind: 'exposure' as const, ref: a.exposureId })),
+          evidence: asks.map((a) => ({
+            kind: 'exposure' as const,
+            ref: a.exposureId,
+          })),
         },
       ],
-      counterevidence: counter.map((f) => ({ kind: 'feedback' as const, ref: f.ref })),
+      counterevidence: counter.map((f) => ({
+        kind: 'feedback' as const,
+        ref: f.ref,
+      })),
       permittedUses: status === 'active' ? ['composer.continuity'] : [],
       decay: { halfLifeDays: null },
       ruleVersion: HYPOTHESIS_RULES_V1,
@@ -202,7 +234,8 @@ export function validateHypothesis(
   },
 ): { ok: true } | { ok: false; reasons: HypothesisRejection[] } {
   const reasons: HypothesisRejection[] = [];
-  if (!['direction', 'open_question'].includes(p.kind)) reasons.push('kind_prohibited');
+  if (!['direction', 'open_question'].includes(p.kind))
+    reasons.push('kind_prohibited');
   if (
     CHARACTERIZING.test(p.statement) ||
     p.alternatives.some((a) => CHARACTERIZING.test(a.statement))
@@ -210,10 +243,17 @@ export function validateHypothesis(
     reasons.push('statement_characterizes_person');
   if (!context.knownConcepts.has(p.concept)) reasons.push('concept_unknown');
   if (p.evidence.length === 0) reasons.push('evidence_missing');
-  const refs = [...p.evidence, ...p.counterevidence, ...p.alternatives.flatMap((a) => a.evidence)];
+  const refs = [
+    ...p.evidence,
+    ...p.counterevidence,
+    ...p.alternatives.flatMap((a) => a.evidence),
+  ];
   if (refs.some((r) => !context.knownEvidence.has(`${r.kind}:${r.ref}`)))
     reasons.push('evidence_unresolved');
-  if (p.alternatives.length === 0 || p.alternatives.some((a) => a.evidence.length === 0))
+  if (
+    p.alternatives.length === 0 ||
+    p.alternatives.some((a) => a.evidence.length === 0)
+  )
     reasons.push('alternative_missing');
   const allowed: PermittedUse[] =
     context.proposer === 'rule'
@@ -221,6 +261,7 @@ export function validateHypothesis(
         ? ['composer.family_prior']
         : ['composer.continuity']
       : ['steward.context', 'chronicle.wording'];
-  if (p.permittedUses.some((u) => !allowed.includes(u))) reasons.push('use_not_permitted');
+  if (p.permittedUses.some((u) => !allowed.includes(u)))
+    reasons.push('use_not_permitted');
   return reasons.length ? { ok: false, reasons } : { ok: true };
 }

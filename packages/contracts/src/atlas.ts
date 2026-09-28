@@ -33,10 +33,19 @@ export const atlasPlaceSchema = z
     kind: z.enum(['planet', 'region', 'sighting']),
     parentPlaceId: id.nullable(),
     anchor: z
-      .object({ code: z.string().min(1), name: z.string().min(1), description: z.string().min(1) })
+      .object({
+        code: z.string().min(1),
+        name: z.string().min(1),
+        description: z.string().min(1),
+      })
       .strict(),
     basis: z
-      .object({ kind: relationKind, from: z.string().min(1), to: z.string().min(1), ...support })
+      .object({
+        kind: relationKind,
+        from: z.string().min(1),
+        to: z.string().min(1),
+        ...support,
+      })
       .strict()
       .nullable(),
     attention: z
@@ -48,7 +57,9 @@ export const atlasPlaceSchema = z
       })
       .strict()
       .nullable(),
-    scrolls: z.object({ total: z.number().int().min(0), seen: z.number().int().min(0) }).strict(),
+    scrolls: z
+      .object({ total: z.number().int().min(0), seen: z.number().int().min(0) })
+      .strict(),
     formedAt: z.string().datetime(),
     formedBy: z.string().min(1),
     foundation: z
@@ -90,7 +101,14 @@ export const atlasResponseSchema = z
     policyVersion: z.string().min(1),
     places: z.array(atlasPlaceSchema),
     relations: z.array(
-      z.object({ fromPlaceId: id, toPlaceId: id, kind: relationKind, ...support }).strict(),
+      z
+        .object({
+          fromPlaceId: id,
+          toPlaceId: id,
+          kind: relationKind,
+          ...support,
+        })
+        .strict(),
     ),
     chronicle: z
       .array(
@@ -132,7 +150,9 @@ export const atlasDeltaSchema = z
     causalClass: z.string().min(1),
     policyVersion: z.string().min(1),
     at: z.string().datetime(),
-    anchor: z.object({ code: z.string().min(1), name: z.string().min(1) }).strict(),
+    anchor: z
+      .object({ code: z.string().min(1), name: z.string().min(1) })
+      .strict(),
     before: z.record(z.string(), z.unknown()).nullable(),
     after: z.record(z.string(), z.unknown()),
     evidence: z.record(z.string(), z.unknown()),

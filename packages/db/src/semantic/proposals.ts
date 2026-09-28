@@ -58,7 +58,10 @@ export type ProposalResult = {
 };
 
 /** A universe-scoped caller must already hold the universe lock (authenticateAndLock). */
-async function lockForScope(client: pg.PoolClient, scope: SemanticScope): Promise<void> {
+async function lockForScope(
+  client: pg.PoolClient,
+  scope: SemanticScope,
+): Promise<void> {
   if (scope.kind === 'shared') {
     await lockSubstrateExclusive(client);
     return;
@@ -69,7 +72,8 @@ async function lockForScope(client: pg.PoolClient, scope: SemanticScope): Promis
       [scope.universeId],
     )
   ).rows[0];
-  if (!row || row.privacy_epoch !== scope.privacyEpoch) throw new SemanticStaleEpoch();
+  if (!row || row.privacy_epoch !== scope.privacyEpoch)
+    throw new SemanticStaleEpoch();
   await lockSubstrateShared(client);
 }
 
@@ -91,7 +95,8 @@ export async function submitBridgeProposal(
   const payloadSha = sha256(canonicalJson(payload));
 
   await lockForScope(client, input.scope);
-  const universeId = input.scope.kind === 'universe' ? input.scope.universeId : null;
+  const universeId =
+    input.scope.kind === 'universe' ? input.scope.universeId : null;
   // Replay identity is per scope: another universe's identical proposal is not this one.
   const existing = (
     await client.query(
@@ -128,7 +133,8 @@ export async function submitBridgeProposal(
       replayed: true,
     };
 
-  const privacyEpoch = input.scope.kind === 'universe' ? input.scope.privacyEpoch : null;
+  const privacyEpoch =
+    input.scope.kind === 'universe' ? input.scope.privacyEpoch : null;
   const readSet = await loadBridgeReadSet(client, universeId);
   const decision = validateBridgeProposal(payload, readSet);
   const slice = sliceReadSet(payload, readSet);
@@ -185,7 +191,13 @@ export async function submitBridgeProposal(
     ],
   );
   if (decision.outcome !== 'admitted')
-    return { proposalId, status: 'rejected', decision, bridgeId: null, replayed: false };
+    return {
+      proposalId,
+      status: 'rejected',
+      decision,
+      bridgeId: null,
+      replayed: false,
+    };
 
   const bridgeId = randomUUID();
   await client.query(
@@ -261,5 +273,11 @@ export async function submitBridgeProposal(
       [bridgeId, ref.claimKey, ref.supports],
     );
   }
-  return { proposalId, status: 'admitted', decision, bridgeId, replayed: false };
+  return {
+    proposalId,
+    status: 'admitted',
+    decision,
+    bridgeId,
+    replayed: false,
+  };
 }

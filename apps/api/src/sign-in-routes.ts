@@ -15,10 +15,17 @@ import {
   type MagicLinkRateLimits,
   requesterFingerprint,
 } from '../../../packages/db/src/sign-in.ts';
-import { createMagicLinkSender, type MagicLinkSender } from './magic-link-sender.ts';
+import {
+  createMagicLinkSender,
+  type MagicLinkSender,
+} from './magic-link-sender.ts';
 import { describeSendFailure } from './agentmail-sender.ts';
 import { HttpError } from './errors.ts';
-import { csrfToken, sessionCookie, type WebSessionConfig } from './web-session.ts';
+import {
+  csrfToken,
+  sessionCookie,
+  type WebSessionConfig,
+} from './web-session.ts';
 
 function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.KS_API_BASE_URL;
@@ -87,8 +94,11 @@ export function registerSignInRoutes(
 
   app.get('/v1/auth/confirm', async (req, reply) => {
     const parsed = signInConfirmQuery.safeParse(req.query);
-    if (!parsed.success) throw new HttpError(400, 'Invalid confirmation request');
-    const valid = await transaction((client) => confirmSignInToken(client, parsed.data.token));
+    if (!parsed.success)
+      throw new HttpError(400, 'Invalid confirmation request');
+    const valid = await transaction((client) =>
+      confirmSignInToken(client, parsed.data.token),
+    );
     return reply.code(200).send({ valid });
   });
 
@@ -99,7 +109,9 @@ export function registerSignInRoutes(
     // unknown or tampered one.
     const body = req.body as Record<string, unknown> | undefined;
     const rawToken = typeof body?.token === 'string' ? body.token : '';
-    const session = await transaction((client) => consumeSignInToken(client, rawToken));
+    const session = await transaction((client) =>
+      consumeSignInToken(client, rawToken),
+    );
     return reply.code(200).send({
       sessionToken: session.token,
       sessionId: session.sessionId,
@@ -118,7 +130,9 @@ export function registerSignInRoutes(
     if (!webSession) throw new HttpError(404, 'Not found');
     const body = req.body as Record<string, unknown> | undefined;
     const rawToken = typeof body?.token === 'string' ? body.token : '';
-    const session = await transaction((client) => consumeSignInToken(client, rawToken));
+    const session = await transaction((client) =>
+      consumeSignInToken(client, rawToken),
+    );
     return reply
       .code(200)
       .header('set-cookie', sessionCookie(session.token, session.expiresAt))

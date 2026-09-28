@@ -27,9 +27,15 @@ import {
   isIdleWithdrawalIneligible,
   withdrawRecoveredDirectJob,
 } from './reasoning-idle-lifecycle.ts';
-import { createReasoningAdmission, type ReasoningAdmission } from './reasoning-admission.ts';
+import {
+  createReasoningAdmission,
+  type ReasoningAdmission,
+} from './reasoning-admission.ts';
 import { enqueueFairInTransaction } from './reasoning-fairness.ts';
-import type { ReasoningAuthority, ResolvedReasoningPolicy } from './reasoning-runtime-policy.ts';
+import type {
+  ReasoningAuthority,
+  ResolvedReasoningPolicy,
+} from './reasoning-runtime-policy.ts';
 
 export class AskAnswerError extends Error {
   constructor(
@@ -136,7 +142,11 @@ export async function installAskAnswerRoute(
     return id;
   };
   const global = await bucket('global_budget', 'tokens', input.tokenBudget);
-  const account = await bucket('provider_account', 'requests', input.requestCap);
+  const account = await bucket(
+    'provider_account',
+    'requests',
+    input.requestCap,
+  );
   const quota = await bucket('route_quota', 'requests', input.requestCap);
   const remote = await bucket('remote_concurrency', 'slots', input.remoteSlots);
   await client.query('UPDATE ask_answer_route SET enabled=false WHERE enabled');
@@ -203,9 +213,10 @@ async function routeFor(
   policyVersion: string,
 ): Promise<Route | undefined> {
   return (
-    await client.query<Route>('SELECT * FROM ask_answer_route WHERE policy_version=$1', [
-      policyVersion,
-    ])
+    await client.query<Route>(
+      'SELECT * FROM ask_answer_route WHERE policy_version=$1',
+      [policyVersion],
+    )
   ).rows[0];
 }
 
@@ -251,8 +262,22 @@ function policyOf(
       'remote_concurrency',
     ],
     buckets: [
-      b(route.global_bucket_id, 'global_budget', 'tokens', 'total_tokens', 'shared', 'budget'),
-      b(ownerBucket, 'owner_budget', 'tokens', 'total_tokens', 'owner', 'budget'),
+      b(
+        route.global_bucket_id,
+        'global_budget',
+        'tokens',
+        'total_tokens',
+        'shared',
+        'budget',
+      ),
+      b(
+        ownerBucket,
+        'owner_budget',
+        'tokens',
+        'total_tokens',
+        'owner',
+        'budget',
+      ),
       b(jobBucket, 'job_budget', 'tokens', 'total_tokens', 'job', 'budget'),
       b(
         route.provider_account_bucket_id,
@@ -262,7 +287,14 @@ function policyOf(
         'shared',
         'budget',
       ),
-      b(route.route_quota_bucket_id, 'route_quota', 'requests', 'requests', 'shared', 'budget'),
+      b(
+        route.route_quota_bucket_id,
+        'route_quota',
+        'requests',
+        'requests',
+        'shared',
+        'budget',
+      ),
       b(
         route.remote_concurrency_bucket_id,
         'remote_concurrency',
@@ -276,7 +308,10 @@ function policyOf(
 }
 
 /** Trusted local SQL only: resolves an answer Job's policy from its request row. */
-export const resolveAnswerPolicy: ReasoningAuthority['resolvePolicy'] = async (client, scope) => {
+export const resolveAnswerPolicy: ReasoningAuthority['resolvePolicy'] = async (
+  client,
+  scope,
+) => {
   const request = (
     await client.query<RequestRow>(
       'SELECT * FROM ask_answer_request WHERE job_id=$1 AND universe_id=$2 AND privacy_epoch=$3',
@@ -360,11 +395,23 @@ export async function requestAskAnswer(
   ).rows[0];
   if (byKey) {
     if (byKey.ask_id !== askId)
-      throw new AskAnswerError(409, 'Answer request key reused for another Ask');
+      throw new AskAnswerError(
+        409,
+        'Answer request key reused for another Ask',
+      );
     return receipt(byKey);
   }
-  if ((await client.query('SELECT 1 FROM ask_answer_request WHERE ask_id=$1', [askId])).rowCount)
-    throw new AskAnswerError(409, 'An answer was already requested for this Ask');
+  if (
+    (
+      await client.query('SELECT 1 FROM ask_answer_request WHERE ask_id=$1', [
+        askId,
+      ])
+    ).rowCount
+  )
+    throw new AskAnswerError(
+      409,
+      'An answer was already requested for this Ask',
+    );
 
   const paused = (
     await client.query<{ paused: boolean }>(
@@ -373,8 +420,11 @@ export async function requestAskAnswer(
     )
   ).rows[0]!.paused;
   if (paused) throw new AskAnswerError(409, 'Recording is paused');
-  const route = (await client.query<Route>('SELECT * FROM ask_answer_route WHERE enabled')).rows[0];
-  if (!route) throw new AskAnswerError(503, 'Answers are not enabled on this deployment');
+  const route = (
+    await client.query<Route>('SELECT * FROM ask_answer_route WHERE enabled')
+  ).rows[0];
+  if (!route)
+    throw new AskAnswerError(503, 'Answers are not enabled on this deployment');
 
   const ask = (
     await client.query<{ session_id: string }>(
@@ -385,7 +435,10 @@ export async function requestAskAnswer(
   if (!ask) throw new AskAnswerError(404, 'No such Ask');
   // ADR-0017: the authority is the Ask's own original session; another valid session cannot substitute.
   if (ask.session_id !== scope.sessionId)
-    throw new AskAnswerError(409, 'Only the session that asked can request its answer');
+    throw new AskAnswerError(
+      409,
+      'Only the session that asked can request its answer',
+    );
 
   const owner =
     (
@@ -451,7 +504,14 @@ export async function requestAskAnswer(
           $6
         )
     `,
-    [jobId, scope.universeId, scope.privacyEpoch, route.policy_version, deadline, askId],
+    [
+      jobId,
+      scope.universeId,
+      scope.privacyEpoch,
+      route.policy_version,
+      deadline,
+      askId,
+    ],
   );
   // The request row first, so the policy resolver can see the Job's buckets while compiling.
   await client.query(
@@ -508,7 +568,12 @@ export async function requestAskAnswer(
       jobBucket,
     ],
   );
-  await compileDirectAskContext(client, scope, { contextId, jobId, askId }, resolveAnswerPolicy);
+  await compileDirectAskContext(
+    client,
+    scope,
+    { contextId, jobId, askId },
+    resolveAnswerPolicy,
+  );
   await client.query(
     `
     INSERT INTO
@@ -544,11 +609,10 @@ export async function requestAskAnswer(
     );
   const requestHash = createHash('sha256').update(bytes).digest('hex');
   // The one permitted completion of the request row (migration 0028 refuses any other update).
-  await client.query('UPDATE ask_answer_request SET request_hash=$2,input_bytes=$3 WHERE id=$1', [
-    rowId,
-    requestHash,
-    bytes.byteLength,
-  ]);
+  await client.query(
+    'UPDATE ask_answer_request SET request_hash=$2,input_bytes=$3 WHERE id=$1',
+    [rowId, requestHash, bytes.byteLength],
+  );
 
   await enqueueFairInTransaction(client, {
     universeId: scope.universeId,
@@ -595,7 +659,10 @@ export async function loadAnswerWork(
   attemptId: string,
 ): Promise<AnswerWork> {
   const request = (
-    await db.query<RequestRow>('SELECT * FROM ask_answer_request WHERE job_id=$1', [jobId])
+    await db.query<RequestRow>(
+      'SELECT * FROM ask_answer_request WHERE job_id=$1',
+      [jobId],
+    )
   ).rows[0];
   if (!request || request.request_hash === null || request.input_bytes === null)
     throw new Error('No answer request for this Job');
@@ -612,7 +679,8 @@ export async function loadAnswerWork(
       [request.context_id],
     )
   ).rows[0];
-  if (!route || !attempt || !payload) throw new Error('Answer work is incomplete');
+  if (!route || !attempt || !payload)
+    throw new Error('Answer work is incomplete');
   const body = serializeAskAnswerRequest(sourceOf(payload.canonical_payload), {
     model: route.model,
     maxOutputTokens: route.max_output_tokens,
@@ -652,7 +720,10 @@ export type AnswerOutcome =
   | { kind: 'discarded'; reason: string };
 
 /** Lock in ADR-0017 order and prove the caller still holds this Job's live lease in the current epoch. */
-async function lockFence(client: pg.PoolClient, f: Fence): Promise<string | null> {
+async function lockFence(
+  client: pg.PoolClient,
+  f: Fence,
+): Promise<string | null> {
   const universe = (
     await client.query<{ privacy_epoch: number }>(
       'SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',
@@ -697,20 +768,26 @@ async function lockFence(client: pg.PoolClient, f: Fence): Promise<string | null
     !job.live
   )
     return 'lease_lost';
-  await client.query('SELECT id FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE', [
-    f.stepId,
-    f.jobId,
-  ]);
+  await client.query(
+    'SELECT id FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE',
+    [f.stepId, f.jobId],
+  );
   return null;
 }
 
 /** Close the execution graph safely: output consumed, attempt inactive, Step and Job terminal (ADR-0019 guard). */
-async function finish(client: pg.PoolClient, f: Fence, succeeded: boolean): Promise<void> {
+async function finish(
+  client: pg.PoolClient,
+  f: Fence,
+  succeeded: boolean,
+): Promise<void> {
   await client.query(
     "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1",
     [f.attemptId],
   );
-  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [f.attemptId]);
+  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
+    f.attemptId,
+  ]);
   await client.query('UPDATE reasoning_step SET status=$2 WHERE id=$1', [
     f.stepId,
     succeeded ? 'succeeded' : 'failed',
@@ -739,10 +816,17 @@ export async function applyAskAnswer(
       [f.attemptId],
     )
   ).rows[0];
-  if (!account || account.state !== 'responded' || account.output_authority !== 'eligible')
+  if (
+    !account ||
+    account.state !== 'responded' ||
+    account.output_authority !== 'eligible'
+  )
     return { kind: 'discarded', reason: 'output_not_eligible' };
   const request = (
-    await client.query<RequestRow>('SELECT * FROM ask_answer_request WHERE job_id=$1', [f.jobId])
+    await client.query<RequestRow>(
+      'SELECT * FROM ask_answer_request WHERE job_id=$1',
+      [f.jobId],
+    )
   ).rows[0]!;
   const check = {
     universeId: f.universeId,
@@ -769,7 +853,10 @@ export async function applyAskAnswer(
       [request.context_id],
     )
   ).rows[0]!;
-  const verdict = validateAskAnswerProposal(text, sourceOf(payload.canonical_payload));
+  const verdict = validateAskAnswerProposal(
+    text,
+    sourceOf(payload.canonical_payload),
+  );
   if (!verdict.ok) {
     await insertAnswer(client, request, f.attemptId, {
       status: 'rejected',
@@ -796,7 +883,11 @@ export async function applyAskAnswer(
             limits: p.limits,
             validatorVersion: verdict.validatorVersion,
           }
-        : { status: 'not_in_source', limits: p.limits, validatorVersion: verdict.validatorVersion },
+        : {
+            status: 'not_in_source',
+            limits: p.limits,
+            validatorVersion: verdict.validatorVersion,
+          },
     );
     await client.query('RELEASE SAVEPOINT ask_answer_insert');
   } catch {
@@ -827,9 +918,15 @@ export async function failAskAnswer(
   const stale = await lockFence(client, f);
   if (stale) return { kind: 'discarded', reason: stale };
   const request = (
-    await client.query<RequestRow>('SELECT * FROM ask_answer_request WHERE job_id=$1', [f.jobId])
+    await client.query<RequestRow>(
+      'SELECT * FROM ask_answer_request WHERE job_id=$1',
+      [f.jobId],
+    )
   ).rows[0]!;
-  await insertAnswer(client, request, f.attemptId, { status: 'failed', reasons: [reason] });
+  await insertAnswer(client, request, f.attemptId, {
+    status: 'failed',
+    reasons: [reason],
+  });
   await finish(client, f, false);
   return { kind: 'failed', status: 'failed' };
 }
@@ -866,21 +963,34 @@ async function closeTerminalAnswer(
   fallback: 'not_sent' | 'worker_stopped',
 ): Promise<boolean> {
   const request = (
-    await client.query<RequestRow>('SELECT * FROM ask_answer_request WHERE job_id=$1', [jobId])
+    await client.query<RequestRow>(
+      'SELECT * FROM ask_answer_request WHERE job_id=$1',
+      [jobId],
+    )
   ).rows[0];
   if (!request) return false;
-  await client.query('SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [
-    request.universe_id,
-    request.privacy_epoch,
-  ]);
+  await client.query(
+    'SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE',
+    [request.universe_id, request.privacy_epoch],
+  );
   const job = (
     await client.query<{ status: string }>(
       'SELECT status FROM reasoning_job WHERE id=$1 FOR UPDATE',
       [jobId],
     )
   ).rows[0];
-  if (!job || !['cancelled', 'expired', 'failed', 'completed'].includes(job.status)) return false;
-  if ((await client.query('SELECT 1 FROM ask_answer WHERE ask_id=$1', [request.ask_id])).rowCount)
+  if (
+    !job ||
+    !['cancelled', 'expired', 'failed', 'completed'].includes(job.status)
+  )
+    return false;
+  if (
+    (
+      await client.query('SELECT 1 FROM ask_answer WHERE ask_id=$1', [
+        request.ask_id,
+      ])
+    ).rowCount
+  )
     return false;
   const attempt = (
     await client.query<{ id: string; state: string }>(
@@ -912,7 +1022,10 @@ async function closeTerminalAnswer(
       : attempt.state === 'responded'
         ? 'apply_failed'
         : fallback;
-  await insertAnswer(client, request, attempt?.id ?? null, { status: 'failed', reasons: [reason] });
+  await insertAnswer(client, request, attempt?.id ?? null, {
+    status: 'failed',
+    reasons: [reason],
+  });
   return true;
 }
 
@@ -951,10 +1064,10 @@ async function recoverRespondedAnswer(
   },
 ): Promise<void> {
   const universe = (
-    await client.query('SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [
-      row.universe_id,
-      row.privacy_epoch,
-    ])
+    await client.query(
+      'SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE',
+      [row.universe_id, row.privacy_epoch],
+    )
   ).rowCount;
   if (!universe) return;
   const job = (
@@ -973,7 +1086,9 @@ async function recoverRespondedAnswer(
     )
   ).rows[0];
   if (!job?.expired) return;
-  await client.query('SELECT id FROM reasoning_step WHERE id=$1 FOR UPDATE', [row.step_id]);
+  await client.query('SELECT id FROM reasoning_step WHERE id=$1 FOR UPDATE', [
+    row.step_id,
+  ]);
   const accounting = (
     await client.query<{ state: string }>(
       `
@@ -997,8 +1112,12 @@ async function recoverRespondedAnswer(
     "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1",
     [row.attempt_id],
   );
-  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [row.attempt_id]);
-  await client.query("UPDATE reasoning_step SET status='failed' WHERE id=$1", [row.step_id]);
+  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
+    row.attempt_id,
+  ]);
+  await client.query("UPDATE reasoning_step SET status='failed' WHERE id=$1", [
+    row.step_id,
+  ]);
   await client.query(
     `
       UPDATE reasoning_job
@@ -1084,7 +1203,9 @@ export async function settleAbandonedAnswers(
   for (const row of expiredLeases) {
     try {
       if (row.state === 'responded')
-        await inTransaction(pool, (client) => recoverRespondedAnswer(client, row));
+        await inTransaction(pool, (client) =>
+          recoverRespondedAnswer(client, row),
+        );
       else
         await admission.recoverAttempt({
           universeId: row.universe_id,
@@ -1099,7 +1220,12 @@ export async function settleAbandonedAnswers(
     }
   }
   const leaseless = (
-    await pool.query<{ job_id: string; universe_id: string; privacy_epoch: number; past: boolean }>(
+    await pool.query<{
+      job_id: string;
+      universe_id: string;
+      privacy_epoch: number;
+      past: boolean;
+    }>(
       `
       SELECT
         j.id AS job_id,
@@ -1154,7 +1280,9 @@ export async function settleAbandonedAnswers(
     };
     try {
       await inTransaction(pool, (client) =>
-        row.past ? expireIdleDirectJob(client, scope) : withdrawRecoveredDirectJob(client, scope),
+        row.past
+          ? expireIdleDirectJob(client, scope)
+          : withdrawRecoveredDirectJob(client, scope),
       );
     } catch {
       /* e.g. a signed-out reader before the deadline: left for a later sweep */
@@ -1292,9 +1420,10 @@ export async function readAskAnswer(
       limits: string | null;
       reasons: string[];
       created_at: Date;
-    }>('SELECT status,answer,basis,limits,reasons,created_at FROM ask_answer WHERE ask_id=$1', [
-      askId,
-    ])
+    }>(
+      'SELECT status,answer,basis,limits,reasons,created_at FROM ask_answer WHERE ask_id=$1',
+      [askId],
+    )
   ).rows[0];
   const marks = (
     await client.query<{ kept: boolean; seems_wrong: boolean }>(
@@ -1362,7 +1491,15 @@ export async function readAskAnswer(
           : job.status === 'cancelled'
             ? 'cancelled'
             : 'unavailable';
-  return { ...base, status, answer: null, basis: [], limits: null, reasons: [], answeredAt: null };
+  return {
+    ...base,
+    status,
+    answer: null,
+    basis: [],
+    limits: null,
+    reasons: [],
+    answeredAt: null,
+  };
 }
 
 /**
@@ -1389,12 +1526,16 @@ export async function cancelAskAnswer(
       [askId, scope.universeId, scope.privacyEpoch],
     )
   ).rows[0];
-  if (!request) throw new AskAnswerError(404, 'No answer was requested for this Ask');
-  const settled = (await client.query('SELECT 1 FROM ask_answer WHERE ask_id=$1', [askId]))
-    .rowCount;
+  if (!request)
+    throw new AskAnswerError(404, 'No answer was requested for this Ask');
+  const settled = (
+    await client.query('SELECT 1 FROM ask_answer WHERE ask_id=$1', [askId])
+  ).rowCount;
   if (!settled) {
     try {
-      const result = await cancelIdleDirectJob(client, scope, { jobId: request.job_id });
+      const result = await cancelIdleDirectJob(client, scope, {
+        jobId: request.job_id,
+      });
       if (result.status !== 'cancelled')
         throw new AskAnswerError(409, 'This answer is no longer waiting');
       await insertAnswer(client, request, null, {
@@ -1411,12 +1552,22 @@ export async function cancelAskAnswer(
 }
 
 /** Clear/Reset: answers and requests go before the Ask facts they reference (ADR-0033 §6). */
-export async function eraseAskAnswers(client: pg.PoolClient, universeId: string): Promise<void> {
-  await client.query('DELETE FROM ask_answer WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM ask_answer_request WHERE universe_id=$1', [universeId]);
+export async function eraseAskAnswers(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
+  await client.query('DELETE FROM ask_answer WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM ask_answer_request WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
-export async function exportAskAnswers(client: pg.PoolClient, universeId: string) {
+export async function exportAskAnswers(
+  client: pg.PoolClient,
+  universeId: string,
+) {
   return (
     await client.query(
       `

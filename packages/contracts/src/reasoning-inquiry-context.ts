@@ -11,7 +11,10 @@ import { reasoningCounter } from './reasoning.ts';
 const id = z.string().uuid();
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
-const scope = { universeId: id, privacyEpoch: z.number().int().min(0).max(2147483647) };
+const scope = {
+  universeId: id,
+  privacyEpoch: z.number().int().min(0).max(2147483647),
+};
 
 export const INQUIRY_CONTEXT_VERSIONS = Object.freeze({
   compiler: 'bridge-inquiry-context-v1',
@@ -41,12 +44,18 @@ export const inquiryDependency = z.discriminatedUnion('kind', [
   /** Recording not paused, and no pause since `sealedAt`. */
   z.object({ kind: z.literal('recording'), ...scope }).strict(),
   z.object({ kind: z.literal('route'), policyVersion: label }).strict(),
-  z.object({ kind: z.literal('place'), id, ...scope, code: conceptCode }).strict(),
+  z
+    .object({ kind: z.literal('place'), id, ...scope, code: conceptCode })
+    .strict(),
   /** Currently supported, with the same statement and source title the model was shown. */
   z.object({ kind: z.literal('claim'), key: semanticKey, hash }).strict(),
   /** Still disconnected (no active relation or admitted bridge either way) and not suppressed. */
-  z.object({ kind: z.literal('pair'), from: conceptCode, to: conceptCode }).strict(),
-  z.object({ kind: z.literal('runtime_policy'), version: label, hash }).strict(),
+  z
+    .object({ kind: z.literal('pair'), from: conceptCode, to: conceptCode })
+    .strict(),
+  z
+    .object({ kind: z.literal('runtime_policy'), version: label, hash })
+    .strict(),
 ]);
 export type InquiryDependency = z.infer<typeof inquiryDependency>;
 export function inquiryDependencyKey(read: InquiryDependency): string {
@@ -77,7 +86,9 @@ const offeredClaim = z
   .strict();
 /** Claims naming both sides also carry each side's role (prompt v2): what "explains" is judged by. */
 const namingClaim = offeredClaim
-  .extend({ roles: z.record(z.string(), z.enum(['subject', 'object', 'mechanism'])) })
+  .extend({
+    roles: z.record(z.string(), z.enum(['subject', 'object', 'mechanism'])),
+  })
   .strict();
 const offeredPlace = z
   .object({ placeId: id, code: conceptCode, name: z.string().min(1).max(80) })
@@ -93,7 +104,11 @@ export const inquiryPair = z
       .array(
         z
           .object({
-            relationType: z.enum(['explains', 'compares_mechanism', 'analogous_in']),
+            relationType: z.enum([
+              'explains',
+              'compares_mechanism',
+              'analogous_in',
+            ]),
             fromConcept: conceptCode,
             toConcept: conceptCode,
           })
@@ -126,7 +141,10 @@ export const inquiryContextPayload = z
     sealedAt: z.iso.datetime({ offset: true }),
     throughSequence: reasoningCounter,
     pairs: z.array(inquiryPair).min(1).max(3),
-    dependencies: z.array(inquiryDependency).min(1).max(INQUIRY_CONTEXT_LIMITS.maxDependencies),
+    dependencies: z
+      .array(inquiryDependency)
+      .min(1)
+      .max(INQUIRY_CONTEXT_LIMITS.maxDependencies),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -140,8 +158,15 @@ export const inquiryContextPayload = z
           message: 'Duplicate dependency',
         });
       seen.add(key);
-      if ('universeId' in r && (r.universeId !== v.universeId || r.privacyEpoch !== v.privacyEpoch))
-        ctx.addIssue({ code: 'custom', path: ['dependencies', i], message: 'Foreign dependency' });
+      if (
+        'universeId' in r &&
+        (r.universeId !== v.universeId || r.privacyEpoch !== v.privacyEpoch)
+      )
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dependencies', i],
+          message: 'Foreign dependency',
+        });
     }
     const expected = [
       `inquiry:${v.inquiryId}`,
@@ -157,7 +182,10 @@ export const inquiryContextPayload = z
       ]),
     ];
     const wanted = new Set(expected);
-    if (expected.some((k) => !seen.has(k)) || [...seen].some((k) => !wanted.has(k)))
+    if (
+      expected.some((k) => !seen.has(k)) ||
+      [...seen].some((k) => !wanted.has(k))
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['dependencies'],

@@ -175,7 +175,8 @@ async function adjustFairness(
     universeCredit = BigInt(row.universe_credit);
   const classCap = BigInt(fairnessClassCap(policy, row.class as FairnessClass)),
     universeCap = BigInt(fairnessUniverseCap(policy));
-  const cap = (value: bigint, maximum: bigint) => (value > maximum ? maximum : value);
+  const cap = (value: bigint, maximum: bigint) =>
+    value > maximum ? maximum : value;
   const nextClass = cap(classCredit + refund, classCap),
     nextUniverse = cap(universeCredit + refund, universeCap);
   const classDelta = nextClass - classCredit,
@@ -246,9 +247,10 @@ export async function releaseNotSentFairness(
   attemptId: string,
 ): Promise<void> {
   const state = (
-    await client.query('SELECT state,dispatch_id FROM reasoning_accounting WHERE attempt_id=$1', [
-      attemptId,
-    ])
+    await client.query(
+      'SELECT state,dispatch_id FROM reasoning_accounting WHERE attempt_id=$1',
+      [attemptId],
+    )
   ).rows[0];
   if (!state || state.state !== 'not_sent' || state.dispatch_id !== null)
     throw new Error('Fairness refund requires proven not_sent');

@@ -30,12 +30,19 @@ export interface DemandFacts {
   /** The enabled writing route and how many requests its bucket still admits; null when none is enabled. */
   route: { id: string; requestsLeft: number } | null;
   /** Installed material in install order, and whether a request for this concept was already made from it. */
-  candidates: readonly { id: string; conceptCodes: readonly string[]; requested: boolean }[];
+  candidates: readonly {
+    id: string;
+    conceptCodes: readonly string[];
+    requested: boolean;
+  }[];
   /** How this demand's earlier requests settled, oldest first. */
   settled: readonly ('fulfilled' | 'refused' | 'failed' | 'cancelled')[];
 }
 
-export type QuartermasterDecision = { version: typeof QUARTERMASTER_V1; adapt: 'unavailable' } & (
+export type QuartermasterDecision = {
+  version: typeof QUARTERMASTER_V1;
+  adapt: 'unavailable';
+} & (
   | { decision: 'reuse'; assetId: string }
   | { decision: 'join'; requestId: string }
   | { decision: 'fund'; candidateId: string; offeredCodes: string[] }
@@ -76,11 +83,16 @@ export function decideDemand(facts: DemandFacts): QuartermasterDecision {
   if (facts.route.requestsLeft <= 0) return cannot('no_budget');
   // A lost or failed send may still have reached the provider: it is never followed by another.
   if (facts.settled.includes('failed')) return cannot('request_failed');
-  if (facts.settled.filter((s) => s === 'refused').length >= QUARTERMASTER_LIMITS.refusedRequests)
+  if (
+    facts.settled.filter((s) => s === 'refused').length >=
+    QUARTERMASTER_LIMITS.refusedRequests
+  )
     return cannot('checks_failed');
   // Only the concepts inside the subtree are offered, so the checks themselves keep the Scroll's
   // primary concept there (`concept_not_offered`).
-  const material = facts.candidates.find((c) => !c.requested && c.conceptCodes.some(within));
+  const material = facts.candidates.find(
+    (c) => !c.requested && c.conceptCodes.some(within),
+  );
   if (!material) return cannot('no_material');
   return {
     ...decided,

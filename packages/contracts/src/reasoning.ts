@@ -13,7 +13,9 @@ export const reasoningCounter = z
   .string()
   .regex(/^(0|[1-9][0-9]{0,18})$/)
   .refine(
-    (value) => /^(0|[1-9][0-9]{0,18})$/.test(value) && BigInt(value) <= 9223372036854775807n,
+    (value) =>
+      /^(0|[1-9][0-9]{0,18})$/.test(value) &&
+      BigInt(value) <= 9223372036854775807n,
     'Exceeds PostgreSQL bigint',
   );
 const fence = reasoningCounter.refine(
@@ -49,10 +51,16 @@ export const reasoningStepState = z.enum([
 export const reasoningWake = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('direct'), intentId: id }).strict(),
   z
-    .object({ kind: z.literal('dirty'), scopeKey: label, throughSequence: reasoningCounter })
+    .object({
+      kind: z.literal('dirty'),
+      scopeKey: label,
+      throughSequence: reasoningCounter,
+    })
     .strict(),
 ]);
-export const reasoningLease = z.object({ owner: label, fence, expiresAt: instant }).strict();
+export const reasoningLease = z
+  .object({ owner: label, fence, expiresAt: instant })
+  .strict();
 export const reasoningJob = z
   .object({
     version: z.literal(1),
@@ -108,7 +116,10 @@ export const reasoningContext = z
   .superRefine((value, context) => {
     const seen = new Set<string>();
     for (const [index, read] of value.reads.entries()) {
-      if (read.scope.kind === 'universe' && read.scope.universeId !== value.universeId) {
+      if (
+        read.scope.kind === 'universe' &&
+        read.scope.universeId !== value.universeId
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['reads', index, 'scope'],
@@ -170,7 +181,13 @@ export const reasoningPermit = z
     expiresAt: instant,
     lifecycle: z.discriminatedUnion('state', [
       z.object({ state: z.literal('reserved') }).strict(),
-      z.object({ state: z.literal('consumed'), dispatchId: id, consumedAt: instant }).strict(),
+      z
+        .object({
+          state: z.literal('consumed'),
+          dispatchId: id,
+          consumedAt: instant,
+        })
+        .strict(),
       z.object({ state: z.literal('revoked'), closedAt: instant }).strict(),
       z.object({ state: z.literal('expired'), closedAt: instant }).strict(),
     ]),
@@ -191,7 +208,10 @@ export const reasoningPermit = z
           message: 'Foreign attempt or reservation set',
         });
       }
-      if (ids.has(reservation.reservationId) || buckets.has(reservation.bucketId)) {
+      if (
+        ids.has(reservation.reservationId) ||
+        buckets.has(reservation.bucketId)
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['reservations', index],
@@ -227,7 +247,13 @@ export const reasoningDispatch = z.discriminatedUnion('state', [
       state: z.literal('unknown'),
       ...dispatched,
       observedAt: instant,
-      reason: z.enum(['transport_loss', 'deadline', 'local_cancel', 'lease_loss', 'crash']),
+      reason: z.enum([
+        'transport_loss',
+        'deadline',
+        'local_cancel',
+        'lease_loss',
+        'crash',
+      ]),
     })
     .strict(),
   z
@@ -244,7 +270,13 @@ export const reasoningDispatch = z.discriminatedUnion('state', [
     .object({
       state: z.literal('not_sent'),
       closedAt: instant,
-      reason: z.enum(['cancelled', 'expired', 'privacy_changed', 'lease_lost', 'permit_expired']),
+      reason: z.enum([
+        'cancelled',
+        'expired',
+        'privacy_changed',
+        'lease_lost',
+        'permit_expired',
+      ]),
     })
     .strict(),
 ]);
@@ -286,7 +318,8 @@ export const reasoningAttempt = z
     const withdrawn =
       value.dispatch.state === 'not_sent' ||
       (value.dispatch.state === 'unknown' &&
-        (value.dispatch.reason === 'deadline' || value.dispatch.reason === 'local_cancel'));
+        (value.dispatch.reason === 'deadline' ||
+          value.dispatch.reason === 'local_cancel'));
     if (withdrawn && value.outputAuthority !== 'withdrawn') {
       context.addIssue({
         code: 'custom',
@@ -306,7 +339,11 @@ export const reasoningReceipt = z
     requestId: id,
     routeId: label,
     routeProfileVersion: label,
-    evidenceKind: z.enum(['original_transport', 'provider_lookup', 'operator_reconciliation']),
+    evidenceKind: z.enum([
+      'original_transport',
+      'provider_lookup',
+      'operator_reconciliation',
+    ]),
     observedAt: instant,
     remoteDisposition: z.enum(['terminal', 'unconfirmed']),
     outcome: z.enum(['success', 'refusal', 'error', 'unclassified']),
@@ -330,7 +367,11 @@ export const reasoningSettlement = z
           .object({
             bucketId: id,
             unit: z.enum(['tokens', 'requests', 'slots', 'micro_usd']),
-            delta: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER),
+            delta: z
+              .number()
+              .int()
+              .min(-Number.MAX_SAFE_INTEGER)
+              .max(Number.MAX_SAFE_INTEGER),
           })
           .strict(),
       )
@@ -352,8 +393,8 @@ export const reasoningSettlement = z
       });
     }
     if (
-      new Set(value.adjustments.map((adjustment) => adjustment.bucketId)).size !==
-      value.adjustments.length
+      new Set(value.adjustments.map((adjustment) => adjustment.bucketId))
+        .size !== value.adjustments.length
     ) {
       context.addIssue({
         code: 'custom',

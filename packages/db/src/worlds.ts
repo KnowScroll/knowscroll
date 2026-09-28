@@ -63,7 +63,11 @@ export async function deriveWorlds(
   method: string = SHARED_SOURCE_V1,
 ): Promise<WorldRow[]> {
   const sources = (
-    await client.query<{ source_title: string; source_url: string; scroll_count: string }>(
+    await client.query<{
+      source_title: string;
+      source_url: string;
+      scroll_count: string;
+    }>(
       // Grouped by URL alone, because the URL is what identifies a source; the title is a label that
       // legitimately varies for the same source. Grouping by the pair produced two groups that both
       // resolved to one world, and the second group's assets then failed the membership guard --
@@ -112,7 +116,9 @@ export async function deriveWorlds(
     // The insert above either created this row or lost the race to a transaction that did; either
     // way it exists by now, and its absence would mean the unique key no longer matches the lookup.
     if (!settled)
-      throw new Error(`world row missing for source after insert: ${source.source_url}`);
+      throw new Error(
+        `world row missing for source after insert: ${source.source_url}`,
+      );
     const worldId = settled.id;
 
     const members = (

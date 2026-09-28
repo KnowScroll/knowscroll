@@ -1,5 +1,8 @@
 import { lockBoundContextSession } from './reasoning-context-session.ts';
-import { lockFairnessResources, releaseNotSentFairness } from './reasoning-fairness-accounting.js';
+import {
+  lockFairnessResources,
+  releaseNotSentFairness,
+} from './reasoning-fairness-accounting.js';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
@@ -90,7 +93,10 @@ export type WithdrawJobInput = {
   leaseFence: string;
   reason: 'cancelled' | 'expired';
 };
-export type WithdrawalResult = { closedNotSent: number; preservedUnknown: number };
+export type WithdrawalResult = {
+  closedNotSent: number;
+  preservedUnknown: number;
+};
 
 export type RecoverAttemptInput = {
   universeId: string;
@@ -127,7 +133,9 @@ export type ReasoningAdmission = {
   authorizeDispatch(input: AuthorizeDispatchInput): Promise<DispatchGrant>;
   withdrawJob(input: WithdrawJobInput): Promise<WithdrawalResult>;
   recoverAttempt(input: RecoverAttemptInput): Promise<RecoveryResult>;
-  markAttemptUnknown(input: MarkAttemptUnknownInput): Promise<MarkAttemptUnknownResult>;
+  markAttemptUnknown(
+    input: MarkAttemptUnknownInput,
+  ): Promise<MarkAttemptUnknownResult>;
 };
 
 type JobRow = {
@@ -152,7 +160,8 @@ type ReservationRow = {
   handling: ReasoningBinding['handling'];
 };
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hashPattern = /^[0-9a-f]{64}$/;
 const ownerPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/;
 
@@ -211,7 +220,11 @@ async function transaction<T>(
   }
 }
 
-function validateOwnerAndDuration(owner: string, value: number, kind: 'lease' | 'permit'): void {
+function validateOwnerAndDuration(
+  owner: string,
+  value: number,
+  kind: 'lease' | 'permit',
+): void {
   if (!ownerPattern.test(owner)) deny('invalid_owner');
   const maximum =
     kind === 'lease'
@@ -268,7 +281,8 @@ async function lockCurrentJob(
   );
   const job = result.rows[0];
   if (!job) deny('unknown_job');
-  if (job.lease_owner !== input.owner || job.lease_fence !== input.leaseFence) deny('stale_lease');
+  if (job.lease_owner !== input.owner || job.lease_fence !== input.leaseFence)
+    deny('stale_lease');
   if (!job.lease_expires_at) deny('stale_lease');
   const current = await client.query<{ valid: boolean }>(
     `
@@ -290,7 +304,10 @@ async function resolveAndValidatePolicy(
   authority: ReasoningAuthority,
   scope: { universeId: string; privacyEpoch: number; jobId: string },
 ): Promise<{ policy: ResolvedReasoningPolicy; bindingHash: string }> {
-  return validateReasoningPolicy(await authority.resolvePolicy(client, scope), scope);
+  return validateReasoningPolicy(
+    await authority.resolvePolicy(client, scope),
+    scope,
+  );
 }
 
 async function lockPolicyBuckets(
@@ -349,7 +366,12 @@ function assertBucketBindings(
   policy: ResolvedReasoningPolicy,
   buckets: Map<
     string,
-    { dimension: string; unit: string; window_id: string | null; paused: boolean }
+    {
+      dimension: string;
+      unit: string;
+      window_id: string | null;
+      paused: boolean;
+    }
   >,
 ): void {
   for (const binding of policy.buckets) {
@@ -375,7 +397,10 @@ export async function releaseUnconsumed(
   bucketsAlreadyLocked = false,
 ): Promise<void> {
   if (!bucketsAlreadyLocked) await lockFairnessResources(client, [attemptId]);
-  const reservations = await client.query<{ bucket_id: string; amount: string }>(
+  const reservations = await client.query<{
+    bucket_id: string;
+    amount: string;
+  }>(
     `
       SELECT
         bucket_id,
@@ -446,12 +471,16 @@ export async function releaseUnconsumed(
     [attemptId],
   );
   await releaseNotSentFairness(client, attemptId);
-  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1 AND active', [
-    attemptId,
-  ]);
+  await client.query(
+    'UPDATE reasoning_attempt SET active=false WHERE id=$1 AND active',
+    [attemptId],
+  );
 }
 
-export type ReasoningPreflightInput = Omit<ReserveAttemptInput, 'owner' | 'leaseFence'>;
+export type ReasoningPreflightInput = Omit<
+  ReserveAttemptInput,
+  'owner' | 'leaseFence'
+>;
 export type ReasoningPreflight = {
   policy: ResolvedReasoningPolicy;
   bindingHash: string;
@@ -486,7 +515,10 @@ export async function preflightAttemptInTransaction(
     !validBoundedInteger(input.maxOutputTokens, 1)
   )
     deny('invalid_token_bound');
-  if (input.costCeilingMicroUsd !== null && !validBoundedInteger(input.costCeilingMicroUsd, 1))
+  if (
+    input.costCeilingMicroUsd !== null &&
+    !validBoundedInteger(input.costCeilingMicroUsd, 1)
+  )
     deny('invalid_cost_ceiling');
   if (!Number.isFinite(Date.parse(input.deadline))) deny('invalid_deadline');
   await lockUniverse(client, input.universeId, input.privacyEpoch);
@@ -519,8 +551,12 @@ export async function preflightAttemptInTransaction(
   if (!step || step.context_id !== input.contextId) deny('unknown_step');
   if (step.status !== 'pending') deny('step_not_pending');
   if (
-    (await client.query('SELECT 1 FROM reasoning_attempt WHERE step_id=$1 LIMIT 1', [input.stepId]))
-      .rowCount
+    (
+      await client.query(
+        'SELECT 1 FROM reasoning_attempt WHERE step_id=$1 LIMIT 1',
+        [input.stepId],
+      )
+    ).rowCount
   )
     deny('retry_not_supported');
   const scope = {
@@ -534,9 +570,15 @@ export async function preflightAttemptInTransaction(
     contextId: input.contextId,
     policyVersion: job.policy_version,
   };
-  if (!(await authority.validateContext(client, context, 'lock'))) deny('stale_context');
-  const { policy, bindingHash } = await resolveAndValidatePolicy(client, authority, scope);
-  if (policy.policyVersion !== job.policy_version) deny('policy_version_mismatch');
+  if (!(await authority.validateContext(client, context, 'lock')))
+    deny('stale_context');
+  const { policy, bindingHash } = await resolveAndValidatePolicy(
+    client,
+    authority,
+    scope,
+  );
+  if (policy.policyVersion !== job.policy_version)
+    deny('policy_version_mismatch');
   if (
     input.inputTokensUpperBound > policy.maxInputTokens ||
     input.maxOutputTokens > policy.maxOutputTokens
@@ -553,9 +595,13 @@ export async function preflightAttemptInTransaction(
     )
       deny('bucket_binding_changed');
   }
-  if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash)
+  if (
+    (await resolveAndValidatePolicy(client, authority, scope)).bindingHash !==
+    bindingHash
+  )
     deny('policy_binding_changed');
-  if (!(await authority.validateContext(client, context, 'recheck'))) deny('stale_context');
+  if (!(await authority.validateContext(client, context, 'recheck')))
+    deny('stale_context');
   const valid = (
     await client.query(
       `
@@ -585,13 +631,16 @@ export async function preflightAttemptInTransaction(
       ),
     ),
   }));
-  const physicallyFits = demands.some(({ bucket, amount }) => amount > BigInt(bucket.capacity))
+  const physicallyFits = demands.some(
+    ({ bucket, amount }) => amount > BigInt(bucket.capacity),
+  )
     ? 'impossible'
     : demands.some(({ bucket }) => bucket.paused)
       ? 'paused'
       : demands.some(
             ({ bucket, amount }) =>
-              BigInt(bucket.reserved) + BigInt(bucket.consumed) + amount > BigInt(bucket.capacity),
+              BigInt(bucket.reserved) + BigInt(bucket.consumed) + amount >
+              BigInt(bucket.capacity),
           )
         ? 'capacity_exhausted'
         : 'fit';
@@ -629,7 +678,10 @@ export async function reserveAttemptInTransaction(
     !validBoundedInteger(input.maxOutputTokens, 1)
   )
     deny('invalid_token_bound');
-  if (input.costCeilingMicroUsd !== null && !validBoundedInteger(input.costCeilingMicroUsd, 1))
+  if (
+    input.costCeilingMicroUsd !== null &&
+    !validBoundedInteger(input.costCeilingMicroUsd, 1)
+  )
     deny('invalid_cost_ceiling');
   const deadlineMs = Date.parse(input.deadline);
   if (!Number.isFinite(deadlineMs)) deny('invalid_deadline');
@@ -658,8 +710,12 @@ export async function reserveAttemptInTransaction(
   if (!step || step.context_id !== input.contextId) deny('unknown_step');
   if (step.status !== 'pending') deny('step_not_pending');
   if (
-    (await client.query('SELECT 1 FROM reasoning_attempt WHERE step_id=$1 LIMIT 1', [input.stepId]))
-      .rowCount
+    (
+      await client.query(
+        'SELECT 1 FROM reasoning_attempt WHERE step_id=$1 LIMIT 1',
+        [input.stepId],
+      )
+    ).rowCount
   )
     deny('retry_not_supported');
   const deadline = await client.query<{ valid: boolean }>(
@@ -686,8 +742,13 @@ export async function reserveAttemptInTransaction(
   ) {
     deny('stale_context');
   }
-  const { policy, bindingHash } = await resolveAndValidatePolicy(client, authority, scope);
-  if (policy.policyVersion !== job.policy_version) deny('policy_version_mismatch');
+  const { policy, bindingHash } = await resolveAndValidatePolicy(
+    client,
+    authority,
+    scope,
+  );
+  if (policy.policyVersion !== job.policy_version)
+    deny('policy_version_mismatch');
   if (
     input.inputTokensUpperBound > policy.maxInputTokens ||
     input.maxOutputTokens > policy.maxOutputTokens
@@ -696,7 +757,10 @@ export async function reserveAttemptInTransaction(
   await beforeResourceLocks?.(client, { policy, bindingHash });
   const buckets = await lockPolicyBuckets(client, policy);
   assertBucketBindings(policy, buckets);
-  if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash)
+  if (
+    (await resolveAndValidatePolicy(client, authority, scope)).bindingHash !==
+    bindingHash
+  )
     deny('policy_binding_changed');
   if (
     !(await authority.validateContext(
@@ -954,9 +1018,14 @@ export function createReasoningAdmission(
     async claimJob(input) {
       validateOwnerAndDuration(input.owner, input.leaseMs, 'lease');
       for (let scan = 0; scan < 100; scan += 1) {
-        const result = await transaction<ClaimedJob | 'continue' | null>(db, async (client) => {
-          const universe = await client.query<{ id: string; privacy_epoch: number }>(
-            `
+        const result = await transaction<ClaimedJob | 'continue' | null>(
+          db,
+          async (client) => {
+            const universe = await client.query<{
+              id: string;
+              privacy_epoch: number;
+            }>(
+              `
               SELECT
                 u.id,
                 u.privacy_epoch
@@ -988,11 +1057,11 @@ export function createReasoningAdmission(
               LIMIT
                 1
             `,
-          );
-          const candidate = universe.rows[0];
-          if (!candidate) return null;
-          await client.query(
-            `
+            );
+            const candidate = universe.rows[0];
+            if (!candidate) return null;
+            await client.query(
+              `
               UPDATE reasoning_job
               SET
                 status = 'cancelled',
@@ -1003,10 +1072,10 @@ export function createReasoningAdmission(
                 AND status = 'queued'
                 AND privacy_epoch <> $2
             `,
-            [candidate.id, candidate.privacy_epoch],
-          );
-          await client.query(
-            `
+              [candidate.id, candidate.privacy_epoch],
+            );
+            await client.query(
+              `
               UPDATE reasoning_job
               SET
                 status = 'expired',
@@ -1018,10 +1087,10 @@ export function createReasoningAdmission(
                 AND privacy_epoch = $2
                 AND deadline <= clock_timestamp()
             `,
-            [candidate.id, candidate.privacy_epoch],
-          );
-          const job = await client.query<JobRow>(
-            `
+              [candidate.id, candidate.privacy_epoch],
+            );
+            const job = await client.query<JobRow>(
+              `
               SELECT
                 id,
                 universe_id,
@@ -1046,14 +1115,14 @@ export function createReasoningAdmission(
               LIMIT
                 1
             `,
-            [candidate.id, candidate.privacy_epoch],
-          );
-          const row = job.rows[0];
-          if (!row) return 'continue';
-          const claimed = await client.query<
-            ClaimedJob & { lease_fence: string; lease_expires_at: Date }
-          >(
-            `
+              [candidate.id, candidate.privacy_epoch],
+            );
+            const row = job.rows[0];
+            if (!row) return 'continue';
+            const claimed = await client.query<
+              ClaimedJob & { lease_fence: string; lease_expires_at: Date }
+            >(
+              `
               UPDATE reasoning_job
               SET
                 status = 'running',
@@ -1071,25 +1140,28 @@ export function createReasoningAdmission(
                 lease_fence,
                 lease_expires_at
             `,
-            [row.id, input.owner, input.leaseMs],
-          );
-          const value = claimed.rows[0];
-          if (!value) deny('lease_fence_exhausted');
-          return {
-            jobId: value.jobId,
-            universeId: value.universeId,
-            privacyEpoch: value.privacyEpoch,
-            leaseFence: value.lease_fence,
-            leaseExpiresAt: value.lease_expires_at,
-          };
-        });
+              [row.id, input.owner, input.leaseMs],
+            );
+            const value = claimed.rows[0];
+            if (!value) deny('lease_fence_exhausted');
+            return {
+              jobId: value.jobId,
+              universeId: value.universeId,
+              privacyEpoch: value.privacyEpoch,
+              leaseFence: value.lease_fence,
+              leaseExpiresAt: value.lease_expires_at,
+            };
+          },
+        );
         if (result !== 'continue') return result;
       }
       deny('claim_scan_exhausted');
     },
 
     async reserveAttempt(input) {
-      return transaction(db, (client) => reserveAttemptInTransaction(client, authority, input));
+      return transaction(db, (client) =>
+        reserveAttemptInTransaction(client, authority, input),
+      );
     },
 
     async authorizeDispatch(input) {
@@ -1157,7 +1229,13 @@ export function createReasoningAdmission(
               AND privacy_epoch = $5
             FOR UPDATE
           `,
-          [input.attemptId, input.jobId, input.stepId, input.universeId, input.privacyEpoch],
+          [
+            input.attemptId,
+            input.jobId,
+            input.stepId,
+            input.universeId,
+            input.privacyEpoch,
+          ],
         );
         const attemptRow = attempt.rows[0];
         if (!attemptRow || !attemptRow.active) deny('attempt_not_active');
@@ -1172,15 +1250,23 @@ export function createReasoningAdmission(
           binding_hash: string | null;
           dispatch_id: string | null;
           input_reservation_ceiling: string | null;
-        }>('SELECT * FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE', [input.attemptId]);
+        }>(
+          'SELECT * FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE',
+          [input.attemptId],
+        );
         const account = accounting.rows[0];
-        if (!account || account.state !== 'reserved' || account.dispatch_id !== null)
+        if (
+          !account ||
+          account.state !== 'reserved' ||
+          account.dispatch_id !== null
+        )
           deny('dispatch_already_decided');
         if (account.output_authority !== 'eligible') deny('output_withdrawn');
         if (
           account.request_id !== input.requestId ||
           attemptRow.request_hash !== input.requestHash ||
-          Number(account.input_reservation_ceiling) !== input.inputTokensUpperBound ||
+          Number(account.input_reservation_ceiling) !==
+            input.inputTokensUpperBound ||
           Number(account.max_output_tokens) !== input.maxOutputTokens
         ) {
           deny('request_binding_mismatch');
@@ -1234,7 +1320,11 @@ export function createReasoningAdmission(
           ))
         )
           deny('stale_context');
-        const { policy, bindingHash } = await resolveAndValidatePolicy(client, authority, scope);
+        const { policy, bindingHash } = await resolveAndValidatePolicy(
+          client,
+          authority,
+          scope,
+        );
         if (
           bindingHash !== account.binding_hash ||
           policy.routeId !== account.route_id ||
@@ -1263,8 +1353,11 @@ export function createReasoningAdmission(
           `,
           [input.attemptId, attemptRow.reservation_set_id],
         );
-        if (reservations.rowCount !== policy.buckets.length) deny('reservation_set_mismatch');
-        const reservationByBucket = new Map(reservations.rows.map((row) => [row.bucket_id, row]));
+        if (reservations.rowCount !== policy.buckets.length)
+          deny('reservation_set_mismatch');
+        const reservationByBucket = new Map(
+          reservations.rows.map((row) => [row.bucket_id, row]),
+        );
         for (const binding of policy.buckets) {
           const reservation = reservationByBucket.get(binding.bucketId);
           if (
@@ -1279,7 +1372,10 @@ export function createReasoningAdmission(
         }
         const buckets = await lockPolicyBuckets(client, policy);
         assertBucketBindings(policy, buckets);
-        if ((await resolveAndValidatePolicy(client, authority, scope)).bindingHash !== bindingHash)
+        if (
+          (await resolveAndValidatePolicy(client, authority, scope))
+            .bindingHash !== bindingHash
+        )
           deny('policy_binding_changed');
         if (
           !(await authority.validateContext(
@@ -1392,7 +1488,8 @@ export function createReasoningAdmission(
           `,
           [attemptRow.permit_id, input.dispatchId, input.attemptId],
         );
-        if (accountUpdate.rowCount !== 1 || permitUpdate.rowCount !== 1) deny('dispatch_race_lost');
+        if (accountUpdate.rowCount !== 1 || permitUpdate.rowCount !== 1)
+          deny('dispatch_race_lost');
         return {
           attemptId: input.attemptId,
           requestId: input.requestId,
@@ -1411,8 +1508,13 @@ export function createReasoningAdmission(
       validateFence(input.leaseFence);
       return transaction(db, async (client) => {
         await lockUniverse(client, input.universeId, input.privacyEpoch);
-        const job = await lockCurrentJob(client, input, input.reason === 'expired');
-        if (!['running', 'waiting'].includes(job.status)) deny('job_not_withdrawable');
+        const job = await lockCurrentJob(
+          client,
+          input,
+          input.reason === 'expired',
+        );
+        if (!['running', 'waiting'].includes(job.status))
+          deny('job_not_withdrawable');
         await client.query(
           `
             SELECT
@@ -1483,7 +1585,12 @@ export function createReasoningAdmission(
         let preservedUnknown = 0;
         for (const attempt of attempts.rows) {
           if (attempt.state === 'reserved') {
-            await releaseUnconsumed(client, attempt.id, attempt.permit_id, true);
+            await releaseUnconsumed(
+              client,
+              attempt.id,
+              attempt.permit_id,
+              true,
+            );
             closedNotSent += 1;
           } else if (attempt.state === 'dispatch_committed') {
             await client.query(
@@ -1498,18 +1605,20 @@ export function createReasoningAdmission(
               `,
               [attempt.id],
             );
-            await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
-              attempt.id,
-            ]);
+            await client.query(
+              'UPDATE reasoning_attempt SET active=false WHERE id=$1',
+              [attempt.id],
+            );
             preservedUnknown += 1;
           } else {
             await client.query(
               "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1",
               [attempt.id],
             );
-            await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
-              attempt.id,
-            ]);
+            await client.query(
+              'UPDATE reasoning_attempt SET active=false WHERE id=$1',
+              [attempt.id],
+            );
             if (attempt.state === 'unknown') preservedUnknown += 1;
           }
         }
@@ -1585,18 +1694,25 @@ export function createReasoningAdmission(
             )
           ).rows[0]?.expired === true;
         const continuingFencedRecovery =
-          job.status === 'waiting' && job.lease_owner === null && job.lease_expires_at === null;
+          job.status === 'waiting' &&
+          job.lease_owner === null &&
+          job.lease_expires_at === null;
         if (!expiredLease && !continuingFencedRecovery) {
           deny('lease_still_healthy');
         }
-        if (['completed', 'failed', 'cancelled', 'expired'].includes(job.status))
+        if (
+          ['completed', 'failed', 'cancelled', 'expired'].includes(job.status)
+        )
           deny('terminal_job');
         const step = await client.query<{ status: string }>(
           'SELECT status FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE',
           [input.stepId, input.jobId],
         );
         if (!step.rows[0]) deny('unknown_step');
-        const attempt = await client.query<{ permit_id: string; active: boolean }>(
+        const attempt = await client.query<{
+          permit_id: string;
+          active: boolean;
+        }>(
           `
             SELECT
               permit_id,
@@ -1611,7 +1727,13 @@ export function createReasoningAdmission(
               AND privacy_epoch = $5
             FOR UPDATE
           `,
-          [input.attemptId, input.jobId, input.stepId, input.universeId, input.privacyEpoch],
+          [
+            input.attemptId,
+            input.jobId,
+            input.stepId,
+            input.universeId,
+            input.privacyEpoch,
+          ],
         );
         const attemptRow = attempt.rows[0];
         if (!attemptRow || !attemptRow.active) deny('attempt_not_recoverable');
@@ -1622,10 +1744,15 @@ export function createReasoningAdmission(
         const state = accounting.rows[0]?.state;
         let outcome: RecoveryResult['outcome'];
         if (state === 'reserved') {
-          await releaseUnconsumed(client, input.attemptId, attemptRow.permit_id);
-          await client.query("UPDATE reasoning_step SET status='failed' WHERE id=$1", [
-            input.stepId,
-          ]);
+          await releaseUnconsumed(
+            client,
+            input.attemptId,
+            attemptRow.permit_id,
+          );
+          await client.query(
+            "UPDATE reasoning_step SET status='failed' WHERE id=$1",
+            [input.stepId],
+          );
           outcome = 'not_sent';
         } else if (state === 'dispatch_committed' || state === 'unknown') {
           if (state === 'dispatch_committed') {
@@ -1654,9 +1781,10 @@ export function createReasoningAdmission(
               [input.attemptId],
             );
           }
-          await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
-            input.attemptId,
-          ]);
+          await client.query(
+            'UPDATE reasoning_attempt SET active=false WHERE id=$1',
+            [input.attemptId],
+          );
           await client.query(
             "UPDATE reasoning_step SET status='awaiting_reconciliation' WHERE id=$1",
             [input.stepId],
@@ -1702,8 +1830,14 @@ export function createReasoningAdmission(
           'SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',
           [input.universeId],
         );
-        if (!universe.rows[0] || universe.rows[0].privacy_epoch !== input.privacyEpoch) {
-          return { outcome: 'private_state_gone' as const, outputWithdrawn: true };
+        if (
+          !universe.rows[0] ||
+          universe.rows[0].privacy_epoch !== input.privacyEpoch
+        ) {
+          return {
+            outcome: 'private_state_gone' as const,
+            outputWithdrawn: true,
+          };
         }
         const jobResult = await client.query<JobRow>(
           `
@@ -1728,7 +1862,11 @@ export function createReasoningAdmission(
           [input.jobId, input.universeId, input.privacyEpoch],
         );
         const job = jobResult.rows[0];
-        if (!job) return { outcome: 'private_state_gone' as const, outputWithdrawn: true };
+        if (!job)
+          return {
+            outcome: 'private_state_gone' as const,
+            outputWithdrawn: true,
+          };
         const currentLease =
           job.lease_owner === input.owner &&
           job.lease_fence === input.leaseFence &&
@@ -1743,8 +1881,15 @@ export function createReasoningAdmission(
           'SELECT status FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE',
           [input.stepId, input.jobId],
         );
-        if (!step.rows[0]) return { outcome: 'private_state_gone' as const, outputWithdrawn: true };
-        const attempt = await client.query<{ active: boolean; lease_fence: string }>(
+        if (!step.rows[0])
+          return {
+            outcome: 'private_state_gone' as const,
+            outputWithdrawn: true,
+          };
+        const attempt = await client.query<{
+          active: boolean;
+          lease_fence: string;
+        }>(
           `
             SELECT
               active,
@@ -1759,13 +1904,25 @@ export function createReasoningAdmission(
               AND privacy_epoch = $5
             FOR UPDATE
           `,
-          [input.attemptId, input.jobId, input.stepId, input.universeId, input.privacyEpoch],
+          [
+            input.attemptId,
+            input.jobId,
+            input.stepId,
+            input.universeId,
+            input.privacyEpoch,
+          ],
         );
         if (!attempt.rows[0])
-          return { outcome: 'private_state_gone' as const, outputWithdrawn: true };
-        if (attempt.rows[0].lease_fence !== input.leaseFence) deny('stale_attempt_fence');
+          return {
+            outcome: 'private_state_gone' as const,
+            outputWithdrawn: true,
+          };
+        if (attempt.rows[0].lease_fence !== input.leaseFence)
+          deny('stale_attempt_fence');
         const withdrawOutput =
-          input.reason === 'deadline' || input.reason === 'local_cancel' || !currentLease;
+          input.reason === 'deadline' ||
+          input.reason === 'local_cancel' ||
+          !currentLease;
         const accounting = await client.query(
           `
             UPDATE reasoning_accounting
@@ -1788,9 +1945,10 @@ export function createReasoningAdmission(
           ['running', 'waiting'].includes(job.status) &&
           ['active', 'awaiting_reconciliation'].includes(step.rows[0].status);
         if (mayChangePrivateCheckpoint) {
-          await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
-            input.attemptId,
-          ]);
+          await client.query(
+            'UPDATE reasoning_attempt SET active=false WHERE id=$1',
+            [input.attemptId],
+          );
           await client.query(
             "UPDATE reasoning_step SET status='awaiting_reconciliation' WHERE id=$1",
             [input.stepId],

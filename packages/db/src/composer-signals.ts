@@ -114,9 +114,13 @@ export async function loadComposerSignalCandidates(
             [universeId, sourceKeys],
           )
         ).rows;
-  const bySource = new Map(sourceRows.map((row) => [row.source_url, Number(row.exposure_count)]));
+  const bySource = new Map(
+    sourceRows.map((row) => [row.source_url, Number(row.exposure_count)]),
+  );
 
-  const nowRow = (await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!;
+  const nowRow = (
+    await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')
+  ).rows[0]!;
 
   const candidates: SignalCandidate[] = assets.map((asset) => {
     const signal = bySignal.get(asset.assetId);
@@ -125,7 +129,9 @@ export async function loadComposerSignalCandidates(
       sourceKey: asset.sourceUrl,
       sourceTitle: asset.sourceTitle,
       exposureCount: signal ? Number(signal.exposure_count) : 0,
-      lastExposedAtMs: signal?.last_exposed_at ? signal.last_exposed_at.getTime() : null,
+      lastExposedAtMs: signal?.last_exposed_at
+        ? signal.last_exposed_at.getTime()
+        : null,
       sourceExposureCount: bySource.get(asset.sourceUrl) ?? 0,
     };
   });
@@ -150,7 +156,13 @@ export async function composeAndRecordV2(
     scope.universeId,
     assets,
   );
-  const ranked = rankSignalCandidates(candidates, account.kept_asset_ids, policy, templates, nowMs);
+  const ranked = rankSignalCandidates(
+    candidates,
+    account.kept_asset_ids,
+    policy,
+    templates,
+    nowMs,
+  );
   const items = ranked.map((r) => r.item);
   const decisionId = randomUUID();
   await client.query(

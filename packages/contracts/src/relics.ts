@@ -14,7 +14,9 @@ const epoch = z.number().int().min(0).max(2147483647);
 const at = z.string().datetime();
 const revision = z.number().int().min(1).max(2147483647);
 const title = z.string().min(1).max(300);
-const conceptRef = z.object({ code: conceptCode, name: z.string().min(1).max(80) }).strict();
+const conceptRef = z
+  .object({ code: conceptCode, name: z.string().min(1).max(80) })
+  .strict();
 
 export const RELIC_LIST_LIMIT = 100;
 
@@ -28,7 +30,9 @@ const answerTarget = { kind: z.literal('answer'), askId: id };
 
 /** One thing to keep (ADR-0044 §2): the server records its provenance. */
 export const relicKeepInput = z.discriminatedUnion('kind', [
-  z.object({ ...request, kind: z.literal('connection'), bridgeId: id }).strict(),
+  z
+    .object({ ...request, kind: z.literal('connection'), bridgeId: id })
+    .strict(),
   z.object({ ...request, kind: z.literal('place'), placeId: id }).strict(),
   /** One claim of a Scroll, at the revision the reader read. */
   z
@@ -49,15 +53,26 @@ export type RelicKeepInput = z.infer<typeof relicKeepInput>;
  * A place is doubted by setting it aside, a connection through `POST /v1/connections/feedback`.
  */
 export const objectionInput = z.discriminatedUnion('kind', [
-  z.object({ ...request, kind: z.literal('passage'), assetId: id, claimKey: semanticKey }).strict(),
+  z
+    .object({
+      ...request,
+      kind: z.literal('passage'),
+      assetId: id,
+      claimKey: semanticKey,
+    })
+    .strict(),
   z.object({ ...request, ...answerTarget }).strict(),
 ]);
 export type ObjectionInput = z.infer<typeof objectionInput>;
 
-export const objectionResponse = z.object({ privacyEpoch: epoch, objectionId: id }).strict();
+export const objectionResponse = z
+  .object({ privacyEpoch: epoch, objectionId: id })
+  .strict();
 export type ObjectionResponse = z.infer<typeof objectionResponse>;
 
-export const relicReleaseInput = z.object({ expectedPrivacyEpoch: epoch }).strict();
+export const relicReleaseInput = z
+  .object({ expectedPrivacyEpoch: epoch })
+  .strict();
 export type RelicReleaseInput = z.infer<typeof relicReleaseInput>;
 
 /**
@@ -71,7 +86,11 @@ const kept = { relicId: id, keptAt: at, state: relicState };
 
 /** A claim, and whether it has since lost its current support (M4), never from which source. */
 const passageClaim = z
-  .object({ claimKey: semanticKey, statement: z.string().min(1).max(400), withdrawn: z.boolean() })
+  .object({
+    claimKey: semanticKey,
+    statement: z.string().min(1).max(400),
+    withdrawn: z.boolean(),
+  })
   .strict();
 
 export const relicWire = z
@@ -113,7 +132,9 @@ export const relicWire = z
         ...kept,
         kind: z.literal('passage'),
         /** The Scroll's title at the revision the reader read, and the claim they kept. */
-        passage: z.object({ assetId: id, revision, title, claim: passageClaim }).strict(),
+        passage: z
+          .object({ assetId: id, revision, title, claim: passageClaim })
+          .strict(),
       })
       .strict(),
     z
@@ -150,7 +171,11 @@ export const relicWire = z
         message: 'Corrected exactly when the connection is no longer admitted',
       });
     }
-    if (v.kind === 'passage' && v.passage.claim.withdrawn && v.state !== 'corrected') {
+    if (
+      v.kind === 'passage' &&
+      v.passage.claim.withdrawn &&
+      v.state !== 'corrected'
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['state'],
@@ -160,7 +185,9 @@ export const relicWire = z
   });
 export type RelicWire = z.infer<typeof relicWire>;
 
-export const relicKeepResponse = z.object({ privacyEpoch: epoch, relic: relicWire }).strict();
+export const relicKeepResponse = z
+  .object({ privacyEpoch: epoch, relic: relicWire })
+  .strict();
 export type RelicKeepResponse = z.infer<typeof relicKeepResponse>;
 
 /** Newest first. `nextPage` names the next older page, only after a full one (M8). */
@@ -199,7 +226,11 @@ export const passagesResponse = z
     revision,
     recordingPaused: z.boolean(),
     passages: z
-      .array(passageClaim.extend({ kept: z.boolean(), seemsWrong: z.boolean() }).strict())
+      .array(
+        passageClaim
+          .extend({ kept: z.boolean(), seemsWrong: z.boolean() })
+          .strict(),
+      )
       .max(PASSAGE_LIST_LIMIT),
   })
   .strict();

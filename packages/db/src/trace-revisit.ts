@@ -12,7 +12,12 @@ import { UnauthorizedSession, type AuthScope } from './identity.ts';
 
 export class TraceRevisitError extends Error {
   constructor(
-    readonly kind: 'invalid' | 'not_found' | 'stale_epoch' | 'source_changed' | 'lineage',
+    readonly kind:
+      | 'invalid'
+      | 'not_found'
+      | 'stale_epoch'
+      | 'source_changed'
+      | 'lineage',
   ) {
     super(kind);
     this.name = 'TraceRevisitError';
@@ -48,7 +53,12 @@ type Lineage = {
   candidates: unknown;
 };
 type SelectedScroll = TraceRevisit['scroll'];
-export type SavedTrace = { eventId: string; assetId: string; title: string; createdAt: Date };
+export type SavedTrace = {
+  eventId: string;
+  assetId: string;
+  title: string;
+  createdAt: Date;
+};
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -56,13 +66,20 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 function sameId(value: unknown, expected: string | null): boolean {
-  return typeof value === 'string' && expected !== null && value.toLowerCase() === expected;
+  return (
+    typeof value === 'string' &&
+    expected !== null &&
+    value.toLowerCase() === expected
+  );
 }
 function lineageError(): never {
   throw new TraceRevisitError('lineage');
 }
 
-async function currentScope(client: pg.PoolClient, scope: AuthScope): Promise<void> {
+async function currentScope(
+  client: pg.PoolClient,
+  scope: AuthScope,
+): Promise<void> {
   const row = (
     await client.query<{
       universe_epoch: number;
@@ -89,7 +106,8 @@ async function currentScope(client: pg.PoolClient, scope: AuthScope): Promise<vo
     )
   ).rows[0];
   if (!row) throw new UnauthorizedSession();
-  if (row.universe_epoch !== scope.privacyEpoch) throw new TraceRevisitError('stale_epoch');
+  if (row.universe_epoch !== scope.privacyEpoch)
+    throw new TraceRevisitError('stale_epoch');
   if (row.session_epoch !== scope.privacyEpoch || row.live !== true)
     throw new UnauthorizedSession();
 }
@@ -118,7 +136,12 @@ async function readLineage(
 }
 
 function selectedSnapshot(row: Lineage, scope: AuthScope): SelectedScroll {
-  if (!row.keep_id || !row.exposure_id || !row.exposure_event_id || !row.decision_id)
+  if (
+    !row.keep_id ||
+    !row.exposure_id ||
+    !row.exposure_event_id ||
+    !row.decision_id
+  )
     lineageError();
   if (
     [row.keep_epoch, row.exposure_epoch, row.decision_epoch].some(
@@ -152,7 +175,8 @@ function selectedSnapshot(row: Lineage, scope: AuthScope): SelectedScroll {
   const payload = record(row.exposure_payload);
   if (
     !payload ||
-    Object.keys(payload).sort().join(',') !== 'assetId,clientExposureId,decisionId,exposureId'
+    Object.keys(payload).sort().join(',') !==
+      'assetId,clientExposureId,decisionId,exposureId'
   )
     lineageError();
   const exposure = exposureInput.safeParse({
@@ -224,7 +248,9 @@ export async function readTraceRevisit(
   if (
     !current.success ||
     Object.keys(selected).some(
-      (key) => selected[key as keyof SelectedScroll] !== current.data[key as keyof SelectedScroll],
+      (key) =>
+        selected[key as keyof SelectedScroll] !==
+        current.data[key as keyof SelectedScroll],
     )
   ) {
     throw new TraceRevisitError('source_changed');
@@ -248,15 +274,22 @@ export async function listSavedTraces(
   await currentScope(client, scope);
   const rows = await readLineage(client, scope);
   const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.event_id, (counts.get(row.event_id) ?? 0) + 1);
+  for (const row of rows)
+    counts.set(row.event_id, (counts.get(row.event_id) ?? 0) + 1);
   const traces = rows.map((row) => {
     let title = 'Saved Scroll unavailable';
     try {
-      if (counts.get(row.event_id) === 1) title = selectedSnapshot(row, scope).title;
+      if (counts.get(row.event_id) === 1)
+        title = selectedSnapshot(row, scope).title;
     } catch (error) {
       if (!(error instanceof TraceRevisitError)) throw error;
     }
-    return { eventId: row.event_id, assetId: row.asset_id, title, createdAt: row.created_at };
+    return {
+      eventId: row.event_id,
+      assetId: row.asset_id,
+      title,
+      createdAt: row.created_at,
+    };
   });
   await currentScope(client, scope);
   return traces;

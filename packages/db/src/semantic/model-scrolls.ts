@@ -11,7 +11,10 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { MaterialHost } from '../../../core/src/scrolls/material.ts';
-import type { CheckedScroll, OfferedConcept } from '../../../core/src/scrolls/writing.ts';
+import type {
+  CheckedScroll,
+  OfferedConcept,
+} from '../../../core/src/scrolls/writing.ts';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 
@@ -53,8 +56,11 @@ export async function loadConceptOffer(
   client: pg.PoolClient,
   codes: readonly string[],
 ): Promise<{ offered: OfferedConcept[]; known: Set<string> }> {
-  const rows = (await client.query<OfferedConcept>('SELECT code, name, description FROM concept'))
-    .rows;
+  const rows = (
+    await client.query<OfferedConcept>(
+      'SELECT code, name, description FROM concept',
+    )
+  ).rows;
   const byCode = new Map(rows.map((r) => [r.code, r]));
   return {
     offered: codes.flatMap((code) => byCode.get(code) ?? []),
@@ -98,13 +104,22 @@ export async function findScrollWriting(
   identity: WritingIdentity,
 ): Promise<AlreadyDecided | null> {
   const row = (
-    await client.query<{ id: string; asset_id: string | null; reasons: string[] }>(
+    await client.query<{
+      id: string;
+      asset_id: string | null;
+      reasons: string[];
+    }>(
       'SELECT id, asset_id, reasons FROM scroll_writing WHERE material_sha256 = $1 AND request_sha256 = $2',
       [identity.materialSha256, identity.requestSha256],
     )
   ).rows[0];
   return row
-    ? { status: 'already_decided', writingId: row.id, assetId: row.asset_id, reasons: row.reasons }
+    ? {
+        status: 'already_decided',
+        writingId: row.id,
+        assetId: row.asset_id,
+        reasons: row.reasons,
+      }
     : null;
 }
 
@@ -117,7 +132,9 @@ export async function recordRefusedScroll(
     reasons: readonly string[];
     record: WritingRecord;
   },
-): Promise<{ status: 'refused'; writingId: string; reasons: string[] } | AlreadyDecided> {
+): Promise<
+  { status: 'refused'; writingId: string; reasons: string[] } | AlreadyDecided
+> {
   const { identity, record } = input;
   const inserted = (
     await client.query<{ id: string }>(
@@ -191,7 +208,11 @@ export async function admitModelScroll(
   const prior = await findScrollWriting(client, identity);
   if (prior) return prior;
   // Checked again under the lock: a correction may have landed since the page was read.
-  const standing = await sourceStanding(client, material.url, identity.materialSha256);
+  const standing = await sourceStanding(
+    client,
+    material.url,
+    identity.materialSha256,
+  );
   if (standing === 'changed')
     return recordRefusedScroll(client, {
       identity,
@@ -205,7 +226,11 @@ export async function admitModelScroll(
   // snapshot.
   const { host } = material;
   let source = (
-    await client.query<{ snapshot_id: string; title: string; publisher: string }>(
+    await client.query<{
+      snapshot_id: string;
+      title: string;
+      publisher: string;
+    }>(
       `
       SELECT
         ss.id AS snapshot_id,
@@ -226,7 +251,11 @@ export async function admitModelScroll(
       client,
       'evidence_family',
       'key',
-      { key: host.family.key, kind: host.family.kind, description: host.family.description },
+      {
+        key: host.family.key,
+        kind: host.family.kind,
+        description: host.family.description,
+      },
       ['kind', 'description'],
     );
     const title =
@@ -260,7 +289,12 @@ export async function admitModelScroll(
       VALUES
         ($1, $2, 1, $3, $4)
     `,
-      [source.snapshot_id, sourceId, material.retrievedAt.slice(0, 10), identity.materialSha256],
+      [
+        source.snapshot_id,
+        sourceId,
+        material.retrievedAt.slice(0, 10),
+        identity.materialSha256,
+      ],
     );
   }
   await client.query(
@@ -302,15 +336,20 @@ export async function admitModelScroll(
       [claimId, `${claimPrefix}.${index + 1}`, claim.statement],
     );
     for (const link of claim.concepts) {
-      await client.query('INSERT INTO claim_concept(claim_id,concept_id,role) VALUES($1,$2,$3)', [
-        claimId,
-        conceptIds.get(link.code),
-        link.role,
-      ]);
+      await client.query(
+        'INSERT INTO claim_concept(claim_id,concept_id,role) VALUES($1,$2,$3)',
+        [claimId, conceptIds.get(link.code), link.role],
+      );
     }
     await client.query(
       'INSERT INTO claim_support(id,claim_id,snapshot_id,quote,support_kind) VALUES($1,$2,$3,$4,$5)',
-      [randomUUID(), claimId, source.snapshot_id, claim.quote, claim.supportKind],
+      [
+        randomUUID(),
+        claimId,
+        source.snapshot_id,
+        claim.quote,
+        claim.supportKind,
+      ],
     );
   }
 
@@ -361,16 +400,15 @@ export async function admitModelScroll(
     ],
   );
   for (const c of scroll.concepts)
-    await client.query('INSERT INTO asset_concept(asset_id,concept_id,role) VALUES($1,$2,$3)', [
-      assetId,
-      conceptIds.get(c.code),
-      c.role,
-    ]);
+    await client.query(
+      'INSERT INTO asset_concept(asset_id,concept_id,role) VALUES($1,$2,$3)',
+      [assetId, conceptIds.get(c.code), c.role],
+    );
   for (const claimId of claimIds)
-    await client.query('INSERT INTO asset_claim(asset_id,claim_id) VALUES($1,$2)', [
-      assetId,
-      claimId,
-    ]);
+    await client.query(
+      'INSERT INTO asset_claim(asset_id,claim_id) VALUES($1,$2)',
+      [assetId, claimId],
+    );
 
   const writingId = randomUUID();
   await client.query(

@@ -27,7 +27,11 @@ import {
   type ReasoningScope,
 } from './reasoning-runtime-policy.js';
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
-type ContextResult = { contextId: string; contentHash: string; readSetHash: string };
+type ContextResult = {
+  contextId: string;
+  contentHash: string;
+  readSetHash: string;
+};
 type LineageRow = {
   ask_id: string;
   ask_event_id: string;
@@ -121,7 +125,8 @@ function codepointCompare(left: string, right: string): number {
 
 function asIso(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime())) throw new Error('Invalid stored timestamp');
+  if (!Number.isFinite(date.getTime()))
+    throw new Error('Invalid stored timestamp');
   return date.toISOString();
 }
 
@@ -129,7 +134,9 @@ function dependencyIdentity(read: AskContextDependency): string {
   return askContextDependencyKey(read);
 }
 
-function sortDependencies(reads: AskContextDependency[]): AskContextDependency[] {
+function sortDependencies(
+  reads: AskContextDependency[],
+): AskContextDependency[] {
   const unique = new Map<string, AskContextDependency>();
   for (const read of reads) {
     const identity = dependencyIdentity(read);
@@ -143,10 +150,17 @@ function sortDependencies(reads: AskContextDependency[]): AskContextDependency[]
   );
 }
 
-function policyDigest(policy: unknown, scope: ReasoningScope): { version: string; hash: string } {
+function policyDigest(
+  policy: unknown,
+  scope: ReasoningScope,
+): { version: string; hash: string } {
   const resolved = validateReasoningPolicy(policy, scope).policy;
   const canonicalPolicy = {
-    scope: { jobId: scope.jobId, privacyEpoch: scope.privacyEpoch, universeId: scope.universeId },
+    scope: {
+      jobId: scope.jobId,
+      privacyEpoch: scope.privacyEpoch,
+      universeId: scope.universeId,
+    },
     policy: {
       ...resolved,
       requiredDimensions: [...resolved.requiredDimensions].sort(),
@@ -155,7 +169,10 @@ function policyDigest(policy: unknown, scope: ReasoningScope): { version: string
       ),
     },
   };
-  return { version: resolved.policyVersion, hash: canonicalHash(canonicalPolicy) };
+  return {
+    version: resolved.policyVersion,
+    hash: canonicalHash(canonicalPolicy),
+  };
 }
 
 function scrollFromRow(row: LineageRow): unknown {
@@ -174,14 +191,19 @@ function scrollFromRow(row: LineageRow): unknown {
 
 function selectedCandidate(
   row: LineageRow,
-): { ok: true; asset: AskContextPayload['asset'] } | { ok: false; reason: ContextRefusal } {
-  const candidates = Array.isArray(row.decision_candidates) ? row.decision_candidates : [];
+):
+  | { ok: true; asset: AskContextPayload['asset'] }
+  | { ok: false; reason: ContextRefusal } {
+  const candidates = Array.isArray(row.decision_candidates)
+    ? row.decision_candidates
+    : [];
   const matched = candidates.filter(
     (candidate) =>
       typeof candidate === 'object' &&
       candidate !== null &&
       typeof (candidate as Record<string, unknown>).assetId === 'string' &&
-      String((candidate as Record<string, unknown>).assetId).toLowerCase() === row.asset_id,
+      String((candidate as Record<string, unknown>).assetId).toLowerCase() ===
+        row.asset_id,
   );
   if (matched.length !== 1) return { ok: false, reason: 'stale_lineage' };
   const candidate = contextScroll.safeParse({
@@ -213,19 +235,33 @@ async function lockUniverse(
 
 async function currentSession(
   client: pg.PoolClient,
-  scope: { sessionId: string; deviceId?: string; universeId: string; privacyEpoch: number },
+  scope: {
+    sessionId: string;
+    deviceId?: string;
+    universeId: string;
+    privacyEpoch: number;
+  },
   lock: boolean,
 ): Promise<SessionRow | null> {
   const query = `SELECT id,device_id,universe_id,privacy_epoch,expires_at,revoked_at FROM device_session
     WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3 AND revoked_at IS NULL AND expires_at>clock_timestamp()${lock ? ' FOR UPDATE' : ''}`;
   const row =
-    (await client.query<SessionRow>(query, [scope.sessionId, scope.universeId, scope.privacyEpoch]))
-      .rows[0] ?? null;
-  if (row && scope.deviceId !== undefined && row.device_id !== scope.deviceId) return null;
+    (
+      await client.query<SessionRow>(query, [
+        scope.sessionId,
+        scope.universeId,
+        scope.privacyEpoch,
+      ])
+    ).rows[0] ?? null;
+  if (row && scope.deviceId !== undefined && row.device_id !== scope.deviceId)
+    return null;
   return row;
 }
 
-async function lockAssets(client: pg.PoolClient, assetIds: string[]): Promise<void> {
+async function lockAssets(
+  client: pg.PoolClient,
+  assetIds: string[],
+): Promise<void> {
   const sorted = [...new Set(assetIds)].sort(codepointCompare);
   const rows = await client.query<{ id: string }>(
     'SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',
@@ -354,7 +390,8 @@ function validLineagePayloads(row: LineageRow, epoch: number): boolean {
     ask.assetId !== row.asset_id ||
     ask.sessionId !== row.ask_session_id ||
     row.ask_causation_id !== row.exposure_event_id ||
-    row.ask_ledger_client_id !== explicitAskLedgerKey(row.ask_session_id, row.ask_client_id)
+    row.ask_ledger_client_id !==
+      explicitAskLedgerKey(row.ask_session_id, row.ask_client_id)
   )
     return false;
   const parsed = explicitAskInput.safeParse({
@@ -371,7 +408,11 @@ function validLineagePayloads(row: LineageRow, epoch: number): boolean {
   )
     return false;
   const exposure = record(row.exposure_payload);
-  if (!exposure || Object.keys(exposure).length !== 4 || exposure.exposureId !== row.exposure_id)
+  if (
+    !exposure ||
+    Object.keys(exposure).length !== 4 ||
+    exposure.exposureId !== row.exposure_id
+  )
     return false;
   const source = exposureInput.safeParse({
     decisionId: exposure.decisionId,
@@ -485,7 +526,12 @@ function lineagePayload(
         asset,
       }),
     },
-    { kind: 'asset', id: asset.assetId, revision: asset.revision, hash: canonicalHash(asset) },
+    {
+      kind: 'asset',
+      id: asset.assetId,
+      revision: asset.revision,
+      hash: canonicalHash(asset),
+    },
   ];
   return { fact, asset, dependencies: sortDependencies(dependencies) };
 }
@@ -499,7 +545,11 @@ export async function compileDirectAskContext(
   const parsed = compileDirectAskContextInput.safeParse(input);
   if (!parsed.success) deny('malformed');
   const request = parsed.data;
-  await lockUniverse(client, authenticatedScope.universeId, authenticatedScope.privacyEpoch);
+  await lockUniverse(
+    client,
+    authenticatedScope.universeId,
+    authenticatedScope.privacyEpoch,
+  );
   const session = await currentSession(client, authenticatedScope, true);
   if (!session) deny('inactive_session');
   const job = await lockDirectJob(client, authenticatedScope, request.jobId);
@@ -532,7 +582,11 @@ export async function compileDirectAskContext(
       [request.jobId],
     )
   ).rows[0];
-  if (askBinding && (askBinding.ask_id !== request.askId || askBinding.session_id !== session.id))
+  if (
+    askBinding &&
+    (askBinding.ask_id !== request.askId ||
+      askBinding.session_id !== session.id)
+  )
     deny('stale_lineage');
   const initial = await readLineage(
     client,
@@ -549,7 +603,11 @@ export async function compileDirectAskContext(
     authenticatedScope.privacyEpoch,
     request.askId,
   );
-  if (!rows || rows.asset_id !== initial.asset_id || rows.ask_session_id !== session.id)
+  if (
+    !rows ||
+    rows.asset_id !== initial.asset_id ||
+    rows.ask_session_id !== session.id
+  )
     deny('stale_lineage');
   const scope = {
     universeId: authenticatedScope.universeId,
@@ -559,11 +617,18 @@ export async function compileDirectAskContext(
   const lineage = lineagePayload(rows, scope);
   if ('reason' in lineage) deny(lineage.reason);
   const policy = policyDigest(await resolvePolicy(client, scope), scope);
-  const currentJob = await lockDirectJob(client, authenticatedScope, request.jobId, false);
-  if (!currentJob || currentJob.intentId !== request.askId) deny('stale_lineage');
+  const currentJob = await lockDirectJob(
+    client,
+    authenticatedScope,
+    request.jobId,
+    false,
+  );
+  if (!currentJob || currentJob.intentId !== request.askId)
+    deny('stale_lineage');
   if (policy.version !== currentJob.policyVersion) deny('changed_policy');
   const current = await currentSession(client, authenticatedScope, false);
-  if (!current || asIso(current.expires_at) !== asIso(session.expires_at)) deny('inactive_session');
+  if (!current || asIso(current.expires_at) !== asIso(session.expires_at))
+    deny('inactive_session');
   const dependencies = sortDependencies([
     ...lineage.dependencies,
     {
@@ -590,7 +655,11 @@ export async function compileDirectAskContext(
     sourcePolicyVersion: ASK_CONTEXT_VERSIONS.sourcePolicy,
     runtimePolicyVersion: policy.version,
     runtimePolicyHash: policy.hash,
-    eventHighWater: await highWater(client, scope.universeId, scope.privacyEpoch),
+    eventHighWater: await highWater(
+      client,
+      scope.universeId,
+      scope.privacyEpoch,
+    ),
     selection: 'explicit_ask_id',
     fact: lineage.fact,
     asset: lineage.asset,
@@ -630,7 +699,13 @@ export async function compileDirectAskContext(
     VALUES
       ($1, $2, $3, $4, $5)
   `,
-      [request.jobId, scope.universeId, scope.privacyEpoch, current.id, request.askId],
+      [
+        request.jobId,
+        scope.universeId,
+        scope.privacyEpoch,
+        current.id,
+        request.askId,
+      ],
     );
   await client.query(
     `
@@ -709,7 +784,11 @@ async function loadSealed(
   client: pg.PoolClient,
   scope: ReasoningContextCheck,
 ): Promise<
-  | { payload: AskContextPayload; sealed: SealedRow; dependencies: AskContextDependency[] }
+  | {
+      payload: AskContextPayload;
+      sealed: SealedRow;
+      dependencies: AskContextDependency[];
+    }
   | { reason: ContextRefusal }
 > {
   const sealed = (
@@ -754,7 +833,13 @@ async function loadSealed(
         AND universe_id = $4
         AND privacy_epoch = $5
     `,
-      [scope.stepId, scope.jobId, scope.contextId, scope.universeId, scope.privacyEpoch],
+      [
+        scope.stepId,
+        scope.jobId,
+        scope.contextId,
+        scope.universeId,
+        scope.privacyEpoch,
+      ],
     )
   ).rows[0];
   if (!step) return { reason: 'foreign' };
@@ -810,7 +895,9 @@ async function loadSealed(
   try {
     dependencies = sortDependencies(
       rows.map((row) => {
-        const parsed = askContextDependency.parse(JSON.parse(row.canonical_dependency));
+        const parsed = askContextDependency.parse(
+          JSON.parse(row.canonical_dependency),
+        );
         if (
           canonical(parsed) !== row.canonical_dependency ||
           dependencyIdentity(parsed) !== row.identity ||
@@ -888,7 +975,8 @@ export async function validateDirectAskContext(
   if (!job || job.wake_kind !== 'direct' || job.intent_id !== payload.intentId)
     return { valid: false, reason: 'stale_lineage' };
   if (!job.live) return { valid: false, reason: 'unsupported' };
-  if (job.policy_version !== scope.policyVersion) return { valid: false, reason: 'changed_policy' };
+  if (job.policy_version !== scope.policyVersion)
+    return { valid: false, reason: 'changed_policy' };
   const binding = (
     await client.query<{ session_id: string; ask_id: string }>(
       `
@@ -909,7 +997,11 @@ export async function validateDirectAskContext(
       [scope.jobId, scope.universeId, scope.privacyEpoch],
     )
   ).rows[0];
-  if (!binding || binding.session_id !== payload.sessionId || binding.ask_id !== payload.fact.askId)
+  if (
+    !binding ||
+    binding.session_id !== payload.sessionId ||
+    binding.ask_id !== payload.fact.askId
+  )
     return { valid: false, reason: 'corrupt_seal' };
   const session = await currentSession(
     client,
@@ -936,12 +1028,21 @@ export async function validateDirectAskContext(
       scope,
     );
   } catch (error) {
-    if (error instanceof ReasoningDenied) return { valid: false, reason: 'changed_policy' };
+    if (error instanceof ReasoningDenied)
+      return { valid: false, reason: 'changed_policy' };
     throw error;
   }
-  if (policy.version !== scope.policyVersion || policy.hash !== payload.runtimePolicyHash)
+  if (
+    policy.version !== scope.policyVersion ||
+    policy.hash !== payload.runtimePolicyHash
+  )
     return { valid: false, reason: 'changed_policy' };
-  const row = await readLineage(client, scope.universeId, scope.privacyEpoch, payload.fact.askId);
+  const row = await readLineage(
+    client,
+    scope.universeId,
+    scope.privacyEpoch,
+    payload.fact.askId,
+  );
   if (!row || row.ask_session_id !== payload.sessionId)
     return { valid: false, reason: 'stale_lineage' };
   const lineage = lineagePayload(row, scope);

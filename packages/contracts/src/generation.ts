@@ -67,7 +67,9 @@ export const generationBrief = z
         message: 'each claim is sourced once',
       });
     const assets = new Set(
-      brief.claimSources.map((source) => `${source.assetId}@${source.assetRevision}`),
+      brief.claimSources.map(
+        (source) => `${source.assetId}@${source.assetRevision}`,
+      ),
     );
     if (assets.size !== 1)
       ctx.addIssue({
@@ -79,9 +81,13 @@ export const generationBrief = z
 export type GenerationBrief = z.infer<typeof generationBrief>;
 
 /** The exact source revision a brief rests on, for the row that stores it. */
-export function briefSource(brief: GenerationBrief): { assetId: string; assetRevision: number } {
+export function briefSource(brief: GenerationBrief): {
+  assetId: string;
+  assetRevision: number;
+} {
   const first = brief.claimSources[0];
-  if (first === undefined) throw new Error('A generation brief has at least one claim source');
+  if (first === undefined)
+    throw new Error('A generation brief has at least one claim source');
   return { assetId: first.assetId, assetRevision: first.assetRevision };
 }
 

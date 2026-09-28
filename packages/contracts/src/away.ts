@@ -12,7 +12,9 @@ const id = z.string().uuid();
 const epoch = z.number().int().min(0).max(2147483647);
 const at = z.string().datetime();
 const reason = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
-const conceptRef = z.object({ code: conceptCode, name: z.string().min(1).max(80) }).strict();
+const conceptRef = z
+  .object({ code: conceptCode, name: z.string().min(1).max(80) })
+  .strict();
 const pairs = z
   .array(z.object({ a: conceptRef, b: conceptRef }).strict())
   .min(1)
@@ -49,7 +51,9 @@ export const awayItem = z.discriminatedUnion('kind', [
       reasons: z.array(reason).min(1).max(24),
     })
     .strict(),
-  z.object({ kind: z.literal('nothing_found'), at, inquiryId: id, pairs }).strict(),
+  z
+    .object({ kind: z.literal('nothing_found'), at, inquiryId: id, pairs })
+    .strict(),
   z
     .object({
       kind: z.literal('place_changed'),
@@ -78,7 +82,11 @@ export const awayItem = z.discriminatedUnion('kind', [
       deltaId: id,
       roomId: id,
       placeId: id,
-      change: z.enum(['position_changed', 'inhabitant_unseated', 'room_retired']),
+      change: z.enum([
+        'position_changed',
+        'inhabitant_unseated',
+        'room_retired',
+      ]),
       /** ADR-0045: as for places, only a source correction changes a room without the reader. */
       cause: z.literal('source_correction'),
       /** The Keeper's own deterministic line for the delta, never model text. */
@@ -99,13 +107,20 @@ export const awayItem = z.discriminatedUnion('kind', [
   /** ADR-0046 §5: a Scroll bound to the reader's need (shown or awaited) was withdrawn because what it
    * was based on changed. The client words it; no source is named. */
   z
-    .object({ kind: z.literal('scroll_withdrawn'), at, bindingId: id, concept: conceptRef })
+    .object({
+      kind: z.literal('scroll_withdrawn'),
+      at,
+      bindingId: id,
+      concept: conceptRef,
+    })
     .strict(),
 ]);
 export type AwayItem = z.infer<typeof awayItem>;
 
 /** Every kind the list carries, so a page may end on any of them. */
-export const AWAY_KINDS = awayItem.options.map((option) => option.shape.kind.value);
+export const AWAY_KINDS = awayItem.options.map(
+  (option) => option.shape.kind.value,
+);
 
 /** A page ends at `at|kind|id`: its last item in the list's one total order (ADR-0044 M7). */
 export const AWAY_CURSOR_PATTERN = new RegExp(
@@ -130,12 +145,24 @@ export const awayResponse = z
   .superRefine((v, ctx) => {
     for (let i = 1; i < v.items.length; i += 1) {
       if (v.items[i]!.at > v.items[i - 1]!.at)
-        ctx.addIssue({ code: 'custom', path: ['items', i], message: 'Items are newest first' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items', i],
+          message: 'Items are newest first',
+        });
     }
     if (v.since !== null && v.items.some((item) => item.at <= v.since!))
-      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Items are after the marker' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['items'],
+        message: 'Items are after the marker',
+      });
     if (v.items.length < AWAY_LIST_LIMIT && v.more > 0)
-      ctx.addIssue({ code: 'custom', path: ['more'], message: 'More only when the list is full' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['more'],
+        message: 'More only when the list is full',
+      });
     if (v.more > 0 !== (v.nextPage !== null))
       ctx.addIssue({
         code: 'custom',
@@ -151,5 +178,7 @@ export const awayAcknowledgeInput = z
   .strict();
 export type AwayAcknowledgeInput = z.infer<typeof awayAcknowledgeInput>;
 
-export const awayAcknowledgeResponse = z.object({ privacyEpoch: epoch, since: at }).strict();
+export const awayAcknowledgeResponse = z
+  .object({ privacyEpoch: epoch, since: at })
+  .strict();
 export type AwayAcknowledgeResponse = z.infer<typeof awayAcknowledgeResponse>;

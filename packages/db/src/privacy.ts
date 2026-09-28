@@ -14,17 +14,33 @@ import type {
 } from '../../contracts/src/index.ts';
 import type { AuthScope } from './identity.ts';
 import { eraseReasoningForHistoryClear } from './reasoning-storage.ts';
-import { eraseSemanticHistory, exportSemanticHistory } from './semantic/branches.ts';
-import { erasePersonalModel, exportPersonalModel } from './semantic/personal-model.ts';
+import {
+  eraseSemanticHistory,
+  exportSemanticHistory,
+} from './semantic/branches.ts';
+import {
+  erasePersonalModel,
+  exportPersonalModel,
+} from './semantic/personal-model.ts';
 import { eraseAskAnswers, exportAskAnswers } from './reasoning-answers.ts';
-import { eraseInquiries, exportInquiries, withdrawInquiries } from './reasoning-inquiries.ts';
+import {
+  eraseInquiries,
+  exportInquiries,
+  withdrawInquiries,
+} from './reasoning-inquiries.ts';
 import { eraseAway, exportAway } from './away.ts';
 import { eraseRelics, exportRelics } from './relics.ts';
-import { cancelDemands, eraseInventory, exportInventory } from './inventory/demand.ts';
+import {
+  cancelDemands,
+  eraseInventory,
+  exportInventory,
+} from './inventory/demand.ts';
 
 export class HistoryClearConflict extends Error {
   readonly statusCode = 409;
-  constructor(message = 'History clear conflicts with the current privacy epoch') {
+  constructor(
+    message = 'History clear conflicts with the current privacy epoch',
+  ) {
     super(message);
     this.name = 'HistoryClearConflict';
   }
@@ -44,7 +60,10 @@ function receiptFromRow(row: Record<string, unknown>): HistoryClearReceipt {
 
 /** Called only after exposure erasure, under the caller's existing authenticated universe lock.
  * Shared world/asset evidence and other universes are deliberately outside this deletion. */
-async function eraseEncounterSystem(client: pg.PoolClient, universeId: string): Promise<void> {
+async function eraseEncounterSystem(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
   await client.query(
     `
    DELETE FROM world_system_member
@@ -60,7 +79,9 @@ async function eraseEncounterSystem(client: pg.PoolClient, universeId: string): 
  `,
     [universeId],
   );
-  await client.query('DELETE FROM world_system WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM world_system WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
 /** The personal history both Clear (ADR-0010) and Reset (ADR-0030) erase, in FK-safe order, under
@@ -83,7 +104,11 @@ async function erasePersonalHistory(
   await eraseAskAnswers(client, universeId);
   // #132 (ADR-0038): inquiry mail, inquiries and consent go before the atlas deltas and proposals they name.
   await eraseInquiries(client, universeId);
-  await eraseReasoningForHistoryClear(client, { universeId, epochBefore, epochAfter });
+  await eraseReasoningForHistoryClear(client, {
+    universeId,
+    epochBefore,
+    epochAfter,
+  });
   await client.query('DELETE FROM job WHERE universe_id=$1', [universeId]);
   await client.query('DELETE FROM trace WHERE universe_id=$1', [universeId]);
   await erasePersonalModel(client, universeId);
@@ -97,7 +122,8 @@ async function erasePersonalHistory(
   WHERE universe_id=$1`,
     [universeId],
   );
-  if (accounts.rowCount !== 1) throw new Error('Universe accounts state is missing');
+  if (accounts.rowCount !== 1)
+    throw new Error('Universe accounts state is missing');
 }
 
 export async function clearScrollHistory(
@@ -129,7 +155,8 @@ export async function clearScrollHistory(
       );
     return receiptFromRow(old);
   }
-  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new HistoryClearConflict();
+  if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
+    throw new HistoryClearConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
   const universe = await client.query(
@@ -161,9 +188,16 @@ export async function clearScrollHistory(
     [scope.sessionId, scope.universeId, nextEpoch, scope.privacyEpoch],
   );
   if (session.rowCount !== 1)
-    throw new Error('Authenticated session could not advance with history clear');
+    throw new Error(
+      'Authenticated session could not advance with history clear',
+    );
 
-  await erasePersonalHistory(client, scope.universeId, scope.privacyEpoch, nextEpoch);
+  await erasePersonalHistory(
+    client,
+    scope.universeId,
+    scope.privacyEpoch,
+    nextEpoch,
+  );
 
   const receipt = (
     await client.query(
@@ -184,7 +218,13 @@ export async function clearScrollHistory(
      epoch_after,
      cleared_at
  `,
-      [randomUUID(), scope.universeId, input.requestId, scope.privacyEpoch, nextEpoch],
+      [
+        randomUUID(),
+        scope.universeId,
+        input.requestId,
+        scope.privacyEpoch,
+        nextEpoch,
+      ],
     )
   ).rows[0];
   return receiptFromRow(receipt);
@@ -195,19 +235,26 @@ export async function clearScrollHistory(
 // recheck the authenticated session's epoch after that wait resolves, exactly as Clear does.
 
 function isoDate(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(String(value)).toISOString();
 }
 
 export class PrivacyLifecycleConflict extends Error {
   readonly statusCode = 409;
-  constructor(message = 'Privacy operation conflicts with the current privacy epoch') {
+  constructor(
+    message = 'Privacy operation conflicts with the current privacy epoch',
+  ) {
     super(message);
     this.name = 'PrivacyLifecycleConflict';
   }
 }
 
-function recordingReceiptFromRow(row: Record<string, unknown>): PrivacyRecordingReceipt {
-  const action = row.action === 'pause' ? ('pause' as const) : ('resume' as const);
+function recordingReceiptFromRow(
+  row: Record<string, unknown>,
+): PrivacyRecordingReceipt {
+  const action =
+    row.action === 'pause' ? ('pause' as const) : ('resume' as const);
   const appliedAt = isoDate(row.applied_at);
   return {
     receiptId: String(row.id),
@@ -258,7 +305,8 @@ async function setRecordingPaused(
       );
     return recordingReceiptFromRow(old);
   }
-  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
+  if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
+    throw new PrivacyLifecycleConflict();
 
   // The universe fact is set first, in this same transaction, so the receipt-guard trigger can
   // require it to already hold — "the receipt says paused" and "the universe is paused" can never
@@ -269,9 +317,10 @@ async function setRecordingPaused(
           'UPDATE universe SET recording_paused_at=clock_timestamp() WHERE id=$1',
           [scope.universeId],
         )
-      : await client.query('UPDATE universe SET recording_paused_at=NULL WHERE id=$1', [
-          scope.universeId,
-        ]);
+      : await client.query(
+          'UPDATE universe SET recording_paused_at=NULL WHERE id=$1',
+          [scope.universeId],
+        );
   if (!universe.rowCount) throw new Error('Universe row is missing');
 
   const receipt = (
@@ -294,14 +343,30 @@ async function setRecordingPaused(
       privacy_epoch,
       applied_at
   `,
-      [randomUUID(), scope.universeId, input.requestId, action, scope.privacyEpoch],
+      [
+        randomUUID(),
+        scope.universeId,
+        input.requestId,
+        action,
+        scope.privacyEpoch,
+      ],
     )
   ).rows[0];
   // ADR-0038 §8: pausing stops every background inquiry not yet sent; a call in flight is discarded at apply.
   // ADR-0046 §3: it cancels this universe's waiters and open demands too, never another's or a shared request.
   if (action === 'pause') {
-    await withdrawInquiries(client, scope.universeId, scope.privacyEpoch, 'recording_paused');
-    await cancelDemands(client, scope.universeId, scope.privacyEpoch, 'recording_paused');
+    await withdrawInquiries(
+      client,
+      scope.universeId,
+      scope.privacyEpoch,
+      'recording_paused',
+    );
+    await cancelDemands(
+      client,
+      scope.universeId,
+      scope.privacyEpoch,
+      'recording_paused',
+    );
   }
   return recordingReceiptFromRow(receipt);
 }
@@ -333,7 +398,8 @@ export async function exportUniverse(
   scope: AuthScope,
   input: PrivacyLifecycleInput,
 ): Promise<PrivacyExportResult> {
-  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
+  if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
+    throw new PrivacyLifecycleConflict();
 
   const universeRow = (
     await client.query(
@@ -355,30 +421,41 @@ export async function exportUniverse(
   ).rows[0];
   if (!universeRow) throw new Error('Universe row is missing');
   const accountsRow = (
-    await client.query('SELECT kept_asset_ids,revision FROM accounts WHERE universe_id=$1', [
-      scope.universeId,
-    ])
+    await client.query(
+      'SELECT kept_asset_ids,revision FROM accounts WHERE universe_id=$1',
+      [scope.universeId],
+    )
   ).rows[0];
   if (!accountsRow) throw new Error('Universe accounts state is missing');
 
   const decisions = (
-    await client.query('SELECT * FROM decision WHERE universe_id=$1 ORDER BY created_at', [
-      scope.universeId,
-    ])
+    await client.query(
+      'SELECT * FROM decision WHERE universe_id=$1 ORDER BY created_at',
+      [scope.universeId],
+    )
   ).rows;
   const ledger = (
-    await client.query('SELECT * FROM ledger WHERE universe_id=$1 ORDER BY seq', [scope.universeId])
+    await client.query(
+      'SELECT * FROM ledger WHERE universe_id=$1 ORDER BY seq',
+      [scope.universeId],
+    )
   ).rows;
   const exposures = (
-    await client.query('SELECT * FROM exposure WHERE universe_id=$1', [scope.universeId])
-  ).rows;
-  const traces = (
-    await client.query('SELECT * FROM trace WHERE universe_id=$1 ORDER BY created_at', [
+    await client.query('SELECT * FROM exposure WHERE universe_id=$1', [
       scope.universeId,
     ])
   ).rows;
-  const jobs = (await client.query('SELECT * FROM job WHERE universe_id=$1', [scope.universeId]))
-    .rows;
+  const traces = (
+    await client.query(
+      'SELECT * FROM trace WHERE universe_id=$1 ORDER BY created_at',
+      [scope.universeId],
+    )
+  ).rows;
+  const jobs = (
+    await client.query('SELECT * FROM job WHERE universe_id=$1', [
+      scope.universeId,
+    ])
+  ).rows;
   const deviceSessionRows = (
     await client.query(
       `
@@ -398,13 +475,15 @@ export async function exportUniverse(
       [scope.universeId],
     )
   ).rows;
-  const deviceSessions: PrivacyExportDeviceSession[] = deviceSessionRows.map((row) => ({
-    deviceId: String(row.device_id),
-    origin: String(row.origin),
-    createdAt: isoDate(row.created_at),
-    expiresAt: isoDate(row.expires_at),
-    revokedAt: row.revoked_at ? isoDate(row.revoked_at) : null,
-  }));
+  const deviceSessions: PrivacyExportDeviceSession[] = deviceSessionRows.map(
+    (row) => ({
+      deviceId: String(row.device_id),
+      origin: String(row.origin),
+      createdAt: isoDate(row.created_at),
+      expiresAt: isoDate(row.expires_at),
+      revokedAt: row.revoked_at ? isoDate(row.revoked_at) : null,
+    }),
+  );
 
   // ADR-0028: "status, class, timestamps, and recorded token/cost usage — the evidence that
   // reasoning ran and what it cost, not its internal working state." Scheduling/lease/routing
@@ -546,7 +625,9 @@ export async function exportUniverse(
     rowCounts,
     // A development-token universe that has never been adopted through magic-link sign-in
     // (ADR-0026) has no bound account row yet, so there is no email to report — not an omission.
-    account: { email: universeRow.email === null ? null : String(universeRow.email) },
+    account: {
+      email: universeRow.email === null ? null : String(universeRow.email),
+    },
     universe: {
       id: String(universeRow.id),
       revision: Number(universeRow.revision),
@@ -580,7 +661,9 @@ export async function exportUniverse(
   };
 }
 
-function resetReceiptFromRow(row: Record<string, unknown>): PrivacyResetReceipt {
+function resetReceiptFromRow(
+  row: Record<string, unknown>,
+): PrivacyResetReceipt {
   return {
     receiptId: String(row.id),
     epochBefore: Number(row.epoch_before),
@@ -624,7 +707,8 @@ export async function resetPersonalUniverse(
       );
     return resetReceiptFromRow(old);
   }
-  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
+  if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
+    throw new PrivacyLifecycleConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
   const universe = await client.query(
@@ -643,7 +727,12 @@ export async function resetPersonalUniverse(
   );
   if (!universe.rowCount) throw new PrivacyLifecycleConflict();
 
-  await erasePersonalHistory(client, scope.universeId, scope.privacyEpoch, nextEpoch);
+  await erasePersonalHistory(
+    client,
+    scope.universeId,
+    scope.privacyEpoch,
+    nextEpoch,
+  );
 
   // Beyond Clear: end every session for this universe, including the caller's own.
   const revoked = await client.query(
@@ -660,7 +749,8 @@ export async function resetPersonalUniverse(
     [scope.universeId],
   );
   const sessionsRevoked = revoked.rowCount ?? 0;
-  if (sessionsRevoked < 1) throw new Error('Reset must revoke at least the calling session');
+  if (sessionsRevoked < 1)
+    throw new Error('Reset must revoke at least the calling session');
 
   const receipt = (
     await client.query(
@@ -712,7 +802,8 @@ export async function deleteAccount(
   scope: AuthScope,
   input: AccountDeletionInput,
 ): Promise<AccountDeletionReceipt> {
-  if (input.expectedPrivacyEpoch !== scope.privacyEpoch) throw new PrivacyLifecycleConflict();
+  if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
+    throw new PrivacyLifecycleConflict();
   const bound = (
     await client.query<{ account_id: string | null; email: string | null }>(
       'SELECT u.account_id, a.email FROM universe u LEFT JOIN account a ON a.id=u.account_id WHERE u.id=$1',
@@ -720,7 +811,9 @@ export async function deleteAccount(
     )
   ).rows[0];
   if (!bound?.account_id || !bound.email)
-    throw new PrivacyLifecycleConflict('This universe has no account to delete');
+    throw new PrivacyLifecycleConflict(
+      'This universe has no account to delete',
+    );
   const accountId = bound.account_id;
   // The same lock `requestMagicLink` takes before it inserts a sign-in token for this address (only
   // the owner address ever gets an account, so it is this account's). Without it a link requested
@@ -748,7 +841,12 @@ export async function deleteAccount(
     [scope.universeId, scope.privacyEpoch, nextEpoch],
   );
   if (!universe.rowCount) throw new PrivacyLifecycleConflict();
-  await erasePersonalHistory(client, scope.universeId, scope.privacyEpoch, nextEpoch);
+  await erasePersonalHistory(
+    client,
+    scope.universeId,
+    scope.privacyEpoch,
+    nextEpoch,
+  );
 
   const sessionRows = (
     await client.query<{ id: string; origin: string }>(
@@ -757,7 +855,10 @@ export async function deleteAccount(
     )
   ).rows;
   const sessions = sessionRows.length;
-  if (sessions < 1) throw new Error('Account deletion must remove at least the calling session');
+  if (sessions < 1)
+    throw new Error(
+      'Account deletion must remove at least the calling session',
+    );
   // Named in the tombstone so `ensureDevelopmentSession` never re-creates them on the next start.
   const developmentSessionIds = sessionRows
     .filter((row) => row.origin === 'development')
@@ -800,18 +901,28 @@ export async function deleteAccount(
 
   // Order is the foreign keys': tokens name the sessions they minted; sessions and the universe
   // name the account.
-  await client.query('DELETE FROM sign_in_token WHERE account_id=$1', [accountId]);
-  await client.query('DELETE FROM device_session WHERE universe_id=$1', [scope.universeId]);
-  await client.query('UPDATE universe SET account_id=NULL WHERE id=$1', [scope.universeId]);
+  await client.query('DELETE FROM sign_in_token WHERE account_id=$1', [
+    accountId,
+  ]);
+  await client.query('DELETE FROM device_session WHERE universe_id=$1', [
+    scope.universeId,
+  ]);
+  await client.query('UPDATE universe SET account_id=NULL WHERE id=$1', [
+    scope.universeId,
+  ]);
   for (const table of [
     'history_clear_receipt',
     'privacy_recording_receipt',
     'privacy_export_receipt',
     'privacy_reset_receipt',
   ]) {
-    await client.query(`DELETE FROM ${table} WHERE universe_id=$1`, [scope.universeId]);
+    await client.query(`DELETE FROM ${table} WHERE universe_id=$1`, [
+      scope.universeId,
+    ]);
   }
-  const account = await client.query('DELETE FROM account WHERE id=$1', [accountId]);
+  const account = await client.query('DELETE FROM account WHERE id=$1', [
+    accountId,
+  ]);
   if (account.rowCount !== 1) throw new Error('Account row is missing');
   return {
     receiptId: String(receipt.id),

@@ -21,13 +21,17 @@ import {
   SYMMETRIC_BRIDGE_TYPES,
   type BridgeRelationType,
 } from '../../../contracts/src/semantic.ts';
-import { decayedMass, ATTENTION_V1 } from '../../../core/src/semantic/attention.ts';
+import {
+  decayedMass,
+  ATTENTION_V1,
+} from '../../../core/src/semantic/attention.ts';
 import type { AuthScope } from '../identity.ts';
 import { loadBoundScrolls } from '../inventory/read.ts';
 import { BRANCH_POLICY_VERSION } from '../semantic/branches.ts';
 
 type Row = Record<string, unknown>;
-const ms = (v: unknown) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
+const ms = (v: unknown) =>
+  v instanceof Date ? v.getTime() : new Date(String(v)).getTime();
 const PHRASES: Record<BridgeRelationType, [string, string]> = {
   explains: ['explains', 'is explained by'],
   prerequisite_for: ['comes before understanding', 'builds on'],
@@ -36,7 +40,9 @@ const PHRASES: Record<BridgeRelationType, [string, string]> = {
   analogous_in: ['is like', 'is like'],
 };
 
-export type SemanticPolicyVersion = typeof COMPOSER_SEMANTIC_V3 | typeof COMPOSER_SEMANTIC_V4;
+export type SemanticPolicyVersion =
+  | typeof COMPOSER_SEMANTIC_V3
+  | typeof COMPOSER_SEMANTIC_V4;
 
 export async function loadV3Policy(
   client: pg.PoolClient,
@@ -64,7 +70,9 @@ export async function loadV3Policy(
   };
 }
 
-export async function loadReasonTemplates(client: pg.PoolClient): Promise<Map<string, string>> {
+export async function loadReasonTemplates(
+  client: pg.PoolClient,
+): Promise<Map<string, string>> {
   return new Map(
     (
       await client.query<{ explanation_key: string; template: string }>(
@@ -74,7 +82,10 @@ export async function loadReasonTemplates(client: pg.PoolClient): Promise<Map<st
   );
 }
 
-type AssetIdentity = Pick<FeedAsset, 'assetId' | 'title' | 'kind' | 'sourceUrl'>;
+type AssetIdentity = Pick<
+  FeedAsset,
+  'assetId' | 'title' | 'kind' | 'sourceUrl'
+>;
 
 /** What each asset is about and which claims it presents, as the pure policy reads them. */
 async function describeAssets(
@@ -163,7 +174,11 @@ export async function loadV3State(
 ): Promise<V3State> {
   const concepts = new Map(
     (
-      await client.query<{ code: string; name: string; parent_code: string | null }>(
+      await client.query<{
+        code: string;
+        name: string;
+        parent_code: string | null;
+      }>(
         `
       SELECT
         c.code,
@@ -174,13 +189,20 @@ export async function loadV3State(
         LEFT JOIN concept p ON p.id = c.parent_id
     `,
       )
-    ).rows.map((r) => [r.code, { code: r.code, name: r.name, parentCode: r.parent_code }]),
+    ).rows.map((r) => [
+      r.code,
+      { code: r.code, name: r.name, parentCode: r.parent_code },
+    ]),
   );
   const assets = await describeAssets(client, eligible);
 
   const kept = new Set<string>(
-    ((await client.query('SELECT kept_asset_ids FROM accounts WHERE universe_id=$1', [universeId]))
-      .rows[0]?.kept_asset_ids as string[]) ?? [],
+    ((
+      await client.query(
+        'SELECT kept_asset_ids FROM accounts WHERE universe_id=$1',
+        [universeId],
+      )
+    ).rows[0]?.kept_asset_ids as string[]) ?? [],
   );
   const exposureRows = (
     await client.query<Row>(
@@ -218,14 +240,19 @@ export async function loadV3State(
       count: (prior?.count ?? 0) + 1,
       lastAtMs: Math.max(prior?.lastAtMs ?? 0, ms(r.created_at)),
     });
-    sourceExposures.set(String(r.source_url), (sourceExposures.get(String(r.source_url)) ?? 0) + 1);
+    sourceExposures.set(
+      String(r.source_url),
+      (sourceExposures.get(String(r.source_url)) ?? 0) + 1,
+    );
   }
   // An explicit branch is the reader's own exploration: it counts toward the exploration floor.
   const served = exposureRows.map((r) => ({
     assetId: String(r.asset_id),
     atMs: ms(r.created_at),
     family:
-      (r.policy_version === BRANCH_POLICY_VERSION ? 'bridge' : (r.family as Family | null)) ?? null,
+      (r.policy_version === BRANCH_POLICY_VERSION
+        ? 'bridge'
+        : (r.family as Family | null)) ?? null,
   }));
 
   const marks = (
@@ -270,7 +297,10 @@ export async function loadV3State(
   // read now in Scroll mode) still grounds this composition; it is described, never offered.
   const offered = new Set(eligible.map((a) => a.assetId));
   const elsewhere = [
-    ...new Set([...exposureRows.map((r) => String(r.asset_id)), ...marks.map((m) => m.assetId)]),
+    ...new Set([
+      ...exposureRows.map((r) => String(r.asset_id)),
+      ...marks.map((m) => m.assetId),
+    ]),
   ].filter((id) => !offered.has(id));
   const history = await describeAssets(
     client,
@@ -314,7 +344,12 @@ export async function loadV3State(
     ).rows.map((r) => [
       String(r.code),
       {
-        mass: decayedMass(Number(r.mass), ms(r.mass_at), nowMs, ATTENTION_V1.halfLifeDays),
+        mass: decayedMass(
+          Number(r.mass),
+          ms(r.mass_at),
+          nowMs,
+          ATTENTION_V1.halfLifeDays,
+        ),
         exposureShare: Number(r.exposure_share),
       },
     ]),
@@ -503,12 +538,22 @@ export async function composeAndRecordV3(
   ).rows[0]!.now.getTime();
   const policy = await loadV3Policy(client, version);
   const templates = await loadReasonTemplates(client);
-  const state = await loadV3State(client, scope.universeId, eligible, nowMs, excluded);
+  const state = await loadV3State(
+    client,
+    scope.universeId,
+    eligible,
+    nowMs,
+    excluded,
+  );
   const result = composeSemantic(state, policy);
   const byId = new Map(eligible.map((a) => [a.assetId, a]));
-  const reasonFor = (key: string, facts: Record<string, string | number | null>) => {
+  const reasonFor = (
+    key: string,
+    facts: Record<string, string | number | null>,
+  ) => {
     const template = templates.get(key);
-    if (template === undefined) throw new Error(`No registered composer_reason_template '${key}'`);
+    if (template === undefined)
+      throw new Error(`No registered composer_reason_template '${key}'`);
     return renderReason(template, facts);
   };
   const items = result.selected.map((c) => ({
@@ -726,7 +771,10 @@ export async function readWhy(
     assetId,
     policyVersion: String(row.policy_version),
     family: row.family as Family,
-    reason: renderReason(String(row.template), row.facts as Record<string, string>),
+    reason: renderReason(
+      String(row.template),
+      row.facts as Record<string, string>,
+    ),
     evidence: row.evidence as unknown[],
     terms: row.terms as Record<string, number>,
     quotas: row.quotas as string[],

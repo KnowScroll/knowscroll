@@ -21,17 +21,19 @@ export const traceRevisitScroll = z
 // Stored decision candidates include recommendation metadata (currently reason).
 // Validate and project only the nine display fields; metadata never enters the
 // strict read response or the current-asset equality comparison.
-export const traceRevisitCandidate = traceRevisitScroll.passthrough().transform((value) => ({
-  assetId: value.assetId,
-  revision: value.revision,
-  kind: value.kind,
-  title: value.title,
-  summary: value.summary,
-  body: value.body,
-  sourceTitle: value.sourceTitle,
-  sourceUrl: value.sourceUrl,
-  truthState: value.truthState,
-}));
+export const traceRevisitCandidate = traceRevisitScroll
+  .passthrough()
+  .transform((value) => ({
+    assetId: value.assetId,
+    revision: value.revision,
+    kind: value.kind,
+    title: value.title,
+    summary: value.summary,
+    body: value.body,
+    sourceTitle: value.sourceTitle,
+    sourceUrl: value.sourceUrl,
+    truthState: value.truthState,
+  }));
 export const traceRevisitReceipt = z
   .object({
     mode: z.literal('kept_revisit'),

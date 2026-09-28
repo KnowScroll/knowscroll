@@ -51,7 +51,12 @@ interface Substrate {
 
 async function loadSubstrate(client: pg.PoolClient): Promise<Substrate> {
   const concepts = (
-    await client.query<{ id: string; code: string; name: string; parent: string | null }>(
+    await client.query<{
+      id: string;
+      code: string;
+      name: string;
+      parent: string | null;
+    }>(
       `
       SELECT
         c.id,
@@ -68,7 +73,12 @@ async function loadSubstrate(client: pg.PoolClient): Promise<Substrate> {
   ).rows;
   const relations: TypedRelation[] = [
     ...(
-      await client.query<{ from: string; to: string; kind: RelationKind; claim_id: string }>(
+      await client.query<{
+        from: string;
+        to: string;
+        kind: RelationKind;
+        claim_id: string;
+      }>(
         `
         SELECT
           f.code AS
@@ -86,9 +96,19 @@ async function loadSubstrate(client: pg.PoolClient): Promise<Substrate> {
           AND r.kind NOT IN ('narrower_than', 'part_of')
       `,
       )
-    ).rows.map((r) => ({ from: r.from, to: r.to, kind: r.kind, ref: { claimId: r.claim_id } })),
+    ).rows.map((r) => ({
+      from: r.from,
+      to: r.to,
+      kind: r.kind,
+      ref: { claimId: r.claim_id },
+    })),
     ...(
-      await client.query<{ from: string; to: string; kind: RelationKind; id: string }>(
+      await client.query<{
+        from: string;
+        to: string;
+        kind: RelationKind;
+        id: string;
+      }>(
         `
         SELECT
           f.code AS
@@ -106,10 +126,19 @@ async function loadSubstrate(client: pg.PoolClient): Promise<Substrate> {
           AND b.scope_kind = 'shared'
       `,
       )
-    ).rows.map((r) => ({ from: r.from, to: r.to, kind: r.kind, ref: { bridgeId: r.id } })),
+    ).rows.map((r) => ({
+      from: r.from,
+      to: r.to,
+      kind: r.kind,
+      ref: { bridgeId: r.id },
+    })),
   ];
   return {
-    concepts: concepts.map((c) => ({ code: c.code, parent: c.parent, name: c.name })),
+    concepts: concepts.map((c) => ({
+      code: c.code,
+      parent: c.parent,
+      name: c.name,
+    })),
     ids: new Map(concepts.map((c) => [c.code, c.id])),
     codes: new Map(concepts.map((c) => [c.id, c.code])),
     relations,
@@ -117,7 +146,10 @@ async function loadSubstrate(client: pg.PoolClient): Promise<Substrate> {
 }
 
 type PlaceRow = PlaceView & { anchorId: string; parentPlaceId: string | null };
-async function loadPlaces(client: pg.PoolClient, universeId: string): Promise<PlaceRow[]> {
+async function loadPlaces(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<PlaceRow[]> {
   return (
     await client.query<{
       id: string;
@@ -183,7 +215,11 @@ async function loadPlaces(client: pg.PoolClient, universeId: string): Promise<Pl
   }));
 }
 
-const snapshot = (p: { kind: string; state: string; parentPlaceId: string | null }) => ({
+const snapshot = (p: {
+  kind: string;
+  state: string;
+  parentPlaceId: string | null;
+}) => ({
   kind: p.kind,
   state: p.state,
   parentPlaceId: p.parentPlaceId,
@@ -193,7 +229,12 @@ async function insertDelta(
   client: pg.PoolClient,
   universeId: string,
   placeId: string,
-  d: { kind: string; causalClass: string; policyVersion: string; evidence: unknown },
+  d: {
+    kind: string;
+    causalClass: string;
+    policyVersion: string;
+    evidence: unknown;
+  },
   before: object | null,
   after: object,
 ): Promise<string> {
@@ -238,7 +279,9 @@ async function applyDeltas(
   places: PlaceRow[],
   deltas: PlaceDelta[],
 ): Promise<number> {
-  const liveByAnchor = new Map(places.filter((p) => p.state === 'live').map((p) => [p.anchor, p]));
+  const liveByAnchor = new Map(
+    places.filter((p) => p.state === 'live').map((p) => [p.anchor, p]),
+  );
   const byId = new Map(places.map((p) => [p.placeId, p]));
   const parentId = (anchor: string | null) =>
     anchor === null ? null : (liveByAnchor.get(anchor)?.placeId ?? null);
@@ -246,9 +289,10 @@ async function applyDeltas(
     if (d.kind === 'place_formed' || d.kind === 'sighting_appeared') {
       if (d.kind === 'place_formed' && d.promotesPlaceId) {
         const sighting = byId.get(d.promotesPlaceId)!;
-        await client.query(`UPDATE atlas_place SET state='promoted' WHERE id=$1 AND state='live'`, [
-          sighting.placeId,
-        ]);
+        await client.query(
+          `UPDATE atlas_place SET state='promoted' WHERE id=$1 AND state='live'`,
+          [sighting.placeId],
+        );
         const parent = sighting.parentPlaceId;
         await insertDelta(
           client,
@@ -261,7 +305,11 @@ async function applyDeltas(
             evidence: d.evidence,
           },
           snapshot({ kind: 'sighting', state: 'live', parentPlaceId: parent }),
-          snapshot({ kind: 'sighting', state: 'promoted', parentPlaceId: parent }),
+          snapshot({
+            kind: 'sighting',
+            state: 'promoted',
+            parentPlaceId: parent,
+          }),
         );
         liveByAnchor.delete(d.anchor);
       }
@@ -269,7 +317,9 @@ async function applyDeltas(
       const kind = d.kind === 'place_formed' ? d.placeKind : 'sighting';
       const parent = parentId(d.parentAnchor);
       if (d.parentAnchor !== null && parent === null)
-        throw new Error(`Cartographer planned a parent that is not live: ${d.parentAnchor}`);
+        throw new Error(
+          `Cartographer planned a parent that is not live: ${d.parentAnchor}`,
+        );
       await client.query(
         `
           INSERT INTO
@@ -291,7 +341,9 @@ async function applyDeltas(
           substrate.ids.get(d.anchor),
           kind,
           parent,
-          d.kind === 'sighting_appeared' ? JSON.stringify(d.evidence.relation) : null,
+          d.kind === 'sighting_appeared'
+            ? JSON.stringify(d.evidence.relation)
+            : null,
           d.policyVersion,
         ],
       );
@@ -306,7 +358,10 @@ async function applyDeltas(
       // ADR-0038 §3: a new planet or region may be worth a look for a connection, if the reader
       // consented; the mail joins this same transaction (and nothing is mailed while paused).
       if (kind !== 'sighting')
-        await postInquiryMail(client, universeId, { kind: 'place_formed', deltaId });
+        await postInquiryMail(client, universeId, {
+          kind: 'place_formed',
+          deltaId,
+        });
       const row: PlaceRow = {
         placeId: id,
         anchor: d.anchor,
@@ -321,13 +376,16 @@ async function applyDeltas(
       byId.set(id, row);
       continue;
     }
-    if (d.kind === 'foundation_recognised' || d.kind === 'foundation_withdrawn') {
+    if (
+      d.kind === 'foundation_recognised' ||
+      d.kind === 'foundation_withdrawn'
+    ) {
       const place = liveByAnchor.get(d.anchor)!;
       const bearing = d.kind === 'foundation_recognised';
-      await client.query("UPDATE atlas_place SET load_bearing=$2 WHERE id=$1 AND state='live'", [
-        place.placeId,
-        bearing,
-      ]);
+      await client.query(
+        "UPDATE atlas_place SET load_bearing=$2 WHERE id=$1 AND state='live'",
+        [place.placeId, bearing],
+      );
       // A re-recognition (the connections changed while it stood) keeps the flag: true -> true.
       await insertDelta(
         client,
@@ -338,12 +396,17 @@ async function applyDeltas(
         { loadBearing: bearing },
       );
       place.loadBearing = bearing;
-      place.foundationBasis = d.kind === 'foundation_recognised' ? d.evidence.relations : null;
+      place.foundationBasis =
+        d.kind === 'foundation_recognised' ? d.evidence.relations : null;
       continue;
     }
     const place = byId.get(d.placeId)!;
     const parent = place.parentPlaceId;
-    const before = snapshot({ kind: place.kind, state: 'live', parentPlaceId: parent });
+    const before = snapshot({
+      kind: place.kind,
+      state: 'live',
+      parentPlaceId: parent,
+    });
     if (d.kind === 'place_released') {
       await client.query(
         `UPDATE atlas_place SET kind='planet', parent_place_id=NULL WHERE id=$1 AND state='live'`,
@@ -362,10 +425,10 @@ async function applyDeltas(
       place.parentPlaceId = null;
     } else {
       const state = d.kind === 'place_rejected' ? 'rejected' : 'retired';
-      await client.query(`UPDATE atlas_place SET state=$2 WHERE id=$1 AND state='live'`, [
-        place.placeId,
-        state,
-      ]);
+      await client.query(
+        `UPDATE atlas_place SET state=$2 WHERE id=$1 AND state='live'`,
+        [place.placeId, state],
+      );
       await insertDelta(
         client,
         universeId,
@@ -394,7 +457,9 @@ export async function runCartographer(
     relations: substrate.relations,
     accounts,
     places,
-    rejectedAnchors: places.filter((p) => p.state === 'rejected').map((p) => p.anchor),
+    rejectedAnchors: places
+      .filter((p) => p.state === 'rejected')
+      .map((p) => p.anchor),
   });
   return applyDeltas(client, universeId, substrate, places, deltas);
 }
@@ -444,7 +509,10 @@ export async function rejectPlace(
   // Foundations, and only foundations, are re-evaluated at once (ADR-0037); every other change
   // waits for the reader's next refresh, exactly as in ADR-0036.
   const after = await loadPlaces(client, universeId);
-  const followUp = planFoundations({ relations: substrate.relations, places: after });
+  const followUp = planFoundations({
+    relations: substrate.relations,
+    places: after,
+  });
   // Its rooms retire with it, in this same transaction (ADR-0045 §6).
   return {
     deltas:
@@ -511,7 +579,8 @@ export interface AtlasView {
   }[];
 }
 
-const iso = (v: unknown) => (v instanceof Date ? v : new Date(String(v))).toISOString();
+const iso = (v: unknown) =>
+  (v instanceof Date ? v : new Date(String(v))).toISOString();
 
 /** `anySnapshot`: a change's own evidence keeps naming the claim even after its source was corrected. */
 async function describeRefs(
@@ -519,8 +588,12 @@ async function describeRefs(
   relations: TypedRelation[],
   anySnapshot = false,
 ) {
-  const claimIds = relations.flatMap((r) => ('claimId' in r.ref ? [r.ref.claimId] : []));
-  const bridgeIds = relations.flatMap((r) => ('bridgeId' in r.ref ? [r.ref.bridgeId] : []));
+  const claimIds = relations.flatMap((r) =>
+    'claimId' in r.ref ? [r.ref.claimId] : [],
+  );
+  const bridgeIds = relations.flatMap((r) =>
+    'bridgeId' in r.ref ? [r.ref.bridgeId] : [],
+  );
   const claims = new Map(
     (
       await client.query<{ id: string; text: string; source_title: string }>(
@@ -564,7 +637,10 @@ async function describeRefs(
   });
 }
 
-export async function readAtlas(client: pg.PoolClient, universeId: string): Promise<AtlasView> {
+export async function readAtlas(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<AtlasView> {
   const substrate = await loadSubstrate(client);
   const names = new Map(
     (
@@ -573,7 +649,9 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
       )
     ).rows.map((r) => [r.code, r]),
   );
-  const places = (await loadPlaces(client, universeId)).filter((p) => p.state === 'live');
+  const places = (await loadPlaces(client, universeId)).filter(
+    (p) => p.state === 'live',
+  );
   const liveAnchor = new Map(places.map((p) => [p.anchor, p]));
   const parentOf = new Map(substrate.concepts.map((c) => [c.code, c.parent]));
   // A Scroll belongs to the nearest planet/region on its primary concept's ancestor chain; a sighting counts its own anchor.
@@ -716,19 +794,24 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
       [universeId],
     )
   ).rows;
-  const nameOf = (code: string | null) => (code === null ? null : (names.get(code)?.name ?? code));
+  const nameOf = (code: string | null) =>
+    code === null ? null : (names.get(code)?.name ?? code);
   // What a foundation holds up is always among the reader's live planets and regions, by active
   // connections: one whose place has gone or whose source was revoked is not shown, and a
   // foundation left holding nothing up shows as none until the next plan records it.
   const active = new Set(substrate.relations.map(relationKey));
-  const foundationOf = (p: PlaceRow): AtlasView['places'][number]['foundation'] => {
+  const foundationOf = (
+    p: PlaceRow,
+  ): AtlasView['places'][number]['foundation'] => {
     if (!p.loadBearing || !p.foundationBasis) return null;
     // A connection revoked since the last refresh (a source correction) is not shown either.
     const standing = p.foundationBasis.filter((r) => {
       const t = liveAnchor.get(r.to);
       return !!t && t.kind !== 'sighting' && active.has(relationKey(r));
     });
-    const holdsUp = [...new Set(standing.map((r) => liveAnchor.get(r.to)!.placeId))];
+    const holdsUp = [
+      ...new Set(standing.map((r) => liveAnchor.get(r.to)!.placeId)),
+    ];
     if (holdsUp.length === 0) return null;
     return {
       holdsUp,
@@ -749,8 +832,14 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
       return {
         placeId: p.placeId,
         kind: p.kind,
-        parentPlaceId: p.parentAnchor ? (liveAnchor.get(p.parentAnchor)?.placeId ?? null) : null,
-        anchor: { code: p.anchor, name: anchor.name, description: anchor.description },
+        parentPlaceId: p.parentAnchor
+          ? (liveAnchor.get(p.parentAnchor)?.placeId ?? null)
+          : null,
+        anchor: {
+          code: p.anchor,
+          name: anchor.name,
+          description: anchor.description,
+        },
         basis: p.basis
           ? {
               kind: p.basis.kind,
@@ -760,7 +849,8 @@ export async function readAtlas(client: pg.PoolClient, universeId: string): Prom
             }
           : null,
         // A sighting is by definition not yet met: it never carries the reader's attention.
-        attention: p.kind === 'sighting' ? null : (accounts.get(p.anchor) ?? null),
+        attention:
+          p.kind === 'sighting' ? null : (accounts.get(p.anchor) ?? null),
         scrolls: counts.get(p.placeId) ?? { total: 0, seen: 0 },
         formedAt: f ? iso(f.created_at) : iso(new Date()),
         formedBy: f?.kind ?? 'place_formed',
@@ -802,7 +892,10 @@ export type DeltaNaming = {
 };
 
 /** The chronicle's own deterministic line for one delta (ADR-0036), never model text. */
-function deltaLine(d: DeltaNaming, nameOf: (code: string | null) => string | null): string {
+function deltaLine(
+  d: DeltaNaming,
+  nameOf: (code: string | null) => string | null,
+): string {
   const relation = d.evidence.relation as
     | { kind: RelationKind; from: string; to: string }
     | undefined;
@@ -812,9 +905,15 @@ function deltaLine(d: DeltaNaming, nameOf: (code: string | null) => string | nul
     name: nameOf(d.anchor)!,
     parentName: nameOf(d.parent_anchor),
     relation: relation
-      ? { kind: relation.kind, fromName: nameOf(relation.from)!, toName: nameOf(relation.to)! }
+      ? {
+          kind: relation.kind,
+          fromName: nameOf(relation.from)!,
+          toName: nameOf(relation.to)!,
+        }
       : null,
-    holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map((code) => nameOf(code)!),
+    holdsUp: ((d.evidence.holdsUp as string[] | undefined) ?? []).map(
+      (code) => nameOf(code)!,
+    ),
   });
 }
 
@@ -827,7 +926,9 @@ export async function deltaLines(
     ...new Set(
       deltas
         .flatMap((d) => {
-          const relation = d.evidence.relation as { from?: string; to?: string } | undefined;
+          const relation = d.evidence.relation as
+            | { from?: string; to?: string }
+            | undefined;
           return [
             d.anchor,
             d.parent_anchor,
@@ -847,12 +948,17 @@ export async function deltaLines(
       )
     ).rows.map((r) => [r.code, r.name]),
   );
-  const nameOf = (code: string | null) => (code === null ? null : (names.get(code) ?? code));
+  const nameOf = (code: string | null) =>
+    code === null ? null : (names.get(code) ?? code);
   return (d) => deltaLine(d, nameOf);
 }
 
 /** One delta and its evidence, readable only in its own universe. */
-export async function readAtlasDelta(client: pg.PoolClient, universeId: string, deltaId: string) {
+export async function readAtlasDelta(
+  client: pg.PoolClient,
+  universeId: string,
+  deltaId: string,
+) {
   const d = (
     await client.query<{
       id: string;
@@ -893,7 +999,9 @@ export async function readAtlasDelta(client: pg.PoolClient, universeId: string, 
   ).rows[0];
   if (!d) throw new AtlasNotFound();
   const relation = d.evidence.relation as TypedRelation | undefined;
-  const described = relation ? (await describeRefs(client, [relation], true))(relation) : null;
+  const described = relation
+    ? (await describeRefs(client, [relation], true))(relation)
+    : null;
   return {
     deltaId: d.id,
     placeId: d.place_id,
@@ -904,13 +1012,23 @@ export async function readAtlasDelta(client: pg.PoolClient, universeId: string, 
     anchor: { code: d.anchor, name: d.name },
     before: d.before,
     after: d.after,
-    evidence: { ...d.evidence, ...(described ? { relationSupport: described } : {}) },
+    evidence: {
+      ...d.evidence,
+      ...(described ? { relationSupport: described } : {}),
+    },
   };
 }
 
-export async function eraseAtlas(client: pg.PoolClient, universeId: string): Promise<void> {
-  await client.query('DELETE FROM atlas_delta WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM atlas_place WHERE universe_id=$1', [universeId]);
+export async function eraseAtlas(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
+  await client.query('DELETE FROM atlas_delta WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM atlas_place WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
 export async function exportAtlas(client: pg.PoolClient, universeId: string) {

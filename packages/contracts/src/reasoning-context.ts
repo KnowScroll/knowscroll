@@ -52,18 +52,47 @@ export const CONTEXT_SCROLL_KEYS = Object.freeze([
   'sourceUrl',
   'truthState',
 ] as const);
-export function candidateScroll(candidate: Record<string, unknown>): Record<string, unknown> {
+export function candidateScroll(
+  candidate: Record<string, unknown>,
+): Record<string, unknown> {
   return Object.fromEntries(
-    CONTEXT_SCROLL_KEYS.filter((key) => key in candidate).map((key) => [key, candidate[key]]),
+    CONTEXT_SCROLL_KEYS.filter((key) => key in candidate).map((key) => [
+      key,
+      candidate[key],
+    ]),
   );
 }
 export const directContextDependency = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('keep'), id, ...scope, sequence: reasoningCounter, hash }).strict(),
   z
-    .object({ kind: z.literal('exposure_event'), id, ...scope, sequence: reasoningCounter, hash })
+    .object({
+      kind: z.literal('keep'),
+      id,
+      ...scope,
+      sequence: reasoningCounter,
+      hash,
+    })
     .strict(),
-  z.object({ kind: z.literal('exposure'), id, ...scope, assetId: id, hash }).strict(),
-  z.object({ kind: z.literal('decision_candidate'), id, ...scope, assetId: id, hash }).strict(),
+  z
+    .object({
+      kind: z.literal('exposure_event'),
+      id,
+      ...scope,
+      sequence: reasoningCounter,
+      hash,
+    })
+    .strict(),
+  z
+    .object({ kind: z.literal('exposure'), id, ...scope, assetId: id, hash })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('decision_candidate'),
+      id,
+      ...scope,
+      assetId: id,
+      hash,
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('asset'),
@@ -80,10 +109,14 @@ export const directContextDependency = z.discriminatedUnion('kind', [
       expiresAt: z.iso.datetime({ offset: true }),
     })
     .strict(),
-  z.object({ kind: z.literal('runtime_policy'), version: label, hash }).strict(),
+  z
+    .object({ kind: z.literal('runtime_policy'), version: label, hash })
+    .strict(),
 ]);
 export type DirectContextDependency = z.infer<typeof directContextDependency>;
-export function directContextDependencyKey(read: DirectContextDependency): string {
+export function directContextDependencyKey(
+  read: DirectContextDependency,
+): string {
   return read.kind === 'runtime_policy'
     ? `${read.kind}:${read.version}`
     : read.kind === 'decision_candidate'
@@ -143,7 +176,8 @@ export const directContextPayload = z
       seen.add(key);
       if (
         'universeId' in read &&
-        (read.universeId !== value.universeId || read.privacyEpoch !== value.privacyEpoch)
+        (read.universeId !== value.universeId ||
+          read.privacyEpoch !== value.privacyEpoch)
       )
         ctx.addIssue({
           code: 'custom',
@@ -162,7 +196,10 @@ export const directContextPayload = z
         `decision_candidate:${f.decisionId}:${f.assetId}`,
       ]),
     ]);
-    if (expected.size !== seen.size || [...expected].some((key) => !seen.has(key)))
+    if (
+      expected.size !== seen.size ||
+      [...expected].some((key) => !seen.has(key))
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['dependencies'],
@@ -171,25 +208,37 @@ export const directContextPayload = z
     for (const [index, read] of value.dependencies.entries()) {
       const bound =
         read.kind === 'session'
-          ? read.id === value.sessionId && read.expiresAt === value.sessionExpiresAt
+          ? read.id === value.sessionId &&
+            read.expiresAt === value.sessionExpiresAt
           : read.kind === 'runtime_policy'
-            ? read.version === value.runtimePolicyVersion && read.hash === value.runtimePolicyHash
+            ? read.version === value.runtimePolicyVersion &&
+              read.hash === value.runtimePolicyHash
             : read.kind === 'asset'
-              ? value.assets.some((a) => a.assetId === read.id && a.revision === read.revision)
+              ? value.assets.some(
+                  (a) => a.assetId === read.id && a.revision === read.revision,
+                )
               : read.kind === 'keep'
                 ? value.facts.some(
-                    (f) => f.keepEventId === read.id && f.keepSequence === read.sequence,
+                    (f) =>
+                      f.keepEventId === read.id &&
+                      f.keepSequence === read.sequence,
                   )
                 : read.kind === 'exposure_event'
                   ? value.facts.some(
-                      (f) => f.exposureEventId === read.id && f.exposureSequence === read.sequence,
+                      (f) =>
+                        f.exposureEventId === read.id &&
+                        f.exposureSequence === read.sequence,
                     )
                   : read.kind === 'exposure'
                     ? value.facts.some(
-                        (f) => f.exposureId === read.id && f.assetId === read.assetId,
+                        (f) =>
+                          f.exposureId === read.id &&
+                          f.assetId === read.assetId,
                       )
                     : value.facts.some(
-                        (f) => f.decisionId === read.id && f.assetId === read.assetId,
+                        (f) =>
+                          f.decisionId === read.id &&
+                          f.assetId === read.assetId,
                       );
       if (!bound)
         ctx.addIssue({
@@ -203,9 +252,17 @@ export const directContextPayload = z
         'keepEventId' in item ? item.keepEventId : item.assetId,
       );
       if (new Set(ids).size !== ids.length)
-        ctx.addIssue({ code: 'custom', path: [name], message: 'Duplicate selected identity' });
+        ctx.addIssue({
+          code: 'custom',
+          path: [name],
+          message: 'Duplicate selected identity',
+        });
     }
-    if (value.assets.some((a) => !value.facts.some((f) => f.assetId === a.assetId)))
+    if (
+      value.assets.some(
+        (a) => !value.facts.some((f) => f.assetId === a.assetId),
+      )
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['assets'],

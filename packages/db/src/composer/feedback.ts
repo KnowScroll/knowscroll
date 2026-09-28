@@ -14,12 +14,16 @@ import {
   type EncounterFeedbackReceipt,
 } from '../../../contracts/src/composer.ts';
 import type { AuthScope } from '../identity.ts';
-import { SemanticConflict, SemanticUnprocessable } from '../semantic/branches.ts';
+import {
+  SemanticConflict,
+  SemanticUnprocessable,
+} from '../semantic/branches.ts';
 import { SemanticInputError } from '../semantic/proposals.ts';
 import { refreshPersonalModel } from '../semantic/personal-model.ts';
 
 type Row = Record<string, unknown>;
-const iso = (v: unknown) => (v instanceof Date ? v : new Date(String(v))).toISOString();
+const iso = (v: unknown) =>
+  (v instanceof Date ? v : new Date(String(v))).toISOString();
 
 export async function recordEncounterFeedback(
   client: pg.PoolClient,
@@ -27,7 +31,8 @@ export async function recordEncounterFeedback(
   raw: unknown,
 ): Promise<EncounterFeedbackReceipt> {
   const parsed = encounterFeedbackInput.safeParse(raw);
-  if (!parsed.success) throw new SemanticInputError('Invalid encounter feedback');
+  if (!parsed.success)
+    throw new SemanticInputError('Invalid encounter feedback');
   const input = parsed.data;
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new SemanticConflict('Feedback privacy epoch is stale');
@@ -121,9 +126,13 @@ export async function recordEncounterFeedback(
     )
   ).rows[0];
   if (!served)
-    throw new SemanticUnprocessable('This encounter was not served by a recorded decision');
+    throw new SemanticUnprocessable(
+      'This encounter was not served by a recorded decision',
+    );
   if (served.family === 'fallback')
-    throw new SemanticUnprocessable('An unmapped encounter has no route to correct');
+    throw new SemanticUnprocessable(
+      'An unmapped encounter has no route to correct',
+    );
   if (input.kind === 'wrong_connection' && served.bridge_id === null)
     throw new SemanticUnprocessable('Only a connection can be wrong');
 

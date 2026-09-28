@@ -30,7 +30,11 @@ const MAX_POSITION = 4;
 
 export type RoomRole = 'reader_of_record' | 'doubter' | 'connector';
 /** Seating order: the doubter's seat decides the ladder, so it is recorded before the connector's. */
-export const ROOM_ROLES: readonly RoomRole[] = ['reader_of_record', 'doubter', 'connector'];
+export const ROOM_ROLES: readonly RoomRole[] = [
+  'reader_of_record',
+  'doubter',
+  'connector',
+];
 export type RoomState = 'opened' | 'arguing' | 'set_aside' | 'retired';
 export type LiveRoomState = Extract<RoomState, 'opened' | 'arguing'>;
 /** How a held claim bears on the room's anchor: it supports it, or a source qualifies or contradicts it. */
@@ -60,7 +64,10 @@ export interface KeeperBridge {
   cites: readonly string[];
   counterevidence: readonly string[];
 }
-export type KeeperPlace = Pick<PlaceView, 'placeId' | 'anchor' | 'kind' | 'state'>;
+export type KeeperPlace = Pick<
+  PlaceView,
+  'placeId' | 'anchor' | 'kind' | 'state'
+>;
 export interface RoomView {
   roomId: string;
   placeId: string;
@@ -97,8 +104,16 @@ export type RoomDelta =
       askIds: string[];
       evidence: { asks: AskEvidence[] };
     })
-  | (Common & { kind: 'question_joined'; askIds: string[]; evidence: { asks: AskEvidence[] } })
-  | (Seat & { kind: 'inhabitant_seated'; claims: HeldClaim[]; evidence: { claims: HeldClaim[] } })
+  | (Common & {
+      kind: 'question_joined';
+      askIds: string[];
+      evidence: { asks: AskEvidence[] };
+    })
+  | (Seat & {
+      kind: 'inhabitant_seated';
+      claims: HeldClaim[];
+      evidence: { claims: HeldClaim[] };
+    })
   | (Seat & {
       kind: 'position_changed';
       claims: HeldClaim[];
@@ -133,7 +148,9 @@ const common = (room: string, causalClass: CausalClass) => ({
 export function planRooms(input: KeeperInput): RoomDelta[] {
   const deltas = planRetirements(input.rooms, input.places);
   const retired = new Set(deltas.map((d) => d.room));
-  const live = new Map(input.places.filter(isLivePlace).map((p) => [p.anchor, p]));
+  const live = new Map(
+    input.places.filter(isLivePlace).map((p) => [p.anchor, p]),
+  );
   const parentOf = new Map(input.concepts.map((c) => [c.code, c.parent]));
   // The rooms as this plan leaves them.
   const rooms: RoomView[] = input.rooms
@@ -144,26 +161,39 @@ export function planRooms(input: KeeperInput): RoomDelta[] {
   const asksAt = new Map<string, KeeperAsk[]>();
   for (const ask of input.asks) {
     const home =
-      ask.concept === null ? null : homeAnchor(ask.concept, parentOf, (a) => live.has(a));
+      ask.concept === null
+        ? null
+        : homeAnchor(ask.concept, parentOf, (a) => live.has(a));
     if (home !== null)
-      asksAt.set(live.get(home)!.placeId, [...(asksAt.get(live.get(home)!.placeId) ?? []), ask]);
+      asksAt.set(live.get(home)!.placeId, [
+        ...(asksAt.get(live.get(home)!.placeId) ?? []),
+        ask,
+      ]);
   }
   let liveRooms = rooms.filter(isLiveRoom).length;
   // Every room holds its Asks wherever it is, set aside and retired included: an Ask's home is worked
   // out again on every refresh (a nearer region forms, a rejected region hands it back to its parent),
   // and what the reader said no to never reopens anywhere.
   const held = new Set(input.rooms.flatMap((r) => r.askIds));
-  for (const place of [...live.values()].sort((a, b) => byCode(a.anchor, b.anchor))) {
+  for (const place of [...live.values()].sort((a, b) =>
+    byCode(a.anchor, b.anchor),
+  )) {
     const here = rooms.filter((r) => r.placeId === place.placeId);
     const carried = (asksAt.get(place.placeId) ?? [])
       .filter((a) => !held.has(a.askId))
       .sort((a, b) => a.atMs - b.atMs || byCode(a.askId, b.askId));
-    if (carried.length < MIN_ASKS || new Set(carried.map((a) => isoDay(a.atMs))).size < MIN_DAYS)
+    if (
+      carried.length < MIN_ASKS ||
+      new Set(carried.map((a) => isoDay(a.atMs))).size < MIN_DAYS
+    )
       continue;
     for (const a of carried) held.add(a.askId);
     const evidence = { asks: carried.map(askEvidence) };
     const liveHere = here.filter(isLiveRoom);
-    if (liveHere.length < MAX_LIVE_ROOMS_PER_PLACE && liveRooms < MAX_LIVE_ROOMS) {
+    if (
+      liveHere.length < MAX_LIVE_ROOMS_PER_PLACE &&
+      liveRooms < MAX_LIVE_ROOMS
+    ) {
       const question = carried[carried.length - 1]!;
       const askIds = carried.map((a) => a.askId);
       const ref = openingRef(question.askId);
@@ -202,7 +232,12 @@ export function planRooms(input: KeeperInput): RoomDelta[] {
   // 2. Seats, positions and the ladder of every live room, over its place's anchor.
   const placeOf = new Map(input.places.map((p) => [p.placeId, p]));
   for (const room of rooms.filter(isLiveRoom))
-    deltas.push(...planSeats(room, neighbourhood(input, placeOf.get(room.placeId)!.anchor, live)));
+    deltas.push(
+      ...planSeats(
+        room,
+        neighbourhood(input, placeOf.get(room.placeId)!.anchor, live),
+      ),
+    );
   return deltas;
 }
 
@@ -220,7 +255,12 @@ export function planRetirements(
     if (isLivePlace(place)) return [];
     return [
       {
-        ...common(r.roomId, place.state === 'rejected' ? 'reader_correction' : 'source_correction'),
+        ...common(
+          r.roomId,
+          place.state === 'rejected'
+            ? 'reader_correction'
+            : 'source_correction',
+        ),
         kind: 'room_retired' as const,
         evidence: { placeId: place.placeId, placeState: place.state },
       },
@@ -229,7 +269,10 @@ export function planRetirements(
 }
 
 /** The reader sets a live room aside; its inhabitants are unseated with it, and its Asks never reopen a room. */
-export function planSetAside(room: RoomView, clientRequestId: string): RoomDelta {
+export function planSetAside(
+  room: RoomView,
+  clientRequestId: string,
+): RoomDelta {
   if (!isLiveRoom(room)) throw new Error('That is not a live room');
   return {
     ...common(room.roomId, 'reader_correction'),
@@ -269,16 +312,22 @@ function neighbourhood(
   for (const r of input.relations) {
     const other = r.from === anchor ? r.to : r.to === anchor ? r.from : null;
     if (other === null) continue;
-    const bridge = 'bridgeId' in r.ref ? input.bridges.get(r.ref.bridgeId) : undefined;
+    const bridge =
+      'bridgeId' in r.ref ? input.bridges.get(r.ref.bridgeId) : undefined;
     for (const id of bridge?.counterevidence ?? [])
       if (supported.has(id) && !doubt.has(id)) doubt.set(id, 'contradicts');
-    for (const id of 'claimId' in r.ref ? [r.ref.claimId] : (bridge?.cites ?? [])) {
+    for (const id of 'claimId' in r.ref
+      ? [r.ref.claimId]
+      : (bridge?.cites ?? [])) {
       if (!supported.has(id)) continue;
       anyTies.add(id);
       if (live.has(other)) liveTies.add(id);
     }
   }
-  const position = (ids: Iterable<string>, kind: (id: string) => SupportKind): HeldClaim[] =>
+  const position = (
+    ids: Iterable<string>,
+    kind: (id: string) => SupportKind,
+  ): HeldClaim[] =>
     [...ids]
       .map((id) => supported.get(id)!)
       .sort((a, b) => byCode(a.key, b.key))
@@ -295,14 +344,25 @@ function neighbourhood(
         () => 'supports',
       ),
     },
-    standing: { reader_of_record: aboutIds, doubter: new Set(doubt.keys()), connector: anyTies },
-    reachable: { reader_of_record: aboutIds, doubter: new Set(doubt.keys()), connector: liveTies },
+    standing: {
+      reader_of_record: aboutIds,
+      doubter: new Set(doubt.keys()),
+      connector: anyTies,
+    },
+    reachable: {
+      reader_of_record: aboutIds,
+      doubter: new Set(doubt.keys()),
+      connector: liveTies,
+    },
   };
 }
 
 const samePosition = (a: readonly HeldClaim[], b: readonly HeldClaim[]) =>
   a.length === b.length &&
-  a.every((c, i) => c.claimId === b[i]!.claimId && c.supportKind === b[i]!.supportKind);
+  a.every(
+    (c, i) =>
+      c.claimId === b[i]!.claimId && c.supportKind === b[i]!.supportKind,
+  );
 
 function planSeats(room: RoomView, n: Neighbourhood): RoomDelta[] {
   const deltas: RoomDelta[] = [];
@@ -315,8 +375,12 @@ function planSeats(room: RoomView, n: Neighbourhood): RoomDelta[] {
     // Why a held claim went: the substrate only loses one by a correction; a connected place only
     // goes when the reader sets it aside; anything else (a seat taken, a claim displaced) is the
     // neighbourhood moving on.
-    const dropped = before.filter((c) => !after.some((a) => a.claimId === c.claimId));
-    const cause: CausalClass = dropped.some((c) => !n.standing[role].has(c.claimId))
+    const dropped = before.filter(
+      (c) => !after.some((a) => a.claimId === c.claimId),
+    );
+    const cause: CausalClass = dropped.some(
+      (c) => !n.standing[role].has(c.claimId),
+    )
       ? 'source_correction'
       : dropped.some((c) => !n.reachable[role].has(c.claimId))
         ? 'reader_correction'
@@ -330,7 +394,11 @@ function planSeats(room: RoomView, n: Neighbourhood): RoomDelta[] {
         evidence: { claims: after },
       });
     else if (after.length === 0)
-      deltas.push({ ...seat, kind: 'inhabitant_unseated', evidence: { claims: before } });
+      deltas.push({
+        ...seat,
+        kind: 'inhabitant_unseated',
+        evidence: { claims: before },
+      });
     else
       deltas.push({
         ...seat,
@@ -377,7 +445,8 @@ export function roomChronicleLine(d: {
     case 'inhabitant_unseated':
       if (d.causalClass === 'source_correction')
         return `${who} left: what its claims were based on changed.`;
-      if (d.causalClass === 'reader_correction') return `${who} left after you set a place aside.`;
+      if (d.causalClass === 'reader_correction')
+        return `${who} left after you set a place aside.`;
       return `${who} left.`;
     case 'room_set_aside':
       return 'You set this room aside.';

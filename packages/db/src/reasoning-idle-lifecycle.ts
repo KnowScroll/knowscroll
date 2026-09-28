@@ -66,7 +66,8 @@ export function isIdleWithdrawalIneligible(error: unknown): boolean {
   return error instanceof ReasoningDenied && EXPECTED_REFUSALS.has(error.code);
 }
 function validateScope(scope: IdleDirectJobScope): void {
-  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (
     !uuid.test(scope.jobId) ||
     !uuid.test(scope.universeId) ||
@@ -167,7 +168,8 @@ function assertEligible(job: Job, reason: Reason, authority: Authority): void {
     deny('idle_job_ineligible');
   if (job.healthy) deny('idle_healthy_lease');
   if (reason === 'expired' && !job.expired) deny('idle_deadline_not_elapsed');
-  if (BigInt(job.lease_fence) >= 9223372036854775807n) deny('idle_fence_overflow');
+  if (BigInt(job.lease_fence) >= 9223372036854775807n)
+    deny('idle_fence_overflow');
 }
 
 async function withdraw(
@@ -199,7 +201,8 @@ async function withdraw(
     );
     if (binding.rowCount !== 1) deny('idle_missing_binding');
     sessionId = binding.rows[0]!.session_id;
-    if (auth && sessionId !== auth.sessionId) deny('idle_original_session_required');
+    if (auth && sessionId !== auth.sessionId)
+      deny('idle_original_session_required');
   }
   const authorize = async (lock = false) =>
     sessionId !== null
@@ -208,8 +211,17 @@ async function withdraw(
   await authorize(true);
   const job = await readJob(client, scope, true);
   await authorize();
-  if (job.status === reason && job.withdrawn_at !== null && ownKind(job, authority)) {
-    return { status: reason, changed: false, closedNotSent: 0, preservedUnknown: 0 };
+  if (
+    job.status === reason &&
+    job.withdrawn_at !== null &&
+    ownKind(job, authority)
+  ) {
+    return {
+      status: reason,
+      changed: false,
+      closedNotSent: 0,
+      preservedUnknown: 0,
+    };
   }
   assertEligible(job, reason, authority);
   const counts = (
@@ -284,7 +296,10 @@ async function withdraw(
   `,
     [scope.jobId, scope.universeId, scope.privacyEpoch],
   );
-  if (steps.rowCount !== Number(counts.steps) || attempts.rowCount !== Number(counts.attempts))
+  if (
+    steps.rowCount !== Number(counts.steps) ||
+    attempts.rowCount !== Number(counts.attempts)
+  )
     deny('idle_incomplete_graph');
   for (const attempt of attempts.rows) {
     const unconsumed =
@@ -305,7 +320,11 @@ async function withdraw(
   }
   const attemptIds = attempts.rows.map((attempt) => attempt.id);
   // Lock reservations before resources: releaseUnconsumed later reuses these locks.
-  const reservations = await client.query<{ attempt_id: string; bucket_id: string; state: string }>(
+  const reservations = await client.query<{
+    attempt_id: string;
+    bucket_id: string;
+    state: string;
+  }>(
     `
     SELECT
       attempt_id,
@@ -323,7 +342,9 @@ async function withdraw(
     [attemptIds],
   );
   for (const attempt of attempts.rows) {
-    const vector = reservations.rows.filter((row) => row.attempt_id === attempt.id);
+    const vector = reservations.rows.filter(
+      (row) => row.attempt_id === attempt.id,
+    );
     // Reserved admission creates a held vector. A partially altered graph is not
     // evidence for releasing already-accounted usage or stamping safe closure.
     if (
@@ -331,7 +352,10 @@ async function withdraw(
       (vector.length === 0 || vector.some((row) => row.state !== 'held'))
     )
       deny('idle_unsafe_attempt');
-    if (attempt.state === 'not_sent' && vector.some((row) => row.state === 'held'))
+    if (
+      attempt.state === 'not_sent' &&
+      vector.some((row) => row.state === 'held')
+    )
       deny('idle_unsafe_attempt');
   }
   await lockFairnessResources(client, attemptIds, scope.universeId);
@@ -339,7 +363,9 @@ async function withdraw(
     'SELECT job_id FROM reasoning_fairness_ready WHERE job_id=$1 AND universe_id=$2 FOR UPDATE',
     [scope.jobId, scope.universeId],
   );
-  const bucketIds = [...new Set(reservations.rows.map((row) => row.bucket_id))].sort();
+  const bucketIds = [
+    ...new Set(reservations.rows.map((row) => row.bucket_id)),
+  ].sort();
   const buckets = await client.query(
     'SELECT id FROM reasoning_bucket WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
     [bucketIds],
@@ -373,10 +399,12 @@ async function withdraw(
    `,
         [attempt.id],
       );
-      await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1 AND active', [
-        attempt.id,
-      ]);
-      if (['dispatch_committed', 'unknown'].includes(attempt.state)) preservedUnknown += 1;
+      await client.query(
+        'UPDATE reasoning_attempt SET active=false WHERE id=$1 AND active',
+        [attempt.id],
+      );
+      if (['dispatch_committed', 'unknown'].includes(attempt.state))
+        preservedUnknown += 1;
     }
   }
   await client.query(
@@ -486,7 +514,11 @@ export async function cancelIdleDirectJob(
 ): Promise<IdleWithdrawalResult> {
   return withdraw(
     client,
-    { jobId: input.jobId, universeId: authScope.universeId, privacyEpoch: authScope.privacyEpoch },
+    {
+      jobId: input.jobId,
+      universeId: authScope.universeId,
+      privacyEpoch: authScope.privacyEpoch,
+    },
     'cancelled',
     { kind: 'session', auth: authScope },
   );
@@ -576,7 +608,12 @@ export async function withdrawRecoveredDirectJob(
     )
   ).rows[0];
   if (!row) deny('idle_unknown_job');
-  if (row.status !== 'waiting' || row.lease_owner !== null || row.attempts < 1 || row.active > 0)
+  if (
+    row.status !== 'waiting' ||
+    row.lease_owner !== null ||
+    row.attempts < 1 ||
+    row.active > 0
+  )
     deny('idle_job_ineligible');
   if (!row.live) deny('idle_session_authority');
   return withdraw(client, scope, 'cancelled', { kind: 'session' });

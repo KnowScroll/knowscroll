@@ -40,7 +40,10 @@ import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts
 import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
 import { observeExhaustion } from '../../../packages/db/src/inventory/demand.ts';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
-import { ExplicitAskError, recordExplicitAsk } from '../../../packages/db/src/explicit-ask.ts';
+import {
+  ExplicitAskError,
+  recordExplicitAsk,
+} from '../../../packages/db/src/explicit-ask.ts';
 import {
   listSavedTraces,
   readTraceRevisit,
@@ -106,7 +109,8 @@ function toReelAsset(row: ReelRow): ReelAssetDisplay {
     width?: unknown;
     height?: unknown;
   } | null;
-  const durationSeconds = typeof probe?.durationSeconds === 'number' ? probe.durationSeconds : 0;
+  const durationSeconds =
+    typeof probe?.durationSeconds === 'number' ? probe.durationSeconds : 0;
   const width = typeof probe?.width === 'number' ? probe.width : 0;
   const height = typeof probe?.height === 'number' ? probe.height : 0;
   return {
@@ -208,7 +212,12 @@ export function parseFeedExclude(value: unknown): Set<string> | null {
   const ids = value.split(',');
   if (
     ids.length > 256 ||
-    ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    ids.some(
+      (id) =>
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          id,
+        ),
+    )
   )
     return null;
   return new Set(ids.map((id) => id.toLowerCase()));
@@ -238,16 +247,21 @@ export function buildApp(
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof UnauthorizedSession)
       return reply.code(401).send({ error: 'Unauthorized' });
-    const status = error instanceof Error && 'statusCode' in error ? Number(error.statusCode) : 500;
+    const status =
+      error instanceof Error && 'statusCode' in error
+        ? Number(error.statusCode)
+        : 500;
     // A deliberately unavailable capability (503, e.g. answers not enabled) keeps its safe message;
     // every other 5xx stays generic so internal failures never leak details.
     const code =
-      Number.isInteger(status) && ((status >= 400 && status < 500) || status === 503)
+      Number.isInteger(status) &&
+      ((status >= 400 && status < 500) || status === 503)
         ? status
         : 500;
-    return reply
-      .code(code)
-      .send({ error: code === 500 ? 'Internal operation failed' : (error as Error).message });
+    return reply.code(code).send({
+      error:
+        code === 500 ? 'Internal operation failed' : (error as Error).message,
+    });
   });
 
   app.addHook('onReady', async () => {
@@ -268,7 +282,10 @@ export function buildApp(
     fn: (scope: AuthScope, client: import('pg').PoolClient) => Promise<T>,
   ) =>
     transaction(async (client) => {
-      const scope = await authenticateAndLock(client, bearerToken(authorization));
+      const scope = await authenticateAndLock(
+        client,
+        bearerToken(authorization),
+      );
       return fn(scope, client);
     });
 
@@ -299,7 +316,8 @@ export function buildApp(
 
   app.post('/v1/session/revoke', async (req, reply) => {
     await authenticated(req.headers.authorization, async (scope, client) => {
-      if (!emptyObject(req.body)) throw new HttpError(400, 'Invalid revoke request');
+      if (!emptyObject(req.body))
+        throw new HttpError(400, 'Invalid revoke request');
       await revokeSession(client, scope);
     });
     if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
@@ -309,18 +327,23 @@ export function buildApp(
   // ADR-0034: the page's CSRF token for its cookie session (derived; survives reloads and tabs).
   app.get('/v1/session/csrf', async (req, reply) => {
     await authenticated(req.headers.authorization, async () => undefined);
-    if (!req.ksCookieSession) throw new HttpError(400, 'Only a cookie session has a CSRF token');
+    if (!req.ksCookieSession)
+      throw new HttpError(400, 'Only a cookie session has a CSRF token');
     return reply
       .header('Cache-Control', 'no-store')
       .send({ csrfToken: csrfToken(webSession.secret, req.ksCookieSession) });
   });
 
   app.post('/v1/history/clear', async (req, reply) => {
-    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = historyClearInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid history clear request');
-      return clearScrollHistory(client, scope, parsed.data);
-    });
+    const receipt = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = historyClearInput.safeParse(req.body);
+        if (!parsed.success)
+          throw new HttpError(400, 'Invalid history clear request');
+        return clearScrollHistory(client, scope, parsed.data);
+      },
+    );
     return reply.code(200).send(receipt);
   });
 
@@ -328,49 +351,65 @@ export function buildApp(
   // `authenticated()` path as every other route above, so the universe lock is held and the
   // session's epoch is rechecked before any of them runs a single statement.
   app.post('/v1/privacy/pause', async (req, reply) => {
-    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = privacyLifecycleInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid pause request');
-      return pauseRecording(client, scope, parsed.data);
-    });
+    const receipt = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = privacyLifecycleInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid pause request');
+        return pauseRecording(client, scope, parsed.data);
+      },
+    );
     return reply.code(200).send(receipt);
   });
 
   app.post('/v1/privacy/resume', async (req, reply) => {
-    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = privacyLifecycleInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid resume request');
-      return resumeRecording(client, scope, parsed.data);
-    });
+    const receipt = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = privacyLifecycleInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid resume request');
+        return resumeRecording(client, scope, parsed.data);
+      },
+    );
     return reply.code(200).send(receipt);
   });
 
   app.post('/v1/privacy/export', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = privacyLifecycleInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid export request');
-      return exportUniverse(client, scope, parsed.data);
-    });
+    const result = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = privacyLifecycleInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid export request');
+        return exportUniverse(client, scope, parsed.data);
+      },
+    );
     return reply.code(200).send(result);
   });
 
   app.post('/v1/privacy/reset', async (req, reply) => {
-    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = privacyResetInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid reset request');
-      return resetPersonalUniverse(client, scope, parsed.data);
-    });
+    const receipt = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = privacyResetInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid reset request');
+        return resetPersonalUniverse(client, scope, parsed.data);
+      },
+    );
     return reply.code(200).send(receipt);
   });
 
   // ADR-0035: delete the account and all personal history. The calling session is deleted with
   // it, so a cookie session also gets its cookie cleared.
   app.post('/v1/account/delete', async (req, reply) => {
-    const receipt = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = accountDeletionInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid account deletion request');
-      return deleteAccount(client, scope, parsed.data);
-    });
+    const receipt = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = accountDeletionInput.safeParse(req.body);
+        if (!parsed.success)
+          throw new HttpError(400, 'Invalid account deletion request');
+        return deleteAccount(client, scope, parsed.data);
+      },
+    );
     if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
     return reply.code(200).send(receipt);
   });
@@ -397,30 +436,39 @@ export function buildApp(
     }),
   );
 
-  app.get<{ Params: { eventId: string } }>('/v1/traces/:eventId', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      if (
-        req.body !== undefined ||
-        Object.keys(req.query as object).length > 0 ||
-        Number(req.headers['content-length'] ?? 0) > 0 ||
-        req.headers['transfer-encoding'] !== undefined
-      ) {
-        throw new HttpError(400, 'Invalid Trace request');
-      }
-      try {
-        return await readTraceRevisit(client, scope, req.params.eventId);
-      } catch (error) {
-        if (!(error instanceof TraceRevisitError)) throw error;
-        if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Trace event ID');
-        if (error.kind === 'not_found') throw new HttpError(404, 'Trace not found');
-        if (error.kind === 'stale_epoch') throw new HttpError(409, 'Trace privacy epoch is stale');
-        if (error.kind === 'source_changed')
-          throw new HttpError(409, 'Saved Scroll source is unavailable');
-        throw new HttpError(422, 'Saved Scroll lineage is unavailable');
-      }
-    });
-    return reply.header('Cache-Control', 'no-store').send(result);
-  });
+  app.get<{ Params: { eventId: string } }>(
+    '/v1/traces/:eventId',
+    async (req, reply) => {
+      const result = await authenticated(
+        req.headers.authorization,
+        async (scope, client) => {
+          if (
+            req.body !== undefined ||
+            Object.keys(req.query as object).length > 0 ||
+            Number(req.headers['content-length'] ?? 0) > 0 ||
+            req.headers['transfer-encoding'] !== undefined
+          ) {
+            throw new HttpError(400, 'Invalid Trace request');
+          }
+          try {
+            return await readTraceRevisit(client, scope, req.params.eventId);
+          } catch (error) {
+            if (!(error instanceof TraceRevisitError)) throw error;
+            if (error.kind === 'invalid')
+              throw new HttpError(400, 'Invalid Trace event ID');
+            if (error.kind === 'not_found')
+              throw new HttpError(404, 'Trace not found');
+            if (error.kind === 'stale_epoch')
+              throw new HttpError(409, 'Trace privacy epoch is stale');
+            if (error.kind === 'source_changed')
+              throw new HttpError(409, 'Saved Scroll source is unavailable');
+            throw new HttpError(422, 'Saved Scroll lineage is unavailable');
+          }
+        },
+      );
+      return reply.header('Cache-Control', 'no-store').send(result);
+    },
+  );
 
   app.get<{ Querystring: { kinds?: string; exclude?: string | string[] } }>(
     '/v1/feed',
@@ -431,9 +479,12 @@ export function buildApp(
         // #133: what this discovery trip already has on screen or opened. The client skips those, so
         // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason.
         const exclude = parseFeedExclude(req.query.exclude);
-        if (exclude === null) throw new HttpError(400, 'Invalid exclude parameter');
+        if (exclude === null)
+          throw new HttpError(400, 'Invalid exclude parameter');
         const account = (
-          await client.query('SELECT * FROM accounts WHERE universe_id=$1', [scope.universeId])
+          await client.query('SELECT * FROM accounts WHERE universe_id=$1', [
+            scope.universeId,
+          ])
         ).rows[0];
         const assets = await feedCandidates(client, kinds);
 
@@ -466,47 +517,63 @@ export function buildApp(
   );
 
   app.post('/v1/exposures', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = exposureInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid exposure');
-      const body = parsed.data;
-      const decision = (
-        await client.query(
-          'SELECT candidates, privacy_epoch FROM decision WHERE id=$1 AND universe_id=$2',
-          [body.decisionId, scope.universeId],
+    const result = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = exposureInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid exposure');
+        const body = parsed.data;
+        const decision = (
+          await client.query(
+            'SELECT candidates, privacy_epoch FROM decision WHERE id=$1 AND universe_id=$2',
+            [body.decisionId, scope.universeId],
+          )
+        ).rows[0];
+        if (!decision)
+          throw new HttpError(422, 'Asset was not selected in this decision');
+        if (decision.privacy_epoch !== scope.privacyEpoch)
+          throw new HttpError(
+            409,
+            'Decision belongs to an older privacy epoch',
+          );
+        const old = (
+          await client.query(
+            'SELECT * FROM exposure WHERE universe_id=$1 AND client_key=$2',
+            [scope.universeId, body.clientExposureId],
+          )
+        ).rows[0];
+        if (old) {
+          if (
+            old.decision_id !== body.decisionId ||
+            old.asset_id !== body.assetId
+          )
+            throw new HttpError(
+              409,
+              'Exposure key reused with different content',
+            );
+          return { exposureId: old.id, eventId: old.event_id };
+        }
+        if (
+          !decision.candidates.some(
+            (asset: ScrollAsset) => asset.assetId === body.assetId,
+          )
         )
-      ).rows[0];
-      if (!decision) throw new HttpError(422, 'Asset was not selected in this decision');
-      if (decision.privacy_epoch !== scope.privacyEpoch)
-        throw new HttpError(409, 'Decision belongs to an older privacy epoch');
-      const old = (
-        await client.query('SELECT * FROM exposure WHERE universe_id=$1 AND client_key=$2', [
-          scope.universeId,
-          body.clientExposureId,
-        ])
-      ).rows[0];
-      if (old) {
-        if (old.decision_id !== body.decisionId || old.asset_id !== body.assetId)
-          throw new HttpError(409, 'Exposure key reused with different content');
-        return { exposureId: old.id, eventId: old.event_id };
-      }
-      if (!decision.candidates.some((asset: ScrollAsset) => asset.assetId === body.assetId))
-        throw new HttpError(422, 'Asset was not selected in this decision');
-      const exposureId = randomUUID();
-      const eventId = randomUUID();
-      await client.query(
-        'INSERT INTO ledger(id,universe_id,kind,client_key,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6)',
-        [
-          eventId,
-          scope.universeId,
-          'exposure',
-          body.clientExposureId,
-          JSON.stringify({ ...body, exposureId }),
-          scope.privacyEpoch,
-        ],
-      );
-      await client.query(
-        `
+          throw new HttpError(422, 'Asset was not selected in this decision');
+        const exposureId = randomUUID();
+        const eventId = randomUUID();
+        await client.query(
+          'INSERT INTO ledger(id,universe_id,kind,client_key,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6)',
+          [
+            eventId,
+            scope.universeId,
+            'exposure',
+            body.clientExposureId,
+            JSON.stringify({ ...body, exposureId }),
+            scope.privacyEpoch,
+          ],
+        );
+        await client.query(
+          `
         INSERT INTO
           exposure (
             id,
@@ -519,24 +586,25 @@ export function buildApp(
         VALUES
           ($1, $2, $3, $4, $5, $6)
       `,
-        [
-          exposureId,
-          scope.universeId,
-          body.decisionId,
-          body.assetId,
-          eventId,
-          body.clientExposureId,
-        ],
-      );
-      // ADR-0028: a reader encountering more is exactly what keeps their world/system current.
-      // Runs inside this same transaction, under the universe lock `authenticateAndLock` already
-      // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
-      // is the one deterministic projection step that must never lag behind it.
-      await projectWorldsForEncounter(client, scope.universeId);
-      // ADR-0032: the private personal model follows the same evidence, in the same transaction.
-      await refreshPersonalModel(client, scope.universeId);
-      return { exposureId, eventId };
-    });
+          [
+            exposureId,
+            scope.universeId,
+            body.decisionId,
+            body.assetId,
+            eventId,
+            body.clientExposureId,
+          ],
+        );
+        // ADR-0028: a reader encountering more is exactly what keeps their world/system current.
+        // Runs inside this same transaction, under the universe lock `authenticateAndLock` already
+        // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
+        // is the one deterministic projection step that must never lag behind it.
+        await projectWorldsForEncounter(client, scope.universeId);
+        // ADR-0032: the private personal model follows the same evidence, in the same transaction.
+        await refreshPersonalModel(client, scope.universeId);
+        return { exposureId, eventId };
+      },
+    );
     return reply.code(201).send(result);
   });
 
@@ -548,13 +616,15 @@ export function buildApp(
   );
 
   app.post('/v1/interactions', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = interactionInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid interaction');
-      const body = parsed.data;
-      const exposure = (
-        await client.query(
-          `
+    const result = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = interactionInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid interaction');
+        const body = parsed.data;
+        const exposure = (
+          await client.query(
+            `
         SELECT
           e.event_id,
           e.asset_id,
@@ -566,15 +636,19 @@ export function buildApp(
           e.id = $1
           AND e.universe_id = $2
       `,
-          [body.exposureId, scope.universeId],
-        )
-      ).rows[0];
-      if (!exposure) throw new HttpError(422, 'A matching exposure is required');
-      if (exposure.privacy_epoch !== scope.privacyEpoch)
-        throw new HttpError(409, 'Exposure belongs to an older privacy epoch');
-      const old = (
-        await client.query(
-          `
+            [body.exposureId, scope.universeId],
+          )
+        ).rows[0];
+        if (!exposure)
+          throw new HttpError(422, 'A matching exposure is required');
+        if (exposure.privacy_epoch !== scope.privacyEpoch)
+          throw new HttpError(
+            409,
+            'Exposure belongs to an older privacy epoch',
+          );
+        const old = (
+          await client.query(
+            `
         SELECT
           l.id,
           l.payload,
@@ -587,20 +661,23 @@ export function buildApp(
           AND l.kind = 'keep'
           AND l.client_key = $2
       `,
-          [scope.universeId, body.clientEventId],
-        )
-      ).rows[0];
-      if (old) {
-        if (old.payload.exposureId !== body.exposureId || old.payload.assetId !== body.assetId)
-          throw new HttpError(409, 'Event key reused with different content');
-        return { eventId: old.id, jobId: old.job_id, status: 'accepted' };
-      }
-      if (exposure.asset_id !== body.assetId)
-        throw new HttpError(422, 'A matching exposure is required');
-      const eventId = randomUUID();
-      const jobId = randomUUID();
-      await client.query(
-        `
+            [scope.universeId, body.clientEventId],
+          )
+        ).rows[0];
+        if (old) {
+          if (
+            old.payload.exposureId !== body.exposureId ||
+            old.payload.assetId !== body.assetId
+          )
+            throw new HttpError(409, 'Event key reused with different content');
+          return { eventId: old.id, jobId: old.job_id, status: 'accepted' };
+        }
+        if (exposure.asset_id !== body.assetId)
+          throw new HttpError(422, 'A matching exposure is required');
+        const eventId = randomUUID();
+        const jobId = randomUUID();
+        await client.query(
+          `
         INSERT INTO
           ledger (
             id,
@@ -614,52 +691,66 @@ export function buildApp(
         VALUES
           ($1, $2, $3, $4, $5, $6, $7)
       `,
-        [
-          eventId,
-          scope.universeId,
-          'keep',
-          body.clientEventId,
-          exposure.event_id,
-          JSON.stringify(body),
-          scope.privacyEpoch,
-        ],
-      );
-      await client.query(
-        'INSERT INTO job(id,universe_id,event_id,kind,privacy_epoch) VALUES($1,$2,$3,$4,$5)',
-        [jobId, scope.universeId, eventId, 'project_keep', scope.privacyEpoch],
-      );
-      await refreshPersonalModel(client, scope.universeId);
-      return { eventId, jobId, status: 'accepted' };
-    });
+          [
+            eventId,
+            scope.universeId,
+            'keep',
+            body.clientEventId,
+            exposure.event_id,
+            JSON.stringify(body),
+            scope.privacyEpoch,
+          ],
+        );
+        await client.query(
+          'INSERT INTO job(id,universe_id,event_id,kind,privacy_epoch) VALUES($1,$2,$3,$4,$5)',
+          [
+            jobId,
+            scope.universeId,
+            eventId,
+            'project_keep',
+            scope.privacyEpoch,
+          ],
+        );
+        await refreshPersonalModel(client, scope.universeId);
+        return { eventId, jobId, status: 'accepted' };
+      },
+    );
     return reply.code(202).send(result);
   });
 
   app.post('/v1/asks', { bodyLimit: 32768 }, async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const parsed = explicitAskInput.safeParse(req.body);
-      if (!parsed.success) throw new HttpError(400, 'Invalid Ask');
-      try {
-        const receipt = await recordExplicitAsk(client, scope, parsed.data);
-        await refreshPersonalModel(client, scope.universeId);
-        return receipt;
-      } catch (error) {
-        if (!(error instanceof ExplicitAskError)) throw error;
-        if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Ask');
-        if (error.kind === 'stale_epoch') throw new HttpError(409, 'Ask privacy epoch is stale');
-        if (error.kind === 'conflict')
-          throw new HttpError(409, 'Ask conflicts with existing request');
-        throw new HttpError(422, 'A current matching exposure is required');
-      }
-    });
+    const result = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const parsed = explicitAskInput.safeParse(req.body);
+        if (!parsed.success) throw new HttpError(400, 'Invalid Ask');
+        try {
+          const receipt = await recordExplicitAsk(client, scope, parsed.data);
+          await refreshPersonalModel(client, scope.universeId);
+          return receipt;
+        } catch (error) {
+          if (!(error instanceof ExplicitAskError)) throw error;
+          if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Ask');
+          if (error.kind === 'stale_epoch')
+            throw new HttpError(409, 'Ask privacy epoch is stale');
+          if (error.kind === 'conflict')
+            throw new HttpError(409, 'Ask conflicts with existing request');
+          throw new HttpError(422, 'A current matching exposure is required');
+        }
+      },
+    );
     return reply.code(201).send(result);
   });
 
-  app.get<{ Params: { eventId: string } }>('/v1/events/:eventId', async (req) => {
-    return authenticated(req.headers.authorization, async (scope, client) => {
-      if (!uuid.safeParse(req.params.eventId).success) throw new HttpError(400, 'Invalid event ID');
-      const row = (
-        await client.query(
-          `
+  app.get<{ Params: { eventId: string } }>(
+    '/v1/events/:eventId',
+    async (req) => {
+      return authenticated(req.headers.authorization, async (scope, client) => {
+        if (!uuid.safeParse(req.params.eventId).success)
+          throw new HttpError(400, 'Invalid event ID');
+        const row = (
+          await client.query(
+            `
         SELECT
           l.id AS "eventId",
           l.causation_id AS "causationId",
@@ -675,13 +766,14 @@ export function buildApp(
           l.id = $1
           AND l.universe_id = $2
       `,
-          [req.params.eventId, scope.universeId],
-        )
-      ).rows[0];
-      if (!row) throw new HttpError(404, 'Event not found');
-      return row;
-    });
-  });
+            [req.params.eventId, scope.universeId],
+          )
+        ).rows[0];
+        if (!row) throw new HttpError(404, 'Event not found');
+        return row;
+      });
+    },
+  );
 
   // ADR-0024 section 4: content-addressed, authenticated media serving. The sha256 path parameter
   // is validated before anything else touches it; authorization (session, epoch, and an eligible
@@ -693,15 +785,18 @@ export function buildApp(
     url: '/v1/media/:sha256',
     handler: async (req, reply) => {
       const sha256 = req.params.sha256;
-      if (!MEDIA_SHA256_PATTERN.test(sha256)) throw new HttpError(400, 'Invalid media identifier');
-      const authorized = await authenticated(req.headers.authorization, async (_scope, client) => {
-        // Content-addressed media can in principle be shared by more than one generated_reel row
-        // (the same bytes imported twice). If ANY of them is a genuine 'eligible' reference, this
-        // never reports the simulated marker for that content — a real Reel's bytes are never
-        // mislabelled as stand-in just because some other row also names them 'test_eligible'.
-        const row = (
-          await client.query<{ storage_key: string; simulated: boolean }>(
-            `
+      if (!MEDIA_SHA256_PATTERN.test(sha256))
+        throw new HttpError(400, 'Invalid media identifier');
+      const authorized = await authenticated(
+        req.headers.authorization,
+        async (_scope, client) => {
+          // Content-addressed media can in principle be shared by more than one generated_reel row
+          // (the same bytes imported twice). If ANY of them is a genuine 'eligible' reference, this
+          // never reports the simulated marker for that content — a real Reel's bytes are never
+          // mislabelled as stand-in just because some other row also names them 'test_eligible'.
+          const row = (
+            await client.query<{ storage_key: string; simulated: boolean }>(
+              `
             SELECT
               m.storage_key,
               (g.availability = 'test_eligible') AS simulated
@@ -717,11 +812,14 @@ export function buildApp(
             LIMIT
               1
           `,
-            [sha256],
-          )
-        ).rows[0];
-        return row ? { storageKey: row.storage_key, simulated: row.simulated } : null;
-      });
+              [sha256],
+            )
+          ).rows[0];
+          return row
+            ? { storageKey: row.storage_key, simulated: row.simulated }
+            : null;
+        },
+      );
       // Unknown, ineligible and (below, inside sendMedia) missing-on-disk all return the same 404:
       // this never tells a caller which of those was true.
       if (!authorized) throw new HttpError(404, 'Media not found');

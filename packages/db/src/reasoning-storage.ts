@@ -5,11 +5,21 @@ import {
 } from './reasoning-fairness-accounting.js';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
-import { reasoningReceipt, type ReasoningReceipt } from '../../contracts/src/reasoning.ts';
+import {
+  reasoningReceipt,
+  type ReasoningReceipt,
+} from '../../contracts/src/reasoning.ts';
 import { lockUniverse } from './index.ts';
 
-export type ReasoningClearScope = { universeId: string; epochBefore: number; epochAfter: number };
-export type ReasoningClearResult = { privateJobsDeleted: number; accountingRetained: number };
+export type ReasoningClearScope = {
+  universeId: string;
+  epochBefore: number;
+  epochAfter: number;
+};
+export type ReasoningClearResult = {
+  privateJobsDeleted: number;
+  accountingRetained: number;
+};
 export type TrustedReasoningReceiptOrigin = 'worker' | 'reconciler';
 export type AppendReasoningReceiptResult = {
   receiptId: string;
@@ -19,7 +29,9 @@ export type AppendReasoningReceiptResult = {
 };
 
 export class ReasoningReceiptConflict extends Error {
-  constructor(message = 'Reasoning receipt conflicts with retained accounting') {
+  constructor(
+    message = 'Reasoning receipt conflicts with retained accounting',
+  ) {
     super(message);
     this.name = 'ReasoningReceiptConflict';
   }
@@ -64,16 +76,22 @@ function assertTrustedOrigin(
   switch (origin) {
     case 'worker':
       if (receipt.evidenceKind === 'original_transport') return;
-      throw new ReasoningReceiptConflict('Worker receipts must be original transport evidence');
+      throw new ReasoningReceiptConflict(
+        'Worker receipts must be original transport evidence',
+      );
     case 'reconciler':
       if (
         receipt.evidenceKind === 'provider_lookup' ||
         receipt.evidenceKind === 'operator_reconciliation'
       )
         return;
-      throw new ReasoningReceiptConflict('Reconciler receipts require lookup or operator evidence');
+      throw new ReasoningReceiptConflict(
+        'Reconciler receipts require lookup or operator evidence',
+      );
     default:
-      throw new ReasoningReceiptConflict('Reasoning receipt origin is not trusted');
+      throw new ReasoningReceiptConflict(
+        'Reasoning receipt origin is not trusted',
+      );
   }
 }
 
@@ -88,15 +106,19 @@ export async function eraseReasoningForHistoryClear(
     scope.epochBefore < 0 ||
     scope.epochAfter !== scope.epochBefore + 1
   ) {
-    throw new Error('History-clear reasoning scope must advance exactly one privacy epoch');
+    throw new Error(
+      'History-clear reasoning scope must advance exactly one privacy epoch',
+    );
   }
-  await client.query('SELECT id FROM reasoning_job WHERE universe_id=$1 ORDER BY id FOR UPDATE', [
-    universeId,
-  ]);
+  await client.query(
+    'SELECT id FROM reasoning_job WHERE universe_id=$1 ORDER BY id FOR UPDATE',
+    [universeId],
+  );
 
-  await client.query('SELECT id FROM reasoning_step WHERE universe_id=$1 ORDER BY id FOR UPDATE', [
-    universeId,
-  ]);
+  await client.query(
+    'SELECT id FROM reasoning_step WHERE universe_id=$1 ORDER BY id FOR UPDATE',
+    [universeId],
+  );
   const attempts = (
     await client.query(
       'SELECT id FROM reasoning_attempt WHERE universe_id=$1 ORDER BY id FOR UPDATE',
@@ -120,14 +142,20 @@ export async function eraseReasoningForHistoryClear(
   `,
       [universeId],
     )
-  ).rows as Array<{ attempt_id: string; state: string; dispatch_id: string | null }>;
+  ).rows as Array<{
+    attempt_id: string;
+    state: string;
+    dispatch_id: string | null;
+  }>;
   const accountingIds = accountings.map((accounting) => accounting.attempt_id);
   const accountingByAttempt = new Map(
     accountings.map((accounting) => [accounting.attempt_id, accounting]),
   );
   for (const attemptId of attempts) {
     if (!accountingByAttempt.has(attemptId))
-      throw new Error('Private reasoning attempt is missing retained accounting');
+      throw new Error(
+        'Private reasoning attempt is missing retained accounting',
+      );
   }
   const permits: Array<{
     id: string;
@@ -157,7 +185,9 @@ export async function eraseReasoningForHistoryClear(
   const permitAttempts = new Set(permits.map((permit) => permit.attempt_id));
   for (const attemptId of attempts) {
     if (!permitAttempts.has(attemptId))
-      throw new Error('Every private reasoning attempt must have one retained permit');
+      throw new Error(
+        'Every private reasoning attempt must have one retained permit',
+      );
   }
   const unconsumedAttemptIds = permits
     .filter((permit) => permit.state !== 'consumed')
@@ -193,7 +223,9 @@ export async function eraseReasoningForHistoryClear(
       [unconsumedAttemptIds],
     );
     if (closed.rowCount !== unconsumedAttemptIds.length)
-      throw new Error('Unconsumed reasoning accounting could not close atomically');
+      throw new Error(
+        'Unconsumed reasoning accounting could not close atomically',
+      );
     if (reservedAttemptIds.length > 0) {
       const revoked = await client.query(
         `
@@ -265,7 +297,8 @@ export async function eraseReasoningForHistoryClear(
      `,
           [release.bucket_id, release.amount],
         );
-        if (bucket.rowCount !== 1) throw new Error('Reasoning bucket reservation underflow');
+        if (bucket.rowCount !== 1)
+          throw new Error('Reasoning bucket reservation underflow');
       }
       const released = await client.query(
         `
@@ -279,11 +312,14 @@ export async function eraseReasoningForHistoryClear(
         [unconsumedAttemptIds],
       );
       if (released.rowCount !== heldCount)
-        throw new Error('Unconsumed reasoning reservations did not release exactly once');
+        throw new Error(
+          'Unconsumed reasoning reservations did not release exactly once',
+        );
     }
   }
 
-  for (const attemptId of unconsumedAttemptIds) await releaseNotSentFairness(client, attemptId);
+  for (const attemptId of unconsumedAttemptIds)
+    await releaseNotSentFairness(client, attemptId);
   if (accountingIds.length > 0) {
     await client.query(
       `
@@ -299,14 +335,24 @@ export async function eraseReasoningForHistoryClear(
   }
 
   await client.query('SET CONSTRAINTS ALL DEFERRED');
-  await client.query('DELETE FROM reasoning_attempt WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM reasoning_step WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM reasoning_context WHERE universe_id=$1', [universeId]);
-  const deleted = await client.query('DELETE FROM reasoning_job WHERE universe_id=$1', [
+  await client.query('DELETE FROM reasoning_attempt WHERE universe_id=$1', [
     universeId,
   ]);
+  await client.query('DELETE FROM reasoning_step WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM reasoning_context WHERE universe_id=$1', [
+    universeId,
+  ]);
+  const deleted = await client.query(
+    'DELETE FROM reasoning_job WHERE universe_id=$1',
+    [universeId],
+  );
   await clearFairnessMembership(client, universeId);
-  return { privateJobsDeleted: deleted.rowCount ?? 0, accountingRetained: accountings.length };
+  return {
+    privateJobsDeleted: deleted.rowCount ?? 0,
+    accountingRetained: accountings.length,
+  };
 }
 
 export async function appendRestrictedReasoningReceipt(
@@ -318,9 +364,10 @@ export async function appendRestrictedReasoningReceipt(
   assertTrustedOrigin(receipt, origin);
   const fingerprint = receiptFingerprint(receipt);
   const candidate = (
-    await client.query('SELECT universe_id FROM reasoning_accounting WHERE attempt_id=$1', [
-      receipt.attemptId,
-    ])
+    await client.query(
+      'SELECT universe_id FROM reasoning_accounting WHERE attempt_id=$1',
+      [receipt.attemptId],
+    )
   ).rows[0];
   if (!candidate) throw new UnknownReasoningReceipt();
   await lockUniverse(client, String(candidate.universe_id));
@@ -354,12 +401,16 @@ export async function appendRestrictedReasoningReceipt(
   if (!accounting) throw new ReasoningReceiptConflict();
 
   const existing = (
-    await client.query('SELECT attempt_id,fingerprint FROM reasoning_receipt WHERE id=$1', [
-      receipt.receiptId,
-    ])
+    await client.query(
+      'SELECT attempt_id,fingerprint FROM reasoning_receipt WHERE id=$1',
+      [receipt.receiptId],
+    )
   ).rows[0];
   if (existing) {
-    if (existing.attempt_id === receipt.attemptId && existing.fingerprint === fingerprint) {
+    if (
+      existing.attempt_id === receipt.attemptId &&
+      existing.fingerprint === fingerprint
+    ) {
       return {
         receiptId: receipt.receiptId,
         attemptId: receipt.attemptId,
@@ -367,13 +418,19 @@ export async function appendRestrictedReasoningReceipt(
         replayed: true,
       };
     }
-    throw new ReasoningReceiptConflict('Reasoning receipt id was reused with conflicting evidence');
+    throw new ReasoningReceiptConflict(
+      'Reasoning receipt id was reused with conflicting evidence',
+    );
   }
   if (accounting.closure_basis === 'operator_risk') {
-    throw new ReasoningReceiptConflict('Operator risk closure ended late receipt acceptance');
+    throw new ReasoningReceiptConflict(
+      'Operator risk closure ended late receipt acceptance',
+    );
   }
   if (accounting.state === 'reserved' || accounting.state === 'not_sent') {
-    throw new ReasoningReceiptConflict('Reasoning receipt has no consumed dispatch authority');
+    throw new ReasoningReceiptConflict(
+      'Reasoning receipt has no consumed dispatch authority',
+    );
   }
 
   await client.query(

@@ -10,13 +10,14 @@ export const FAIRNESS_CLASSES = [
   'housekeeping',
 ] as const;
 export type FairnessClass = (typeof FAIRNESS_CLASSES)[number];
-export const FAIRNESS_WEIGHTS: Readonly<Record<FairnessClass, number>> = Object.freeze({
-  interactive: 5,
-  active_continuity: 6,
-  accumulated_interpretation: 4,
-  background_inquiry: 3,
-  housekeeping: 2,
-});
+export const FAIRNESS_WEIGHTS: Readonly<Record<FairnessClass, number>> =
+  Object.freeze({
+    interactive: 5,
+    active_continuity: 6,
+    accumulated_interpretation: 4,
+    background_inquiry: 3,
+    housekeeping: 2,
+  });
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const policySchema = z
   .object({
@@ -50,9 +51,15 @@ export function validateFairnessPolicy(input: unknown): {
   )
     throw new ReasoningDenied('invalid_fairness_quantum');
   const canonical = { ...policy, weights: FAIRNESS_WEIGHTS };
-  return { policy, hash: createHash('sha256').update(JSON.stringify(canonical)).digest('hex') };
+  return {
+    policy,
+    hash: createHash('sha256').update(JSON.stringify(canonical)).digest('hex'),
+  };
 }
-export function fairnessClassCap(policy: SqlFairnessPolicy, lane: FairnessClass): number {
+export function fairnessClassCap(
+  policy: SqlFairnessPolicy,
+  lane: FairnessClass,
+): number {
   return policy.quantum * FAIRNESS_WEIGHTS[lane] + policy.maxCharge;
 }
 export function fairnessUniverseCap(policy: SqlFairnessPolicy): number {
@@ -82,7 +89,8 @@ export function fairnessCharge(
   let charge = 1n;
   for (const key of Object.keys(demand) as Array<keyof typeof demand>) {
     const basis = BigInt(policy.basis[key]);
-    const value = (BigInt(policy.scale) * BigInt(demand[key]) + basis - 1n) / basis;
+    const value =
+      (BigInt(policy.scale) * BigInt(demand[key]) + basis - 1n) / basis;
     if (value > charge) charge = value;
   }
   if (charge > BigInt(Number.MAX_SAFE_INTEGER))

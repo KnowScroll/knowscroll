@@ -78,7 +78,9 @@ const reason = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
 export const INVENTORY_LIST_LIMIT = 50;
 
 /** The Scroll a demand is bound to, while that binding stands. */
-const boundScroll = z.object({ assetId: id, title: z.string().min(1) }).strict();
+const boundScroll = z
+  .object({ assetId: id, title: z.string().min(1) })
+  .strict();
 
 /** Why the Quartermaster (`quartermaster-v1`) cannot meet a need: no writing route, its budget spent,
  * no allowlisted material for the concept, the Scrolls written for it refused twice, or a request whose
@@ -110,7 +112,10 @@ export const placeDemand = z
     (d) =>
       (d.status === 'bound') === (d.scroll !== null) &&
       (d.status === 'cannot_meet') === (d.reason !== null),
-    { message: 'Only a bound demand names a Scroll, and only one that cannot be met a reason' },
+    {
+      message:
+        'Only a bound demand names a Scroll, and only one that cannot be met a reason',
+    },
   );
 export type PlaceDemand = z.infer<typeof placeDemand>;
 
@@ -121,7 +126,9 @@ export const inventoryDemand = z
     /** The Quartermaster's latest decision (`quartermaster-v1`). */
     decision: z.enum(['reuse', 'join', 'fund', 'cannot_meet']).nullable(),
     reason: reason.nullable(),
-    concept: z.object({ code: conceptCode, name: z.string().min(1).max(80) }).strict(),
+    concept: z
+      .object({ code: conceptCode, name: z.string().min(1).max(80) })
+      .strict(),
     /** What recorded the need: a place read in full, or a continuation into a concept with nothing unseen. */
     causes: z
       .array(z.enum(['exhaustion', 'branch_gap']))

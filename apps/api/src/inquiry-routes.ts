@@ -17,20 +17,26 @@ import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 
 const http = (error: unknown): never => {
-  if (error instanceof InquiryError) throw new HttpError(error.statusCode, error.message);
+  if (error instanceof InquiryError)
+    throw new HttpError(error.statusCode, error.message);
   throw error;
 };
 
-export function registerInquiryRoutes(app: FastifyInstance, authenticated: Authenticated): void {
+export function registerInquiryRoutes(
+  app: FastifyInstance,
+  authenticated: Authenticated,
+): void {
   app.put('/v1/inquiries/consent', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) =>
-      setInquiryConsent(client, scope, req.body).catch(http),
+    const result = await authenticated(
+      req.headers.authorization,
+      (scope, client) => setInquiryConsent(client, scope, req.body).catch(http),
     );
     return reply.header('Cache-Control', 'no-store').send(result);
   });
   app.get('/v1/inquiries', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, (scope, client) =>
-      listInquiries(client, scope),
+    const result = await authenticated(
+      req.headers.authorization,
+      (scope, client) => listInquiries(client, scope),
     );
     return reply.header('Cache-Control', 'no-store').send(result);
   });

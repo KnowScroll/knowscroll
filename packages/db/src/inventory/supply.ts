@@ -12,7 +12,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { checkMaterialUrl, MATERIAL_POLICY_VERSION } from '../../../core/src/scrolls/material.ts';
+import {
+  checkMaterialUrl,
+  MATERIAL_POLICY_VERSION,
+} from '../../../core/src/scrolls/material.ts';
 import type { ScrollPlanItem } from '../../../core/src/scrolls/writing.ts';
 
 /** Bench value: a request marked `sending` this long ago with no settlement (its worker died) is failed as `outcome_unknown`, never sent again. */
@@ -33,14 +36,21 @@ export async function lockSupply(client: pg.PoolClient): Promise<void> {
 /** Installs and enables one route (disabling any other); its request cap becomes its bucket. */
 export async function installScrollWritingRoute(
   client: pg.PoolClient,
-  input: { id: string; transport: 'fixture' | 'minimax'; model: string; requestCap: number },
+  input: {
+    id: string;
+    transport: 'fixture' | 'minimax';
+    model: string;
+    requestCap: number;
+  },
 ): Promise<void> {
   const bucket = randomUUID();
   await client.query(
     `INSERT INTO reasoning_bucket(id,dimension,unit,capacity) VALUES($1,'route_quota','requests',$2)`,
     [bucket, input.requestCap],
   );
-  await client.query('UPDATE scroll_writing_route SET enabled=false WHERE enabled');
+  await client.query(
+    'UPDATE scroll_writing_route SET enabled=false WHERE enabled',
+  );
   await client.query(
     `
     INSERT INTO
@@ -60,7 +70,8 @@ export async function installMaterialCandidates(
   let installed = 0;
   for (const item of items) {
     const checked = checkMaterialUrl(item.url);
-    if (!checked.ok) throw new Error(`Material ${item.url} is refused: ${checked.reason}`);
+    if (!checked.ok)
+      throw new Error(`Material ${item.url} is refused: ${checked.reason}`);
     installed +=
       (
         await client.query(
@@ -122,7 +133,11 @@ export async function loadSupplyFacts(
     )
   ).rows[0];
   const candidates = (
-    await client.query<{ id: string; concept_codes: string[]; requested: boolean }>(
+    await client.query<{
+      id: string;
+      concept_codes: string[];
+      requested: boolean;
+    }>(
       `
       SELECT
         m.id,
@@ -275,7 +290,8 @@ export async function admitRequest(
       [requestId],
     )
   ).rows[0]!;
-  if (current.status !== 'open') return { ok: false, reason: 'request_not_open' };
+  if (current.status !== 'open')
+    return { ok: false, reason: 'request_not_open' };
   if (!current.enabled) return cancel(client, requestId, 'route_disabled');
   const awaited = (
     await client.query(
@@ -296,7 +312,10 @@ async function cancel(
   requestId: string,
   reason: string,
 ): Promise<{ ok: false; reason: string }> {
-  await settleRequest(client, requestId, { status: 'cancelled', reasons: [reason] });
+  await settleRequest(client, requestId, {
+    status: 'cancelled',
+    reasons: [reason],
+  });
   return { ok: false, reason };
 }
 
@@ -332,7 +351,9 @@ export async function settleRequest(
 /** Requests that can no longer be sent as they are: those on a route that is no longer enabled
  * (cancelled, never sent) and those left `sending` by a worker that died (failed, `outcome_unknown`:
  * they may have reached the provider, so they are never sent again). Returns how many were settled. */
-export async function settleStrandedRequests(client: pg.Pool | pg.PoolClient): Promise<number> {
+export async function settleStrandedRequests(
+  client: pg.Pool | pg.PoolClient,
+): Promise<number> {
   const disabled = await client.query(
     `
       UPDATE supply_request r

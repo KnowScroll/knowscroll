@@ -9,7 +9,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { substrateSeed, type SubstrateSeed } from '../../../contracts/src/semantic.ts';
+import {
+  substrateSeed,
+  type SubstrateSeed,
+} from '../../../contracts/src/semantic.ts';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { submitBridgeProposal, type ProposalResult } from './proposals.ts';
 import { revalidateAdmittedBridges } from './corrections.ts';
@@ -45,11 +48,15 @@ export async function ensureRow(
   );
   if (inserted.rowCount) return inserted.rows[0].id;
   const row = (
-    await client.query(`SELECT * FROM ${table} WHERE ${keyColumn}=$1`, [values[keyColumn]])
+    await client.query(`SELECT * FROM ${table} WHERE ${keyColumn}=$1`, [
+      values[keyColumn],
+    ])
   ).rows[0];
   for (const column of compare) {
     const stored =
-      row[column] instanceof Date ? row[column].toISOString().slice(0, 10) : row[column];
+      row[column] instanceof Date
+        ? row[column].toISOString().slice(0, 10)
+        : row[column];
     if (String(stored) !== String(values[column])) {
       throw new SubstrateSeedConflict(
         `${table} ${String(values[keyColumn])}: stored ${column} differs from the seed; add a new key or record a correction`,
@@ -101,7 +108,10 @@ function parentsFirst(seed: SubstrateSeed): SubstrateSeed['concepts'] {
   const placed = new Set<string>();
   const place = (code: string, path: Set<string>) => {
     if (placed.has(code)) return;
-    if (path.has(code)) throw new SubstrateSeedConflict(`concept hierarchy cycle through ${code}`);
+    if (path.has(code))
+      throw new SubstrateSeedConflict(
+        `concept hierarchy cycle through ${code}`,
+      );
     const concept = byCode.get(code);
     if (!concept) throw new SubstrateSeedConflict(`unknown concept ${code}`);
     if (concept.parentCode) place(concept.parentCode, new Set([...path, code]));
@@ -121,16 +131,22 @@ export async function loadSubstrateSeed(
   await lockSubstrateExclusive(client);
 
   const prior = (
-    await client.query('SELECT content_sha256, counts FROM semantic_seed_load WHERE version=$1', [
-      seed.version,
-    ])
+    await client.query(
+      'SELECT content_sha256, counts FROM semantic_seed_load WHERE version=$1',
+      [seed.version],
+    )
   ).rows[0];
   if (prior) {
     if (prior.content_sha256 !== contentSha)
       throw new SubstrateSeedConflict(
         `seed ${seed.version} was loaded with different content; publish a new version`,
       );
-    return { status: 'already_loaded', version: seed.version, counts: prior.counts, proposals: [] };
+    return {
+      status: 'already_loaded',
+      version: seed.version,
+      counts: prior.counts,
+      proposals: [],
+    };
   }
 
   const familyIds = new Map<string, string>();
@@ -176,9 +192,10 @@ export async function loadSubstrateSeed(
       continue;
     }
     const anyPrior = (
-      await client.query('SELECT count(*)::int AS n FROM source_snapshot WHERE source_id=$1', [
-        sourceId,
-      ])
+      await client.query(
+        'SELECT count(*)::int AS n FROM source_snapshot WHERE source_id=$1',
+        [sourceId],
+      )
     ).rows[0].n as number;
     if (anyPrior > 0)
       throw new SubstrateSeedConflict(
@@ -227,8 +244,15 @@ export async function loadSubstrateSeed(
   // Knowledge links are part of a claim's identity: a later seed may not quietly add a concept, a
   // quote or an annotation to something a reader was already shown. After insert-if-absent, what is
   // stored must equal exactly what this seed says.
-  const sameSet = async (label: string, sql: string, params: unknown[], expected: string[]) => {
-    const stored = (await client.query<{ k: string }>(sql, params)).rows.map((r) => r.k).sort();
+  const sameSet = async (
+    label: string,
+    sql: string,
+    params: unknown[],
+    expected: string[],
+  ) => {
+    const stored = (await client.query<{ k: string }>(sql, params)).rows
+      .map((r) => r.k)
+      .sort();
     if (JSON.stringify(stored) !== JSON.stringify([...expected].sort())) {
       throw new SubstrateSeedConflict(
         `${label}: stored links differ from the seed; add a new key or record a correction`,
@@ -241,7 +265,8 @@ export async function loadSubstrateSeed(
     // An existing claim is only compared, never extended: inserting first would let a later seed
     // add a link and then find it "already there".
     const existed =
-      ((await client.query('SELECT 1 FROM claim WHERE key=$1', [claim.key])).rowCount ?? 0) > 0;
+      ((await client.query('SELECT 1 FROM claim WHERE key=$1', [claim.key]))
+        .rowCount ?? 0) > 0;
     const id = await ensureRow(
       client,
       'claim',
@@ -291,7 +316,9 @@ export async function loadSubstrateSeed(
       `claim ${claim.key} support`,
       `SELECT s.snapshot_id || ':' || s.support_kind || ':' || s.quote AS k FROM claim_support s WHERE s.claim_id = $1`,
       [id],
-      claim.support.map((q) => `${snapshotIds.get(q.sourceKey)}:${q.supportKind}:${q.quote}`),
+      claim.support.map(
+        (q) => `${snapshotIds.get(q.sourceKey)}:${q.supportKind}:${q.quote}`,
+      ),
     );
   }
 
@@ -331,17 +358,21 @@ export async function loadSubstrateSeed(
   }
 
   for (const annotation of seed.assets) {
-    const present = (await client.query('SELECT 1 FROM asset WHERE id=$1', [annotation.assetId]))
-      .rowCount;
+    const present = (
+      await client.query('SELECT 1 FROM asset WHERE id=$1', [
+        annotation.assetId,
+      ])
+    ).rowCount;
     if (!present)
       throw new SubstrateSeedConflict(
         `annotated asset ${annotation.assetId} is not installed; seed editorial Scrolls first`,
       );
     const annotated =
       ((
-        await client.query('SELECT 1 FROM asset_concept WHERE asset_id=$1 LIMIT 1', [
-          annotation.assetId,
-        ])
+        await client.query(
+          'SELECT 1 FROM asset_concept WHERE asset_id=$1 LIMIT 1',
+          [annotation.assetId],
+        )
       ).rowCount ?? 0) > 0;
     if (!annotated)
       for (const c of annotation.concepts) {
@@ -445,7 +476,8 @@ export async function loadSubstrateSeed(
     relations: seed.relations.length,
     assets: seed.assets.length,
     bridgeProposals: seed.bridgeProposals.length,
-    bridgesAdmitted: proposals.filter((p) => p.result.status === 'admitted').length,
+    bridgesAdmitted: proposals.filter((p) => p.result.status === 'admitted')
+      .length,
   };
   await client.query(
     'INSERT INTO semantic_seed_load(version,content_sha256,counts) VALUES($1,$2,$3)',

@@ -26,7 +26,10 @@ import {
   parseAwayCursor,
   selectAway,
 } from '../../core/src/away.ts';
-import { roomChronicleLine, type RoomRole } from '../../core/src/rooms/keeper.ts';
+import {
+  roomChronicleLine,
+  type RoomRole,
+} from '../../core/src/rooms/keeper.ts';
 import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning-inquiries.ts';
@@ -45,7 +48,10 @@ export class ReturnError extends Error {
 const iso = (d: Date) => d.toISOString();
 type Keyed = AwayItem & { key: string };
 
-async function currentMarker(client: pg.PoolClient, scope: AuthScope): Promise<Date | null> {
+async function currentMarker(
+  client: pg.PoolClient,
+  scope: AuthScope,
+): Promise<Date | null> {
   return (
     (
       await client.query<{ through: Date | null }>(
@@ -56,7 +62,10 @@ async function currentMarker(client: pg.PoolClient, scope: AuthScope): Promise<D
   );
 }
 
-async function paused(client: pg.PoolClient, universeId: string): Promise<boolean> {
+async function paused(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<boolean> {
   return (
     await client.query<{ paused: boolean }>(
       'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
@@ -79,7 +88,8 @@ export async function readAway(
   page?: string,
 ): Promise<AwayResponse> {
   const cursor = page === undefined ? null : parseAwayCursor(page);
-  if (cursor === null && page !== undefined) throw new ReturnError(400, 'Invalid page');
+  if (cursor === null && page !== undefined)
+    throw new ReturnError(400, 'Invalid page');
   await lockSubstrateShared(client);
   const since = await currentMarker(client, scope);
   const after = since ?? new Date(0);
@@ -118,7 +128,10 @@ export async function readAway(
       id: string;
       status: string;
       closed_at: Date;
-      pairs: Array<{ a: { code: string; name: string }; b: { code: string; name: string } }> | null;
+      pairs: Array<{
+        a: { code: string; name: string };
+        b: { code: string; name: string };
+      }> | null;
       reasons: string[];
       proposal_id: string | null;
     }>(
@@ -140,7 +153,11 @@ export async function readAway(
           seemsWrong: await markedWrong(client, scope, found.bridgeId),
           key: r.id,
         });
-    } else if (r.status === 'rejected' && pairs.length > 0 && r.reasons.length > 0) {
+    } else if (
+      r.status === 'rejected' &&
+      pairs.length > 0 &&
+      r.reasons.length > 0
+    ) {
       candidates.push({
         kind: 'connection_did_not_hold_up',
         at,
@@ -150,7 +167,13 @@ export async function readAway(
         key: r.id,
       });
     } else if (r.status === 'none' && pairs.length > 0) {
-      candidates.push({ kind: 'nothing_found', at, inquiryId: r.id, pairs, key: r.id });
+      candidates.push({
+        kind: 'nothing_found',
+        at,
+        inquiryId: r.id,
+        pairs,
+        key: r.id,
+      });
     }
   }
 
@@ -170,7 +193,12 @@ export async function readAway(
   );
   const deltas = (
     await client.query<
-      DeltaNaming & { id: string; place_id: string; kind: AwayChange; created_at: Date }
+      DeltaNaming & {
+        id: string;
+        place_id: string;
+        kind: AwayChange;
+        created_at: Date;
+      }
     >(
       `SELECT d.id, d.place_id, d.kind, d.causal_class, d.created_at, d.evidence, c.code AS anchor, pc.code AS parent_anchor
      FROM atlas_delta d ${DELTA_PLACES} WHERE ${deltaWhere} ${deltaPage.order} LIMIT $6`,
@@ -243,7 +271,12 @@ export async function readAway(
   }
 
   // Corrections to a connection the reader was shown as found, or kept, in this epoch.
-  const correctedPage = pageOf('b.status_changed_at', `'connection_corrected'::text`, 'b.id', 4);
+  const correctedPage = pageOf(
+    'b.status_changed_at',
+    `'connection_corrected'::text`,
+    'b.id',
+    4,
+  );
   const correctedWhere = `b.status IN ('revoked','superseded') AND date_trunc('milliseconds', b.status_changed_at) > $3 AND (
       EXISTS (SELECT 1 FROM background_inquiry i WHERE i.universe_id=$1 AND i.privacy_epoch=$2 AND i.status='admitted' AND i.proposal_id = b.proposal_id)
       OR EXISTS (SELECT 1 FROM relic r WHERE r.universe_id=$1 AND r.privacy_epoch=$2 AND r.bridge_id = b.id)) AND ${correctedPage.after}`;
@@ -286,7 +319,12 @@ export async function readAway(
   }
 
   // Scrolls bound to the reader's need, withdrawn because what they were based on changed (ADR-0046 §5).
-  const withdrawnPage = pageOf('b.withdrawn_at', `'scroll_withdrawn'::text`, 'b.id', 4);
+  const withdrawnPage = pageOf(
+    'b.withdrawn_at',
+    `'scroll_withdrawn'::text`,
+    'b.id',
+    4,
+  );
   const withdrawnWhere = `b.universe_id=$1 AND b.privacy_epoch=$2 AND b.status='withdrawn' AND date_trunc('milliseconds', b.withdrawn_at) > $3
     AND ${withdrawnPage.after}`;
   const withdrawnParams = paged([scope.universeId, scope.privacyEpoch, after]);
@@ -299,7 +337,12 @@ export async function readAway(
     ).rows[0].count,
   );
   const withdrawn = (
-    await client.query<{ id: string; withdrawn_at: Date; code: string; name: string }>(
+    await client.query<{
+      id: string;
+      withdrawn_at: Date;
+      code: string;
+      name: string;
+    }>(
       `SELECT b.id, b.withdrawn_at, c.code, c.name FROM encounter_binding b JOIN content_demand d ON d.id = b.demand_id JOIN concept c ON c.id = d.concept_id
      WHERE ${withdrawnWhere} ${withdrawnPage.order} LIMIT $7`,
       withdrawnParams,
@@ -315,7 +358,12 @@ export async function readAway(
     });
   }
 
-  const picked = selectAway(candidates, since ? iso(since) : null, AWAY_LIST_LIMIT, total);
+  const picked = selectAway(
+    candidates,
+    since ? iso(since) : null,
+    AWAY_LIST_LIMIT,
+    total,
+  );
   const last = picked.items.at(-1);
   return {
     privacyEpoch: scope.privacyEpoch,
@@ -370,9 +418,15 @@ export async function markedWrong(
   );
 }
 
-async function bridgeConnectionByProposal(client: pg.PoolClient, proposalId: string) {
+async function bridgeConnectionByProposal(
+  client: pg.PoolClient,
+  proposalId: string,
+) {
   const bridge = (
-    await client.query<{ id: string }>('SELECT id FROM bridge WHERE proposal_id=$1', [proposalId])
+    await client.query<{ id: string }>(
+      'SELECT id FROM bridge WHERE proposal_id=$1',
+      [proposalId],
+    )
   ).rows[0];
   return bridge ? bridgeConnection(client, bridge.id) : null;
 }
@@ -394,12 +448,19 @@ export async function acknowledgeAway(
   ).rows[0];
   if (replay) {
     if (replay.through.getTime() !== Date.parse(input.through))
-      throw new ReturnError(409, 'Acknowledgement key reused with a different time');
-    return { privacyEpoch: scope.privacyEpoch, since: iso((await currentMarker(client, scope))!) };
+      throw new ReturnError(
+        409,
+        'Acknowledgement key reused with a different time',
+      );
+    return {
+      privacyEpoch: scope.privacyEpoch,
+      since: iso((await currentMarker(client, scope))!),
+    };
   }
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new ReturnError(409, 'Privacy epoch is stale');
-  if (await paused(client, scope.universeId)) throw new ReturnError(409, 'Recording is paused');
+  if (await paused(client, scope.universeId))
+    throw new ReturnError(409, 'Recording is paused');
   const current = await currentMarker(client, scope);
   if (current && nextMarker(iso(current), input.through) === null)
     return { privacyEpoch: scope.privacyEpoch, since: iso(current) };
@@ -409,7 +470,8 @@ export async function acknowledgeAway(
       [input.through],
     )
   ).rows[0]!.future;
-  if (inFuture) throw new ReturnError(422, 'A return cannot be acknowledged in the future');
+  if (inFuture)
+    throw new ReturnError(422, 'A return cannot be acknowledged in the future');
   await client.query(
     `
     INSERT INTO
@@ -423,16 +485,30 @@ export async function acknowledgeAway(
     VALUES
       ($1, $2, $3, $4, $5)
   `,
-    [randomUUID(), scope.universeId, scope.privacyEpoch, input.clientRequestId, input.through],
+    [
+      randomUUID(),
+      scope.universeId,
+      scope.privacyEpoch,
+      input.clientRequestId,
+      input.through,
+    ],
   );
-  return { privacyEpoch: scope.privacyEpoch, since: iso((await currentMarker(client, scope))!) };
+  return {
+    privacyEpoch: scope.privacyEpoch,
+    since: iso((await currentMarker(client, scope))!),
+  };
 }
 
 // Privacy -------------------------------------------------------------------------------------
 
 /** Clear/Reset/deletion (after the epoch advanced). */
-export async function eraseAway(client: pg.PoolClient, universeId: string): Promise<void> {
-  await client.query('DELETE FROM away_acknowledgement WHERE universe_id=$1', [universeId]);
+export async function eraseAway(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
+  await client.query('DELETE FROM away_acknowledgement WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
 export async function exportAway(client: pg.PoolClient, universeId: string) {

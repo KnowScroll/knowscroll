@@ -9,7 +9,10 @@ type Input = { jobId: string; universeId: string; attemptIds: string[] };
  * the scoped ready row, and physical buckets. Call AFTER all not_sent refunds.
  * All reads here use already-owned rows; no new lock acquisition or provider work.
  */
-export async function finalizeIdleJobFairness(client: pg.PoolClient, input: Input): Promise<void> {
+export async function finalizeIdleJobFairness(
+  client: pg.PoolClient,
+  input: Input,
+): Promise<void> {
   const ready = (
     await client.query<Lane>(
       'SELECT policy_version,class,universe_id FROM reasoning_fairness_ready WHERE job_id=$1',
@@ -48,7 +51,8 @@ export async function finalizeIdleJobFairness(client: pg.PoolClient, input: Inpu
       'DELETE FROM reasoning_fairness_ready WHERE job_id=$1 AND universe_id=$2',
       [input.jobId, input.universeId],
     );
-    if (removed.rowCount !== 1) throw new ReasoningDenied('idle_fairness_membership_changed');
+    if (removed.rowCount !== 1)
+      throw new ReasoningDenied('idle_fairness_membership_changed');
     const decremented = await client.query(
       `
      UPDATE reasoning_fairness_universe
@@ -62,11 +66,14 @@ export async function finalizeIdleJobFairness(client: pg.PoolClient, input: Inpu
    `,
       [ready.policy_version, ready.class, input.universeId],
     );
-    if (decremented.rowCount !== 1) throw new ReasoningDenied('fairness_ready_count_mismatch');
+    if (decremented.rowCount !== 1)
+      throw new ReasoningDenied('fairness_ready_count_mismatch');
     changed.add(ready.policy_version);
   }
   for (const lane of [...lanes.values()].sort(
-    (a, b) => a.policy_version.localeCompare(b.policy_version) || a.class.localeCompare(b.class),
+    (a, b) =>
+      a.policy_version.localeCompare(b.policy_version) ||
+      a.class.localeCompare(b.class),
   )) {
     const params = [lane.policy_version, lane.class, input.universeId];
     const counts = (
@@ -156,7 +163,8 @@ export async function finalizeIdleJobFairness(client: pg.PoolClient, input: Inpu
    `,
       [lane.policy_version, lane.class],
     );
-    if (universe.rowCount || open.rowCount || emptyClass.rowCount) changed.add(lane.policy_version);
+    if (universe.rowCount || open.rowCount || emptyClass.rowCount)
+      changed.add(lane.policy_version);
   }
   if (changed.size > 0) {
     const versions = [...changed].sort();

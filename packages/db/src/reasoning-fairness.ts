@@ -9,7 +9,10 @@ import {
   type ReserveAttemptInput,
   type ReservedAttempt,
 } from './reasoning-admission.js';
-import { ReasoningDenied, type ReasoningAuthority } from './reasoning-runtime-policy.js';
+import {
+  ReasoningDenied,
+  type ReasoningAuthority,
+} from './reasoning-runtime-policy.js';
 import {
   FAIRNESS_CLASSES,
   FAIRNESS_WEIGHTS,
@@ -21,7 +24,10 @@ import {
   type SqlFairnessPolicy,
 } from './reasoning-fairness-policy.js';
 
-export type FairnessReadyInput = Omit<ReserveAttemptInput, 'owner' | 'leaseFence'> & {
+export type FairnessReadyInput = Omit<
+  ReserveAttemptInput,
+  'owner' | 'leaseFence'
+> & {
   policyVersion: string;
   class: FairnessClass;
 };
@@ -67,7 +73,9 @@ export type FairnessNoWork = {
 export type ReasoningFairness = {
   installPolicy(input: unknown): Promise<{ version: string; hash: string }>;
   enqueue(input: FairnessReadyInput): Promise<void>;
-  schedule(input: FairnessScheduleInput): Promise<FairnessScheduled | FairnessNoWork>;
+  schedule(
+    input: FairnessScheduleInput,
+  ): Promise<FairnessScheduled | FairnessNoWork>;
 };
 type State = {
   generation: string;
@@ -118,8 +126,12 @@ const INELIGIBLE_HEAD = [
 ];
 const nextClass = (klass: FairnessClass) =>
   (FAIRNESS_CLASSES.indexOf(klass) + 1) % FAIRNESS_CLASSES.length;
-const cap = (value: bigint, maximum: number) => (value > BigInt(maximum) ? BigInt(maximum) : value);
-async function tx<T>(db: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+const cap = (value: bigint, maximum: number) =>
+  value > BigInt(maximum) ? BigInt(maximum) : value;
+async function tx<T>(
+  db: pg.Pool,
+  body: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
@@ -137,9 +149,10 @@ async function tx<T>(db: pg.Pool, body: (client: pg.PoolClient) => Promise<T>): 
 }
 async function policyFor(db: pg.Pool | pg.PoolClient, version: string) {
   const row = (
-    await db.query('SELECT config,policy_hash FROM reasoning_fairness_policy WHERE version=$1', [
-      version,
-    ])
+    await db.query(
+      'SELECT config,policy_hash FROM reasoning_fairness_policy WHERE version=$1',
+      [version],
+    )
   ).rows[0];
   if (!row) return deny('fairness_policy_missing');
   const value = validateFairnessPolicy(row.config);
@@ -157,18 +170,24 @@ function decode(row: Ready): Ready {
     ...row,
     inputTokensUpperBound: Number(row.inputTokensUpperBound),
     maxOutputTokens: Number(row.maxOutputTokens),
-    costCeilingMicroUsd: row.costCeilingMicroUsd === null ? null : Number(row.costCeilingMicroUsd),
+    costCeilingMicroUsd:
+      row.costCeilingMicroUsd === null ? null : Number(row.costCeilingMicroUsd),
     deadline: new Date(row.deadline).toISOString(),
   };
 }
 /** Constant-size indexed probes; expired/ineligible heads are inspected, never
  * filtered through an unbounded scan before LIMIT. The generation is advisory.
  */
-async function discover(db: pg.Pool, version: string, inspectHead = true): Promise<Discovery> {
+async function discover(
+  db: pg.Pool,
+  version: string,
+  inspectHead = true,
+): Promise<Discovery> {
   const state = (
-    await db.query<State>('SELECT * FROM reasoning_fairness_scheduler WHERE policy_version=$1', [
-      version,
-    ])
+    await db.query<State>(
+      'SELECT * FROM reasoning_fairness_scheduler WHERE policy_version=$1',
+      [version],
+    )
   ).rows[0];
   if (!state) return deny('fairness_policy_missing');
   const klass = FAIRNESS_CLASSES[state.class_cursor]!;
@@ -179,7 +198,8 @@ async function discover(db: pg.Pool, version: string, inspectHead = true): Promi
     )
   ).rows[0];
   if (!lane) return deny('fairness_lane_missing');
-  if (!inspectHead) return { state, lane, klass, universe: undefined, ready: undefined };
+  if (!inspectHead)
+    return { state, lane, klass, universe: undefined, ready: undefined };
   let universe: UniverseLane | undefined;
   if (lane.open_universe_id)
     universe = (
@@ -259,20 +279,33 @@ async function discover(db: pg.Pool, version: string, inspectHead = true): Promi
         ])
       ).rows[0];
   }
-  return { state, lane, klass, universe, ready: ready ? decode(ready) : undefined };
+  return {
+    state,
+    lane,
+    klass,
+    universe,
+    ready: ready ? decode(ready) : undefined,
+  };
 }
 /** #177: a scheduler's probes run one at a time. Each one that progresses moves the single generation,
  * so concurrent probes can only fence each other: one that found the head's universe held by another
  * probe committed a blocked round under it, and two in step did so until both spent every probe.
  * Taken first, while nothing else is held, so it adds no edge to the universe-first lock order. */
 const FAIRNESS_PROBE_LOCK = 0x0fa1_0177;
-async function lockProbe(client: pg.PoolClient, version: string): Promise<void> {
+async function lockProbe(
+  client: pg.PoolClient,
+  version: string,
+): Promise<void> {
   await client.query('SELECT pg_advisory_xact_lock($1::int,hashtext($2))', [
     FAIRNESS_PROBE_LOCK,
     version,
   ]);
 }
-async function lockCursor(client: pg.PoolClient, version: string, d: Discovery): Promise<void> {
+async function lockCursor(
+  client: pg.PoolClient,
+  version: string,
+  d: Discovery,
+): Promise<void> {
   const state = (
     await client.query<State>(
       'SELECT * FROM reasoning_fairness_scheduler WHERE policy_version=$1 FOR UPDATE',
@@ -354,7 +387,9 @@ function closeInner(d: Discovery) {
   d.lane.universe_remaining = '0';
 }
 async function dequeue(client: pg.PoolClient, version: string, d: Discovery) {
-  await client.query('DELETE FROM reasoning_fairness_ready WHERE job_id=$1', [d.ready!.jobId]);
+  await client.query('DELETE FROM reasoning_fairness_ready WHERE job_id=$1', [
+    d.ready!.jobId,
+  ]);
   const u = (
     await client.query<UniverseLane>(
       `
@@ -422,7 +457,12 @@ const observation = (
       }
     : {}),
 });
-async function bypass(client: pg.PoolClient, version: string, d: Discovery, remove = false) {
+async function bypass(
+  client: pg.PoolClient,
+  version: string,
+  d: Discovery,
+  remove = false,
+) {
   if (remove) await dequeue(client, version, d);
   else if (d.ready)
     await client.query(
@@ -474,7 +514,9 @@ async function probe(
       await lockCursor(client, input.policyVersion, d);
       closeInner(d);
       await save(client, input.policyVersion, d);
-      return { event: observation(d, 'temporarily_blocked', 'universe_locked') };
+      return {
+        event: observation(d, 'temporarily_blocked', 'universe_locked'),
+      };
     }
     if (!d.ready) {
       await lockCursor(client, input.policyVersion, d);
@@ -536,12 +578,20 @@ async function probe(
       ).rowCount === 1;
     const boundDirect = job.wake_kind === 'direct' && originalBinding;
     const currentScope =
-      job.privacy_epoch === domain.privacy_epoch && d.ready.privacyEpoch === domain.privacy_epoch;
-    if (boundDirect && currentScope && job.status === 'queued' && job.deadline_expired) {
+      job.privacy_epoch === domain.privacy_epoch &&
+      d.ready.privacyEpoch === domain.privacy_epoch;
+    if (
+      boundDirect &&
+      currentScope &&
+      job.status === 'queued' &&
+      job.deadline_expired
+    ) {
       if (job.healthy_lease) {
         await lockCursor(client, input.policyVersion, d);
         await bypass(client, input.policyVersion, d);
-        return { event: observation(d, 'temporarily_blocked', 'idle_healthy_lease') };
+        return {
+          event: observation(d, 'temporarily_blocked', 'idle_healthy_lease'),
+        };
       }
       await client.query('SAVEPOINT idle_direct_expiry');
       try {
@@ -551,7 +601,10 @@ async function probe(
           privacyEpoch: d.ready.privacyEpoch,
         });
         await client.query('RELEASE SAVEPOINT idle_direct_expiry');
-        return { event: observation(d, 'ineligible', 'deadline_missed'), terminalExpiry: true };
+        return {
+          event: observation(d, 'ineligible', 'deadline_missed'),
+          terminalExpiry: true,
+        };
       } catch (error) {
         // Only closed, permanent graph eligibility failures may advance this head.
         // Authority/membership/CAS failures and SQL errors abort the whole probe.
@@ -581,9 +634,10 @@ async function probe(
     ) {
       await lockCursor(client, input.policyVersion, d);
       if (d.ready.deadlineMissed && job.status === 'queued' && !boundDirect)
-        await client.query("UPDATE reasoning_job SET status='expired' WHERE id=$1", [
-          d.ready.jobId,
-        ]);
+        await client.query(
+          "UPDATE reasoning_job SET status='expired' WHERE id=$1",
+          [d.ready.jobId],
+        );
       await bypass(client, input.policyVersion, d, true);
       return {
         event: observation(
@@ -596,16 +650,24 @@ async function probe(
     let locked = false;
     let preflight;
     try {
-      preflight = await preflightAttemptInTransaction(client, authority, d.ready, async (hook) => {
-        await lockCursor(hook, input.policyVersion, d);
-        locked = true;
-      });
+      preflight = await preflightAttemptInTransaction(
+        client,
+        authority,
+        d.ready,
+        async (hook) => {
+          await lockCursor(hook, input.policyVersion, d);
+          locked = true;
+        },
+      );
     } catch (error) {
       // A head whose sealed context no longer holds (`context_*`) is skipped like any other ineligible head:
       // its own sweep withdraws it, never sent, and the round never waits for that sweep (#153).
       if (
         !(error instanceof ReasoningDenied) ||
-        !(INELIGIBLE_HEAD.includes(error.code) || error.code.startsWith('context_'))
+        !(
+          INELIGIBLE_HEAD.includes(error.code) ||
+          error.code.startsWith('context_')
+        )
       )
         throw error;
       if (!locked) await lockCursor(client, input.policyVersion, d);
@@ -623,8 +685,13 @@ async function probe(
       return { event: observation(d, kind, 'physical_vector') };
     }
     const { policy } = await policyFor(client, input.policyVersion);
-    const charge = fairnessCharge(policy, d.ready.inputTokensUpperBound, d.ready.maxOutputTokens);
-    if (BigInt(charge) !== BigInt(d.ready.charge)) deny('fairness_charge_changed');
+    const charge = fairnessCharge(
+      policy,
+      d.ready.inputTokensUpperBound,
+      d.ready.maxOutputTokens,
+    );
+    if (BigInt(charge) !== BigInt(d.ready.charge))
+      deny('fairness_charge_changed');
     const c = d.lane,
       u = d.universe;
     if (c.remaining === null) {
@@ -633,7 +700,9 @@ async function probe(
         fairnessClassCap(policy, d.klass),
       ).toString();
       c.remaining = String(fairnessClassCap(policy, d.klass));
-      d.state.visit_generation = (BigInt(d.state.visit_generation) + 1n).toString();
+      d.state.visit_generation = (
+        BigInt(d.state.visit_generation) + 1n
+      ).toString();
       c.visit_generation = d.state.visit_generation;
     }
     if (c.open_universe_id !== u.universe_id) {
@@ -643,7 +712,9 @@ async function probe(
       ).toString();
       c.open_universe_id = u.universe_id;
       c.universe_remaining = String(fairnessUniverseCap(policy));
-      d.state.inner_generation = (BigInt(d.state.inner_generation) + 1n).toString();
+      d.state.inner_generation = (
+        BigInt(d.state.inner_generation) + 1n
+      ).toString();
       c.inner_generation = d.state.inner_generation;
     }
     await client.query(
@@ -658,15 +729,23 @@ async function probe(
   `,
       [input.policyVersion, d.klass, u.universe_id, u.credit],
     );
-    if (BigInt(charge) > BigInt(c.credit) || BigInt(charge) > BigInt(c.remaining)) {
+    if (
+      BigInt(charge) > BigInt(c.credit) ||
+      BigInt(charge) > BigInt(c.remaining)
+    ) {
       c.remaining = null;
       await save(client, input.policyVersion, d, true);
       return { event: observation(d, 'credit_wait', 'class_deficit_or_spend') };
     }
-    if (BigInt(charge) > BigInt(u.credit) || BigInt(charge) > BigInt(c.universe_remaining)) {
+    if (
+      BigInt(charge) > BigInt(u.credit) ||
+      BigInt(charge) > BigInt(c.universe_remaining)
+    ) {
       closeInner(d);
       await save(client, input.policyVersion, d);
-      return { event: observation(d, 'credit_wait', 'universe_deficit_or_spend') };
+      return {
+        event: observation(d, 'credit_wait', 'universe_deficit_or_spend'),
+      };
     }
     const row = (
       await client.query(
@@ -703,13 +782,16 @@ async function probe(
       authority,
       { ...d.ready, owner: input.owner, leaseFence: claim.leaseFence },
       async (_hook, resolved) => {
-        if (resolved.bindingHash !== preflight.bindingHash) deny('policy_binding_changed');
+        if (resolved.bindingHash !== preflight.bindingHash)
+          deny('policy_binding_changed');
       },
       'recheck',
     );
     c.credit = (BigInt(c.credit) - BigInt(charge)).toString();
     c.remaining = (BigInt(c.remaining) - BigInt(charge)).toString();
-    c.universe_remaining = (BigInt(c.universe_remaining) - BigInt(charge)).toString();
+    c.universe_remaining = (
+      BigInt(c.universe_remaining) - BigInt(charge)
+    ).toString();
     u.credit = (BigInt(u.credit) - BigInt(charge)).toString();
     await client.query(
       `
@@ -740,7 +822,10 @@ async function probe(
       [reserved.attemptId, input.policyVersion, d.klass, u.universe_id, charge],
     );
     await dequeue(client, input.policyVersion, d);
-    const closeClass = c.remaining === null || BigInt(c.remaining) === 0n || BigInt(c.credit) <= 0n;
+    const closeClass =
+      c.remaining === null ||
+      BigInt(c.remaining) === 0n ||
+      BigInt(c.credit) <= 0n;
     if (closeClass) c.remaining = null;
     if (
       c.open_universe_id &&
@@ -763,15 +848,22 @@ export async function enqueueFairInTransaction(
 ): Promise<void> {
   const { policy } = await policyFor(client, input.policyVersion);
   if (!FAIRNESS_CLASSES.includes(input.class)) deny('invalid_fairness_class');
-  const charge = fairnessCharge(policy, input.inputTokensUpperBound, input.maxOutputTokens);
+  const charge = fairnessCharge(
+    policy,
+    input.inputTokensUpperBound,
+    input.maxOutputTokens,
+  );
   const universe = (
-    await client.query('SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE', [
-      input.universeId,
-    ])
+    await client.query(
+      'SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',
+      [input.universeId],
+    )
   ).rows[0];
   if (universe?.privacy_epoch !== input.privacyEpoch) deny('stale_epoch');
   const job = (
-    await client.query('SELECT * FROM reasoning_job WHERE id=$1 FOR UPDATE', [input.jobId])
+    await client.query('SELECT * FROM reasoning_job WHERE id=$1 FOR UPDATE', [
+      input.jobId,
+    ])
   ).rows[0];
   if (
     !job ||
@@ -799,7 +891,13 @@ export async function enqueueFairInTransaction(
        AND status = 'pending'
      FOR UPDATE
    `,
-        [input.stepId, input.jobId, input.contextId, input.universeId, input.privacyEpoch],
+        [
+          input.stepId,
+          input.jobId,
+          input.contextId,
+          input.universeId,
+          input.privacyEpoch,
+        ],
       )
     ).rowCount
   )
@@ -984,7 +1082,9 @@ export function createReasoningFairness(
         deny('invalid_fairness_lease');
       const { policy } = await policyFor(db, input.policyVersion);
       const observations: FairnessObservation[] = [];
-      let lastProgress: { generation: string; klass: FairnessClass } | undefined;
+      let lastProgress:
+        | { generation: string; klass: FairnessClass }
+        | undefined;
       for (let probes = 1; probes <= policy.maxProbes; probes++) {
         const d = await discover(db, input.policyVersion);
         if (d.state.paused)
@@ -997,9 +1097,13 @@ export function createReasoningFairness(
           const result = await probe(db, authority, input, d);
           lastProgress = result.terminalExpiry
             ? undefined
-            : { generation: (BigInt(d.state.generation) + 1n).toString(), klass: d.klass };
+            : {
+                generation: (BigInt(d.state.generation) + 1n).toString(),
+                klass: d.klass,
+              };
           observations.push(result.event);
-          if (result.admitted) return { ...result.admitted, observations, probes };
+          if (result.admitted)
+            return { ...result.admitted, observations, probes };
         } catch (error) {
           // A context that changed between a head's preflight and its reservation is one more such race.
           if (
@@ -1017,7 +1121,9 @@ export function createReasoningFairness(
           observations.push(
             observation(
               d,
-              error.code === 'fairness_policy_paused' ? 'policy_paused' : 'temporarily_blocked',
+              error.code === 'fairness_policy_paused'
+                ? 'policy_paused'
+                : 'temporarily_blocked',
               error.code,
             ),
           );
@@ -1027,7 +1133,10 @@ export function createReasoningFairness(
       // without granting a quantum or resetting any unfinished spend allowance.
       const d = await discover(db, input.policyVersion, false);
       try {
-        if (lastProgress?.generation === d.state.generation && lastProgress.klass === d.klass)
+        if (
+          lastProgress?.generation === d.state.generation &&
+          lastProgress.klass === d.klass
+        )
           await tx(db, async (client) => {
             await lockProbe(client, input.policyVersion);
             await lockCursor(client, input.policyVersion, d);
@@ -1047,7 +1156,10 @@ export function createReasoningFairness(
           : 'scan_exhausted';
       return {
         kind: kind as FairnessNoWork['kind'],
-        observations: [...observations, { kind: 'scan_exhausted', reason: 'probe_budget' }],
+        observations: [
+          ...observations,
+          { kind: 'scan_exhausted', reason: 'probe_budget' },
+        ],
         probes: policy.maxProbes,
       };
     },

@@ -45,7 +45,12 @@ export interface AskAnswerRoute {
 }
 
 export type AskAnswerProposal =
-  | { kind: 'answered'; answer: string; basis: { quote: string }[]; limits: string }
+  | {
+      kind: 'answered';
+      answer: string;
+      basis: { quote: string }[];
+      limits: string;
+    }
   | { kind: 'not_in_source'; limits: string };
 export type AskAnswerRejection =
   | 'not_one_json_object'
@@ -224,7 +229,10 @@ function oneObject(text: string): unknown {
   }
 }
 
-export function validateAskAnswerProposal(text: string, source: AskAnswerSource): AskAnswerVerdict {
+export function validateAskAnswerProposal(
+  text: string,
+  source: AskAnswerSource,
+): AskAnswerVerdict {
   const validatorVersion = ASK_ANSWER_VERSIONS.validator;
   const reject = (...reasons: AskAnswerRejection[]): AskAnswerVerdict => ({
     ok: false,
@@ -237,7 +245,8 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
     return reject('shape_invalid', 'shape_not_object');
   const v = value as Record<string, unknown>;
   const keys = Object.keys(v).sort().join(',');
-  if (keys !== 'answer,basis,limits') return reject('shape_invalid', 'shape_keys');
+  if (keys !== 'answer,basis,limits')
+    return reject('shape_invalid', 'shape_keys');
   if (
     !(v.answer === null || typeof v.answer === 'string') ||
     typeof v.limits !== 'string' ||
@@ -262,7 +271,8 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
             typeof (item as { quote?: unknown }).quote === 'string'
           ? (item as { quote: string }).quote
           : null;
-    if (quote === null || hasNul(quote)) return reject('shape_invalid', 'shape_basis_item');
+    if (quote === null || hasNul(quote))
+      return reject('shape_invalid', 'shape_basis_item');
     // Collapsed first: the length bounds, the Scroll check and the stored quote all see the same text.
     basis.push({ quote: squash(quote) });
   }
@@ -273,13 +283,18 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
   if (v.answer === null) {
     if (limits.length === 0) return reject('limits_missing');
     if (characterizes(limits)) return reject('characterizes_reader');
-    return { ok: true, proposal: { kind: 'not_in_source', limits }, validatorVersion };
+    return {
+      ok: true,
+      proposal: { kind: 'not_in_source', limits },
+      validatorVersion,
+    };
   }
   const answer = v.answer.trim();
   const reasons: AskAnswerRejection[] = [];
   if (answer.length === 0) return reject('shape_invalid', 'shape_empty_answer');
   if (limits.length === 0) return reject('limits_missing');
-  if (answer.length > ASK_ANSWER_LIMITS.answerChars) reasons.push('answer_too_long');
+  if (answer.length > ASK_ANSWER_LIMITS.answerChars)
+    reasons.push('answer_too_long');
   if (basis.length === 0) reasons.push('basis_missing');
   const haystack = squash(`${source.scroll.summary}\n${source.scroll.body}`);
   if (
@@ -297,5 +312,9 @@ export function validateAskAnswerProposal(text: string, source: AskAnswerSource)
   )
     reasons.push('characterizes_reader');
   if (reasons.length > 0) return reject(...reasons);
-  return { ok: true, proposal: { kind: 'answered', answer, basis, limits }, validatorVersion };
+  return {
+    ok: true,
+    proposal: { kind: 'answered', answer, basis, limits },
+    validatorVersion,
+  };
 }

@@ -63,7 +63,10 @@ export interface BridgeReadSet {
 }
 
 /** Ancestors of `code` via parentCode, nearest first. Stops on an unknown parent or a cycle. */
-export function ancestorsOf(readSet: Pick<BridgeReadSet, 'concepts'>, code: string): string[] {
+export function ancestorsOf(
+  readSet: Pick<BridgeReadSet, 'concepts'>,
+  code: string,
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>([code]);
   let parent = readSet.concepts.get(code)?.parentCode ?? null;
@@ -134,16 +137,25 @@ function words(text: string): Set<string> {
 }
 
 /** Diagnostic only: the vocabulary the two sides share. Reported, never counted. */
-export function sharedVocabulary(readSet: BridgeReadSet, from: string, to: string): string[] {
+export function sharedVocabulary(
+  readSet: BridgeReadSet,
+  from: string,
+  to: string,
+): string[] {
   const a = readSet.concepts.get(from);
   const b = readSet.concepts.get(to);
   if (!a || !b) return [];
   const left = words(`${a.name} ${a.description}`);
-  return [...words(`${b.name} ${b.description}`)].filter((w) => left.has(w)).sort();
+  return [...words(`${b.name} ${b.description}`)]
+    .filter((w) => left.has(w))
+    .sort();
 }
 
 /** A mechanism that only restates the relation or the two names is a label, not an explanation. */
-function mechanismIsLabel(payload: BridgeProposalPayload, readSet: BridgeReadSet): boolean {
+function mechanismIsLabel(
+  payload: BridgeProposalPayload,
+  readSet: BridgeReadSet,
+): boolean {
   const labelWords = words(
     `${payload.relationType.replace(/_/g, ' ')} ${readSet.concepts.get(payload.fromConcept)?.name ?? ''} ${readSet.concepts.get(payload.toConcept)?.name ?? ''}`,
   );
@@ -189,7 +201,8 @@ export function sliceReadSet(
   addWithAncestors(payload.toConcept);
   // Contradictions, and typed relations of the proposal's own kind (the direction rule reads them).
   const relations = readSet.relations.filter(
-    (r) => r.active && (r.kind === 'contradicts' || r.kind === payload.relationType),
+    (r) =>
+      r.active && (r.kind === 'contradicts' || r.kind === payload.relationType),
   );
   const claimKeys = new Set([
     ...payload.evidence.map((e) => e.claimKey),
@@ -200,7 +213,8 @@ export function sliceReadSet(
     .sort()
     .map((k) => readSet.claims.get(k))
     .filter((c): c is ReadSetClaim => c !== undefined);
-  for (const claim of claims) for (const link of claim.concepts) addWithAncestors(link.code);
+  for (const claim of claims)
+    for (const link of claim.concepts) addWithAncestors(link.code);
   for (const r of relations) {
     addWithAncestors(r.from);
     addWithAncestors(r.to);
@@ -216,9 +230,12 @@ export function sliceReadSet(
     concepts: [...codes].sort().map((c) => readSet.concepts.get(c)!),
     claims,
     relations: [...relations].sort(
-      (a, b) => a.claimKey.localeCompare(b.claimKey) || a.from.localeCompare(b.from),
+      (a, b) =>
+        a.claimKey.localeCompare(b.claimKey) || a.from.localeCompare(b.from),
     ),
-    admittedBridges: [...admittedBridges].sort((a, b) => a.id.localeCompare(b.id)),
+    admittedBridges: [...admittedBridges].sort((a, b) =>
+      a.id.localeCompare(b.id),
+    ),
   };
 }
 
@@ -236,7 +253,8 @@ export function validateBridgeProposal(
   const symmetric = SYMMETRIC_BRIDGE_TYPES.includes(relationType);
 
   const shared = sharedVocabulary(readSet, from, to);
-  if (shared.length > 0) notes.push(`shared vocabulary (not evidence): ${shared.join(', ')}`);
+  if (shared.length > 0)
+    notes.push(`shared vocabulary (not evidence): ${shared.join(', ')}`);
 
   // 1. Concepts.
   if (!readSet.concepts.has(from) || !readSet.concepts.has(to)) {
@@ -250,7 +268,10 @@ export function validateBridgeProposal(
   }
   if (from === to) reject('same_concept');
   else if (onOneBranch(readSet, from, to))
-    reject('hierarchy_not_bridge', "one side is the other's ancestor: offer depth, not a bridge");
+    reject(
+      'hierarchy_not_bridge',
+      "one side is the other's ancestor: offer depth, not a bridge",
+    );
   if (mechanismIsLabel(payload, readSet)) reject('mechanism_is_label');
 
   // 2. Every cited claim resolves and is currently supported.
@@ -259,14 +280,18 @@ export function validateBridgeProposal(
     const claim = cited(ref.claimKey);
     if (!claim) reject('evidence_unresolved', `unknown claim ${ref.claimKey}`);
     else if (claim.status !== 'supported')
-      reject('evidence_unsupported', `claim ${ref.claimKey} has no current source support`);
+      reject(
+        'evidence_unsupported',
+        `claim ${ref.claimKey} has no current source support`,
+      );
   }
   const usable = (supports: string) =>
     payload.evidence
       .filter((ref) => ref.supports === supports)
       .map((ref) => cited(ref.claimKey))
       .filter(
-        (claim): claim is ReadSetClaim => claim !== undefined && claim.status === 'supported',
+        (claim): claim is ReadSetClaim =>
+          claim !== undefined && claim.status === 'supported',
       );
 
   // Contradictions between the two sides, in either stored orientation.
@@ -294,7 +319,9 @@ export function validateBridgeProposal(
   // 3. Each side has its own evidence, beyond the claim that connects them: the source must
   // describe both ideas, not only assert the link.
   const mechanismKeys = new Set(
-    payload.evidence.filter((e) => e.supports === 'mechanism').map((e) => e.claimKey),
+    payload.evidence
+      .filter((e) => e.supports === 'mechanism')
+      .map((e) => e.claimKey),
   );
   const independent = (side: 'from' | 'to', code: string) =>
     usable(side).some(
@@ -315,16 +342,21 @@ export function validateBridgeProposal(
     );
 
   // 4–5. The mechanism is evidenced, and a directional relation carries its direction.
-  const mechanismClaims = usable('mechanism').filter((claim) => !refuting.has(claim.key));
+  const mechanismClaims = usable('mechanism').filter(
+    (claim) => !refuting.has(claim.key),
+  );
   const bridging = mechanismClaims.filter(
     (claim) =>
-      sideLinks(readSet, claim, from).length > 0 && sideLinks(readSet, claim, to).length > 0,
+      sideLinks(readSet, claim, from).length > 0 &&
+      sideLinks(readSet, claim, to).length > 0,
   );
   let sharedMechanism = false;
   if (symmetric && bridging.length === 0) {
     const mechanismConcepts = (claim: ReadSetClaim) =>
       claim.concepts.filter((l) => l.role === 'mechanism').map((l) => l.code);
-    for (const left of mechanismClaims.filter((c) => sideLinks(readSet, c, from).length > 0)) {
+    for (const left of mechanismClaims.filter(
+      (c) => sideLinks(readSet, c, from).length > 0,
+    )) {
       for (const right of mechanismClaims.filter(
         (c) => c !== left && sideLinks(readSet, c, to).length > 0,
       )) {
@@ -336,7 +368,9 @@ export function validateBridgeProposal(
         );
         if (common.length > 0) {
           sharedMechanism = true;
-          notes.push(`shared mechanism concept: ${common.join(', ')} (${left.key} + ${right.key})`);
+          notes.push(
+            `shared mechanism concept: ${common.join(', ')} (${left.key} + ${right.key})`,
+          );
         }
       }
     }
@@ -357,9 +391,14 @@ export function validateBridgeProposal(
     const directed =
       relationType === 'explains'
         ? bridging.some((claim) => {
-            const fromRoles = sideLinks(readSet, claim, from).map((l) => l.role);
+            const fromRoles = sideLinks(readSet, claim, from).map(
+              (l) => l.role,
+            );
             const toRoles = sideLinks(readSet, claim, to).map((l) => l.role);
-            return fromRoles.includes('mechanism') && toRoles.some((r) => r !== 'mechanism');
+            return (
+              fromRoles.includes('mechanism') &&
+              toRoles.some((r) => r !== 'mechanism')
+            );
           })
         : readSet.relations.some(
             (r) =>
@@ -383,7 +422,8 @@ export function validateBridgeProposal(
 
   // 7. Counterevidence.
   for (const key of payload.counterevidence.claimKeys)
-    if (!cited(key)) reject('counterevidence_unresolved', `unknown counterevidence ${key}`);
+    if (!cited(key))
+      reject('counterevidence_unresolved', `unknown counterevidence ${key}`);
   if (
     payload.counterevidence.disposition === 'listed' &&
     payload.counterevidence.claimKeys.length === 0
@@ -418,7 +458,9 @@ export function validateBridgeProposal(
       reasons: [...reasons],
       notes,
     };
-  const supportingClaimKeys = [...new Set(payload.evidence.map((e) => e.claimKey))].sort();
+  const supportingClaimKeys = [
+    ...new Set(payload.evidence.map((e) => e.claimKey)),
+  ].sort();
   return {
     outcome: 'admitted',
     validatorVersion: BRIDGE_VALIDATOR_VERSION,

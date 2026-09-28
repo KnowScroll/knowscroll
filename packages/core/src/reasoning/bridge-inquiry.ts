@@ -45,7 +45,10 @@ export interface InquirySubstrateClaim {
   sourceTitle: string;
   /** A `supports` quote on a current snapshot (`claim_is_supported`). */
   supported: boolean;
-  links: readonly { code: string; role: 'subject' | 'object' | 'mechanism' | 'context' }[];
+  links: readonly {
+    code: string;
+    role: 'subject' | 'object' | 'mechanism' | 'context';
+  }[];
 }
 export interface InquiryCandidateInput {
   /** The reader's live planets and regions (never sightings). */
@@ -84,7 +87,10 @@ export interface InquiryPair {
 const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const pairKey = (x: string, y: string) => (x < y ? `${x}\0${y}` : `${y}\0${x}`);
 
-function ancestors(parentOf: ReadonlyMap<string, string | null>, code: string): string[] {
+function ancestors(
+  parentOf: ReadonlyMap<string, string | null>,
+  code: string,
+): string[] {
   const out: string[] = [];
   const seen = new Set([code]);
   for (
@@ -103,7 +109,10 @@ function ancestors(parentOf: ReadonlyMap<string, string | null>, code: string): 
  * non-context link to the side's concept or a broader one. Evidence never generalises upward, so a
  * claim about a narrower concept says nothing about the side. Returns the linked codes by distance.
  */
-function linksAbout(claim: InquirySubstrateClaim, chain: readonly string[]): Map<string, number> {
+function linksAbout(
+  claim: InquirySubstrateClaim,
+  chain: readonly string[],
+): Map<string, number> {
   const found = new Map<string, number>();
   for (const link of claim.links) {
     if (link.role === 'context') continue;
@@ -121,24 +130,32 @@ const offered = (c: InquirySubstrateClaim): OfferedClaim => ({
 });
 
 /** The role a claim gives one side: that of its nearest non-context link on the side's chain. */
-function roleOn(claim: InquirySubstrateClaim, chain: readonly string[]): string | undefined {
+function roleOn(
+  claim: InquirySubstrateClaim,
+  chain: readonly string[],
+): string | undefined {
   let best: { distance: number; role: string } | undefined;
   for (const link of claim.links) {
     if (link.role === 'context') continue;
     const distance = chain.indexOf(link.code);
-    if (distance >= 0 && (!best || distance < best.distance)) best = { distance, role: link.role };
+    if (distance >= 0 && (!best || distance < best.distance))
+      best = { distance, role: link.role };
   }
   return best?.role;
 }
 
-export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] {
+export function selectInquiryPairs(
+  input: InquiryCandidateInput,
+): InquiryPair[] {
   const places = [...input.places].sort((x, y) => byCode(x.code, y.code));
   const claims = input.claims.filter((c) => c.supported);
   const chain = new Map(
     places.map((p) => [p.code, [p.code, ...ancestors(input.parentOf, p.code)]]),
   );
   const blocked = new Set(
-    [...input.connections, ...input.suppressed].map((r) => pairKey(r.from, r.to)),
+    [...input.connections, ...input.suppressed].map((r) =>
+      pairKey(r.from, r.to),
+    ),
   );
   for (const [x, y] of input.asked) blocked.add(pairKey(x, y));
 
@@ -171,15 +188,20 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
         }
         // Otherwise it is offered to one side only, the nearer (ties to A), so the reply's citation of it
         // is credited where it was offered, never guessed (#153).
-        const distanceA = aboutA.size > 0 ? Math.min(...aboutA.values()) : Infinity;
-        const distanceB = aboutB.size > 0 ? Math.min(...aboutB.values()) : Infinity;
+        const distanceA =
+          aboutA.size > 0 ? Math.min(...aboutA.values()) : Infinity;
+        const distanceB =
+          aboutB.size > 0 ? Math.min(...aboutB.values()) : Infinity;
         if (distanceA === Infinity && distanceB === Infinity) continue;
         if (distanceA <= distanceB) sideA.push({ claim, distance: distanceA });
         else sideB.push({ claim, distance: distanceB });
       }
       const rank = (list: typeof sideA) =>
         list
-          .sort((x, y) => x.distance - y.distance || byCode(x.claim.key, y.claim.key))
+          .sort(
+            (x, y) =>
+              x.distance - y.distance || byCode(x.claim.key, y.claim.key),
+          )
           .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor)
           .map((x) => offered(x.claim));
       const claimsA = rank(sideA),
@@ -197,7 +219,8 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
         }));
       // Only a pair the validator could admit is worth a paid request (review I1): the connecting claim
       // must name both sides, and each side needs a claim the offer gives to that side.
-      if (named.length === 0 || claimsA.length === 0 || claimsB.length === 0) continue;
+      if (named.length === 0 || claimsA.length === 0 || claimsB.length === 0)
+        continue;
       // What the validator could admit for this pair (prompt v3): "explains" only in a direction a
       // claim naming both carries (the explaining side has the mechanism role, the other does not);
       // the symmetric comparisons either way. "applies_to"/"prerequisite_for" need a recorded
@@ -220,11 +243,29 @@ export function selectInquiryPairs(input: InquiryCandidateInput): InquiryPair[] 
           });
       }
       const admissible: AdmissibleRelation[] = [
-        ...[...explains.values()].sort((x, y) => byCode(x.fromConcept, y.fromConcept)),
-        { relationType: 'compares_mechanism', fromConcept: a.code, toConcept: b.code },
-        { relationType: 'analogous_in', fromConcept: a.code, toConcept: b.code },
+        ...[...explains.values()].sort((x, y) =>
+          byCode(x.fromConcept, y.fromConcept),
+        ),
+        {
+          relationType: 'compares_mechanism',
+          fromConcept: a.code,
+          toConcept: b.code,
+        },
+        {
+          relationType: 'analogous_in',
+          fromConcept: a.code,
+          toConcept: b.code,
+        },
       ];
-      pairs.push({ a, b, claimsA, claimsB, both: named, admissible, named: named.length > 0 });
+      pairs.push({
+        a,
+        b,
+        claimsA,
+        claimsB,
+        both: named,
+        admissible,
+        named: named.length > 0,
+      });
     }
   }
   return pairs
@@ -259,7 +300,10 @@ const SYSTEM = [
 export const INQUIRY_PAIRS_MARKER = 'Offered pairs (JSON):';
 
 /** One native content block of an assistant turn, exactly as the provider returned it (ADR-0042 §1). */
-export type AssistantBlock = { readonly type: string; readonly [field: string]: unknown };
+export type AssistantBlock = {
+  readonly type: string;
+  readonly [field: string]: unknown;
+};
 /** A refused turn a continuation carries: the assistant's blocks in their original order, and the validator's reason codes. */
 export interface ContinuationTurn {
   assistant: readonly AssistantBlock[];
@@ -307,7 +351,10 @@ export function serializeBridgeInquiryRequest(
       thinking: { type: route.thinking },
       system: SYSTEM,
       messages: [
-        { role: 'user', content: `${INQUIRY_PAIRS_MARKER}\n${canonical(offeredPairs)}` },
+        {
+          role: 'user',
+          content: `${INQUIRY_PAIRS_MARKER}\n${canonical(offeredPairs)}`,
+        },
         ...turns.flatMap((t) => [
           { role: 'assistant', content: t.assistant },
           { role: 'user', content: continuationPrompt(t.reasons) },
@@ -344,7 +391,10 @@ const proposalReply = z
   })
   .strict();
 
-export function parseBridgeInquiryReply(text: string, pairs: readonly InquiryPair[]): InquiryReply {
+export function parseBridgeInquiryReply(
+  text: string,
+  pairs: readonly InquiryPair[],
+): InquiryReply {
   const shape = (reason: InquiryShapeReason): InquiryReply => ({
     kind: 'shape',
     reasons: ['shape', reason],
@@ -352,7 +402,8 @@ export function parseBridgeInquiryReply(text: string, pairs: readonly InquiryPai
   const value = wholeObject(text);
   if (!value) return shape('not_one_json_object');
   const keys = Object.keys(value);
-  if (keys.length === 1 && keys[0] === 'none' && value.none === true) return { kind: 'none' };
+  if (keys.length === 1 && keys[0] === 'none' && value.none === true)
+    return { kind: 'none' };
   if (keys.length !== 1 || keys[0] !== 'proposal') return shape('reply_keys');
   const parsed = proposalReply.safeParse(value.proposal);
   if (!parsed.success) return shape('payload_invalid');
@@ -361,7 +412,8 @@ export function parseBridgeInquiryReply(text: string, pairs: readonly InquiryPai
   if (!pair) return shape('pair_not_offered');
   const relation = pair.admissible[r.relation];
   if (!relation) return shape('relation_not_admissible');
-  const has = (list: readonly OfferedClaim[], key: string) => list.some((c) => c.key === key);
+  const has = (list: readonly OfferedClaim[], key: string) =>
+    list.some((c) => c.key === key);
   const supports = (key: string): 'from' | 'to' | 'mechanism' | null =>
     has(pair.both, key)
       ? 'mechanism'

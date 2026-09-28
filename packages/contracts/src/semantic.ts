@@ -17,7 +17,9 @@ export const SEMANTIC_CONTRACT_VERSION = 'semantic-v1';
 export const BRIDGE_VALIDATOR_VERSION = 'bridge-validator-v1';
 
 /** A stable hierarchical semantic address, e.g. `astro.gravity.orbit`. */
-export const conceptCode = z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){0,5}$/);
+export const conceptCode = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){0,5}$/);
 /** Editorial identity for a source, family or claim: stable across database rebuilds. */
 export const semanticKey = z.string().regex(/^[a-z][a-z0-9_.-]{2,79}$/);
 
@@ -56,11 +58,25 @@ export const SYMMETRIC_BRIDGE_TYPES: readonly BridgeRelationType[] = [
   'compares_mechanism',
 ];
 
-export const claimConceptRole = z.enum(['subject', 'object', 'mechanism', 'context']);
+export const claimConceptRole = z.enum([
+  'subject',
+  'object',
+  'mechanism',
+  'context',
+]);
 export const supportKind = z.enum(['supports', 'qualifies', 'contradicts']);
 export const assetConceptRole = z.enum(['primary', 'secondary', 'mentioned']);
-export const evidenceSupports = z.enum(['from', 'to', 'mechanism', 'limitation']);
-export const limitationKind = z.enum(['analogy_limit', 'scope_limit', 'evidence_limit']);
+export const evidenceSupports = z.enum([
+  'from',
+  'to',
+  'mechanism',
+  'limitation',
+]);
+export const limitationKind = z.enum([
+  'analogy_limit',
+  'scope_limit',
+  'evidence_limit',
+]);
 export const snapshotStatus = z.enum(['current', 'corrected', 'revoked']);
 
 const text = (min: number, max: number) =>
@@ -86,11 +102,20 @@ export const bridgeProposalPayload = z
     /** An actual explanation of how the two connect — never the relation word alone. */
     mechanism: text(40, 600),
     prerequisites: z
-      .array(z.object({ statement: text(8, 280), conceptCode: conceptCode.optional() }).strict())
+      .array(
+        z
+          .object({
+            statement: text(8, 280),
+            conceptCode: conceptCode.optional(),
+          })
+          .strict(),
+      )
       .min(1)
       .max(5),
     limitations: z
-      .array(z.object({ kind: limitationKind, statement: text(8, 280) }).strict())
+      .array(
+        z.object({ kind: limitationKind, statement: text(8, 280) }).strict(),
+      )
       .min(1)
       .max(5),
     evidence: z.array(bridgeEvidenceRef).min(3).max(12),
@@ -157,7 +182,9 @@ const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const substrateSeed = z
   .object({
-    version: z.string().regex(/^editorial-substrate-\d{4}-\d{2}-\d{2}(\.\d+)?$/),
+    version: z
+      .string()
+      .regex(/^editorial-substrate-\d{4}-\d{2}-\d{2}(\.\d+)?$/),
     families: z
       .array(
         z
@@ -209,7 +236,11 @@ export const substrateSeed = z
             statement: text(12, 400),
             truthState: z.literal('documented'),
             concepts: z
-              .array(z.object({ code: conceptCode, role: claimConceptRole }).strict())
+              .array(
+                z
+                  .object({ code: conceptCode, role: claimConceptRole })
+                  .strict(),
+              )
               .min(1)
               .max(6),
             support: z
@@ -244,7 +275,9 @@ export const substrateSeed = z
         .object({
           assetId: z.string().uuid(),
           concepts: z
-            .array(z.object({ code: conceptCode, role: assetConceptRole }).strict())
+            .array(
+              z.object({ code: conceptCode, role: assetConceptRole }).strict(),
+            )
             .min(1)
             .max(8),
           claims: z.array(semanticKey).max(12),
@@ -332,7 +365,11 @@ export interface EncounterBranchesResponse {
   branches: EncounterBranchWire[];
   /** Honest reason the list is empty: no concepts annotated yet, or no admitted bridge reaches
    * an eligible encounter. Never filled with an unrelated feed item. */
-  emptyReason: 'no_semantic_annotation' | 'no_admitted_bridge' | 'no_eligible_target' | null;
+  emptyReason:
+    | 'no_semantic_annotation'
+    | 'no_admitted_bridge'
+    | 'no_eligible_target'
+    | null;
 }
 
 export const branchOpenInput = z

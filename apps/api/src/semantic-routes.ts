@@ -29,33 +29,59 @@ export type Authenticated = <T>(
   fn: (scope: AuthScope, client: pg.PoolClient) => Promise<T>,
 ) => Promise<T>;
 
-export function registerSemanticRoutes(app: FastifyInstance, authenticated: Authenticated): void {
-  app.get<{ Params: { assetId: string } }>('/v1/assets/:assetId/branches', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      if (!uuid.safeParse(req.params.assetId).success) throw new HttpError(400, 'Invalid asset ID');
-      const listed = await listEncounterBranches(client, scope, req.params.assetId);
-      // ADR-0046 §1: a continuation offered into a concept with nothing unseen is a need, recorded with the listing that offered it.
-      await observeOfferedGaps(client, scope, req.params.assetId, listed.branches);
-      return listed;
-    });
-    return reply.header('Cache-Control', 'no-store').send(result);
-  });
+export function registerSemanticRoutes(
+  app: FastifyInstance,
+  authenticated: Authenticated,
+): void {
+  app.get<{ Params: { assetId: string } }>(
+    '/v1/assets/:assetId/branches',
+    async (req, reply) => {
+      const result = await authenticated(
+        req.headers.authorization,
+        async (scope, client) => {
+          if (!uuid.safeParse(req.params.assetId).success)
+            throw new HttpError(400, 'Invalid asset ID');
+          const listed = await listEncounterBranches(
+            client,
+            scope,
+            req.params.assetId,
+          );
+          // ADR-0046 §1: a continuation offered into a concept with nothing unseen is a need, recorded with the listing that offered it.
+          await observeOfferedGaps(
+            client,
+            scope,
+            req.params.assetId,
+            listed.branches,
+          );
+          return listed;
+        },
+      );
+      return reply.header('Cache-Control', 'no-store').send(result);
+    },
+  );
 
   app.post('/v1/branches', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const opened = await openBranch(client, scope, req.body);
-      if (opened.branch.recorded) await refreshPersonalModel(client, scope.universeId);
-      return opened;
-    });
+    const result = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const opened = await openBranch(client, scope, req.body);
+        if (opened.branch.recorded)
+          await refreshPersonalModel(client, scope.universeId);
+        return opened;
+      },
+    );
     return reply.code(201).send(result);
   });
 
   app.post('/v1/connections/feedback', async (req, reply) => {
-    const result = await authenticated(req.headers.authorization, async (scope, client) => {
-      const receipt = await recordConnectionFeedback(client, scope, req.body);
-      await refreshPersonalModel(client, scope.universeId);
-      return receipt;
-    });
+    const result = await authenticated(
+      req.headers.authorization,
+      async (scope, client) => {
+        const receipt = await recordConnectionFeedback(client, scope, req.body);
+        await refreshPersonalModel(client, scope.universeId);
+        return receipt;
+      },
+    );
     return reply.code(201).send(result);
   });
 }

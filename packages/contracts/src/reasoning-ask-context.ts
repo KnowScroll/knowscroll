@@ -6,15 +6,29 @@ import { contextScroll } from './reasoning-context.ts';
 const id = z.string().uuid();
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
-const scope = { universeId: id, privacyEpoch: z.number().int().min(0).max(2147483647) };
+const scope = {
+  universeId: id,
+  privacyEpoch: z.number().int().min(0).max(2147483647),
+};
 export const ASK_CONTEXT_VERSIONS = Object.freeze({
   compiler: 'direct-ask-evidence-v1',
   prompt: 'literal-ask-facts-v1',
   sourcePolicy: 'ask-editorial-asset-pointer-v1',
 });
-export const ASK_CONTEXT_LIMITS = Object.freeze({ maxBytes: 65_536, maxDependencies: 8 });
+export const ASK_CONTEXT_LIMITS = Object.freeze({
+  maxBytes: 65_536,
+  maxDependencies: 8,
+});
 export const askContextDependency = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('ask'), id, ...scope, sequence: reasoningCounter, hash }).strict(),
+  z
+    .object({
+      kind: z.literal('ask'),
+      id,
+      ...scope,
+      sequence: reasoningCounter,
+      hash,
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('ask_binding'),
@@ -29,10 +43,26 @@ export const askContextDependency = z.discriminatedUnion('kind', [
     })
     .strict(),
   z
-    .object({ kind: z.literal('exposure_event'), id, ...scope, sequence: reasoningCounter, hash })
+    .object({
+      kind: z.literal('exposure_event'),
+      id,
+      ...scope,
+      sequence: reasoningCounter,
+      hash,
+    })
     .strict(),
-  z.object({ kind: z.literal('exposure'), id, ...scope, assetId: id, hash }).strict(),
-  z.object({ kind: z.literal('decision_candidate'), id, ...scope, assetId: id, hash }).strict(),
+  z
+    .object({ kind: z.literal('exposure'), id, ...scope, assetId: id, hash })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('decision_candidate'),
+      id,
+      ...scope,
+      assetId: id,
+      hash,
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('asset'),
@@ -49,7 +79,9 @@ export const askContextDependency = z.discriminatedUnion('kind', [
       expiresAt: z.iso.datetime({ offset: true }),
     })
     .strict(),
-  z.object({ kind: z.literal('runtime_policy'), version: label, hash }).strict(),
+  z
+    .object({ kind: z.literal('runtime_policy'), version: label, hash })
+    .strict(),
 ]);
 export type AskContextDependency = z.infer<typeof askContextDependency>;
 export function askContextDependencyKey(read: AskContextDependency): string {
@@ -94,7 +126,9 @@ export const askContextPayload = z
       })
       .strict(),
     asset: contextScroll,
-    dependencies: z.array(askContextDependency).length(ASK_CONTEXT_LIMITS.maxDependencies),
+    dependencies: z
+      .array(askContextDependency)
+      .length(ASK_CONTEXT_LIMITS.maxDependencies),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -119,8 +153,15 @@ export const askContextPayload = z
           message: 'Duplicate or extra dependency',
         });
       seen.add(key);
-      if ('universeId' in r && (r.universeId !== v.universeId || r.privacyEpoch !== v.privacyEpoch))
-        ctx.addIssue({ code: 'custom', path: ['dependencies', i], message: 'Foreign dependency' });
+      if (
+        'universeId' in r &&
+        (r.universeId !== v.universeId || r.privacyEpoch !== v.privacyEpoch)
+      )
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dependencies', i],
+          message: 'Foreign dependency',
+        });
       const bound =
         r.kind === 'ask'
           ? r.sequence === f.askSequence
@@ -155,7 +196,11 @@ export const askContextPayload = z
         message: 'Incomplete dependency set',
       });
     if (v.intentId !== f.askId || v.asset.assetId !== f.assetId)
-      ctx.addIssue({ code: 'custom', path: ['fact'], message: 'Unbound Ask or asset' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fact'],
+        message: 'Unbound Ask or asset',
+      });
     if (
       [f.askSequence, f.exposureSequence, v.eventHighWater].every(
         (x) => reasoningCounter.safeParse(x).success,
@@ -163,7 +208,11 @@ export const askContextPayload = z
       (BigInt(f.exposureSequence) >= BigInt(f.askSequence) ||
         BigInt(f.askSequence) > BigInt(v.eventHighWater))
     )
-      ctx.addIssue({ code: 'custom', path: ['fact'], message: 'Invalid event ordering' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fact'],
+        message: 'Invalid event ordering',
+      });
   });
 export type AskContextPayload = z.infer<typeof askContextPayload>;
 export const compileDirectAskContextInput = z

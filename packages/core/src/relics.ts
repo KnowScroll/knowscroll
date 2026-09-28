@@ -9,7 +9,11 @@ export type RelicState = 'current' | 'corrected' | 'doubted';
 /** What is known about one Relic when it is read (ADR-0044 §2). */
 export type RelicFacts =
   /** The bridge now, and whether the reader marked it "seems wrong" (ADR-0031 feedback). */
-  | { kind: 'connection'; bridgeStatus: 'admitted' | 'revoked' | 'superseded'; seemsWrong: boolean }
+  | {
+      kind: 'connection';
+      bridgeStatus: 'admitted' | 'revoked' | 'superseded';
+      seemsWrong: boolean;
+    }
   /** Whether a source correction changed the place after it was kept; whether the reader set it aside. */
   | { kind: 'place'; correctedSinceKept: boolean; setAside: boolean }
   /** The Scroll's revision when kept and now; how many claims it was kept on have since lost their support. */
@@ -47,7 +51,9 @@ export function relicCursor(keptAt: string, relicId: string): string {
   return `${keptAt}|${relicId}`;
 }
 
-export function parseRelicCursor(cursor: string): { keptAt: string; relicId: string } | null {
+export function parseRelicCursor(
+  cursor: string,
+): { keptAt: string; relicId: string } | null {
   const m = RELIC_CURSOR_PATTERN.exec(cursor);
   return m ? { keptAt: m[1]!, relicId: m[2]! } : null;
 }

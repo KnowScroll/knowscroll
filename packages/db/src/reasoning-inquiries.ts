@@ -34,12 +34,18 @@ import type { AuthScope } from './identity.ts';
 import { resolveAnswerPolicy } from './reasoning-answers.ts';
 import { createSealedContextAuthority } from './reasoning-context-authority.ts';
 import { enqueueFairInTransaction } from './reasoning-fairness.ts';
-import { fairnessCharge, validateFairnessPolicy } from './reasoning-fairness-policy.ts';
+import {
+  fairnessCharge,
+  validateFairnessPolicy,
+} from './reasoning-fairness-policy.ts';
 import {
   isIdleWithdrawalIneligible,
   withdrawIdleBackgroundJob,
 } from './reasoning-idle-lifecycle.ts';
-import { readInquiryInputs, sealInquiryContext } from './reasoning-inquiry-context.ts';
+import {
+  readInquiryInputs,
+  sealInquiryContext,
+} from './reasoning-inquiry-context.ts';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
@@ -91,7 +97,9 @@ export type InquiryRow = {
   request_id: string | null;
   job_bucket_id: string | null;
   through_sequence: string | null;
-  pairs: { a: { code: string; name: string }; b: { code: string; name: string } }[] | null;
+  pairs:
+    | { a: { code: string; name: string }; b: { code: string; name: string } }[]
+    | null;
   opened_at: Date | null;
   request_hash: string | null;
   input_bytes: number | null;
@@ -135,7 +143,8 @@ export async function installBackgroundInquiryRoute(
       [input.policyVersion],
     )
   ).rows[0];
-  if (!policy) throw new Error('Install the fairness policy of this version first');
+  if (!policy)
+    throw new Error('Install the fairness policy of this version first');
   fairnessCharge(
     validateFairnessPolicy(policy.config).policy,
     input.maxInputTokens,
@@ -150,10 +159,16 @@ export async function installBackgroundInquiryRoute(
     return id;
   };
   const global = await bucket('global_budget', 'tokens', input.tokenBudget);
-  const account = await bucket('provider_account', 'requests', input.requestCap);
+  const account = await bucket(
+    'provider_account',
+    'requests',
+    input.requestCap,
+  );
   const quota = await bucket('route_quota', 'requests', input.requestCap);
   const remote = await bucket('remote_concurrency', 'slots', input.remoteSlots);
-  await client.query('UPDATE background_inquiry_route SET enabled=false WHERE enabled');
+  await client.query(
+    'UPDATE background_inquiry_route SET enabled=false WHERE enabled',
+  );
   await client.query(
     `
       INSERT INTO
@@ -285,8 +300,22 @@ function policyOf(
       'remote_concurrency',
     ],
     buckets: [
-      b(route.global_bucket_id, 'global_budget', 'tokens', 'total_tokens', 'shared', 'budget'),
-      b(ownerBucket, 'owner_budget', 'tokens', 'total_tokens', 'owner', 'budget'),
+      b(
+        route.global_bucket_id,
+        'global_budget',
+        'tokens',
+        'total_tokens',
+        'shared',
+        'budget',
+      ),
+      b(
+        ownerBucket,
+        'owner_budget',
+        'tokens',
+        'total_tokens',
+        'owner',
+        'budget',
+      ),
       b(jobBucket, 'job_budget', 'tokens', 'total_tokens', 'job', 'budget'),
       b(
         route.provider_account_bucket_id,
@@ -296,7 +325,14 @@ function policyOf(
         'shared',
         'budget',
       ),
-      b(route.route_quota_bucket_id, 'route_quota', 'requests', 'requests', 'shared', 'budget'),
+      b(
+        route.route_quota_bucket_id,
+        'route_quota',
+        'requests',
+        'requests',
+        'shared',
+        'budget',
+      ),
       b(
         route.remote_concurrency_bucket_id,
         'remote_concurrency',
@@ -311,9 +347,15 @@ function policyOf(
 
 /** Trusted local SQL only: resolves an inquiry Job's policy from its inquiry row. A child binds its
  * parent's Job budget: a family never opens more than one (ADR-0042 §4). */
-export const resolveInquiryPolicy: ReasoningAuthority['resolvePolicy'] = async (client, scope) => {
+export const resolveInquiryPolicy: ReasoningAuthority['resolvePolicy'] = async (
+  client,
+  scope,
+) => {
   const inquiry = (
-    await client.query<{ policy_version: string | null; job_bucket_id: string | null }>(
+    await client.query<{
+      policy_version: string | null;
+      job_bucket_id: string | null;
+    }>(
       `
       SELECT
         i.policy_version,
@@ -338,7 +380,13 @@ export const resolveInquiryPolicy: ReasoningAuthority['resolvePolicy'] = async (
     )
   ).rows[0];
   if (!route || !owner) return undefined;
-  return policyOf(route, scope.universeId, scope.jobId, owner.bucket_id, inquiry.job_bucket_id);
+  return policyOf(
+    route,
+    scope.universeId,
+    scope.jobId,
+    owner.bucket_id,
+    inquiry.job_bucket_id,
+  );
 };
 
 export function inquiryAuthority(): ReasoningAuthority {
@@ -350,7 +398,8 @@ export function inquiryAuthority(): ReasoningAuthority {
 export function sharedReasoningAuthority(): ReasoningAuthority {
   return createSealedContextAuthority(
     async (client, scope) =>
-      (await resolveAnswerPolicy(client, scope)) ?? resolveInquiryPolicy(client, scope),
+      (await resolveAnswerPolicy(client, scope)) ??
+      resolveInquiryPolicy(client, scope),
   );
 }
 
@@ -437,7 +486,11 @@ export async function readInquiryConsent(
   scope: { universeId: string; privacyEpoch: number },
 ): Promise<InquiryConsentView> {
   const row = (
-    await client.query<{ enabled: boolean; daily_limit: number; changed_at: Date }>(
+    await client.query<{
+      enabled: boolean;
+      daily_limit: number;
+      changed_at: Date;
+    }>(
       `
       SELECT
         enabled,
@@ -453,7 +506,8 @@ export async function readInquiryConsent(
     )
   ).rows[0];
   const available =
-    (await client.query('SELECT 1 FROM background_inquiry_route WHERE enabled')).rowCount === 1;
+    (await client.query('SELECT 1 FROM background_inquiry_route WHERE enabled'))
+      .rowCount === 1;
   const used = await openedToday(client, scope.universeId, scope.privacyEpoch);
   return {
     enabled: row?.enabled ?? false,
@@ -483,7 +537,11 @@ export async function setInquiryConsent(
     consent: await readInquiryConsent(client, scope),
   });
   const old = (
-    await client.query<{ privacy_epoch: number; enabled: boolean; daily_limit: number }>(
+    await client.query<{
+      privacy_epoch: number;
+      enabled: boolean;
+      daily_limit: number;
+    }>(
       `
       SELECT
         privacy_epoch,
@@ -504,7 +562,10 @@ export async function setInquiryConsent(
       old.enabled !== input.enabled ||
       (input.dailyLimit !== undefined && input.dailyLimit !== old.daily_limit)
     ) {
-      throw new InquiryError(409, 'Consent request key reused with different content');
+      throw new InquiryError(
+        409,
+        'Consent request key reused with different content',
+      );
     }
     return respond();
   }
@@ -525,7 +586,8 @@ export async function setInquiryConsent(
       [scope.universeId, scope.privacyEpoch],
     )
   ).rows[0];
-  const dailyLimit = input.dailyLimit ?? current?.daily_limit ?? INQUIRY_DAILY_LIMIT.default;
+  const dailyLimit =
+    input.dailyLimit ?? current?.daily_limit ?? INQUIRY_DAILY_LIMIT.default;
   const requestId = randomUUID();
   await client.query(
     `
@@ -565,7 +627,13 @@ export async function setInquiryConsent(
         universe_id = $1
         AND privacy_epoch = $2
     `,
-      [scope.universeId, scope.privacyEpoch, input.enabled, dailyLimit, requestId],
+      [
+        scope.universeId,
+        scope.privacyEpoch,
+        input.enabled,
+        dailyLimit,
+        requestId,
+      ],
     );
   } else {
     await client.query(
@@ -582,11 +650,22 @@ export async function setInquiryConsent(
       VALUES
         ($1, $2, $3, $4, 1, $5)
     `,
-      [scope.universeId, scope.privacyEpoch, input.enabled, dailyLimit, requestId],
+      [
+        scope.universeId,
+        scope.privacyEpoch,
+        input.enabled,
+        dailyLimit,
+        requestId,
+      ],
     );
   }
   if (!input.enabled)
-    await withdrawInquiries(client, scope.universeId, scope.privacyEpoch, 'consent_off');
+    await withdrawInquiries(
+      client,
+      scope.universeId,
+      scope.privacyEpoch,
+      'consent_off',
+    );
   return respond();
 }
 
@@ -612,7 +691,11 @@ export async function postInquiryMail(
   cause: InquiryMailCause,
 ): Promise<boolean> {
   const state = (
-    await client.query<{ privacy_epoch: number; recording: boolean; enabled: boolean | null }>(
+    await client.query<{
+      privacy_epoch: number;
+      recording: boolean;
+      enabled: boolean | null;
+    }>(
       `
       SELECT
         u.privacy_epoch,
@@ -665,7 +748,8 @@ export async function postInquiryMail(
       [pending.id, universeId, state.privacy_epoch, INQUIRY_KIND],
     );
   }
-  if (pending.causes >= INQUIRY_CONTEXT_LIMITS.maxCausesPerInquiry) return false;
+  if (pending.causes >= INQUIRY_CONTEXT_LIMITS.maxCausesPerInquiry)
+    return false;
   await client.query(
     `
       INSERT INTO
@@ -735,7 +819,9 @@ export async function mailRevokedConnections(
   for (const row of found) {
     try {
       const posted = await inTransaction(pool, async (client) => {
-        await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [row.universe_id]);
+        await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [
+          row.universe_id,
+        ]);
         const still = (
           await client.query(`${REVOKED_CONNECTIONS} AND u.id=$1 AND b.id=$2`, [
             row.universe_id,
@@ -836,7 +922,13 @@ export async function withdrawInquiries(
 
 // Opening a due inquiry (worker) ---------------------------------------------------------------
 
-export type OpenResult = 'opened' | 'nothing_to_ask' | 'waiting' | 'withdrawn' | 'failed' | 'gone';
+export type OpenResult =
+  | 'opened'
+  | 'nothing_to_ask'
+  | 'waiting'
+  | 'withdrawn'
+  | 'failed'
+  | 'gone';
 
 /** The worker's intake: every pending inquiry whose first mail is older than the route's coalescing
  * delay, while none of its universe's is already in flight, is opened in its own transaction. */
@@ -853,7 +945,9 @@ export async function openDueInquiries(
     gone: 0,
   };
   const route = (
-    await pool.query<InquiryRoute>('SELECT * FROM background_inquiry_route WHERE enabled')
+    await pool.query<InquiryRoute>(
+      'SELECT * FROM background_inquiry_route WHERE enabled',
+    )
   ).rows[0];
   if (!route) return counts;
   const due = (
@@ -887,7 +981,9 @@ export async function openDueInquiries(
   ).rows;
   for (const row of due) {
     try {
-      counts[await inTransaction(pool, (client) => openInquiry(client, row.id))] += 1;
+      counts[
+        await inTransaction(pool, (client) => openInquiry(client, row.id))
+      ] += 1;
     } catch {
       /* another worker or a Clear moved it; the next pass sees its new state */
     }
@@ -895,7 +991,8 @@ export async function openDueInquiries(
   return counts;
 }
 
-const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const sha = (bytes: Uint8Array) =>
+  createHash('sha256').update(bytes).digest('hex');
 /** The offered pairs' codes and names, as the inquiry records them for the reader's list. */
 const pairsView = (pairs: readonly InquiryPair[]) =>
   JSON.stringify(
@@ -1008,16 +1105,24 @@ async function openInquiryJob(
     VALUES
       ($1, $2, $3, $4, $5, 1, 'pending')
   `,
-    [ids.stepId, ids.jobId, scope.universeId, scope.privacyEpoch, ids.contextId],
+    [
+      ids.stepId,
+      ids.jobId,
+      scope.universeId,
+      scope.privacyEpoch,
+      ids.contextId,
+    ],
   );
   // The reserved bytes are rebuilt from the sealed pairs, exactly as the worker will rebuild them.
-  const bytes = serializeBridgeInquiryRequest(payload.pairs, requestRoute(job.route));
+  const bytes = serializeBridgeInquiryRequest(
+    payload.pairs,
+    requestRoute(job.route),
+  );
   const requestHash = sha(bytes);
-  await client.query('UPDATE background_inquiry SET request_hash=$2, input_bytes=$3 WHERE id=$1', [
-    inquiryId,
-    requestHash,
-    bytes.byteLength,
-  ]);
+  await client.query(
+    'UPDATE background_inquiry SET request_hash=$2, input_bytes=$3 WHERE id=$1',
+    [inquiryId, requestHash, bytes.byteLength],
+  );
   await enqueueFairInTransaction(client, {
     ...scope,
     jobId: ids.jobId,
@@ -1036,7 +1141,10 @@ async function openInquiryJob(
 }
 
 /** ADR-0038 §4: one due inquiry, with fresh authority, in the caller's transaction. */
-export async function openInquiry(client: pg.PoolClient, inquiryId: string): Promise<OpenResult> {
+export async function openInquiry(
+  client: pg.PoolClient,
+  inquiryId: string,
+): Promise<OpenResult> {
   const head = (
     await client.query<{ universe_id: string }>(
       'SELECT universe_id FROM background_inquiry WHERE id=$1',
@@ -1061,9 +1169,10 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
     )
   ).rows[0];
   const inquiry = (
-    await client.query<InquiryRow>('SELECT * FROM background_inquiry WHERE id=$1 FOR UPDATE', [
-      inquiryId,
-    ])
+    await client.query<InquiryRow>(
+      'SELECT * FROM background_inquiry WHERE id=$1 FOR UPDATE',
+      [inquiryId],
+    )
   ).rows[0];
   if (
     !universe ||
@@ -1072,12 +1181,14 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
     inquiry.privacy_epoch !== universe.privacy_epoch
   )
     return 'gone';
-  const close = async (status: 'nothing_to_ask' | 'withdrawn' | 'failed', reasons: string[]) => {
-    await client.query('UPDATE background_inquiry SET status=$2, reasons=$3 WHERE id=$1', [
-      inquiryId,
-      status,
-      JSON.stringify(reasons),
-    ]);
+  const close = async (
+    status: 'nothing_to_ask' | 'withdrawn' | 'failed',
+    reasons: string[],
+  ) => {
+    await client.query(
+      'UPDATE background_inquiry SET status=$2, reasons=$3 WHERE id=$1',
+      [inquiryId, status, JSON.stringify(reasons)],
+    );
   };
   const consent = (
     await client.query<{ enabled: boolean; daily_limit: number }>(
@@ -1123,7 +1234,11 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
       [inquiry.universe_id, inquiry.kind],
     )
   ).rowCount;
-  const used = await openedToday(client, inquiry.universe_id, inquiry.privacy_epoch);
+  const used = await openedToday(
+    client,
+    inquiry.universe_id,
+    inquiry.privacy_epoch,
+  );
   // Today's limit reached: it stays pending (the reader sees `waiting`) until tomorrow.
   if (busy || used >= consent.daily_limit) return 'waiting';
 
@@ -1137,14 +1252,20 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
   const bytesFor = (offered: readonly InquiryPair[]) =>
     serializeBridgeInquiryRequest(offered, requestRoute(route));
   // The request must fit the route's input bound: the last pairs give way first.
-  while (pairs.length > 1 && bytesFor(pairs).byteLength > route.max_input_tokens)
+  while (
+    pairs.length > 1 &&
+    bytesFor(pairs).byteLength > route.max_input_tokens
+  )
     pairs = pairs.slice(0, -1);
   if (bytesFor(pairs).byteLength > route.max_input_tokens) {
     await close('failed', ['request_too_large']);
     return 'failed';
   }
 
-  const scope = { universeId: inquiry.universe_id, privacyEpoch: inquiry.privacy_epoch };
+  const scope = {
+    universeId: inquiry.universe_id,
+    privacyEpoch: inquiry.privacy_epoch,
+  };
   const owner =
     (
       await client.query<{ bucket_id: string }>(
@@ -1204,7 +1325,14 @@ export async function openInquiry(client: pg.PoolClient, inquiryId: string): Pro
           WHERE
             id = $1
         `,
-        [inquiryId, route.policy_version, parentJob, jobBucket, through, pairsView(offered)],
+        [
+          inquiryId,
+          route.policy_version,
+          parentJob,
+          jobBucket,
+          through,
+          pairsView(offered),
+        ],
       );
       for (const pair of offered) {
         const childId = randomUUID();
@@ -1396,7 +1524,9 @@ async function connectionView(
   return {
     bridgeId: b.id,
     bridgeStatus: b.status,
-    relationType: b.relation_type as NonNullable<InquiryWire['found']>['relationType'],
+    relationType: b.relation_type as NonNullable<
+      InquiryWire['found']
+    >['relationType'],
     fromConcept: { code: b.from_code, name: b.from_name },
     toConcept: { code: b.to_code, name: b.to_name },
     sentence: b.mechanism,
@@ -1447,7 +1577,9 @@ export async function listInquiries(
       pairs: r.pairs ?? [],
       reasons: r.reasons,
       found:
-        r.status === 'admitted' && r.proposal_id ? await foundBridge(client, r.proposal_id) : null,
+        r.status === 'admitted' && r.proposal_id
+          ? await foundBridge(client, r.proposal_id)
+          : null,
     });
   }
   return {
@@ -1461,16 +1593,30 @@ export async function listInquiries(
 
 /** Clear/Reset (after the epoch advanced): mail, inquiries and consent go before the atlas deltas and
  * semantic proposals they reference. The Jobs themselves go with the rest of the reasoning graph. */
-export async function eraseInquiries(client: pg.PoolClient, universeId: string): Promise<void> {
-  await client.query('DELETE FROM inquiry_mail WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM background_inquiry WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM background_inquiry_consent WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM background_inquiry_consent_request WHERE universe_id=$1', [
+export async function eraseInquiries(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
+  await client.query('DELETE FROM inquiry_mail WHERE universe_id=$1', [
     universeId,
   ]);
+  await client.query('DELETE FROM background_inquiry WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query(
+    'DELETE FROM background_inquiry_consent WHERE universe_id=$1',
+    [universeId],
+  );
+  await client.query(
+    'DELETE FROM background_inquiry_consent_request WHERE universe_id=$1',
+    [universeId],
+  );
 }
 
-export async function exportInquiries(client: pg.PoolClient, universeId: string) {
+export async function exportInquiries(
+  client: pg.PoolClient,
+  universeId: string,
+) {
   const q = async (sql: string) => (await client.query(sql, [universeId])).rows;
   return {
     consent: await q(

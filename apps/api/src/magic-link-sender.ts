@@ -48,7 +48,9 @@ type MailSenderSelection = 'dev-sink' | 'agentmail';
 
 /** `KS_MAIL_SENDER` (ADR-0027 section 4): `'dev-sink'` (the default when unset) or `'agentmail'`.
  * Any other value is a configuration error, not a silent fallback. */
-function resolveMailSenderSelection(env: NodeJS.ProcessEnv): MailSenderSelection {
+function resolveMailSenderSelection(
+  env: NodeJS.ProcessEnv,
+): MailSenderSelection {
   const raw = env.KS_MAIL_SENDER;
   if (raw === undefined || raw === 'dev-sink') return 'dev-sink';
   if (raw === 'agentmail') return 'agentmail';
@@ -76,7 +78,9 @@ function parseTimeoutMs(raw: string | undefined): number | undefined {
  * object, never sought elsewhere. `AGENTMAIL_BASE_URL` is ordinary local configuration, not a
  * secret: it exists purely so a test can point this sender at a local fake HTTP server; every real
  * deployment leaves it unset and reaches the real AgentMail host. */
-function createConfiguredAgentMailSender(env: NodeJS.ProcessEnv): AgentMailSender {
+function createConfiguredAgentMailSender(
+  env: NodeJS.ProcessEnv,
+): AgentMailSender {
   const apiKey = env.AGENTMAIL_API_KEY;
   const inboxId = env.AGENTMAIL_INBOX_ID;
   if (!apiKey || !inboxId) {
@@ -101,7 +105,9 @@ function createConfiguredAgentMailSender(env: NodeJS.ProcessEnv): AgentMailSende
  * the development sink, which requires `KS_DEV_ROOT` (or `KS_MEDIA_ROOT`'s sibling convention)
  * exactly like `resolveMediaRoot()`.
  */
-export function createMagicLinkSender(env: NodeJS.ProcessEnv = process.env): MagicLinkSender {
+export function createMagicLinkSender(
+  env: NodeJS.ProcessEnv = process.env,
+): MagicLinkSender {
   const selection = resolveMailSenderSelection(env);
 
   if (env.NODE_ENV === 'production') {

@@ -128,7 +128,10 @@ function explanationKeyFor(unread: boolean): string {
  * recorded `inputs` for that candidate into its registered template. Given only a stored
  * `decision_signal` row (template text + inputs), this reproduces the exact reason a reader once
  * saw — nothing here needs a fresh database read. */
-export function renderExplanation(template: string, inputs: ComposerSignalInputs): string {
+export function renderExplanation(
+  template: string,
+  inputs: ComposerSignalInputs,
+): string {
   return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, key: string) => {
     const value = (inputs as unknown as Record<string, unknown>)[key];
     return value === null || value === undefined ? '' : String(value);
@@ -184,7 +187,12 @@ export function rankSignalCandidates(
         c,
         unread,
         recencyDays,
-        score: scoreSignal(policy.weights, unread, c.exposureCount, recencyDays),
+        score: scoreSignal(
+          policy.weights,
+          unread,
+          c.exposureCount,
+          recencyDays,
+        ),
       };
     })
     .sort((a, b) => {
@@ -194,7 +202,8 @@ export function rankSignalCandidates(
       // preference for a particular source, only what this universe's own history already records.
       if (a.c.sourceExposureCount !== b.c.sourceExposureCount)
         return a.c.sourceExposureCount - b.c.sourceExposureCount;
-      const hashDiff = tiebreakKey(a.c.asset.assetId) - tiebreakKey(b.c.asset.assetId);
+      const hashDiff =
+        tiebreakKey(a.c.asset.assetId) - tiebreakKey(b.c.asset.assetId);
       if (hashDiff !== 0) return hashDiff;
       // Only reached on an actual hash collision (astronomically unlikely for 32 bits over a
       // realistic candidate count): fall back to the raw id so the order stays a strict total
@@ -215,10 +224,14 @@ export function rankSignalCandidates(
     const explanationKey = explanationKeyFor(entry.unread);
     const template = templates[explanationKey];
     if (template === undefined)
-      throw new Error(`No registered composer_explanation_template for '${explanationKey}'`);
+      throw new Error(
+        `No registered composer_explanation_template for '${explanationKey}'`,
+      );
     const inputs: ComposerSignalInputs = {
       exposureCount: entry.c.exposureCount,
-      lastExposedAt: entry.unread ? null : new Date(entry.c.lastExposedAtMs!).toISOString(),
+      lastExposedAt: entry.unread
+        ? null
+        : new Date(entry.c.lastExposedAtMs!).toISOString(),
       unread: entry.unread,
       sourceKey: entry.c.sourceKey,
       recencyDays: entry.recencyDays,

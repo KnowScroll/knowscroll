@@ -22,13 +22,19 @@ import {
   type HypothesisProposal,
 } from '../../../core/src/semantic/hypotheses.ts';
 import { BRANCH_POLICY_VERSION } from './branches.ts';
-import { eraseAtlas, exportAtlas, runCartographer, runKeeper } from '../atlas.ts';
+import {
+  eraseAtlas,
+  exportAtlas,
+  runCartographer,
+  runKeeper,
+} from '../atlas.ts';
 import { withdrawCorrectedBindings } from '../inventory/demand.ts';
 import { postInquiryMail } from '../reasoning-inquiries.ts';
 import { eraseRooms, exportRooms } from '../rooms.ts';
 
 type Row = Record<string, unknown>;
-const ms = (v: unknown) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
+const ms = (v: unknown) =>
+  v instanceof Date ? v.getTime() : new Date(String(v)).getTime();
 
 export interface PersonalEvidence {
   episodes: EpisodeEvidence[];
@@ -216,7 +222,11 @@ export async function loadPersonalEvidence(
       `,
         [universeId],
       )
-    ).rows.map((r) => ({ ref: String(r.id), atMs: ms(r.created_at), concepts: [String(r.code)] })),
+    ).rows.map((r) => ({
+      ref: String(r.id),
+      atMs: ms(r.created_at),
+      concepts: [String(r.code)],
+    })),
     ...(
       await client.query<Row>(
         `
@@ -265,7 +275,9 @@ export async function loadPersonalEvidence(
     )
   ).rows.map((r) => {
     const primary =
-      (annotations.get(String(r.asset_id)) ?? []).find((c) => c.role === 'primary')?.code ?? null;
+      (annotations.get(String(r.asset_id)) ?? []).find(
+        (c) => c.role === 'primary',
+      )?.code ?? null;
     // No answer path exists yet (#132): a recorded question stays open until one does.
     return {
       askId: String(r.id),
@@ -290,7 +302,8 @@ export interface PersonalModelResult {
 
 /** ADR-0040: how much of the correction log is committed. It is append-only, so this only grows, and
  * a count sees committed rows only (a correction's own time is taken before it commits). */
-export const CORRECTIONS_COMMITTED = '(SELECT count(*)::int FROM semantic_correction)';
+export const CORRECTIONS_COMMITTED =
+  '(SELECT count(*)::int FROM semantic_correction)';
 
 /** Recompute accounts and hypotheses for one universe. Caller holds the universe lock. */
 export async function refreshPersonalModel(
@@ -298,7 +311,12 @@ export async function refreshPersonalModel(
   universeId: string,
 ): Promise<PersonalModelResult> {
   const universe = (
-    await client.query<{ privacy_epoch: number; now: Date; paused: boolean; corrections: number }>(
+    await client.query<{
+      privacy_epoch: number;
+      now: Date;
+      paused: boolean;
+      corrections: number;
+    }>(
       `SELECT privacy_epoch, clock_timestamp() AS now, recording_paused_at IS NOT NULL AS paused, ${CORRECTIONS_COMMITTED} AS corrections FROM universe WHERE id=$1`,
       [universeId],
     )
@@ -450,14 +468,23 @@ export async function refreshPersonalModel(
         VALUES
           ($1, $2, $3, $4, $5, $6)
       `,
-        [randomUUID(), universeId, conceptId, before, a.state, ATTENTION_V1.version],
+        [
+          randomUUID(),
+          universeId,
+          conceptId,
+          before,
+          a.state,
+          ATTENTION_V1.version,
+        ],
       );
     }
   }
 
   // #134: places follow the accounts just written (ADR-0036), and #163: rooms follow the places and
   // the reader's Asks (ADR-0045); nothing runs while paused (above).
-  const places = await runCartographer(client, universeId, [...accounts.values()]);
+  const places = await runCartographer(client, universeId, [
+    ...accounts.values(),
+  ]);
   const rooms = await runKeeper(client, universeId, evidence.asks);
   // #164: a Scroll bound to this reader's need that a correction left unsupported is withdrawn (ADR-0046 §5).
   await withdrawCorrectedBindings(client, universeId);
@@ -466,7 +493,10 @@ export async function refreshPersonalModel(
   for (const e of evidence.episodes)
     if (e.systemOffered)
       for (const c of e.concepts)
-        offeredEpisodes.set(c.code, [...(offeredEpisodes.get(c.code) ?? []), e.exposureId]);
+        offeredEpisodes.set(c.code, [
+          ...(offeredEpisodes.get(c.code) ?? []),
+          e.exposureId,
+        ]);
   const proposals = proposeHypotheses({
     nowMs,
     accounts,
@@ -645,29 +675,57 @@ async function upsertHypothesis(
         revision,
         status
     `,
-      [randomUUID(), universeId, epoch, p.kind, conceptId, p.ruleVersion, ...payload],
+      [
+        randomUUID(),
+        universeId,
+        epoch,
+        p.kind,
+        conceptId,
+        p.ruleVersion,
+        ...payload,
+      ],
     )
   ).rows[0];
 }
 
 /** Clear/Reset: the personal model goes with the history it was computed from. */
-export async function erasePersonalModel(client: pg.PoolClient, universeId: string): Promise<void> {
+export async function erasePersonalModel(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
   // A v3 candidate may name the universe's own bridge, which the semantic erase removes next; the
   // decision records go first (their decisions follow later in the same Clear). Rooms name places
   // and Asks, so they go before both.
   await eraseRooms(client, universeId);
   await eraseAtlas(client, universeId);
-  await client.query('DELETE FROM decision_candidate WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM decision_context WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM encounter_feedback WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM personal_hypothesis WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM attention_transition WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM attention_account WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM decision_candidate WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM decision_context WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM encounter_feedback WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM personal_hypothesis WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM attention_transition WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM attention_account WHERE universe_id=$1', [
+    universeId,
+  ]);
   // Bookkeeping, never history: erased with the model, and not exported.
-  await client.query('DELETE FROM correction_catch_up WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM correction_catch_up WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
-export async function exportPersonalModel(client: pg.PoolClient, universeId: string) {
+export async function exportPersonalModel(
+  client: pg.PoolClient,
+  universeId: string,
+) {
   const q = async (sql: string) => (await client.query(sql, [universeId])).rows;
   return {
     attentionAccounts:

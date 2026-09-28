@@ -3,7 +3,10 @@
  * marker. It only orders, caps and counts; it never words anything or decides what counts as away
  * (the queries do: only what the reader did not cause).
  */
-import { AWAY_CURSOR_PATTERN, type AWAY_KINDS } from '../../contracts/src/away.ts';
+import {
+  AWAY_CURSOR_PATTERN,
+  type AWAY_KINDS,
+} from '../../contracts/src/away.ts';
 
 export type AwayCandidate = { kind: string; at: string; key: string };
 
@@ -15,7 +18,11 @@ const bytewise = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * key. The queries order the same way, so a page cursor neither repeats nor skips an item.
  */
 export function compareAway(a: AwayCandidate, b: AwayCandidate): number {
-  return Date.parse(b.at) - Date.parse(a.at) || bytewise(a.kind, b.kind) || bytewise(a.key, b.key);
+  return (
+    Date.parse(b.at) - Date.parse(a.at) ||
+    bytewise(a.kind, b.kind) ||
+    bytewise(a.key, b.key)
+  );
 }
 
 /** The cursor of a page's last item: the next page is everything after it in [compareAway]'s order. */
@@ -27,7 +34,9 @@ export function parseAwayCursor(
   cursor: string,
 ): { at: string; kind: (typeof AWAY_KINDS)[number]; key: string } | null {
   const m = AWAY_CURSOR_PATTERN.exec(cursor);
-  return m ? { at: m[1]!, kind: m[2] as (typeof AWAY_KINDS)[number], key: m[3]! } : null;
+  return m
+    ? { at: m[1]!, kind: m[2] as (typeof AWAY_KINDS)[number], key: m[3]! }
+    : null;
 }
 
 /**
@@ -43,7 +52,8 @@ export function selectAway<T extends AwayCandidate>(
   limit: number,
   total: number,
 ): { items: T[]; more: number } {
-  if (!Number.isInteger(limit) || limit < 1) throw new Error('limit must be a positive integer');
+  if (!Number.isInteger(limit) || limit < 1)
+    throw new Error('limit must be a positive integer');
   const after =
     since === null
       ? [...candidates]
@@ -52,13 +62,20 @@ export function selectAway<T extends AwayCandidate>(
   const items = after.slice(0, limit);
   return {
     items,
-    more: items.length < limit ? 0 : Math.max(0, Math.max(total, after.length) - items.length),
+    more:
+      items.length < limit
+        ? 0
+        : Math.max(0, Math.max(total, after.length) - items.length),
   };
 }
 
 /** The marker a client may set: the newest item it displayed, never behind the current marker. */
-export function nextMarker(current: string | null, through: string): string | null {
-  if (current !== null && Date.parse(through) <= Date.parse(current)) return null;
+export function nextMarker(
+  current: string | null,
+  through: string,
+): string | null {
+  if (current !== null && Date.parse(through) <= Date.parse(current))
+    return null;
   return through;
 }
 

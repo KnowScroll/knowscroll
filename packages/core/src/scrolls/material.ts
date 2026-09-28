@@ -30,7 +30,8 @@ export const MATERIAL_FAMILIES = Object.freeze({
   noaa: {
     key: 'fam.noaa',
     kind: 'publisher',
-    description: 'NOAA National Ocean Service public-domain fact pages (oceanservice.noaa.gov).',
+    description:
+      'NOAA National Ocean Service public-domain fact pages (oceanservice.noaa.gov).',
   },
   usgs: {
     key: 'fam.usgs',
@@ -44,8 +45,16 @@ export interface MaterialHost {
   family: MaterialFamily;
   keyPrefix: 'nasa' | 'noaa' | 'usgs';
 }
-const NASA: MaterialHost = { publisher: 'NASA', family: MATERIAL_FAMILIES.nasa, keyPrefix: 'nasa' };
-const NOAA: MaterialHost = { publisher: 'NOAA', family: MATERIAL_FAMILIES.noaa, keyPrefix: 'noaa' };
+const NASA: MaterialHost = {
+  publisher: 'NASA',
+  family: MATERIAL_FAMILIES.nasa,
+  keyPrefix: 'nasa',
+};
+const NOAA: MaterialHost = {
+  publisher: 'NOAA',
+  family: MATERIAL_FAMILIES.noaa,
+  keyPrefix: 'noaa',
+};
 // US federal works are public domain. The National Weather Service is part of NOAA, so its pages are
 // not independent evidence from NOAA's own.
 const HOSTS: Readonly<Record<string, MaterialHost>> = Object.freeze({
@@ -55,7 +64,11 @@ const HOSTS: Readonly<Record<string, MaterialHost>> = Object.freeze({
   'oceanservice.noaa.gov': NOAA,
   'www.noaa.gov': NOAA,
   'www.weather.gov': { ...NOAA, publisher: 'NOAA National Weather Service' },
-  'www.usgs.gov': { publisher: 'USGS', family: MATERIAL_FAMILIES.usgs, keyPrefix: 'usgs' },
+  'www.usgs.gov': {
+    publisher: 'USGS',
+    family: MATERIAL_FAMILIES.usgs,
+    keyPrefix: 'usgs',
+  },
 });
 
 export type MaterialUrlRefusal =
@@ -69,7 +82,9 @@ export type MaterialUrlRefusal =
 /** The one question asked of every URL before it is requested, the first and every redirect alike. */
 export function checkMaterialUrl(
   raw: string,
-): { ok: true; url: string; host: MaterialHost } | { ok: false; reason: MaterialUrlRefusal } {
+):
+  | { ok: true; url: string; host: MaterialHost }
+  | { ok: false; reason: MaterialUrlRefusal } {
   if (!URL.canParse(raw)) return { ok: false, reason: 'not_a_url' };
   const url = new URL(raw);
   // Refused by name, whatever the scheme: its pages say CC BY-NC-SA (owner decision, 2026-09-24).
@@ -80,14 +95,23 @@ export function checkMaterialUrl(
     return { ok: false, reason: 'credentials_in_url' };
   if (url.port !== '') return { ok: false, reason: 'port_not_allowed' };
   // An own key only: a host named like an Object.prototype key (`constructor`) is not allowlisted.
-  const host = Object.hasOwn(HOSTS, url.hostname) ? HOSTS[url.hostname] : undefined;
+  const host = Object.hasOwn(HOSTS, url.hostname)
+    ? HOSTS[url.hostname]
+    : undefined;
   if (!host) return { ok: false, reason: 'host_not_allowed' };
   url.hash = '';
   return { ok: true, url: url.href, host };
 }
 
 // The snapshot tool's rules (scripts/substrate/snapshot_source.py), so a page reads the same in both.
-const SKIP = new Set(['script', 'style', 'noscript', 'svg', 'template', 'head']);
+const SKIP = new Set([
+  'script',
+  'style',
+  'noscript',
+  'svg',
+  'template',
+  'head',
+]);
 const BLOCK = new Set([
   'p',
   'div',
@@ -176,7 +200,9 @@ function decodeEntities(text: string): string {
     (whole, ref: string) => {
       if (ref[0] !== '#') return NAMED[ref] ?? whole;
       const code =
-        ref[1] === 'x' || ref[1] === 'X' ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+        ref[1] === 'x' || ref[1] === 'X'
+          ? parseInt(ref.slice(2), 16)
+          : parseInt(ref.slice(1), 10);
       return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff)
         ? String.fromCodePoint(code)
         : '�';
@@ -184,7 +210,8 @@ function decodeEntities(text: string): string {
   );
 }
 /** Like the snapshot tool: data is decoded as it is read, and the joined text once more before normalizing. */
-const finish = (parts: readonly string[]) => normalizeSnapshotText(decodeEntities(parts.join(' ')));
+const finish = (parts: readonly string[]) =>
+  normalizeSnapshotText(decodeEntities(parts.join(' ')));
 
 /** Where a tag ends: the first `>` outside a quoted attribute value. */
 function tagEnd(html: string, from: number): number {
@@ -212,7 +239,8 @@ export function titleSaysNotFound(title: string | null): boolean {
 /** What the writer is offered (ADR-0041 §3): the `<main>` text when there is enough of it to quote
  * from, else the whole page, so a page whose `<main>` is only a short hero still gets its article. */
 export function offeredText(page: Pick<VisibleText, 'text' | 'focus'>): string {
-  return page.focus !== null && page.focus.length >= MATERIAL_LIMITS.minTextChars
+  return page.focus !== null &&
+    page.focus.length >= MATERIAL_LIMITS.minTextChars
     ? page.focus
     : page.text;
 }
@@ -298,7 +326,9 @@ export function extractVisibleText(html: string): VisibleText {
     }
   }
   const focus =
-    mainFrom >= 0 ? finish(parts.slice(mainFrom, mainTo < 0 ? parts.length : mainTo)) : '';
+    mainFrom >= 0
+      ? finish(parts.slice(mainFrom, mainTo < 0 ? parts.length : mainTo))
+      : '';
   const heading = normalizeSnapshotText(decodeEntities(title.join('')));
   return { text: finish(parts), focus: focus || null, title: heading || null };
 }

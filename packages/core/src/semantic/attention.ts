@@ -41,7 +41,13 @@ export const ATTENTION_V1: AttentionPolicy = {
   returnBonus: 2,
   returnGapHours: 4,
   roleWeights: { primary: 1, secondary: 0.5, mentioned: 0.2 },
-  anchored: { episodes: 3, daysActive: 2, voluntary: 2, sourceFamilies: 2, mass: 4 },
+  anchored: {
+    episodes: 3,
+    daysActive: 2,
+    voluntary: 2,
+    sourceFamilies: 2,
+    mass: 4,
+  },
   dormant: { mass: 1, idleDays: 30 },
 };
 
@@ -114,7 +120,8 @@ export function computeAttentionAccounts(
   const accounts = new Map<string, Working>();
   const ordered = [...episodes].sort(
     (a, b) =>
-      a.atMs - b.atMs || (a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0),
+      a.atMs - b.atMs ||
+      (a.exposureId < b.exposureId ? -1 : a.exposureId > b.exposureId ? 1 : 0),
   );
 
   for (const episode of ordered) {
@@ -151,7 +158,8 @@ export function computeAttentionAccounts(
         accounts.set(link.code, a);
       }
       let weight =
-        policy.baseWeight + policy.voluntaryWeight * Math.min(kinds.size, policy.maxVoluntaryKinds);
+        policy.baseWeight +
+        policy.voluntaryWeight * Math.min(kinds.size, policy.maxVoluntaryKinds);
       const separated =
         a.lastEpisodeAtMs !== null &&
         episode.atMs - a.lastEpisodeAtMs >= policy.returnGapHours * 3_600_000;
@@ -162,7 +170,10 @@ export function computeAttentionAccounts(
       a.mass +=
         credit *
         weight *
-        Math.pow(2, -Math.max(0, nowMs - episode.atMs) / (policy.halfLifeDays * DAY));
+        Math.pow(
+          2,
+          -Math.max(0, nowMs - episode.atMs) / (policy.halfLifeDays * DAY),
+        );
       a.episodes += 1;
       if (episode.systemOffered) a.offered += 1;
       a.lastEpisodeAtMs = episode.atMs;
@@ -199,7 +210,9 @@ export function computeAttentionAccounts(
       markKinds: a.markKinds,
       returns: a.returns,
       daysActive: markDays.length,
-      spanDays: markDays.length ? markDays[markDays.length - 1]! - markDays[0]! : 0,
+      spanDays: markDays.length
+        ? markDays[markDays.length - 1]! - markDays[0]!
+        : 0,
       sourceFamilies: a.families.size,
       exposureShare: a.episodes ? round(a.offered / a.episodes) : 0,
       negatives: a.negatives,
@@ -230,8 +243,11 @@ export function stateOf(
     a.sourceFamilies >= t.sourceFamilies;
   if (!shaped) return 'seen';
   if (a.mass >= t.mass) return 'anchored';
-  const idle = a.lastMarkAtMs === null ? Infinity : (nowMs - a.lastMarkAtMs) / DAY;
-  return a.mass < policy.dormant.mass && idle >= policy.dormant.idleDays ? 'dormant' : 'seen';
+  const idle =
+    a.lastMarkAtMs === null ? Infinity : (nowMs - a.lastMarkAtMs) / DAY;
+  return a.mass < policy.dormant.mass && idle >= policy.dormant.idleDays
+    ? 'dormant'
+    : 'seen';
 }
 
 const round = (n: number) => Math.round(n * 10_000) / 10_000;

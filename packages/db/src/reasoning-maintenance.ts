@@ -1,11 +1,19 @@
 import type pg from 'pg';
 
 import { purgeClosedReasoningAccounting } from './reasoning-storage.js';
-import { expireIdleDirectJob, isIdleWithdrawalIneligible } from './reasoning-idle-lifecycle.js';
+import {
+  expireIdleDirectJob,
+  isIdleWithdrawalIneligible,
+} from './reasoning-idle-lifecycle.js';
 
 const DEFAULT_MAX_PROBES = 32;
 const MAX_PROBES = 128;
-const GRAPH_LIMITS = Object.freeze({ steps: 128, attempts: 128, contexts: 128, reads: 16_384 });
+const GRAPH_LIMITS = Object.freeze({
+  steps: 128,
+  attempts: 128,
+  contexts: 128,
+  reads: 16_384,
+});
 // Use the same explicit clock/status branches before and after private-row waits.
 const RETIREMENT_CLOCK_PREDICATE = `(
  (status IN ('cancelled','expired') AND withdrawn_at<=clock_timestamp()-interval '168 hours' AND finished_at IS NULL)
@@ -14,7 +22,12 @@ const RETIREMENT_CLOCK_PREDICATE = `(
 
 type Lane = 'expiry' | 'job' | 'accounting';
 type Candidate = { id: string; universeId: string; privacyEpoch: number };
-type Cursors = { expiry: string | null; job: string | null; accounting: string | null; next: Lane };
+type Cursors = {
+  expiry: string | null;
+  job: string | null;
+  accounting: string | null;
+  next: Lane;
+};
 
 export type ReasoningMaintenanceBatch = {
   probes: number;
@@ -23,9 +36,14 @@ export type ReasoningMaintenanceBatch = {
   purgedAccounting: number;
   skipped: number;
 };
-export type ReasoningMaintenanceRunInput = { maxProbes?: number; signal?: AbortSignal };
+export type ReasoningMaintenanceRunInput = {
+  maxProbes?: number;
+  signal?: AbortSignal;
+};
 export type ReasoningMaintenance = {
-  runBatch(input?: ReasoningMaintenanceRunInput): Promise<ReasoningMaintenanceBatch>;
+  runBatch(
+    input?: ReasoningMaintenanceRunInput,
+  ): Promise<ReasoningMaintenanceBatch>;
 };
 
 function maxProbes(input: ReasoningMaintenanceRunInput | undefined): number {
@@ -40,7 +58,9 @@ function isExpectedContention(error: unknown): boolean {
     typeof error === 'object' && error !== null && 'code' in error
       ? (error as { code?: unknown }).code
       : undefined;
-  return code === '55P03' || code === '57014' || code === '40P01' || code === '40001';
+  return (
+    code === '55P03' || code === '57014' || code === '40P01' || code === '40001'
+  );
 }
 
 async function transaction<T>(
@@ -70,7 +90,8 @@ async function discover(
   lane: Lane,
   cursor: string | null,
 ): Promise<Candidate | undefined> {
-  const table = lane === 'accounting' ? 'reasoning_accounting' : 'reasoning_job';
+  const table =
+    lane === 'accounting' ? 'reasoning_accounting' : 'reasoning_job';
   const idColumn = lane === 'accounting' ? 'attempt_id' : 'id';
   const base =
     lane === 'expiry'
@@ -86,7 +107,11 @@ async function discover(
     cursor === null
       ? undefined
       : (
-          await pool.query<{ id: string; universe_id: string; privacy_epoch: number }>(
+          await pool.query<{
+            id: string;
+            universe_id: string;
+            privacy_epoch: number;
+          }>(
             `SELECT ${idColumn} AS id,universe_id,privacy_epoch FROM ${table} WHERE ${base} AND ${idColumn}>$1 ORDER BY ${idColumn} LIMIT 1`,
             [cursor],
           )
@@ -94,7 +119,11 @@ async function discover(
   const row =
     after ??
     (
-      await pool.query<{ id: string; universe_id: string; privacy_epoch: number }>(
+      await pool.query<{
+        id: string;
+        universe_id: string;
+        privacy_epoch: number;
+      }>(
         `SELECT ${idColumn} AS id,universe_id,privacy_epoch FROM ${table} WHERE ${base} ORDER BY ${idColumn} LIMIT 1`,
       )
     ).rows[0];
@@ -107,7 +136,10 @@ async function discover(
     : undefined;
 }
 
-async function expireJob(client: pg.PoolClient, candidate: Candidate): Promise<boolean> {
+async function expireJob(
+  client: pg.PoolClient,
+  candidate: Candidate,
+): Promise<boolean> {
   if (!(await lockUniverse(client, candidate.universeId))) return false;
   return (
     await expireIdleDirectJob(client, {
@@ -118,14 +150,24 @@ async function expireJob(client: pg.PoolClient, candidate: Candidate): Promise<b
   ).changed;
 }
 
-async function lockUniverse(client: pg.PoolClient, universeId: string): Promise<boolean> {
+async function lockUniverse(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<boolean> {
   return (
-    (await client.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED', [universeId]))
-      .rowCount === 1
+    (
+      await client.query(
+        'SELECT id FROM universe WHERE id=$1 FOR UPDATE SKIP LOCKED',
+        [universeId],
+      )
+    ).rowCount === 1
   );
 }
 
-async function eligiblePrivateJob(client: pg.PoolClient, candidate: Candidate): Promise<boolean> {
+async function eligiblePrivateJob(
+  client: pg.PoolClient,
+  candidate: Candidate,
+): Promise<boolean> {
   const job = (
     await client.query<{ id: string }>(
       `SELECT id FROM reasoning_job
@@ -144,7 +186,12 @@ async function eligiblePrivateJob(client: pg.PoolClient, candidate: Candidate): 
   ).rows[0];
   if (!job) return false;
   const counts = (
-    await client.query<{ steps: string; attempts: string; contexts: string; reads: string }>(
+    await client.query<{
+      steps: string;
+      attempts: string;
+      contexts: string;
+      reads: string;
+    }>(
       `
     SELECT
       (
@@ -204,9 +251,10 @@ async function eligiblePrivateJob(client: pg.PoolClient, candidate: Candidate): 
     return false;
 
   // Stable private-row locks follow the already-held universe and Job locks.
-  await client.query('SELECT id FROM reasoning_step WHERE job_id=$1 ORDER BY id FOR UPDATE', [
-    candidate.id,
-  ]);
+  await client.query(
+    'SELECT id FROM reasoning_step WHERE job_id=$1 ORDER BY id FOR UPDATE',
+    [candidate.id],
+  );
   await client.query(
     `
    SELECT
@@ -224,9 +272,10 @@ async function eligiblePrivateJob(client: pg.PoolClient, candidate: Candidate): 
  `,
     [candidate.id],
   );
-  await client.query('SELECT id FROM reasoning_context WHERE job_id=$1 ORDER BY id FOR UPDATE', [
-    candidate.id,
-  ]);
+  await client.query(
+    'SELECT id FROM reasoning_context WHERE job_id=$1 ORDER BY id FOR UPDATE',
+    [candidate.id],
+  );
   // A read after all waits prevents a stale candidate from becoming an erase.
   return (
     (
@@ -248,15 +297,23 @@ async function eligiblePrivateJob(client: pg.PoolClient, candidate: Candidate): 
   );
 }
 
-async function retireJob(client: pg.PoolClient, candidate: Candidate): Promise<boolean> {
+async function retireJob(
+  client: pg.PoolClient,
+  candidate: Candidate,
+): Promise<boolean> {
   if (!(await lockUniverse(client, candidate.universeId))) return false;
   if (!(await eligiblePrivateJob(client, candidate))) return false;
   await client.query('SET CONSTRAINTS ALL DEFERRED');
-  const attempts = await client.query('DELETE FROM reasoning_attempt WHERE job_id=$1', [
+  const attempts = await client.query(
+    'DELETE FROM reasoning_attempt WHERE job_id=$1',
+    [candidate.id],
+  );
+  await client.query('DELETE FROM reasoning_step WHERE job_id=$1', [
     candidate.id,
   ]);
-  await client.query('DELETE FROM reasoning_step WHERE job_id=$1', [candidate.id]);
-  await client.query('DELETE FROM reasoning_context WHERE job_id=$1', [candidate.id]);
+  await client.query('DELETE FROM reasoning_context WHERE job_id=$1', [
+    candidate.id,
+  ]);
   const job = await client.query(
     `
    DELETE FROM reasoning_job
@@ -274,14 +331,18 @@ async function retireJob(client: pg.PoolClient, candidate: Candidate): Promise<b
  `,
     [candidate.id, candidate.universeId],
   );
-  if (job.rowCount !== 1) throw new Error('Reasoning retirement lost its locked Job');
+  if (job.rowCount !== 1)
+    throw new Error('Reasoning retirement lost its locked Job');
   // The retained accounting identity is deliberately untouched; `attempts` is
   // consumed only to make the private delete order explicit to readers.
   void attempts;
   return true;
 }
 
-async function eligibleAccounting(client: pg.PoolClient, candidate: Candidate): Promise<boolean> {
+async function eligibleAccounting(
+  client: pg.PoolClient,
+  candidate: Candidate,
+): Promise<boolean> {
   const row = (
     await client.query<{ attempt_id: string }>(
       `
@@ -349,14 +410,24 @@ async function eligibleAccounting(client: pg.PoolClient, candidate: Candidate): 
   );
 }
 
-async function purgeAccounting(client: pg.PoolClient, candidate: Candidate): Promise<number> {
+async function purgeAccounting(
+  client: pg.PoolClient,
+  candidate: Candidate,
+): Promise<number> {
   if (!(await lockUniverse(client, candidate.universeId))) return 0;
   if (!(await eligibleAccounting(client, candidate))) return 0;
   return purgeClosedReasoningAccounting(client, candidate.universeId, 1);
 }
 
-export function createReasoningMaintenance(pool: pg.Pool): ReasoningMaintenance {
-  const cursors: Cursors = { expiry: null, job: null, accounting: null, next: 'expiry' };
+export function createReasoningMaintenance(
+  pool: pg.Pool,
+): ReasoningMaintenance {
+  const cursors: Cursors = {
+    expiry: null,
+    job: null,
+    accounting: null,
+    next: 'expiry',
+  };
   return {
     async runBatch(input) {
       const limit = maxProbes(input);
@@ -372,19 +443,29 @@ export function createReasoningMaintenance(pool: pg.Pool): ReasoningMaintenance 
         // always allowed to reach its normal commit/rollback boundary.
         if (input?.signal?.aborted) break;
         const lane = cursors.next;
-        cursors.next = lane === 'expiry' ? 'job' : lane === 'job' ? 'accounting' : 'expiry';
+        cursors.next =
+          lane === 'expiry' ? 'job' : lane === 'job' ? 'accounting' : 'expiry';
         result.probes += 1;
         try {
           const outcome = await transaction(pool, async (client) => {
             const candidate = await discover(client, lane, cursors[lane]);
-            if (!candidate) return { expired: false, retired: false, purged: 0 };
+            if (!candidate)
+              return { expired: false, retired: false, purged: 0 };
             // This is deliberately process-local progress: a later rollback must not
             // make one blocked candidate the next probe again.
             cursors[lane] = candidate.id;
             if (lane === 'expiry')
-              return { expired: await expireJob(client, candidate), retired: false, purged: 0 };
+              return {
+                expired: await expireJob(client, candidate),
+                retired: false,
+                purged: 0,
+              };
             if (lane === 'job')
-              return { expired: false, retired: await retireJob(client, candidate), purged: 0 };
+              return {
+                expired: false,
+                retired: await retireJob(client, candidate),
+                purged: 0,
+              };
             return {
               expired: false,
               retired: false,

@@ -56,16 +56,25 @@ export class SemanticUnprocessable extends Error {
   }
 }
 
-const PHRASES: Record<BridgeRelationType, { forward: string; reverse: string }> = {
+const PHRASES: Record<
+  BridgeRelationType,
+  { forward: string; reverse: string }
+> = {
   explains: { forward: 'explains', reverse: 'is explained by' },
-  prerequisite_for: { forward: 'comes before understanding', reverse: 'builds on' },
+  prerequisite_for: {
+    forward: 'comes before understanding',
+    reverse: 'builds on',
+  },
   applies_to: { forward: 'applies to', reverse: 'is an application of' },
   compares_mechanism: { forward: 'works like', reverse: 'works like' },
   analogous_in: { forward: 'is like', reverse: 'is like' },
 };
 
 function stableUuid(text: string): string {
-  const b = createHash('sha256').update(`knowscroll-branch:${text}`).digest().subarray(0, 16);
+  const b = createHash('sha256')
+    .update(`knowscroll-branch:${text}`)
+    .digest()
+    .subarray(0, 16);
   b[6] = (b[6]! & 0x0f) | 0x40;
   b[8] = (b[8]! & 0x3f) | 0x80;
   const h = b.toString('hex');
@@ -128,7 +137,11 @@ export async function listEncounterBranches(
     )
   ).rows[0];
   if (!asset) throw new SemanticNotFound('Encounter not found');
-  const base = { assetId, revision: asset.revision, privacyEpoch: scope.privacyEpoch };
+  const base = {
+    assetId,
+    revision: asset.revision,
+    privacyEpoch: scope.privacyEpoch,
+  };
 
   const own = (
     await client.query<{ code: string; role: string }>(
@@ -146,14 +159,16 @@ export async function listEncounterBranches(
       [assetId],
     )
   ).rows;
-  if (own.length === 0) return { ...base, branches: [], emptyReason: 'no_semantic_annotation' };
+  if (own.length === 0)
+    return { ...base, branches: [], emptyReason: 'no_semantic_annotation' };
 
   const tree = await conceptTree(client);
   // A bridge applies to this encounter only when the encounter is about that side or a narrower
   // part of it. A broader concept (a Scroll that merely involves the Sun) does not make a bridge
   // about one specific aspect (the Sun's energy output) a continuation of it — that was the
   // tenuous leap the first emulator journey surfaced.
-  const touches = (side: string) => own.some((o) => isWithin(tree, o.code, side));
+  const touches = (side: string) =>
+    own.some((o) => isWithin(tree, o.code, side));
   const bridges = (
     await client.query<BridgeRow>(
       `
@@ -193,13 +208,20 @@ export async function listEncounterBranches(
     )
   ).rows;
 
-  const travels: { bridge: BridgeRow; direction: 'forward' | 'reverse'; destination: string }[] =
-    [];
+  const travels: {
+    bridge: BridgeRow;
+    direction: 'forward' | 'reverse';
+    destination: string;
+  }[] = [];
   for (const bridge of bridges) {
     if (pin && bridge.id !== pin.bridgeId) continue;
     const symmetric = SYMMETRIC_BRIDGE_TYPES.includes(bridge.relation_type);
     if (touches(bridge.from_code))
-      travels.push({ bridge, direction: 'forward', destination: bridge.to_code });
+      travels.push({
+        bridge,
+        direction: 'forward',
+        destination: bridge.to_code,
+      });
     else if (touches(bridge.to_code))
       travels.push({
         bridge,
@@ -207,7 +229,8 @@ export async function listEncounterBranches(
         destination: bridge.from_code,
       });
   }
-  if (travels.length === 0) return { ...base, branches: [], emptyReason: 'no_admitted_bridge' };
+  if (travels.length === 0)
+    return { ...base, branches: [], emptyReason: 'no_admitted_bridge' };
 
   const targets = (
     await client.query<TargetRow>(
@@ -301,12 +324,15 @@ export async function listEncounterBranches(
     const destinationSide = toward ? 'to' : 'from';
     const citedForDestination = new Set(
       evidence
-        .filter((e) => e.supports === destinationSide || e.supports === 'mechanism')
+        .filter(
+          (e) => e.supports === destinationSide || e.supports === 'mechanism',
+        )
         .map((e) => e.key),
     );
     const candidates = targets.filter(
       (t) =>
-        isWithin(tree, t.code, travel.destination) && (!pin || t.asset_id === pin.targetAssetId),
+        isWithin(tree, t.code, travel.destination) &&
+        (!pin || t.asset_id === pin.targetAssetId),
     );
     if (candidates.length === 0) continue;
     const rank = (t: TargetRow) => [
@@ -318,7 +344,8 @@ export async function listEncounterBranches(
     candidates.sort((a, b) => {
       const x = rank(a),
         y = rank(b);
-      for (let i = 0; i < x.length; i += 1) if (x[i] !== y[i]) return x[i]! - y[i]!;
+      for (let i = 0; i < x.length; i += 1)
+        if (x[i] !== y[i]) return x[i]! - y[i]!;
       return a.asset_id.localeCompare(b.asset_id);
     });
     const target = candidates[0]!;
@@ -336,7 +363,9 @@ export async function listEncounterBranches(
           travel.bridge.from_name,
         ];
     branches.push({
-      branchId: stableUuid(`${travel.bridge.id}:${target.asset_id}:${travel.direction}`),
+      branchId: stableUuid(
+        `${travel.bridge.id}:${target.asset_id}:${travel.direction}`,
+      ),
       bridgeId: travel.bridge.id,
       relationType: travel.bridge.relation_type,
       direction: travel.direction,
@@ -364,14 +393,20 @@ export async function listEncounterBranches(
       seen: target.seen,
     });
   }
-  if (branches.length === 0) return { ...base, branches: [], emptyReason: 'no_eligible_target' };
+  if (branches.length === 0)
+    return { ...base, branches: [], emptyReason: 'no_eligible_target' };
   branches.sort(
     (a, b) =>
       Number(a.seen) - Number(b.seen) ||
-      RELATION_ORDER.indexOf(a.relationType) - RELATION_ORDER.indexOf(b.relationType) ||
+      RELATION_ORDER.indexOf(a.relationType) -
+        RELATION_ORDER.indexOf(b.relationType) ||
       a.bridgeId.localeCompare(b.bridgeId),
   );
-  return { ...base, branches: branches.slice(0, MAX_BRANCHES), emptyReason: null };
+  return {
+    ...base,
+    branches: branches.slice(0, MAX_BRANCHES),
+    emptyReason: null,
+  };
 }
 
 function reasonFor(branch: EncounterBranchWire): string {
@@ -391,9 +426,10 @@ export async function openBranch(
     throw new SemanticConflict('Branch privacy epoch is stale');
 
   const accountRow = (
-    await client.query<{ revision: number }>('SELECT revision FROM accounts WHERE universe_id=$1', [
-      scope.universeId,
-    ])
+    await client.query<{ revision: number }>(
+      'SELECT revision FROM accounts WHERE universe_id=$1',
+      [scope.universeId],
+    )
   ).rows[0];
   if (!accountRow) throw new Error('Universe accounts state is missing');
 
@@ -447,7 +483,11 @@ export async function openBranch(
   }
 
   const origin = (
-    await client.query<{ asset_id: string; event_id: string; privacy_epoch: number }>(
+    await client.query<{
+      asset_id: string;
+      event_id: string;
+      privacy_epoch: number;
+    }>(
       `
       SELECT
         e.asset_id,
@@ -463,7 +503,8 @@ export async function openBranch(
       [input.fromExposureId, scope.universeId],
     )
   ).rows[0];
-  if (!origin) throw new SemanticUnprocessable('A matching exposure is required');
+  if (!origin)
+    throw new SemanticUnprocessable('A matching exposure is required');
   if (origin.privacy_epoch !== scope.privacyEpoch)
     throw new SemanticConflict('Exposure belongs to an older privacy epoch');
 
@@ -478,9 +519,11 @@ export async function openBranch(
     targetAssetId: input.targetAssetId,
   });
   const branch = current.branches.find(
-    (b) => b.bridgeId === input.bridgeId && b.target.assetId === input.targetAssetId,
+    (b) =>
+      b.bridgeId === input.bridgeId && b.target.assetId === input.targetAssetId,
   );
-  if (!branch) throw new SemanticConflict('This continuation is no longer available');
+  if (!branch)
+    throw new SemanticConflict('This continuation is no longer available');
 
   const target = (
     await client.query<ScrollAsset>(
@@ -646,7 +689,8 @@ export async function recordConnectionFeedback(
   raw: unknown,
 ): Promise<ConnectionFeedbackReceipt> {
   const parsed = connectionFeedbackInput.safeParse(raw);
-  if (!parsed.success) throw new SemanticInputError('Invalid connection feedback');
+  if (!parsed.success)
+    throw new SemanticInputError('Invalid connection feedback');
   const input = parsed.data;
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new SemanticConflict('Feedback privacy epoch is stale');
@@ -697,7 +741,12 @@ export async function recordConnectionFeedback(
       input.objection,
     ],
   );
-  return { feedbackId, bridgeId: input.bridgeId, objection: input.objection, suppressed: true };
+  return {
+    feedbackId,
+    bridgeId: input.bridgeId,
+    objection: input.objection,
+    suppressed: true,
+  };
 }
 
 /** Clear/Reset (ADR-0010/0030): this universe's semantic history, before exposures and decisions
@@ -708,13 +757,22 @@ export async function eraseSemanticHistory(
   universeId: string,
 ): Promise<void> {
   await lockSubstrateShared(client);
-  await client.query('DELETE FROM branch_open WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM connection_feedback WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM branch_open WHERE universe_id=$1', [
+    universeId,
+  ]);
+  await client.query('DELETE FROM connection_feedback WHERE universe_id=$1', [
+    universeId,
+  ]);
   await client.query('DELETE FROM bridge WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM semantic_proposal WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM semantic_proposal WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
-export async function exportSemanticHistory(client: pg.PoolClient, universeId: string) {
+export async function exportSemanticHistory(
+  client: pg.PoolClient,
+  universeId: string,
+) {
   const q = async (sql: string) => (await client.query(sql, [universeId])).rows;
   return {
     branchOpens: await q(

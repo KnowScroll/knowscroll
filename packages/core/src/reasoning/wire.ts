@@ -9,7 +9,10 @@ export function canonical(value: unknown): string {
   if (value !== null && typeof value === 'object') {
     return `{${Object.keys(value as Record<string, unknown>)
       .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`)
+      .map(
+        (k) =>
+          `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`,
+      )
       .join(',')}}`;
   }
   return JSON.stringify(value);

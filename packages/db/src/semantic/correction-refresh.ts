@@ -76,17 +76,31 @@ export async function runCorrectionRefreshPass(
   pool: pg.Pool,
   opts: { limit: number; deferred?: readonly string[] },
 ): Promise<CorrectionRefreshPass> {
-  const pass: CorrectionRefreshPass = { refreshed: [], placeChanges: 0, failed: [] };
-  for (const universeId of await findBehindUniverses(pool, opts.limit, opts.deferred)) {
+  const pass: CorrectionRefreshPass = {
+    refreshed: [],
+    placeChanges: 0,
+    failed: [],
+  };
+  for (const universeId of await findBehindUniverses(
+    pool,
+    opts.limit,
+    opts.deferred,
+  )) {
     try {
-      const result = await transaction((client) => catchUpUniverse(client, universeId), pool);
+      const result = await transaction(
+        (client) => catchUpUniverse(client, universeId),
+        pool,
+      );
       if (!result) continue;
       pass.refreshed.push(universeId);
       pass.placeChanges += result.places;
     } catch (error) {
       pass.failed.push({
         universeId,
-        error: (error as { code?: string }).code ?? (error as Error).name ?? 'unknown',
+        error:
+          (error as { code?: string }).code ??
+          (error as Error).name ??
+          'unknown',
       });
     }
   }

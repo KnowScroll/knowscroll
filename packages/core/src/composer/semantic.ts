@@ -85,7 +85,10 @@ export interface V3Asset {
   sourceKey: string;
   editorialOrder: number;
   primary: string | null;
-  concepts: readonly { code: string; role: 'primary' | 'secondary' | 'mentioned' }[];
+  concepts: readonly {
+    code: string;
+    role: 'primary' | 'secondary' | 'mentioned';
+  }[];
   claimKeys: readonly string[];
 }
 export interface V3Bridge {
@@ -234,7 +237,13 @@ export const COMPOSER_V3_POLICY: V3Policy = {
     seenPerShowing: 10,
     maxMarks: 50,
   },
-  explorationFamilies: ['bridge', 'frontier', 'challenge', 'revisit', 'fallback'],
+  explorationFamilies: [
+    'bridge',
+    'frontier',
+    'challenge',
+    'revisit',
+    'fallback',
+  ],
   tieBreak: 'fnv1a',
 };
 
@@ -248,7 +257,11 @@ export const COMPOSER_V4_POLICY: V3Policy = {
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-const VERB: Record<MarkKind, string> = { keep: 'kept', branch: 'followed', ask: 'asked about' };
+const VERB: Record<MarkKind, string> = {
+  keep: 'kept',
+  branch: 'followed',
+  ask: 'asked about',
+};
 
 function fnv(text: string): number {
   let h = 0x811c9dc5;
@@ -275,7 +288,10 @@ const TIE_BREAKS: Record<V3Policy['tieBreak'], (key: string) => number> = {
   'fnv1a-fmix32': (key) => fmix32(fnv(key)),
 };
 
-function rootOf(concepts: ReadonlyMap<string, V3Concept>, code: string): string {
+function rootOf(
+  concepts: ReadonlyMap<string, V3Concept>,
+  code: string,
+): string {
   let at = code;
   const seen = new Set<string>();
   while (!seen.has(at)) {
@@ -299,12 +315,19 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     concepts: new Map(
       [...state.concepts].map(([k, v]) => [
         k,
-        { code: v.code, name: v.name, description: '', parentCode: v.parentCode },
+        {
+          code: v.code,
+          name: v.name,
+          description: '',
+          parentCode: v.parentCode,
+        },
       ]),
     ),
   };
   const name = (code: string) => state.concepts.get(code)?.name ?? code;
-  const assetById = new Map([...state.history, ...state.assets].map((a) => [a.assetId, a]));
+  const assetById = new Map(
+    [...state.history, ...state.assets].map((a) => [a.assetId, a]),
+  );
   const markedConcepts = (m: V3Mark) =>
     (assetById.get(m.assetId)?.concepts ?? [])
       .filter((c) => c.role !== 'mentioned')
@@ -362,7 +385,12 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   for (const mark of recentMarks) {
     for (const code of markedConcepts(mark)) {
       for (const asset of state.assets) {
-        if (asset.assetId === mark.assetId || !asset.primary || asset.primary !== code) continue;
+        if (
+          asset.assetId === mark.assetId ||
+          !asset.primary ||
+          asset.primary !== code
+        )
+          continue;
         offer(
           asset,
           'continue',
@@ -382,16 +410,25 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   for (const code of state.openQuestionConcepts) {
     for (const asset of state.assets) {
       if (!asset.primary || !isWithin(tree, asset.primary, code)) continue;
-      offer(asset, 'continue', code, 'v3_question', { conceptName: name(code) }, [
-        { kind: 'question', concept: code },
-      ]);
+      offer(
+        asset,
+        'continue',
+        code,
+        'v3_question',
+        { conceptName: name(code) },
+        [{ kind: 'question', concept: code }],
+      );
     }
   }
   // deepen: narrower parts of an idea the reader acted on.
   for (const mark of marks) {
     for (const code of markedConcepts(mark)) {
       for (const asset of state.assets) {
-        if (!asset.primary || asset.primary === code || !isWithin(tree, asset.primary, code))
+        if (
+          !asset.primary ||
+          asset.primary === code ||
+          !isWithin(tree, asset.primary, code)
+        )
           continue;
         offer(
           asset,
@@ -421,7 +458,8 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
           ? [bridge.fromName, bridge.toName]
           : [bridge.toName, bridge.fromName];
         for (const asset of state.assets) {
-          if (!asset.primary || !isWithin(tree, asset.primary, destination)) continue;
+          if (!asset.primary || !isWithin(tree, asset.primary, destination))
+            continue;
           offer(
             asset,
             'bridge',
@@ -435,7 +473,11 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
             },
             [
               markStep(mark),
-              { kind: 'bridge', bridgeId: bridge.id, sentence: `${fromName} ${phrase} ${toName}` },
+              {
+                kind: 'bridge',
+                bridgeId: bridge.id,
+                sentence: `${fromName} ${phrase} ${toName}`,
+              },
             ],
             bridge.id,
           );
@@ -456,9 +498,14 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
           continue;
         for (const asset of state.assets) {
           if (!asset.claimKeys.includes(c.claimKey)) continue;
-          offer(asset, 'challenge', asset.primary, 'v3_challenge', { conceptName: name(code) }, [
-            markStep(mark),
-          ]);
+          offer(
+            asset,
+            'challenge',
+            asset.primary,
+            'v3_challenge',
+            { conceptName: name(code) },
+            [markStep(mark)],
+          );
         }
       }
     }
@@ -466,14 +513,20 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   // revisit: something seen before whose idea the reader has acted on since.
   for (const asset of state.assets) {
     const seen = state.exposures.get(asset.assetId);
-    if (!seen || !asset.primary || state.nowMs - seen.lastAtMs < policy.revisitMinGapDays * DAY)
+    if (
+      !seen ||
+      !asset.primary ||
+      state.nowMs - seen.lastAtMs < policy.revisitMinGapDays * DAY
+    )
       continue;
     const later = marks.find(
       (m) =>
         m.atMs > seen.lastAtMs &&
         m.assetId !== asset.assetId &&
         markedConcepts(m).some(
-          (c) => isWithin(tree, c, asset.primary!) || isWithin(tree, asset.primary!, c),
+          (c) =>
+            isWithin(tree, c, asset.primary!) ||
+            isWithin(tree, asset.primary!, c),
         ),
     );
     if (later)
@@ -511,19 +564,25 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     );
   }
   // fallback: everything else, so no part of the library can stay hidden.
-  for (const asset of state.assets) offer(asset, 'fallback', asset.primary, 'v3_fallback', {}, []);
+  for (const asset of state.assets)
+    offer(asset, 'fallback', asset.primary, 'v3_fallback', {}, []);
 
   // --- Gates and terms -------------------------------------------------------------------------
   const suppressed = (family: Family, concept: string | null) =>
     concept !== null &&
-    state.suppressedRoutes.some((r) => r.family === family && isWithin(tree, concept, r.concept));
+    state.suppressedRoutes.some(
+      (r) => r.family === family && isWithin(tree, concept, r.concept),
+    );
   const servedRecent = state.served.slice(0, policy.fatigueWindow);
   const redundantSince = state.nowMs - policy.redundancyWindowDays * DAY;
   // Arguments already made by *other* encounters; a Scroll's own earlier showing is the seen term.
   const recentClaimSources = new Map<string, Set<string>>();
   for (const s of state.served.filter((x) => x.atMs >= redundantSince)) {
     for (const key of assetById.get(s.assetId)?.claimKeys ?? [])
-      recentClaimSources.set(key, (recentClaimSources.get(key) ?? new Set()).add(s.assetId));
+      recentClaimSources.set(
+        key,
+        (recentClaimSources.get(key) ?? new Set()).add(s.assetId),
+      );
   }
   const madeElsewhere = (key: string, assetId: string) =>
     [...(recentClaimSources.get(key) ?? [])].some((id) => id !== assetId);
@@ -546,8 +605,15 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     const parentMass = primary ? ancestorMass(state, primary) : 0;
     const t = policy.terms;
     let useful =
-      1 - Math.exp(-((account?.mass ?? 0) + t.parentMassShare * parentMass) / t.usefulScale);
-    if (account && account.exposureShare > policy.usefulSaturation.exposureShare)
+      1 -
+      Math.exp(
+        -((account?.mass ?? 0) + t.parentMassShare * parentMass) /
+          t.usefulScale,
+      );
+    if (
+      account &&
+      account.exposureShare > policy.usefulSaturation.exposureShare
+    )
       useful = Math.min(useful, policy.usefulSaturation.cap);
     const terms: Record<string, number> = {
       continuity:
@@ -559,7 +625,11 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
       useful: round(useful),
       depth: policy.familyDepth[c.family],
       novelty:
-        c.family !== 'fallback' && primary !== null && !shownPrimaries.has(primary) ? t.novelty : 0,
+        c.family !== 'fallback' &&
+        primary !== null &&
+        !shownPrimaries.has(primary)
+          ? t.novelty
+          : 0,
       returnRelevance: c.family === 'revisit' ? t.returnRelevance : 0,
       prior:
         primary !== null &&
@@ -577,7 +647,8 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
       fatigue: round(
         t.fatigueStep *
           servedRecent.filter(
-            (s) => primary !== null && assetById.get(s.assetId)?.primary === primary,
+            (s) =>
+              primary !== null && assetById.get(s.assetId)?.primary === primary,
           ).length,
       ),
       // Exposure-aware reranking (ADR-0032 §3): a seen encounter stays available, in tiers by how
@@ -609,26 +680,33 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     if (
       !prior ||
       c.score > prior.score ||
-      (c.score === prior.score && tieKey(state, policy, c) < tieKey(state, policy, prior))
+      (c.score === prior.score &&
+        tieKey(state, policy, c) < tieKey(state, policy, prior))
     )
       best.set(key, c);
   }
-  const candidates = [...best.values()].sort((a, b) => order(state, policy, a, b));
+  const candidates = [...best.values()].sort((a, b) =>
+    order(state, policy, a, b),
+  );
 
   // --- Selection over the rolling served sequence ----------------------------------------------
   const quotas: string[] = [];
   const eligible = candidates.filter((c) => c.gate === null);
   const byAsset = new Map<string, V3Candidate>();
-  for (const c of eligible) if (!byAsset.has(c.assetId)) byAsset.set(c.assetId, c);
+  for (const c of eligible)
+    if (!byAsset.has(c.assetId)) byAsset.set(c.assetId, c);
   const pool = [...byAsset.values()];
   const recent = state.served.slice(0, policy.explorationEvery - 1);
   const explorationDue =
     recent.length >= policy.explorationEvery - 1 &&
-    recent.every((s) => !s.family || !policy.explorationFamilies.includes(s.family));
+    recent.every(
+      (s) => !s.family || !policy.explorationFamilies.includes(s.family),
+    );
   const lastPrimary = state.served[0]
     ? (assetById.get(state.served[0].assetId)?.primary ?? null)
     : null;
-  const lastMarked = marks[0] && state.served[0] && marks[0].assetId === state.served[0].assetId;
+  const lastMarked =
+    marks[0] && state.served[0] && marks[0].assetId === state.served[0].assetId;
 
   const selected: V3Candidate[] = [];
   const perSource = new Map<string, number>();
@@ -637,12 +715,18 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     const asset = assetById.get(c.assetId)!;
     selected.push({ ...c, rank: selected.length + 1 });
     perSource.set(asset.sourceKey, (perSource.get(asset.sourceKey) ?? 0) + 1);
-    if (asset.primary) perConcept.set(asset.primary, (perConcept.get(asset.primary) ?? 0) + 1);
+    if (asset.primary)
+      perConcept.set(asset.primary, (perConcept.get(asset.primary) ?? 0) + 1);
   };
   const fits = (c: V3Candidate) => {
     const asset = assetById.get(c.assetId)!;
-    if ((perSource.get(asset.sourceKey) ?? 0) >= policy.maxPerSource) return false;
-    if (asset.primary && (perConcept.get(asset.primary) ?? 0) >= policy.maxPerConcept) return false;
+    if ((perSource.get(asset.sourceKey) ?? 0) >= policy.maxPerSource)
+      return false;
+    if (
+      asset.primary &&
+      (perConcept.get(asset.primary) ?? 0) >= policy.maxPerConcept
+    )
+      return false;
     return !selected.some((s) => s.assetId === c.assetId);
   };
 
@@ -654,7 +738,9 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     // when no bridge, frontier, challenge or revisit is eligible; an unseen encounter still comes
     // before a seen one, as everywhere else.
     const exploration = [...candidates]
-      .filter((c) => c.gate === null && policy.explorationFamilies.includes(c.family))
+      .filter(
+        (c) => c.gate === null && policy.explorationFamilies.includes(c.family),
+      )
       .sort(
         (a, b) =>
           a.terms.seen! - b.terms.seen! ||
@@ -677,7 +763,9 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
   }
   // Recorded rank follows serving order; the rank/score consistency invariant applies to the
   // candidates chosen after the head, which is where a quota can reorder.
-  const rankOf = new Map(selected.map((s) => [`${s.assetId}|${s.family}`, s.rank]));
+  const rankOf = new Map(
+    selected.map((s) => [`${s.assetId}|${s.family}`, s.rank]),
+  );
   const recorded = candidates.map((c) => ({
     ...c,
     rank: rankOf.get(`${c.assetId}|${c.family}`) ?? null,
@@ -686,7 +774,10 @@ export function composeSemantic(state: V3State, policy: V3Policy): V3Result {
     selected,
     candidates: recorded,
     quotas,
-    window: { served: state.served.slice(0, policy.explorationEvery), explorationDue },
+    window: {
+      served: state.served.slice(0, policy.explorationEvery),
+      explorationDue,
+    },
   };
 }
 
@@ -719,10 +810,16 @@ const FAMILY_ORDER: readonly Family[] = [
 
 /** Score, then coverage (a less-offered source first, so no source waits behind another forever),
  * then the policy's salted tie-break hash (no id wins every tie), then id and family: a strict total order. */
-function order(state: V3State, policy: V3Policy, a: V3Candidate, b: V3Candidate): number {
+function order(
+  state: V3State,
+  policy: V3Policy,
+  a: V3Candidate,
+  b: V3Candidate,
+): number {
   if (a.score !== b.score) return b.score - a.score;
   const coverage =
-    (state.sourceExposures.get(a.sourceKey) ?? 0) - (state.sourceExposures.get(b.sourceKey) ?? 0);
+    (state.sourceExposures.get(a.sourceKey) ?? 0) -
+    (state.sourceExposures.get(b.sourceKey) ?? 0);
   if (coverage !== 0) return coverage;
   const hash = tieKey(state, policy, a) - tieKey(state, policy, b);
   if (hash !== 0) return hash;

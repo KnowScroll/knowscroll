@@ -65,7 +65,8 @@ const inhabitants = z
 const ladder = (v: { state: string; inhabitants: { role: string }[] }) =>
   v.state === 'set_aside' || v.state === 'retired'
     ? v.inhabitants.length === 0
-    : (v.state === 'arguing') === v.inhabitants.some((i) => i.role === 'doubter');
+    : (v.state === 'arguing') ===
+      v.inhabitants.some((i) => i.role === 'doubter');
 
 /** A live room as the atlas carries it on its place. `question` is the reader's own words. */
 export const roomSummary = z
@@ -77,7 +78,9 @@ export const roomSummary = z
     openedAt: at,
   })
   .strict()
-  .refine(ladder, { message: 'A live room argues exactly when its doubter is seated' });
+  .refine(ladder, {
+    message: 'A live room argues exactly when its doubter is seated',
+  });
 export type RoomSummary = z.infer<typeof roomSummary>;
 
 /** A change's evidence: the Asks that carried the question, or the claims a seat holds now and held before. */
@@ -110,14 +113,22 @@ export const roomResponse = z
     inhabitants,
     openedAt: at,
     /** Newest first. */
-    chronicle: z.array(z.object(change).strict()).min(1).max(ROOM_CHRONICLE_LIMIT),
+    chronicle: z
+      .array(z.object(change).strict())
+      .min(1)
+      .max(ROOM_CHRONICLE_LIMIT),
   })
   .strict()
   .refine(ladder, { message: 'The ladder follows the doubter' });
 export type RoomResponse = z.infer<typeof roomResponse>;
 
 export const roomDeltaResponse = z
-  .object({ ...change, roomId: id, placeId: id, policyVersion: z.string().min(1) })
+  .object({
+    ...change,
+    roomId: id,
+    placeId: id,
+    policyVersion: z.string().min(1),
+  })
   .strict();
 export type RoomDeltaResponse = z.infer<typeof roomDeltaResponse>;
 

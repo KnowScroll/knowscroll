@@ -28,7 +28,10 @@ function tokenHash(token: string): string {
 }
 
 function uuidFromHash(hash: string, domain: string): string {
-  const bytes = createHash('sha256').update(`${domain}:${hash}`).digest().subarray(0, 16);
+  const bytes = createHash('sha256')
+    .update(`${domain}:${hash}`)
+    .digest()
+    .subarray(0, 16);
   bytes[6] = (bytes[6]! & 0x0f) | 0x40;
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = bytes.toString('hex');
@@ -54,7 +57,8 @@ function scopeFromRow(row: Record<string, unknown>): AuthScope {
  * sign-in (`sign-in.ts`) as the production identity path; a production-mode process refuses to
  * start at all (see `apps/api/src/main.ts`), so this never runs in production either way. */
 export async function ensureDevelopmentSession(token: string): Promise<void> {
-  if (token.length < 24) throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
+  if (token.length < 24)
+    throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
   const hash = tokenHash(token);
   const sessionId = uuidFromHash(hash, 'knowscroll-development-session');
   const deviceId = uuidFromHash(hash, 'knowscroll-development-device');
@@ -72,7 +76,9 @@ export async function ensureDevelopmentSession(token: string): Promise<void> {
         existing.universe_id !== OWNER_ID ||
         existing.device_id !== deviceId
       ) {
-        throw new Error('Development token is already bound to another session');
+        throw new Error(
+          'Development token is already bound to another session',
+        );
       }
       return;
     }
@@ -87,7 +93,9 @@ export async function ensureDevelopmentSession(token: string): Promise<void> {
     ).rows[0];
     if (ended) return;
     const universe = (
-      await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [OWNER_ID])
+      await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [
+        OWNER_ID,
+      ])
     ).rows[0];
     await client.query(
       `
@@ -110,7 +118,14 @@ export async function ensureDevelopmentSession(token: string): Promise<void> {
         clock_timestamp() + ($6 * interval '1 hour')
       )
   `,
-      [sessionId, OWNER_ID, deviceId, hash, universe.privacy_epoch, DEFAULT_EXPIRY_HOURS],
+      [
+        sessionId,
+        OWNER_ID,
+        deviceId,
+        hash,
+        universe.privacy_epoch,
+        DEFAULT_EXPIRY_HOURS,
+      ],
     );
   });
 }
@@ -121,7 +136,10 @@ export async function authenticateAndLock(
 ): Promise<AuthScope> {
   const hash = tokenHash(token);
   const candidate = (
-    await client.query('SELECT universe_id FROM device_session WHERE token_hash=$1', [hash])
+    await client.query(
+      'SELECT universe_id FROM device_session WHERE token_hash=$1',
+      [hash],
+    )
   ).rows[0];
   if (!candidate) throw new UnauthorizedSession();
   await lockUniverse(client, candidate.universe_id);
@@ -149,7 +167,10 @@ export async function authenticateAndLock(
   return scopeFromRow(row);
 }
 
-export async function revokeSession(client: pg.PoolClient, scope: AuthScope): Promise<void> {
+export async function revokeSession(
+  client: pg.PoolClient,
+  scope: AuthScope,
+): Promise<void> {
   const result = await client.query(
     `
    UPDATE device_session
@@ -166,7 +187,11 @@ export async function revokeSession(client: pg.PoolClient, scope: AuthScope): Pr
 }
 
 export async function provisionIdentity(
-  options: { universeId?: string; deviceId?: string; expiresInHours?: number } = {},
+  options: {
+    universeId?: string;
+    deviceId?: string;
+    expiresInHours?: number;
+  } = {},
 ): Promise<{ token: string; scope: AuthScope }> {
   const expiresInHours = options.expiresInHours ?? DEFAULT_EXPIRY_HOURS;
   if (
@@ -183,11 +208,15 @@ export async function provisionIdentity(
   const scope = await transaction(async (client) => {
     if (options.universeId === undefined) {
       await client.query('INSERT INTO universe(id) VALUES($1)', [universeId]);
-      await client.query('INSERT INTO accounts(universe_id) VALUES($1)', [universeId]);
+      await client.query('INSERT INTO accounts(universe_id) VALUES($1)', [
+        universeId,
+      ]);
     }
     await lockUniverse(client, universeId);
     const universe = (
-      await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [universeId])
+      await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [
+        universeId,
+      ])
     ).rows[0];
     const sessionId = randomUUID();
     const row = (
@@ -214,7 +243,14 @@ export async function provisionIdentity(
     RETURNING
       *
   `,
-        [sessionId, universeId, deviceId, hash, universe.privacy_epoch, expiresInHours],
+        [
+          sessionId,
+          universeId,
+          deviceId,
+          hash,
+          universe.privacy_epoch,
+          expiresInHours,
+        ],
       )
     ).rows[0];
     return scopeFromRow(row);
@@ -255,7 +291,10 @@ export async function recheckScope(
     )
   ).rows[0];
   if (!row || row.live !== true) throw new UnauthorizedSession();
-  if (row.universe_epoch !== scope.privacyEpoch || row.session_epoch !== scope.privacyEpoch)
+  if (
+    row.universe_epoch !== scope.privacyEpoch ||
+    row.session_epoch !== scope.privacyEpoch
+  )
     return 'stale_epoch';
   return 'live';
 }

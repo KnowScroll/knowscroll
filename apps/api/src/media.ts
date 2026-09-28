@@ -55,7 +55,10 @@ export interface ParsedRange {
  * end of the file, or whose bounds are not a valid non-negative integer pair, is refused (`null`),
  * which the caller turns into `416` with `Content-Range: bytes *\/<size>`.
  */
-export function parseRangeHeader(header: string, totalSize: number): ParsedRange | null {
+export function parseRangeHeader(
+  header: string,
+  totalSize: number,
+): ParsedRange | null {
   if (header.includes(',')) return null;
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
   if (!match) return null;
@@ -72,7 +75,13 @@ export function parseRangeHeader(header: string, totalSize: number): ParsedRange
     start = Number(startText);
     end = endText === '' ? totalSize - 1 : Number(endText);
   }
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return null;
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end < start
+  )
+    return null;
   if (start >= totalSize) return null;
   return { start, end: Math.min(end, totalSize - 1) };
 }
@@ -132,7 +141,10 @@ export async function sendMedia(
 
   if (range) {
     reply.code(206);
-    reply.header('Content-Range', `bytes ${range.start}-${range.end}/${totalSize}`);
+    reply.header(
+      'Content-Range',
+      `bytes ${range.start}-${range.end}/${totalSize}`,
+    );
     reply.header('Content-Length', String(range.end - range.start + 1));
   } else {
     reply.code(200);

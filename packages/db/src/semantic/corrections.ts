@@ -51,7 +51,8 @@ export async function correctSourceSnapshot(
   actor: 'editorial' | 'operator',
 ): Promise<CorrectionReceipt> {
   const parsed = sourceCorrectionInput.safeParse(raw);
-  if (!parsed.success) throw new SemanticInputError('Invalid source correction');
+  if (!parsed.success)
+    throw new SemanticInputError('Invalid source correction');
   const input: SourceCorrectionInput = parsed.data;
   await lockSubstrateExclusive(client);
 
@@ -71,7 +72,10 @@ export async function correctSourceSnapshot(
       [input.sourceKey],
     )
   ).rows[0];
-  if (!snapshot) throw new SemanticNotFound(`source ${input.sourceKey} has no current snapshot`);
+  if (!snapshot)
+    throw new SemanticNotFound(
+      `source ${input.sourceKey} has no current snapshot`,
+    );
 
   const affected = (
     await client.query<{ id: string; key: string }>(
@@ -154,7 +158,10 @@ export async function correctSourceSnapshot(
   const lost: string[] = [];
   for (const claim of affected) {
     const still = (
-      await client.query<{ ok: boolean }>('SELECT claim_is_supported($1) AS ok', [claim.id])
+      await client.query<{ ok: boolean }>(
+        'SELECT claim_is_supported($1) AS ok',
+        [claim.id],
+      )
     ).rows[0]!.ok;
     if (!still) {
       lost.push(claim.id);
@@ -182,7 +189,10 @@ export async function correctSourceSnapshot(
         RETURNING
           id
       `,
-        [lost, `backing claim lost its source support (correction ${correctionId})`],
+        [
+          lost,
+          `backing claim lost its source support (correction ${correctionId})`,
+        ],
       )
     ).rows;
     for (const r of relations)
@@ -233,7 +243,11 @@ export async function revalidateAdmittedBridges(
   cause: Record<string, unknown>,
 ): Promise<{ id: string; universeId: string | null; reasons: string[] }[]> {
   const bridges = (
-    await client.query<{ id: string; universe_id: string | null; payload: unknown }>(
+    await client.query<{
+      id: string;
+      universe_id: string | null;
+      payload: unknown;
+    }>(
       `
       SELECT DISTINCT
         b.id,
@@ -255,12 +269,18 @@ export async function revalidateAdmittedBridges(
       [claimIds],
     )
   ).rows;
-  const revoked: { id: string; universeId: string | null; reasons: string[] }[] = [];
+  const revoked: {
+    id: string;
+    universeId: string | null;
+    reasons: string[];
+  }[] = [];
   for (const bridge of bridges) {
     const readSet = await loadBridgeReadSet(client, bridge.universe_id);
     const withoutSelf = {
       ...readSet,
-      admittedBridges: readSet.admittedBridges.filter((b) => b.id !== bridge.id),
+      admittedBridges: readSet.admittedBridges.filter(
+        (b) => b.id !== bridge.id,
+      ),
     };
     const decision = validateBridgeProposal(
       bridgeProposalPayload.parse(bridge.payload),
@@ -286,7 +306,11 @@ export async function revalidateAdmittedBridges(
         }),
       ],
     );
-    revoked.push({ id: bridge.id, universeId: bridge.universe_id, reasons: decision.reasons });
+    revoked.push({
+      id: bridge.id,
+      universeId: bridge.universe_id,
+      reasons: decision.reasons,
+    });
   }
   return revoked;
 }

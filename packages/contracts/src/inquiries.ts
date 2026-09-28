@@ -4,7 +4,11 @@
  * refuse an unexpected shape. Imported directly, like `./atlas.ts`.
  */
 import { z } from 'zod';
-import { bridgeRelationType, conceptCode, evidenceSupports } from './semantic.ts';
+import {
+  bridgeRelationType,
+  conceptCode,
+  evidenceSupports,
+} from './semantic.ts';
 
 const id = z.string().uuid();
 const epoch = z.number().int().min(0).max(2147483647);
@@ -62,7 +66,9 @@ export const inquiryStatus = z.enum([
 ]);
 export type InquiryStatus = z.infer<typeof inquiryStatus>;
 
-const conceptRef = z.object({ code: conceptCode, name: z.string().min(1).max(80) }).strict();
+const conceptRef = z
+  .object({ code: conceptCode, name: z.string().min(1).max(80) })
+  .strict();
 export const inquiryFound = z
   .object({
     bridgeId: id,
@@ -111,7 +117,9 @@ export const inquiryWire = z
         message: 'Only a found inquiry carries a bridge',
       });
     if (
-      ['did_not_hold_up', 'failed', 'withdrawn', 'nothing_to_ask'].includes(v.status) !==
+      ['did_not_hold_up', 'failed', 'withdrawn', 'nothing_to_ask'].includes(
+        v.status,
+      ) !==
       v.reasons.length > 0
     )
       ctx.addIssue({

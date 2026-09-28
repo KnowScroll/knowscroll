@@ -37,10 +37,14 @@ function isPlausibleEmail(email: string): boolean {
 /** Throws a plain configuration error (never provider-specific, never per-address) when
  * `KS_OWNER_EMAIL` is unset or unusable — every request then fails the same way regardless of the
  * address it named, so a misconfigured deployment still discloses nothing about who the owner is. */
-export function resolveOwnerEmail(env: NodeJS.ProcessEnv = process.env): string {
+export function resolveOwnerEmail(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
   const raw = env.KS_OWNER_EMAIL;
   if (!raw)
-    throw new Error('invalid_config: KS_OWNER_EMAIL must be set before sign-in can be used');
+    throw new Error(
+      'invalid_config: KS_OWNER_EMAIL must be set before sign-in can be used',
+    );
   const email = normalizeEmail(raw);
   if (!isPlausibleEmail(email))
     throw new Error('invalid_config: KS_OWNER_EMAIL is not a valid address');
@@ -60,7 +64,9 @@ const FINGERPRINT_PROCESS_SALT = randomBytes(16).toString('hex');
  * never reversible to the raw input without the in-memory salt. Callers pass something like the
  * request's remote address; this never sees or stores it directly. */
 export function requesterFingerprint(rawIdentifier: string): string {
-  return createHash('sha256').update(`${FINGERPRINT_PROCESS_SALT}:${rawIdentifier}`).digest('hex');
+  return createHash('sha256')
+    .update(`${FINGERPRINT_PROCESS_SALT}:${rawIdentifier}`)
+    .digest('hex');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -142,7 +148,10 @@ export async function requestMagicLink(
   ]);
 
   let account = (
-    await client.query<{ id: string }>('SELECT id FROM account WHERE email=$1', [email])
+    await client.query<{ id: string }>(
+      'SELECT id FROM account WHERE email=$1',
+      [email],
+    )
   ).rows[0];
   if (!account && owner) {
     account = (
@@ -154,7 +163,8 @@ export async function requestMagicLink(
   }
   // A non-owner address counts against a uuid that matches nothing, so the same two queries run
   // with the same plans and return zero.
-  const countedAccountId = account?.id ?? '00000000-0000-4000-8000-000000000000';
+  const countedAccountId =
+    account?.id ?? '00000000-0000-4000-8000-000000000000';
 
   const accountCount = (
     await client.query<{ n: number }>(
@@ -214,7 +224,13 @@ export async function requestMagicLink(
           now() + ($5::int * interval '1 minute')
         )
     `,
-    [randomUUID(), account.id, hashed, input.requesterFingerprint, SIGN_IN_TOKEN_TTL_MINUTES],
+    [
+      randomUUID(),
+      account.id,
+      hashed,
+      input.requesterFingerprint,
+      SIGN_IN_TOKEN_TTL_MINUTES,
+    ],
   );
   return { token: rawToken, accountId: account.id };
 }
@@ -225,7 +241,10 @@ export async function requestMagicLink(
 
 /** `GET /v1/auth/confirm`'s entire job: report whether a confirmation surface should be shown.
  * Takes no lock and changes nothing, so an email scanner's prefetch is harmless and idempotent. */
-export async function confirmSignInToken(client: Queryable, rawToken: string): Promise<boolean> {
+export async function confirmSignInToken(
+  client: Queryable,
+  rawToken: string,
+): Promise<boolean> {
   const row = (
     await client.query(
       `
@@ -291,9 +310,10 @@ export async function consumeSignInToken(
   if (!candidate) throw new InvalidSignInToken();
 
   const alreadyAdopted = (
-    await client.query<{ id: string }>('SELECT id FROM universe WHERE account_id=$1 LIMIT 1', [
-      candidate.account_id,
-    ])
+    await client.query<{ id: string }>(
+      'SELECT id FROM universe WHERE account_id=$1 LIMIT 1',
+      [candidate.account_id],
+    )
   ).rows[0];
   const universeId = alreadyAdopted?.id ?? OWNER_ID;
   await lockUniverse(client, universeId);
@@ -315,7 +335,8 @@ export async function consumeSignInToken(
       [hash],
     )
   ).rows[0];
-  if (!row || row.consumed_at !== null || !row.live) throw new InvalidSignInToken();
+  if (!row || row.consumed_at !== null || !row.live)
+    throw new InvalidSignInToken();
 
   let privacyEpoch: number;
   if (alreadyAdopted) {

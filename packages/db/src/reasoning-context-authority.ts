@@ -4,7 +4,10 @@ import { INQUIRY_CONTEXT_VERSIONS } from '../../contracts/src/reasoning-inquiry-
 import { validateDirectContext } from './reasoning-context.ts';
 import { validateDirectAskContext } from './reasoning-ask-context.ts';
 import { validateInquiryContext } from './reasoning-inquiry-context.ts';
-import { ReasoningDenied, type ReasoningAuthority } from './reasoning-runtime-policy.ts';
+import {
+  ReasoningDenied,
+  type ReasoningAuthority,
+} from './reasoning-runtime-policy.ts';
 
 /** Explicit immutable metadata routing; never guess a family from JSON shape.
  * This remains an internal authority adapter, not a product execution consumer.
@@ -37,7 +40,8 @@ export function createSealedContextAuthority(
           ? validateDirectContext
           : row.source_policy_version === ASK_CONTEXT_VERSIONS.sourcePolicy
             ? validateDirectAskContext
-            : row.source_policy_version === INQUIRY_CONTEXT_VERSIONS.sourcePolicy
+            : row.source_policy_version ===
+                INQUIRY_CONTEXT_VERSIONS.sourcePolicy
               ? validateInquiryContext
               : null;
       if (!validator) throw new ReasoningDenied('context_unsupported');

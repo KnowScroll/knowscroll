@@ -6,7 +6,8 @@ export function loadLocalEnv() {
   try {
     for (const line of readFileSync(resolve('.env'), 'utf8').split('\n')) {
       const match = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line);
-      if (match && process.env[match[1]!] === undefined) process.env[match[1]!] = match[2]!;
+      if (match && process.env[match[1]!] === undefined)
+        process.env[match[1]!] = match[2]!;
     }
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
@@ -39,7 +40,9 @@ export async function transaction<T>(
   }
 }
 export async function lockUniverse(c: pg.PoolClient, universeId = OWNER_ID) {
-  const row = await c.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [universeId]);
+  const row = await c.query('SELECT id FROM universe WHERE id=$1 FOR UPDATE', [
+    universeId,
+  ]);
   if (!row.rowCount) throw new Error('Universe not found');
 }
 export * from './identity.ts';

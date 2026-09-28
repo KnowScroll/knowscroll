@@ -22,7 +22,10 @@ import {
   type AssistantBlock,
   type ContinuationTurn,
 } from '../../core/src/reasoning/bridge-inquiry.ts';
-import { createReasoningAdmission, type ReasoningAdmission } from './reasoning-admission.ts';
+import {
+  createReasoningAdmission,
+  type ReasoningAdmission,
+} from './reasoning-admission.ts';
 import { enqueueFairInTransaction } from './reasoning-fairness.ts';
 import { withdrawIdleBackgroundJob } from './reasoning-idle-lifecycle.ts';
 import {
@@ -32,8 +35,14 @@ import {
   resolveInquiryPolicy,
   type InquiryRow,
 } from './reasoning-inquiries.ts';
-import { readInquiryPayload, validateInquiryContext } from './reasoning-inquiry-context.ts';
-import { ReasoningDenied, type ReasoningAuthority } from './reasoning-runtime-policy.ts';
+import {
+  readInquiryPayload,
+  validateInquiryContext,
+} from './reasoning-inquiry-context.ts';
+import {
+  ReasoningDenied,
+  type ReasoningAuthority,
+} from './reasoning-runtime-policy.ts';
 import { submitBridgeProposal } from './semantic/proposals.ts';
 
 export type InquiryWork = {
@@ -61,7 +70,8 @@ type ContinuationRow = {
   reasons: string[];
   assistant_turn: unknown;
 };
-const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const sha = (bytes: Uint8Array) =>
+  createHash('sha256').update(bytes).digest('hex');
 
 /** The refused turns a Step's request carries: none for the first, each earlier continuation's for the next (ADR-0042 §1). */
 async function continuationTurns(
@@ -93,7 +103,10 @@ export async function loadInquiryWork(
   attemptId: string,
 ): Promise<InquiryWork> {
   const inquiry = (
-    await db.query<InquiryRow>('SELECT * FROM background_inquiry WHERE job_id=$1', [jobId])
+    await db.query<InquiryRow>(
+      'SELECT * FROM background_inquiry WHERE job_id=$1',
+      [jobId],
+    )
   ).rows[0];
   if (
     !inquiry?.policy_version ||
@@ -131,9 +144,17 @@ export async function loadInquiryWork(
         hash: continuation.request_hash,
         bytes: continuation.input_bytes,
       }
-    : { id: inquiry.request_id!, hash: inquiry.request_hash, bytes: inquiry.input_bytes };
+    : {
+        id: inquiry.request_id!,
+        hash: inquiry.request_hash,
+        bytes: inquiry.input_bytes,
+      };
   const payload = await readInquiryPayload(db, inquiry.context_id);
-  const body = serializeBridgeInquiryRequest(payload.pairs, requestRoute(route), turns);
+  const body = serializeBridgeInquiryRequest(
+    payload.pairs,
+    requestRoute(route),
+    turns,
+  );
   const hash = sha(body);
   if (hash !== request.hash || hash !== attempt.request_hash)
     throw new Error('Rebuilt inquiry request does not match its reservation');
@@ -178,7 +199,10 @@ export type InquiryOutcome =
   | { kind: 'discarded'; reason: string };
 
 /** Lock in ADR-0017 order (universe → Job → Step) and prove the caller still holds this Job's live lease. */
-async function lockFence(client: pg.PoolClient, f: InquiryFence): Promise<string | null> {
+async function lockFence(
+  client: pg.PoolClient,
+  f: InquiryFence,
+): Promise<string | null> {
   const universe = (
     await client.query<{ privacy_epoch: number }>(
       'SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',
@@ -218,20 +242,26 @@ async function lockFence(client: pg.PoolClient, f: InquiryFence): Promise<string
     !job.live
   )
     return 'lease_lost';
-  await client.query('SELECT id FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE', [
-    f.stepId,
-    f.jobId,
-  ]);
+  await client.query(
+    'SELECT id FROM reasoning_step WHERE id=$1 AND job_id=$2 FOR UPDATE',
+    [f.stepId, f.jobId],
+  );
   return null;
 }
 
 /** Close the execution graph safely: output consumed, attempt inactive, Step and Job terminal (ADR-0019 guard). */
-async function finish(client: pg.PoolClient, f: InquiryFence, succeeded: boolean): Promise<void> {
+async function finish(
+  client: pg.PoolClient,
+  f: InquiryFence,
+  succeeded: boolean,
+): Promise<void> {
   await client.query(
     "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1",
     [f.attemptId],
   );
-  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [f.attemptId]);
+  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
+    f.attemptId,
+  ]);
   await client.query('UPDATE reasoning_step SET status=$2 WHERE id=$1', [
     f.stepId,
     succeeded ? 'succeeded' : 'failed',
@@ -247,7 +277,11 @@ async function closeInquiry(
   client: pg.PoolClient,
   inquiryId: string,
   status: string,
-  fields: { attemptId?: string | null; proposalId?: string | null; reasons?: string[] },
+  fields: {
+    attemptId?: string | null;
+    proposalId?: string | null;
+    reasons?: string[];
+  },
   owner: string,
 ): Promise<void> {
   const closed = await client.query(
@@ -279,7 +313,11 @@ async function closeInquiry(
  * ADR-0019 finishes a Job only under a live lease, so the settling worker takes the idle parent's for
  * that one transition. Caller holds the universe lock, so the last child is decided by one transaction.
  */
-async function settleParent(client: pg.PoolClient, childId: string, owner: string): Promise<void> {
+async function settleParent(
+  client: pg.PoolClient,
+  childId: string,
+  owner: string,
+): Promise<void> {
   const parent = (
     await client.query<{ id: string; job_id: string }>(
       `
@@ -308,7 +346,10 @@ async function settleParent(client: pg.PoolClient, childId: string, owner: strin
     )
   ).rows[0];
   if (!parent) return;
-  await client.query(`UPDATE background_inquiry SET status='settled' WHERE id=$1`, [parent.id]);
+  await client.query(
+    `UPDATE background_inquiry SET status='settled' WHERE id=$1`,
+    [parent.id],
+  );
   const leased = await client.query(
     `
       UPDATE reasoning_job
@@ -325,7 +366,8 @@ async function settleParent(client: pg.PoolClient, childId: string, owner: strin
     `,
     [parent.job_id, owner],
   );
-  if (leased.rowCount !== 1) throw new Error('A parent inquiry Job only waits for its children');
+  if (leased.rowCount !== 1)
+    throw new Error('A parent inquiry Job only waits for its children');
   await client.query(
     `UPDATE reasoning_job SET status='completed',lease_owner=NULL,lease_expires_at=NULL WHERE id=$1`,
     [parent.job_id],
@@ -383,7 +425,11 @@ export async function applyInquiryReply(
       [f.attemptId],
     )
   ).rows[0];
-  if (!account || account.state !== 'responded' || account.output_authority !== 'eligible') {
+  if (
+    !account ||
+    account.state !== 'responded' ||
+    account.output_authority !== 'eligible'
+  ) {
     // A reply that lands after the Job's deadline has no output authority (ADR-0012). Say so now,
     // rather than leaving the inquiry "looking" until the lease-expiry sweep calls it apply_failed.
     const late =
@@ -414,9 +460,10 @@ export async function applyInquiryReply(
     return { kind: 'failed', reason: 'expired' };
   }
   const inquiry = (
-    await client.query<InquiryRow>('SELECT * FROM background_inquiry WHERE job_id=$1 FOR UPDATE', [
-      f.jobId,
-    ])
+    await client.query<InquiryRow>(
+      'SELECT * FROM background_inquiry WHERE job_id=$1 FOR UPDATE',
+      [f.jobId],
+    )
   ).rows[0];
   if (!inquiry || inquiry.status !== 'queued')
     return { kind: 'discarded', reason: 'inquiry_closed' };
@@ -473,7 +520,13 @@ export async function applyInquiryReply(
     return { kind: 'applied', status: 'rejected' };
   }
   if (parsed.kind === 'none') {
-    await closeInquiry(client, inquiry.id, 'none', { attemptId: f.attemptId }, f.owner);
+    await closeInquiry(
+      client,
+      inquiry.id,
+      'none',
+      { attemptId: f.attemptId },
+      f.owner,
+    );
     await finish(client, f, true);
     return { kind: 'applied', status: 'none' };
   }
@@ -483,7 +536,11 @@ export async function applyInquiryReply(
   let decided: Awaited<ReturnType<typeof submitBridgeProposal>>;
   try {
     decided = await submitBridgeProposal(client, {
-      scope: { kind: 'universe', universeId: f.universeId, privacyEpoch: f.privacyEpoch },
+      scope: {
+        kind: 'universe',
+        universeId: f.universeId,
+        privacyEpoch: f.privacyEpoch,
+      },
       proposerKind: 'model',
       proposerRef: f.attemptId,
       payload: parsed.payload,
@@ -516,7 +573,8 @@ export async function applyInquiryReply(
     {
       attemptId: f.attemptId,
       proposalId: decided.proposalId,
-      reasons: decided.decision.outcome === 'rejected' ? decided.decision.reasons : [],
+      reasons:
+        decided.decision.outcome === 'rejected' ? decided.decision.reasons : [],
     },
     f.owner,
   );
@@ -554,12 +612,14 @@ async function continueInquiry(
     )
   ).rows[0]!;
   const turn = inquiryAssistantTurn.safeParse(refused.assistant);
-  if (!route || step.ordinal > route.max_continuation_steps || !turn.success) return null;
+  if (!route || step.ordinal > route.max_continuation_steps || !turn.success)
+    return null;
   const { turns } = await continuationTurns(client, f.jobId, step.ordinal);
-  const body = serializeBridgeInquiryRequest(payload.pairs, requestRoute(route), [
-    ...turns,
-    { assistant: turn.data, reasons: refused.reasons },
-  ]);
+  const body = serializeBridgeInquiryRequest(
+    payload.pairs,
+    requestRoute(route),
+    [...turns, { assistant: turn.data, reasons: refused.reasons }],
+  );
   if (body.byteLength > route.max_input_tokens) return null;
   const next = {
     stepId: randomUUID(),
@@ -571,8 +631,13 @@ async function continueInquiry(
     "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1",
     [f.attemptId],
   );
-  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [f.attemptId]);
-  await client.query("UPDATE reasoning_step SET status='superseded' WHERE id=$1", [f.stepId]);
+  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
+    f.attemptId,
+  ]);
+  await client.query(
+    "UPDATE reasoning_step SET status='superseded' WHERE id=$1",
+    [f.stepId],
+  );
   await client.query(
     `
     INSERT INTO
@@ -588,7 +653,14 @@ async function continueInquiry(
     VALUES
       ($1, $2, $3, $4, $5, $6, 'pending')
   `,
-    [next.stepId, f.jobId, f.universeId, f.privacyEpoch, inquiry.context_id, next.ordinal],
+    [
+      next.stepId,
+      f.jobId,
+      f.universeId,
+      f.privacyEpoch,
+      inquiry.context_id,
+      next.ordinal,
+    ],
   );
   await client.query(
     `
@@ -749,20 +821,27 @@ async function closeTerminalInquiry(
   owner: string,
 ): Promise<boolean> {
   const inquiry = (
-    await client.query<InquiryRow>('SELECT * FROM background_inquiry WHERE job_id=$1', [jobId])
+    await client.query<InquiryRow>(
+      'SELECT * FROM background_inquiry WHERE job_id=$1',
+      [jobId],
+    )
   ).rows[0];
   if (!inquiry) return false;
-  await client.query('SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [
-    inquiry.universe_id,
-    inquiry.privacy_epoch,
-  ]);
+  await client.query(
+    'SELECT id FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE',
+    [inquiry.universe_id, inquiry.privacy_epoch],
+  );
   const job = (
     await client.query<{ status: string }>(
       'SELECT status FROM reasoning_job WHERE id=$1 FOR UPDATE',
       [jobId],
     )
   ).rows[0];
-  if (!job || !['cancelled', 'expired', 'failed', 'completed'].includes(job.status)) return false;
+  if (
+    !job ||
+    !['cancelled', 'expired', 'failed', 'completed'].includes(job.status)
+  )
+    return false;
   const open = (
     await client.query<{ status: string }>(
       'SELECT status FROM background_inquiry WHERE id=$1 FOR UPDATE',
@@ -780,7 +859,8 @@ async function closeTerminalInquiry(
       : attempt.state === 'responded'
         ? ['apply_failed']
         : fallback;
-  const withdrawn = reasons[0] === 'consent_off' || reasons[0] === 'recording_paused';
+  const withdrawn =
+    reasons[0] === 'consent_off' || reasons[0] === 'recording_paused';
   await closeInquiry(
     client,
     inquiry.id,
@@ -812,11 +892,16 @@ export async function giveBackUnsentInquiry(
   });
   const end = refusal
     ? staleOutcome(refusal)
-    : { reasons: ['not_sent'], outcome: { kind: 'failed', reason: 'not_sent' } as InquiryOutcome };
+    : {
+        reasons: ['not_sent'],
+        outcome: { kind: 'failed', reason: 'not_sent' } as InquiryOutcome,
+      };
   const closed = await inTransaction(pool, (client) =>
     closeTerminalInquiry(client, f.jobId, end.reasons, f.owner),
   );
-  return closed ? end.outcome : { kind: 'discarded', reason: 'already_settled' };
+  return closed
+    ? end.outcome
+    : { kind: 'discarded', reason: 'already_settled' };
 }
 
 /** A reply recorded but never applied has no text left: withdraw its output and leave the Job
@@ -833,10 +918,10 @@ async function recoverRespondedInquiry(
 ): Promise<void> {
   if (
     !(
-      await client.query('SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [
-        row.universe_id,
-        row.privacy_epoch,
-      ])
+      await client.query(
+        'SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE',
+        [row.universe_id, row.privacy_epoch],
+      )
     ).rowCount
   )
     return;
@@ -856,7 +941,9 @@ async function recoverRespondedInquiry(
     )
   ).rows[0];
   if (!job?.expired) return;
-  await client.query('SELECT id FROM reasoning_step WHERE id=$1 FOR UPDATE', [row.step_id]);
+  await client.query('SELECT id FROM reasoning_step WHERE id=$1 FOR UPDATE', [
+    row.step_id,
+  ]);
   const accounting = (
     await client.query<{ state: string }>(
       `
@@ -880,8 +967,12 @@ async function recoverRespondedInquiry(
     "UPDATE reasoning_accounting SET output_authority='withdrawn' WHERE attempt_id=$1",
     [row.attempt_id],
   );
-  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [row.attempt_id]);
-  await client.query("UPDATE reasoning_step SET status='failed' WHERE id=$1", [row.step_id]);
+  await client.query('UPDATE reasoning_attempt SET active=false WHERE id=$1', [
+    row.attempt_id,
+  ]);
+  await client.query("UPDATE reasoning_step SET status='failed' WHERE id=$1", [
+    row.step_id,
+  ]);
   await client.query(
     `
     UPDATE reasoning_job
@@ -910,10 +1001,10 @@ async function withdrawIdleInquiry(
 ): Promise<boolean> {
   if (
     !(
-      await client.query('SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE', [
-        row.universe_id,
-        row.privacy_epoch,
-      ])
+      await client.query(
+        'SELECT 1 FROM universe WHERE id=$1 AND privacy_epoch=$2 FOR UPDATE',
+        [row.universe_id, row.privacy_epoch],
+      )
     ).rowCount
   )
     return false;
@@ -936,11 +1027,16 @@ async function withdrawIdleInquiry(
     )
   ).rows[0];
   const inquiry = (
-    await client.query<InquiryRow>('SELECT * FROM background_inquiry WHERE job_id=$1 FOR UPDATE', [
-      row.job_id,
-    ])
+    await client.query<InquiryRow>(
+      'SELECT * FROM background_inquiry WHERE job_id=$1 FOR UPDATE',
+      [row.job_id],
+    )
   ).rows[0];
-  if (!job?.idle || !['queued', 'waiting'].includes(job.status) || inquiry?.status !== 'queued')
+  if (
+    !job?.idle ||
+    !['queued', 'waiting'].includes(job.status) ||
+    inquiry?.status !== 'queued'
+  )
     return false;
   const verdict = await decide(inquiry);
   if (!verdict) return false;
@@ -954,7 +1050,11 @@ async function withdrawIdleInquiry(
   );
   await withdrawIdleBackgroundJob(
     client,
-    { jobId: row.job_id, universeId: row.universe_id, privacyEpoch: row.privacy_epoch },
+    {
+      jobId: row.job_id,
+      universeId: row.universe_id,
+      privacyEpoch: row.privacy_epoch,
+    },
     verdict.expire ? 'expired' : 'cancelled',
   );
   return true;
@@ -1019,7 +1119,9 @@ export async function settleInquiries(
   for (const row of expiredLeases) {
     try {
       if (row.state === 'responded')
-        await inTransaction(pool, (client) => recoverRespondedInquiry(client, row));
+        await inTransaction(pool, (client) =>
+          recoverRespondedInquiry(client, row),
+        );
       else
         await admission.recoverAttempt({
           universeId: row.universe_id,
@@ -1101,7 +1203,8 @@ export async function settleInquiries(
                     : 'worker_stopped';
               return { status: 'failed', reasons: [reason], expire: past };
             }
-            if (past) return { status: 'failed', reasons: ['expired'], expire: true };
+            if (past)
+              return { status: 'failed', reasons: ['expired'], expire: true };
             const pending = (
               await client.query<{ id: string }>(
                 `SELECT id FROM reasoning_step WHERE job_id=$1 AND status='pending'`,
@@ -1157,7 +1260,12 @@ export async function settleInquiries(
     try {
       if (
         await inTransaction(pool, (client) =>
-          closeTerminalInquiry(client, row.job_id, ['worker_stopped'], input.owner),
+          closeTerminalInquiry(
+            client,
+            row.job_id,
+            ['worker_stopped'],
+            input.owner,
+          ),
         )
       )
         settled += 1;

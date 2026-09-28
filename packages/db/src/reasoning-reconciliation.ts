@@ -64,7 +64,8 @@ type PreviousSettlement = { id: string; revision: number; usage: Usage };
 const max = 9007199254740991n;
 const asBigInt = (value: string | number): bigint => {
   const parsed = typeof value === 'number' ? BigInt(value) : BigInt(value);
-  if (parsed < 0n || parsed > max) throw new Error('Reasoning counter exceeds safe storage range');
+  if (parsed < 0n || parsed > max)
+    throw new Error('Reasoning counter exceeds safe storage range');
   return parsed;
 };
 const asNullableBigInt = (value: number | null): bigint | null =>
@@ -80,7 +81,8 @@ const usageValue = (basis: string, usage: Usage): bigint | null => {
     case 'total_tokens': {
       if (input === null || output === null) return null;
       const total = input + output;
-      if (total > max) throw new Error('Reasoning total usage exceeds safe storage range');
+      if (total > max)
+        throw new Error('Reasoning total usage exceeds safe storage range');
       return total;
     }
     case 'cost_micro_usd':
@@ -103,7 +105,10 @@ const receiptUsage = (receipt: Receipt): Usage => ({
   costMicroUsd: asNullableNumber(receipt.cost_micro_usd),
 });
 const text = (value: bigint) => value.toString();
-const mergeUsage = (previous: Usage, incoming: Usage): { usage: Usage; decreases: boolean } => {
+const mergeUsage = (
+  previous: Usage,
+  incoming: Usage,
+): { usage: Usage; decreases: boolean } => {
   let decreases = false;
   const merge = (prior: number | null, next: number | null): number | null => {
     if (next === null) return prior;
@@ -117,8 +122,14 @@ const mergeUsage = (previous: Usage, incoming: Usage): { usage: Usage; decreases
     usage: {
       inputTokens: merge(previous.inputTokens, incoming.inputTokens),
       outputTokens: merge(previous.outputTokens, incoming.outputTokens),
-      cacheReadTokens: merge(previous.cacheReadTokens, incoming.cacheReadTokens),
-      cacheWriteTokens: merge(previous.cacheWriteTokens, incoming.cacheWriteTokens),
+      cacheReadTokens: merge(
+        previous.cacheReadTokens,
+        incoming.cacheReadTokens,
+      ),
+      cacheWriteTokens: merge(
+        previous.cacheWriteTokens,
+        incoming.cacheWriteTokens,
+      ),
       costMicroUsd: merge(previous.costMicroUsd, incoming.costMicroUsd),
     },
     decreases,
@@ -143,11 +154,15 @@ async function withTransaction<T>(
   }
 }
 
-async function pauseBuckets(client: pg.PoolClient, bucketIds: string[]): Promise<void> {
+async function pauseBuckets(
+  client: pg.PoolClient,
+  bucketIds: string[],
+): Promise<void> {
   if (bucketIds.length === 0) return;
-  await client.query('UPDATE reasoning_bucket SET paused=true WHERE id=ANY($1::uuid[])', [
-    bucketIds,
-  ]);
+  await client.query(
+    'UPDATE reasoning_bucket SET paused=true WHERE id=ANY($1::uuid[])',
+    [bucketIds],
+  );
 }
 
 async function freeze(
@@ -243,7 +258,10 @@ async function appendSettlement(
   const settlementId = randomUUID(),
     revision = (previous?.revision ?? 0) + 1;
   const fingerprint = (
-    await client.query('SELECT fingerprint FROM reasoning_receipt WHERE id=$1', [receipt.id])
+    await client.query(
+      'SELECT fingerprint FROM reasoning_receipt WHERE id=$1',
+      [receipt.id],
+    )
   ).rows[0].fingerprint;
   await client.query(
     `
@@ -316,7 +334,12 @@ async function appendSettlement(
       r.attempt_id = $2
       AND r.bucket_id = $3
   `,
-      [settlementId, receipt.attempt_id, adjustment.bucketId, text(adjustment.delta)],
+      [
+        settlementId,
+        receipt.attempt_id,
+        adjustment.bucketId,
+        text(adjustment.delta),
+      ],
     );
   }
   return { settlementId, revision };
@@ -325,7 +348,12 @@ async function appendSettlement(
 async function settleReceipt(
   client: pg.PoolClient,
   receiptId: string,
-): Promise<Omit<ReconciliationResult, 'receiptId' | 'attemptId' | 'fingerprint' | 'replayed'>> {
+): Promise<
+  Omit<
+    ReconciliationResult,
+    'receiptId' | 'attemptId' | 'fingerprint' | 'replayed'
+  >
+> {
   const receipt = (
     await client.query(
       `
@@ -348,7 +376,8 @@ async function settleReceipt(
       [receiptId],
     )
   ).rows[0] as Receipt | undefined;
-  if (!receipt) throw new Error('Reasoning receipt disappeared before settlement');
+  if (!receipt)
+    throw new Error('Reasoning receipt disappeared before settlement');
   const accounting = (
     await client.query(
       `
@@ -370,7 +399,8 @@ async function settleReceipt(
       [receipt.attempt_id],
     )
   ).rows[0] as Accounting | undefined;
-  if (!accounting) throw new Error('Reasoning accounting disappeared before settlement');
+  if (!accounting)
+    throw new Error('Reasoning accounting disappeared before settlement');
   await client.query(
     `
    UPDATE reasoning_accounting
@@ -441,12 +471,14 @@ async function settleReceipt(
       [receipt.attempt_id],
     )
   ).rows as Array<{ outcome: string }>;
-  const contradictory = terminal.length > 1 && new Set(terminal.map((row) => row.outcome)).size > 1;
+  const contradictory =
+    terminal.length > 1 && new Set(terminal.map((row) => row.outcome)).size > 1;
   const remoteReservations = reservations.filter(
     (reservation) => reservation.handling === 'remote',
   );
   const financialReservations = reservations.filter(
-    (reservation) => reservation.handling === 'budget' || reservation.handling === 'rate',
+    (reservation) =>
+      reservation.handling === 'budget' || reservation.handling === 'rate',
   );
   const unknown =
     accounting.binding_hash === null ||
@@ -454,13 +486,25 @@ async function settleReceipt(
     remoteReservations.length === 0 ||
     financialReservations.length === 0 ||
     reservations.some(
-      (reservation) => reservation.usage_basis === 'unknown' || reservation.handling === 'unknown',
+      (reservation) =>
+        reservation.usage_basis === 'unknown' ||
+        reservation.handling === 'unknown',
     );
   const decreases = reservations.some((reservation) => {
     const next = usageValue(reservation.usage_basis, merged.usage);
-    return next !== null && reservation.usage_known && next < asBigInt(reservation.recognized);
+    return (
+      next !== null &&
+      reservation.usage_known &&
+      next < asBigInt(reservation.recognized)
+    );
   });
-  if (accounting.review_required || contradictory || unknown || merged.decreases || decreases) {
+  if (
+    accounting.review_required ||
+    contradictory ||
+    unknown ||
+    merged.decreases ||
+    decreases
+  ) {
     const remoteState = await freeze(client, accounting, reservations);
     const settlement = await appendSettlement(
       client,
@@ -491,7 +535,10 @@ async function settleReceipt(
           `UPDATE reasoning_reservation SET usage_known=true,recognized=1 WHERE id=$1`,
           [reservation.id],
         );
-      if (receipt.remote_disposition === 'terminal' && reservation.state === 'held') {
+      if (
+        receipt.remote_disposition === 'terminal' &&
+        reservation.state === 'held'
+      ) {
         const released = await client.query(
           `
       UPDATE reasoning_bucket
@@ -505,7 +552,8 @@ async function settleReceipt(
     `,
           [reservation.bucket_id, text(amount)],
         );
-        if (released.rowCount !== 1) throw new Error('Reasoning remote reservation underflow');
+        if (released.rowCount !== 1)
+          throw new Error('Reasoning remote reservation underflow');
         await client.query(
           "UPDATE reasoning_reservation SET state='released' WHERE id=$1 AND state='held'",
           [reservation.id],
@@ -516,11 +564,17 @@ async function settleReceipt(
     }
     if (next === null) continue;
     const first = !reservation.usage_known;
-    const consumed = reservation.handling === 'rate' ? (next > amount ? next : amount) : next;
+    const consumed =
+      reservation.handling === 'rate' ? (next > amount ? next : amount) : next;
     const priorConsumed =
-      reservation.handling === 'rate' ? (prior > amount ? prior : amount) : prior;
+      reservation.handling === 'rate'
+        ? prior > amount
+          ? prior
+          : amount
+        : prior;
     const delta = first ? consumed : consumed - priorConsumed;
-    if (delta < 0n) throw new Error('Decreasing usage reached settlement mutation');
+    if (delta < 0n)
+      throw new Error('Decreasing usage reached settlement mutation');
     if (first) {
       const bucket = await client.query(
         `
@@ -538,7 +592,8 @@ async function settleReceipt(
    `,
         [reservation.bucket_id, text(amount), text(delta), next > amount],
       );
-      if (bucket.rowCount !== 1) throw new Error('Reasoning reservation underflow');
+      if (bucket.rowCount !== 1)
+        throw new Error('Reasoning reservation underflow');
       await client.query(
         `
      UPDATE reasoning_reservation
@@ -561,10 +616,10 @@ async function settleReceipt(
         );
         adjustments.push({ bucketId: reservation.bucket_id, delta });
       }
-      await client.query('UPDATE reasoning_reservation SET recognized=$2::bigint WHERE id=$1', [
-        reservation.id,
-        text(next),
-      ]);
+      await client.query(
+        'UPDATE reasoning_reservation SET recognized=$2::bigint WHERE id=$1',
+        [reservation.id, text(next)],
+      );
     }
   }
 
@@ -590,12 +645,19 @@ async function settleReceipt(
       [receipt.attempt_id],
     )
   ).rows as Reservation[];
-  const financial = current.filter((row) => row.handling === 'budget' || row.handling === 'rate');
+  const financial = current.filter(
+    (row) => row.handling === 'budget' || row.handling === 'rate',
+  );
   const allKnown = financial.every((row) => row.usage_known);
   const anyKnown = financial.some((row) => row.usage_known);
   const remote = current.filter((row) => row.handling === 'remote');
-  const terminalRemote = remote.length > 0 && remote.every((row) => row.state === 'released');
-  const liability = allKnown ? 'settled' : anyKnown ? 'partially_settled' : 'held';
+  const terminalRemote =
+    remote.length > 0 && remote.every((row) => row.state === 'released');
+  const liability = allKnown
+    ? 'settled'
+    : anyKnown
+      ? 'partially_settled'
+      : 'held';
   const remoteState = terminalRemote ? 'released' : 'held';
   const close = allKnown && terminalRemote;
   await client.query(
@@ -643,7 +705,12 @@ async function settleReceipt(
     liability,
     remoteState,
   );
-  await settleFairness(client, receipt.attempt_id, settlement.revision, merged.usage);
+  await settleFairness(
+    client,
+    receipt.attempt_id,
+    settlement.revision,
+    merged.usage,
+  );
   return { ...settlement, reviewRequired: false };
 }
 
@@ -654,7 +721,11 @@ export function createReasoningReconciliation(db: pg.Pool) {
       origin: TrustedReasoningReceiptOrigin,
     ): Promise<ReconciliationResult> {
       return withTransaction(db, async (client) => {
-        const appended = await appendRestrictedReasoningReceipt(client, input, origin);
+        const appended = await appendRestrictedReasoningReceipt(
+          client,
+          input,
+          origin,
+        );
         if (appended.replayed) {
           const accounting = (
             await client.query(

@@ -11,7 +11,9 @@ import {
 import { UnauthorizedSession, type AuthScope } from './identity.ts';
 
 export class ExplicitAskError extends Error {
-  constructor(public readonly kind: 'invalid' | 'stale_epoch' | 'conflict' | 'source') {
+  constructor(
+    public readonly kind: 'invalid' | 'stale_epoch' | 'conflict' | 'source',
+  ) {
     super(kind);
     this.name = 'ExplicitAskError';
   }
@@ -65,14 +67,20 @@ function canonical(value: unknown): string {
 }
 
 function uuidFromDigest(value: string): string {
-  const bytes = createHash('sha256').update(value, 'utf8').digest().subarray(0, 16);
+  const bytes = createHash('sha256')
+    .update(value, 'utf8')
+    .digest()
+    .subarray(0, 16);
   bytes[6] = (bytes[6]! & 0x0f) | 0x40;
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = bytes.toString('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export function explicitAskLedgerKey(sessionId: string, clientAskId: string): string {
+export function explicitAskLedgerKey(
+  sessionId: string,
+  clientAskId: string,
+): string {
   return uuidFromDigest(
     `${ASK_LEDGER_KEY_DOMAIN}\u0000${sessionId.toLowerCase()}\u0000${clientAskId.toLowerCase()}`,
   );
@@ -84,9 +92,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function exactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
-  return actual.length === keys.length && actual.every((key, index) => key === keys[index]);
+  return (
+    actual.length === keys.length &&
+    actual.every((key, index) => key === keys[index])
+  );
 }
 
 function uuidEquals(left: unknown, right: string): boolean {
@@ -109,7 +123,15 @@ function scrollFromRow(row: SourceRow): ScrollAsset {
 
 function validExposurePayload(row: SourceRow): boolean {
   const payload = asRecord(row.exposure_payload);
-  if (!payload || !exactKeys(payload, ['assetId', 'clientExposureId', 'decisionId', 'exposureId']))
+  if (
+    !payload ||
+    !exactKeys(payload, [
+      'assetId',
+      'clientExposureId',
+      'decisionId',
+      'exposureId',
+    ])
+  )
     return false;
   const parsed = exposureInput.safeParse({
     decisionId: payload.decisionId,
@@ -165,7 +187,10 @@ function selectedCurrentScroll(row: SourceRow): boolean {
   return canonical(candidate) === canonical(scrollFromRow(row));
 }
 
-async function currentScope(client: pg.PoolClient, scope: AuthScope): Promise<boolean> {
+async function currentScope(
+  client: pg.PoolClient,
+  scope: AuthScope,
+): Promise<boolean> {
   const row = (
     await client.query<{ privacy_epoch: number }>(
       `
@@ -218,7 +243,11 @@ async function existingAsk(
   );
 }
 
-function replayMatches(existing: ExistingAsk, input: ExplicitAskInput, scope: AuthScope): boolean {
+function replayMatches(
+  existing: ExistingAsk,
+  input: ExplicitAskInput,
+  scope: AuthScope,
+): boolean {
   const payload = asRecord(existing.payload);
   return (
     existing.privacy_epoch === scope.privacyEpoch &&
@@ -278,9 +307,16 @@ async function source(
   );
 }
 
-async function lockAsset(client: pg.PoolClient, assetId: string): Promise<boolean> {
+async function lockAsset(
+  client: pg.PoolClient,
+  assetId: string,
+): Promise<boolean> {
   return Boolean(
-    (await client.query('SELECT id FROM asset WHERE id=$1 FOR SHARE', [assetId])).rowCount,
+    (
+      await client.query('SELECT id FROM asset WHERE id=$1 FOR SHARE', [
+        assetId,
+      ])
+    ).rowCount,
   );
 }
 
@@ -299,19 +335,27 @@ export async function recordExplicitAsk(
   if (input.expectedPrivacyEpoch !== authenticated.privacyEpoch) {
     throw new ExplicitAskError('stale_epoch');
   }
-  if (!(await currentScope(client, authenticated))) throw new UnauthorizedSession();
+  if (!(await currentScope(client, authenticated)))
+    throw new UnauthorizedSession();
 
   const existing = await existingAsk(client, authenticated, input);
   if (existing) {
-    if (!replayMatches(existing, input, authenticated)) throw new ExplicitAskError('conflict');
-    return { askId: existing.ask_id, eventId: existing.event_id, status: 'recorded_only' };
+    if (!replayMatches(existing, input, authenticated))
+      throw new ExplicitAskError('conflict');
+    return {
+      askId: existing.ask_id,
+      eventId: existing.event_id,
+      status: 'recorded_only',
+    };
   }
 
   const first = await source(client, authenticated, input.exposureId);
   if (!first || !validExposurePayload(first) || !selectedCurrentScroll(first))
     throw new ExplicitAskError('source');
-  if (!(await lockAsset(client, first.asset_id))) throw new ExplicitAskError('source');
-  if (!(await currentScope(client, authenticated))) throw new UnauthorizedSession();
+  if (!(await lockAsset(client, first.asset_id)))
+    throw new ExplicitAskError('source');
+  if (!(await currentScope(client, authenticated)))
+    throw new UnauthorizedSession();
   const selected = await source(client, authenticated, input.exposureId);
   if (
     !selected ||

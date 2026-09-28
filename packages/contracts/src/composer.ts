@@ -5,7 +5,10 @@
  */
 import { z } from 'zod';
 
-export const encounterFeedbackKind = z.enum(['less_like_this', 'wrong_connection']);
+export const encounterFeedbackKind = z.enum([
+  'less_like_this',
+  'wrong_connection',
+]);
 export type EncounterFeedbackKind = z.infer<typeof encounterFeedbackKind>;
 
 export const encounterFeedbackInput = z
@@ -69,7 +72,12 @@ export interface WhyResponseWire {
 export interface EncounterFeedbackReceipt {
   feedbackId: string;
   kind: EncounterFeedbackKind;
-  suppressed: { family: string; concept: string | null; bridgeId: string | null; until: string };
+  suppressed: {
+    family: string;
+    concept: string | null;
+    bridgeId: string | null;
+    until: string;
+  };
 }
 
 /** Days a "less like this" route stays suppressed for the reader (`feedback-v1`). */

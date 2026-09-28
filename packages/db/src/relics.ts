@@ -76,7 +76,11 @@ async function scrollFacts(
   row: RelicRow,
 ): Promise<Extract<RelicFacts, { kind: 'passage' | 'answer' }>> {
   const f = (
-    await client.query<{ current_revision: number; unsupported: number; objected: boolean }>(
+    await client.query<{
+      current_revision: number;
+      unsupported: number;
+      objected: boolean;
+    }>(
       `
       SELECT
         a.revision AS current_revision,
@@ -157,7 +161,12 @@ async function relicView(
       // The place as kept and the delta that formed it; corrected by a source correction since.
       const p = (
         await client.query<
-          DeltaNaming & { state: string; name: string; formed_at: Date; corrected: boolean }
+          DeltaNaming & {
+            state: string;
+            name: string;
+            formed_at: Date;
+            corrected: boolean;
+          }
         >(
           `SELECT d.kind, d.causal_class, d.evidence, c.code AS anchor, pc.code AS parent_anchor, p.state, c.name, d.created_at AS formed_at,
            EXISTS (SELECT 1 FROM atlas_delta x WHERE x.place_id = r.place_id AND x.causal_class = 'source_correction' AND x.created_at > r.kept_at) AS corrected
@@ -256,7 +265,10 @@ async function relicView(
 function thingOf(input: RelicKeepInput): { where: string; params: unknown[] } {
   switch (input.kind) {
     case 'connection':
-      return { where: `kind='connection' AND bridge_id=$3`, params: [input.bridgeId] };
+      return {
+        where: `kind='connection' AND bridge_id=$3`,
+        params: [input.bridgeId],
+      };
     case 'place':
       return { where: `kind='place' AND place_id=$3`, params: [input.placeId] };
     case 'passage':
@@ -270,16 +282,25 @@ function thingOf(input: RelicKeepInput): { where: string; params: unknown[] } {
 }
 
 /** What the server records at keep time (ADR-0044 §2), or why this cannot be kept. */
-type Provenance = { columns: Record<string, string | number | null>; cited: string[] };
+type Provenance = {
+  columns: Record<string, string | number | null>;
+  cited: string[];
+};
 
 /** The reader's own reading of a Scroll: the exposure and the selection it recorded (revision, title). */
 const SELECTION = `JOIN decision d ON d.id = e.decision_id AND d.universe_id = e.universe_id
   CROSS JOIN LATERAL jsonb_array_elements(d.candidates) sel`;
 const SELECTED = `lower(sel->>'assetId') = e.asset_id::text`;
 
-async function currentRevision(client: pg.PoolClient, assetId: string): Promise<number> {
+async function currentRevision(
+  client: pg.PoolClient,
+  assetId: string,
+): Promise<number> {
   return (
-    await client.query<{ revision: number }>('SELECT revision FROM asset WHERE id=$1', [assetId])
+    await client.query<{ revision: number }>(
+      'SELECT revision FROM asset WHERE id=$1',
+      [assetId],
+    )
   ).rows[0]!.revision;
 }
 
@@ -328,9 +349,13 @@ async function provenanceOf(
           [input.bridgeId, scope.universeId, scope.privacyEpoch],
         )
       ).rows[0];
-      if (!bridge) throw new ReturnError(422, 'Unknown or withdrawn connection');
+      if (!bridge)
+        throw new ReturnError(422, 'Unknown or withdrawn connection');
       if (await markedWrong(client, scope, input.bridgeId))
-        throw new ReturnError(422, 'You marked this connection as seeming wrong');
+        throw new ReturnError(
+          422,
+          'You marked this connection as seeming wrong',
+        );
       const cited = (
         await client.query<{ key: string }>(
           `
@@ -377,7 +402,10 @@ async function provenanceOf(
     }
     case 'place': {
       const place = (
-        await client.query<{ kind: 'planet' | 'region' | 'sighting'; formed_by: string }>(
+        await client.query<{
+          kind: 'planet' | 'region' | 'sighting';
+          formed_by: string;
+        }>(
           `
           SELECT
             p.kind,
@@ -395,7 +423,10 @@ async function provenanceOf(
         )
       ).rows[0];
       if (!place)
-        throw new ReturnError(422, 'Unknown place, or one that is no longer on your atlas');
+        throw new ReturnError(
+          422,
+          'Unknown place, or one that is no longer on your atlas',
+        );
       return {
         columns: {
           place_id: input.placeId,
@@ -407,7 +438,11 @@ async function provenanceOf(
     }
     case 'passage': {
       const read = (
-        await client.query<{ exposure_id: string; revision: number; title: string }>(
+        await client.query<{
+          exposure_id: string;
+          revision: number;
+          title: string;
+        }>(
           `SELECT e.id AS exposure_id, (sel->>'revision')::int AS revision, sel->>'title' AS title
          FROM exposure e JOIN ledger l ON l.id = e.event_id AND l.universe_id = e.universe_id ${SELECTION}
          WHERE e.universe_id=$1 AND l.privacy_epoch=$2 AND e.asset_id=$3 AND ${SELECTED} ORDER BY l.seq DESC LIMIT 1`,
@@ -438,12 +473,15 @@ async function provenanceOf(
         )
       ).rows[0];
       if (!claim) throw new ReturnError(422, 'This Scroll does not say that');
-      if (!claim.supported) throw new ReturnError(422, 'What this passage rests on was withdrawn');
+      if (!claim.supported)
+        throw new ReturnError(422, 'What this passage rests on was withdrawn');
       if (
-        await objected(client, scope, `kind='passage' AND asset_id=$3 AND claim_id=$4`, [
-          input.assetId,
-          claim.id,
-        ])
+        await objected(
+          client,
+          scope,
+          `kind='passage' AND asset_id=$3 AND claim_id=$4`,
+          [input.assetId, claim.id],
+        )
       ) {
         throw new ReturnError(422, 'You marked this passage as seeming wrong');
       }
@@ -460,7 +498,11 @@ async function provenanceOf(
     }
     case 'answer': {
       const answered = (
-        await client.query<{ asset_id: string; revision: number; title: string }>(
+        await client.query<{
+          asset_id: string;
+          revision: number;
+          title: string;
+        }>(
           `SELECT e.asset_id, (sel->>'revision')::int AS revision, sel->>'title' AS title
          FROM ask_answer a JOIN explicit_ask q ON q.id = a.ask_id JOIN exposure e ON e.id = q.exposure_id AND e.universe_id = q.universe_id ${SELECTION}
          WHERE a.ask_id=$1 AND a.universe_id=$2 AND a.privacy_epoch=$3 AND a.status='answered' AND ${SELECTED}`,
@@ -468,9 +510,18 @@ async function provenanceOf(
         )
       ).rows[0];
       if (!answered) throw new ReturnError(422, 'Unknown or unanswered Ask');
-      if ((await currentRevision(client, answered.asset_id)) !== answered.revision)
-        throw new ReturnError(409, 'This Scroll has changed since it was answered');
-      if (await objected(client, scope, `kind='answer' AND ask_id=$3`, [input.askId]))
+      if (
+        (await currentRevision(client, answered.asset_id)) !== answered.revision
+      )
+        throw new ReturnError(
+          409,
+          'This Scroll has changed since it was answered',
+        );
+      if (
+        await objected(client, scope, `kind='answer' AND ask_id=$3`, [
+          input.askId,
+        ])
+      )
         throw new ReturnError(422, 'You marked this answer as seeming wrong');
       // What the answer rests on: every claim its Scroll presents, each still supported.
       const claims = (
@@ -523,10 +574,14 @@ export async function keepRelic(
     )
   ).rows[0];
   if (replay) {
-    if (!replay.same) throw new ReturnError(409, 'Relic key reused for another thing');
+    if (!replay.same)
+      throw new ReturnError(409, 'Relic key reused for another thing');
     return {
       created: false,
-      body: { privacyEpoch: scope.privacyEpoch, relic: await relicView(client, scope, replay) },
+      body: {
+        privacyEpoch: scope.privacyEpoch,
+        relic: await relicView(client, scope, replay),
+      },
     };
   }
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
@@ -540,9 +595,13 @@ export async function keepRelic(
   if (kept)
     return {
       created: false,
-      body: { privacyEpoch: scope.privacyEpoch, relic: await relicView(client, scope, kept) },
+      body: {
+        privacyEpoch: scope.privacyEpoch,
+        relic: await relicView(client, scope, kept),
+      },
     };
-  if (await paused(client, scope.universeId)) throw new ReturnError(409, 'Recording is paused');
+  if (await paused(client, scope.universeId))
+    throw new ReturnError(409, 'Recording is paused');
   // A source correction takes this lock exclusively: what is read next cannot be withdrawn before
   // the insert, so a racing correction gives a clean refusal, never a guard error (review M2).
   await lockSubstrateShared(client);
@@ -565,7 +624,10 @@ export async function keepRelic(
   ).rows[0]!;
   return {
     created: true,
-    body: { privacyEpoch: scope.privacyEpoch, relic: await relicView(client, scope, row) },
+    body: {
+      privacyEpoch: scope.privacyEpoch,
+      relic: await relicView(client, scope, row),
+    },
   };
 }
 
@@ -576,7 +638,8 @@ export async function listRelics(
   page?: string,
 ): Promise<RelicsResponse> {
   const cursor = page === undefined ? null : parseRelicCursor(page);
-  if (cursor === null && page !== undefined) throw new ReturnError(400, 'Invalid page');
+  if (cursor === null && page !== undefined)
+    throw new ReturnError(400, 'Invalid page');
   const rows = (
     await client.query<RelicRow>(
       `SELECT ${COLUMNS} FROM relic WHERE universe_id=$1 AND privacy_epoch=$2 AND ($3::timestamptz IS NULL OR (kept_at, id) < ($3::timestamptz, $4::uuid))
@@ -598,7 +661,9 @@ export async function listRelics(
     privacyEpoch: scope.privacyEpoch,
     relics,
     nextPage:
-      rows.length > RELIC_LIST_LIMIT && last ? relicCursor(last.kept_cursor, last.id) : null,
+      rows.length > RELIC_LIST_LIMIT && last
+        ? relicCursor(last.kept_cursor, last.id)
+        : null,
     recordingPaused: await paused(client, scope.universeId),
   };
 }
@@ -615,18 +680,20 @@ export async function releaseRelic(
   if (!parsed.success) throw new ReturnError(400, 'Invalid release');
   if (parsed.data.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new ReturnError(409, 'Privacy epoch is stale');
-  await client.query('DELETE FROM relic WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3', [
-    relicId,
-    scope.universeId,
-    scope.privacyEpoch,
-  ]);
+  await client.query(
+    'DELETE FROM relic WHERE id=$1 AND universe_id=$2 AND privacy_epoch=$3',
+    [relicId, scope.universeId, scope.privacyEpoch],
+  );
   return { privacyEpoch: scope.privacyEpoch, relicId, released: true };
 }
 
 // The reader's "seems wrong" on a passage or an answer (ADR-0044 §4) ----------------------------
 
 /** The `reader_objection` columns that name what an objection names (params from $3). */
-function objectionOf(input: ObjectionInput): { where: string; params: unknown[] } {
+function objectionOf(input: ObjectionInput): {
+  where: string;
+  params: unknown[];
+} {
   return input.kind === 'passage'
     ? {
         where: `kind='passage' AND asset_id=$3 AND claim_id=(SELECT id FROM claim WHERE key=$4)`,
@@ -652,8 +719,12 @@ export async function recordObjection(
     )
   ).rows[0];
   if (replay) {
-    if (!replay.same) throw new ReturnError(409, 'Objection key reused for another thing');
-    return { created: false, body: { privacyEpoch: scope.privacyEpoch, objectionId: replay.id } };
+    if (!replay.same)
+      throw new ReturnError(409, 'Objection key reused for another thing');
+    return {
+      created: false,
+      body: { privacyEpoch: scope.privacyEpoch, objectionId: replay.id },
+    };
   }
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new ReturnError(409, 'Privacy epoch is stale');
@@ -664,8 +735,12 @@ export async function recordObjection(
     )
   ).rows[0];
   if (made)
-    return { created: false, body: { privacyEpoch: scope.privacyEpoch, objectionId: made.id } };
-  if (await paused(client, scope.universeId)) throw new ReturnError(409, 'Recording is paused');
+    return {
+      created: false,
+      body: { privacyEpoch: scope.privacyEpoch, objectionId: made.id },
+    };
+  if (await paused(client, scope.universeId))
+    throw new ReturnError(409, 'Recording is paused');
   const id = randomUUID();
   if (input.kind === 'passage') {
     const claim = (
@@ -690,7 +765,8 @@ export async function recordObjection(
         [scope.universeId, scope.privacyEpoch, input.assetId, input.claimKey],
       )
     ).rows[0];
-    if (!claim) throw new ReturnError(422, 'Not a passage of a Scroll you read');
+    if (!claim)
+      throw new ReturnError(422, 'Not a passage of a Scroll you read');
     await client.query(
       `
       INSERT INTO
@@ -706,7 +782,14 @@ export async function recordObjection(
       VALUES
         ($1, $2, $3, $4, 'passage', $5, $6)
     `,
-      [id, scope.universeId, scope.privacyEpoch, input.clientRequestId, input.assetId, claim.id],
+      [
+        id,
+        scope.universeId,
+        scope.privacyEpoch,
+        input.clientRequestId,
+        input.assetId,
+        claim.id,
+      ],
     );
   } else {
     const answered = (
@@ -730,10 +813,19 @@ export async function recordObjection(
       VALUES
         ($1, $2, $3, $4, 'answer', $5)
     `,
-      [id, scope.universeId, scope.privacyEpoch, input.clientRequestId, input.askId],
+      [
+        id,
+        scope.universeId,
+        scope.privacyEpoch,
+        input.clientRequestId,
+        input.askId,
+      ],
     );
   }
-  return { created: true, body: { privacyEpoch: scope.privacyEpoch, objectionId: id } };
+  return {
+    created: true,
+    body: { privacyEpoch: scope.privacyEpoch, objectionId: id },
+  };
 }
 
 /** `GET /v1/scrolls/:assetId/passages`: the Scroll's claims, each with this reader's own state. */
@@ -797,7 +889,13 @@ export async function readPassages(
       LIMIT
         $5
     `,
-      [assetId, scope.universeId, scope.privacyEpoch, scroll.revision, PASSAGE_LIST_LIMIT],
+      [
+        assetId,
+        scope.universeId,
+        scope.privacyEpoch,
+        scroll.revision,
+        PASSAGE_LIST_LIMIT,
+      ],
     )
   ).rows;
   return {
@@ -819,9 +917,14 @@ export async function readPassages(
 
 /** Clear/Reset/deletion: before the answers, places, exposures, inquiries and personal bridges a
  * Relic or an objection names. */
-export async function eraseRelics(client: pg.PoolClient, universeId: string): Promise<void> {
+export async function eraseRelics(
+  client: pg.PoolClient,
+  universeId: string,
+): Promise<void> {
   await client.query('DELETE FROM relic WHERE universe_id=$1', [universeId]);
-  await client.query('DELETE FROM reader_objection WHERE universe_id=$1', [universeId]);
+  await client.query('DELETE FROM reader_objection WHERE universe_id=$1', [
+    universeId,
+  ]);
 }
 
 /** Every Relic with the provenance recorded when it was kept, and the reader's objections. */
