@@ -1,0 +1,35 @@
+.branch-panel {
+  margin: 1.4rem 0 0;
+  padding: 1rem;
+  border: 1px solid rgba(255, 253, 242, .27);
+  border-radius: 1rem;
+  background: rgba(3, 16, 26, .93);
+  color: #fffdf2;
+}
+
+.branch-panel-head,
+.branch-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.branch-panel h3,
+.branch-panel h4,
+.branch-panel p { margin: 0; }
+.branch-panel h3 { font-size: 1.25rem; }
+.branch-panel .eyebrow { color: #ffd058; }
+.branch-panel-body { margin-top: 1rem; }
+.branch-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; }
+.branch-list li {
+  border: 1px solid rgba(255, 253, 242, .18);
+  border-radius: .75rem;
+  padding: .85rem;
+  display: grid;
+  gap: .5rem;
+}
+.branch-relation { color: #33c4b4; font-size: .84rem; }
+.branch-mechanism { color: rgba(255, 253, 242, .78); font-size: .88rem; }
+.branch-list .pill { justify-self: start; }

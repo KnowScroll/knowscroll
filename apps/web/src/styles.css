@@ -738,6 +738,15 @@ a:focus-visible,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.head-band-origin--action {
+  border: 1px solid currentColor;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.head-band-origin--action:hover,
+.head-band-origin--action:focus-visible { text-decoration: underline; }
 .head-band-kind {
   flex: none;
   font-family: var(--font-mono);
@@ -784,6 +793,8 @@ a:focus-visible,
    rule of equal specificity placed after a `max-width` block wins the cascade
    and silently kills it. */
 .context-rail {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -804,6 +815,8 @@ a:focus-visible,
 }
 
 .reading-column {
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   /* The article itself (not an ancestor) owns the scroll position, so
      `node.scrollTop` in ScrollScreen.tsx keeps meaning reading position
@@ -813,6 +826,8 @@ a:focus-visible,
   overflow-y: auto;
 }
 .source-sheet {
+  grid-column: 3;
+  grid-row: 1;
   background: var(--cream);
   color: var(--ink);
   border-radius: 22px;
@@ -839,13 +854,20 @@ a:focus-visible,
 @media (max-width: 700px) {
   .scroll-layout {
     display: block;
-    padding: 23px;
+    padding: 23px 23px 120px;
     /* Block flow at this width, so the whole stage scrolls as one rather than
        each rail owning its own bounded box. */
     overflow-y: auto;
   }
   .context-rail {
-    display: none;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-bottom: 16px;
+  }
+  .context-rail .why-this-appeared {
+    flex-basis: 100%;
   }
   .reading-column {
     /* In block flow the article no longer owns a bounded box, so it grows and
@@ -856,8 +878,35 @@ a:focus-visible,
     overflow-y: visible;
   }
   .source-sheet {
-    margin-top: 20px;
+    margin: 0 0 20px;
     width: 100%;
+  }
+  .scroll-layout--context-after {
+    display: flex;
+    flex-direction: column;
+  }
+  .scroll-layout--context-after .reading-column { order: 0; }
+  .scroll-layout--context-after .context-rail { order: 1; }
+  .scroll-layout--context-after .source-sheet { order: 2; }
+  .scroll-screen.reading {
+    height: 100dvh;
+    padding-bottom: 96px;
+  }
+  .head-band {
+    padding-inline: 20px;
+    padding-block: 12px;
+    height: auto;
+    min-height: 66px;
+    flex-wrap: wrap;
+  }
+  .head-band-origin {
+    order: 4;
+    flex-basis: 100%;
+    max-width: none;
+    padding: 0 4px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--muted);
   }
 }
 
@@ -1065,6 +1114,11 @@ a:focus-visible,
      line to the space left of the dock keeps every word readable at both tested
      widths; it wraps upward, which the column has room for. */
   max-width: min(100%, calc(50% - 150px));
+}
+@media (max-width: 700px) {
+  /* The floating dock takes the narrow footer; a desktop shortcut sentence has no usable
+     measure on a phone and can push the reading stage out of view. */
+  .keyboard-help { display: none; }
 }
 
 /* The reader's dock (sec.5b: "the frame every level shares") floats over the

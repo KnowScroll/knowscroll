@@ -87,6 +87,27 @@ describe('ReaderStore', () => {
     expect(scroll.exposureId).toBe('exp-1');
   });
 
+  it('honors one deliberate Next while the visible exposure is still settling', async () => {
+    await enterReadingScroll();
+    let release!: () => void;
+    api.exposureGate = new Promise<void>(resolve => { release = resolve; });
+    api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });
+    const next = feedItem({ assetId: '10000000-0000-4000-8000-000000000002', title: 'The next Scroll' });
+    api.feedQueue.push({ decisionId: 'd2', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0, items: [next] });
+    store.onVisible(feedItem().assetId);
+    await waitFor(() => api.exposureCalls.length === 1);
+    store.nextScroll();
+    store.nextScroll();
+    expect(api.feedCalls).toBe(1);
+    release();
+    await waitFor(() => {
+      const scroll = store.getState().scroll;
+      return scroll.status === 'reading' && scroll.item.assetId === next.assetId;
+    });
+    expect(api.feedCalls).toBe(2);
+    expect(api.exposureCalls).toHaveLength(1);
+  });
+
   it('ignores onVisible for an asset that does not match the current session', async () => {
     await enterReadingScroll();
     store.onVisible('some-other-asset-id');
@@ -255,8 +276,6 @@ describe('ReaderStore', () => {
         title: feedItem().title,
         summary: feedItem().summary,
         body: feedItem().body,
-        sourceTitle: feedItem().sourceTitle,
-        sourceUrl: feedItem().sourceUrl,
         truthState: 'documented',
       },
     });
@@ -333,8 +352,6 @@ describe('ReaderStore', () => {
         title: feedItem().title,
         summary: feedItem().summary,
         body: feedItem().body,
-        sourceTitle: feedItem().sourceTitle,
-        sourceUrl: feedItem().sourceUrl,
         truthState: 'documented',
       },
     });

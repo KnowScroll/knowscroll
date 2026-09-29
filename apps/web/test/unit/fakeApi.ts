@@ -1,4 +1,6 @@
 import type { ReaderApi } from '../../src/api/client.ts';
+import type { WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
+import type { BranchOpenInput, WebBranchOpenResponse, WebEncounterBranchesResponse } from '../../../../packages/contracts/src/semantic.ts';
 import type {
   AccountDeletionReceipt,
   AccountDeletionRequest,
@@ -7,6 +9,7 @@ import type {
   EventStatus,
   ExposureResponse,
   FeedResponse,
+  ScrollFeedItem,
   InteractionResponse,
   PrivacyExportResult,
   PrivacyLifecycleRequest,
@@ -28,6 +31,12 @@ export class FakeApi implements ReaderApi {
   eventQueue: Array<EventStatus | Error> = [];
   traceRevisitQueue: Array<TraceRevisit | Error> = [];
   worldsQueue: Array<WorldSystemResponse | Error> = [];
+  atlasQueue: Array<AtlasResponse | Error> = [];
+  rejectAtlasQueue: Array<AtlasResponse | Error> = [];
+  branchesQueue: Array<WebEncounterBranchesResponse | Error> = [];
+  branchOpenQueue: Array<WebBranchOpenResponse | Error> = [];
+  branchOpenCalls: BranchOpenInput[] = [];
+  rejectAtlasCalls: Array<{ placeId: string; expectedPrivacyEpoch: number }> = [];
 
   pauseQueue: Array<PrivacyRecordingReceipt | Error> = [];
   resumeQueue: Array<PrivacyRecordingReceipt | Error> = [];
@@ -95,6 +104,20 @@ export class FakeApi implements ReaderApi {
     this.worldsCalls++;
     return this.take(this.worldsQueue, 'getWorlds');
   }
+  async getAtlas(): Promise<AtlasResponse> {
+    return this.take(this.atlasQueue, 'getAtlas');
+  }
+  async getBranches(_assetId: string): Promise<WebEncounterBranchesResponse> {
+    return this.take(this.branchesQueue, 'getBranches');
+  }
+  async postBranch(body: BranchOpenInput): Promise<WebBranchOpenResponse> {
+    this.branchOpenCalls.push(body);
+    return this.take(this.branchOpenQueue, 'postBranch');
+  }
+  async rejectAtlasPlace(placeId: string, expectedPrivacyEpoch: number): Promise<AtlasResponse> {
+    this.rejectAtlasCalls.push({ placeId, expectedPrivacyEpoch });
+    return this.take(this.rejectAtlasQueue, 'rejectAtlasPlace');
+  }
   async postPrivacyPause(body: PrivacyLifecycleRequest): Promise<PrivacyRecordingReceipt> {
     this.pauseCalls.push(body);
     return this.take(this.pauseQueue, 'postPrivacyPause');
@@ -130,7 +153,7 @@ export class FakeApi implements ReaderApi {
   }
 }
 
-export function feedItem(overrides: Partial<FeedResponse['items'][number]> = {}): FeedResponse['items'][number] {
+export function feedItem(overrides: Partial<ScrollFeedItem> = {}): ScrollFeedItem {
   return {
     assetId: '10000000-0000-4000-8000-000000000001',
     revision: 1,
@@ -138,10 +161,9 @@ export function feedItem(overrides: Partial<FeedResponse['items'][number]> = {})
     title: 'An orbit is not a perfect circle',
     summary: 'A small change in shape changes how a planet moves.',
     body: 'Body text.',
-    sourceTitle: 'NASA',
-    sourceUrl: 'https://example.com/orbits',
     truthState: 'documented',
     reason: 'An editorial starting encounter. No interests have been inferred.',
+    webArtifact: null,
     ...overrides,
   };
 }

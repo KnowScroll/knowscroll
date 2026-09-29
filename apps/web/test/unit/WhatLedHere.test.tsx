@@ -94,7 +94,7 @@ describe('What led here (#133)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Why this appeared' }));
     expect(onCloseWhy).toHaveBeenCalledTimes(1);
     openPanel();
-    fireEvent.click(screen.getByRole('button', { name: /Open sources panel/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Open context panel/ }));
     expect(onCloseWhy).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('region', { name: 'Why this appeared' })).not.toBeInTheDocument();
   });

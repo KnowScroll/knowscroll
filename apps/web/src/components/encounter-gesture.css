@@ -1,0 +1,51 @@
+.encounter-gesture {
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.encounter-gesture__surface {
+  --encounter-follow-y: 0px;
+  --encounter-follow-x: 0px;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  transform: translate3d(var(--encounter-follow-x), var(--encounter-follow-y), 0);
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+.encounter-gesture__surface.is-settling {
+  transition: transform 220ms cubic-bezier(.2, .75, .25, 1);
+}
+
+.encounter-gesture__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .5rem;
+  padding: .75rem;
+}
+
+.encounter-gesture__controls button {
+  min-height: 44px;
+  padding: .55rem .9rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .encounter-gesture__surface,
+  .encounter-gesture__surface.is-settling {
+    transition: none !important;
+  }
+
+  .encounter-gesture__surface {
+    transform: none !important;
+  }
+}

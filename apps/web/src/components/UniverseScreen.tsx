@@ -76,7 +76,7 @@ const STAGE_HEADING: Record<Stage, string> = {
   grown: 'Places worth returning to.',
 };
 const STAGE_SUBTITLE_FIRST = 'No topics to pick. Just something interesting.';
-const STAGE_SUBTITLE_FEW = 'Saved encounters below. Source-backed worlds in your system.';
+const STAGE_SUBTITLE_FEW = 'Saved encounters below. Open your Atlas to see what has taken shape.';
 
 /* ---------- Body layout: a deterministic grid, never a continuous spiral ----------
  * The reference's own spiral placement let two bodies land close enough in
@@ -381,8 +381,8 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
               made it, a control that goes there. It still claims nothing: the system it opens
               names only the worlds this reader's own reading has actually reached, and says so
               plainly when that set is empty. */}
-          <button type="button" className="map-scale-label" onClick={onEnterSystem} aria-label="Open the system view">
-            Explore your system ↗
+          <button type="button" className="map-scale-label" onClick={onEnterSystem} aria-label="Open your Atlas">
+            Explore your Atlas ↗
           </button>
         </div>
       )}
@@ -411,7 +411,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
           </span>
           Cable
         </button>
-        <button type="button" className="dock-button current" aria-current="page" onClick={() => {}} aria-label="Atlas — your universe">
+        <button type="button" className="dock-button current" onClick={onEnterSystem} aria-label="Atlas — open your places">
           <span className="dock-icon" aria-hidden="true">
             ◎
           </span>
