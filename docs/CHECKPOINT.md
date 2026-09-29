@@ -1,5 +1,26 @@
 # Shared delivery checkpoint
 
+## 2026-09-29 #171 web reader implementation, PR #195 (unmerged)
+
+Branch `codex/171-web-ios-v1` in the SSD worktree
+`/Volumes/Mrigesh SSD/knowscroll-product-worktrees/codex-web-ios-v1` adds a phone-first Reel/Scroll
+reader, Atlas, source-free web API projections, checked declarative Scroll artifacts (migration
+0041), and explicit horizontal Scroll continuations. The decision and remaining gaps are in
+`docs/architecture/web-encounter-player.md`; receipts and screenshots are in
+`docs/journeys/evidence/web-171/`. The main branch is unchanged until PR #195 is reviewed/merged.
+
+- Disposable PostgreSQL suite: 125 files, 1,103 tests passed. Web unit suite: 25 files, 244 tests
+  passed. Root and web typechecks, formatting, lint, and test-evidence build passed.
+- Full Chromium and WebKit reader journeys: 52 passed in each engine, with three fixture-only tests
+  skipped. Focused Reel fixture: 2/2 in each engine. Source-backed branch: 1/1 in each engine.
+  Every runner dropped its test database; the owner database was not used.
+- Level B generated modules and sandbox, production browser identity (#2), real Cutroom output,
+  Reel-target branches, and physical iPhone touch/back-edge/rotation/memory/frame acceptance remain
+  open. Playwright WebKit is browser-engine evidence, not iPhone acceptance. Do not treat this PR as
+  a v1 release receipt.
+- Next: owner reviews PR #195, then decides the identity/Level B/Reel-branch contracts and runs the
+  real-device journey before release sign-off.
+
 ## 2026-09-25 Android-first continuation, Waves 3–4 and the acceptance matrix (coordinator)
 
 Main moved from `d009225` to `bb86ad9`, then this PR. Every slice was used by hand on the API36
