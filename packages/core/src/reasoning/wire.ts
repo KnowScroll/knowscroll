@@ -7,7 +7,13 @@
 export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>).sort().map(k => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(',')}}`;
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map(
+        (k) =>
+          `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`,
+      )
+      .join(',')}}`;
   }
   return JSON.stringify(value);
 }
@@ -21,6 +27,10 @@ export function wholeObject(text: string): Record<string, unknown> | undefined {
   if (!body.startsWith('{')) return undefined;
   try {
     const value: unknown = JSON.parse(body);
-    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
-  } catch { return undefined; }
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }

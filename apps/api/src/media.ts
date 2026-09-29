@@ -30,17 +30,23 @@ export const MEDIA_SIMULATED_HEADER = 'x-knowscroll-media-simulated';
 export function resolveMediaRoot(env: NodeJS.ProcessEnv = process.env): string {
   const raw = env.KS_MEDIA_ROOT;
   if (raw !== undefined && raw !== '') {
-    if (!raw.startsWith('/')) throw new Error('invalid_config: KS_MEDIA_ROOT must be an absolute path');
+    if (!raw.startsWith('/'))
+      throw new Error('invalid_config: KS_MEDIA_ROOT must be an absolute path');
     return raw;
   }
   const devRoot = env.KS_DEV_ROOT;
   if (devRoot === undefined || devRoot === '' || !devRoot.startsWith('/')) {
-    throw new Error('invalid_config: set KS_MEDIA_ROOT, or KS_DEV_ROOT as an absolute path, before serving media');
+    throw new Error(
+      'invalid_config: set KS_MEDIA_ROOT, or KS_DEV_ROOT as an absolute path, before serving media',
+    );
   }
   return `${devRoot}/media`;
 }
 
-export interface ParsedRange { start: number; end: number }
+export interface ParsedRange {
+  start: number;
+  end: number;
+}
 
 /**
  * Exactly one `bytes=start-end` range per request (a comma means multiple ranges, which this
@@ -49,7 +55,10 @@ export interface ParsedRange { start: number; end: number }
  * end of the file, or whose bounds are not a valid non-negative integer pair, is refused (`null`),
  * which the caller turns into `416` with `Content-Range: bytes *\/<size>`.
  */
-export function parseRangeHeader(header: string, totalSize: number): ParsedRange | null {
+export function parseRangeHeader(
+  header: string,
+  totalSize: number,
+): ParsedRange | null {
   if (header.includes(',')) return null;
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
   if (!match) return null;
@@ -66,7 +75,13 @@ export function parseRangeHeader(header: string, totalSize: number): ParsedRange
     start = Number(startText);
     end = endText === '' ? totalSize - 1 : Number(endText);
   }
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return null;
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end < start
+  )
+    return null;
   if (start >= totalSize) return null;
   return { start, end: Math.min(end, totalSize - 1) };
 }
@@ -93,7 +108,12 @@ export interface AuthorizedMedia {
  * against this project's installed fastify/light-my-request versions before this was written this
  * way; see this lane's PR for the reproduction.
  */
-export async function sendMedia(req: FastifyRequest, reply: FastifyReply, mediaRoot: string, authorized: AuthorizedMedia): Promise<FastifyReply> {
+export async function sendMedia(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  mediaRoot: string,
+  authorized: AuthorizedMedia,
+): Promise<FastifyReply> {
   const absolutePath = join(mediaRoot, authorized.storageKey);
   let fileStat;
   try {
@@ -121,7 +141,10 @@ export async function sendMedia(req: FastifyRequest, reply: FastifyReply, mediaR
 
   if (range) {
     reply.code(206);
-    reply.header('Content-Range', `bytes ${range.start}-${range.end}/${totalSize}`);
+    reply.header(
+      'Content-Range',
+      `bytes ${range.start}-${range.end}/${totalSize}`,
+    );
     reply.header('Content-Length', String(range.end - range.start + 1));
   } else {
     reply.code(200);
@@ -131,5 +154,9 @@ export async function sendMedia(req: FastifyRequest, reply: FastifyReply, mediaR
   if (req.method === 'HEAD') {
     return reply.send();
   }
-  return reply.send(range ? createReadStream(absolutePath, { start: range.start, end: range.end }) : createReadStream(absolutePath));
+  return reply.send(
+    range
+      ? createReadStream(absolutePath, { start: range.start, end: range.end })
+      : createReadStream(absolutePath),
+  );
 }

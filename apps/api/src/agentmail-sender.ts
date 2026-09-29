@@ -29,7 +29,11 @@ export const AGENTMAIL_TIMEOUT_MS = 10_000;
  * unbounded response (same discipline as `apps/worker/src/cutroom/http-client.ts`'s `readBody`). */
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
-export type AgentMailFailureReason = 'http_error' | 'timeout' | 'network_error' | 'malformed_response';
+export type AgentMailFailureReason =
+  | 'http_error'
+  | 'timeout'
+  | 'network_error'
+  | 'malformed_response';
 
 /**
  * Everything this module ever throws. Deliberately carries only fields safe to hand an operator: an
@@ -44,7 +48,11 @@ export class AgentMailSendError extends Error {
   readonly reason: AgentMailFailureReason;
   readonly messageId: string | null;
 
-  constructor(reason: AgentMailFailureReason, httpStatus: number | null = null, messageId: string | null = null) {
+  constructor(
+    reason: AgentMailFailureReason,
+    httpStatus: number | null = null,
+    messageId: string | null = null,
+  ) {
     super(`AgentMail send failed: ${reason}`);
     this.name = 'AgentMailSendError';
     this.httpStatus = httpStatus;
@@ -68,7 +76,11 @@ export interface SendFailureLogFields {
  */
 export function describeSendFailure(error: unknown): SendFailureLogFields {
   if (error instanceof AgentMailSendError) {
-    return { httpStatus: error.httpStatus, reason: error.reason, messageId: error.messageId };
+    return {
+      httpStatus: error.httpStatus,
+      reason: error.reason,
+      messageId: error.messageId,
+    };
   }
   return { httpStatus: null, reason: 'unknown', messageId: null };
 }
@@ -95,7 +107,11 @@ interface ParsedSendResponse {
  * failure rather than an unbounded memory read. */
 async function readBoundedText(response: Response): Promise<string | null> {
   const declared = response.headers.get('content-length');
-  if (declared !== null && /^\d+$/.test(declared) && Number(declared) > MAX_RESPONSE_BYTES) {
+  if (
+    declared !== null &&
+    /^\d+$/.test(declared) &&
+    Number(declared) > MAX_RESPONSE_BYTES
+  ) {
     await response.body?.cancel();
     return null;
   }
@@ -118,7 +134,9 @@ async function readBoundedText(response: Response): Promise<string | null> {
     reader.releaseLock();
   }
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks, bytes));
+    return new TextDecoder('utf-8', { fatal: true }).decode(
+      Buffer.concat(chunks, bytes),
+    );
   } catch {
     return null;
   }
@@ -132,10 +150,15 @@ function parseSendResponse(raw: string | null): ParsedSendResponse | null {
   } catch {
     return null;
   }
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    return null;
   const record = value as Record<string, unknown>;
-  if (typeof record.message_id !== 'string' || record.message_id.length === 0) return null;
-  return { messageId: record.message_id, threadId: typeof record.thread_id === 'string' ? record.thread_id : null };
+  if (typeof record.message_id !== 'string' || record.message_id.length === 0)
+    return null;
+  return {
+    messageId: record.message_id,
+    threadId: typeof record.thread_id === 'string' ? record.thread_id : null,
+  };
 }
 
 /** Best-effort extraction of a message id from an error-status body, purely as extra debugging
@@ -233,10 +256,15 @@ export class AgentMailSender implements MagicLinkSender {
       }
 
       if (response.status < 200 || response.status >= 300) {
-        throw new AgentMailSendError('http_error', response.status, messageIdFromErrorBody(raw));
+        throw new AgentMailSendError(
+          'http_error',
+          response.status,
+          messageIdFromErrorBody(raw),
+        );
       }
       const parsed = parseSendResponse(raw);
-      if (!parsed) throw new AgentMailSendError('malformed_response', response.status);
+      if (!parsed)
+        throw new AgentMailSendError('malformed_response', response.status);
       this.lastDeliveryMetadata = parsed;
     } finally {
       clearTimeout(timer);

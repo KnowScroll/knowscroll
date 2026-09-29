@@ -13,6 +13,11 @@
     "maintenance:reasoning": "tsx apps/worker/src/reasoning/maintenance-main.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "format": "pnpm format:sql && pnpm format:ts",
+    "format:sql": "node scripts/format-query-sql.mjs --write",
+    "format:ts": "biome format --write apps/api packages",
+    "format:check": "node scripts/format-query-sql.mjs --check && biome format apps/api packages",
+    "lint": "biome lint apps/api packages",
     "typecheck": "tsc --noEmit",
     "typecheck:web": "pnpm --filter web typecheck",
     "test": "./scripts/test.sh",
@@ -28,8 +33,10 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/node": "^22.18.0",
     "@types/pg": "^8.15.5",
+    "sql-formatter": "15.9.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }
