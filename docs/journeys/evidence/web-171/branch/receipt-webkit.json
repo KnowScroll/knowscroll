@@ -1,0 +1,16 @@
+{
+  "journey": "web-reader-92",
+  "startedAt": "2026-09-29T17:27:56.521Z",
+  "database": "knowscroll_test_webbranch_d633e9e7bb97de36",
+  "apiPort": 55227,
+  "faultProxyPort": 55256,
+  "webPort": 55257,
+  "devAuthProxySmokeCheck": "passed (unauthenticated /v1/session via proxy returned 200)",
+  "playwright": {
+    "result": "passed"
+  },
+  "mode": "source-backed-branch",
+  "browser": "webkit",
+  "finishedAt": "2026-09-29T17:28:09.224Z",
+  "databaseDropped": true
+}

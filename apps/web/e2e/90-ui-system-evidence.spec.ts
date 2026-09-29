@@ -43,7 +43,7 @@ async function openSavedTrace(page: Page): Promise<void> {
 
 test.describe('ui-system.md fidelity evidence (#107)', () => {
   for (const viewport of viewports) {
-    test(`reader, sources, why-this and Traces at ${viewport.name}`, async ({ page }) => {
+    test(`reader, context, why-this and Traces at ${viewport.name}`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Your curiosity leaves a trace.' })).toBeVisible();
@@ -56,11 +56,14 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       await page.waitForTimeout(300);
       await page.screenshot({ path: join(screenshotsDir, `reader-${viewport.name}.png`), fullPage: true });
 
-      // Sources panel open (a cream sheet flanking the stage).
-      await page.getByRole('button', { name: /Open sources panel/ }).click();
-      await expect(page.getByRole('link', { name: /Open source/ })).toBeVisible();
-      await page.screenshot({ path: join(screenshotsDir, `reader-sources-${viewport.name}.png`), fullPage: true });
-      await page.getByRole('button', { name: /Close sources panel/ }).click();
+      // Context panel keeps source identifiers private.
+      await page.getByRole('button', { name: 'Open context panel' }).click();
+      const context = page.getByRole('complementary', { name: 'Scroll context' });
+      await expect(context).toBeVisible();
+      await expect(context.locator('a')).toHaveCount(0);
+      await expect(context).not.toContainText(/https?:\/\//i);
+      await page.screenshot({ path: join(screenshotsDir, `reader-context-${viewport.name}.png`), fullPage: true });
+      await page.getByRole('button', { name: 'Close the context panel' }).click();
 
       // Why this appeared open. A Trace revisit deliberately carries no recommendation reason
       // (docs/contracts/trace-revisit.md), so this also exercises the honest fallback copy.
@@ -107,40 +110,34 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
       await keep.scrollIntoViewIfNeeded();
       await expect(keep).toBeInViewport();
 
-      // Above the breakpoint the context rail is present, so the why-this sheet
-      // must not grow past the bottom of a clipped screen. Below it the rail is
-      // collapsed by design and the whole stage flows instead, so the source
-      // sheet is what has to stay reachable.
+      // The context controls stay present on phones; only their layout changes.
       await expectNothingClipped(page, 'reading');
 
-      // Both sheets, not just the one that was fixed first. The source sheet
-      // carries evidence access (definition.md law 9), so a reader who cannot
-      // see "Open source" has lost the point of the surface.
+      // Check the context sheet remains reachable alongside the reading controls.
       if (viewport.width > 700) {
         await page.getByRole('button', { name: 'Why this appeared' }).click();
         await expect(page.getByText('No explanation recorded.')).toBeVisible();
         await expectNothingClipped(page, 'why-this open');
         await page.getByRole('button', { name: 'Why this appeared' }).click();
       } else {
-        await expect(page.locator('.context-rail')).toBeHidden();
+        await expect(page.locator('.context-rail')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Open context panel' })).toBeVisible();
       }
 
       await page.keyboard.press('s');
-      const link = page.getByRole('link', { name: /Open source/ });
-      await expect(link).toBeVisible();
-      await expectNothingClipped(page, 'sources open');
-      await link.scrollIntoViewIfNeeded();
-      await expect(link).toBeInViewport();
+      const context = page.getByRole('complementary', { name: 'Scroll context' });
+      await expect(context).toBeVisible();
+      await expectNothingClipped(page, 'context open');
+      await expect(context.locator('a')).toHaveCount(0);
     });
   }
 
-  test('the context rail really does collapse below 700px', async ({ page }) => {
-    // The collapse rule existed but sat before an unconditional rule of equal
-    // specificity, so the cascade silently discarded it.
+  test('the context controls stay accessible across the phone breakpoint', async ({ page }) => {
     await page.setViewportSize({ width: 660, height: 800 });
     await page.goto('/');
     await openSavedTrace(page);
-    await expect(page.locator('.context-rail')).toBeHidden();
+    await expect(page.locator('.context-rail')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open context panel' })).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.locator('.context-rail')).toBeVisible();
   });
@@ -251,7 +248,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await expect.poll(() => page.getByRole('heading', { level: 2 }).textContent()).not.toBe(title);
   });
 
-  test('opening and closing the source rail never moves the sentence being read', async ({ page }) => {
+  test('opening and closing the context panel never moves the sentence being read', async ({ page }) => {
     // A rail that flanks the stage holds its place. If the grid gains a track
     // on open, the whole stage re-centres and the reading column slides out
     // from under the eye mid-sentence -- the opposite of the deliberate,
@@ -263,12 +260,12 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await expect(column).toBeVisible();
     const before = await column.boundingBox();
 
-    await page.getByRole('button', { name: /Open sources panel/ }).click();
-    await expect(page.getByRole('link', { name: /Open source/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Open context panel' }).click();
+    await expect(page.getByRole('complementary', { name: 'Scroll context' })).toBeVisible();
     const open = await column.boundingBox();
 
-    await page.getByRole('button', { name: /Close sources panel/ }).click();
-    await expect(page.getByRole('link', { name: /Open source/ })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Close the context panel' }).click();
+    await expect(page.getByRole('complementary', { name: 'Scroll context' })).toHaveCount(0);
     const after = await column.boundingBox();
 
     expect(before).not.toBeNull();
@@ -330,8 +327,8 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     expect(universeSerious, JSON.stringify(universeSerious, null, 2)).toHaveLength(0);
 
     await openSavedTrace(page);
-    await page.getByRole('button', { name: /Open sources panel/ }).click();
-    await expect(page.getByRole('link', { name: /Open source/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Open context panel' }).click();
+    await expect(page.getByRole('complementary', { name: 'Scroll context' })).toBeVisible();
     const readerResults = await new AxeBuilder({ page }).include('main').analyze();
     writeEvidence('axe-reader.json', readerResults);
     const readerSerious = readerResults.violations.filter(v => v.impact === 'serious' || v.impact === 'critical');
@@ -357,8 +354,11 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     // many saved Traces already exist by this point in the run, plus Enter
     // Scroll), confirming each Tab lands on a real, visibly focused control.
     const universeControlCount = await page.getByRole('button', { disabled: false }).count();
+    // WebKit follows Safari's default of tabbing text controls only. Option-Tab
+    // explicitly walks all page controls, independent of the user's Safari preference.
+    const nextControlKey = test.info().project.name === 'webkit' ? 'Alt+Tab' : 'Tab';
     for (let i = 0; i < universeControlCount; i++) {
-      await page.keyboard.press('Tab');
+      await page.keyboard.press(nextControlKey);
       await expect(page.locator(':focus')).toBeVisible();
     }
     await page.screenshot({ path: join(screenshotsDir, 'universe-keyboard-focus-1440x900.png'), fullPage: true });
@@ -366,9 +366,9 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('article')).toBeVisible();
-    // Sources trigger -> Why trigger -> Kept (disabled, still tabbable) -> Next: walk them all.
+    // Context trigger -> Why trigger -> Keep (disabled, still tabbable) -> Next.
     for (let i = 0; i < 4; i++) {
-      await page.keyboard.press('Tab');
+      await page.keyboard.press(nextControlKey);
       await expect(page.locator(':focus')).toBeVisible();
     }
     await page.screenshot({ path: join(screenshotsDir, 'reader-keyboard-focus-1440x900.png'), fullPage: true });
