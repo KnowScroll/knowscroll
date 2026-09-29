@@ -185,6 +185,26 @@ test('an encounter lists continuations only along admitted bridges, and says why
   assert.equal((await app.inject({ url: `/v1/assets/${randomUUID()}/branches`, headers: headers(reader.token) })).statusCode, 404);
 });
 
+test('web branch projections omit every source identifier while legacy projection stays intact', async () => {
+  const fixture = await loaded();
+  const reader = await provisionIdentity();
+  const legacy = await app.inject({ url: `/v1/assets/${fixture.assets.gravity}/branches`, headers: headers(reader.token) });
+  const web = await app.inject({ url: `/v1/assets/${fixture.assets.gravity}/branches?webReader=v1`, headers: headers(reader.token) });
+  assert.equal(legacy.statusCode, 200);
+  assert.equal(web.statusCode, 200);
+  assert.ok(legacy.json().branches[0].evidence[0].sourceTitle);
+  assert.ok('sourceUrl' in legacy.json().branches[0].evidence[0]);
+  const projected = web.json();
+  assert.ok(projected.branches.length > 0);
+  for (const branch of projected.branches) {
+    assert.equal('sourceTitle' in branch.target, false);
+    for (const evidence of branch.evidence) {
+      assert.equal('sourceTitle' in evidence, false);
+      assert.equal('sourceUrl' in evidence, false);
+    }
+  }
+});
+
 test('opening a branch serves the target through a decision, records a caused branch event, and replays exactly', async () => {
   const fixture = await loaded();
   const reader = await provisionIdentity();
@@ -213,6 +233,23 @@ test('opening a branch serves the target through a decision, records a caused br
   const foreign = await provisionIdentity();
   const notMine = await app.inject({ method: 'POST', url: '/v1/branches', headers: headers(foreign.token), payload: { ...body, clientBranchId: randomUUID() } });
   assert.equal(notMine.statusCode, 422, 'another universe cannot branch from this exposure');
+});
+
+test('web branch-open projection omits source identifiers and marks absent web artifact', async () => {
+  const fixture = await loaded();
+  const reader = await provisionIdentity();
+  const origin = await exposeDirect(reader.token, reader.scope.universeId, 0, fixture.assets.gravity);
+  const branch = (await branches(reader.token, fixture.assets.gravity)).branches[0]!;
+  const response = await app.inject({
+    method: 'POST', url: '/v1/branches?webReader=v1', headers: headers(reader.token),
+    payload: { clientBranchId: randomUUID(), fromExposureId: origin.exposureId, bridgeId: branch.bridgeId, targetAssetId: branch.target.assetId, expectedPrivacyEpoch: 0 },
+  });
+  assert.equal(response.statusCode, 201, response.body);
+  const item = response.json().items[0];
+  assert.equal(item.assetId, branch.target.assetId);
+  assert.equal(item.webArtifact, null);
+  assert.equal('sourceTitle' in item, false);
+  assert.equal('sourceUrl' in item, false);
 });
 
 test('a branch revoked between listing and opening is refused, not served', async () => {

@@ -372,6 +372,118 @@ export interface EncounterBranchesResponse {
     | null;
 }
 
+/** Source-free projection requested by the browser with `?webReader=v1`. The native contract
+ * above intentionally remains unchanged for Android; a web client must never receive source
+ * names or URLs from the continuation surface. */
+export const webEncounterBranchSchema = z
+  .object({
+    branchId: z.string().uuid(),
+    bridgeId: z.string().uuid(),
+    relationType: bridgeRelationType,
+    direction: z.enum(['forward', 'reverse']),
+    relationPhrase: z.string(),
+    fromConcept: z.object({ code: conceptCode, name: z.string() }).strict(),
+    toConcept: z.object({ code: conceptCode, name: z.string() }).strict(),
+    mechanism: z.string(),
+    limitations: z.array(
+      z.object({ kind: limitationKind, statement: z.string() }).strict(),
+    ),
+    prerequisites: z.array(z.string()),
+    evidence: z.array(
+      z
+        .object({
+          claimKey: semanticKey,
+          statement: z.string(),
+          supports: evidenceSupports,
+        })
+        .strict(),
+    ),
+    target: z
+      .object({
+        assetId: z.string().uuid(),
+        revision: z.number().int().positive(),
+        kind: z.literal('Scroll'),
+        title: z.string(),
+        summary: z.string(),
+      })
+      .strict(),
+    seen: z.boolean(),
+  })
+  .strict();
+export type WebEncounterBranch = z.infer<typeof webEncounterBranchSchema>;
+
+export const webEncounterBranchesResponseSchema = z
+  .object({
+    assetId: z.string().uuid(),
+    revision: z.number().int().positive(),
+    privacyEpoch: z.number().int().nonnegative(),
+    branches: z.array(webEncounterBranchSchema).max(4),
+    emptyReason: z
+      .enum([
+        'no_semantic_annotation',
+        'no_admitted_bridge',
+        'no_eligible_target',
+      ])
+      .nullable(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if ((value.branches.length === 0) !== (value.emptyReason !== null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Empty continuation lists must give one reason',
+      });
+    }
+  });
+export type WebEncounterBranchesResponse = z.infer<
+  typeof webEncounterBranchesResponseSchema
+>;
+
+/** The browser branch receipt carries the source-free Scroll item shape. `webArtifact` is null
+ * because this explicit continuation route does not compile media or generated Scroll artifacts. */
+export const webBranchScrollItemSchema = z
+  .object({
+    assetId: z.string().uuid(),
+    revision: z.number().int().positive(),
+    kind: z.literal('Scroll'),
+    title: z.string(),
+    summary: z.string(),
+    body: z.string(),
+    truthState: z.string().min(1),
+    reason: z.string(),
+    webArtifact: z.null(),
+  })
+  .strict();
+export const webBranchOpenResponseSchema = z
+  .object({
+    decisionId: z.string().uuid().nullable(),
+    universeId: z.string().uuid(),
+    accountRevision: z.number().int().nonnegative(),
+    privacyEpoch: z.number().int().nonnegative(),
+    items: z.array(webBranchScrollItemSchema).length(1),
+    branch: z
+      .object({
+        branchOpenId: z.string().uuid().nullable(),
+        recorded: z.boolean(),
+        bridgeId: z.string().uuid(),
+        relationType: bridgeRelationType,
+        direction: z.enum(['forward', 'reverse']),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const recorded =
+      value.decisionId !== null && value.branch.branchOpenId !== null;
+    if (recorded !== value.branch.recorded) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Branch receipt recording fields disagree',
+      });
+    }
+  });
+export type WebBranchOpenResponse = z.infer<typeof webBranchOpenResponseSchema>;
+
 export const branchOpenInput = z
   .object({
     clientBranchId: z.string().uuid(),

@@ -15,6 +15,7 @@ import type {
   CheckedScroll,
   OfferedConcept,
 } from '../../../core/src/scrolls/writing.ts';
+import { createCheckedScrollWebArtifact } from '../../../core/src/scrolls/web-artifact.ts';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 
@@ -365,6 +366,7 @@ export async function admitModelScroll(
           title,
           summary,
           body,
+          web_artifact,
           source_title,
           source_url,
           truth_state,
@@ -380,10 +382,11 @@ export async function admitModelScroll(
           $4,
           $5,
           $6,
+          $7,
           'documented',
           (
             SELECT
-              GREATEST(COALESCE(MAX(editorial_order), -1), $7) + 1
+              GREATEST(COALESCE(MAX(editorial_order), -1), $8) + 1
             FROM
               asset
           )
@@ -394,6 +397,15 @@ export async function admitModelScroll(
       scroll.title,
       scroll.summary,
       scroll.body,
+      JSON.stringify(
+        createCheckedScrollWebArtifact({
+          assetId,
+          revision: 1,
+          title: scroll.title,
+          beats: scroll.beats,
+          body: scroll.body,
+        }),
+      ),
       `${source.publisher} · ${source.title}`,
       material.url,
       MODEL_SCROLL_ORDER_FLOOR,

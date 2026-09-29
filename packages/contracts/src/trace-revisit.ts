@@ -46,3 +46,12 @@ export const traceRevisitReceipt = z
   })
   .strict();
 export type TraceRevisit = z.infer<typeof traceRevisitReceipt>;
+
+/** The browser's reader projection retains the verified Trace but omits internal source names. */
+export const webTraceRevisitScroll = traceRevisitScroll
+  .omit({ sourceTitle: true, sourceUrl: true })
+  .strict();
+export const webTraceRevisitReceipt = traceRevisitReceipt
+  .extend({ scroll: webTraceRevisitScroll })
+  .strict();
+export type WebTraceRevisit = z.infer<typeof webTraceRevisitReceipt>;
