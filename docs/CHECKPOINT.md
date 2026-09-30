@@ -1,5 +1,32 @@
 # Shared delivery checkpoint
 
+## 2026-09-30 #171 web reader hands-on follow-up, PR #195 (unmerged)
+
+The same SSD branch now has bounded drag/keyboard/button panning and zooming in Universe, decorative
+starfield parallax, and an SVG ship transition before planet/Trace entry. The phone Atlas copy and
+map labels have been made more legible. Scroll and Reel surfaces show vertical and horizontal
+encounter controls; the floating controls yield when a Scroll's own Next actions enter view.
+Saved Trace revisits now receive the same checked web artifact after the original guarded Trace
+read verifies its asset, revision and body; the revisit still records no new exposure.
+
+Two **authored test** Scroll artifacts add a Canvas wave, diagram/comparison, disclosure and static
+code rendering. A disposable-only feed preview offers them through normal decision/exposure/Keep
+logic. A separate Reel-only preview offers three gated **test media** Reels from the owner's supplied
+local files. These videos remain outside Git, and neither the media nor the Scroll studies are
+claims of Cutroom or model generation. The preview is presently live at `http://127.0.0.1:4397/`
+with a throwaway database; its local session ends when the preview process stops.
+
+Observed in the browser at a 390 × 844 viewport: panning/zoom changed the camera and starfield,
+ship travel appeared before a planet opened, the Canvas slider changed visible sample values,
+horizontal connection navigation opened a sourced Scroll, all three test Reels reached the player,
+one supplied video played with loaded metadata, and a kept interactive Scroll reopened with its
+Canvas and code blocks intact. Web unit tests: 248/248. Targeted disposable database tests:
+29/29 across two runs. Full Chromium and WebKit reader journeys: 52 passed in each engine,
+three fixture-only tests skipped in each;
+the first attempt exposed an overlay that blocked the inline Next button, and the subsequent run
+passed after the controls were corrected. Production web identity (#2), actual Cutroom output,
+model-authored interactive blocks, and physical iPhone acceptance remain open.
+
 ## 2026-09-29 #171 web reader implementation, PR #195 (unmerged)
 
 Branch `codex/171-web-ios-v1` in the SSD worktree

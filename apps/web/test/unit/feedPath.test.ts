@@ -7,6 +7,8 @@ describe('feedPath', () => {
   it('sends nothing for a fresh trip', () => {
     expect(feedPath([])).toBe('/feed?webArtifact=v1');
     expect(feedPath([], true)).toBe('/feed?webArtifact=v1&kinds=Scroll,Reel');
+    expect(feedPath([], 'reelOnly')).toBe('/feed?webArtifact=v1&kinds=Reel');
+    expect(feedPath([], false, 'authored-web-scrolls')).toBe('/feed?webArtifact=v1&preview=authored-web-scrolls');
   });
   it('sends only UUIDs, once each, the most recent 256', () => {
     const ids = Array.from({ length: 300 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);

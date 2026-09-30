@@ -277,6 +277,7 @@ describe('ReaderStore', () => {
         summary: feedItem().summary,
         body: feedItem().body,
         truthState: 'documented',
+        webArtifact: null,
       },
     });
     store.openTrace({ eventId: 'e1', assetId: feedItem().assetId, title: 'Kept title', createdAt: '2026-01-01T00:00:00Z' });
@@ -353,6 +354,7 @@ describe('ReaderStore', () => {
         summary: feedItem().summary,
         body: feedItem().body,
         truthState: 'documented',
+        webArtifact: null,
       },
     });
     store.openTrace({ eventId: 'trace-1', assetId: feedItem().assetId, title: feedItem().title, createdAt: '2026-01-01T00:00:00.000Z' });

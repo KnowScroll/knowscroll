@@ -21,6 +21,7 @@ describe('NativeScroll', () => {
       { type: 'timeline', title: 'Sequence', events: [{ label: 'First', detail: 'Starts' }, { label: 'Then', detail: 'Changes' }] },
       { type: 'diagram', title: 'A small map', nodes: [{ id: 'a', label: 'One' }, { id: 'b', label: 'Two' }], edges: [{ from: 'a', to: 'b', label: 'leads to' }] },
       { type: 'visualization', title: 'A wave', description: 'Move the control to change the example curve.', frequency: 1 },
+      { type: 'code', title: 'A sketch', language: 'javascript', code: 'const safe = "<script>alert(1)</script>";', caption: 'Displayed, never executed.' },
     ];
     render(<NativeScroll item={item({ blocks })} />);
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
@@ -29,6 +30,8 @@ describe('NativeScroll', () => {
     expect(screen.getByRole('heading', { name: 'Two ways' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'A small map' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Sample values, available without the canvas' })).toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: 'A sketch' })).toHaveTextContent('<script>alert(1)</script>');
+    expect(document.querySelector('script')).toBeNull();
   });
 
   it('shows a visible safe fallback for malformed and unsupported blocks', () => {

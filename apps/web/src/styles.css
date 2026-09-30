@@ -263,7 +263,9 @@ a:focus-visible,
 .universe-screen {
   position: relative;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  isolation: isolate;
 }
 
 /* Loading / unavailable: no bodies yet, so the title HUD is centred instead
@@ -350,6 +352,16 @@ a:focus-visible,
   height: 100%;
   z-index: 0;
 }
+.cosmos-background.parallax {
+  inset: -20%;
+  width: 140%;
+  height: 140%;
+  pointer-events: none;
+  transition: transform .42s cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cosmos-background.parallax { transition: none; }
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .cosmos-background {
@@ -386,8 +398,22 @@ a:focus-visible,
   /* Sheet-motion timing (ui-system.md sec.3), applied to the map-tools zoom
      scale; suspended under reduced motion by the global rule above -- the
      scale still changes, instantly. */
-  transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
+.universe-camera {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+}
+.universe-camera:active { cursor: grabbing; }
+.universe-camera:focus-visible { outline: 2px solid var(--teal); outline-offset: -4px; }
+.universe-camera .universe-bodies { z-index: 0; }
+.universe-camera.is-dragging .universe-bodies { transition: none; }
 .universe-bodies-nav {
   display: contents;
 }
@@ -540,6 +566,7 @@ a:focus-visible,
   align-items: center;
   gap: 7px;
 }
+.pan-controls { display: flex; gap: 4px; }
 .zoom-button {
   height: 34px;
   width: 34px;
@@ -598,7 +625,12 @@ a:focus-visible,
   left: clamp(20px, 4vw, 48px);
   bottom: 132px;
   max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
+.pill.reel-preview-cta { height: 34px; font-size: 12px; border: 1px solid rgba(143,233,228,.55); background: rgba(4,30,42,.88); color: #e8fffa; }
 .cta-helper {
   color: var(--muted);
   font-size: 12px;
@@ -1514,27 +1546,45 @@ h1,h2,h3,.pill,.world-name,.dock-button { font-family: var(--font-display); }
   .privacy-entry { right: 18px; }
   .map-tools { left: 20px; bottom: 112px; }
 }
-/* At narrow/short sizes use document flow: map labels and controls stay reachable without
-   scaling a desktop absolute-position grid underneath the dock. */
+/* Keep the camera, frame copy and reachable controls intact on narrow screens. */
 @media (max-width: 1023px), (max-height: 600px) {
-  .universe-screen { height: auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 28px 24px 110px; overflow: clip; }
-  .universe-title { position: relative; inset: auto; padding-right: 85px; }
-  .universe-title h1 { max-width: 18ch; }
-  .privacy-entry { top: 28px; right: 20px; }
-  .universe-bodies { position: relative; inset: auto; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 30px 20px; margin: 36px 0 20px; min-height: 250px; transform: none !important; align-items: start; }
-  .universe-bodies .body-button { position: relative; left: auto !important; top: auto !important; transform: none; width: 100% !important; height: auto !important; min-height: 118px; display: flex; flex-direction: column; justify-content: flex-start; background: transparent; box-shadow: none; }
-  .universe-bodies .body-label { position: static; transform: none; width: 100%; max-width: 100%; margin-top: 8px; }
-  .universe-bodies .body-name { white-space: normal; overflow-wrap: anywhere; text-align: center; max-width: 100%; font-size: 13px; }
-  .universe-bodies .body-button.seed { grid-column: 1 / -1; min-height: 140px; padding-top: 42px; background: radial-gradient(ellipse at 50% 30%,#33c4b425,transparent 55%); }
-  .universe-bodies .body-button.dust { opacity: .7; min-height: 60px; }
-  .universe-bodies .body-button.nebula { padding: 20px 8px; border: 1px dashed #8fe9e44a; border-radius: 22px; min-height: 110px; }
-  .universe-legend { position: relative; inset: auto; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
-  .map-tools { position: relative; inset: auto; justify-content: center; margin: 12px 0; }
-  .map-tools .zoom-button { display: none; }
-  .universe-hint { position: relative; inset: auto; margin: 10px 0; }
-  .universe-cta-block { position: relative; inset: auto; max-width: none; text-align: center; margin: 16px 0; }
-  .universe-screen .universe-dock { position: fixed; }
+  .universe-screen { height: 100dvh; min-height: 0; display: block; padding: 0; overflow: hidden; }
+  .universe-title { top: 22px; left: 20px; right: 94px; z-index: 3; padding: 10px 12px 12px; border-radius: 16px; background: linear-gradient(110deg,rgba(3,16,26,.92),rgba(3,16,26,.62),transparent); }
+  .universe-title h1 { max-width: 18ch; font-size: clamp(25px,7vw,30px); line-height: 1.04; }
+  .universe-title .universe-subtitle { font-size: 12px; line-height: 1.45; color: #d4e1e4; }
+  .growth-caption { margin-top: 8px; font-size: 10px; }
+  .privacy-entry { top: 24px; right: 16px; z-index: 4; }
+  .universe-camera { inset: 0; }
+  .universe-bodies { inset: 185px 0 236px; display: block; margin: 0; min-height: 0; transform-origin: 50% 50%; }
+  .universe-bodies .body-button { position: absolute; left: var(--body-left, auto); top: var(--body-top, auto); transform: translate(-50%,-50%); width: auto; height: auto; min-height: 0; display: flex; background: unset; box-shadow: unset; }
+  .universe-bodies .body-button.seed { grid-column: auto; min-height: 0; padding: 0; background: radial-gradient(circle at 34% 30%,#fff5c4,#e6ad36 55%,#895e21); }
+  .universe-bodies .body-button.dust { min-height: 0; }
+  .universe-bodies .body-button.nebula { min-height: 72px; padding: 12px 8px; border: 1.5px dashed rgba(143,233,228,.55); border-radius: 22px; }
+  .universe-bodies .body-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: max-content; max-width: var(--label-max,26ch); margin-top: 8px; }
+  .universe-bodies .body-name { white-space: normal; overflow-wrap: anywhere; text-align: center; max-width: var(--label-max,26ch); font-size: 12px; background: rgba(3,16,26,.92); }
+  .universe-bodies .body-sub { color: #d2dfe1; }
+  .universe-legend { right: 0; left: 0; bottom: 264px; justify-content: center; gap: 16px; color: #d2dfe1; text-shadow: 0 2px 5px #03101a; }
+  .map-tools { position: absolute; inset: 145px 0 auto; justify-content: center; flex-wrap: wrap; gap: 5px; }
+  .map-tools .zoom-button { display: inline-grid; place-items: center; height: 32px; width: 32px; }
+  .pan-controls { gap: 3px; }
+  .map-scale-label { min-height: 32px; padding: 0 9px; font-size: 12px; }
+  .universe-hint { left: 0; right: 0; bottom: 92px; margin: 0; font-size: 11px; color: #d2dfe1; }
+  .universe-cta-block { left: 0; right: 0; bottom: 116px; max-width: none; margin: 0; text-align: center; align-items: center; }
+  .universe-cta-block .cta-helper { display: none; }
+  .universe-screen .universe-dock { position: absolute; bottom: 12px; }
+  .universe-dock .dock-button { padding: 7px 17px; }
 }
+@media (max-width: 600px) {
+  .map-tools.has-traces { top: 230px; }
+}
+
+.travel-overlay { position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 50% 88%,rgba(16,77,89,.26),transparent 38%); }
+.travel-trail { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .7; }
+.travel-trail path { fill: none; stroke: #8fe9e4; stroke-width: .35; stroke-dasharray: 1.3 1.8; animation: travel-streak 1s ease-out forwards; }
+.travel-ship { position: absolute; left: 50%; top: 88%; width: 74px; height: 62px; filter: drop-shadow(0 0 10px rgba(71,226,215,.7)); animation: travel-flight 1s cubic-bezier(.2,.75,.24,1) forwards; }
+.travel-caption { position: absolute; left: 50%; top: calc(88% + 43px); transform: translateX(-50%); padding: 5px 10px; border-radius: 99px; color: var(--cream); background: rgba(3,16,26,.82); font: 700 10px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+@keyframes travel-flight { 0% { transform: translate(-50%,-50%) scale(.8) rotate(-12deg); opacity: 0; } 12% { opacity: 1; } 78% { opacity: 1; } 100% { transform: translate(calc(-50% + var(--travel-dx)),calc(-50% + var(--travel-dy))) scale(.34) rotate(26deg); opacity: .15; } }
+@keyframes travel-streak { from { opacity: 0; stroke-dashoffset: 8; } 25% { opacity: .8; } to { opacity: 0; stroke-dashoffset: 0; } }
 .observatory .universe-dock, .keep-screen .universe-dock { position: fixed; }
 /* Reserve space for the shared compass instead of covering world/source controls with it. */
 .observatory, .keep-screen { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }

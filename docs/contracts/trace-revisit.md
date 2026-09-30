@@ -30,6 +30,12 @@ type TraceRevisit = {
 
 `ScrollAsset` is the existing documented Scroll display shape, without a recommendation reason. `keptAt` is the original Keep Ledger row's `created_at`, not its later projection time; the existing universe Trace `createdAt` retains its current projection timestamp. The client may explain the explicit fact “Saved from your Keep”; it may not invent selection personalization. Canonical UUIDs are returned. The route accepts no body or alternative asset/decision/session identifiers. Invalid event ID → 400; rejected session → generic 401; missing/foreign/unprojected Trace → generic 404; stale epoch or changed source → 409; inconsistent/ambiguous/malformed lineage → 422. No private content or raw SQL errors appear in error bodies. Reuse existing error semantics with stable, brief messages.
 
+For `?webReader=v1`, the source-free browser projection also returns `scroll.webArtifact` as a
+nullable checked declarative artifact. It is validated against the exact asset ID, revision and
+body that the guarded revisit just verified while holding the asset lock. Invalid or stale
+artifacts become `null`, leaving the body fallback intact. The plain endpoint and its nine-field
+Scroll contract stay unchanged. This read adds no decision or exposure.
+
 `GET /v1/universe` retains its existing response shape. Trace titles must come from the unique valid original selected snapshot, not the mutable asset title. Malformed/unavailable selection history uses the neutral title “Saved Scroll unavailable” without preventing other valid entries from returning. This list does not certify current source availability; opening performs the full guarded read. Current source drift never renames the historical Trace.
 
 ## Native state and navigation

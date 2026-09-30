@@ -64,6 +64,15 @@ export const webScrollBlockV1 = z.discriminatedUnion('type', [
       frequency: z.number().min(0.5).max(4),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('code'),
+      title: text(160),
+      language: z.enum(['javascript', 'typescript', 'python', 'text']),
+      code: text(3200),
+      caption: text(300).optional(),
+    })
+    .strict(),
 ]);
 export type WebScrollBlockV1 = z.infer<typeof webScrollBlockV1>;
 
@@ -77,7 +86,7 @@ export const webScrollArtifactV1 = z
     accessibility: z.object({ title: text(160) }).strict(),
     provenance: z
       .object({
-        kind: z.literal('checked_model_scroll'),
+        kind: z.enum(['checked_model_scroll', 'authored_test_fixture']),
         generation: z.literal('complete'),
         validation: z.literal('passed'),
       })

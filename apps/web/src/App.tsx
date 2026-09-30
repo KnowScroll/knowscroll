@@ -56,8 +56,13 @@ export function App({ apiClient, onSignedOut }: AppProps) {
       onReturn={() => store.returnAlongBranch()}
     />
   ) : undefined;
+  const canExploreCurrent = state.scroll.status === 'reading' && !(state.scroll.origin.type === 'branch' && !state.scroll.origin.recorded);
   const openFirstBranch = branchView.status === 'loaded' && branchView.canOpen && branchChoices.length > 0
-    ? () => store.openBranch(branchChoices[0]!.branchId) : undefined;
+    ? () => store.openBranch(branchChoices[0]!.branchId)
+    : canExploreCurrent && (branchView.status === 'idle' || branchView.status === 'unavailable')
+      ? () => store.refreshBranches()
+      : undefined;
+  const branchForwardLabel = branchView.status === 'loaded' ? 'Follow connection' : 'Find connections';
   const returnBranch = canReturnAlongBranch ? () => store.returnAlongBranch() : undefined;
 
   const scrollScreen = (
@@ -95,6 +100,8 @@ export function App({ apiClient, onSignedOut }: AppProps) {
           state={state.universe}
           storage={storage}
           onEnterScroll={() => store.enterScroll()}
+          onEnterTestReels={import.meta.env.VITE_KS_TEST_REELS === '1' ? () => store.enterTestReels() : undefined}
+          onEnterRichScrolls={import.meta.env.VITE_KS_RICH_SCROLL_PREVIEW === '1' ? () => store.enterRichScrolls() : undefined}
           onOpenTrace={trace => store.openTrace(trace)}
           onEnterSystem={() => store.enterAtlas()}
           onOpenPrivacy={() => store.openPrivacy()}
@@ -132,7 +139,7 @@ export function App({ apiClient, onSignedOut }: AppProps) {
         />
       )}
       {state.screen === 'scroll' && state.scroll.status === 'reading' && state.scroll.item.kind === 'Reel' && (
-        <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch}>
+        <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel} showControls>
         <ReelPlayer
           key={state.scroll.item.assetId}
           item={state.scroll.item}
@@ -153,7 +160,7 @@ export function App({ apiClient, onSignedOut }: AppProps) {
       )}
       {(state.screen === 'revisit' || (state.screen === 'scroll' && !(state.scroll.status === 'reading' && state.scroll.item.kind === 'Reel'))) && (
         state.screen === 'scroll' && state.scroll.status === 'reading'
-          ? <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} keyboardNavigation={false}>{scrollScreen}</EncounterGesture>
+          ? <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel} showControls keyboardNavigation={false}>{scrollScreen}</EncounterGesture>
           : scrollScreen
       )}
     </div>

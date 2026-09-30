@@ -9,7 +9,8 @@ export type NativeScrollBlock =
   | { type: 'comparison'; title: string; left: { label: string; points: string[] }; right: { label: string; points: string[] } }
   | { type: 'timeline'; title: string; events: Array<{ label: string; detail: string }> }
   | { type: 'diagram'; title: string; nodes: Array<{ id: string; label: string }>; edges: Array<{ from: string; to: string; label?: string }> }
-  | { type: 'visualization'; title: string; description: string; frequency: number };
+  | { type: 'visualization'; title: string; description: string; frequency: number }
+  | { type: 'code'; title: string; language: 'javascript' | 'typescript' | 'python' | 'text'; code: string; caption?: string };
 
 export interface NativeScrollItem {
   assetId: string;
@@ -69,6 +70,10 @@ function parseBlock(value: unknown): NativeScrollBlock | null {
       return isText(value.title, 160) && isText(value.description, 500) && typeof value.frequency === 'number' && Number.isFinite(value.frequency) && value.frequency >= 0.5 && value.frequency <= 4
         ? { type: 'visualization', title: value.title, description: value.description, frequency: value.frequency }
         : null;
+    case 'code':
+      return isText(value.title, 160) && ['javascript', 'typescript', 'python', 'text'].includes(String(value.language)) && isText(value.code, 3200) && (value.caption === undefined || isText(value.caption, 300))
+        ? { type: 'code', title: value.title, language: value.language as 'javascript' | 'typescript' | 'python' | 'text', code: value.code, ...(value.caption ? { caption: value.caption } : {}) }
+        : null;
     default:
       return null;
   }
@@ -81,6 +86,7 @@ function bodyFallback(body: string): string[] {
 export function NativeScroll({ item, embedded = false, onKeep, keepLabel = 'Keep this Scroll' }: NativeScrollProps) {
   const parsedArtifact = item.webArtifact === null || item.webArtifact === undefined ? null : webScrollArtifactV1.safeParse(item.webArtifact);
   const artifactValid = parsedArtifact?.success && parsedArtifact.data.assetId === item.assetId && parsedArtifact.data.revision === item.revision;
+  const authoredDemo = artifactValid && parsedArtifact.data.provenance.kind === 'authored_test_fixture';
   const artifactInvalid = parsedArtifact !== null && !artifactValid;
   const sourceBlocks = artifactValid ? parsedArtifact.data.blocks : item.webArtifact === undefined && Array.isArray(item.blocks) ? item.blocks : null;
   const blocks = sourceBlocks?.map(parseBlock) ?? [];
@@ -95,6 +101,7 @@ export function NativeScroll({ item, embedded = false, onKeep, keepLabel = 'Keep
         <h1>{item.title}</h1>
         {item.truthState && <p className="native-scroll__state">{item.truthState}</p>}
       </header>}
+      {authoredDemo && <p className="native-scroll__demo-note" role="status">Interactive study · authored test content, not model-generated.</p>}
       <div className="native-scroll__blocks">
         {paragraphs.map((paragraph, index) => <p className="native-scroll__prose" key={`${index}-${paragraph.slice(0, 16)}`}>{paragraph}</p>)}
         {validBlocks.map((block, index) => <BlockView block={block} key={`${block.type}-${index}`} />)}
@@ -122,6 +129,12 @@ function BlockView({ block }: { block: NativeScrollBlock }) {
       return <Diagram block={block} />;
     case 'visualization':
       return <InteractivePlot block={block} />;
+    case 'code':
+      return <figure className="native-scroll__code" aria-label={block.title}>
+        <figcaption><span>{block.title}</span><span>{block.language}</span></figcaption>
+        <pre><code>{block.code}</code></pre>
+        {block.caption && <p>{block.caption}</p>}
+      </figure>;
   }
 }
 

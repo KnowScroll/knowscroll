@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import {
   webScrollArtifactV1,
+  type WebScrollBlockV1,
   type WebScrollArtifactV1,
 } from '../../../contracts/src/web-scroll-artifact.ts';
 
@@ -23,25 +24,23 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function createCheckedScrollWebArtifact(input: {
+function sealArtifact(input: {
   assetId: string;
   revision: number;
   title: string;
-  beats: readonly string[];
   body: string;
+  blocks: WebScrollBlockV1[];
+  provenanceKind: WebScrollArtifactV1['provenance']['kind'];
 }): WebScrollArtifactV1 {
   const unsigned = {
     schemaVersion: 1 as const,
     level: 'declarative' as const,
     assetId: input.assetId,
     revision: input.revision,
-    blocks: input.beats.map((beat) => ({
-      type: 'text' as const,
-      paragraphs: [beat],
-    })),
+    blocks: input.blocks,
     accessibility: { title: input.title },
     provenance: {
-      kind: 'checked_model_scroll' as const,
+      kind: input.provenanceKind,
       generation: 'complete' as const,
       validation: 'passed' as const,
     },
@@ -54,6 +53,34 @@ export function createCheckedScrollWebArtifact(input: {
   if (Buffer.byteLength(JSON.stringify(artifact)) > MAX_ARTIFACT_BYTES)
     throw new Error('web_artifact_oversized');
   return artifact;
+}
+
+export function createCheckedScrollWebArtifact(input: {
+  assetId: string;
+  revision: number;
+  title: string;
+  beats: readonly string[];
+  body: string;
+}): WebScrollArtifactV1 {
+  return sealArtifact({
+    assetId: input.assetId,
+    revision: input.revision,
+    title: input.title,
+    body: input.body,
+    blocks: input.beats.map((beat) => ({ type: 'text', paragraphs: [beat] })),
+    provenanceKind: 'checked_model_scroll',
+  });
+}
+
+/** Only disposable preview/test setup calls this. It cannot claim model checking or production publication. */
+export function createAuthoredTestScrollWebArtifact(input: {
+  assetId: string;
+  revision: number;
+  title: string;
+  body: string;
+  blocks: WebScrollBlockV1[];
+}): WebScrollArtifactV1 {
+  return sealArtifact({ ...input, provenanceKind: 'authored_test_fixture' });
 }
 
 /** Invalid, stale or future artifacts fall back to the checked body; they never break feed delivery. */

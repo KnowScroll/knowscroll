@@ -187,6 +187,8 @@ export class ReaderStore {
   private pendingBranchExplore: { assetId: string; version: number } | null = null;
   private reconciling = false;
   private ready = false;
+  /** Explicit disposable preview lanes; ordinary discovery remains unchanged. */
+  private previewLane: 'default' | 'reels' | 'rich-scrolls' = 'default';
   private navigationVersion = 0;
   private readonly visited: Set<string>;
   /** #135 review: whether any deletion attempt in this page may have been applied without an answer
@@ -264,6 +266,8 @@ export class ReaderStore {
       this.loadTraceRevisit(pending);
     } else if (this.state.screen === 'revisit') {
       return;
+    } else if (this.previewLane !== 'default') {
+      this.loadNext();
     } else {
       this.enterScroll();
     }
@@ -271,11 +275,24 @@ export class ReaderStore {
 
   enterScroll(): void {
     if (this.busy || this.reconciling || !this.ready) return;
+    this.previewLane = 'default';
     const current = this.session;
     if (current && current.keepJobId === '' && current.privacyEpoch === this.observedPrivacyEpoch) {
       this.show(current);
       return;
     }
+    this.loadNext();
+  }
+
+  enterTestReels(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.previewLane = 'reels';
+    this.loadNext();
+  }
+
+  enterRichScrolls(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.previewLane = 'rich-scrolls';
     this.loadNext();
   }
 
@@ -877,7 +894,7 @@ export class ReaderStore {
             status: 'reading',
             // The revisit contract deliberately returns no recommendation `reason`
             // (docs/contracts/trace-revisit.md): "may not invent selection personalization".
-            item: { ...receipt.scroll, reason: '', webArtifact: null },
+            item: { ...receipt.scroll, reason: '' },
             exposureId: receipt.exposureId,
             eventId: requested.eventId,
             keep: { status: 'kept', jobId: requested.eventId },
@@ -944,8 +961,10 @@ export class ReaderStore {
     // back an old Scroll, never end the trip while unopened ones remain.
     const openedAssetId = reading?.item.assetId ?? this.session?.item.assetId;
     const trip = tripExclude(this.visited, openedAssetId);
+    const kinds = this.previewLane === 'reels' ? 'reelOnly' : this.previewLane === 'rich-scrolls' ? false : true;
+    const preview = this.previewLane === 'rich-scrolls' ? 'authored-web-scrolls' : undefined;
     this.api
-      .getFeed(trip, true)
+      .getFeed(trip, kinds, preview)
       .then((feed: FeedResponse) => {
         if (!this.operationIsCurrent(version, epoch)) return;
         const selection = selectDiscovery(feed, universeId, epoch, new Set(trip), undefined);
@@ -1321,6 +1340,7 @@ export class ReaderStore {
 
   returnToUniverse(destination: 'universe' | 'keep' = 'universe'): void {
     this.navigationVersion++;
+    this.previewLane = 'default';
     if (this.state.screen === 'revisit') this.discardRevisit();
     this.visited.clear();
     this.storage.writeVisited(this.visited);

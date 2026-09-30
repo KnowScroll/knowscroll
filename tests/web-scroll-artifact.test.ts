@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { createCheckedScrollWebArtifact, validateScrollWebArtifact } from '../packages/core/src/scrolls/web-artifact.ts';
+import { createAuthoredTestScrollWebArtifact, createCheckedScrollWebArtifact, validateScrollWebArtifact } from '../packages/core/src/scrolls/web-artifact.ts';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const assetId = randomUUID();
@@ -34,4 +34,15 @@ test('unsupported versions, active content, unbound diagrams and oversized paylo
   const { integritySha256: _ignored, ...unsigned } = artifact;
   const invalidDiagram = { ...unsigned, blocks: [{ type: 'diagram', title: 'Map', nodes: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], edges: [{ from: 'a', to: 'missing' }] }] };
   assert.equal(check({ ...invalidDiagram, integritySha256: digest(JSON.stringify(invalidDiagram)) }), null);
+});
+
+test('authored test code stays declarative text bound to the exact Scroll body', () => {
+  const artifact = createAuthoredTestScrollWebArtifact({
+    assetId, revision: 1, title: 'A test study', body,
+    blocks: [{ type: 'code', title: 'A safe sample', language: 'javascript', code: 'const markup = "<script>bad()</script>";' }],
+  });
+  assert.equal(artifact.provenance.kind, 'authored_test_fixture');
+  assert.deepEqual(validateScrollWebArtifact(artifact, { assetId, revision: 1, body }), artifact);
+  assert.equal(validateScrollWebArtifact(artifact, { assetId, revision: 1, body: 'changed' }), null);
+  assert.equal(validateScrollWebArtifact({ ...artifact, blocks: [{ type: 'script', code: 'bad()' }] }, { assetId, revision: 1, body }), null);
 });

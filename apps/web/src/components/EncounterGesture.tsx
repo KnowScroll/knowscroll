@@ -23,6 +23,8 @@ export interface EncounterGestureProps {
   className?: string;
   previousLabel?: string;
   nextLabel?: string;
+  branchNextLabel?: string;
+  branchPreviousLabel?: string;
   showControls?: boolean;
   keyboardNavigation?: boolean;
 }
@@ -87,6 +89,8 @@ export function EncounterGesture({
   className = '',
   previousLabel = 'Previous encounter',
   nextLabel = 'Next encounter',
+  branchNextLabel = 'Explore connection',
+  branchPreviousLabel = 'Return along connection',
   showControls = false,
   keyboardNavigation = true,
 }: EncounterGestureProps) {
@@ -96,12 +100,28 @@ export function EncounterGesture({
   callbacksRef.current = { onNext, onPrevious, onBranchPrevious, onBranchNext };
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [settling, setSettling] = useState(false);
+  const [inlineActionsVisible, setInlineActionsVisible] = useState(false);
   const settleTimer = useRef<number | null>(null);
   const locked = useRef(false);
 
   useEffect(() => () => {
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
   }, []);
+
+  // When the Scroll's own Next/Connections section comes into view, it owns
+  // those taps. The floating swipe affordance must leave its buttons clear.
+  useEffect(() => {
+    const threshold = surfaceRef.current?.querySelector('.discovery-threshold');
+    if (!threshold || !showControls) {
+      setInlineActionsVisible(false);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      setInlineActionsVisible(Boolean(entry?.isIntersecting));
+    }, { threshold: 0.01 });
+    observer.observe(threshold);
+    return () => observer.disconnect();
+  }, [children, showControls]);
 
   const clearGesture = useCallback((commit: 'next' | 'previous' | 'branch-previous' | 'branch-next' | null) => {
     gestureRef.current = null;
@@ -122,10 +142,12 @@ export function EncounterGesture({
   }, []);
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    // Mouse drags belong to text selection; keyboard and visible controls cover desktop paging.
+    // Text selection owns prose. Mouse drags from the surrounding reading surface give desktop
+    // users a spatial preview without turning every text selection into navigation.
     // Trusted touch input uses Touch Events below: the browser may issue pointercancel when it
     // takes native pan-y, while touchend still reaches the boundary-transfer decision.
-    if (!event.isPrimary || event.pointerType === 'mouse' || (event.pointerType === 'touch' && event.nativeEvent.isTrusted) || locked.current || ownsGesture(event.target)) return;
+    if (!event.isPrimary || event.button !== 0 || (event.pointerType === 'touch' && event.nativeEvent.isTrusted) || locked.current || ownsGesture(event.target)) return;
+    if (event.pointerType === 'mouse' && event.target instanceof Element && event.target.closest('p, h1, h2, h3, li, blockquote, q, pre, code, figcaption')) return;
     if (settleTimer.current !== null) {
       window.clearTimeout(settleTimer.current);
       settleTimer.current = null;
@@ -286,11 +308,12 @@ export function EncounterGesture({
       >
         {children}
       </div>
-      {showControls && <nav className="encounter-gesture__controls" aria-label="Encounter navigation">
-        {onPrevious && <button type="button" onClick={onPrevious}>{previousLabel}</button>}
-        <button type="button" onClick={onNext}>{nextLabel}</button>
-        {onBranchPrevious && <button type="button" onClick={onBranchPrevious}>Previous branch</button>}
-        {onBranchNext && <button type="button" onClick={onBranchNext}>Next branch</button>}
+      {showControls && !inlineActionsVisible && <nav className="encounter-gesture__controls" aria-label="Swipe and encounter navigation">
+        <span className="encounter-gesture__legend">SWIPE</span>
+        {onPrevious && <button type="button" onClick={onPrevious} aria-label={previousLabel}><span aria-hidden="true">↓</span>{previousLabel}</button>}
+        <button type="button" onClick={onNext} aria-label={nextLabel}><span aria-hidden="true">↑</span>{nextLabel}</button>
+        {onBranchPrevious && <button type="button" onClick={onBranchPrevious} aria-label={branchPreviousLabel}><span aria-hidden="true">→</span>{branchPreviousLabel}</button>}
+        {onBranchNext && <button type="button" onClick={onBranchNext} aria-label={branchNextLabel}><span aria-hidden="true">←</span>{branchNextLabel}</button>}
       </nav>}
     </section>
   );

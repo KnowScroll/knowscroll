@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
 const uuid = z
   .string()
@@ -50,6 +51,7 @@ export type TraceRevisit = z.infer<typeof traceRevisitReceipt>;
 /** The browser's reader projection retains the verified Trace but omits internal source names. */
 export const webTraceRevisitScroll = traceRevisitScroll
   .omit({ sourceTitle: true, sourceUrl: true })
+  .extend({ webArtifact: webScrollArtifactV1.nullable() })
   .strict();
 export const webTraceRevisitReceipt = traceRevisitReceipt
   .extend({ scroll: webTraceRevisitScroll })

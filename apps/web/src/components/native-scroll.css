@@ -60,6 +60,13 @@
 .native-scroll__plot-data caption { text-align: left; font-size: 12px; }
 .native-scroll__plot-data th, .native-scroll__plot-data td { padding: 6px 9px; border-bottom: 1px solid #dad7ca; text-align: left; }
 .native-scroll__fallback { padding: 12px 14px; border-left: 4px solid #a33d24; background: #f8e5da; }
+.native-scroll__demo-note { margin: 0 0 18px; padding: 9px 12px; border-left: 4px solid var(--ns-blue); background: #e8ecff; color: #17277c; font: 700 12px/1.4 var(--font-mono, ui-monospace, monospace); }
+.native-scroll__code { margin: 0; border: 2px solid var(--ns-ink); background: #091927; color: #eaf8ff; }
+.native-scroll__code figcaption { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #5a7685; color: #f9e39c; font: 700 12px/1.4 var(--font-mono, ui-monospace, monospace); }
+.native-scroll__code figcaption span:last-child { color: #addbd9; text-transform: uppercase; }
+.native-scroll__code pre { margin: 0; padding: 16px; overflow-x: auto; font: 13px/1.65 var(--font-mono, ui-monospace, monospace); tab-size: 2; }
+.native-scroll__code code { white-space: pre; }
+.native-scroll__code p { margin: 0; padding: 0 16px 14px; color: #d1dfdd; font-size: 13px; }
 .native-scroll__actions { padding-top: 22px; }
 .native-scroll__actions button { min-height: 48px; padding: 10px 20px; border: 2px solid var(--ns-ink); border-radius: 999px; background: var(--ns-blue); color: white; font: 700 15px/1.2 var(--font-display, sans-serif); cursor: pointer; }
 .native-scroll :focus-visible { outline: 3px solid var(--ns-blue); outline-offset: 3px; }

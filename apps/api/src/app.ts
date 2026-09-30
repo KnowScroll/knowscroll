@@ -466,7 +466,22 @@ export function buildApp(
               sourceUrl: _sourceUrl,
               ...readerScroll
             } = receipt.scroll;
-            return { ...receipt, scroll: readerScroll };
+            // The guarded revisit has already tied this exact revision/body to the
+            // original Keep and still holds the asset share lock. A checked web
+            // artifact is an additive representation of that same Scroll.
+            const artifactRow = await client.query<{ web_artifact: unknown }>(
+              'SELECT web_artifact FROM asset WHERE id=$1',
+              [receipt.scroll.assetId],
+            );
+            const webArtifact = validateScrollWebArtifact(
+              artifactRow.rows[0]?.web_artifact,
+              {
+                assetId: receipt.scroll.assetId,
+                revision: receipt.scroll.revision,
+                body: receipt.scroll.body,
+              },
+            );
+            return { ...receipt, scroll: { ...readerScroll, webArtifact } };
           } catch (error) {
             if (!(error instanceof TraceRevisitError)) throw error;
             if (error.kind === 'invalid')
@@ -490,6 +505,7 @@ export function buildApp(
       kinds?: string;
       exclude?: string | string[];
       webArtifact?: string;
+      preview?: string;
     };
   }>('/v1/feed', async (req) =>
     authenticated(req.headers.authorization, async (scope, client) => {
@@ -497,6 +513,26 @@ export function buildApp(
       if (kinds === null) throw new HttpError(400, 'Invalid kinds parameter');
       if (req.query.webArtifact !== undefined && req.query.webArtifact !== 'v1')
         throw new HttpError(400, 'Invalid webArtifact parameter');
+      if (
+        req.query.preview !== undefined &&
+        req.query.preview !== 'authored-web-scrolls'
+      )
+        throw new HttpError(400, 'Invalid preview parameter');
+      if (req.query.preview) {
+        const databaseName = (() => {
+          try {
+            return new URL(process.env.DATABASE_URL ?? '').pathname.slice(1);
+          } catch {
+            return '';
+          }
+        })();
+        if (
+          process.env.NODE_ENV !== 'development' ||
+          process.env.KS_RICH_SCROLL_PREVIEW !== '1' ||
+          !/^knowscroll_(?:test|preview)_[a-z0-9_]+$/.test(databaseName)
+        )
+          throw new HttpError(400, 'Preview unavailable');
+      }
       // #133: what this discovery trip already has on screen or opened. The client skips those, so
       // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason.
       const exclude = parseFeedExclude(req.query.exclude);
@@ -507,7 +543,19 @@ export function buildApp(
           scope.universeId,
         ])
       ).rows[0];
-      const assets = await feedCandidates(client, kinds);
+      const candidates = await feedCandidates(client, kinds);
+      // Disposable preview only: offer authored examples through the same composer, decision,
+      // exposure and Keep path as any encounter. This never changes the ordinary feed.
+      const assets = req.query.preview
+        ? candidates.filter(
+            (item) =>
+              item.kind === 'Scroll' &&
+              [
+                'A rhythm the ocean keeps',
+                'An orbit is not a perfect circle',
+              ].includes(item.title),
+          )
+        : candidates;
 
       // The ranking policy is deployment configuration recorded on every decision: composer-semantic-v3
       // (ADR-0032) by default; composer-signals-v2 (ADR-0028/0029) and composer-semantic-v4 (v3 with a
