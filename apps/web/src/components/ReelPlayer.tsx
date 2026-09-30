@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EncounterFeedbackKind, FeedItem } from '../api/types.ts';
 import type { WhyView } from '../state/readerStore.ts';
 import { WhatLedHere } from './WhatLedHere.tsx';
+import { RepresentationSwitch } from './RepresentationSwitch.tsx';
 import './reel-player.css';
 
 const EXPOSURE_DWELL_MS = 500;
@@ -20,6 +21,9 @@ export interface ReelPlayerProps {
   onRetryWhy?: () => void;
   onCorrect?: (kind: EncounterFeedbackKind) => void;
   branchPanel?: ReactNode;
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
+  onBranchNext?: () => void;
+  branchNextLabel?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -49,6 +53,9 @@ export function ReelPlayer({
   onRetryWhy,
   onCorrect,
   branchPanel,
+  onSwitchRepresentation,
+  onBranchNext,
+  branchNextLabel = 'Find connections',
 }: ReelPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
@@ -174,14 +181,23 @@ export function ReelPlayer({
 
   return (
     <main className="reel-player" aria-label="Reel" aria-busy={active && (loading || buffering)}>
-      {onReturn && <button className="reel-return" type="button" onClick={onReturn}>‹ Return</button>}
+      <div className="reel-top">
+        {onReturn && <button className="reel-return" type="button" onClick={onReturn}>‹ Universe</button>}
+        {onSwitchRepresentation && <RepresentationSwitch selected="Reel" onSelect={onSwitchRepresentation} />}
+      </div>
       <header className="reel-heading">
         <p className="reel-eyebrow">Reel <span className="reel-truth">Synthesis</span></p>
         <h1>{item.title}</h1>
-        <p>{item.summary}</p>
-        {item.generatedLabel && <p className="reel-label">Generated Reel</p>}
-        {item.simulated && <p className="reel-simulated" role="status">Simulated media</p>}
+        <div className="reel-provenance">
+          {item.generatedLabel && <span className="reel-label">Generated Reel</span>}
+          {item.simulated && <span className="reel-simulated" role="status">Simulated media</span>}
+        </div>
       </header>
+
+      <nav className="reel-wayfinding" aria-label="Reel navigation">
+        {onNext && <button type="button" onClick={onNext} aria-label="Next Reel"><span aria-hidden="true">↑</span> Next</button>}
+        {onBranchNext && <button type="button" onClick={onBranchNext} aria-label={branchNextLabel}><span aria-hidden="true">←</span> Connection</button>}
+      </nav>
 
       <div className="reel-stage" style={{ aspectRatio: aspectRatio(item.aspect) }} ref={setStage}>
         <video
@@ -245,6 +261,7 @@ export function ReelPlayer({
         )}
       </div>
 
+      <p className="reel-summary">{item.summary}</p>
       {keepStatus === 'failed' && <p className="reel-action-status" role="alert">Could not keep this Reel. Please try again.</p>}
       <nav className="reel-actions" aria-label="Reel actions">
         {onKeep && <button type="button" onClick={onKeep} disabled={keepStatus === 'saving' || keepStatus === 'kept'}>{keepLabel}</button>}

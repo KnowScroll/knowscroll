@@ -488,6 +488,9 @@ try {
     // resolved it; no product code, evidence, or persistent state is affected.
     TMPDIR: '/tmp',
     KS_WEB_JOURNEY_MODE: reelMode ? 'reel' : branchMode ? 'branch' : 'reader',
+    // A supplied personal MP4 may contain private frames; focused playback can opt out of
+    // writing its video screenshot into the tracked synthetic-fixture evidence directory.
+    KS_WEB_PRIVATE_MEDIA: process.env.KS_WEB_PRIVATE_MEDIA ?? '0',
     KS_PW_BROWSER: process.env.KS_PW_BROWSER ?? 'chromium',
   };
 

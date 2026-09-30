@@ -49,6 +49,8 @@ test.describe('the universe canvas keeps clear of the frame drawn over it', () =
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto('/');
     await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
+    await expect(page.getByRole('region', { name: 'Planet landing' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open saved Scroll', exact: true }).click();
     await expect(page.getByRole('article')).toBeVisible();
 
     const hidden = await page.evaluate(() => {

@@ -1,0 +1,27 @@
+.representation-switch {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgb(255 251 240 / 24%);
+  border-radius: 13px;
+  background: rgb(17 18 20 / 76%);
+}
+.representation-switch button {
+  min-width: 64px;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #fffbf0;
+  font: 800 13px/1 var(--font-display);
+  cursor: pointer;
+}
+.representation-switch button.is-selected {
+  background: #2c46e8;
+  color: #fff;
+}
+.representation-switch button:disabled { cursor: wait; opacity: .55; }
+.representation-switch button.is-selected:disabled { opacity: 1; }
+.representation-switch button:focus-visible { outline: 2px solid #ffe44d; outline-offset: 2px; }

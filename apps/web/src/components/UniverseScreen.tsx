@@ -3,6 +3,7 @@ import type { Trace, Universe } from '../api/types.ts';
 import type { UniverseView } from '../state/readerStore.ts';
 import type { ReaderStorage } from '../state/storage.ts';
 import { CosmosBackground } from './CosmosBackground.tsx';
+import { PlanetLanding } from './PlanetLanding.tsx';
 import { TravelShip, type TravelDestination } from './TravelShip.tsx';
 
 export interface UniverseScreenProps {
@@ -210,6 +211,13 @@ interface LoadedUniverseProps {
   onOpenKeep?: () => void;
 }
 
+interface LandingTarget {
+  title: string;
+  saved: boolean;
+  variant: number;
+  continue: () => void;
+}
+
 function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep }: LoadedUniverseProps) {
   const traces = universe.traces;
   const empty = traces.length === 0;
@@ -219,7 +227,8 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [dragging, setDragging] = useState(false);
   const [travel, setTravel] = useState<TravelDestination | null>(null);
-  const pendingAction = useRef<(() => void) | null>(null);
+  const [landing, setLanding] = useState<LandingTarget | null>(null);
+  const pendingLanding = useRef<LandingTarget | null>(null);
   const travelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number; moved: boolean } | null>(null);
   const suppressPointerClick = useRef(false);
@@ -228,16 +237,16 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
   useEffect(() => () => {
     if (travelTimer.current) clearTimeout(travelTimer.current);
     if (suppressTimer.current) clearTimeout(suppressTimer.current);
-    pendingAction.current = null;
+    pendingLanding.current = null;
   }, []);
 
   useEffect(() => {
     if (!travel) return undefined;
     travelTimer.current = setTimeout(() => {
-      const action = pendingAction.current;
-      pendingAction.current = null;
+      const target = pendingLanding.current;
+      pendingLanding.current = null;
       setTravel(null);
-      action?.();
+      setLanding(target);
     }, 1050);
     return () => {
       if (travelTimer.current) clearTimeout(travelTimer.current);
@@ -245,18 +254,18 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
     };
   }, [travel]);
 
-  const moveTo = (event: ReactMouseEvent<HTMLElement>, action: () => void) => {
+  const moveTo = (event: ReactMouseEvent<HTMLElement>, target: LandingTarget) => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      action();
+      setLanding(target);
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    pendingAction.current = action;
+    pendingLanding.current = target;
     setTravel({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
   };
 
   const navigateNow = (action: () => void) => {
-    pendingAction.current = null;
+    pendingLanding.current = null;
     if (travelTimer.current) clearTimeout(travelTimer.current);
     setTravel(null);
     action();
@@ -326,6 +335,19 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
   // unexplored body can never collide with the last row of real Traces either.
   const slots = useMemo(() => (empty ? [] : layoutBodies(traces.length + 1)), [empty, traces.length]);
 
+  if (landing) {
+    return <PlanetLanding
+      title={landing.title}
+      saved={landing.saved}
+      variant={landing.variant}
+      onBack={() => setLanding(null)}
+      onContinue={() => {
+        setLanding(null);
+        landing.continue();
+      }}
+    />;
+  }
+
   return (
     <>
       <CosmosBackground camera={camera} />
@@ -368,7 +390,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
               type="button"
               className="body-button seed"
               style={bodyStyle(50, 52, 84)}
-              onClick={event => moveTo(event, onEnterScroll)}
+              onClick={event => moveTo(event, { title: 'A first possibility', saved: false, variant: 0, continue: onEnterScroll })}
               aria-label="A first possibility: see what catches your curiosity"
               ref={firstBodyRef}
             >
@@ -381,7 +403,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
               type="button"
               className="body-button dust"
               style={bodyStyle(20, 34, 42)}
-              onClick={event => moveTo(event, onEnterScroll)}
+              onClick={event => moveTo(event, { title: 'A different angle', saved: false, variant: 1, continue: onEnterScroll })}
               aria-label="A different angle"
             >
               <span className="body-label">
@@ -392,7 +414,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
               type="button"
               className="body-button dust"
               style={bodyStyle(80, 26, 40)}
-              onClick={event => moveTo(event, onEnterScroll)}
+              onClick={event => moveTo(event, { title: 'A little surprise', saved: false, variant: 2, continue: onEnterScroll })}
               aria-label="A little surprise"
             >
               <span className="body-label">
@@ -416,7 +438,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
                         type="button"
                         className="body-button trace"
                         style={{ ...bodyStyle(slot.left, slot.top, sizePx), boxShadow: `0 0 26px ${palette.glow}, inset 0 0 0 1px rgba(255,255,255,.18)` }}
-                        onClick={event => moveTo(event, () => onOpenTrace(trace))}
+                        onClick={event => moveTo(event, { title: trace.title || 'Saved Scroll', saved: true, variant: i, continue: () => onOpenTrace(trace) })}
                         aria-label={`Revisit the saved Trace: ${trace.title || 'Saved Scroll unavailable'}`}
                         ref={i === 0 ? firstBodyRef : undefined}
                       >
@@ -440,7 +462,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
             {(() => {
               const nebulaSlot = slots[traces.length] ?? { left: 88, top: 68, labelCh: DEFAULT_LABEL_CH };
               return (
-                <button type="button" className="body-button nebula" style={bodyStyle(nebulaSlot.left, nebulaSlot.top, 46)} onClick={event => moveTo(event, onEnterScroll)} aria-label="Still unexplored">
+                <button type="button" className="body-button nebula" style={bodyStyle(nebulaSlot.left, nebulaSlot.top, 46)} onClick={event => moveTo(event, { title: 'Still unexplored', saved: false, variant: traces.length, continue: onEnterScroll })} aria-label="Still unexplored">
                   <span className="body-label" style={labelWidthStyle(nebulaSlot.labelCh)}>
                     <span className="body-name">Still unexplored</span>
                   </span>
@@ -464,7 +486,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
       )}
 
       {(
-      <div className={`map-tools${empty ? '' : ' has-traces'}`} aria-label="Map controls">
+      <div className={`map-tools${empty ? '' : ' has-traces'}${camera.x !== 0 || camera.y !== 0 || camera.zoom !== 1 ? ' is-moved' : ''}`} aria-label="Map controls">
           <div className="pan-controls" role="group" aria-label="Pan the universe">
             <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.min(620, value.y + 70) }))} aria-label="Pan up">↑</button>
             <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.min(620, value.x + 70) }))} aria-label="Pan left">←</button>
@@ -492,18 +514,13 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
               made it, a control that goes there. It still claims nothing: the system it opens
               names only the worlds this reader's own reading has actually reached, and says so
               plainly when that set is empty. */}
-          <button type="button" className="map-scale-label" onClick={() => navigateNow(onEnterSystem)} aria-label="Open your Atlas">
-            Explore your Atlas ↗
-          </button>
         </div>
       )}
       {travel && <TravelShip destination={travel} />}
 
-      <p className="universe-hint">{empty ? 'Tap a possibility to begin' : 'Tap a Trace to revisit it'}</p>
+      <p className="universe-hint">Drag to explore · Tap a planet to land</p>
 
       <div className="universe-cta-block">
-        {onEnterRichScrolls && <button type="button" className="pill ghost reel-preview-cta" onClick={() => navigateNow(onEnterRichScrolls)} aria-label="Explore interactive test Scrolls">Explore interactive test Scrolls ↗</button>}
-        {onEnterTestReels && <button type="button" className="pill ghost reel-preview-cta" onClick={() => navigateNow(onEnterTestReels)} aria-label="Watch supplied test Reels">Watch supplied test Reels ↗</button>}
         <button
           type="button"
           className={empty ? 'pill yellow universe-cta' : 'pill teal universe-cta'}
@@ -513,6 +530,13 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
         >
           {empty ? 'Show me something ↗' : 'Enter Scroll'}
         </button>
+        {(onEnterRichScrolls || onEnterTestReels) && <details className="preview-menu">
+          <summary>Try the preview</summary>
+          <div className="preview-menu__choices">
+            {onEnterRichScrolls && <button type="button" onClick={() => navigateNow(onEnterRichScrolls)}>Interactive test Scrolls <span aria-hidden="true">↗</span></button>}
+            {onEnterTestReels && <button type="button" onClick={() => navigateNow(onEnterTestReels)}>Supplied test Reels <span aria-hidden="true">↗</span></button>}
+          </div>
+        </details>}
         <p className="cta-helper">
           {empty ? 'Your world begins with what catches your curiosity.' : 'A familiar impulse. Somewhere new to go.'}
         </p>

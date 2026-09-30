@@ -1,5 +1,30 @@
 # Shared delivery checkpoint
 
+## 2026-10-01 #171 visual refinement of PR #195 (unmerged)
+
+The web branch keeps the existing movable Universe and its real saved Traces, but a planet now
+lands in a visible continent-covered globe before its Scroll opens. One SVG ship appears in flight
+and at arrival. The compact landscape frame keeps planet taps and the landing action reachable.
+The landing map is visual wayfinding, not a new inferred Atlas place.
+
+The Hybrid Set cream/ink/cobalt/yellow/teal register now carries Scroll and Reel, with consistent
+controls. Both reading surfaces expose a Reel/Scroll switch. It selects a real feed kind; the Reel
+is a separate encounter rather than a generated rendering of the same Scroll. Switching from a
+Scroll parks its reading position and exposure identity in memory for return. A reload restores the
+Reel session but loses that temporary parked Scroll, so switching back asks for a Scroll. Narrow
+Scrolls keep Canvas/code/paragraph content within the viewport; the action strip no longer covers
+text, and a small cue keeps swipe navigation discoverable.
+
+The live disposable preview remains at `http://127.0.0.1:4397/` with the three owner-supplied
+videos as labelled test media; the files remain outside Git. Manual browser checks covered the
+Universe, flight, continent reveal, Scroll, Reel switch, 320px portrait and 650px landscape. Web
+unit tests passed 252/252, including a saved-Trace switch that preserves its read-only origin.
+Full Chromium and WebKit disposable reader journeys passed 52 active tests each, with three
+fixture-only skips each. Focused Reel/media and gesture journeys passed 2/2 in each engine using
+one labelled owner-supplied local MP4; private video captures were excluded from tracked evidence.
+Each test database was dropped. The production web build remains guarded by issue #2; the
+explicit test-evidence build passed. Physical iPhone acceptance remains open.
+
 ## 2026-09-30 #171 web reader hands-on follow-up, PR #195 (unmerged)
 
 The same SSD branch now has bounded drag/keyboard/button panning and zooming in Universe, decorative

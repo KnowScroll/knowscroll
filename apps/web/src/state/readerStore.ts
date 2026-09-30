@@ -189,6 +189,8 @@ export class ReaderStore {
   private ready = false;
   /** Explicit disposable preview lanes; ordinary discovery remains unchanged. */
   private previewLane: 'default' | 'reels' | 'rich-scrolls' = 'default';
+  /** One Scroll can be parked while a Reel is viewed; returning restores its exact reading place. */
+  private parkedScroll: { session: ScrollSession | null; revisit: RevisitSession | null; view: Extract<ScrollView, { status: 'reading' }>; lane: 'default' | 'rich-scrolls' } | null = null;
   private navigationVersion = 0;
   private readonly visited: Set<string>;
   /** #135 review: whether any deletion attempt in this page may have been applied without an answer
@@ -275,9 +277,10 @@ export class ReaderStore {
 
   enterScroll(): void {
     if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
     this.previewLane = 'default';
     const current = this.session;
-    if (current && current.keepJobId === '' && current.privacyEpoch === this.observedPrivacyEpoch) {
+    if (current?.item.kind === 'Scroll' && current.keepJobId === '' && current.privacyEpoch === this.observedPrivacyEpoch) {
       this.show(current);
       return;
     }
@@ -286,13 +289,70 @@ export class ReaderStore {
 
   enterTestReels(): void {
     if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
     this.previewLane = 'reels';
     this.loadNext();
   }
 
   enterRichScrolls(): void {
     if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
     this.previewLane = 'rich-scrolls';
+    this.loadNext();
+  }
+
+  currentRepresentation(): 'Reel' | 'Scroll' {
+    if (this.state.scroll.status === 'reading' && this.state.scroll.item.kind === 'Reel') return 'Reel';
+    return this.previewLane === 'reels' ? 'Reel' : 'Scroll';
+  }
+
+  /** Switch the admitted feed kind. The Reel is its own encounter, not a fabricated rendering of
+   * the same Scroll; a parked Scroll returns with its prior position and exposure identity. */
+  switchRepresentation(kind: 'Reel' | 'Scroll'): void {
+    if (this.reconciling || !this.ready || (this.state.screen !== 'scroll' && this.state.screen !== 'revisit')) return;
+    if (kind === this.currentRepresentation()) return;
+    // A visible encounter may still be posting its exposure. Let explicit navigation win;
+    // the same clientExposureId is retained if the parked Scroll is shown again.
+    if (this.busy) {
+      if (!this.exposing || this.exposing.joined) return;
+      this.exposing = null;
+      this.pendingNext = null;
+      this.pendingBranchExplore = null;
+      this.busy = false;
+    }
+    if (kind === 'Reel') {
+      const view = this.state.scroll;
+      if (view.status !== 'reading' || view.item.kind !== 'Scroll') return;
+      this.parkedScroll = {
+        session: view.origin.type === 'saved-trace' ? null : this.session,
+        revisit: view.origin.type === 'saved-trace' ? this.revisit : null,
+        view,
+        lane: this.previewLane === 'rich-scrolls' ? 'rich-scrolls' : 'default',
+      };
+      this.previewLane = 'reels';
+      this.loadNext();
+      return;
+    }
+    const parked = this.parkedScroll;
+    this.parkedScroll = null;
+    if (parked && parked.view.item.kind === 'Scroll' && parked.view.item.assetId &&
+      (parked.session?.privacyEpoch ?? parked.revisit?.privacyEpoch) === this.observedPrivacyEpoch &&
+      (parked.session?.universeId ?? parked.revisit?.universeId) === this.observedUniverseId) {
+      this.navigationVersion++;
+      this.previewLane = parked.lane;
+      if (parked.revisit) {
+        this.revisit = parked.revisit;
+        this.storage.writeRevisit(parked.revisit);
+        this.storage.writeScreen('revisit');
+        this.set({ screen: 'revisit', scroll: parked.view, why: WHY_CLOSED });
+      } else if (parked.session) {
+        this.session = parked.session;
+        this.storage.writeSession(parked.session);
+        this.show(parked.session);
+      }
+      return;
+    }
+    this.previewLane = 'default';
     this.loadNext();
   }
 
@@ -1315,6 +1375,15 @@ export class ReaderStore {
   }
 
   updateReadingPosition(assetId: string, position: number): void {
+    if (this.parkedScroll?.view.item.assetId === assetId && position >= 0) {
+      const parked = this.parkedScroll;
+      this.parkedScroll = {
+        ...parked,
+        session: parked.session ? { ...parked.session, readingPosition: position } : null,
+        revisit: parked.revisit ? { ...parked.revisit, readingPosition: position } : null,
+        view: { ...parked.view, readingPosition: position },
+      };
+    }
     const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
     if (reading?.origin.type === 'saved-trace') {
       const current = this.revisit;
@@ -1341,6 +1410,7 @@ export class ReaderStore {
   returnToUniverse(destination: 'universe' | 'keep' = 'universe'): void {
     this.navigationVersion++;
     this.previewLane = 'default';
+    this.parkedScroll = null;
     if (this.state.screen === 'revisit') this.discardRevisit();
     this.visited.clear();
     this.storage.writeVisited(this.visited);
@@ -1404,6 +1474,7 @@ export class ReaderStore {
     const cachedRevisit = restoreStoredScroll && this.storage.readScreen() === 'revisit' ? this.storage.readRevisit() : null;
     if (cached && cached.privacyEpoch === this.observedPrivacyEpoch && cached.universeId === this.observedUniverseId) {
       this.session = cached;
+      this.previewLane = cached.item.kind === 'Reel' ? 'reels' : 'default';
       this.show(cached);
     } else if (cachedRevisit && cachedRevisit.privacyEpoch === this.observedPrivacyEpoch && cachedRevisit.universeId === this.observedUniverseId) {
       this.revisit = cachedRevisit;
@@ -1423,6 +1494,7 @@ export class ReaderStore {
     this.observedPrivacyEpoch = this.storage.readObservedPrivacyEpoch();
     this.session = null;
     this.revisit = null;
+    this.parkedScroll = null;
     this.visited.clear();
     this.pendingCorrections.clear();
     this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, branches: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
@@ -1435,6 +1507,7 @@ export class ReaderStore {
   private failClosed(reason: string, signedOut = false): void {
     this.ready = false;
     this.session = null;
+    this.parkedScroll = null;
     this.pendingCorrections.clear();
     this.branchTrail = [];
     this.pendingBranchExplore = null;

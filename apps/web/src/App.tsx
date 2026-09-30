@@ -82,6 +82,8 @@ export function App({ apiClient, onSignedOut }: AppProps) {
       onRetryWhy={() => store.retryWhy()}
       onCorrect={kind => store.correctEncounter(kind)}
       branchPanel={branchPanel}
+      representation={store.currentRepresentation()}
+      onSwitchRepresentation={kind => store.switchRepresentation(kind)}
     />
   );
 
@@ -139,7 +141,7 @@ export function App({ apiClient, onSignedOut }: AppProps) {
         />
       )}
       {state.screen === 'scroll' && state.scroll.status === 'reading' && state.scroll.item.kind === 'Reel' && (
-        <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel} showControls>
+        <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel}>
         <ReelPlayer
           key={state.scroll.item.assetId}
           item={state.scroll.item}
@@ -155,12 +157,15 @@ export function App({ apiClient, onSignedOut }: AppProps) {
           onRetryWhy={() => store.retryWhy()}
           onCorrect={kind => store.correctEncounter(kind)}
           branchPanel={branchPanel}
+          onSwitchRepresentation={kind => store.switchRepresentation(kind)}
+          onBranchNext={openFirstBranch}
+          branchNextLabel={branchForwardLabel}
         />
         </EncounterGesture>
       )}
       {(state.screen === 'revisit' || (state.screen === 'scroll' && !(state.scroll.status === 'reading' && state.scroll.item.kind === 'Reel'))) && (
         state.screen === 'scroll' && state.scroll.status === 'reading'
-          ? <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel} showControls keyboardNavigation={false}>{scrollScreen}</EncounterGesture>
+          ? <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel} keyboardNavigation={false}>{scrollScreen}</EncounterGesture>
           : scrollScreen
       )}
     </div>

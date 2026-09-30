@@ -160,28 +160,34 @@ function InteractivePlot({ block }: { block: Extract<NativeScrollBlock, { type: 
     if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) return;
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
-    const ratio = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth || 560;
-    const height = 180;
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    context.scale(ratio, ratio);
-    context.clearRect(0, 0, width, height);
-    context.strokeStyle = '#8c907c';
-    context.lineWidth = 1;
-    context.beginPath();
-    context.moveTo(12, height / 2);
-    context.lineTo(width - 12, height / 2);
-    context.stroke();
-    context.strokeStyle = '#2c46e8';
-    context.lineWidth = 3;
-    context.beginPath();
-    for (let index = 0; index <= 80; index++) {
-      const x = 12 + (index / 80) * (width - 24);
-      const y = height / 2 - Math.sin((index / 80) * Math.PI * 2 * frequency) * (height * 0.36);
-      if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-    }
-    context.stroke();
+    const draw = () => {
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.max(80, canvas.clientWidth);
+      const height = Math.max(80, canvas.clientHeight);
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.strokeStyle = '#99988d';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(12, height / 2);
+      context.lineTo(width - 12, height / 2);
+      context.stroke();
+      context.strokeStyle = '#2c46e8';
+      context.lineWidth = 3;
+      context.beginPath();
+      for (let index = 0; index <= 80; index++) {
+        const x = 12 + (index / 80) * (width - 24);
+        const y = height / 2 - Math.sin((index / 80) * Math.PI * 2 * frequency) * (height * 0.36);
+        if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+      }
+      context.stroke();
+    };
+    draw();
+    const resize = new ResizeObserver(draw);
+    resize.observe(canvas);
+    return () => resize.disconnect();
   }, [frequency]);
 
   return <section className="native-scroll__plot" aria-label={block.title}>

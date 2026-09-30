@@ -40,7 +40,7 @@ describe('Universe spatial navigation', () => {
     expect(onEnterScroll).not.toHaveBeenCalled();
   });
 
-  it('shows ship travel before entering, while reduced motion enters immediately', () => {
+  it('shows ship travel, then a visible surface before opening the Scroll', () => {
     vi.useFakeTimers();
     const matchMedia = vi.fn().mockReturnValue({ matches: false });
     vi.stubGlobal('matchMedia', matchMedia);
@@ -49,11 +49,31 @@ describe('Universe spatial navigation', () => {
     expect(screen.getByRole('status', { name: 'Travelling to your destination' })).toBeInTheDocument();
     expect(onEnterScroll).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(1050); });
+    expect(screen.getByRole('region', { name: 'Planet landing' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Discover a Scroll from A first possibility/ })).toBeInTheDocument();
+    expect(onEnterScroll).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
     expect(onEnterScroll).toHaveBeenCalledTimes(1);
 
     matchMedia.mockReturnValue({ matches: true });
     fireEvent.click(screen.getByRole('button', { name: /A first possibility/ }));
+    expect(screen.getByRole('region', { name: 'Planet landing' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
     expect(onEnterScroll).toHaveBeenCalledTimes(2);
+  });
+
+  it('lands on visible continents before reopening a saved Trace', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
+    const trace = { eventId: 'trace-1', assetId: 'asset-1', title: 'A rhythm the ocean keeps', createdAt: '2026-09-30T10:00:00Z' };
+    const onOpenTrace = vi.fn();
+    render(<UniverseScreen state={{ status: 'loaded', universe: universeOf({ traces: [trace] }) }} storage={storage} onEnterScroll={vi.fn()} onOpenTrace={onOpenTrace} onEnterSystem={vi.fn()} onOpenPrivacy={vi.fn()} onRetry={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Revisit the saved Trace/ }));
+    act(() => { vi.advanceTimersByTime(1050); });
+    expect(screen.getByRole('region', { name: 'Planet landing' }).querySelector('.world-globe')).toBeInTheDocument();
+    expect(onOpenTrace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Open saved Scroll: A rhythm/ }));
+    expect(onOpenTrace).toHaveBeenCalledWith(trace);
   });
 
   it('cancels an in-flight trip on privacy navigation and unmount', () => {

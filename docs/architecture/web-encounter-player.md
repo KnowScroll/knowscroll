@@ -28,6 +28,28 @@ The selected pager is the only authority for encounter position. A pointer start
 
 The live web reader presents explicit Connections after the origin has a recorded exposure. The opt-in branch list and open responses omit source identifiers; opening preserves one retry key and the origin reading position. A horizontal swipe left follows the first currently listed branch, while the visible list lets a reader choose any offered branch; a swipe right or the Return button follows the saved trail. A cancelled swipe has no branch write. The existing substrate currently offers **Scroll targets only**, so Reel-to-Reel and Scroll-to-Reel continuations remain outside this contract. Physical iPhone axis and back-edge behavior are not yet accepted.
 
+## 2026-10-01 visual and navigation refinement
+
+The Universe keeps its movable starfield. A planet tap now flies the shared SVG ship to a landing
+view before opening a Scroll. The landing globe has visible angular land shapes, but that
+cartography is an illustration of the destination: it does not name, infer or persist a new Atlas
+place. A saved planet still opens the exact saved Trace, and its revisit remains read-only. Short
+landscape windows use a compact layout so planets and the landing action remain reachable.
+
+The Scroll and Reel header now has one explicit switch. It selects the corresponding admitted feed
+kind; a Reel is a separate encounter, not a video rendering of the same Scroll. While a reader
+visits a Reel, the current Scroll is parked in memory and restored with its reading position and
+exposure identity on return. After a page reload the Reel session can be restored, but that
+in-memory parked Scroll is gone, so switching back requests a Scroll from the feed. Explicit
+switching may supersede an in-flight exposure; the same client exposure key is retained for a
+parked Scroll if it is shown again. The visual system uses the Hybrid Set cream, ink, cobalt,
+yellow and teal register on the reading surface while keeping the existing dark spatial canvas.
+
+On narrow screens the Scroll stage owns vertical scrolling and the article lets content flow.
+Canvas blocks measure their rendered width and redraw on resize; code samples scroll inside their
+own frame. The inline swipe cue and end-of-Scroll actions replace the floating action strip that
+had obscured reading text. Gesture navigation and keyboard controls remain available.
+
 ## Checked web Scrolls
 
 Migration `0041` adds a nullable `asset.web_artifact`. When a checked model-written Scroll is admitted, the writer stores a version 1 declarative artifact in the same transaction as the Scroll and its fallback body. The artifact binds to the asset ID, revision and a hash of that body. It records checked-model provenance without revealing the internal source. The API validates the schema, byte limit, identity, body binding, integrity and diagram endpoints before returning the opt-in web response. An invalid or absent artifact becomes `null` and the existing body remains readable. Android and legacy feed callers keep their existing response shape.

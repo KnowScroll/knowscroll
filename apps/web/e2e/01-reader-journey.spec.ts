@@ -171,6 +171,8 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     });
 
     await traceButton.click();
+    await expect(page.getByRole('region', { name: 'Planet landing' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open saved Scroll', exact: true }).click();
     await expect(page.getByText('Saved Trace · revisiting a kept Scroll')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Kept' })).toBeDisabled();
     await page.waitForTimeout(500);

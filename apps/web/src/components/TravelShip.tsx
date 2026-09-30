@@ -5,6 +5,17 @@ export interface TravelDestination {
   y: number;
 }
 
+/** One small, code-native ship illustration shared by flight and arrival. */
+export function ShipArtwork() {
+  return <>
+    <path d="M80 4 100 42 146 65 151 78 112 73 100 89 80 82 60 89 48 73 9 78 14 65 60 42Z" fill="#fffbf0" stroke="#111214" strokeWidth="3" strokeLinejoin="round" />
+    <path d="M80 4 100 42 146 65 112 61 80 47 48 61 14 65 60 42Z" fill="#2c46e8" stroke="#111214" strokeWidth="2" strokeLinejoin="round" />
+    <path d="M80 20 88 47 80 58 72 47Z" fill="#14c79b" stroke="#111214" strokeWidth="2" />
+    <path d="M24 67 49 63 53 72 17 75M136 67 111 63 107 72 143 75" fill="#ffe44d" stroke="#111214" strokeWidth="2" />
+    <path d="M66 84 64 98 72 89M94 84 96 98 88 89" fill="#55e4ff" stroke="#111214" strokeWidth="1.5" />
+  </>;
+}
+
 /** Decorative transition shown only while entering a Scroll or reopening a Trace. */
 export function TravelShip({ destination }: { destination: TravelDestination }) {
   const targetX = Math.max(0, Math.min(100, (destination.x / window.innerWidth) * 100));
@@ -19,23 +30,9 @@ export function TravelShip({ destination }: { destination: TravelDestination }) 
       <svg className="travel-trail" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <path d={`M50 88 Q${50 + (targetX - 50) * 0.35} ${88 + (targetY - 88) * 0.6} ${targetX} ${targetY}`} />
       </svg>
-      <svg className="travel-ship" viewBox="0 0 120 100" role="img" aria-label="A small spaceship travelling through the starfield" style={style}>
-        <defs>
-          <linearGradient id="travel-hull" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fffdf2" />
-            <stop offset="1" stopColor="#9bd8dd" />
-          </linearGradient>
-          <radialGradient id="travel-window">
-            <stop offset="0" stopColor="#d7fff7" />
-            <stop offset="1" stopColor="#2c9c9d" />
-          </radialGradient>
-        </defs>
-        <path d="M60 5 C74 20 83 40 85 64 L60 82 35 64 C37 40 46 20 60 5Z" fill="url(#travel-hull)" stroke="#fffdf2" strokeWidth="2" />
-        <path d="M60 28 C70 35 73 46 72 55 L60 63 48 55 C47 46 50 35 60 28Z" fill="url(#travel-window)" stroke="#176f79" strokeWidth="2" />
-        <path d="M37 55 16 72 38 75M83 55 104 72 82 75" fill="#2dc9bf" stroke="#d8fff7" strokeWidth="2" strokeLinejoin="round" />
-        <path d="M50 74 55 96 60 85 65 96 70 74Z" fill="#ffcf68" opacity=".95" />
+      <svg className="travel-ship" viewBox="0 0 160 100" role="img" aria-label="A spaceship travelling through the starfield" style={style}>
+        <ShipArtwork />
       </svg>
-      <span className="travel-caption">Setting course</span>
     </div>
   );
 }

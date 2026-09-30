@@ -38,6 +38,8 @@ const viewports = [
 async function openSavedTrace(page: Page): Promise<void> {
   await expect(page.getByRole('navigation', { name: 'Saved Traces' })).toBeVisible();
   await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
+  await expect(page.getByRole('region', { name: 'Planet landing' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open saved Scroll', exact: true }).click();
   await expect(page.getByRole('article')).toBeVisible();
 }
 
@@ -364,6 +366,9 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     await page.screenshot({ path: join(screenshotsDir, 'universe-keyboard-focus-1440x900.png'), fullPage: true });
 
     await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('region', { name: 'Planet landing' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open saved Scroll', exact: true }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('article')).toBeVisible();
     // Context trigger -> Why trigger -> Keep (disabled, still tabbable) -> Next.

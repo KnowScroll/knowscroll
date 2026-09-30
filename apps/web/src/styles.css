@@ -1,41 +1,33 @@
-/*
- * Cosmos palette and type/shape/motion rules, extracted verbatim from
- * docs/product/ui-system.md sections 1-3 (itself an extraction of
- * docs/product/references/cosmos.html and living-observatory.html, already
- * accepted by the owner). Cosmos wins on look; Living Observatory wins on
- * structure/behaviour, per design-direction.md. No value here is invented;
- * see docs/journeys/evidence/web-ui/README.md for every place a smallest
- * necessary choice had to be made because a reference did not cover it.
- *
- * Fonts: until font licensing and bundling exist (ui-system.md sec.2), both
- * Bricolage Grotesque (headings) and Instrument Sans (body) fall back to the
- * system sans stack. No network font is fetched -- the app opens without one.
- */
+/* Hybrid Set content register over the existing dark spatial canvas.
+ * See docs/product/design-direction.md; keep source and semantic state separate
+ * from decorative color and geography. Fonts are bundled in public/fonts. */
 :root {
   color-scheme: dark;
-  --space: #03101a;
-  --space-2: #061a27;
+  --space: #050b19;
+  --space-2: #0b1630;
   --deep: #0b2b33;
   --sea: #17505f;
   --sea-2: #0f3644;
-  --ink: #15302a;
-  --cream: #fffdf2;
-  --orange: #ff684c;
-  --yellow: #ffd058;
-  --teal: #33c4b4;
+  --ink: #111214;
+  --cream: #fffbf0;
+  --blue: #2c46e8;
+  --orange: #f17658;
+  --red: #c2341a;
+  --yellow: #ffe44d;
+  --teal: #14c79b;
   --teal-2: #8fe9e4;
   --green: #64d47d;
   --pink: #ed87b4;
   /* Living Observatory's --muted role, mapped to --cream at 70% for
      secondary text on the dark ground (ui-system.md sec.1). */
-  --muted: rgba(255, 253, 242, 0.7);
+  --muted: rgba(255, 251, 240, 0.76);
   /* Living Observatory's --line role, mapped to --sea. */
   --line: var(--sea);
   /* Secondary text drawn on a cream sheet: a solid dark tone is used instead
      of a translucent ink (rather than an opacity-reduced ink) so every
      sheet stays comfortably above WCAG AA contrast at the 10-13px sizes
      these controls use -- see the evidence README's contrast note. */
-  --ink-muted: var(--sea-2);
+  --ink-muted: #43464a;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -122,10 +114,10 @@ a:focus-visible,
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 40px;
+  min-height: 42px;
   padding: 0 16px;
-  border: 0;
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   font-family: var(--font-sans);
   font-weight: 800;
   font-size: 13px;
@@ -135,7 +127,7 @@ a:focus-visible,
   white-space: nowrap;
   background: var(--ink);
   color: var(--cream);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.17);
 }
 .pill:disabled,
 .pill[aria-disabled="true"] {
@@ -152,10 +144,12 @@ a:focus-visible,
 .pill.teal {
   background: var(--teal);
   color: var(--ink);
+  border-color: var(--ink);
 }
 .pill.yellow {
   background: var(--yellow);
   color: var(--ink);
+  border-color: var(--ink);
 }
 .pill.orange {
   background: var(--orange);
@@ -175,9 +169,10 @@ a:focus-visible,
 /* The near-opaque cream pill Cosmos uses for navigation controls sitting
    directly on the dark canvas (.back / .pillbtn / .crumb). */
 .pill.cream {
-  background: rgba(255, 253, 242, 0.94);
+  background: var(--cream);
   color: var(--ink);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  border-color: var(--ink);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
 }
 
 /* ---------- truth and state pills (sec.3 + sec.5, definition.md sec.12) ---------- */
@@ -1581,7 +1576,7 @@ h1,h2,h3,.pill,.world-name,.dock-button { font-family: var(--font-display); }
 .travel-overlay { position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 50% 88%,rgba(16,77,89,.26),transparent 38%); }
 .travel-trail { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .7; }
 .travel-trail path { fill: none; stroke: #8fe9e4; stroke-width: .35; stroke-dasharray: 1.3 1.8; animation: travel-streak 1s ease-out forwards; }
-.travel-ship { position: absolute; left: 50%; top: 88%; width: 74px; height: 62px; filter: drop-shadow(0 0 10px rgba(71,226,215,.7)); animation: travel-flight 1s cubic-bezier(.2,.75,.24,1) forwards; }
+.travel-ship { position: absolute; left: 50%; top: 88%; width: 110px; height: 76px; filter: drop-shadow(0 0 14px rgb(255 228 77 / 70%)); animation: travel-flight 1s cubic-bezier(.2,.75,.24,1) forwards; }
 .travel-caption { position: absolute; left: 50%; top: calc(88% + 43px); transform: translateX(-50%); padding: 5px 10px; border-radius: 99px; color: var(--cream); background: rgba(3,16,26,.82); font: 700 10px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
 @keyframes travel-flight { 0% { transform: translate(-50%,-50%) scale(.8) rotate(-12deg); opacity: 0; } 12% { opacity: 1; } 78% { opacity: 1; } 100% { transform: translate(calc(-50% + var(--travel-dx)),calc(-50% + var(--travel-dy))) scale(.34) rotate(26deg); opacity: .15; } }
 @keyframes travel-streak { from { opacity: 0; stroke-dashoffset: 8; } 25% { opacity: .8; } to { opacity: 0; stroke-dashoffset: 0; } }
@@ -1593,3 +1588,149 @@ h1,h2,h3,.pill,.world-name,.dock-button { font-family: var(--font-display); }
 .observatory .universe-dock, .keep-screen .universe-dock { position: relative; left: auto; bottom: auto; transform: none; flex-shrink: 0; align-self: center; margin: 12px auto 16px; }
 
 .zoom-button:disabled { opacity: .35; cursor: default; }
+
+/* Hybrid Set refinement: dark spatial register, quiet controls, poster reader. */
+.universe-title h1 { max-width: 16ch; letter-spacing: -.035em; }
+.universe-subtitle { color: #dbe3e5; line-height: 1.45; }
+.growth-caption { color: var(--yellow); border-color: var(--yellow); }
+.body-button.trace .body-surface { opacity: 1; transform: none; }
+.body-name { font-family: var(--font-display); font-weight: 800; }
+.body-button.trace:hover .body-surface,
+.body-button.trace:focus-visible .body-surface { filter: drop-shadow(0 0 14px rgb(255 228 77 / 55%)); transform: scale(1.1); }
+.zoom-button {
+  border-color: rgb(255 251 240 / 28%);
+  background: rgb(17 18 20 / 78%);
+  transition: background .2s ease, border-color .2s ease;
+}
+.zoom-button:hover { border-color: var(--yellow); background: #223453; }
+.map-tools:not(.is-moved) .recenter { display: none; }
+.universe-cta { min-height: 48px; padding-inline: 21px; font-size: 15px; }
+.preview-menu { color: var(--cream); }
+.preview-menu summary {
+  width: fit-content;
+  padding: 5px 0;
+  color: #e3e6db;
+  font: 700 12px/1.3 var(--font-mono);
+  cursor: pointer;
+}
+.preview-menu summary:hover { color: var(--yellow); }
+.preview-menu__choices {
+  display: grid;
+  gap: 4px;
+  width: min(260px, 78vw);
+  margin-top: 7px;
+  padding: 6px;
+  border: 1px solid rgb(255 251 240 / 24%);
+  border-radius: 14px;
+  background: rgb(17 18 20 / 94%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 35%);
+}
+.preview-menu__choices button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 42px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--cream);
+  text-align: left;
+  font: 700 13px/1.2 var(--font-display);
+  cursor: pointer;
+}
+.preview-menu__choices button:hover { background: var(--blue); }
+.universe-dock { border-color: rgb(255 251 240 / 24%); background: rgb(17 18 20 / 88%); }
+.dock-button { min-width: 62px; min-height: 48px; }
+.dock-button.current { background: var(--blue); opacity: 1; }
+
+.scroll-screen.reading { background: #050b19; }
+.head-band { gap: 12px; min-height: 70px; }
+.head-band-origin {
+  max-width: min(430px, 36vw);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font: 600 12px/1.4 var(--font-sans);
+}
+.head-band-origin--action { padding: 5px 9px; border-color: rgb(255 251 240 / 35%); }
+.reading-column {
+  padding: clamp(26px, 4vw, 48px);
+  border: 2px solid var(--ink);
+  border-radius: 24px 24px 0 0;
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: 10px 10px 0 var(--blue);
+  overflow-x: hidden;
+}
+.reading-column .truth-line { margin-bottom: 20px; }
+.reading-column .truth-meaning { color: var(--ink-muted); }
+.reading-column h2 {
+  max-width: 16ch;
+  margin: 0 0 18px;
+  color: var(--ink);
+  font: 800 clamp(36px, 4vw, 55px)/1.02 var(--font-display);
+  letter-spacing: -.038em;
+}
+.reading-column .reason,
+.reading-column .summary,
+.reading-column .body {
+  max-width: 58ch;
+  color: #35383b;
+  font-size: 16px;
+  line-height: 1.62;
+  white-space: normal;
+}
+.reading-column .reason { color: #535960; font-size: 14px; }
+.reading-column .summary { margin-bottom: 20px; }
+.continue { border-color: #c9c5bc; }
+.discovery-threshold h3 { color: var(--ink-muted); }
+.context-rail .pill.cream { background: #fffbf0; color: var(--ink); }
+.reading-gesture-hint { color: #b8d5d8; font: 700 10px/1.4 var(--font-mono); letter-spacing: .01em; }
+.keyboard-help { color: #b9c2c9; }
+
+@media (max-width: 700px) {
+  .scroll-screen.reading { padding-bottom: 74px; }
+  .reading-column { overflow-x: clip; overflow-y: visible; }
+  .head-band { gap: 8px; padding: 12px 16px 8px; align-items: center; }
+  .head-band .pill.cream { padding-inline: 10px; font-size: 12px; }
+  .head-band-origin { order: 3; flex-basis: 100%; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .head-band-state { display: none; }
+  .scroll-layout { padding: 8px 16px 112px; }
+  .context-rail { gap: 8px; padding: 0 0 14px; }
+  .context-rail .pill.cream { min-height: 40px; padding-inline: 12px; font-size: 12px; }
+  .reading-column { width: 100%; padding: 26px 19px 35px; border-radius: 20px; box-shadow: 6px 6px 0 var(--blue); }
+  .reading-column h2 { font-size: clamp(34px, 9vw, 44px); }
+  .reading-column .reason, .reading-column .summary { font-size: 14px; }
+  .reading-column .truth-meaning { font-size: 11px; }
+  .continue { gap: 12px; }
+  .discovery-threshold { gap: 10px; }
+}
+
+@media (max-width: 600px) {
+  .universe-legend { display: none; }
+  .universe-bodies .body-button.nebula { left: 84% !important; }
+  .universe-bodies .body-button.trace .body-label,
+  .universe-bodies .body-button.trace .body-name { max-width: 108px; }
+  .universe-bodies .body-button.nebula .body-label,
+  .universe-bodies .body-button.nebula .body-name { max-width: 100px; font-size: 11px; }
+  .universe-title { background: linear-gradient(110deg, rgb(5 11 25 / 94%), rgb(5 11 25 / 72%), transparent); }
+  .map-tools, .map-tools.has-traces { inset: 202px 16px auto auto; width: auto; gap: 5px; }
+  .map-tools .pan-controls { display: none; }
+  .map-tools .zoom-button { width: 38px; height: 38px; font-size: 18px; }
+  .universe-hint { top: 197px; bottom: auto; left: 20px; right: 130px; text-align: left; font: 600 10px/1.3 var(--font-mono); }
+  .universe-cta-block { bottom: 101px; gap: 7px; }
+  .universe-cta-block .preview-menu { order: 2; }
+  .universe-screen .universe-dock { bottom: 12px; }
+}
+
+@media (max-height: 480px) and (min-width: 601px) {
+  .universe-title { top: 14px; left: 18px; right: 110px; padding: 0; background: none; }
+  .universe-title h1 { font-size: 24px; max-width: 21ch; }
+  .universe-title .universe-subtitle, .growth-caption,
+  .universe-cta-block, .universe-hint, .universe-legend { display: none; }
+  .universe-bodies { inset: 130px 0 105px; }
+  .map-tools, .map-tools.has-traces { inset: auto auto 82px 18px; }
+  .map-tools .pan-controls { display: none; }
+}

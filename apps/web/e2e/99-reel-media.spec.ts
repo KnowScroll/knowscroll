@@ -50,9 +50,13 @@ test('phone Reel uses the protected MP4 route and releases playback on exit', as
 
   await player.getByRole('button', { name: /Play video|Pause video/ }).click();
   await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
-  await page.screenshot({ path: resolve(screenshots, `reel-390x844-${test.info().project.name}.png`) });
+  // Owner-supplied local media can contain private frames. Keep those captures out of tracked
+  // evidence while retaining the ordinary synthetic-fixture screenshot path.
+  if (process.env.KS_WEB_PRIVATE_MEDIA !== '1') {
+    await page.screenshot({ path: resolve(screenshots, `reel-390x844-${test.info().project.name}.png`) });
+  }
 
-  await player.getByRole('button', { name: /Return/ }).click();
+  await player.getByRole('button', { name: /Universe/ }).click();
   await expect(page.getByRole('main', { name: 'Reel' })).toHaveCount(0);
   await expect(page.locator('video')).toHaveCount(0);
 });

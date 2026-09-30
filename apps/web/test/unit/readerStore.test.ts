@@ -73,6 +73,88 @@ describe('ReaderStore', () => {
     await waitFor(() => store.getState().scroll.status === 'reading');
   }
 
+  it('returns from Reel mode to the same Scroll and reading position', async () => {
+    await enterReadingScroll();
+    store.updateReadingPosition(feedItem().assetId, 240);
+    api.feedQueue.push({
+      decisionId: 'reel-decision', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0,
+      items: [{
+        assetId: 'd9428888-122b-4c70-97c2-10ac9527a602', revision: 1, kind: 'Reel',
+        title: 'A small Reel', summary: 'A sourced summary.', truthState: 'synthesis',
+        generatedLabel: true, simulated: true,
+        mediaUrl: '/v1/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        durationSeconds: 12, aspect: '1080:1920', reason: 'A test encounter.',
+      }],
+    });
+    store.switchRepresentation('Reel');
+    await waitFor(() => {
+      const current = store.getState().scroll;
+      return current.status === 'reading' && current.item.kind === 'Reel';
+    });
+    expect(store.currentRepresentation()).toBe('Reel');
+    store.switchRepresentation('Scroll');
+    const restored = store.getState().scroll;
+    expect(restored.status).toBe('reading');
+    if (restored.status !== 'reading') throw new Error('expected restored Scroll');
+    expect(restored.item.assetId).toBe(feedItem().assetId);
+    expect(restored.readingPosition).toBe(240);
+    expect(store.currentRepresentation()).toBe('Scroll');
+    expect(api.exposureCalls).toHaveLength(0);
+  });
+
+  it('lets the reader return to a parked Scroll while Reel exposure is in flight', async () => {
+    await enterReadingScroll();
+    api.feedQueue.push({
+      decisionId: 'reel-decision', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0,
+      items: [{
+        assetId: 'd9428888-122b-4c70-97c2-10ac9527a602', revision: 1, kind: 'Reel',
+        title: 'A small Reel', summary: 'A sourced summary.', truthState: 'synthesis',
+        generatedLabel: true, simulated: true,
+        mediaUrl: '/v1/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        durationSeconds: 12, aspect: '1080:1920', reason: 'A test encounter.',
+      }],
+    });
+    store.switchRepresentation('Reel');
+    await waitFor(() => store.getState().scroll.status === 'reading' && store.currentRepresentation() === 'Reel');
+    await tick();
+    let finishExposure!: () => void;
+    api.exposureGate = new Promise(resolve => { finishExposure = resolve; });
+    api.exposureQueue.push({ exposureId: 'reel-exposure', eventId: 'reel-event' });
+    store.onVisible('d9428888-122b-4c70-97c2-10ac9527a602');
+    await waitFor(() => api.exposureCalls.length === 1);
+    store.switchRepresentation('Scroll');
+    expect(store.currentRepresentation()).toBe('Scroll');
+    expect(store.getState().scroll.status).toBe('reading');
+    finishExposure();
+    await tick();
+    expect(store.currentRepresentation()).toBe('Scroll');
+  });
+
+  it('keeps the Reel switch truthful after restoring a Reel from storage', async () => {
+    await enterReadingScroll();
+    api.feedQueue.push({
+      decisionId: 'reel-decision', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0,
+      items: [{
+        assetId: 'd9428888-122b-4c70-97c2-10ac9527a602', revision: 1, kind: 'Reel',
+        title: 'A small Reel', summary: 'A sourced summary.', truthState: 'synthesis',
+        generatedLabel: true, simulated: true,
+        mediaUrl: '/v1/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        durationSeconds: 12, aspect: '1080:1920', reason: 'A test encounter.',
+      }],
+    });
+    store.switchRepresentation('Reel');
+    await waitFor(() => store.getState().scroll.status === 'reading' && store.currentRepresentation() === 'Reel');
+    api.universeQueue.push(universeOf());
+    store = new ReaderStore(api, storage);
+    store.init();
+    await waitFor(() => store.getState().scroll.status === 'reading');
+    await tick();
+    expect(store.currentRepresentation()).toBe('Reel');
+    api.feedQueue.push({ decisionId: 'scroll-decision', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0, items: [feedItem({ assetId: '10000000-0000-4000-8000-000000000002' })] });
+    store.switchRepresentation('Scroll');
+    await waitFor(() => store.getState().scroll.status === 'reading' && store.currentRepresentation() === 'Scroll');
+  });
+
   it('records exposure only once even if onVisible fires twice for the same asset', async () => {
     await enterReadingScroll();
     api.exposureQueue.push({ exposureId: 'exp-1', eventId: 'evt-1' });
@@ -366,6 +448,29 @@ describe('ReaderStore', () => {
     expect(scroll.keep.status).toBe('kept');
     expect(api.exposureCalls).toHaveLength(0);
     expect(store.getState().screen).toBe('revisit');
+
+    await tick();
+    store.updateReadingPosition(feedItem().assetId, 130);
+    api.feedQueue.push({
+      decisionId: 'reel-decision', universeId: universeOf().universeId, accountRevision: 1, privacyEpoch: 0,
+      items: [{
+        assetId: 'd9428888-122b-4c70-97c2-10ac9527a602', revision: 1, kind: 'Reel',
+        title: 'A small Reel', summary: 'A sourced summary.', truthState: 'synthesis',
+        generatedLabel: true, simulated: true,
+        mediaUrl: '/v1/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        durationSeconds: 12, aspect: '1080:1920', reason: 'A test encounter.',
+      }],
+    });
+    store.switchRepresentation('Reel');
+    await waitFor(() => store.getState().scroll.status === 'reading' && store.currentRepresentation() === 'Reel');
+    await tick();
+    store.switchRepresentation('Scroll');
+    const returned = store.getState().scroll;
+    expect(returned.status).toBe('reading');
+    if (returned.status !== 'reading') throw new Error('expected saved Trace');
+    expect(returned.origin).toEqual({ type: 'saved-trace', eventId: 'trace-1' });
+    expect(returned.readingPosition).toBe(130);
+    expect(api.exposureCalls).toHaveLength(0);
   });
 
   it('a changed source (409) on revisit discards the private revisit identity and is not retryable', async () => {

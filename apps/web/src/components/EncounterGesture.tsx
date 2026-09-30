@@ -311,9 +311,9 @@ export function EncounterGesture({
       {showControls && !inlineActionsVisible && <nav className="encounter-gesture__controls" aria-label="Swipe and encounter navigation">
         <span className="encounter-gesture__legend">SWIPE</span>
         {onPrevious && <button type="button" onClick={onPrevious} aria-label={previousLabel}><span aria-hidden="true">↓</span>{previousLabel}</button>}
-        <button type="button" onClick={onNext} aria-label={nextLabel}><span aria-hidden="true">↑</span>{nextLabel}</button>
+        <button type="button" onClick={onNext} aria-label={nextLabel}><span aria-hidden="true">↑</span>Next</button>
         {onBranchPrevious && <button type="button" onClick={onBranchPrevious} aria-label={branchPreviousLabel}><span aria-hidden="true">→</span>{branchPreviousLabel}</button>}
-        {onBranchNext && <button type="button" onClick={onBranchNext} aria-label={branchNextLabel}><span aria-hidden="true">←</span>{branchNextLabel}</button>}
+        {onBranchNext && <button type="button" onClick={onBranchNext} aria-label={branchNextLabel}><span aria-hidden="true">←</span>Connection</button>}
       </nav>}
     </section>
   );

@@ -26,45 +26,45 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: .35rem;
+  gap: .3rem;
   position: absolute;
   z-index: 8;
   left: 50%;
   bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   width: max-content;
   max-width: calc(100% - 20px);
-  padding: .3rem .45rem;
+  padding: .28rem;
   transform: translateX(-50%);
-  border: 1px solid rgb(255 253 242 / 32%);
-  border-radius: 999px;
-  background: rgb(3 16 26 / 88%);
+  border: 1px solid rgb(255 251 240 / 25%);
+  border-radius: 14px;
+  background: rgb(17 18 20 / 91%);
   box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
   color: #fffdf2;
   backdrop-filter: blur(9px);
 }
 
 .encounter-gesture__legend {
-  padding: 0 .25rem;
-  color: #f8d772;
+  padding: 0 .4rem;
+  color: #ffe44d;
   font: 700 .62rem/1.1 var(--font-mono, ui-monospace, monospace);
   letter-spacing: .08em;
 }
 
 .encounter-gesture__controls button {
   min-height: 44px;
-  padding: .38rem .62rem;
-  border: 1px solid rgb(255 253 242 / 30%);
-  border-radius: 999px;
+  padding: .38rem .75rem;
+  border: 0;
+  border-radius: 10px;
   color: inherit;
   background: transparent;
-  font: 700 .68rem/1.15 var(--font-sans, system-ui, sans-serif);
+  font: 800 .7rem/1.15 var(--font-display, system-ui, sans-serif);
   cursor: pointer;
 }
 
 .encounter-gesture__controls button span {
   display: inline-block;
   margin-right: .25rem;
-  color: #ffd058;
+  color: #ffe44d;
   font-size: 1rem;
   vertical-align: middle;
 }
@@ -73,9 +73,9 @@
 .encounter-gesture__controls button:focus-visible { background: #183647; outline: 2px solid #fffdf2; outline-offset: 1px; }
 
 @media (max-width: 430px) {
-  .encounter-gesture__controls { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+  .encounter-gesture__controls { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px); }
   .encounter-gesture__legend { display: none; }
-  .encounter-gesture__controls button { font-size: .62rem; padding-inline: .48rem; }
+  .encounter-gesture__controls button { font-size: .7rem; padding-inline: .72rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

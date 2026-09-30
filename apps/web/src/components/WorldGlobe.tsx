@@ -7,28 +7,31 @@ export function WorldGlobe({ variant = 0 }: { variant?: number }) {
   return <svg className="world-globe" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
     <defs>
       <radialGradient id={`${id}-sea`} cx="30%" cy="25%" r="80%">
-        <stop stopColor={coral ? '#d99d7e' : '#438a90'} /><stop offset=".65" stopColor={coral ? '#735653' : '#17505f'} /><stop offset="1" stopColor="#03101a" />
+        <stop stopColor={coral ? '#18a5ae' : '#19b6c1'} /><stop offset=".58" stopColor={coral ? '#19619b' : '#145087'} /><stop offset="1" stopColor="#07112e" />
       </radialGradient>
-      <radialGradient id={`${id}-shade`} cx="30%" cy="25%" r="80%"><stop offset=".35" stopColor="#03101a" stopOpacity="0" /><stop offset="1" stopColor="#03101a" stopOpacity=".8" /></radialGradient>
+      <radialGradient id={`${id}-shade`} cx="30%" cy="25%" r="80%"><stop offset=".35" stopColor="#050b19" stopOpacity="0" /><stop offset="1" stopColor="#050b19" stopOpacity=".86" /></radialGradient>
       <clipPath id={`${id}-clip`}><circle cx="100" cy="100" r="89" /></clipPath>
     </defs>
-    <circle cx="100" cy="100" r="96" fill="none" stroke="#8fe9e4" strokeOpacity=".12" />
+    <circle cx="100" cy="100" r="97" fill="none" stroke="#2c46e8" strokeWidth="2" strokeOpacity=".65" />
     <circle cx="100" cy="100" r="89" fill={`url(#${id}-sea)`} />
     <g clipPath={`url(#${id}-clip)`}>
       <g fill="none" stroke="#fffdf2" strokeOpacity=".13" strokeWidth=".65">
         {[28,55,80].map(rx=><ellipse key={rx} cx="100" cy="100" rx={rx} ry="89" />)}
         {[45,73,101,129,157].map(y=><path key={y} d={`M 0 ${y} Q 100 ${y+26} 200 ${y}`} />)}
       </g>
-      <g fill={coral ? '#e5bc92' : '#83beb4'} stroke="#092b34" strokeWidth="3" strokeLinejoin="round" transform={coral ? 'rotate(130 100 100)' : undefined}>
-        <path d="M22 49 47 36 74 42 86 60 76 75 52 79 35 66Z" />
-        <path d="M113 30 134 27 153 44 149 60 129 69 112 56Z" />
-        <path d="M104 92 132 82 157 102 147 130 157 148 141 177 110 166 99 145 108 123 94 108Z" />
-        <path d="M18 113 43 110 62 131 54 156 34 168 15 145Z" />
-        <path d="M77 103 85 112 82 127 72 119Z" />
+      <g fill={coral ? '#48c6a5' : '#38bc9d'} stroke="#082c42" strokeWidth="2" strokeLinejoin="round" transform={coral ? 'rotate(130 100 100)' : undefined}>
+        <path d="M20 47 43 31 68 34 81 48 92 57 80 71 55 78 39 68 24 72 16 60Z" />
+        <path d="M111 26 137 25 158 40 162 58 145 68 122 62 106 48Z" />
+        <path d="M101 84 124 80 145 91 162 105 151 124 160 143 143 173 120 167 103 150 110 128 92 107Z" />
+        <path d="M13 111 41 106 59 122 62 144 45 165 23 166 10 141Z" />
+        <path d="M76 96 86 108 81 128 69 119Z" />
+      </g>
+      <g fill="none" stroke="#e5ffed" strokeWidth="1.1" strokeOpacity=".36" transform={coral ? 'rotate(130 100 100)' : undefined}>
+        <path d="m25 52 19-10 18 4 10 14-21 9M116 39l18-7 16 14-11 13M108 102l22-10 20 14-13 15 8 26-20 13M22 124l18-8 12 16-10 24" />
       </g>
       <circle cx="100" cy="100" r="89" fill={`url(#${id}-shade)`} />
       <path d="M20 85 Q65 62 113 77 M99 153 Q145 165 185 134" fill="none" stroke="#fffdf2" strokeWidth="5" strokeOpacity=".12" />
     </g>
-    <circle cx="100" cy="100" r="89" fill="none" stroke="#8fe9e4" strokeOpacity=".35" />
+    <circle cx="100" cy="100" r="89" fill="none" stroke="#7ce9ff" strokeWidth="2.4" strokeOpacity=".82" />
   </svg>;
 }

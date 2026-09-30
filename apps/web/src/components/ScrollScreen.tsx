@@ -5,6 +5,7 @@ import type { DiscoveryState, KeepState } from '../state/discovery.ts';
 import type { ScrollView, WhyView } from '../state/readerStore.ts';
 import { WhatLedHere } from './WhatLedHere.tsx';
 import { NativeScroll } from './NativeScroll.tsx';
+import { RepresentationSwitch } from './RepresentationSwitch.tsx';
 
 const SCROLL_STEP = 160;
 
@@ -71,6 +72,8 @@ export interface ScrollScreenProps {
   onRetryWhy?: () => void;
   onCorrect?: (kind: EncounterFeedbackKind) => void;
   branchPanel?: ReactNode;
+  representation?: 'Reel' | 'Scroll';
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
 }
 
 /** The "What led here" controls, grouped so ReadingStage's parameters stay readable. */
@@ -109,6 +112,8 @@ export function ScrollScreen({
   onRetryWhy = noop,
   onCorrect = noop,
   branchPanel,
+  representation = 'Scroll',
+  onSwitchRepresentation,
 }: ScrollScreenProps) {
   if (state.status === 'reading') {
     if (state.item.kind === 'Reel') {
@@ -126,21 +131,24 @@ export function ScrollScreen({
         onReadingPosition={onReadingPosition}
         why={{ view: why, onOpen: onOpenWhy, onClose: onCloseWhy, onRetry: onRetryWhy, onCorrect }}
         branchPanel={branchPanel}
+        onSwitchRepresentation={onSwitchRepresentation}
       />
     );
   }
   if (state.status === 'unavailable') {
-    return <RestScreen title="This Scroll is unavailable" message={state.message} exhausted={false} onReturn={onReturn} onOpenKeep={onOpenKeep} onRetry={onRetry} retryable={state.retryable} />;
+    return <RestScreen title="This Scroll is unavailable" message={state.message} exhausted={false} onReturn={onReturn} onOpenKeep={onOpenKeep} onRetry={onRetry} retryable={state.retryable} representation={representation} onSwitchRepresentation={onSwitchRepresentation} />;
   }
   if (state.status === 'exhausted') {
     return (
       <RestScreen
-        title="You've reached the end of the current library"
-        message="There is no unread encounter left right now. Check back later, or revisit a saved Trace."
+        title={representation === 'Reel' ? 'No Reels available right now' : "You've reached the end of the current library"}
+        message={representation === 'Reel' ? 'Choose Scroll to keep reading, or return to your Universe.' : 'There is no unread encounter left right now. Check back later, or revisit a saved Trace.'}
         exhausted
         onReturn={onReturn} onOpenKeep={onOpenKeep}
         onRetry={onRetry}
         retryable
+        representation={representation}
+        onSwitchRepresentation={onSwitchRepresentation}
       />
     );
   }
@@ -187,6 +195,8 @@ function RestScreen({
   onOpenKeep = onReturn,
   onRetry,
   retryable,
+  representation = 'Scroll',
+  onSwitchRepresentation,
 }: {
   title: string;
   message: string;
@@ -195,10 +205,13 @@ function RestScreen({
   onOpenKeep?: () => void;
   onRetry: () => void;
   retryable: boolean;
+  representation?: 'Reel' | 'Scroll';
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
 }) {
   return (
     <main className="scroll-screen rest-screen" aria-label="Scroll">
       <div className="rest-card">
+        {onSwitchRepresentation && <RepresentationSwitch selected={representation} onSelect={onSwitchRepresentation} />}
         <p className="eyebrow">{exhausted ? 'Finite library' : 'Discovery'}</p>
         <h2>{title}</h2>
         <p>{message}</p>
@@ -227,6 +240,7 @@ function ReadingStage({
   onReadingPosition,
   why,
   branchPanel,
+  onSwitchRepresentation,
 }: {
   state: Extract<ScrollView, { status: 'reading' }>;
   onVisible: (assetId: string) => void;
@@ -238,6 +252,7 @@ function ReadingStage({
   onReadingPosition: (assetId: string, position: number) => void;
   why: WhyControls;
   branchPanel?: ReactNode;
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
 }) {
   const { item } = state;
   if (item.kind !== 'Scroll') throw new Error('ReadingStage requires a Scroll');
@@ -386,10 +401,10 @@ function ReadingStage({
         <button type="button" className="pill cream" onClick={onReturn} aria-label="Return to Universe" aria-keyshortcuts="Escape">
           ‹ Universe
         </button>
+        {onSwitchRepresentation && <RepresentationSwitch selected="Scroll" onSelect={onSwitchRepresentation} disabled={state.discovery === 'loading' || state.keep.status === 'saving'} />}
         {state.origin.type === 'branch' && onReturnBranch
           ? <button type="button" className="head-band-origin head-band-origin--action" onClick={onReturnBranch} aria-label="Return to origin">← {originLabel}</button>
           : <span className="head-band-origin">{originLabel}</span>}
-        <span className="head-band-kind">Scroll</span>
         <span className={`${truthPillClassName(item.truthState)} head-band-state`}>{item.truthState.toUpperCase()}</span>
       </header>
       <div className={`scroll-layout${contextAfter ? ' scroll-layout--context-after' : ''}`}>
@@ -416,6 +431,7 @@ function ReadingStage({
           >
             Why this appeared
           </button>
+          <span className="reading-gesture-hint">Swipe ↑ for next · ← for connections</span>
           {whyOpen && (
             <WhyThisAppeared
               item={item}
