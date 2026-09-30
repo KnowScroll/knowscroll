@@ -12,7 +12,7 @@
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -273,7 +273,10 @@ function stopWatchdog(): void {
 }
 
 const suffix = randomBytes(8).toString('hex');
-const databaseName = `knowscroll_test_${suffix}`;
+const reelMode = process.env.KS_WEB_JOURNEY_MODE === 'reel';
+const branchMode = process.env.KS_WEB_JOURNEY_MODE === 'branch';
+const databaseName = `knowscroll_test_${reelMode ? 'webreel_' : branchMode ? 'webbranch_' : ''}${suffix}`;
+let reelMediaRoot: string | undefined;
 let admin: pg.Client | undefined;
 let api: ManagedProcess | undefined;
 let worker: ManagedProcess | undefined;
@@ -313,6 +316,13 @@ async function cleanup(): Promise<{ databaseDropped: boolean }> {
       }
       try {
         await admin.end();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (reelMediaRoot) {
+      try {
+        rmSync(reelMediaRoot, { recursive: true, force: true });
       } catch (error) {
         errors.push(error);
       }
@@ -372,6 +382,14 @@ try {
       return value === undefined ? [] : [[name, value]];
     }),
   );
+  if (reelMode) {
+    if (!process.env.KS_NATIVE_VIDEO?.startsWith('/Volumes/')) {
+      throw new Error('Reel journey requires KS_NATIVE_VIDEO on the external SSD');
+    }
+    const fixtureParent = resolve(root, 'apps/web/artifacts');
+    mkdirSync(fixtureParent, { recursive: true });
+    reelMediaRoot = mkdtempSync(resolve(fixtureParent, 'web-reel-media-'));
+  }
   const backendEnvironment = {
     ...runtimeEnvironment,
     ...Object.fromEntries(Object.keys(config).map(key => [key, ''])), // never inherit the lane .env's own values into child processes
@@ -379,6 +397,7 @@ try {
     KS_DEV_TOKEN: token,
     PORT: String(apiPort),
     NODE_ENV: 'test',
+    ...(reelMediaRoot ? { KS_MEDIA_ROOT: reelMediaRoot } : {}),
   };
 
   notePhase('running database migrations');
@@ -388,8 +407,17 @@ try {
   // The reader journey proves mechanics over a finite three-Scroll library (its own fixture), not
   // the size of the product library, which grows with editorial content (#131).
   await guarded(run('pnpm', ['exec', 'tsx', 'scripts/seed.ts'],
-    { ...backendEnvironment, KS_SEED_SCROLLS: 'apps/web/e2e/fixtures/reader-library.json', KS_SEED_SUBSTRATE: 'none' }));
+    branchMode ? backendEnvironment : { ...backendEnvironment, KS_SEED_SCROLLS: 'apps/web/e2e/fixtures/reader-library.json', KS_SEED_SUBSTRATE: 'none' }));
   throwIfInterrupted();
+  if (reelMode) {
+    notePhase('seeding labelled Reel test media');
+    await guarded(run('pnpm', ['exec', 'tsx', 'scripts/fixtures/native-reel.ts'], {
+      ...backendEnvironment,
+      KS_NATIVE_VIDEO: process.env.KS_NATIVE_VIDEO,
+      KS_NATIVE_TAG: 'web-reader-test',
+    }));
+    throwIfInterrupted();
+  }
 
   notePhase('starting the API and worker');
   api = start('pnpm', ['exec', 'tsx', 'apps/api/src/main.ts'], backendEnvironment, 'api');
@@ -459,13 +487,18 @@ try {
     // Using the boot volume's fast local /tmp for that scratch profile only
     // resolved it; no product code, evidence, or persistent state is affected.
     TMPDIR: '/tmp',
+    KS_WEB_JOURNEY_MODE: reelMode ? 'reel' : branchMode ? 'branch' : 'reader',
+    // A supplied personal MP4 may contain private frames; focused playback can opt out of
+    // writing its video screenshot into the tracked synthetic-fixture evidence directory.
+    KS_WEB_PRIVATE_MEDIA: process.env.KS_WEB_PRIVATE_MEDIA ?? '0',
+    KS_PW_BROWSER: process.env.KS_PW_BROWSER ?? 'chromium',
   };
 
   mkdirSync(resolve(root, 'apps/web/artifacts'), { recursive: true });
   notePhase('running the Playwright web-reader journey');
   let playwrightError: unknown;
   try {
-    await guarded(run('pnpm', ['exec', 'playwright', 'test'], playwrightEnvironment, resolve(root, 'apps/web'), false));
+    await guarded(run('pnpm', ['exec', 'playwright', 'test', ...(reelMode ? ['99-reel-media.spec.ts'] : branchMode ? ['98-branch-navigation.spec.ts'] : [])], playwrightEnvironment, resolve(root, 'apps/web'), false));
   } catch (error) {
     playwrightError = error;
   }
@@ -476,6 +509,8 @@ try {
   receipt.webPort = webPort;
   receipt.devAuthProxySmokeCheck = 'passed (unauthenticated /v1/session via proxy returned 200)';
   receipt.playwright = playwrightError ? { result: 'failed', message: forReceipt(playwrightError) } : { result: 'passed' };
+  receipt.mode = reelMode ? 'labelled-Reel-test-media' : branchMode ? 'source-backed-branch' : 'reader';
+  receipt.browser = process.env.KS_PW_BROWSER ?? 'chromium';
   receipt.finishedAt = new Date().toISOString();
 
   if (playwrightError) throw playwrightError;

@@ -1,0 +1,16 @@
+{
+  "journey": "web-reader-92",
+  "startedAt": "2026-09-30T18:41:30.136Z",
+  "database": "knowscroll_test_webreel_c12723700f8e926d",
+  "apiPort": 64309,
+  "faultProxyPort": 64327,
+  "webPort": 64328,
+  "devAuthProxySmokeCheck": "passed (unauthenticated /v1/session via proxy returned 200)",
+  "playwright": {
+    "result": "passed"
+  },
+  "mode": "labelled-Reel-test-media",
+  "browser": "chromium",
+  "finishedAt": "2026-09-30T18:41:38.059Z",
+  "databaseDropped": true
+}

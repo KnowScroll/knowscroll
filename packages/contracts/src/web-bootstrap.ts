@@ -22,6 +22,8 @@
  * needs to touch either of those existing files, which other work may also be changing.
  */
 import { z } from 'zod';
+import { reelAsset } from './inventory.ts';
+import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
 export const capabilitiesSchema = z
   .object({
@@ -58,8 +60,8 @@ export const universeSchema = z
   .strict();
 export type Universe = z.infer<typeof universeSchema>;
 
-/** The feed item extends the documented Scroll shape with a non-authoritative recommendation reason. */
-export const feedItemSchema = z
+/** Both consumption objects carry the Composer's recorded selection reason. */
+const scrollFeedItemSchema = z
   .object({
     assetId: z.string().uuid(),
     revision: z.number().int().positive(),
@@ -73,6 +75,18 @@ export const feedItemSchema = z
     reason: z.string(),
   })
   .strict();
+export type ScrollFeedItem = z.infer<typeof scrollFeedItemSchema>;
+const reelFeedItemSchema = reelAsset
+  .extend({
+    // The browser may only load the authenticated same-origin media route.
+    mediaUrl: z.string().regex(/^\/v1\/media\/[0-9a-f]{64}$/),
+    reason: z.string(),
+  })
+  .strict();
+export const feedItemSchema = z.discriminatedUnion('kind', [
+  scrollFeedItemSchema,
+  reelFeedItemSchema,
+]);
 export type FeedItem = z.infer<typeof feedItemSchema>;
 
 /** `GET /v1/feed`. */
@@ -86,6 +100,25 @@ export const feedResponseSchema = z
   })
   .strict();
 export type FeedResponse = z.infer<typeof feedResponseSchema>;
+
+/** The browser opts into checked artifacts and a reader-safe feed projection. */
+const webScrollFeedItemSchema = scrollFeedItemSchema
+  .omit({ sourceTitle: true, sourceUrl: true })
+  .extend({ webArtifact: webScrollArtifactV1.nullable() })
+  .strict();
+const webReelFeedItemSchema = reelFeedItemSchema
+  .omit({ sourceTitle: true, sourceUrl: true })
+  .strict();
+export const webFeedItemSchema = z.discriminatedUnion('kind', [
+  webScrollFeedItemSchema,
+  webReelFeedItemSchema,
+]);
+export type WebFeedItem = z.infer<typeof webFeedItemSchema>;
+export type WebScrollFeedItem = z.infer<typeof webScrollFeedItemSchema>;
+export const webFeedResponseSchema = feedResponseSchema
+  .extend({ items: z.array(webFeedItemSchema) })
+  .strict();
+export type WebFeedResponse = z.infer<typeof webFeedResponseSchema>;
 
 export const worldSummarySchema = z
   .object({

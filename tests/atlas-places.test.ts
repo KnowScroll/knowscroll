@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
-import { atlasDeltaSchema, atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
+import { atlasDeltaSchema, atlasResponseSchema, webAtlasResponseSchema } from '../packages/contracts/src/atlas.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
 import { mintGatedTestReel } from '../scripts/fixtures/gated-reel.ts';
@@ -42,6 +42,12 @@ const atlasOf = async (i: Identity) => {
 test('reading gravity on two days across two source families forms a planet with sightings, each with its evidence', async () => {
   const i = await anchorGravity();
   const atlas = await atlasOf(i);
+  const webResponse = await app.inject({ url: '/v1/atlas?webReader=v1', headers: h(i) });
+  assert.equal(webResponse.statusCode, 200, webResponse.body);
+  const webAtlas = webAtlasResponseSchema.parse(webResponse.json());
+  assert.ok(webAtlas.places.length > 0);
+  assert.equal(JSON.stringify(webResponse.json()).includes('sourceTitle'), false);
+  assert.equal(JSON.stringify(webResponse.json()).includes('sourceFamilies'), false);
   const planet = atlas.places.find((p: { anchor: { code: string } }) => p.anchor.code === 'physics.gravity');
   assert.ok(planet, JSON.stringify(atlas.places.map((p: { anchor: { code: string }; kind: string }) => [p.anchor.code, p.kind])));
   assert.equal(planet.kind, 'planet');

@@ -1,9 +1,12 @@
 import { useEffect, useMemo } from 'react';
 import type { ApiClient } from './api/client.ts';
 import { KeepScreen } from './components/KeepScreen.tsx';
+import { AtlasScreen } from './components/AtlasScreen.tsx';
+import { BranchPanel } from './components/BranchPanel.tsx';
 import { PrivacyScreen } from './components/PrivacyScreen.tsx';
+import { ReelPlayer } from './components/ReelPlayer.tsx';
+import { EncounterGesture } from './components/EncounterGesture.tsx';
 import { ScrollScreen } from './components/ScrollScreen.tsx';
-import { SystemScreen } from './components/SystemScreen.tsx';
 import { UniverseScreen } from './components/UniverseScreen.tsx';
 import { useReaderStore } from './hooks/useReaderStore.ts';
 import { ReaderStore } from './state/readerStore.ts';
@@ -37,6 +40,53 @@ export function App({ apiClient, onSignedOut }: AppProps) {
     return () => clearTimeout(timeout);
   }, [state.toast, store]);
 
+  const branchView = state.branches;
+  const branchChoices = branchView.status === 'loaded' ? branchView.branches : [];
+  const canReturnAlongBranch = state.scroll.status === 'reading' && state.scroll.origin.type === 'branch';
+  const branchPanel = state.screen === 'scroll' && state.scroll.status === 'reading' ? (
+    <BranchPanel
+      key={state.scroll.item.assetId}
+      choices={branchChoices}
+      status={branchView.status === 'loaded' && branchView.opening ? 'opening' : branchView.status}
+      error={branchView.status === 'loaded' ? branchView.error : branchView.status === 'unavailable' ? branchView.message : null}
+      canOpen={branchView.status === 'loaded' && branchView.canOpen}
+      canReturn={canReturnAlongBranch}
+      onExplore={() => store.refreshBranches()}
+      onOpen={branchId => store.openBranch(branchId)}
+      onReturn={() => store.returnAlongBranch()}
+    />
+  ) : undefined;
+  const canExploreCurrent = state.scroll.status === 'reading' && !(state.scroll.origin.type === 'branch' && !state.scroll.origin.recorded);
+  const openFirstBranch = branchView.status === 'loaded' && branchView.canOpen && branchChoices.length > 0
+    ? () => store.openBranch(branchChoices[0]!.branchId)
+    : canExploreCurrent && (branchView.status === 'idle' || branchView.status === 'unavailable')
+      ? () => store.refreshBranches()
+      : undefined;
+  const branchForwardLabel = branchView.status === 'loaded' ? 'Follow connection' : 'Find connections';
+  const returnBranch = canReturnAlongBranch ? () => store.returnAlongBranch() : undefined;
+
+  const scrollScreen = (
+    <ScrollScreen
+      state={state.scroll}
+      onVisible={assetId => store.onVisible(assetId)}
+      onKeep={() => store.keep()}
+      onOpenKeep={() => store.openKeep()}
+      onNext={() => store.nextScroll()}
+      onReturn={() => store.returnToUniverse()}
+      onReturnBranch={() => store.returnAlongBranch()}
+      onRetry={() => store.retryScrollLoad()}
+      onReadingPosition={(assetId, position) => store.updateReadingPosition(assetId, position)}
+      why={state.why}
+      onOpenWhy={() => store.openWhy()}
+      onCloseWhy={() => store.closeWhy()}
+      onRetryWhy={() => store.retryWhy()}
+      onCorrect={kind => store.correctEncounter(kind)}
+      branchPanel={branchPanel}
+      representation={store.currentRepresentation()}
+      onSwitchRepresentation={kind => store.switchRepresentation(kind)}
+    />
+  );
+
   return (
     <div className="app-shell" data-screen={state.screen}>
       {state.toast && (
@@ -52,15 +102,22 @@ export function App({ apiClient, onSignedOut }: AppProps) {
           state={state.universe}
           storage={storage}
           onEnterScroll={() => store.enterScroll()}
+          onEnterTestReels={import.meta.env.VITE_KS_TEST_REELS === '1' ? () => store.enterTestReels() : undefined}
+          onEnterRichScrolls={import.meta.env.VITE_KS_RICH_SCROLL_PREVIEW === '1' ? () => store.enterRichScrolls() : undefined}
           onOpenTrace={trace => store.openTrace(trace)}
-          onEnterSystem={() => store.enterSystem()}
+          onEnterSystem={() => store.enterAtlas()}
           onOpenPrivacy={() => store.openPrivacy()}
           onOpenKeep={() => store.openKeep()}
           onRetry={() => store.retryUniverse()}
         />
       )}
-      {state.screen === 'system' && (
-        <SystemScreen state={state.system} onOpenKeep={() => store.openKeep()} onReturn={() => store.returnFromSystem()} onRetry={() => store.retrySystem()} onEnterScroll={() => store.enterScroll()} />
+      {state.screen === 'atlas' && state.atlas.status !== 'idle' && (
+        <AtlasScreen
+          state={state.atlas}
+          onReturn={() => store.returnFromAtlas()}
+          onRetry={() => store.retryAtlas()}
+          onSetAside={placeId => store.setAsideAtlasPlace(placeId)}
+        />
       )}
       {state.screen === 'keep' && <KeepScreen state={state.universe} onReturn={() => store.returnToUniverse()} onEnterScroll={() => store.enterScroll()} onOpenTrace={trace => store.openTrace(trace)} />}
       {state.screen === 'privacy' && (
@@ -83,22 +140,33 @@ export function App({ apiClient, onSignedOut }: AppProps) {
           onConfirmDeleteAccount={typed => store.confirmDeleteAccount(typed)}
         />
       )}
-      {(state.screen === 'scroll' || state.screen === 'revisit') && (
-        <ScrollScreen
-          state={state.scroll}
+      {state.screen === 'scroll' && state.scroll.status === 'reading' && state.scroll.item.kind === 'Reel' && (
+        <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel}>
+        <ReelPlayer
+          key={state.scroll.item.assetId}
+          item={state.scroll.item}
+          active={state.scroll.discovery !== 'loading'}
           onVisible={assetId => store.onVisible(assetId)}
           onKeep={() => store.keep()}
-          onOpenKeep={() => store.openKeep()}
           onNext={() => store.nextScroll()}
           onReturn={() => store.returnToUniverse()}
-          onRetry={() => store.retryScrollLoad()}
-          onReadingPosition={(assetId, position) => store.updateReadingPosition(assetId, position)}
+          keepStatus={state.scroll.keep.status === 'conflict' ? 'failed' : state.scroll.keep.status === 'failed' ? 'failed' : state.scroll.keep.status}
           why={state.why}
           onOpenWhy={() => store.openWhy()}
           onCloseWhy={() => store.closeWhy()}
           onRetryWhy={() => store.retryWhy()}
           onCorrect={kind => store.correctEncounter(kind)}
+          branchPanel={branchPanel}
+          onSwitchRepresentation={kind => store.switchRepresentation(kind)}
+          onBranchNext={openFirstBranch}
+          branchNextLabel={branchForwardLabel}
         />
+        </EncounterGesture>
+      )}
+      {(state.screen === 'revisit' || (state.screen === 'scroll' && !(state.scroll.status === 'reading' && state.scroll.item.kind === 'Reel'))) && (
+        state.screen === 'scroll' && state.scroll.status === 'reading'
+          ? <EncounterGesture onNext={() => store.nextScroll()} onBranchNext={openFirstBranch} onBranchPrevious={returnBranch} branchNextLabel={branchForwardLabel} keyboardNavigation={false}>{scrollScreen}</EncounterGesture>
+          : scrollScreen
       )}
     </div>
   );

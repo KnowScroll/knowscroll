@@ -1,5 +1,83 @@
 # Shared delivery checkpoint
 
+## 2026-10-01 #171 visual refinement of PR #195 (unmerged)
+
+Follow-up: the landed globe now turns slowly with moving clouds, responds to drag and arrow keys,
+and cycles daylight/evening/moonlit lighting when tapped. A small interactive moon advances the
+lighting. The Scroll action stays distinct from inspecting the planet. This scene is an
+illustration; it creates no Atlas place, semantic moon or world-evolution event.
+
+The web branch keeps the existing movable Universe and its real saved Traces, but a planet now
+lands in a visible continent-covered globe before its Scroll opens. One SVG ship appears in flight
+and at arrival. The compact landscape frame keeps planet taps and the landing action reachable.
+The landing map is visual wayfinding, not a new inferred Atlas place.
+
+The Hybrid Set cream/ink/cobalt/yellow/teal register now carries Scroll and Reel, with consistent
+controls. Both reading surfaces expose a Reel/Scroll switch. It selects a real feed kind; the Reel
+is a separate encounter rather than a generated rendering of the same Scroll. Switching from a
+Scroll parks its reading position and exposure identity in memory for return. A reload restores the
+Reel session but loses that temporary parked Scroll, so switching back asks for a Scroll. Narrow
+Scrolls keep Canvas/code/paragraph content within the viewport; the action strip no longer covers
+text, and a small cue keeps swipe navigation discoverable.
+
+The live disposable preview remains at `http://127.0.0.1:4397/` with the three owner-supplied
+videos as labelled test media; the files remain outside Git. Manual browser checks covered the
+Universe, flight, continent reveal, Scroll, Reel switch, 320px portrait and 650px landscape. Web
+unit tests passed 252/252, including a saved-Trace switch that preserves its read-only origin.
+Full Chromium and WebKit disposable reader journeys passed 52 active tests each, with three
+fixture-only skips each. Focused Reel/media and gesture journeys passed 2/2 in each engine using
+one labelled owner-supplied local MP4; private video captures were excluded from tracked evidence.
+Each test database was dropped. The production web build remains guarded by issue #2; the
+explicit test-evidence build passed. Physical iPhone acceptance remains open.
+
+## 2026-09-30 #171 web reader hands-on follow-up, PR #195 (unmerged)
+
+The same SSD branch now has bounded drag/keyboard/button panning and zooming in Universe, decorative
+starfield parallax, and an SVG ship transition before planet/Trace entry. The phone Atlas copy and
+map labels have been made more legible. Scroll and Reel surfaces show vertical and horizontal
+encounter controls; the floating controls yield when a Scroll's own Next actions enter view.
+Saved Trace revisits now receive the same checked web artifact after the original guarded Trace
+read verifies its asset, revision and body; the revisit still records no new exposure.
+
+Two **authored test** Scroll artifacts add a Canvas wave, diagram/comparison, disclosure and static
+code rendering. A disposable-only feed preview offers them through normal decision/exposure/Keep
+logic. A separate Reel-only preview offers three gated **test media** Reels from the owner's supplied
+local files. These videos remain outside Git, and neither the media nor the Scroll studies are
+claims of Cutroom or model generation. The preview is presently live at `http://127.0.0.1:4397/`
+with a throwaway database; its local session ends when the preview process stops.
+
+Observed in the browser at a 390 × 844 viewport: panning/zoom changed the camera and starfield,
+ship travel appeared before a planet opened, the Canvas slider changed visible sample values,
+horizontal connection navigation opened a sourced Scroll, all three test Reels reached the player,
+one supplied video played with loaded metadata, and a kept interactive Scroll reopened with its
+Canvas and code blocks intact. Web unit tests: 248/248. Targeted disposable database tests:
+29/29 across two runs. Full Chromium and WebKit reader journeys: 52 passed in each engine,
+three fixture-only tests skipped in each;
+the first attempt exposed an overlay that blocked the inline Next button, and the subsequent run
+passed after the controls were corrected. Production web identity (#2), actual Cutroom output,
+model-authored interactive blocks, and physical iPhone acceptance remain open.
+
+## 2026-09-29 #171 web reader implementation, PR #195 (unmerged)
+
+Branch `codex/171-web-ios-v1` in the SSD worktree
+`/Volumes/Mrigesh SSD/knowscroll-product-worktrees/codex-web-ios-v1` adds a phone-first Reel/Scroll
+reader, Atlas, source-free web API projections, checked declarative Scroll artifacts (migration
+0041), and explicit horizontal Scroll continuations. The decision and remaining gaps are in
+`docs/architecture/web-encounter-player.md`; receipts and screenshots are in
+`docs/journeys/evidence/web-171/`. The main branch is unchanged until PR #195 is reviewed/merged.
+
+- Disposable PostgreSQL suite: 125 files, 1,103 tests passed. Web unit suite: 25 files, 244 tests
+  passed. Root and web typechecks, formatting, lint, and test-evidence build passed.
+- Full Chromium and WebKit reader journeys: 52 passed in each engine, with three fixture-only tests
+  skipped. Focused Reel fixture: 2/2 in each engine. Source-backed branch: 1/1 in each engine.
+  Every runner dropped its test database; the owner database was not used.
+- Level B generated modules and sandbox, production browser identity (#2), real Cutroom output,
+  Reel-target branches, and physical iPhone touch/back-edge/rotation/memory/frame acceptance remain
+  open. Playwright WebKit is browser-engine evidence, not iPhone acceptance. Do not treat this PR as
+  a v1 release receipt.
+- Next: owner reviews PR #195, then decides the identity/Level B/Reel-branch contracts and runs the
+  real-device journey before release sign-off.
+
 ## 2026-09-25 Android-first continuation, Waves 3–4 and the acceptance matrix (coordinator)
 
 Main moved from `d009225` to `bb86ad9`, then this PR. Every slice was used by hand on the API36

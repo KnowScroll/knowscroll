@@ -5,12 +5,16 @@ import { feedPath } from '../../src/api/client';
 // with Scrolls the reader would skip (a false "end of library").
 describe('feedPath', () => {
   it('sends nothing for a fresh trip', () => {
-    expect(feedPath([])).toBe('/feed');
+    expect(feedPath([])).toBe('/feed?webArtifact=v1');
+    expect(feedPath([], true)).toBe('/feed?webArtifact=v1&kinds=Scroll,Reel');
+    expect(feedPath([], 'reelOnly')).toBe('/feed?webArtifact=v1&kinds=Reel');
+    expect(feedPath([], false, 'authored-web-scrolls')).toBe('/feed?webArtifact=v1&preview=authored-web-scrolls');
   });
   it('sends only UUIDs, once each, the most recent 256', () => {
     const ids = Array.from({ length: 300 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
     const sent = feedPath([...ids, 'not-a-uuid', ids[0]!]).split('exclude=')[1]!.split(',');
     expect(sent).toHaveLength(256);
     expect(sent).toEqual(ids.slice(-256));
+    expect(feedPath(ids.slice(0, 1), true)).toBe(`/feed?webArtifact=v1&kinds=Scroll,Reel&exclude=${ids[0]}`);
   });
 });

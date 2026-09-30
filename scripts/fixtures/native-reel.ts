@@ -11,7 +11,7 @@ import {dirname,join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {mintGatedTestReel} from './gated-reel.ts';
 const db = new URL(process.env.DATABASE_URL!);
-if(!/^knowscroll_test_(native|hands)_[a-f0-9]+$/.test(db.pathname.slice(1)) || !['localhost','127.0.0.1'].includes(db.hostname)) throw Error('Disposable native database required');
+if(!/^knowscroll_test_(native|hands|webreel)_[a-f0-9]+$/.test(db.pathname.slice(1)) || !['localhost','127.0.0.1'].includes(db.hostname)) throw Error('Disposable native database required');
 const {pool}=await import('../../packages/db/src/index.ts');
 const mediaRoot=process.env.KS_MEDIA_ROOT!;
 if(!mediaRoot.startsWith('/Volumes/'))throw Error('SSD media directory required');

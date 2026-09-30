@@ -29,5 +29,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: process.env.KS_PW_BROWSER === 'webkit'
+    ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] } }]
+    : [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

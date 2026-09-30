@@ -1,13 +1,17 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Trace, Universe } from '../api/types.ts';
 import type { UniverseView } from '../state/readerStore.ts';
 import type { ReaderStorage } from '../state/storage.ts';
 import { CosmosBackground } from './CosmosBackground.tsx';
+import { PlanetLanding } from './PlanetLanding.tsx';
+import { TravelShip, type TravelDestination } from './TravelShip.tsx';
 
 export interface UniverseScreenProps {
   state: UniverseView;
   storage: ReaderStorage;
   onEnterScroll: () => void;
+  onEnterTestReels?: () => void;
+  onEnterRichScrolls?: () => void;
   onOpenTrace: (trace: Trace) => void;
   onEnterSystem: () => void;
   onOpenPrivacy: () => void;
@@ -17,10 +21,10 @@ export interface UniverseScreenProps {
 
 /** Atlas keeps saved Traces distinct from the source-backed worlds inside System.
  * Neither a save nor its age establishes semantic growth. */
-export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetry }: UniverseScreenProps) {
+export function UniverseScreen({ state, storage, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetry }: UniverseScreenProps) {
   return (
     <main className="universe-screen" aria-label="Universe">
-      <CosmosBackground />
+      {state.status !== 'loaded' && <CosmosBackground />}
       {state.status === 'loading' && (
         <div className="universe-content">
           <p className="eyebrow">KNOWSCROLL</p>
@@ -49,6 +53,8 @@ export function UniverseScreen({ state, storage, onEnterScroll, onOpenTrace, onE
           universe={state.universe}
           storage={storage}
           onEnterScroll={onEnterScroll}
+          onEnterTestReels={onEnterTestReels}
+          onEnterRichScrolls={onEnterRichScrolls}
           onOpenTrace={onOpenTrace}
           onEnterSystem={onEnterSystem}
           onOpenPrivacy={onOpenPrivacy}
@@ -76,7 +82,7 @@ const STAGE_HEADING: Record<Stage, string> = {
   grown: 'Places worth returning to.',
 };
 const STAGE_SUBTITLE_FIRST = 'No topics to pick. Just something interesting.';
-const STAGE_SUBTITLE_FEW = 'Saved encounters below. Source-backed worlds in your system.';
+const STAGE_SUBTITLE_FEW = 'Saved encounters below. Open your Atlas to see what has taken shape.';
 
 /* ---------- Body layout: a deterministic grid, never a continuous spiral ----------
  * The reference's own spiral placement let two bodies land close enough in
@@ -197,19 +203,116 @@ interface LoadedUniverseProps {
   universe: Universe;
   storage: ReaderStorage;
   onEnterScroll: () => void;
+  onEnterTestReels?: () => void;
+  onEnterRichScrolls?: () => void;
   onOpenTrace: (trace: Trace) => void;
   onEnterSystem: () => void;
   onOpenPrivacy: () => void;
   onOpenKeep?: () => void;
 }
 
-function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep }: LoadedUniverseProps) {
+interface LandingTarget {
+  title: string;
+  saved: boolean;
+  variant: number;
+  continue: () => void;
+}
+
+function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep }: LoadedUniverseProps) {
   const traces = universe.traces;
   const empty = traces.length === 0;
   const stage = stageFor(traces.length);
   const firstBodyRef = useRef<HTMLButtonElement | null>(null);
   const ctaRef = useRef<HTMLButtonElement | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
+  const [dragging, setDragging] = useState(false);
+  const [travel, setTravel] = useState<TravelDestination | null>(null);
+  const [landing, setLanding] = useState<LandingTarget | null>(null);
+  const pendingLanding = useRef<LandingTarget | null>(null);
+  const travelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number; moved: boolean } | null>(null);
+  const suppressPointerClick = useRef(false);
+  const suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (travelTimer.current) clearTimeout(travelTimer.current);
+    if (suppressTimer.current) clearTimeout(suppressTimer.current);
+    pendingLanding.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!travel) return undefined;
+    travelTimer.current = setTimeout(() => {
+      const target = pendingLanding.current;
+      pendingLanding.current = null;
+      setTravel(null);
+      setLanding(target);
+    }, 1050);
+    return () => {
+      if (travelTimer.current) clearTimeout(travelTimer.current);
+      travelTimer.current = null;
+    };
+  }, [travel]);
+
+  const moveTo = (event: ReactMouseEvent<HTMLElement>, target: LandingTarget) => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setLanding(target);
+      return;
+    }
+    const bounds = event.currentTarget.getBoundingClientRect();
+    pendingLanding.current = target;
+    setTravel({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
+  };
+
+  const navigateNow = (action: () => void) => {
+    pendingLanding.current = null;
+    if (travelTimer.current) clearTimeout(travelTimer.current);
+    setTravel(null);
+    action();
+  };
+
+  const beginPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, startX: camera.x, startY: camera.y, moved: false };
+    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+  };
+
+  const pan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const active = drag.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    const dx = event.clientX - active.x;
+    const dy = event.clientY - active.y;
+    if (Math.abs(dx) + Math.abs(dy) > 7) active.moved = true;
+    if (!active.moved) return;
+    setDragging(true);
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const rangeX = Math.min(620, bounds.width * 0.9);
+    const rangeY = Math.min(620, bounds.height * 0.9);
+    setCamera(value => ({ ...value, x: clamp(active.startX + dx, -rangeX, rangeX), y: clamp(active.startY + dy, -rangeY, rangeY) }));
+  };
+
+  const endPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const active = drag.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    if (active.moved) {
+      suppressPointerClick.current = true;
+      if (suppressTimer.current) clearTimeout(suppressTimer.current);
+      suppressTimer.current = setTimeout(() => { suppressPointerClick.current = false; }, 450);
+    }
+    drag.current = null;
+    setDragging(false);
+  };
+
+  const blockDragClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.detail > 0 && suppressPointerClick.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressPointerClick.current = false;
+      if (suppressTimer.current) clearTimeout(suppressTimer.current);
+    }
+  };
+
+  const adjustZoom = (amount: number) => setCamera(value => ({ ...value, zoom: Math.max(0.7, Math.min(1.8, Math.round((value.zoom + amount) * 100) / 100)) }));
 
   const focusKeep = () => {
     if (firstBodyRef.current) firstBodyRef.current.focus();
@@ -232,8 +335,22 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
   // unexplored body can never collide with the last row of real Traces either.
   const slots = useMemo(() => (empty ? [] : layoutBodies(traces.length + 1)), [empty, traces.length]);
 
+  if (landing) {
+    return <PlanetLanding
+      title={landing.title}
+      saved={landing.saved}
+      variant={landing.variant}
+      onBack={() => setLanding(null)}
+      onContinue={() => {
+        setLanding(null);
+        landing.continue();
+      }}
+    />;
+  }
+
   return (
     <>
+      <CosmosBackground camera={camera} />
       <div className="universe-title" aria-hidden="false">
         <p className="eyebrow">KNOWSCROLL</p>
         <h1>{STAGE_HEADING[stage]}</h1>
@@ -250,21 +367,30 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
           privacy control at all; this sits in Cosmos's own reserved-but-otherwise-unused top-right
           status-pill slot (`.universe-title`'s own `right:150px` already clears this exact space)
           rather than inventing a new frame position. */}
-      <button type="button" className="pill cream privacy-entry" onClick={onOpenPrivacy} aria-label="Open privacy controls">
+      <button type="button" className="pill cream privacy-entry" onClick={() => navigateNow(onOpenPrivacy)} aria-label="Open privacy controls">
         Privacy
       </button>
 
       {/* Every body here is a real, focusable, labelled control (even the empty-state
           invitation bodies, which trigger the same real discovery action as the CTA) --
           never aria-hidden, which would strand a focusable control from assistive tech. */}
-      <div className="universe-bodies" style={zoom !== 1 ? { transform: `scale(${zoom})` } : undefined}>
+      <div className={`universe-camera${dragging ? ' is-dragging' : ''}`} aria-label="Explore the starfield. Drag to move, use arrow keys or pan controls, and use plus or minus to zoom." onPointerDown={beginPan} onPointerMove={pan} onPointerUp={endPan} onPointerCancel={endPan} onClickCapture={blockDragClick} onKeyDown={event => {
+        const step = event.shiftKey ? 120 : 60;
+        if (event.key === 'ArrowLeft') setCamera(value => ({ ...value, x: Math.min(620, value.x + step) }));
+        else if (event.key === 'ArrowRight') setCamera(value => ({ ...value, x: Math.max(-620, value.x - step) }));
+        else if (event.key === 'ArrowUp') setCamera(value => ({ ...value, y: Math.min(620, value.y + step) }));
+        else if (event.key === 'ArrowDown') setCamera(value => ({ ...value, y: Math.max(-620, value.y - step) }));
+        else return;
+        event.preventDefault();
+      }} tabIndex={0}>
+      <div className="universe-bodies" style={{ transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})` }}>
         {empty ? (
           <>
             <button
               type="button"
               className="body-button seed"
               style={bodyStyle(50, 52, 84)}
-              onClick={onEnterScroll}
+              onClick={event => moveTo(event, { title: 'A first possibility', saved: false, variant: 0, continue: onEnterScroll })}
               aria-label="A first possibility: see what catches your curiosity"
               ref={firstBodyRef}
             >
@@ -277,7 +403,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
               type="button"
               className="body-button dust"
               style={bodyStyle(20, 34, 42)}
-              onClick={onEnterScroll}
+              onClick={event => moveTo(event, { title: 'A different angle', saved: false, variant: 1, continue: onEnterScroll })}
               aria-label="A different angle"
             >
               <span className="body-label">
@@ -288,7 +414,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
               type="button"
               className="body-button dust"
               style={bodyStyle(80, 26, 40)}
-              onClick={onEnterScroll}
+              onClick={event => moveTo(event, { title: 'A little surprise', saved: false, variant: 2, continue: onEnterScroll })}
               aria-label="A little surprise"
             >
               <span className="body-label">
@@ -312,7 +438,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
                         type="button"
                         className="body-button trace"
                         style={{ ...bodyStyle(slot.left, slot.top, sizePx), boxShadow: `0 0 26px ${palette.glow}, inset 0 0 0 1px rgba(255,255,255,.18)` }}
-                        onClick={() => onOpenTrace(trace)}
+                        onClick={event => moveTo(event, { title: trace.title || 'Saved Scroll', saved: true, variant: i, continue: () => onOpenTrace(trace) })}
                         aria-label={`Revisit the saved Trace: ${trace.title || 'Saved Scroll unavailable'}`}
                         ref={i === 0 ? firstBodyRef : undefined}
                       >
@@ -336,7 +462,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
             {(() => {
               const nebulaSlot = slots[traces.length] ?? { left: 88, top: 68, labelCh: DEFAULT_LABEL_CH };
               return (
-                <button type="button" className="body-button nebula" style={bodyStyle(nebulaSlot.left, nebulaSlot.top, 46)} onClick={onEnterScroll} aria-label="Still unexplored">
+                <button type="button" className="body-button nebula" style={bodyStyle(nebulaSlot.left, nebulaSlot.top, 46)} onClick={event => moveTo(event, { title: 'Still unexplored', saved: false, variant: traces.length, continue: onEnterScroll })} aria-label="Still unexplored">
                   <span className="body-label" style={labelWidthStyle(nebulaSlot.labelCh)}>
                     <span className="body-name">Still unexplored</span>
                   </span>
@@ -345,6 +471,7 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
             })()}
           </>
         )}
+      </div>
       </div>
 
       {!empty && (
@@ -359,14 +486,20 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
       )}
 
       {(
-        <div className="map-tools" aria-label="Map controls">
-          <button type="button" className="zoom-button" disabled={zoom <= 0.75} onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.15) * 100) / 100))} aria-label="Zoom out">
+      <div className={`map-tools${empty ? '' : ' has-traces'}${camera.x !== 0 || camera.y !== 0 || camera.zoom !== 1 ? ' is-moved' : ''}`} aria-label="Map controls">
+          <div className="pan-controls" role="group" aria-label="Pan the universe">
+            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.min(620, value.y + 70) }))} aria-label="Pan up">↑</button>
+            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.min(620, value.x + 70) }))} aria-label="Pan left">←</button>
+            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.max(-620, value.y - 70) }))} aria-label="Pan down">↓</button>
+            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.max(-620, value.x - 70) }))} aria-label="Pan right">→</button>
+          </div>
+          <button type="button" className="zoom-button" disabled={camera.zoom <= 0.7} onClick={() => adjustZoom(-0.15)} aria-label="Zoom out">
             −
           </button>
-          <button type="button" className="zoom-button" disabled={zoom >= 1} onClick={() => setZoom(z => Math.min(1, Math.round((z + 0.15) * 100) / 100))} aria-label="Zoom in">
+          <button type="button" className="zoom-button" disabled={camera.zoom >= 1.8} onClick={() => adjustZoom(0.15)} aria-label="Zoom in">
             +
           </button>
-          <button type="button" className="zoom-button recenter" onClick={() => setZoom(1)} aria-label="Recenter the universe">
+          <button type="button" className="zoom-button recenter" onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })} aria-label="Recenter the universe">
             ⌖
           </button>
           {/* Living Observatory's own scale label (its `#scaleLabel`) names which of four
@@ -381,43 +514,48 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onOpenTrace, onEnter
               made it, a control that goes there. It still claims nothing: the system it opens
               names only the worlds this reader's own reading has actually reached, and says so
               plainly when that set is empty. */}
-          <button type="button" className="map-scale-label" onClick={onEnterSystem} aria-label="Open the system view">
-            Explore your system ↗
-          </button>
         </div>
       )}
+      {travel && <TravelShip destination={travel} />}
 
-      <p className="universe-hint">{empty ? 'Tap a possibility to begin' : 'Tap a Trace to revisit it'}</p>
+      <p className="universe-hint">Drag to explore · Tap a planet to land</p>
 
       <div className="universe-cta-block">
         <button
           type="button"
           className={empty ? 'pill yellow universe-cta' : 'pill teal universe-cta'}
-          onClick={onEnterScroll}
+          onClick={() => navigateNow(onEnterScroll)}
           aria-label="Enter Scroll"
           ref={empty ? undefined : ctaRef}
         >
           {empty ? 'Show me something ↗' : 'Enter Scroll'}
         </button>
+        {(onEnterRichScrolls || onEnterTestReels) && <details className="preview-menu">
+          <summary>Try the preview</summary>
+          <div className="preview-menu__choices">
+            {onEnterRichScrolls && <button type="button" onClick={() => navigateNow(onEnterRichScrolls)}>Interactive test Scrolls <span aria-hidden="true">↗</span></button>}
+            {onEnterTestReels && <button type="button" onClick={() => navigateNow(onEnterTestReels)}>Supplied test Reels <span aria-hidden="true">↗</span></button>}
+          </div>
+        </details>}
         <p className="cta-helper">
           {empty ? 'Your world begins with what catches your curiosity.' : 'A familiar impulse. Somewhere new to go.'}
         </p>
       </div>
 
       <nav className="universe-dock" aria-label="Main navigation">
-        <button type="button" className="dock-button" onClick={onEnterScroll} aria-label="Cable — read a Scroll">
+        <button type="button" className="dock-button" onClick={() => navigateNow(onEnterScroll)} aria-label="Cable — read a Scroll">
           <span className="dock-icon" aria-hidden="true">
             〜
           </span>
           Cable
         </button>
-        <button type="button" className="dock-button current" aria-current="page" onClick={() => {}} aria-label="Atlas — your universe">
+        <button type="button" className="dock-button current" onClick={() => navigateNow(onEnterSystem)} aria-label="Atlas — open your places">
           <span className="dock-icon" aria-hidden="true">
             ◎
           </span>
           Atlas
         </button>
-        <button type="button" className="dock-button" onClick={onOpenKeep ?? focusKeep} aria-label="Keep — your saved Traces">
+        <button type="button" className="dock-button" onClick={() => navigateNow(onOpenKeep ?? focusKeep)} aria-label="Keep — your saved Traces">
           <span className="dock-icon" aria-hidden="true">
             ▱
           </span>
@@ -438,4 +576,8 @@ function formatTraceDate(createdAt: string): string {
 
 function bodyStyle(leftPct: number, topPct: number, sizePx: number): CSSProperties {
   return { left: `${leftPct}%`, top: `${topPct}%`, width: sizePx, height: sizePx };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

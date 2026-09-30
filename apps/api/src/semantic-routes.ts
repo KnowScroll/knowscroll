@@ -21,6 +21,11 @@ import {
   openBranch,
   recordConnectionFeedback,
 } from '../../../packages/db/src/semantic/branches.ts';
+import type {
+  EncounterBranchesResponse,
+  WebEncounterBranchesResponse,
+  WebBranchOpenResponse,
+} from '../../../packages/contracts/src/semantic.ts';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { HttpError } from './errors.ts';
 
@@ -53,7 +58,7 @@ export function registerSemanticRoutes(
             req.params.assetId,
             listed.branches,
           );
-          return listed;
+          return isWebReader(req.query) ? webBranches(listed) : listed;
         },
       );
       return reply.header('Cache-Control', 'no-store').send(result);
@@ -67,7 +72,7 @@ export function registerSemanticRoutes(
         const opened = await openBranch(client, scope, req.body);
         if (opened.branch.recorded)
           await refreshPersonalModel(client, scope.universeId);
-        return opened;
+        return isWebReader(req.query) ? webBranchOpen(opened) : opened;
       },
     );
     return reply.code(201).send(result);
@@ -84,4 +89,55 @@ export function registerSemanticRoutes(
     );
     return reply.code(201).send(result);
   });
+}
+
+function isWebReader(query: unknown): boolean {
+  return (
+    typeof query === 'object' &&
+    query !== null &&
+    (query as { webReader?: unknown }).webReader === 'v1'
+  );
+}
+
+function webBranches(
+  value: EncounterBranchesResponse,
+): WebEncounterBranchesResponse {
+  return {
+    assetId: value.assetId,
+    revision: value.revision,
+    privacyEpoch: value.privacyEpoch,
+    emptyReason: value.emptyReason,
+    branches: value.branches.map(({ evidence, target, ...branch }) => ({
+      ...branch,
+      evidence: evidence.map(({ claimKey, statement, supports }) => ({
+        claimKey,
+        statement,
+        supports,
+      })),
+      target: {
+        assetId: target.assetId,
+        revision: target.revision,
+        kind: 'Scroll',
+        title: target.title,
+        summary: target.summary,
+      },
+    })),
+  };
+}
+
+function webBranchOpen(
+  value: Awaited<ReturnType<typeof openBranch>>,
+): WebBranchOpenResponse {
+  return {
+    ...value,
+    items: value.items.map((raw) => {
+      const item = raw as Record<string, unknown>;
+      const {
+        sourceTitle: _sourceTitle,
+        sourceUrl: _sourceUrl,
+        ...safe
+      } = item;
+      return { ...safe, webArtifact: null };
+    }),
+  } as WebBranchOpenResponse;
 }

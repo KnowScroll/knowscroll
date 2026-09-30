@@ -1,0 +1,210 @@
+.planet-landing {
+  position: relative;
+  isolation: isolate;
+  height: 100dvh;
+  overflow: hidden;
+  background: #050b19;
+  color: #fffbf0;
+}
+.planet-landing::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 43% 65%, rgb(44 70 232 / 18%), transparent 54%);
+  content: '';
+  pointer-events: none;
+}
+.planet-landing__top {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 24px clamp(20px, 4vw, 52px);
+}
+.planet-landing__top .eyebrow { color: #ffe44d; }
+.planet-landing__scene {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr);
+  align-items: center;
+  width: min(1220px, 100%);
+  height: calc(100% - 88px);
+  margin: auto;
+  padding: 0 clamp(20px, 5vw, 64px) 48px;
+}
+.planet-landing__orbit {
+  position: absolute;
+  left: 2%;
+  top: 14%;
+  width: 70%;
+  aspect-ratio: 1.45;
+  border: 1px solid rgb(20 199 155 / 32%);
+  border-radius: 50%;
+  transform: rotate(-18deg);
+  box-shadow: 0 0 45px rgb(20 199 155 / 8%);
+}
+.planet-landing__celestial {
+  position: relative;
+  width: min(60vw, 650px);
+  max-width: 100%;
+  aspect-ratio: 1;
+  animation: planet-reveal .95s cubic-bezier(.16,.78,.26,1) both;
+}
+.planet-landing__world {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 0 28px rgb(44 70 232 / 34%));
+  touch-action: none;
+}
+.planet-landing__world .world-globe { display: block; width: 100%; height: 100%; }
+.planet-landing__world:hover { filter: drop-shadow(0 0 42px rgb(20 199 155 / 50%)); }
+.planet-landing__world:focus-visible { outline: 3px solid #ffe44d; outline-offset: 6px; }
+.planet-landing__world .world-globe__surface { transform: translateX(var(--surface-shift, 0px)); }
+.planet-landing__world .world-globe__clouds { animation: globe-clouds 24s ease-in-out infinite alternate; }
+.planet-landing__world .world-globe__twilight, .planet-landing__world .world-globe__night { transition: opacity .8s ease; }
+.planet-landing__world[data-light="1"] .world-globe__twilight { opacity: .27; }
+.planet-landing__world[data-light="2"] .world-globe__night { opacity: .56; }
+.planet-landing__world[data-light="2"] { filter: drop-shadow(0 0 42px rgb(91 117 255 / 48%)); }
+.planet-landing__moon-track {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+.planet-landing__moon {
+  position: absolute;
+  top: 5%;
+  right: 4%;
+  width: clamp(44px, 9%, 66px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 22px rgb(255 251 240 / 42%);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: moon-orbit 18s ease-in-out infinite alternate;
+}
+.planet-landing__moon svg { display: block; width: 100%; height: 100%; }
+.planet-landing__moon:hover { box-shadow: 0 0 30px rgb(255 228 77 / 80%); }
+.planet-landing__moon:focus-visible { outline: 3px solid #ffe44d; outline-offset: 4px; }
+.planet-landing__moon-shade { transition: transform .8s ease, opacity .8s ease; }
+.planet-landing__moon[data-light="1"] .planet-landing__moon-shade { transform: translateX(-8px); opacity: .75; }
+.planet-landing__moon[data-light="2"] .planet-landing__moon-shade { transform: translateX(-19px); opacity: .4; }
+.planet-landing__light {
+  position: absolute;
+  z-index: 2;
+  left: 11%;
+  bottom: 12%;
+  padding: 7px 10px;
+  border: 1px solid rgb(124 233 255 / 45%);
+  border-radius: 999px;
+  background: rgb(5 11 25 / 82%);
+  color: #fffbf0;
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.planet-landing__ship {
+  position: absolute;
+  left: 53%;
+  top: 35%;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 52px;
+  filter: drop-shadow(0 0 12px #ffe44d);
+  transform: translate(-50%, -50%);
+  animation: landing-pulse .8s ease-out .5s both;
+}
+.planet-landing__ship svg { width: 100%; height: 100%; }
+.planet-landing__copy {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  max-width: 430px;
+  padding: clamp(24px, 4vw, 42px);
+  border: 3px solid #111214;
+  border-radius: 24px;
+  background: #fffbf0;
+  color: #111214;
+  box-shadow: 12px 12px 0 #2c46e8, 0 24px 50px rgb(0 0 0 / 36%);
+  animation: landing-card .58s ease-out .38s both;
+}
+.planet-landing__eyebrow {
+  margin: 0 0 12px;
+  color: #2c46e8;
+  font: 700 11px/1.4 var(--font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.planet-landing__copy h1 {
+  overflow-wrap: anywhere;
+  font: 800 clamp(31px, 4vw, 54px)/1.02 var(--font-display);
+  letter-spacing: -.035em;
+}
+.planet-landing__copy > p:not(.planet-landing__eyebrow) { margin: 18px 0 24px; font-size: 16px; line-height: 1.5; }
+.planet-landing__continue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 50px;
+  padding: 0 19px;
+  border: 2px solid #111214;
+  border-radius: 14px;
+  background: #ffe44d;
+  color: #111214;
+  font: 800 15px/1 var(--font-display);
+  cursor: pointer;
+}
+.planet-landing__continue:hover { background: #14c79b; }
+.planet-landing__hint { display: block; margin-top: 14px; color: #454a4f; font: 500 11px var(--font-mono); }
+@keyframes planet-reveal { from { opacity: 0; transform: scale(.46) translateY(14%); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes landing-card { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes landing-pulse { from { opacity: 0; transform: translate(-50%, -50%) scale(2.5); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes globe-clouds { from { transform: translateX(-11px); } to { transform: translateX(14px); } }
+@keyframes moon-orbit { from { transform: translate(0, 0); } to { transform: translate(-65px, -22px); } }
+@media (max-width: 700px) {
+  .planet-landing__top { padding: 16px 18px; }
+  .planet-landing__scene { display: flex; flex-direction: column; justify-content: center; height: calc(100% - 70px); padding: 0 20px 30px; }
+  .planet-landing__orbit { top: 7%; width: 130%; left: -15%; }
+  .planet-landing__celestial { width: min(86vw, 410px); flex: none; margin: -20px auto -44px; }
+  .planet-landing__moon { width: 48px; }
+  .planet-landing__copy { width: min(100%, 430px); padding: 23px 22px; box-shadow: 8px 8px 0 #2c46e8; }
+  .planet-landing__copy h1 { font-size: clamp(27px, 8vw, 40px); }
+  .planet-landing__copy > p:not(.planet-landing__eyebrow) { margin: 10px 0 15px; font-size: 14px; }
+  .planet-landing__continue { width: 100%; }
+}
+@media (max-height: 650px) and (max-width: 700px) {
+  .planet-landing__celestial { width: min(56vw, 230px); margin: -18px auto -26px; }
+  .planet-landing__moon { width: 37px; }
+  .planet-landing__light { display: none; }
+  .planet-landing__copy { padding: 17px; }
+}
+@media (max-height: 480px) and (min-width: 601px) {
+  .planet-landing__scene { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr); gap: 14px; height: calc(100% - 70px); padding: 0 20px 18px; }
+  .planet-landing__celestial { width: min(32vw, 230px); margin: auto; }
+  .planet-landing__moon { width: 38px; }
+  .planet-landing__light { display: none; }
+  .planet-landing__copy { width: 100%; padding: 15px; }
+  .planet-landing__copy h1 { font-size: clamp(22px, 3.6vw, 30px); }
+  .planet-landing__copy > p:not(.planet-landing__eyebrow) { margin: 8px 0 10px; font-size: 12px; }
+  .planet-landing__continue { min-height: 42px; font-size: 13px; }
+  .planet-landing__hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planet-landing__celestial, .planet-landing__copy, .planet-landing__ship, .planet-landing__moon, .planet-landing__world .world-globe__clouds { animation: none; }
+  .planet-landing__world .world-globe__twilight, .planet-landing__world .world-globe__night, .planet-landing__moon-shade { transition: none; }
+}

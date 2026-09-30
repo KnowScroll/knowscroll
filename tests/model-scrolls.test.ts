@@ -19,6 +19,7 @@ import { writeScroll, type WriteScrollDeps } from '../apps/worker/src/scrolls/wr
 import { selectInquiryPairs } from '../packages/core/src/reasoning/bridge-inquiry.ts';
 import { extractVisibleText } from '../packages/core/src/scrolls/material.ts';
 import { SCROLL_LIMITS } from '../packages/core/src/scrolls/writing.ts';
+import { validateScrollWebArtifact } from '../packages/core/src/scrolls/web-artifact.ts';
 import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
 import { readInquiryInputs } from '../packages/db/src/reasoning-inquiry-context.ts';
 import { admitModelScroll } from '../packages/db/src/semantic/model-scrolls.ts';
@@ -86,6 +87,8 @@ test('a fixture-written Scroll is admitted with its whole lineage', async () => 
   assert.equal(asset.body.split('\n\n').length, 3, 'the beats are its paragraphs');
   assert.equal(asset.source_url, url);
   assert.equal(asset.source_title, 'NASA · What makes the tides');
+  assert.deepEqual(validateScrollWebArtifact(asset.web_artifact, { assetId: result.assetId!, revision: 1, body: asset.body })?.blocks,
+    asset.body.split('\n\n').map((beat: string) => ({ type: 'text', paragraphs: [beat] })), 'the admitted Scroll has a checked web representation');
   const annotations = (await pool.query(`SELECT c.code, ac.role FROM asset_concept ac JOIN concept c ON c.id = ac.concept_id WHERE ac.asset_id=$1 ORDER BY ac.role`, [result.assetId])).rows;
   assert.deepEqual(annotations, [{ code: f.codes.tides, role: 'primary' }, { code: f.codes.gravity, role: 'secondary' }]);
 
@@ -271,6 +274,13 @@ test('GET /v1/feed serves the written Scroll, and no response or export ever car
   assert.ok(item, 'the Composer offers the written Scroll like any other');
   const stored = (await pool.query('SELECT title, body FROM asset WHERE id=$1', [written.assetId])).rows[0];
   assert.deepEqual([item.kind, item.title, item.body], ['Scroll', stored.title, stored.body]);
+  assert.equal('webArtifact' in item, false, 'the legacy and Android feed shape is unchanged');
+  const webFeed = await get('/v1/feed?kinds=Scroll&webArtifact=v1');
+  const webItem = (webFeed.items as Array<{ assetId: string; webArtifact: unknown }>).find(x => x.assetId === written.assetId);
+  assert.ok(webItem?.webArtifact, 'the web feed receives the checked representation');
+  assert.equal('sourceTitle' in webItem, false);
+  assert.equal('sourceUrl' in webItem, false);
+  assert.ok(validateScrollWebArtifact(webItem.webArtifact, { assetId: written.assetId!, revision: 1, body: stored.body }));
   const why = (await pool.query(`SELECT family FROM decision_candidate WHERE decision_id=$1 AND asset_id=$2 AND rank IS NOT NULL`, [feed.decisionId, written.assetId])).rows[0];
   assert.equal(why.family, 'deepen');
   const keptEvent = await keep(feed.decisionId, written.assetId!);

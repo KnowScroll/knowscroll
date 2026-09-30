@@ -4,7 +4,8 @@ import {after,test} from 'node:test';
 
 import {buildApp} from '../apps/api/src/app.ts';
 import {projectOne} from '../apps/worker/src/project.ts';
-import {traceRevisitCandidate,traceRevisitReceipt} from '../packages/contracts/src/trace-revisit.ts';
+import {traceRevisitCandidate,traceRevisitReceipt,webTraceRevisitReceipt} from '../packages/contracts/src/trace-revisit.ts';
+import {createAuthoredTestScrollWebArtifact} from '../packages/core/src/scrolls/web-artifact.ts';
 import {pool,provisionIdentity} from '../packages/db/src/index.ts';
 import {rejectRevisitWrites,seedTraceRevisitGraph,waitForRevisitPredicate} from './helpers/trace-revisit-fixture.ts';
 
@@ -30,6 +31,8 @@ test('real HTTP handlers admit Keep, project it and read the strict original sna
   if(!result) break;
  }
  assert(projected,'real deterministic projection reached the admitted Keep');
+ const authored=createAuthoredTestScrollWebArtifact({assetId:selected.assetId,revision:selected.revision,title:selected.title,body:selected.body,blocks:[{type:'text',paragraphs:[selected.body]}]});
+ await pool.query('UPDATE asset SET web_artifact=$1 WHERE id=$2',[authored,selected.assetId]);
  const keptAt=(await pool.query('SELECT created_at FROM ledger WHERE id=$1',[keep.json().eventId])).rows[0].created_at.toISOString();
  const before=(await pool.query(`SELECT (SELECT count(*) FROM decision) decisions,(SELECT count(*) FROM exposure) exposures,
   (SELECT count(*) FROM ledger) events,(SELECT count(*) FROM job) jobs,(SELECT count(*) FROM trace) traces,
@@ -40,6 +43,13 @@ test('real HTTP handlers admit Keep, project it and read the strict original sna
   assert.equal(response.headers['cache-control'],'no-store');
   assert.deepEqual(traceRevisitReceipt.parse(response.json()),{mode:'kept_revisit',traceEventId:keep.json().eventId,
    universeId:owner.scope.universeId,privacyEpoch:0,exposureId:exposure.json().exposureId,keptAt,scroll:traceRevisitCandidate.parse(selected)});
+  const webResponse=await app.inject({url:`/v1/traces/${keep.json().eventId}?webReader=v1`,headers:headers(owner.token)});
+  assert.equal(webResponse.statusCode,200,webResponse.body);
+  const webReceipt=webTraceRevisitReceipt.parse(webResponse.json());
+  assert.equal(webReceipt.scroll.assetId,selected.assetId);
+  assert.equal(webReceipt.scroll.webArtifact?.provenance.kind,'authored_test_fixture');
+  assert.equal('sourceTitle' in webResponse.json().scroll,false);
+  assert.equal('sourceUrl' in webResponse.json().scroll,false);
   const list=await universe(owner.token);assert.equal(list.statusCode,200,list.body);
   assert.equal(list.json().traces.find((trace:{eventId:string})=>trace.eventId===keep.json().eventId).title,selected.title);
   assert.deepEqual((await pool.query(`SELECT (SELECT count(*) FROM decision) decisions,(SELECT count(*) FROM exposure) exposures,
