@@ -25,3 +25,19 @@ The landing globe is illustrative navigation, not a derived Atlas place. The swi
 separate encounter kind; it does not convert a Scroll into a Reel of the same asset. A parked Scroll
 is temporary memory state. Playwright WebKit is browser-engine evidence, not physical iPhone
 acceptance.
+
+## Interactive landing follow-up (2026-10-01)
+
+- The landed planet now slowly rotates with moving clouds. Drag or arrow keys turn the globe;
+  tapping the globe or moon cycles daylight, evening glow and moonlit lighting. The separate
+  saved-Scroll button still opens the exact read-only Trace.
+- Web unit suite: 26 files, 253 tests passed. Web typecheck, formatting, lint and diff checks
+  passed.
+- The full disposable reader journey passed 53 active tests and three fixture skips in Chromium,
+  then the same result in WebKit. The new browser test drags the planet, changes light with the
+  planet and moon, and opens the saved Scroll. Both test databases were dropped.
+- Manual live checks covered drag and lighting at the default viewport, plus 390×844, 320×700 and
+  650×420. At 320×700 the moon and action fit the viewport and document overflow stayed at zero.
+- Rotation, clouds, moon and lighting are illustrated arrival-scene interactions. They make no
+  Atlas or world write and do not assert a semantic moon or evolved interest. Physical iPhone
+  touch acceptance remains open.

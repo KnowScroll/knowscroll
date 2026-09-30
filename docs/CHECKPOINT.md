@@ -2,6 +2,11 @@
 
 ## 2026-10-01 #171 visual refinement of PR #195 (unmerged)
 
+Follow-up: the landed globe now turns slowly with moving clouds, responds to drag and arrow keys,
+and cycles daylight/evening/moonlit lighting when tapped. A small interactive moon advances the
+lighting. The Scroll action stays distinct from inspecting the planet. This scene is an
+illustration; it creates no Atlas place, semantic moon or world-evolution event.
+
 The web branch keeps the existing movable Universe and its real saved Traces, but a planet now
 lands in a visible continent-covered globe before its Scroll opens. One SVG ship appears in flight
 and at arrival. The compact landscape frame keeps planet taps and the landing action reachable.

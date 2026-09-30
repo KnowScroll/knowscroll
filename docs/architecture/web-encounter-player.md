@@ -35,6 +35,12 @@ view before opening a Scroll. The landing globe has visible angular land shapes,
 cartography is an illustration of the destination: it does not name, infer or persist a new Atlas
 place. A saved planet still opens the exact saved Trace, and its revisit remains read-only. Short
 landscape windows use a compact layout so planets and the landing action remain reachable.
+On that landing, the globe slowly turns and carries moving cloud bands. A reader can drag it to
+turn faster, or tap the globe or its small moon to cycle daylight, evening and moonlit lighting.
+The Scroll action remains separate. These are camera and lighting interactions in the illustrated
+arrival scene; they make no world/Atlas write, do not create a semantic moon, and do not claim a
+new insight or world delta. Actual world evolution remains governed by the typed, lineage-bearing
+Cartographer changes rather than an animation timer.
 
 The Scroll and Reel header now has one explicit switch. It selects the corresponding admitted feed
 kind; a Reel is a separate encounter, not a video rendering of the same Scroll. While a reader

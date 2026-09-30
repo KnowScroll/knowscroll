@@ -65,3 +65,30 @@ test.describe('the universe canvas keeps clear of the frame drawn over it', () =
     expect(hidden).toBe(false);
   });
 });
+
+test('a landed planet turns and changes light before the saved Scroll opens', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
+  const landing = page.getByRole('region', { name: 'Planet landing' });
+  await expect(landing).toBeVisible();
+  const planet = landing.getByRole('button', { name: /Rotate planet/ });
+  const before = await planet.getAttribute('style');
+  const bounds = await planet.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.move(bounds!.x + bounds!.width * .35, bounds!.y + bounds!.height * .5);
+  await page.mouse.down();
+  await page.mouse.move(bounds!.x + bounds!.width * .65, bounds!.y + bounds!.height * .5, { steps: 5 });
+  await page.mouse.up();
+  expect(await planet.getAttribute('style')).not.toBe(before);
+  await expect(landing.getByText('Daylight')).toBeVisible();
+
+  await planet.click();
+  await expect(landing.getByText('Evening glow')).toBeVisible();
+  await landing.getByRole('button', { name: /Advance the moon/ }).click();
+  await expect(landing.getByText('Moonlit')).toBeVisible();
+  await expect(landing.getByRole('button', { name: 'Open saved Scroll' })).toBeInViewport();
+  await landing.getByRole('button', { name: 'Open saved Scroll' }).click();
+  await expect(page.getByRole('article')).toBeVisible();
+});

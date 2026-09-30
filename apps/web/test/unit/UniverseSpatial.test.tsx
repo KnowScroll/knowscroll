@@ -50,7 +50,7 @@ describe('Universe spatial navigation', () => {
     expect(onEnterScroll).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(1050); });
     expect(screen.getByRole('region', { name: 'Planet landing' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Discover a Scroll from A first possibility/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Rotate planet A first possibility/ })).toBeInTheDocument();
     expect(onEnterScroll).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
     expect(onEnterScroll).toHaveBeenCalledTimes(1);
@@ -72,8 +72,34 @@ describe('Universe spatial navigation', () => {
     act(() => { vi.advanceTimersByTime(1050); });
     expect(screen.getByRole('region', { name: 'Planet landing' }).querySelector('.world-globe')).toBeInTheDocument();
     expect(onOpenTrace).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /Open saved Scroll: A rhythm/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open saved Scroll' }));
     expect(onOpenTrace).toHaveBeenCalledWith(trace);
+  });
+
+  it('lets the reader turn the landed planet and change its light without opening the Scroll', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    const { onEnterScroll } = renderUniverse();
+    fireEvent.click(screen.getByRole('button', { name: /A first possibility/ }));
+    const planet = screen.getByRole('button', { name: /Rotate planet A first possibility/ });
+    expect(screen.getByText('Daylight')).toBeInTheDocument();
+
+    fireEvent.pointerDown(planet, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(planet, { pointerId: 1, clientX: 160 });
+    fireEvent.pointerUp(planet, { pointerId: 1, clientX: 160 });
+    fireEvent.click(planet);
+    expect(planet.style.getPropertyValue('--surface-shift')).not.toBe('0px');
+    expect(screen.getByText('Daylight')).toBeInTheDocument();
+    expect(onEnterScroll).not.toHaveBeenCalled();
+
+    fireEvent.click(planet);
+    expect(screen.getByText('Evening glow')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Advance the moon/ }));
+    expect(screen.getByText('Moonlit')).toBeInTheDocument();
+    fireEvent.keyDown(planet, { key: 'ArrowLeft' });
+    expect(onEnterScroll).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
+    expect(onEnterScroll).toHaveBeenCalledTimes(1);
   });
 
   it('cancels an in-flight trip on privacy navigation and unmount', () => {
