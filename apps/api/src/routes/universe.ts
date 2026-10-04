@@ -9,6 +9,19 @@ import {
 import { readUniverseSummary } from '@knowscroll/db/universe';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
+import { noStore } from '../http/input.ts';
+
+/** The refusal a `TraceRevisitError` kind maps to; this is the kind mapper for the Trace route. */
+function traceRevisitHttpError(error: TraceRevisitError): HttpError {
+  if (error.kind === 'invalid')
+    return new HttpError(400, 'Invalid Trace event ID');
+  if (error.kind === 'not_found') return new HttpError(404, 'Trace not found');
+  if (error.kind === 'stale_epoch')
+    return new HttpError(409, 'Trace privacy epoch is stale');
+  if (error.kind === 'source_changed')
+    return new HttpError(409, 'Saved Scroll source is unavailable');
+  return new HttpError(422, 'Saved Scroll lineage is unavailable');
+}
 
 export function registerUniverseRoutes(
   app: FastifyInstance,
@@ -63,20 +76,13 @@ export function registerUniverseRoutes(
             });
             return { ...receipt, scroll: { ...readerScroll, webArtifact } };
           } catch (error) {
-            if (!(error instanceof TraceRevisitError)) throw error;
-            if (error.kind === 'invalid')
-              throw new HttpError(400, 'Invalid Trace event ID');
-            if (error.kind === 'not_found')
-              throw new HttpError(404, 'Trace not found');
-            if (error.kind === 'stale_epoch')
-              throw new HttpError(409, 'Trace privacy epoch is stale');
-            if (error.kind === 'source_changed')
-              throw new HttpError(409, 'Saved Scroll source is unavailable');
-            throw new HttpError(422, 'Saved Scroll lineage is unavailable');
+            if (error instanceof TraceRevisitError)
+              throw traceRevisitHttpError(error);
+            throw error;
           }
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(result);
+      return noStore(reply).send(result);
     },
   );
 }

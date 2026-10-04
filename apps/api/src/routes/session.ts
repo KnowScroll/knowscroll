@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { revokeSession } from '@knowscroll/db';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
+import { noStore } from '../http/input.ts';
 import {
   clearedSessionCookie,
   csrfToken,
@@ -42,8 +43,8 @@ export function registerSessionRoutes(
     await authenticated(req.headers.authorization, async () => undefined);
     if (!req.ksCookieSession)
       throw new HttpError(400, 'Only a cookie session has a CSRF token');
-    return reply
-      .header('Cache-Control', 'no-store')
-      .send({ csrfToken: csrfToken(webSession.secret, req.ksCookieSession) });
+    return noStore(reply).send({
+      csrfToken: csrfToken(webSession.secret, req.ksCookieSession),
+    });
   });
 }

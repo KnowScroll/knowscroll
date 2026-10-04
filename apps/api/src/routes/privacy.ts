@@ -15,7 +15,7 @@ import {
   resumeRecording,
 } from '@knowscroll/db';
 import type { Authenticated } from '../http/authenticated.ts';
-import { HttpError } from '../http/errors.ts';
+import { parseInput } from '../http/input.ts';
 import { clearedSessionCookie } from '../http/web-session.ts';
 
 export function registerPrivacyRoutes(
@@ -26,10 +26,12 @@ export function registerPrivacyRoutes(
     const receipt = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = historyClearInput.safeParse(req.body);
-        if (!parsed.success)
-          throw new HttpError(400, 'Invalid history clear request');
-        return clearScrollHistory(client, scope, parsed.data);
+        const input = parseInput(
+          historyClearInput,
+          req.body,
+          'Invalid history clear request',
+        );
+        return clearScrollHistory(client, scope, input);
       },
     );
     return reply.code(200).send(receipt);
@@ -42,9 +44,12 @@ export function registerPrivacyRoutes(
     const receipt = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = privacyLifecycleInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid pause request');
-        return pauseRecording(client, scope, parsed.data);
+        const input = parseInput(
+          privacyLifecycleInput,
+          req.body,
+          'Invalid pause request',
+        );
+        return pauseRecording(client, scope, input);
       },
     );
     return reply.code(200).send(receipt);
@@ -54,9 +59,12 @@ export function registerPrivacyRoutes(
     const receipt = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = privacyLifecycleInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid resume request');
-        return resumeRecording(client, scope, parsed.data);
+        const input = parseInput(
+          privacyLifecycleInput,
+          req.body,
+          'Invalid resume request',
+        );
+        return resumeRecording(client, scope, input);
       },
     );
     return reply.code(200).send(receipt);
@@ -66,9 +74,12 @@ export function registerPrivacyRoutes(
     const result = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = privacyLifecycleInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid export request');
-        return exportUniverse(client, scope, parsed.data);
+        const input = parseInput(
+          privacyLifecycleInput,
+          req.body,
+          'Invalid export request',
+        );
+        return exportUniverse(client, scope, input);
       },
     );
     return reply.code(200).send(result);
@@ -78,9 +89,12 @@ export function registerPrivacyRoutes(
     const receipt = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = privacyResetInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid reset request');
-        return resetPersonalUniverse(client, scope, parsed.data);
+        const input = parseInput(
+          privacyResetInput,
+          req.body,
+          'Invalid reset request',
+        );
+        return resetPersonalUniverse(client, scope, input);
       },
     );
     return reply.code(200).send(receipt);
@@ -92,10 +106,12 @@ export function registerPrivacyRoutes(
     const receipt = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = accountDeletionInput.safeParse(req.body);
-        if (!parsed.success)
-          throw new HttpError(400, 'Invalid account deletion request');
-        return deleteAccount(client, scope, parsed.data);
+        const input = parseInput(
+          accountDeletionInput,
+          req.body,
+          'Invalid account deletion request',
+        );
+        return deleteAccount(client, scope, input);
       },
     );
     if (req.ksCookieSession) reply.header('set-cookie', clearedSessionCookie);
