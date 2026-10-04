@@ -62,9 +62,9 @@ export function registerUniverseRoutes(
               sourceUrl: _sourceUrl,
               ...readerScroll
             } = receipt.scroll;
-            // The guarded revisit has already tied this exact revision/body to the
-            // original Keep and still holds the asset share lock. A checked web
-            // artifact is an additive representation of that same Scroll.
+            // The guarded revisit has already tied this exact revision/body to the original Keep
+            // and still holds the asset share lock, so the checked web artifact is a
+            // representation of that same Scroll.
             const webArtifactValue = await readTraceWebArtifact(
               client,
               receipt.scroll.assetId,

@@ -12,6 +12,7 @@ import {
   type AuthScope,
 } from '@knowscroll/db';
 
+/** The route-facing shape of `authenticated`, so route modules can take it as a parameter. */
 export type Authenticated = <T>(
   authorization: string | undefined,
   fn: (scope: AuthScope, client: pg.PoolClient) => Promise<T>,

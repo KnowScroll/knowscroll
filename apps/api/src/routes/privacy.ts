@@ -37,9 +37,8 @@ export function registerPrivacyRoutes(
     return reply.code(200).send(receipt);
   });
 
-  // ADR-0028: privacy lifecycle. Pause/resume/export/reset all go through the same
-  // `authenticated()` path as every other route above, so the universe lock is held and the
-  // session's epoch is rechecked before any of them runs a single statement.
+  // Pause, resume, export and reset run in the authenticated transaction, so the universe lock is
+  // held and the session's epoch rechecked before any statement (ADR-0028).
   app.post('/v1/privacy/pause', async (req, reply) => {
     const receipt = await authenticated(
       req.headers.authorization,
@@ -100,8 +99,8 @@ export function registerPrivacyRoutes(
     return reply.code(200).send(receipt);
   });
 
-  // ADR-0035: delete the account and all personal history. The calling session is deleted with
-  // it, so a cookie session also gets its cookie cleared.
+  // The calling session is deleted with the account, so a cookie session also gets its cookie
+  // cleared (ADR-0035).
   app.post('/v1/account/delete', async (req, reply) => {
     const receipt = await authenticated(
       req.headers.authorization,

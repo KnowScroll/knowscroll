@@ -10,6 +10,7 @@ import {
   type WebSessionConfig,
 } from '../http/web-session.ts';
 
+/** Revoke takes no input; any body other than `{}` is refused. */
 function emptyObject(value: unknown): value is Record<string, never> {
   return (
     typeof value === 'object' &&
@@ -38,7 +39,7 @@ export function registerSessionRoutes(
     return reply.code(204).send();
   });
 
-  // ADR-0034: the page's CSRF token for its cookie session (derived; survives reloads and tabs).
+  // The token is derived from the cookie session, so it survives reloads and tabs (ADR-0034).
   app.get('/v1/session/csrf', async (req, reply) => {
     await authenticated(req.headers.authorization, async () => undefined);
     if (!req.ksCookieSession)
