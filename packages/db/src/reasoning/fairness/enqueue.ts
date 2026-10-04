@@ -17,16 +17,20 @@ export async function enqueueFairInTransaction(
     input.maxOutputTokens,
   );
   const universe = (
-    await client.query(
+    await client.query<{ privacy_epoch: number }>(
       'SELECT privacy_epoch FROM universe WHERE id=$1 FOR UPDATE',
       [input.universeId],
     )
   ).rows[0];
   if (universe?.privacy_epoch !== input.privacyEpoch) deny('stale_epoch');
   const job = (
-    await client.query('SELECT * FROM reasoning_job WHERE id=$1 FOR UPDATE', [
-      input.jobId,
-    ])
+    await client.query<{
+      universe_id: string;
+      privacy_epoch: number;
+      class: string;
+      status: string;
+      policy_version: string;
+    }>('SELECT * FROM reasoning_job WHERE id=$1 FOR UPDATE', [input.jobId])
   ).rows[0];
   if (
     !job ||

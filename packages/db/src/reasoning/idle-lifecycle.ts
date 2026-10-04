@@ -87,7 +87,7 @@ async function checkAuthority(
   lock = false,
 ): Promise<void> {
   const row = (
-    await client.query(
+    await client.query<{ id: string }>(
       `SELECT s.id FROM reasoning_context_job_session b
    JOIN device_session s ON (s.id,s.universe_id)=(b.session_id,b.universe_id)
    JOIN universe u ON u.id=b.universe_id AND u.privacy_epoch=b.privacy_epoch

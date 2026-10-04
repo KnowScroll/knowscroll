@@ -7,7 +7,7 @@ import {
 } from '../fairness-policy.ts';
 import type { Ready } from './types.ts';
 
-export const deny = (code: string): never => {
+export const deny: (code: string) => never = (code) => {
   throw new ReasoningDenied(code);
 };
 export const INELIGIBLE_HEAD = [
@@ -44,7 +44,7 @@ export async function tx<T>(
 }
 export async function policyFor(db: pg.Pool | pg.PoolClient, version: string) {
   const row = (
-    await db.query(
+    await db.query<{ config: unknown; policy_hash: string }>(
       'SELECT config,policy_hash FROM reasoning_fairness_policy WHERE version=$1',
       [version],
     )

@@ -283,7 +283,15 @@ export async function probe(
     // Original session precedes Job; dependency locks precede shared resources.
     await lockBoundContextSession(client, d.ready);
     const job = (
-      await client.query(
+      await client.query<{
+        class: string;
+        status: string;
+        privacy_epoch: number;
+        deadline: Date;
+        wake_kind: string | null;
+        deadline_expired: boolean;
+        healthy_lease: boolean;
+      }>(
         `
     SELECT
       class,
@@ -490,7 +498,7 @@ export async function probe(
       };
     }
     const row = (
-      await client.query(
+      await client.query<{ lease_fence: string; lease_expires_at: Date }>(
         `
     UPDATE reasoning_job
     SET

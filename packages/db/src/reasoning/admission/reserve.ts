@@ -165,7 +165,7 @@ export async function preflightAttemptInTransaction(
   ).rows[0];
   if (!job || job.status !== 'queued') deny('job_not_queued');
   const step = (
-    await client.query(
+    await client.query<{ status: string; context_id: string }>(
       `
     SELECT
       status,

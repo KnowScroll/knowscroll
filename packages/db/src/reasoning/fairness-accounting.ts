@@ -136,7 +136,17 @@ async function adjustFairness(
   nextCharge: number,
 ): Promise<void> {
   const row = (
-    await client.query(
+    await client.query<{
+      config: unknown;
+      policy_hash: string;
+      policy_version: string;
+      recognized_charge: string;
+      reserved_charge: string;
+      class_credit: string;
+      universe_credit: string;
+      class: string;
+      universe_id: string;
+    }>(
       `
     SELECT
       a.*,
@@ -247,7 +257,7 @@ export async function releaseNotSentFairness(
   attemptId: string,
 ): Promise<void> {
   const state = (
-    await client.query(
+    await client.query<{ state: string; dispatch_id: string | null }>(
       'SELECT state,dispatch_id FROM reasoning_accounting WHERE attempt_id=$1',
       [attemptId],
     )
@@ -264,7 +274,13 @@ export async function settleFairness(
   usage: { inputTokens: number | null; outputTokens: number | null },
 ): Promise<void> {
   const row = (
-    await client.query(
+    await client.query<{
+      policy_version: string;
+      config: unknown;
+      policy_hash: string;
+      input_reservation_ceiling: string | null;
+      max_output_tokens: string;
+    }>(
       `
     SELECT
       f.policy_version,
