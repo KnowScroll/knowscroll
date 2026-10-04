@@ -369,13 +369,6 @@ export async function createJob(
 // --- Claim / lease / fence -------------------------------------------------------------------
 
 const RECLAIMABLE_STATUSES = ['dispatching', 'following', 'importing'] as const;
-const TERMINAL_JOB_STATUSES = [
-  'completed',
-  'refused',
-  'stopped',
-  'failed',
-  'cancelled',
-] as const;
 
 export type ClaimedGenerationJob = {
   jobId: string;
