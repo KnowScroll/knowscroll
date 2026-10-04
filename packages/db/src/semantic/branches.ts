@@ -435,7 +435,17 @@ export async function openBranch(
   if (!accountRow) throw new Error('Universe accounts state is missing');
 
   const replay = (
-    await client.query(
+    await client.query<{
+      id: string;
+      from_exposure_id: string;
+      bridge_id: string;
+      target_asset_id: string;
+      decision_id: string;
+      candidates: BranchOpenResponse['items'];
+      account_revision: number;
+      relation_type: BranchOpenResponse['branch']['relationType'];
+      direction: BranchOpenResponse['branch']['direction'];
+    }>(
       `
       SELECT
         b.id,
@@ -691,7 +701,11 @@ export async function recordConnectionFeedback(
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new SemanticConflict('Feedback privacy epoch is stale');
   const old = (
-    await client.query(
+    await client.query<{
+      id: string;
+      bridge_id: string;
+      objection: ConnectionFeedbackReceipt['objection'];
+    }>(
       'SELECT id, bridge_id, objection FROM connection_feedback WHERE universe_id=$1 AND client_key=$2',
       [scope.universeId, input.clientFeedbackId],
     )

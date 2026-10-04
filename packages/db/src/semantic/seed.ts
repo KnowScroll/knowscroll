@@ -41,12 +41,12 @@ export async function ensureRow(
   compare: string[],
 ): Promise<string> {
   const columns = Object.keys(values);
-  const inserted = await client.query(
+  const inserted = await client.query<{ id: string }>(
     `INSERT INTO ${table}(id,${columns.join(',')}) VALUES($1,${columns.map((_, i) => `$${i + 2}`).join(',')})
      ON CONFLICT (${keyColumn}) DO NOTHING RETURNING id`,
     [randomUUID(), ...columns.map((c) => values[c])],
   );
-  if (inserted.rowCount) return inserted.rows[0].id;
+  if (inserted.rowCount) return inserted.rows[0]!.id;
   const row = (
     await client.query(`SELECT * FROM ${table} WHERE ${keyColumn}=$1`, [
       values[keyColumn],
@@ -131,7 +131,10 @@ export async function loadSubstrateSeed(
   await lockSubstrateExclusive(client);
 
   const prior = (
-    await client.query(
+    await client.query<{
+      content_sha256: string;
+      counts: SeedLoadResult['counts'];
+    }>(
       'SELECT content_sha256, counts FROM semantic_seed_load WHERE version=$1',
       [seed.version],
     )
@@ -178,7 +181,7 @@ export async function loadSubstrateSeed(
       ['url', 'title', 'publisher', 'family_id'],
     );
     const current = (
-      await client.query(
+      await client.query<{ id: string; content_sha256: string }>(
         'SELECT id, content_sha256 FROM source_snapshot WHERE source_id=$1 AND status=$2',
         [sourceId, 'current'],
       )
@@ -192,11 +195,11 @@ export async function loadSubstrateSeed(
       continue;
     }
     const anyPrior = (
-      await client.query(
+      await client.query<{ n: number }>(
         'SELECT count(*)::int AS n FROM source_snapshot WHERE source_id=$1',
         [sourceId],
       )
-    ).rows[0].n as number;
+    ).rows[0]!.n;
     if (anyPrior > 0)
       throw new SubstrateSeedConflict(
         `source ${s.key} has no current snapshot (corrected or revoked); a new revision needs re-verification`,

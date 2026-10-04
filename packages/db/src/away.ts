@@ -107,11 +107,11 @@ export async function readAway(
   const inquiryParams = paged([scope.universeId, scope.privacyEpoch, after]);
   total += Number(
     (
-      await client.query(
+      await client.query<{ count: string }>(
         `SELECT count(*) FROM background_inquiry WHERE ${inquiryWhere}`,
         inquiryParams.slice(0, -1),
       )
-    ).rows[0].count,
+    ).rows[0]!.count,
   );
   const inquiries = (
     await client.query<{
@@ -175,11 +175,11 @@ export async function readAway(
   const deltaParams = paged([scope.universeId, after]);
   total += Number(
     (
-      await client.query(
+      await client.query<{ count: string }>(
         `SELECT count(*) FROM atlas_delta d WHERE ${deltaWhere}`,
         deltaParams.slice(0, -1),
       )
-    ).rows[0].count,
+    ).rows[0]!.count,
   );
   const deltas = (
     await client.query<
@@ -217,11 +217,11 @@ export async function readAway(
   const roomParams = paged([scope.universeId, after]);
   total += Number(
     (
-      await client.query(
+      await client.query<{ count: string }>(
         `SELECT count(*) FROM room_delta d WHERE ${roomWhere}`,
         roomParams.slice(0, -1),
       )
-    ).rows[0].count,
+    ).rows[0]!.count,
   );
   const roomDeltas = (
     await client.query<{
@@ -273,11 +273,11 @@ export async function readAway(
   const correctedParams = paged([scope.universeId, scope.privacyEpoch, after]);
   total += Number(
     (
-      await client.query(
+      await client.query<{ count: string }>(
         `SELECT count(*) FROM bridge b WHERE ${correctedWhere}`,
         correctedParams.slice(0, -1),
       )
-    ).rows[0].count,
+    ).rows[0]!.count,
   );
   const corrected = (
     await client.query<{
@@ -320,11 +320,11 @@ export async function readAway(
   const withdrawnParams = paged([scope.universeId, scope.privacyEpoch, after]);
   total += Number(
     (
-      await client.query(
+      await client.query<{ count: string }>(
         `SELECT count(*) FROM encounter_binding b WHERE ${withdrawnWhere}`,
         withdrawnParams.slice(0, -1),
       )
-    ).rows[0].count,
+    ).rows[0]!.count,
   );
   const withdrawn = (
     await client.query<{

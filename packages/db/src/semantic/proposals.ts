@@ -99,7 +99,12 @@ export async function submitBridgeProposal(
     input.scope.kind === 'universe' ? input.scope.universeId : null;
   // Replay identity is per scope: another universe's identical proposal is not this one.
   const existing = (
-    await client.query(
+    await client.query<{
+      id: string;
+      status: ProposalResult['status'];
+      decision: ProposalResult['decision'];
+      bridge_id: string | null;
+    }>(
       `
       SELECT
         id,
