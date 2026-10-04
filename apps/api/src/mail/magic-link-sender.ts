@@ -53,7 +53,7 @@ function resolveMailSenderSelection(
 }
 
 /** `AGENTMAIL_TIMEOUT_MS` is optional local configuration, never required: unset means the
- * documented ~10s default (`AGENTMAIL_TIMEOUT_MS` export in `agentmail-sender.ts`). Exists only so
+ * documented ~10s default (the `AGENTMAIL_TIMEOUT_MS` constant in `agentmail-sender.ts`). Exists only so
  * a test can bound how long a stalled-connection scenario takes without changing what production
  * ever does unconfigured. */
 function parseTimeoutMs(raw: string | undefined): number | undefined {
