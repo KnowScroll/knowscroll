@@ -80,29 +80,27 @@ export function buildApp(
     await ensureDevelopmentSession(developmentToken);
   });
 
-  // ADR-0026: real sign-in (magic link, single owner account). Additive — every route above and
-  // below is unchanged, and a session this mints authenticates through the exact same
-  // `authenticateAndLock` path as a development-token session.
-  // ADR-0034: the desktop session cookie. Its hook runs before every authenticated route and hands
-  // a checked cookie to the same authentication path as a bearer token.
+  // The desktop session cookie's hook runs before every authenticated route and hands a checked
+  // cookie to the same authentication path as a bearer token (ADR-0034). A session minted by
+  // magic-link sign-in authenticates exactly like a development-token session (ADR-0026).
   const webSession = webSessionConfig();
   registerWebSession(app, webSession);
   registerSignInRoutes(app, options.magicLinkLimits, webSession);
 
-  // #131: semantic continuations and connection feedback, through the same authenticated path.
+  // Semantic continuations and connection feedback (#131), and "why this appeared" (ADR-0032).
   registerSemanticRoutes(app, authenticated);
   registerComposerRoutes(app, authenticated);
-  // #132: Ask answers — the reader's fresh authority, state and cancellation; no provider in this process.
+  // Ask answers: the reader's authority, state and cancellation; no provider in this process (ADR-0033).
   registerAnswerRoutes(app, authenticated);
-  // #134: the reader's places, from anchored attention (ADR-0036).
+  // The reader's places, from anchored attention (ADR-0036).
   registerAtlasRoutes(app, authenticated);
-  // #132: background bridge inquiries — standing consent and what was looked for (ADR-0038); no provider here.
+  // Background bridge inquiries: standing consent and what was looked for; no provider here (ADR-0038).
   registerInquiryRoutes(app, authenticated);
-  // #134: what changed while the reader was away, and the Relics they keep (ADR-0039).
+  // What changed while the reader was away, and the Relics they keep (ADR-0039).
   registerReturnRoutes(app, authenticated);
-  // #163: the reader's Idea Rooms, their inhabitants and their setting aside (ADR-0045).
+  // The reader's Idea Rooms, their inhabitants and their setting aside (ADR-0045).
   registerRoomRoutes(app, authenticated);
-  // #164: the reader's content demands and what met them (ADR-0046); nothing is written here.
+  // The reader's content demands and what met them; nothing is written here (ADR-0046).
   registerInventoryRoutes(app, authenticated);
 
   registerHealthRoute(app);
