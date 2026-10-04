@@ -10,8 +10,6 @@ import { dirname, join } from 'node:path';
 import { AgentMailSender } from './agentmail-sender.ts';
 import type { MagicLinkSender } from './sender.ts';
 
-export type { MagicLinkSender } from './sender.ts';
-
 /**
  * Writes the confirmation link to a single fixed, mode-0600 file under `KS_DEV_ROOT` and never
  * prints or logs it anywhere else. Holds only the most recent link (never an address, never a

@@ -18,10 +18,8 @@ import {
   type MagicLinkRateLimits,
   requesterFingerprint,
 } from '@knowscroll/db/sign-in';
-import {
-  createMagicLinkSender,
-  type MagicLinkSender,
-} from '../mail/magic-link-sender.ts';
+import { createMagicLinkSender } from '../mail/magic-link-sender.ts';
+import type { MagicLinkSender } from '../mail/sender.ts';
 import { describeSendFailure } from '../mail/agentmail-sender.ts';
 import { HttpError } from '../http/errors.ts';
 import { parseInput } from '../http/input.ts';
