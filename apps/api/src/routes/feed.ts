@@ -63,6 +63,7 @@ export function registerFeedRoutes(
         req.query.preview !== 'authored-web-scrolls'
       )
         throw new HttpError(400, 'Invalid preview parameter');
+      // Read at request time, not import time: the preview gate must follow the live environment.
       if (req.query.preview) {
         const databaseName = (() => {
           try {
@@ -78,15 +79,15 @@ export function registerFeedRoutes(
         )
           throw new HttpError(400, 'Preview unavailable');
       }
-      // #133: what this discovery trip already has on screen or opened. The client skips those, so
-      // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason.
+      // What this discovery trip already has on screen or opened. The client skips those, so
+      // offering them could end a trip while other Scrolls remain; v3 gates them with a named reason (#133).
       const exclude = parseFeedExclude(req.query.exclude);
       if (exclude === null)
         throw new HttpError(400, 'Invalid exclude parameter');
       const account = await readFeedAccount(client, scope.universeId);
       const candidates = await feedCandidates(client, kinds);
-      // Disposable preview only: offer authored examples through the same composer, decision,
-      // exposure and Keep path as any encounter. This never changes the ordinary feed.
+      // Disposable preview only: authored examples go through the same composer, decision,
+      // exposure and Keep path as any encounter; the ordinary feed is untouched.
       const assets = req.query.preview
         ? candidates.filter(
             (item) =>
@@ -116,9 +117,9 @@ export function registerFeedRoutes(
       // ADR-0046 §1: a place this reader has now seen in full is a need, recorded with the semantic decision that saw it.
       if (composerPolicy !== COMPOSER_SIGNALS_V2)
         await observeExhaustion(client, scope, decisionId);
-      // Web-only additive representation. Legacy and Android callers see the identical feed
-      // shape they already parse. Re-read only selected Scrolls after composition, and drop an
-      // invalid/stale artifact to the body fallback without changing selection or exposure.
+      // Web-only representation: legacy and Android callers see the feed shape they already parse.
+      // Re-read only the selected Scrolls after composition, so an invalid or stale artifact falls
+      // back to the body without changing selection or exposure.
       const scrollIds =
         req.query.webArtifact === 'v1'
           ? items

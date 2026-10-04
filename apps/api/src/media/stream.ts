@@ -1,6 +1,6 @@
 /**
  * ADR-0024 section 4 — `GET|HEAD /v1/media/:sha256`. Content-addressed, authenticated media
- * serving. `app.ts` performs authorization (device session, epoch, and an `eligible` or
+ * serving. `routes/media.ts` performs authorization (device session, epoch, and an `eligible` or
  * `test_eligible` `generated_reel` referencing the requested media) in one short transaction; this
  * module owns everything AFTER that transaction has committed: locating the file, Range/HEAD
  * handling and the simulated-media marker. No database access happens in this file at all, so it
@@ -99,14 +99,11 @@ export interface AuthorizedMedia {
  * transaction. `404` for a storage key with no regular file on disk (content recorded but not
  * present locally — never fabricated, never a stale success). Range/HEAD both go through the same
  * header-setting path so their headers can never disagree.
- */
-/**
- * Every exit below is `return reply.send(...)`, never a bare `reply.send(...)` statement: an async
- * Fastify handler that calls `reply.send()` without returning its result can race Fastify's own
- * post-handler completion (which otherwise treats the handler's `undefined` return value as "send
- * an empty body"), silently truncating the response to `Content-Length: 0` — confirmed directly
- * against this project's installed fastify/light-my-request versions before this was written this
- * way; see this lane's PR for the reproduction.
+ *
+ * Every successful exit is `return reply.send(...)`, never a bare statement: an async Fastify
+ * handler that calls `reply.send()` without returning its result can race Fastify's post-handler
+ * completion, which treats the `undefined` return as "send an empty body" and truncates the
+ * response to `Content-Length: 0`.
  */
 export async function sendMedia(
   req: FastifyRequest,
