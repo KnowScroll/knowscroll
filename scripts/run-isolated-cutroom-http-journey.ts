@@ -228,6 +228,7 @@ failed =
   peers.some((peer) => !peer.ended);
 const files = [
   'apps/worker/src/cutroom/http-client.ts',
+  'packages/core/src/cutroom/prepare-request.ts',
   'scripts/fixtures/cutroom-http-peer.ts',
   'scripts/run-isolated-cutroom-http-journey.ts',
   ...[

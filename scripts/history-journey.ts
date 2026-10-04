@@ -290,7 +290,23 @@ try {
     await Promise.all(
       [
         'apps/api/src/app.ts',
+        'apps/api/src/http/authenticated.ts',
+        'apps/api/src/http/input.ts',
+        'apps/api/src/routes/asks.ts',
+        'apps/api/src/routes/encounters.ts',
+        'apps/api/src/routes/feed.ts',
+        'apps/api/src/routes/health.ts',
+        'apps/api/src/routes/media.ts',
+        'apps/api/src/routes/privacy.ts',
+        'apps/api/src/routes/session.ts',
+        'apps/api/src/routes/universe.ts',
+        'packages/db/src/encounters.ts',
+        'packages/db/src/feed.ts',
+        'packages/db/src/media.ts',
+        'packages/db/src/trace-revisit.ts',
+        'packages/db/src/universe.ts',
         'apps/worker/src/project.ts',
+        'packages/db/src/projection/keep.ts',
         'packages/db/src/privacy.ts',
         'packages/db/migrations/0003_history_clear.sql',
       ].map(async (p) => [
