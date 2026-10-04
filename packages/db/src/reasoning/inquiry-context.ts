@@ -1,12 +1,9 @@
 /**
- * #132 — the background bridge inquiry context family (ADR-0038 §5), routed by
- * `source_policy_version` like the Ask context (ADR-0017), never guessed from JSON shape.
- *
- * `readInquiryInputs` reads what `selectInquiryPairs` needs; `sealInquiryContext` seals the chosen
- * pairs with every fact they rest on — consent, recording, the route, each place, each claim's
- * support and each pair's disconnection; `validateInquiryContext` rechecks those facts at admission,
- * before sending and before applying. Any change is stale: the inquiry is discarded, never re-sent.
- * Callers hold the universe lock; the shared substrate lock follows it (ADR-0031 §7).
+ * The background bridge inquiry context family (ADR-0038 §5, #132), routed by `source_policy_version`
+ * like the Ask context (ADR-0017), never guessed from JSON shape. It seals the chosen pairs with every
+ * fact they rest on and rechecks those facts at admission, before sending and before applying; any
+ * change is stale, so the inquiry is discarded, never re-sent. Callers hold the universe lock; the
+ * shared substrate lock follows it (ADR-0031 §7).
  */
 import type pg from 'pg';
 import {
@@ -24,6 +21,7 @@ import type {
   InquiryCandidateInput,
   InquiryPair,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import {
   ReasoningDenied,
   validateReasoningPolicy,
@@ -42,15 +40,16 @@ export type InquiryContextValidation =
   | { valid: true; contentHash: string; readSetHash: string }
   | { valid: false; reason: InquiryContextRefusal };
 
-const codepoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+// Not the shared `toIsoString`: that wraps the value in `String()` before parsing, this hands it to `new Date` as is.
 const iso = (v: Date | string) =>
   (v instanceof Date ? v : new Date(v)).toISOString();
 
+// Keeps the last of duplicate keys and never refuses; the direct context's version throws on conflicting duplicates.
 function sortDependencies(reads: InquiryDependency[]): InquiryDependency[] {
   const unique = new Map<string, InquiryDependency>();
   for (const read of reads) unique.set(inquiryDependencyKey(read), read);
   return [...unique.values()].sort((a, b) =>
-    codepoint(inquiryDependencyKey(a), inquiryDependencyKey(b)),
+    compareCodeUnits(inquiryDependencyKey(a), inquiryDependencyKey(b)),
   );
 }
 
@@ -72,7 +71,7 @@ function policyDigest(
           ...resolved,
           requiredDimensions: [...resolved.requiredDimensions].sort(),
           buckets: [...resolved.buckets].sort((a, b) =>
-            codepoint(a.bucketId, b.bucketId),
+            compareCodeUnits(a.bucketId, b.bucketId),
           ),
         },
       }),
@@ -786,7 +785,7 @@ async function loadSealed(
           throw new Error('bad dependency');
         return { identity: row.identity, value: row.canonical_dependency };
       })
-      .sort((a, b) => codepoint(a.identity, b.identity));
+      .sort((a, b) => compareCodeUnits(a.identity, b.identity));
     if (
       canonicalJson(stored) !== canonicalJson(expected) ||
       sha256(canonicalJson(stored)) !== sealed.read_set_hash

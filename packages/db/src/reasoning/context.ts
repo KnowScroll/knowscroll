@@ -1,4 +1,8 @@
-import { createHash } from 'node:crypto';
+/**
+ * The direct context family: compiles and seals the context for a direct Job and revalidates it at
+ * the `lock` and `recheck` phases (ADR-0017). Callers hold the universe lock; a context that no
+ * longer holds is refused, never repaired.
+ */
 import type pg from 'pg';
 
 import {
@@ -16,14 +20,22 @@ import {
   type DirectContextPayload,
 } from '@knowscroll/contracts/reasoning-context';
 import { exposureInput, interactionInput } from '@knowscroll/contracts';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
-  validateReasoningPolicy,
   type ReasoningAuthority,
   type ReasoningContextCheck,
-  type ReasoningScope,
 } from './runtime-policy.ts';
+import {
+  deny,
+  canonical,
+  digest,
+  canonicalHash,
+  asIso,
+  policyDigest,
+  record,
+} from './context-common.ts';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type CompileInput = {
@@ -88,48 +100,6 @@ type DependencyRow = {
   privacy_epoch: number;
 };
 
-function deny(reason: ContextRefusal): never {
-  throw new ReasoningDenied(`context_${reason}`);
-}
-
-function canonical(value: unknown): string {
-  if (
-    value === null ||
-    typeof value === 'boolean' ||
-    typeof value === 'number' ||
-    typeof value === 'string'
-  )
-    return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
-      .join(',')}}`;
-  }
-  throw new Error('Canonical context values must be JSON data');
-}
-
-function digest(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
-function canonicalHash(value: unknown): string {
-  return digest(canonical(value));
-}
-
-function codepointCompare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function asIso(value: Date | string): string {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime()))
-    throw new Error('Invalid stored timestamp');
-  return date.toISOString();
-}
-
 function dependencyIdentity(read: DirectContextDependency): string {
   return directContextDependencyKey(read);
 }
@@ -146,33 +116,8 @@ function sortDependencies(
     unique.set(identity, read);
   }
   return [...unique.values()].sort((left, right) =>
-    codepointCompare(dependencyIdentity(left), dependencyIdentity(right)),
+    compareCodeUnits(dependencyIdentity(left), dependencyIdentity(right)),
   );
-}
-
-function policyDigest(
-  policy: unknown,
-  scope: ReasoningScope,
-): { version: string; hash: string } {
-  const resolved = validateReasoningPolicy(policy, scope).policy;
-  const canonicalPolicy = {
-    scope: {
-      jobId: scope.jobId,
-      privacyEpoch: scope.privacyEpoch,
-      universeId: scope.universeId,
-    },
-    policy: {
-      ...resolved,
-      requiredDimensions: [...resolved.requiredDimensions].sort(),
-      buckets: [...resolved.buckets].sort((left, right) =>
-        codepointCompare(left.bucketId, right.bucketId),
-      ),
-    },
-  };
-  return {
-    version: resolved.policyVersion,
-    hash: canonicalHash(canonicalPolicy),
-  };
 }
 
 function scrollFromRow(row: LineageRow): unknown {
@@ -368,7 +313,7 @@ async function lockAssets(
   client: pg.PoolClient,
   assetIds: string[],
 ): Promise<void> {
-  const sorted = [...new Set(assetIds)].sort(codepointCompare);
+  const sorted = [...new Set(assetIds)].sort(compareCodeUnits);
   const rows = await client.query<{ id: string }>(
     'SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',
     [sorted],
@@ -448,12 +393,6 @@ async function readLineage(
   return rows;
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 function validLineagePayloads(row: LineageRow): boolean {
   const keep = interactionInput.safeParse(row.keep_payload);
   if (
@@ -513,13 +452,13 @@ function lineagePayload(
   return {
     facts: facts.sort((left, right) =>
       BigInt(left.keepSequence) === BigInt(right.keepSequence)
-        ? codepointCompare(left.keepEventId, right.keepEventId)
+        ? compareCodeUnits(left.keepEventId, right.keepEventId)
         : BigInt(left.keepSequence) < BigInt(right.keepSequence)
           ? -1
           : 1,
     ),
     assets: [...assets.values()].sort((left, right) =>
-      codepointCompare(left.assetId, right.assetId),
+      compareCodeUnits(left.assetId, right.assetId),
     ),
     dependencies: sortDependencies(dependencies),
   };
@@ -981,7 +920,7 @@ function expectedDependencyIdentities(payload: DirectContextPayload): string[] {
   for (const asset of payload.assets) identities.add(`asset:${asset.assetId}`);
   identities.add(`session:${payload.sessionId}`);
   identities.add(`runtime_policy:${payload.runtimePolicyVersion}`);
-  return [...identities].sort(codepointCompare);
+  return [...identities].sort(compareCodeUnits);
 }
 
 export async function validateDirectContext(

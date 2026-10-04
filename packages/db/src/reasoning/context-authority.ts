@@ -1,3 +1,4 @@
+/** Routes a sealed context to its family's validator by its stored `source_policy_version` (ADR-0017). */
 import { DIRECT_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-context';
 import { ASK_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-ask-context';
 import { INQUIRY_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-inquiry-context';

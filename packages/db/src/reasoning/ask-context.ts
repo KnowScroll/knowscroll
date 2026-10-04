@@ -1,4 +1,8 @@
-import { createHash } from 'node:crypto';
+/**
+ * The Ask context family: compiles and seals the context for an answer Job from its recorded Ask
+ * and revalidates it at the `lock` and `recheck` phases (ADR-0017, ADR-0033). The authority is the
+ * Ask's own original session; a context that no longer holds is refused, never repaired.
+ */
 import type pg from 'pg';
 import {
   ASK_CONTEXT_LIMITS,
@@ -18,14 +22,22 @@ import {
 } from '@knowscroll/contracts/reasoning-context';
 import { explicitAskInput, exposureInput } from '@knowscroll/contracts';
 import { explicitAskLedgerKey } from '../explicit-ask.ts';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
-  validateReasoningPolicy,
   type ReasoningAuthority,
   type ReasoningContextCheck,
-  type ReasoningScope,
 } from './runtime-policy.ts';
+import {
+  deny,
+  canonical,
+  digest,
+  canonicalHash,
+  asIso,
+  policyDigest,
+  record,
+} from './context-common.ts';
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type ContextResult = {
   contextId: string;
@@ -88,48 +100,6 @@ type DependencyRow = {
   universe_id: string;
   privacy_epoch: number;
 };
-function deny(reason: ContextRefusal): never {
-  throw new ReasoningDenied(`context_${reason}`);
-}
-
-function canonical(value: unknown): string {
-  if (
-    value === null ||
-    typeof value === 'boolean' ||
-    typeof value === 'number' ||
-    typeof value === 'string'
-  )
-    return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
-      .join(',')}}`;
-  }
-  throw new Error('Canonical context values must be JSON data');
-}
-
-function digest(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
-function canonicalHash(value: unknown): string {
-  return digest(canonical(value));
-}
-
-function codepointCompare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function asIso(value: Date | string): string {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime()))
-    throw new Error('Invalid stored timestamp');
-  return date.toISOString();
-}
-
 function dependencyIdentity(read: AskContextDependency): string {
   return askContextDependencyKey(read);
 }
@@ -146,33 +116,8 @@ function sortDependencies(
     unique.set(identity, read);
   }
   return [...unique.values()].sort((left, right) =>
-    codepointCompare(dependencyIdentity(left), dependencyIdentity(right)),
+    compareCodeUnits(dependencyIdentity(left), dependencyIdentity(right)),
   );
-}
-
-function policyDigest(
-  policy: unknown,
-  scope: ReasoningScope,
-): { version: string; hash: string } {
-  const resolved = validateReasoningPolicy(policy, scope).policy;
-  const canonicalPolicy = {
-    scope: {
-      jobId: scope.jobId,
-      privacyEpoch: scope.privacyEpoch,
-      universeId: scope.universeId,
-    },
-    policy: {
-      ...resolved,
-      requiredDimensions: [...resolved.requiredDimensions].sort(),
-      buckets: [...resolved.buckets].sort((left, right) =>
-        codepointCompare(left.bucketId, right.bucketId),
-      ),
-    },
-  };
-  return {
-    version: resolved.policyVersion,
-    hash: canonicalHash(canonicalPolicy),
-  };
 }
 
 function scrollFromRow(row: LineageRow): unknown {
@@ -262,18 +207,12 @@ async function lockAssets(
   client: pg.PoolClient,
   assetIds: string[],
 ): Promise<void> {
-  const sorted = [...new Set(assetIds)].sort(codepointCompare);
+  const sorted = [...new Set(assetIds)].sort(compareCodeUnits);
   const rows = await client.query<{ id: string }>(
     'SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',
     [sorted],
   );
   if (rows.rowCount !== sorted.length) deny('stale_asset');
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 async function highWater(
