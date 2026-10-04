@@ -1,5 +1,32 @@
 # Shared delivery checkpoint
 
+## 2026-10-05 #196 behavior-preserving backend refactor
+
+The backend now has the module boundaries in ADR-0048. `packages/contracts`, `packages/core` and
+`packages/db` are workspace packages (`@knowscroll/<pkg>/<subpath>`). SQL lives only in
+`packages/db`: raw `.query(` calls in apps went 144 → 0, and `pnpm lint` enforces it
+(`scripts/check-architecture.mjs`). db import cycles went 32 → 0, with no file-level import cycle
+anywhere. `apps/api/src/app.ts` went from 946 lines to a 118-line composition root over
+`routes/*` and `http/*`. The worker's entrypoints share `runtime/` helpers. The large db reasoning
+modules are split into an entry module plus an `<entry>/` folder, and duplicated helpers became
+shared ones proven identical. Old → new paths are in `docs/architecture/moved-paths.md`; READMEs,
+`docs/architecture/module-map.md` and the CONTRIBUTING code conventions describe the layout. New
+gates: Biome unused-code, import-type, import-cycle and floating-promise rules plus
+organizeImports for apps and packages; the strict tsconfig flags (including `verbatimModuleSyntax`,
+proven emit-neutral); knip and `pnpm contracts:check` in CI.
+
+Nothing functional changed. The HTTP surface probe (726 cases over all 69 routes) matched BASE
+after every API commit. The SQL inventory against BASE shows no new statement: moved statements are
+token-identical, reformatting changed only whitespace and unquoted-keyword case, and the six
+statements tests watch in `pg_stat_activity` kept their bytes (`TEXT_OBSERVED_BY_TESTS`). The export
+surface differs only by documented moves and by symbols nothing imported, which are now
+module-private (146 un-exported by knip, 21 of them in scripts and tests, plus `parseFeedExclude`). The full suite passed 1104/1104 on both BASE and the final branch with identical
+test names, and every CI journey passed locally and in CI. Three independent final reviews found no
+functional change in the packages or API. The worker review found one test-only difference
+(`tests/minimax-answer-transport.test.ts` no longer loads `.env` transitively; nothing in its graph
+reads the environment). Behaviors found and deliberately kept, such as the missing `no-store` on
+`/v1/privacy/export`, are listed on #196 for the owner.
+
 ## 2026-10-01 #171 visual refinement of PR #195 (unmerged)
 
 Follow-up: the landed globe now turns slowly with moving clouds, responds to drag and arrow keys,

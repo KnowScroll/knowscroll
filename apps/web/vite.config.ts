@@ -80,7 +80,7 @@ function enforceLoopbackBinding(): Plugin {
 
 /** `KS_WEB_AUTH`: `'bearer'` (the default, unchanged) or `'cookie'` (#135, ADR-0034). Any other
  * value is a configuration error, not a silent fallback -- the same convention
- * `resolveMailSenderSelection` in `apps/api/src/magic-link-sender.ts` uses for its own switch. */
+ * `resolveMailSenderSelection` in `apps/api/src/mail/magic-link-sender.ts` uses for its own switch. */
 function resolveAuthMode(env: NodeJS.ProcessEnv): 'bearer' | 'cookie' {
   const raw = env.KS_WEB_AUTH;
   if (raw === undefined || raw === 'bearer') return 'bearer';

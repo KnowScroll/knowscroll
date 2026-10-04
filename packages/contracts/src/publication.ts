@@ -1,13 +1,12 @@
-/** ADR-0024: additive types for the publication-gate/media-serving slice. Nothing here is
- * re-exported from `./index.ts` (the same convention `generation.ts` already follows) — callers
- * import this file directly, so existing consumers of the shared index are never affected. */
+/** Publication-gate and media-serving types (ADR-0024). Nothing here is re-exported from
+ * `./index.ts`, like `generation.ts`: callers import this file directly. */
 import { z } from 'zod';
 
 /** Migration 0014's own pattern for a content-addressed media id / `media_object.sha256`. */
 export const sha256Hex = z.string().regex(/^[0-9a-f]{64}$/);
 export type Sha256Hex = z.infer<typeof sha256Hex>;
 
-/** Every gate ADR-0024 section 2 defines for this slice, in the order it lists them. */
+/** Every gate ADR-0024 section 2 defines, in the order it lists them. */
 export const publicationGateName = z.enum([
   'lineage_complete',
   'source_support',

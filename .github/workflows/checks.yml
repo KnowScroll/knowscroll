@@ -34,7 +34,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm format:check
       - run: pnpm lint
+      # Unused files, exports and dependencies in the backend scope (knip.json).
+      - run: pnpm knip
       - run: pnpm typecheck
+      # packages/contracts/http-v1.schema.json is generated; this fails if it was not regenerated.
+      - run: pnpm contracts:check
       - run: pnpm test
       - name: Web (apps/web) typecheck
         run: pnpm typecheck:web

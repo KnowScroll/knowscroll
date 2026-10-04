@@ -7,10 +7,17 @@
  * end-to-end wiring check at the bottom, which uses a local fixture server, never the real host.
  */
 import assert from 'node:assert/strict';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import test from 'node:test';
-import { AgentMailSender } from '../apps/api/src/agentmail-sender.ts';
-import { createMagicLinkSender, DevelopmentMagicLinkSink } from '../apps/api/src/magic-link-sender.ts';
+import { AgentMailSender } from '../apps/api/src/mail/agentmail-sender.ts';
+import {
+  createMagicLinkSender,
+  DevelopmentMagicLinkSink,
+} from '../apps/api/src/mail/magic-link-sender.ts';
 
 const SCRATCH_DEV_ROOT = '/tmp/ks-agentmail-selection-scratch'; // never written to — construction alone never touches disk.
 
@@ -24,36 +31,87 @@ test('defaults to the development sink outside production when KS_MAIL_SENDER is
 });
 
 test("an explicit 'dev-sink' selection behaves exactly like the default", () => {
-  const sender = createMagicLinkSender({ KS_MAIL_SENDER: 'dev-sink', KS_DEV_ROOT: SCRATCH_DEV_ROOT });
+  const sender = createMagicLinkSender({
+    KS_MAIL_SENDER: 'dev-sink',
+    KS_DEV_ROOT: SCRATCH_DEV_ROOT,
+  });
   assert.ok(sender instanceof DevelopmentMagicLinkSink);
 });
 
 test('an unrecognized KS_MAIL_SENDER value is a configuration error, never a silent fallback', () => {
-  assert.throws(() => createMagicLinkSender({ KS_MAIL_SENDER: 'smtp', KS_DEV_ROOT: SCRATCH_DEV_ROOT }), /KS_MAIL_SENDER/);
+  assert.throws(
+    () =>
+      createMagicLinkSender({
+        KS_MAIL_SENDER: 'smtp',
+        KS_DEV_ROOT: SCRATCH_DEV_ROOT,
+      }),
+    /KS_MAIL_SENDER/,
+  );
 });
 
 test("selecting 'agentmail' outside production still requires both AGENTMAIL_API_KEY and AGENTMAIL_INBOX_ID", () => {
-  assert.throws(() => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail' }), /AGENTMAIL_API_KEY/);
-  assert.throws(() => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail' }), /AGENTMAIL_INBOX_ID/);
-  assert.throws(() => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail', AGENTMAIL_API_KEY: 'k' }), /AGENTMAIL_INBOX_ID/);
-  assert.throws(() => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail', AGENTMAIL_INBOX_ID: 'inbox' }), /AGENTMAIL_API_KEY/);
+  assert.throws(
+    () => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail' }),
+    /AGENTMAIL_API_KEY/,
+  );
+  assert.throws(
+    () => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail' }),
+    /AGENTMAIL_INBOX_ID/,
+  );
+  assert.throws(
+    () =>
+      createMagicLinkSender({
+        KS_MAIL_SENDER: 'agentmail',
+        AGENTMAIL_API_KEY: 'k',
+      }),
+    /AGENTMAIL_INBOX_ID/,
+  );
+  assert.throws(
+    () =>
+      createMagicLinkSender({
+        KS_MAIL_SENDER: 'agentmail',
+        AGENTMAIL_INBOX_ID: 'inbox',
+      }),
+    /AGENTMAIL_API_KEY/,
+  );
 });
 
 test("selecting 'agentmail' outside production with both variables present constructs the real sender", () => {
-  const sender = createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail', AGENTMAIL_API_KEY: 'k', AGENTMAIL_INBOX_ID: 'inbox' });
+  const sender = createMagicLinkSender({
+    KS_MAIL_SENDER: 'agentmail',
+    AGENTMAIL_API_KEY: 'k',
+    AGENTMAIL_INBOX_ID: 'inbox',
+  });
   assert.ok(sender instanceof AgentMailSender);
 });
 
 test('AGENTMAIL_TIMEOUT_MS, if set, must be a positive number', () => {
   assert.throws(
-    () => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail', AGENTMAIL_API_KEY: 'k', AGENTMAIL_INBOX_ID: 'inbox', AGENTMAIL_TIMEOUT_MS: '0' }),
+    () =>
+      createMagicLinkSender({
+        KS_MAIL_SENDER: 'agentmail',
+        AGENTMAIL_API_KEY: 'k',
+        AGENTMAIL_INBOX_ID: 'inbox',
+        AGENTMAIL_TIMEOUT_MS: '0',
+      }),
     /AGENTMAIL_TIMEOUT_MS/,
   );
   assert.throws(
-    () => createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail', AGENTMAIL_API_KEY: 'k', AGENTMAIL_INBOX_ID: 'inbox', AGENTMAIL_TIMEOUT_MS: 'nope' }),
+    () =>
+      createMagicLinkSender({
+        KS_MAIL_SENDER: 'agentmail',
+        AGENTMAIL_API_KEY: 'k',
+        AGENTMAIL_INBOX_ID: 'inbox',
+        AGENTMAIL_TIMEOUT_MS: 'nope',
+      }),
     /AGENTMAIL_TIMEOUT_MS/,
   );
-  const sender = createMagicLinkSender({ KS_MAIL_SENDER: 'agentmail', AGENTMAIL_API_KEY: 'k', AGENTMAIL_INBOX_ID: 'inbox', AGENTMAIL_TIMEOUT_MS: '500' });
+  const sender = createMagicLinkSender({
+    KS_MAIL_SENDER: 'agentmail',
+    AGENTMAIL_API_KEY: 'k',
+    AGENTMAIL_INBOX_ID: 'inbox',
+    AGENTMAIL_TIMEOUT_MS: '500',
+  });
   assert.ok(sender instanceof AgentMailSender);
 });
 
@@ -63,24 +121,44 @@ test('AGENTMAIL_TIMEOUT_MS, if set, must be a positive number', () => {
 
 test('production without an explicit agentmail selection refuses to start, never falling back to the sink', () => {
   assert.throws(
-    () => createMagicLinkSender({ NODE_ENV: 'production', KS_DEV_ROOT: SCRATCH_DEV_ROOT }),
+    () =>
+      createMagicLinkSender({
+        NODE_ENV: 'production',
+        KS_DEV_ROOT: SCRATCH_DEV_ROOT,
+      }),
     /No MagicLinkSender is configured for production/,
   );
   assert.throws(
-    () => createMagicLinkSender({ NODE_ENV: 'production', KS_MAIL_SENDER: 'dev-sink', KS_DEV_ROOT: SCRATCH_DEV_ROOT }),
+    () =>
+      createMagicLinkSender({
+        NODE_ENV: 'production',
+        KS_MAIL_SENDER: 'dev-sink',
+        KS_DEV_ROOT: SCRATCH_DEV_ROOT,
+      }),
     /No MagicLinkSender is configured for production/,
   );
 });
 
 test('production with agentmail selected but missing key/inbox still refuses to start (no fallback)', () => {
   assert.throws(
-    () => createMagicLinkSender({ NODE_ENV: 'production', KS_MAIL_SENDER: 'agentmail' }),
+    () =>
+      createMagicLinkSender({
+        NODE_ENV: 'production',
+        KS_MAIL_SENDER: 'agentmail',
+      }),
     /AGENTMAIL_API_KEY/,
   );
   // Confirms the refusal is a thrown configuration error, not a quietly-returned dev sink.
   assert.throws(
-    () => createMagicLinkSender({ NODE_ENV: 'production', KS_MAIL_SENDER: 'agentmail', KS_DEV_ROOT: SCRATCH_DEV_ROOT }),
-    (error: unknown) => error instanceof Error && !/No MagicLinkSender is configured for production/.test(error.message),
+    () =>
+      createMagicLinkSender({
+        NODE_ENV: 'production',
+        KS_MAIL_SENDER: 'agentmail',
+        KS_DEV_ROOT: SCRATCH_DEV_ROOT,
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      !/No MagicLinkSender is configured for production/.test(error.message),
   );
 });
 
@@ -119,10 +197,15 @@ test('AGENTMAIL_BASE_URL selected through createMagicLinkSender reaches the loca
       AGENTMAIL_INBOX_ID: 'wired-inbox',
       AGENTMAIL_BASE_URL: baseUrl,
     });
-    await sender.send({ to: 'owner@example.test', link: 'http://x/confirm?token=t' });
+    await sender.send({
+      to: 'owner@example.test',
+      link: 'http://x/confirm?token=t',
+    });
     assert.equal(seenUrl, '/v0/inboxes/wired-inbox/messages/send');
   } finally {
     server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 });

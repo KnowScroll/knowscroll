@@ -3,7 +3,7 @@
  * at a local fake AgentMail HTTP server this file starts and stops itself. Never reaches
  * `api.agentmail.to`.
  *
- * `resolvedSender()` in `sign-in-routes.ts` reads `process.env` lazily and caches **only on a
+ * `resolvedSender()` in `routes/sign-in.ts` reads `process.env` lazily and caches **only on a
  * successful construction** (a throw inside `createMagicLinkSender()` is never cached, so the next
  * call re-resolves from whatever the environment is at that moment); and `requestMagicLink()` only
  * calls the sender at all for the configured **owner** address — a non-owner request never reaches
@@ -23,25 +23,43 @@
  * so it reuses the same single-row owner account rather than trying to create a second one.
  */
 import assert from 'node:assert/strict';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool } from '../packages/db/src/index.ts';
-import { resolveOwnerEmail } from '../packages/db/src/sign-in.ts';
+import { pool } from '@knowscroll/db';
+import { resolveOwnerEmail } from '@knowscroll/db/sign-in';
 import { useTestOwnerEmail } from './helpers/owner-address.ts';
 
 useTestOwnerEmail();
 
-if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
-  throw new Error('AgentMail route tests require an isolated knowscroll_test_* database');
+if (
+  !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
+) {
+  throw new Error(
+    'AgentMail route tests require an isolated knowscroll_test_* database',
+  );
 }
 
 const OWNER_EMAIL = resolveOwnerEmail();
-const FIXTURE_API_KEY = 'sk-agentmail-route-fixture-secret-must-never-be-logged';
+const FIXTURE_API_KEY =
+  'sk-agentmail-route-fixture-secret-must-never-be-logged';
 const FIXTURE_INBOX_ID = 'knowscroll-route-fixture-inbox';
-const GENEROUS_LIMITS = { accountWindowMinutes: 15, accountMaxPerWindow: 5000, fingerprintWindowMinutes: 15, fingerprintMaxPerWindow: 5000 };
+const GENEROUS_LIMITS = {
+  accountWindowMinutes: 15,
+  accountMaxPerWindow: 5000,
+  fingerprintWindowMinutes: 15,
+  fingerprintMaxPerWindow: 5000,
+};
 
-type Handler = (req: IncomingMessage, res: ServerResponse, body: string) => void;
+type Handler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  body: string,
+) => void;
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 async function fixture(initial: Handler) {
@@ -51,7 +69,9 @@ async function fixture(initial: Handler) {
     requestCount += 1;
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => handler(req, res, Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () =>
+      handler(req, res, Buffer.concat(chunks).toString('utf8')),
+    );
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -59,22 +79,36 @@ async function fixture(initial: Handler) {
   return {
     baseUrl: `http://127.0.0.1:${(address as { port: number }).port}`,
     requests: () => requestCount,
-    resetRequests: () => { requestCount = 0; },
-    setHandler: (next: Handler) => { handler = next; },
-    close: () => new Promise<void>((resolve, reject) => {
-      server.closeAllConnections();
-      server.close((error) => (error ? reject(error) : resolve()));
-    }),
+    resetRequests: () => {
+      requestCount = 0;
+    },
+    setHandler: (next: Handler) => {
+      handler = next;
+    },
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
   };
 }
 
 function succeed(res: ServerResponse) {
   res.writeHead(200, { 'content-type': 'application/json' });
-  res.end(JSON.stringify({ message_id: 'msg_route_fixture', thread_id: 'thread_route_fixture' }));
+  res.end(
+    JSON.stringify({
+      message_id: 'msg_route_fixture',
+      thread_id: 'thread_route_fixture',
+    }),
+  );
 }
 
 function requestLink(app: ReturnType<typeof buildApp>, email: string) {
-  return app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email } });
+  return app.inject({
+    method: 'POST',
+    url: '/v1/auth/magic-link',
+    payload: { email },
+  });
 }
 
 /**
@@ -84,7 +118,10 @@ function requestLink(app: ReturnType<typeof buildApp>, email: string) {
  * bind call *is* the test — there is nothing else to exercise once the sender is already fixed
  * against an address that will keep behaving the same way.
  */
-async function bindApp(devToken: string, env: { baseUrl: string; timeoutMs?: string }) {
+async function bindApp(
+  devToken: string,
+  env: { baseUrl: string; timeoutMs?: string },
+) {
   process.env.KS_MAIL_SENDER = 'agentmail';
   process.env.AGENTMAIL_API_KEY = FIXTURE_API_KEY;
   process.env.AGENTMAIL_INBOX_ID = FIXTURE_INBOX_ID;
@@ -110,9 +147,16 @@ after(async () => {
   for (const fn of cleanupFns) await fn();
 });
 
-const { app: mainApp, bindResponse: mainBindResponse } = await bindApp('a'.repeat(32), { baseUrl: mainServer.baseUrl });
+const { app: mainApp, bindResponse: mainBindResponse } = await bindApp(
+  'a'.repeat(32),
+  { baseUrl: mainServer.baseUrl },
+);
 cleanupFns.push(async () => mainApp.close());
-assert.equal(mainBindResponse.statusCode, 202, 'binding call itself must already answer 202');
+assert.equal(
+  mainBindResponse.statusCode,
+  202,
+  'binding call itself must already answer 202',
+);
 mainServer.resetRequests();
 
 test('the 202 is byte-identical whether the fake AgentMail server accepts or refuses the send', async () => {
@@ -164,7 +208,9 @@ test('a malformed (non-JSON) 2xx body from AgentMail never changes the 202', asy
 
 test('a connection refusal (AgentMail unreachable) never changes the 202', async () => {
   // Nothing listens on 127.0.0.1:1 in this environment.
-  const { app, bindResponse } = await bindApp('b'.repeat(32), { baseUrl: 'http://127.0.0.1:1' });
+  const { app, bindResponse } = await bindApp('b'.repeat(32), {
+    baseUrl: 'http://127.0.0.1:1',
+  });
   try {
     assert.equal(bindResponse.statusCode, 202);
     assert.deepEqual(bindResponse.json(), { status: 'requested' });
@@ -173,12 +219,21 @@ test('a connection refusal (AgentMail unreachable) never changes the 202', async
   }
 });
 
-test('a stalled AgentMail connection (timeout) never changes the 202', { timeout: 5_000 }, async () => {
+test('a stalled AgentMail connection (timeout) never changes the 202', {
+  timeout: 5_000,
+}, async () => {
   let arrived!: () => void;
-  const requestArrived = new Promise<void>((resolve) => { arrived = resolve; });
-  const stalledServer = await fixture((_req, _res) => { arrived(); /* never responds */ });
+  const requestArrived = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  const stalledServer = await fixture((_req, _res) => {
+    arrived(); /* never responds */
+  });
   try {
-    const bound = bindApp('c'.repeat(32), { baseUrl: stalledServer.baseUrl, timeoutMs: '150' });
+    const bound = bindApp('c'.repeat(32), {
+      baseUrl: stalledServer.baseUrl,
+      timeoutMs: '150',
+    });
     await requestArrived;
     const { app, bindResponse } = await bound;
     try {
@@ -206,7 +261,9 @@ test('a failing send is recorded for the operator without the address, the token
 
   const captured: string[] = [];
   const originalConsoleError = console.error;
-  console.error = (...args: unknown[]) => { captured.push(args.map(String).join(' ')); };
+  console.error = (...args: unknown[]) => {
+    captured.push(args.map(String).join(' '));
+  };
   let response: Awaited<ReturnType<typeof requestLink>>;
   try {
     response = await requestLink(mainApp, OWNER_EMAIL);
@@ -215,9 +272,19 @@ test('a failing send is recorded for the operator without the address, the token
   }
 
   assert.equal(response.statusCode, 202);
-  assert.equal(captured.length, 1, 'exactly one operator log line for the failing send');
+  assert.equal(
+    captured.length,
+    1,
+    'exactly one operator log line for the failing send',
+  );
   const line = captured[0]!;
-  const parsed = JSON.parse(line) as { service: string; event: string; httpStatus: number; reason: string; messageId: string | null };
+  const parsed = JSON.parse(line) as {
+    service: string;
+    event: string;
+    httpStatus: number;
+    reason: string;
+    messageId: string | null;
+  };
   assert.equal(parsed.service, 'api');
   assert.equal(parsed.event, 'magic_link_send_failed');
   assert.equal(parsed.httpStatus, 401);
@@ -225,21 +292,45 @@ test('a failing send is recorded for the operator without the address, the token
 
   assert.equal(line.includes(OWNER_EMAIL), false, 'must never log the address');
   assert.equal(line.includes(FIXTURE_API_KEY), false, 'must never log the key');
-  assert.equal(/[A-Za-z0-9_-]{32,}/.test(line.replace(/msg_route_fixture|thread_route_fixture/g, '')), false, 'must never log a token/link-shaped opaque string');
+  assert.equal(
+    /[A-Za-z0-9_-]{32,}/.test(
+      line.replace(/msg_route_fixture|thread_route_fixture/g, ''),
+    ),
+    false,
+    'must never log a token/link-shaped opaque string',
+  );
 });
 
 test('nothing logged across a run of every failure mode ever contains the address, a token, a link or the key', async () => {
   mainServer.resetRequests();
   const scenarios: Array<() => void> = [
-    () => mainServer.setHandler((_req, res) => { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'bad_request' })); }),
-    () => mainServer.setHandler((_req, res) => { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'unauthorized' })); }),
-    () => mainServer.setHandler((_req, res) => { res.writeHead(500, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'internal' })); }),
-    () => mainServer.setHandler((_req, res) => { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('not json'); }),
+    () =>
+      mainServer.setHandler((_req, res) => {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'bad_request' }));
+      }),
+    () =>
+      mainServer.setHandler((_req, res) => {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+      }),
+    () =>
+      mainServer.setHandler((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'internal' }));
+      }),
+    () =>
+      mainServer.setHandler((_req, res) => {
+        res.writeHead(200, { 'content-type': 'text/plain' });
+        res.end('not json');
+      }),
   ];
 
   const captured: string[] = [];
   const originalConsoleError = console.error;
-  console.error = (...args: unknown[]) => { captured.push(args.map(String).join(' ')); };
+  console.error = (...args: unknown[]) => {
+    captured.push(args.map(String).join(' '));
+  };
   try {
     for (const scenario of scenarios) {
       scenario();
@@ -258,6 +349,14 @@ test('nothing logged across a run of every failure mode ever contains the addres
   const combined = captured.join('\n');
   assert.equal(combined.includes(OWNER_EMAIL), false);
   assert.equal(combined.includes(FIXTURE_API_KEY), false);
-  assert.equal(combined.includes('token='), false, 'must never log a confirmation link');
-  assert.equal(combined.includes('/v1/auth/confirm'), false, 'must never log a confirmation link');
+  assert.equal(
+    combined.includes('token='),
+    false,
+    'must never log a confirmation link',
+  );
+  assert.equal(
+    combined.includes('/v1/auth/confirm'),
+    false,
+    'must never log a confirmation link',
+  );
 });

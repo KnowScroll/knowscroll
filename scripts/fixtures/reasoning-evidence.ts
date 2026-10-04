@@ -58,8 +58,8 @@ export type CaseEvidence = {
 };
 export type ReasoningJourneyReceipt = {
   version: 1;
-  journey: "J004";
-  result: "passed" | "failed";
+  journey: 'J004';
+  result: 'passed' | 'failed';
   source: {
     revision: string;
     dirty: boolean;
@@ -77,17 +77,17 @@ export type ReasoningJourneyReceipt = {
   error?: string;
 };
 export const J004_CASE_NAMES = [
-  "death_before_intent",
-  "death_after_intent",
-  "death_after_http",
-  "lost_commit_ack",
-  "lease_replacement",
-  "cancel_before_dispatch",
-  "deadline_before_dispatch",
-  "cancel",
-  "deadline",
-  "clear_late_receipt",
-  "receipt_revisions",
-  "capacity_contention",
-  "blocked_universe",
+  'death_before_intent',
+  'death_after_intent',
+  'death_after_http',
+  'lost_commit_ack',
+  'lease_replacement',
+  'cancel_before_dispatch',
+  'deadline_before_dispatch',
+  'cancel',
+  'deadline',
+  'clear_late_receipt',
+  'receipt_revisions',
+  'capacity_contention',
+  'blocked_universe',
 ] as const;

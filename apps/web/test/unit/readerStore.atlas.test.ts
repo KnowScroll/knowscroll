@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiException } from '../../src/api/client.ts';
 import { ReaderStore } from '../../src/state/readerStore.ts';
 import { MemoryStorageBackend, ReaderStorage } from '../../src/state/storage.ts';
-import type { WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
+import type { WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
 import { FakeApi, universeOf } from './fakeApi.ts';
 
 const placeId = '00000000-0000-4000-8000-000000000001';

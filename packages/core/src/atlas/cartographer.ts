@@ -1,5 +1,5 @@
 /**
- * #134 — Cartographer v1 (ADR-0036). Pure: the substrate, the reader's attention accounts and the
+ * Cartographer v1 (ADR-0036, #134). Pure: the substrate, the reader's attention accounts and the
  * current places in; the deltas that should happen out. Every delta carries its cause and evidence;
  * the database applies them and refuses a place change without one.
  *
@@ -9,9 +9,12 @@
  *   admitted bridge away that the reader has never been shown, by substrate degree.
  * - A sighting whose relation is no longer active retires; a rejection is the reader's and is final.
  */
+import { compareCodeUnits } from '../shared/compare.ts';
+
+/** @public The retired v1 identifier, kept nameable for the policy record. */
 export const CARTOGRAPHER_V1 = 'cartographer-v1';
 /** v2 (ADR-0037) adds foundation Stars; everything v1 decides is unchanged. */
-export const CARTOGRAPHER_V2 = 'cartographer-v2';
+const CARTOGRAPHER_V2 = 'cartographer-v2';
 export const CARTOGRAPHER_POLICY = CARTOGRAPHER_V2;
 const FOUNDATION_KINDS: ReadonlySet<RelationKind> = new Set([
   'explains',
@@ -51,7 +54,7 @@ export interface PlaceAccount {
   mass: number;
   evidence: { episodeIds: string[]; markIds: string[] };
 }
-export type PlaceKind = 'planet' | 'region' | 'sighting';
+type PlaceKind = 'planet' | 'region' | 'sighting';
 export interface PlaceView {
   placeId: string;
   anchor: string;
@@ -125,7 +128,6 @@ export type PlaceDelta =
       evidence: { relations: TypedRelation[]; setAside?: true };
     });
 
-const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 export const relationKey = (r: TypedRelation) =>
   `${r.from}|${r.to}|${r.kind}|${'claimId' in r.ref ? `c:${r.ref.claimId}` : `b:${r.ref.bridgeId}`}`;
 // A sourced claim is the preferred basis for a sighting, whatever its direction or kind; an admitted
@@ -163,7 +165,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
   // and one the reader has now been shown (a sighting is only ever something not yet met; if its
   // concept is already anchored it is promoted below instead).
   for (const p of [...live.values()].sort((a, b) =>
-    byCode(a.anchor, b.anchor),
+    compareCodeUnits(a.anchor, b.anchor),
   )) {
     if (p.kind !== 'sighting') continue;
     const met = accounts.get(p.anchor);
@@ -199,7 +201,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
         live.get(a.concept)?.kind !== 'region',
     )
     .map((a) => a.concept)
-    .sort((a, b) => depth(a) - depth(b) || byCode(a, b));
+    .sort((a, b) => depth(a) - depth(b) || compareCodeUnits(a, b));
   for (const concept of candidates) {
     let parentAnchor: string | null = null;
     let hop = parentOf.get(concept) ?? null;
@@ -247,7 +249,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
 
   // 3. Each planet/region offers sightings one typed relation away, never shown, never rejected.
   const relations = [...input.relations].sort((a, b) =>
-    byCode(basisOrder(a), basisOrder(b)),
+    compareCodeUnits(basisOrder(a), basisOrder(b)),
   );
   // Degree counts distinct neighbours: a claim and a bridge for the same pair are one connection.
   const neighbours = new Map<string, Set<string>>();
@@ -261,7 +263,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
   const anchorsOffering = [...live.values()]
     .filter((p) => p.kind === 'planet' || p.kind === 'region')
     .map((p) => p.anchor)
-    .sort(byCode);
+    .sort(compareCodeUnits);
   for (const anchor of anchorsOffering) {
     const offered = new Map<string, TypedRelation>();
     for (const r of relations) {
@@ -279,7 +281,7 @@ export function planPlaces(input: CartographerInput): PlaceDelta[] {
     const chosen = [...offered.entries()]
       .sort(
         ([a], [b]) =>
-          (degree.get(b) ?? 0) - (degree.get(a) ?? 0) || byCode(a, b),
+          (degree.get(b) ?? 0) - (degree.get(a) ?? 0) || compareCodeUnits(a, b),
       )
       .slice(0, Math.max(0, MAX_SIGHTINGS_PER_PLACE - already));
     for (const [other, relation] of chosen) {
@@ -323,7 +325,7 @@ export function planFoundations(input: {
   places: readonly PlaceView[];
 }): PlaceDelta[] {
   const relations = [...input.relations].sort((a, b) =>
-    byCode(basisOrder(a), basisOrder(b)),
+    compareCodeUnits(basisOrder(a), basisOrder(b)),
   );
   const active = new Set(input.relations.map(relationKey));
   const live = new Map(
@@ -337,7 +339,7 @@ export function planFoundations(input: {
   const deltas: PlaceDelta[] = [];
   const places = [...live.values()]
     .filter((p) => p.kind === 'planet' || p.kind === 'region')
-    .sort((a, b) => byCode(a.anchor, b.anchor));
+    .sort((a, b) => compareCodeUnits(a.anchor, b.anchor));
   for (const p of places) {
     const counted = new Map<string, TypedRelation>();
     for (const r of relations) {
@@ -354,7 +356,9 @@ export function planFoundations(input: {
         counted.set(`${r.to}|${r.kind}`, r);
     }
     const current = [...counted.values()];
-    const holdsUp = [...new Set(current.map((r) => r.to))].sort(byCode);
+    const holdsUp = [...new Set(current.map((r) => r.to))].sort(
+      compareCodeUnits,
+    );
     const foundation =
       current.length >= FOUNDATION_MIN_CONNECTIONS &&
       holdsUp.length >= FOUNDATION_MIN_PLACES;
@@ -436,7 +440,7 @@ export function planRejection(
   });
   const children = places
     .filter((p) => p.state === 'live' && p.parentAnchor === target.anchor)
-    .sort((a, b) => byCode(a.anchor, b.anchor));
+    .sort((a, b) => compareCodeUnits(a.anchor, b.anchor));
   return [
     // A foundation set aside stops being one first, while it is still live (ADR-0037).
     ...(target.loadBearing

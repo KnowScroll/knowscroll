@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
+import type { WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
 import './atlas-screen.css';
 
 export type AtlasScreenState =

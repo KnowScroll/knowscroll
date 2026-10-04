@@ -97,14 +97,14 @@ session — they are how one is obtained.
   consumption reuses that same universe — the database refuses to ever re-bind it to a different
   account.
 
-Delivery is a port (`apps/api/src/magic-link-sender.ts`) with two implementations, chosen by
+Delivery is a port (`apps/api/src/mail/magic-link-sender.ts`) with two implementations, chosen by
 `KS_MAIL_SENDER` ([ADR-0027](../decisions/0027-agentmail-magic-link-delivery.md); operator setup in
 [magic-link-delivery.md](../operations/magic-link-delivery.md)):
 
 - `dev-sink` (the default outside production): a development sink that writes the confirmation link
   (never the address) to a single fixed, mode-0600 file at `$KS_DEV_ROOT/sign-in/magic-link.txt`,
   overwritten atomically and holding only the most recent link.
-- `agentmail`: `AgentMailSender` (`apps/api/src/agentmail-sender.ts`) — one
+- `agentmail`: `AgentMailSender` (`apps/api/src/mail/agentmail-sender.ts`) — one
   `POST /v0/inboxes/{inbox}/messages/send` to the real AgentMail API with `Authorization: Bearer
   <AGENTMAIL_API_KEY>` and a strict `{to,subject,text,html}` body (the link appears in both `text`
   and `html`); a bounded timeout, a bounded response read, no automatic retry and no redirect ever

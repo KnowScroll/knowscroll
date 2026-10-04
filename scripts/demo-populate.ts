@@ -1,7 +1,7 @@
 /**
  * demo-populate.ts — fill a disposable universe to a chosen stage so the Cosmos/Living Observatory
  * interface (docs/product/ui-system.md §5b/§5c) can be judged, without waiting on a recommendation
- * engine that does not exist yet (`compose()` in packages/core/src/composer.ts is still only
+ * engine that does not exist yet (`compose()` in packages/core/src/composer/signals.ts is still only
  * "exclude what is kept, take three" — there is no ranking, no inferred interest, nothing to
  * demonstrate progression with otherwise).
  *
@@ -109,7 +109,9 @@ const STAGE_TARGETS = { empty: 0, light: 3, full: 12 } as const;
 type Stage = keyof typeof STAGE_TARGETS;
 
 function usage(): never {
-  throw new Error('Usage: DATABASE_URL=postgresql://.../knowscroll_demo_<name> tsx scripts/demo-populate.ts --stage <empty|light|full>');
+  throw new Error(
+    'Usage: DATABASE_URL=postgresql://.../knowscroll_demo_<name> tsx scripts/demo-populate.ts --stage <empty|light|full>',
+  );
 }
 
 function parseStage(argv: string[]): Stage {
@@ -129,7 +131,10 @@ const targetKept = STAGE_TARGETS[stage];
 async function ensureDatabaseExists(url: string, name: string): Promise<void> {
   const adminUrl = new URL(url);
   adminUrl.pathname = '/postgres';
-  const admin = new pg.Client({ connectionString: adminUrl.toString(), connectionTimeoutMillis: 10_000 });
+  const admin = new pg.Client({
+    connectionString: adminUrl.toString(),
+    connectionTimeoutMillis: 10_000,
+  });
   await admin.connect();
   try {
     await admin.query(`CREATE DATABASE "${name.replaceAll('"', '""')}"`);
@@ -147,13 +152,20 @@ await ensureDatabaseExists(databaseUrl!, databaseName);
 // process.env.DATABASE_URL is already exactly `databaseUrl` (we never mutate it), so every module
 // imported from here on that reads it — including packages/db's own local `.env` fallback, which
 // only ever fills in a variable that is still unset — resolves to the same validated demo database.
-const { pool, transaction, OWNER_ID } = await import('../packages/db/src/index.ts');
-const { runMigrations } = await import('../packages/db/src/migrations.ts');
-const { provisionIdentity } = await import('../packages/db/src/identity.ts');
+const { pool, transaction, OWNER_ID } = await import('@knowscroll/db');
+const { runMigrations } = await import('@knowscroll/db/migrations');
+const { provisionIdentity } = await import('@knowscroll/db/identity');
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
 
-type LibraryAsset = { assetId: string; title: string; summary: string; body: string; sourceTitle: string; sourceUrl: string };
+type LibraryAsset = {
+  assetId: string;
+  title: string;
+  summary: string;
+  body: string;
+  sourceTitle: string;
+  sourceUrl: string;
+};
 
 const DEMO_TITLE_SUFFIX = '(demo)';
 const DEMO_SOURCE_SUFFIX = '· DEMO DATA';
@@ -165,9 +177,15 @@ async function loadLibrary(path: string): Promise<LibraryAsset[]> {
 async function seedLibrary(): Promise<number> {
   const base = await loadLibrary('content/editorial-scrolls.json');
   const demo = await loadLibrary('content/demo-library.json');
-  return transaction(async client => {
-    await client.query('INSERT INTO universe(id) VALUES($1) ON CONFLICT DO NOTHING', [OWNER_ID]);
-    await client.query('INSERT INTO accounts(universe_id) VALUES($1) ON CONFLICT DO NOTHING', [OWNER_ID]);
+  return transaction(async (client) => {
+    await client.query(
+      'INSERT INTO universe(id) VALUES($1) ON CONFLICT DO NOTHING',
+      [OWNER_ID],
+    );
+    await client.query(
+      'INSERT INTO accounts(universe_id) VALUES($1) ON CONFLICT DO NOTHING',
+      [OWNER_ID],
+    );
     for (const [i, a] of base.entries()) {
       await client.query(
         `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
@@ -195,40 +213,83 @@ async function seedLibrary(): Promise<number> {
 }
 
 async function currentKeptCount(): Promise<number> {
-  const row = (await pool.query('SELECT kept_asset_ids FROM accounts WHERE universe_id=$1', [OWNER_ID])).rows[0];
+  const row = (
+    await pool.query(
+      'SELECT kept_asset_ids FROM accounts WHERE universe_id=$1',
+      [OWNER_ID],
+    )
+  ).rows[0];
   return (row?.kept_asset_ids ?? []).length;
 }
 
 /** Drives exactly one real Keep to completion: feed → exposure → interaction → deterministic
  * projection, all through the app's own routes and the worker's own projection function — the same
  * path tests/inventory-http.test.ts already proves against production code. */
-async function keepOneMore(app: Awaited<ReturnType<typeof buildApp>>, token: string): Promise<string> {
-  const feed = await app.inject({ url: '/v1/feed', headers: { authorization: `Bearer ${token}` } });
-  if (feed.statusCode !== 200) throw new Error(`GET /v1/feed failed: ${feed.statusCode} ${feed.body}`);
-  const feedBody = feed.json() as { decisionId: string; items: Array<{ assetId: string; title: string }> };
+async function keepOneMore(
+  app: Awaited<ReturnType<typeof buildApp>>,
+  token: string,
+): Promise<string> {
+  const feed = await app.inject({
+    url: '/v1/feed',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (feed.statusCode !== 200)
+    throw new Error(`GET /v1/feed failed: ${feed.statusCode} ${feed.body}`);
+  const feedBody = feed.json() as {
+    decisionId: string;
+    items: Array<{ assetId: string; title: string }>;
+  };
   const item = feedBody.items[0];
-  if (!item) throw new Error('Editorial library exhausted: no unkept Scroll remains to reach the requested stage.');
+  if (!item)
+    throw new Error(
+      'Editorial library exhausted: no unkept Scroll remains to reach the requested stage.',
+    );
 
   const exposure = await app.inject({
-    method: 'POST', url: '/v1/exposures', headers: { authorization: `Bearer ${token}` },
-    payload: { decisionId: feedBody.decisionId, assetId: item.assetId, clientExposureId: randomUUID() },
+    method: 'POST',
+    url: '/v1/exposures',
+    headers: { authorization: `Bearer ${token}` },
+    payload: {
+      decisionId: feedBody.decisionId,
+      assetId: item.assetId,
+      clientExposureId: randomUUID(),
+    },
   });
-  if (exposure.statusCode !== 201) throw new Error(`POST /v1/exposures failed: ${exposure.statusCode} ${exposure.body}`);
+  if (exposure.statusCode !== 201)
+    throw new Error(
+      `POST /v1/exposures failed: ${exposure.statusCode} ${exposure.body}`,
+    );
 
   const keep = await app.inject({
-    method: 'POST', url: '/v1/interactions', headers: { authorization: `Bearer ${token}` },
-    payload: { clientEventId: randomUUID(), exposureId: exposure.json().exposureId, assetId: item.assetId, kind: 'keep' },
+    method: 'POST',
+    url: '/v1/interactions',
+    headers: { authorization: `Bearer ${token}` },
+    payload: {
+      clientEventId: randomUUID(),
+      exposureId: exposure.json().exposureId,
+      assetId: item.assetId,
+      kind: 'keep',
+    },
   });
-  if (keep.statusCode !== 202) throw new Error(`POST /v1/interactions failed: ${keep.statusCode} ${keep.body}`);
+  if (keep.statusCode !== 202)
+    throw new Error(
+      `POST /v1/interactions failed: ${keep.statusCode} ${keep.body}`,
+    );
   const jobId = keep.json().jobId as string;
 
   let projected = false;
   for (let i = 0; i < 64; i += 1) {
     const result = await projectOne();
-    if (result?.jobId === jobId) { projected = true; break; }
+    if (result?.jobId === jobId) {
+      projected = true;
+      break;
+    }
     if (!result) break;
   }
-  if (!projected) throw new Error(`Keep of ${item.assetId} was accepted but never projected (jobId ${jobId}).`);
+  if (!projected)
+    throw new Error(
+      `Keep of ${item.assetId} was accepted but never projected (jobId ${jobId}).`,
+    );
   return item.title;
 }
 
@@ -239,8 +300,8 @@ try {
   if (targetKept < before) {
     throw new Error(
       `Stage "${stage}" wants ${targetKept} kept Traces, but this database already has ${before}. ` +
-      'This tool only grows a universe forward through the real contract; it will never un-keep ' +
-      'something the product itself cannot un-keep. Start from a fresh knowscroll_demo_* database instead.',
+        'This tool only grows a universe forward through the real contract; it will never un-keep ' +
+        'something the product itself cannot un-keep. Start from a fresh knowscroll_demo_* database instead.',
     );
   }
   const toAdd = targetKept - before;
@@ -250,20 +311,27 @@ try {
     await app.ready();
     try {
       const identity = await provisionIdentity({ universeId: OWNER_ID });
-      for (let i = 0; i < toAdd; i += 1) added.push(await keepOneMore(app, identity.token));
+      for (let i = 0; i < toAdd; i += 1)
+        added.push(await keepOneMore(app, identity.token));
     } finally {
       await app.close();
     }
   }
-  console.log(JSON.stringify({
-    database: databaseName,
-    stage,
-    editorialAssetsSeeded: totalAssets,
-    keptBefore: before,
-    keptAfter: before + added.length,
-    newlyKept: added,
-    note: 'Interface evaluation data only. Proves nothing about the recommendation algorithm, universe evolution, or real usage.',
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        database: databaseName,
+        stage,
+        editorialAssetsSeeded: totalAssets,
+        keptBefore: before,
+        keptAfter: before + added.length,
+        newlyKept: added,
+        note: 'Interface evaluation data only. Proves nothing about the recommendation algorithm, universe evolution, or real usage.',
+      },
+      null,
+      2,
+    ),
+  );
 } finally {
   await pool.end();
 }

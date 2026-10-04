@@ -19,9 +19,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { createMagicLinkSender } from '../apps/api/src/magic-link-sender.ts';
-import { pool } from '../packages/db/src/index.ts';
-import { resolveOwnerEmail } from '../packages/db/src/sign-in.ts';
+import { createMagicLinkSender } from '../apps/api/src/mail/magic-link-sender.ts';
+import { pool } from '@knowscroll/db';
+import { resolveOwnerEmail } from '@knowscroll/db/sign-in';
 import { projectOne } from '../apps/worker/src/project.ts';
 import { useTestOwnerEmail } from './helpers/owner-address.ts';
 
@@ -29,8 +29,12 @@ import { useTestOwnerEmail } from './helpers/owner-address.ts';
 // must not pass or fail because of what happens to be in a local .env or a CI job's environment.
 useTestOwnerEmail();
 
-if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
-  throw new Error('Sign-in HTTP tests require an isolated knowscroll_test_* database');
+if (
+  !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
+) {
+  throw new Error(
+    'Sign-in HTTP tests require an isolated knowscroll_test_* database',
+  );
 }
 
 const OWNER_EMAIL = resolveOwnerEmail();
@@ -43,7 +47,12 @@ const developmentToken = randomBytes(32).toString('hex');
 // This file requests many links inside one window, so it injects a permissive limit rather than
 // loosening what the real route uses.
 const app = buildApp(developmentToken, {
-  magicLinkLimits: { accountWindowMinutes: 15, accountMaxPerWindow: 500, fingerprintWindowMinutes: 15, fingerprintMaxPerWindow: 500 },
+  magicLinkLimits: {
+    accountWindowMinutes: 15,
+    accountMaxPerWindow: 500,
+    fingerprintWindowMinutes: 15,
+    fingerprintMaxPerWindow: 500,
+  },
 });
 await app.ready();
 
@@ -77,7 +86,11 @@ function tokenFromLink(link: string): string {
 }
 
 async function requestLink(email: string) {
-  return app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email } });
+  return app.inject({
+    method: 'POST',
+    url: '/v1/auth/magic-link',
+    payload: { email },
+  });
 }
 
 // -------------------------------------------------------------------------------------------
@@ -94,9 +107,36 @@ test('unknown and owner addresses receive byte-identical 202 responses', async (
 });
 
 test('a malformed body is rejected before any address is considered', async () => {
-  assert.equal((await app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: {} })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email: 'x@example.test', extra: 1 } })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email: 5 } })).statusCode, 400);
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/magic-link',
+        payload: {},
+      })
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/magic-link',
+        payload: { email: 'x@example.test', extra: 1 },
+      })
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/magic-link',
+        payload: { email: 5 },
+      })
+    ).statusCode,
+    400,
+  );
 });
 
 test('the development sink is written only for the owner address, and never contains the address', async () => {
@@ -104,13 +144,21 @@ test('the development sink is written only for the owner address, and never cont
   const beforeOwnerRequest = await readSinkLinkOrNull();
 
   await requestLink('still-not-the-owner@example.test');
-  assert.equal(await readSinkLinkOrNull(), beforeOwnerRequest, 'a non-owner request must never change the sink');
+  assert.equal(
+    await readSinkLinkOrNull(),
+    beforeOwnerRequest,
+    'a non-owner request must never change the sink',
+  );
 
   const response = await requestLink(OWNER_EMAIL);
   assert.equal(response.statusCode, 202);
   const link = await readSinkLinkOrNull();
   assert.ok(link);
-  assert.equal(link!.includes('@'), false, 'the sink content must never contain an email address');
+  assert.equal(
+    link!.includes('@'),
+    false,
+    'the sink content must never contain an email address',
+  );
   assert.equal(response.body.includes(OWNER_EMAIL), false);
 });
 
@@ -124,16 +172,31 @@ test('confirm reports validity, never consumes, and is safe to call repeatedly',
   const token = tokenFromLink(link!);
 
   for (let i = 0; i < 3; i += 1) {
-    const confirm = await app.inject({ url: `/v1/auth/confirm?token=${encodeURIComponent(token)}` });
+    const confirm = await app.inject({
+      url: `/v1/auth/confirm?token=${encodeURIComponent(token)}`,
+    });
     assert.equal(confirm.statusCode, 200);
     assert.deepEqual(confirm.json(), { valid: true });
   }
-  assert.equal((await app.inject({ url: '/v1/auth/confirm?token=not-a-real-token' })).statusCode, 200);
-  assert.deepEqual((await app.inject({ url: '/v1/auth/confirm?token=not-a-real-token' })).json(), { valid: false });
+  assert.equal(
+    (await app.inject({ url: '/v1/auth/confirm?token=not-a-real-token' }))
+      .statusCode,
+    200,
+  );
+  assert.deepEqual(
+    (
+      await app.inject({ url: '/v1/auth/confirm?token=not-a-real-token' })
+    ).json(),
+    { valid: false },
+  );
   assert.equal((await app.inject({ url: '/v1/auth/confirm' })).statusCode, 400);
 
   // Still fully usable — confirm truly never consumed it.
-  const session = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token } });
+  const session = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { token },
+  });
   assert.equal(session.statusCode, 200);
 });
 
@@ -146,14 +209,22 @@ test('session consumption is exactly-once; replay, malformed body and an expired
   const link = await readSinkLinkOrNull();
   const token = tokenFromLink(link!);
 
-  const first = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token } });
+  const first = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { token },
+  });
   assert.equal(first.statusCode, 200);
   const receipt = first.json();
   assert.equal(receipt.origin, 'magic_link');
   assert.ok(receipt.sessionToken);
   assert.notEqual(receipt.sessionToken, token);
 
-  const replay = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token } });
+  const replay = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { token },
+  });
   assert.equal(replay.statusCode, 401);
   assert.deepEqual(replay.json(), { error: 'Unauthorized' });
 
@@ -165,7 +236,11 @@ test('session consumption is exactly-once; replay, malformed body and an expired
     { payload: undefined },
   ];
   for (const shape of shapes) {
-    const response = await app.inject({ method: 'POST', url: '/v1/auth/session', ...shape });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/session',
+      ...shape,
+    });
     assert.equal(response.statusCode, 401, JSON.stringify(shape));
     assert.deepEqual(response.json(), { error: 'Unauthorized' });
   }
@@ -174,14 +249,24 @@ test('session consumption is exactly-once; replay, malformed body and an expired
   // token out after the fact), so this inserts an already-expired row directly instead — a valid
   // shape, just entirely in the past. The raw value never went through the HTTP route or the sink;
   // it is fabricated here purely to exercise the refusal path.
-  const { id: accountId } = (await pool.query('SELECT id FROM account WHERE email=$1', [OWNER_EMAIL])).rows[0];
+  const { id: accountId } = (
+    await pool.query('SELECT id FROM account WHERE email=$1', [OWNER_EMAIL])
+  ).rows[0];
   const expiredRawToken = randomBytes(32).toString('base64url');
   await pool.query(
     `INSERT INTO sign_in_token(id,account_id,token_hash,purpose,expires_at,created_at)
      VALUES($1,$2,$3,'sign_in',clock_timestamp() - interval '5 minutes',clock_timestamp() - interval '10 minutes')`,
-    [randomUUID(), accountId, createHash('sha256').update(expiredRawToken, 'utf8').digest('hex')],
+    [
+      randomUUID(),
+      accountId,
+      createHash('sha256').update(expiredRawToken, 'utf8').digest('hex'),
+    ],
   );
-  const expired = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token: expiredRawToken } });
+  const expired = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { token: expiredRawToken },
+  });
   assert.equal(expired.statusCode, 401);
   assert.deepEqual(expired.json(), { error: 'Unauthorized' });
 });
@@ -194,59 +279,119 @@ test('session consumption is exactly-once; replay, malformed body and an expired
 test('a magic-link session authenticates a full encounter, Clear History, Trace revisit and sign-out', async () => {
   await requestLink(OWNER_EMAIL);
   const token = tokenFromLink((await readSinkLinkOrNull())!);
-  const sessionResponse = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token } });
+  const sessionResponse = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { token },
+  });
   assert.equal(sessionResponse.statusCode, 200);
   const { sessionToken } = sessionResponse.json();
 
-  const sessionInfo = await app.inject({ url: '/v1/session', headers: headers(sessionToken) });
+  const sessionInfo = await app.inject({
+    url: '/v1/session',
+    headers: headers(sessionToken),
+  });
   assert.equal(sessionInfo.statusCode, 200);
 
-  const universe = await app.inject({ url: '/v1/universe', headers: headers(sessionToken) });
+  const universe = await app.inject({
+    url: '/v1/universe',
+    headers: headers(sessionToken),
+  });
   assert.equal(universe.statusCode, 200);
   const startingEpoch = universe.json().privacyEpoch as number;
 
-  const feedResponse = await app.inject({ url: '/v1/feed', headers: headers(sessionToken) });
+  const feedResponse = await app.inject({
+    url: '/v1/feed',
+    headers: headers(sessionToken),
+  });
   assert.equal(feedResponse.statusCode, 200);
   const feed = feedResponse.json();
   const item = feed.items[0];
 
   const exposureResponse = await app.inject({
-    method: 'POST', url: '/v1/exposures', headers: headers(sessionToken),
-    payload: { decisionId: feed.decisionId, assetId: item.assetId, clientExposureId: randomUUID() },
+    method: 'POST',
+    url: '/v1/exposures',
+    headers: headers(sessionToken),
+    payload: {
+      decisionId: feed.decisionId,
+      assetId: item.assetId,
+      clientExposureId: randomUUID(),
+    },
   });
   assert.equal(exposureResponse.statusCode, 201);
   const exposure = exposureResponse.json();
 
   const keepResponse = await app.inject({
-    method: 'POST', url: '/v1/interactions', headers: headers(sessionToken),
-    payload: { clientEventId: randomUUID(), exposureId: exposure.exposureId, assetId: item.assetId, kind: 'keep' },
+    method: 'POST',
+    url: '/v1/interactions',
+    headers: headers(sessionToken),
+    payload: {
+      clientEventId: randomUUID(),
+      exposureId: exposure.exposureId,
+      assetId: item.assetId,
+      kind: 'keep',
+    },
   });
   assert.equal(keepResponse.statusCode, 202);
   const keep = keepResponse.json();
 
-  await pool.query("UPDATE job SET available_at='1990-01-01T00:00:00Z' WHERE id=$1", [keep.jobId]);
-  assert.deepEqual(await projectOne(), { jobId: keep.jobId, status: 'completed' });
+  await pool.query(
+    "UPDATE job SET available_at='1990-01-01T00:00:00Z' WHERE id=$1",
+    [keep.jobId],
+  );
+  assert.deepEqual(await projectOne(), {
+    jobId: keep.jobId,
+    status: 'completed',
+  });
 
-  const eventLookup = await app.inject({ url: `/v1/events/${keep.eventId}`, headers: headers(sessionToken) });
+  const eventLookup = await app.inject({
+    url: `/v1/events/${keep.eventId}`,
+    headers: headers(sessionToken),
+  });
   assert.equal(eventLookup.statusCode, 200);
   assert.equal(eventLookup.json().projected, true);
 
-  const revisit = await app.inject({ url: `/v1/traces/${keep.eventId}`, headers: headers(sessionToken) });
+  const revisit = await app.inject({
+    url: `/v1/traces/${keep.eventId}`,
+    headers: headers(sessionToken),
+  });
   assert.equal(revisit.statusCode, 200, revisit.body);
 
   const clearResponse = await app.inject({
-    method: 'POST', url: '/v1/history/clear', headers: headers(sessionToken),
-    payload: { requestId: randomUUID(), expectedPrivacyEpoch: startingEpoch, confirmation: 'clear-scroll-history' },
+    method: 'POST',
+    url: '/v1/history/clear',
+    headers: headers(sessionToken),
+    payload: {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: startingEpoch,
+      confirmation: 'clear-scroll-history',
+    },
   });
   assert.equal(clearResponse.statusCode, 200, clearResponse.body);
   assert.equal(clearResponse.json().privacyEpoch, startingEpoch + 1);
 
-  const revisitAfterClear = await app.inject({ url: `/v1/traces/${keep.eventId}`, headers: headers(sessionToken) });
-  assert.equal(revisitAfterClear.statusCode, 404, 'an erased reference uses the existing missing-reference behavior');
+  const revisitAfterClear = await app.inject({
+    url: `/v1/traces/${keep.eventId}`,
+    headers: headers(sessionToken),
+  });
+  assert.equal(
+    revisitAfterClear.statusCode,
+    404,
+    'an erased reference uses the existing missing-reference behavior',
+  );
 
-  const revoke = await app.inject({ method: 'POST', url: '/v1/session/revoke', headers: headers(sessionToken), payload: {} });
+  const revoke = await app.inject({
+    method: 'POST',
+    url: '/v1/session/revoke',
+    headers: headers(sessionToken),
+    payload: {},
+  });
   assert.equal(revoke.statusCode, 204);
-  assert.equal((await app.inject({ url: '/v1/session', headers: headers(sessionToken) })).statusCode, 401);
+  assert.equal(
+    (await app.inject({ url: '/v1/session', headers: headers(sessionToken) }))
+      .statusCode,
+    401,
+  );
 });
 
 // -------------------------------------------------------------------------------------------
@@ -254,7 +399,14 @@ test('a magic-link session authenticates a full encounter, Clear History, Trace 
 // -------------------------------------------------------------------------------------------
 
 test('createMagicLinkSender refuses in production mode and without KS_DEV_ROOT', () => {
-  assert.throws(() => createMagicLinkSender({ NODE_ENV: 'production', KS_DEV_ROOT: scratchDevRoot }), /No MagicLinkSender is configured for production/);
+  assert.throws(
+    () =>
+      createMagicLinkSender({
+        NODE_ENV: 'production',
+        KS_DEV_ROOT: scratchDevRoot,
+      }),
+    /No MagicLinkSender is configured for production/,
+  );
   assert.throws(() => createMagicLinkSender({}), /KS_DEV_ROOT/);
   const sender = createMagicLinkSender({ KS_DEV_ROOT: scratchDevRoot });
   assert.ok(sender);

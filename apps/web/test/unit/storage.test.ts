@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryStorageBackend, ReaderStorage, type RevisitSession, type ScrollSession } from '../../src/state/storage.ts';
-import type { BranchOpenInput } from '../../../../packages/contracts/src/semantic.ts';
+import type { BranchOpenInput } from '@knowscroll/contracts/semantic';
 import { feedItem } from './fakeApi.ts';
 
 function session(overrides: Partial<ScrollSession> = {}): ScrollSession {

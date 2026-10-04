@@ -1,5 +1,13 @@
+/**
+ * Entry point of the API process, spawned by scripts and journeys (path is pinned). Starts the
+ * app on 127.0.0.1 with the development bootstrap identity and refuses to run at all under
+ * NODE_ENV=production, since that identity is development-only. SIGINT/SIGTERM close the server,
+ * then the database pool, then exit 0.
+ */
+
+import { pool } from '@knowscroll/db';
 import { buildApp } from './app.ts';
-import { pool } from '../../../packages/db/src/index.ts';
+
 if (process.env.NODE_ENV === 'production')
   throw new Error(
     'Bootstrap identity is development-only; implement production authentication before deployment',

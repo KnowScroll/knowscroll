@@ -210,6 +210,8 @@ try:
     app_file('j003-cleared.png')
     paths = subprocess.check_output(['git', 'ls-files', 'apps/mobile'], text=True).splitlines()
     paths += ['scripts/android-history-journey.py', 'packages/db/src/privacy.ts', 'apps/api/src/app.ts']
+    # Modules carved out of apps/api/src/app.ts in #196: hash them too, so the receipt covers the same code.
+    paths += ['apps/api/src/http/authenticated.ts', 'apps/api/src/http/input.ts', 'apps/api/src/routes/asks.ts', 'apps/api/src/routes/encounters.ts', 'apps/api/src/routes/feed.ts', 'apps/api/src/routes/health.ts', 'apps/api/src/routes/media.ts', 'apps/api/src/routes/privacy.ts', 'apps/api/src/routes/session.ts', 'apps/api/src/routes/universe.ts', 'packages/db/src/encounters.ts', 'packages/db/src/feed.ts', 'packages/db/src/media.ts', 'packages/db/src/trace-revisit.ts', 'packages/db/src/universe.ts']
     receipt = {
         'observedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
         'git': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),

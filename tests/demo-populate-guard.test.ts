@@ -20,14 +20,25 @@ import { promisify } from 'node:util';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { assertDemoDatabaseName, NotADemoDatabaseError } from '../scripts/lib/demo-database-guard.ts';
+import {
+  assertDemoDatabaseName,
+  NotADemoDatabaseError,
+} from '../scripts/lib/demo-database-guard.ts';
 
 const execFileAsync = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 test('assertDemoDatabaseName accepts only a knowscroll_demo_* database name', () => {
-  assert.equal(assertDemoDatabaseName('postgresql://u:p@127.0.0.1:5432/knowscroll_demo_full'), 'knowscroll_demo_full');
-  assert.equal(assertDemoDatabaseName('postgresql://u:p@127.0.0.1:5432/knowscroll_demo_x'), 'knowscroll_demo_x');
+  assert.equal(
+    assertDemoDatabaseName(
+      'postgresql://u:p@127.0.0.1:5432/knowscroll_demo_full',
+    ),
+    'knowscroll_demo_full',
+  );
+  assert.equal(
+    assertDemoDatabaseName('postgresql://u:p@127.0.0.1:5432/knowscroll_demo_x'),
+    'knowscroll_demo_x',
+  );
 });
 
 test('assertDemoDatabaseName refuses the owner database, test databases, and everything else', () => {
@@ -38,7 +49,11 @@ test('assertDemoDatabaseName refuses the owner database, test databases, and eve
     'postgresql://u:p@127.0.0.1:5432/postgres',
     'postgresql://u:p@127.0.0.1:5432/production',
   ]) {
-    assert.throws(() => assertDemoDatabaseName(url), NotADemoDatabaseError, `should refuse ${url}`);
+    assert.throws(
+      () => assertDemoDatabaseName(url),
+      NotADemoDatabaseError,
+      `should refuse ${url}`,
+    );
   }
 });
 
@@ -48,14 +63,19 @@ test('assertDemoDatabaseName refuses a missing or malformed DATABASE_URL', () =>
 });
 
 test('assertDemoDatabaseName refuses a database name it will not safely interpolate into SQL', () => {
-  assert.throws(() => assertDemoDatabaseName('postgresql://u:p@127.0.0.1:5432/knowscroll_demo_%22%3Bdrop'));
+  assert.throws(() =>
+    assertDemoDatabaseName(
+      'postgresql://u:p@127.0.0.1:5432/knowscroll_demo_%22%3Bdrop',
+    ),
+  );
 });
 
 test('demo-populate.ts refuses a non-demo database before opening any connection (subprocess, unroutable host)', async () => {
   const start = Date.now();
   await assert.rejects(
     execFileAsync(
-      'pnpm', ['exec', 'tsx', 'scripts/demo-populate.ts', '--stage', 'empty'],
+      'pnpm',
+      ['exec', 'tsx', 'scripts/demo-populate.ts', '--stage', 'empty'],
       {
         cwd: root,
         timeout: 8_000,
@@ -64,12 +84,16 @@ test('demo-populate.ts refuses a non-demo database before opening any connection
           // TEST-NET-1 (RFC 5737): reserved for documentation, guaranteed not to route anywhere
           // that will ever answer. If demo-populate.ts tried to connect before checking the name,
           // this would time out slowly instead of failing fast with the guard's own message.
-          DATABASE_URL: 'postgresql://u:p@192.0.2.1:5432/knowscroll_not_a_demo_database',
+          DATABASE_URL:
+            'postgresql://u:p@192.0.2.1:5432/knowscroll_not_a_demo_database',
         },
       },
     ),
     (error: unknown) => {
-      const { stdout = '', stderr = '' } = error as { stdout?: string; stderr?: string };
+      const { stdout = '', stderr = '' } = error as {
+        stdout?: string;
+        stderr?: string;
+      };
       assert.ok(
         `${stdout}${stderr}`.includes('does not begin "knowscroll_demo_"'),
         `expected the guard's own refusal, got:\n${stdout}\n${stderr}`,

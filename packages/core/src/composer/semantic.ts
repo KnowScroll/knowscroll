@@ -1,5 +1,5 @@
 /**
- * #133 — `composer-semantic-v3` (ADR-0032 §3–§4). A pure function from a recorded state snapshot to
+ * `composer-semantic-v3` (ADR-0032 §3–§4, #133). A pure function from a recorded state snapshot to
  * an ordered slate plus the full record of every candidate considered. No database, HTTP, provider
  * or UI import; the caller loads the state with bounded SQL and persists exactly this output.
  *
@@ -10,6 +10,8 @@
  * template filled only with recorded facts.
  */
 import { isWithin } from '../semantic/bridge-validator.ts';
+import { fnv1a } from '../shared/fnv.ts';
+import { round } from '../shared/number.ts';
 
 export const COMPOSER_SEMANTIC_V3 = 'composer-semantic-v3';
 export const COMPOSER_SEMANTIC_V4 = 'composer-semantic-v4';
@@ -23,8 +25,8 @@ export type Family =
   | 'frontier'
   | 'seed'
   | 'fallback';
-export type MarkKind = 'keep' | 'branch' | 'ask';
-export type GateReason = 'kept' | 'suppressed_by_person' | 'current_encounter';
+type MarkKind = 'keep' | 'branch' | 'ask';
+type GateReason = 'kept' | 'suppressed_by_person' | 'current_encounter';
 
 export interface V3Policy {
   version: string;
@@ -73,7 +75,7 @@ export interface V3Policy {
   tieBreak: 'fnv1a' | 'fnv1a-fmix32';
 }
 
-export interface V3Concept {
+interface V3Concept {
   code: string;
   name: string;
   parentCode: string | null;
@@ -91,7 +93,7 @@ export interface V3Asset {
   }[];
   claimKeys: readonly string[];
 }
-export interface V3Bridge {
+interface V3Bridge {
   id: string;
   from: string;
   to: string;
@@ -101,7 +103,7 @@ export interface V3Bridge {
   fromName: string;
   toName: string;
 }
-export interface V3Mark {
+interface V3Mark {
   eventId: string;
   assetId: string;
   kind: MarkKind;
@@ -117,7 +119,7 @@ export interface V3Bound {
   /** A continuation's gap: the bridge and the exposure it was opened from. */
   origin: { bridgeId: string; exposureId: string } | null;
 }
-export interface V3Served {
+interface V3Served {
   assetId: string;
   family: Family | null;
   atMs: number;
@@ -153,7 +155,7 @@ export interface V3State {
 }
 
 export type Facts = Record<string, string | number | null>;
-export type EvidenceStep =
+type EvidenceStep =
   | {
       kind: 'mark';
       markKind: MarkKind;
@@ -263,15 +265,6 @@ const VERB: Record<MarkKind, string> = {
   ask: 'asked about',
 };
 
-function fnv(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
 /** murmur3's 32-bit finalizer: every input bit reaches every output bit. FNV-1a alone barely mixes
  * the last characters, so ids that differ only there (the editorial library's) cluster together. */
 function fmix32(h: number): number {
@@ -284,8 +277,8 @@ function fmix32(h: number): number {
 }
 
 const TIE_BREAKS: Record<V3Policy['tieBreak'], (key: string) => number> = {
-  fnv1a: fnv,
-  'fnv1a-fmix32': (key) => fmix32(fnv(key)),
+  fnv1a,
+  'fnv1a-fmix32': (key) => fmix32(fnv1a(key)),
 };
 
 function rootOf(
@@ -826,5 +819,3 @@ function order(
   if (a.assetId !== b.assetId) return a.assetId < b.assetId ? -1 : 1;
   return FAMILY_ORDER.indexOf(a.family) - FAMILY_ORDER.indexOf(b.family);
 }
-
-const round = (n: number) => Math.round(n * 10_000) / 10_000;

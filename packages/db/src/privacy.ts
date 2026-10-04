@@ -1,19 +1,38 @@
+/**
+ * Privacy lifecycle: history Clear, pause/resume, export, Reset and account deletion. Each runs in
+ * the caller's authenticated transaction with the universe lock already held, and statement order
+ * and lock order inside them are load-bearing (FK-safe erasure, receipts written before the
+ * deletions their guards permit). ADR-0009, ADR-0010, ADR-0028, ADR-0030, ADR-0035.
+ */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import type {
+  AccountDeletionInput,
+  AccountDeletionReceipt,
   HistoryClearInput,
   HistoryClearReceipt,
+  PrivacyExportDeviceSession,
+  PrivacyExportResult,
   PrivacyLifecycleInput,
   PrivacyRecordingReceipt,
   PrivacyResetInput,
   PrivacyResetReceipt,
-  PrivacyExportResult,
-  PrivacyExportDeviceSession,
-  AccountDeletionInput,
-  AccountDeletionReceipt,
-} from '../../contracts/src/index.ts';
+} from '@knowscroll/contracts';
+import type pg from 'pg';
+import { eraseAway, exportAway } from './away.ts';
 import type { AuthScope } from './identity.ts';
-import { eraseReasoningForHistoryClear } from './reasoning-storage.ts';
+import {
+  cancelDemands,
+  eraseInventory,
+  exportInventory,
+} from './inventory/demand.ts';
+import { eraseAskAnswers, exportAskAnswers } from './reasoning/answers.ts';
+import {
+  eraseInquiries,
+  exportInquiries,
+  withdrawInquiries,
+} from './reasoning/inquiries.ts';
+import { eraseReasoningForHistoryClear } from './reasoning/storage.ts';
+import { eraseRelics, exportRelics } from './relics.ts';
 import {
   eraseSemanticHistory,
   exportSemanticHistory,
@@ -22,21 +41,8 @@ import {
   erasePersonalModel,
   exportPersonalModel,
 } from './semantic/personal-model.ts';
-import { eraseAskAnswers, exportAskAnswers } from './reasoning-answers.ts';
-import {
-  eraseInquiries,
-  exportInquiries,
-  withdrawInquiries,
-} from './reasoning-inquiries.ts';
-import { eraseAway, exportAway } from './away.ts';
-import { eraseRelics, exportRelics } from './relics.ts';
-import {
-  cancelDemands,
-  eraseInventory,
-  exportInventory,
-} from './inventory/demand.ts';
 
-export class HistoryClearConflict extends Error {
+class HistoryClearConflict extends Error {
   readonly statusCode = 409;
   constructor(
     message = 'History clear conflicts with the current privacy epoch',
@@ -132,7 +138,12 @@ export async function clearScrollHistory(
   input: HistoryClearInput,
 ): Promise<HistoryClearReceipt> {
   const old = (
-    await client.query(
+    await client.query<{
+      id: string;
+      epoch_before: number;
+      epoch_after: number;
+      cleared_at: Date;
+    }>(
       `
     SELECT
       id,
@@ -159,7 +170,7 @@ export async function clearScrollHistory(
     throw new HistoryClearConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -200,7 +211,7 @@ export async function clearScrollHistory(
   );
 
   const receipt = (
-    await client.query(
+    await client.query<{ id: string; epoch_after: number; cleared_at: Date }>(
       `
    INSERT INTO
      history_clear_receipt (
@@ -226,21 +237,22 @@ export async function clearScrollHistory(
         nextEpoch,
       ],
     )
-  ).rows[0];
+  ).rows[0]!;
   return receiptFromRow(receipt);
 }
 
-// ADR-0028 — privacy lifecycle: pause, export and reset. All three require the caller to already
-// hold the universe lock (via `authenticateAndLock`, which every route below goes through) and
-// recheck the authenticated session's epoch after that wait resolves, exactly as Clear does.
+// Privacy lifecycle: pause, export and reset. All three require the caller to already hold the
+// universe lock (via `authenticateAndLock`) and recheck the authenticated session's epoch after
+// that wait resolves, exactly as Clear does (ADR-0028).
 
+// Same result as shared/time.ts `toIsoString`, written as a ternary.
 function isoDate(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
     : new Date(String(value)).toISOString();
 }
 
-export class PrivacyLifecycleConflict extends Error {
+class PrivacyLifecycleConflict extends Error {
   readonly statusCode = 409;
   constructor(
     message = 'Privacy operation conflicts with the current privacy epoch',
@@ -276,12 +288,16 @@ async function setRecordingPaused(
   action: 'pause' | 'resume',
   input: PrivacyLifecycleInput,
 ): Promise<PrivacyRecordingReceipt> {
-  // The action is part of the replay key. Matching on the request id alone meant a client that
-  // reused an id it had already spent on the opposite action got that earlier receipt back: a
-  // pause request answered 200 with a resume receipt, and recording never stopped. A privacy
+  // The action is part of the replay key: matching on the request id alone would answer a pause
+  // that reuses a spent resume id with the resume receipt while recording never stopped. A privacy
   // control must never report success for something it did not do.
   const old = (
-    await client.query(
+    await client.query<{
+      id: string;
+      action: string;
+      privacy_epoch: number;
+      applied_at: Date;
+    }>(
       `
     SELECT
       id,
@@ -324,7 +340,12 @@ async function setRecordingPaused(
   if (!universe.rowCount) throw new Error('Universe row is missing');
 
   const receipt = (
-    await client.query(
+    await client.query<{
+      id: string;
+      action: string;
+      privacy_epoch: number;
+      applied_at: Date;
+    }>(
       `
     INSERT INTO
       privacy_recording_receipt (
@@ -351,7 +372,7 @@ async function setRecordingPaused(
         scope.privacyEpoch,
       ],
     )
-  ).rows[0];
+  ).rows[0]!;
   // ADR-0038 §8: pausing stops every background inquiry not yet sent; a call in flight is discarded at apply.
   // ADR-0046 §3: it cancels this universe's waiters and open demands too, never another's or a shared request.
   if (action === 'pause') {
@@ -402,7 +423,13 @@ export async function exportUniverse(
     throw new PrivacyLifecycleConflict();
 
   const universeRow = (
-    await client.query(
+    await client.query<{
+      id: string;
+      revision: number;
+      privacy_epoch: number;
+      recording_paused_at: Date | null;
+      email: string | null;
+    }>(
       `
     SELECT
       u.id,
@@ -421,7 +448,7 @@ export async function exportUniverse(
   ).rows[0];
   if (!universeRow) throw new Error('Universe row is missing');
   const accountsRow = (
-    await client.query(
+    await client.query<{ kept_asset_ids: string[]; revision: number }>(
       'SELECT kept_asset_ids,revision FROM accounts WHERE universe_id=$1',
       [scope.universeId],
     )
@@ -429,35 +456,43 @@ export async function exportUniverse(
   if (!accountsRow) throw new Error('Universe accounts state is missing');
 
   const decisions = (
-    await client.query(
+    await client.query<Record<string, unknown>>(
       'SELECT * FROM decision WHERE universe_id=$1 ORDER BY created_at',
       [scope.universeId],
     )
   ).rows;
   const ledger = (
-    await client.query(
+    await client.query<Record<string, unknown>>(
       'SELECT * FROM ledger WHERE universe_id=$1 ORDER BY seq',
       [scope.universeId],
     )
   ).rows;
   const exposures = (
-    await client.query('SELECT * FROM exposure WHERE universe_id=$1', [
-      scope.universeId,
-    ])
+    await client.query<Record<string, unknown>>(
+      'SELECT * FROM exposure WHERE universe_id=$1',
+      [scope.universeId],
+    )
   ).rows;
   const traces = (
-    await client.query(
+    await client.query<Record<string, unknown>>(
       'SELECT * FROM trace WHERE universe_id=$1 ORDER BY created_at',
       [scope.universeId],
     )
   ).rows;
   const jobs = (
-    await client.query('SELECT * FROM job WHERE universe_id=$1', [
-      scope.universeId,
-    ])
+    await client.query<Record<string, unknown>>(
+      'SELECT * FROM job WHERE universe_id=$1',
+      [scope.universeId],
+    )
   ).rows;
   const deviceSessionRows = (
-    await client.query(
+    await client.query<{
+      device_id: string;
+      origin: string;
+      created_at: Date;
+      expires_at: Date;
+      revoked_at: Date | null;
+    }>(
       `
     SELECT
       device_id,
@@ -490,19 +525,42 @@ export async function exportUniverse(
   // columns (lease_owner, wake_kind, dispatch_id, request_id, fingerprint, context_id, …) are
   // deliberately left out of every one of these four selects.
   const reasoningJobs = (
-    await client.query(
+    await client.query<{
+      id: string;
+      status: string;
+      class: string;
+      created_at: Date;
+    }>(
       'SELECT id,status,class,created_at FROM reasoning_job WHERE universe_id=$1 ORDER BY created_at',
       [scope.universeId],
     )
   ).rows;
   const reasoningSteps = (
-    await client.query(
+    await client.query<{
+      id: string;
+      job_id: string;
+      ordinal: number;
+      status: string;
+    }>(
       'SELECT id,job_id,ordinal,status FROM reasoning_step WHERE universe_id=$1 ORDER BY job_id,ordinal',
       [scope.universeId],
     )
   ).rows;
   const reasoningReceipts = (
-    await client.query(
+    await client.query<{
+      id: string;
+      attempt_id: string;
+      outcome: string;
+      remote_disposition: string;
+      http_status: number | null;
+      observed_at: Date;
+      recorded_at: Date;
+      input_tokens: string | null;
+      output_tokens: string | null;
+      cache_read_tokens: string | null;
+      cache_write_tokens: string | null;
+      cost_micro_usd: string | null;
+    }>(
       `
     SELECT
       id,
@@ -528,7 +586,13 @@ export async function exportUniverse(
     )
   ).rows;
   const reasoningAccounting = (
-    await client.query(
+    await client.query<{
+      attempt_id: string;
+      state: string;
+      output_authority: string;
+      created_at: Date;
+      all_duties_closed_at: Date | null;
+    }>(
       `
     SELECT
       attempt_id,
@@ -583,7 +647,7 @@ export async function exportUniverse(
   };
 
   const existing = (
-    await client.query(
+    await client.query<{ id: string; exported_at: Date }>(
       'SELECT id,exported_at FROM privacy_export_receipt WHERE universe_id=$1 AND request_id=$2',
       [scope.universeId, input.requestId],
     )
@@ -591,7 +655,7 @@ export async function exportUniverse(
   const receiptRow =
     existing ??
     (
-      await client.query(
+      await client.query<{ id: string; exported_at: Date }>(
         `
     INSERT INTO
       privacy_export_receipt (
@@ -616,7 +680,7 @@ export async function exportUniverse(
           JSON.stringify(rowCounts),
         ],
       )
-    ).rows[0];
+    ).rows[0]!;
 
   return {
     receiptId: String(receiptRow.id),
@@ -683,7 +747,13 @@ export async function resetPersonalUniverse(
   input: PrivacyResetInput,
 ): Promise<PrivacyResetReceipt> {
   const old = (
-    await client.query(
+    await client.query<{
+      id: string;
+      epoch_before: number;
+      epoch_after: number;
+      sessions_revoked: number;
+      reset_at: Date;
+    }>(
       `
     SELECT
       id,
@@ -711,7 +781,7 @@ export async function resetPersonalUniverse(
     throw new PrivacyLifecycleConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -735,7 +805,7 @@ export async function resetPersonalUniverse(
   );
 
   // Beyond Clear: end every session for this universe, including the caller's own.
-  const revoked = await client.query(
+  const revoked = await client.query<{ id: string }>(
     `
     UPDATE device_session
     SET
@@ -753,7 +823,13 @@ export async function resetPersonalUniverse(
     throw new Error('Reset must revoke at least the calling session');
 
   const receipt = (
-    await client.query(
+    await client.query<{
+      id: string;
+      epoch_before: number;
+      epoch_after: number;
+      sessions_revoked: number;
+      reset_at: Date;
+    }>(
       `
     INSERT INTO
       privacy_reset_receipt (
@@ -783,7 +859,7 @@ export async function resetPersonalUniverse(
         sessionsRevoked,
       ],
     )
-  ).rows[0];
+  ).rows[0]!;
   return resetReceiptFromRow(receipt);
 }
 
@@ -825,7 +901,7 @@ export async function deleteAccount(
   ]);
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -864,7 +940,13 @@ export async function deleteAccount(
     .filter((row) => row.origin === 'development')
     .map((row) => row.id);
   const receipt = (
-    await client.query(
+    await client.query<{
+      id: string;
+      epoch_before: number;
+      epoch_after: number;
+      sessions_deleted: number;
+      deleted_at: Date;
+    }>(
       `
     INSERT INTO
       account_deletion_receipt (
@@ -897,7 +979,7 @@ export async function deleteAccount(
         developmentSessionIds,
       ],
     )
-  ).rows[0];
+  ).rows[0]!;
 
   // Order is the foreign keys': tokens name the sessions they minted; sessions and the universe
   // name the account.

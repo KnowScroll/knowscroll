@@ -1,5 +1,5 @@
 /**
- * #131 — the deterministic bridge validator (ADR-0031). Pure: it reads only the proposal and a
+ * The deterministic bridge validator (ADR-0031, #131). Pure: it reads only the proposal and a
  * read set the caller assembled under the universe/substrate locks, and returns a decision with a
  * closed vocabulary of reasons. No database, HTTP, provider or UI import (packages/core/AGENTS.md).
  *
@@ -20,11 +20,11 @@
  */
 import {
   BRIDGE_VALIDATOR_VERSION,
-  SYMMETRIC_BRIDGE_TYPES,
   type BridgeDecision,
   type BridgeProposalPayload,
   type BridgeRejectionReason,
-} from '../../../contracts/src/semantic.ts';
+  SYMMETRIC_BRIDGE_TYPES,
+} from '@knowscroll/contracts/semantic';
 
 export type ClaimRole = 'subject' | 'object' | 'mechanism' | 'context';
 
@@ -63,7 +63,7 @@ export interface BridgeReadSet {
 }
 
 /** Ancestors of `code` via parentCode, nearest first. Stops on an unknown parent or a cycle. */
-export function ancestorsOf(
+function ancestorsOf(
   readSet: Pick<BridgeReadSet, 'concepts'>,
   code: string,
 ): string[] {
@@ -127,6 +127,7 @@ const STOP = new Set([
   'when',
   'about',
 ]);
+// Versioned text rule (bridge-validator-v1): deliberately not shared with `scrolls/writing.ts`'s `words`.
 function words(text: string): Set<string> {
   return new Set(
     text
@@ -137,7 +138,7 @@ function words(text: string): Set<string> {
 }
 
 /** Diagnostic only: the vocabulary the two sides share. Reported, never counted. */
-export function sharedVocabulary(
+function sharedVocabulary(
   readSet: BridgeReadSet,
   from: string,
   to: string,

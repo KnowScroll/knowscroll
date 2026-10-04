@@ -1,5 +1,5 @@
 /**
- * #131 — assembling the validator's read set from PostgreSQL, and the substrate lock.
+ * Assembling the validator's read set from PostgreSQL, and the substrate lock (#131).
  *
  * Lock order (ADR-0031 §7): the universe row lock, when a request holds
  * one, always comes first; the substrate advisory lock second. Writers of shared knowledge
@@ -13,7 +13,6 @@
  * A larger substrate needs a bounded neighbourhood query with the same slice semantics.
  */
 import { createHash } from 'node:crypto';
-import type pg from 'pg';
 import type {
   BridgeReadSet,
   ClaimRole,
@@ -21,7 +20,8 @@ import type {
   ReadSetClaim,
   ReadSetConcept,
   ReadSetRelation,
-} from '../../../core/src/semantic/bridge-validator.ts';
+} from '@knowscroll/core/semantic/bridge-validator';
+import type pg from 'pg';
 
 const SUBSTRATE_LOCK = 0x5ea_0131;
 
@@ -39,19 +39,7 @@ export async function lockSubstrateShared(
 }
 
 /** Key-sorted JSON so the same payload always hashes the same. */
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value as object)
-      .sort()
-      .map(
-        (k) =>
-          `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`,
-      )
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
+export { canonical as canonicalJson } from '@knowscroll/core/shared/canonical-json';
 export const sha256 = (text: string) =>
   createHash('sha256').update(text, 'utf8').digest('hex');
 

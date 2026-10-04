@@ -1,5 +1,5 @@
 /**
- * #162 — admitting a model-written Scroll (ADR-0041 §2, §6).
+ * Admitting a model-written Scroll (ADR-0041 §2, §6, #162).
  *
  * A checked Scroll enters the library in one transaction under the substrate lock: its family and
  * source (inserted if absent), the snapshot and the private material it was checked against, its
@@ -9,13 +9,13 @@
  * that decision and writes nothing.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
-import type { MaterialHost } from '../../../core/src/scrolls/material.ts';
+import type { MaterialHost } from '@knowscroll/core/scrolls/material';
+import { createCheckedScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import type {
   CheckedScroll,
   OfferedConcept,
-} from '../../../core/src/scrolls/writing.ts';
-import { createCheckedScrollWebArtifact } from '../../../core/src/scrolls/web-artifact.ts';
+} from '@knowscroll/core/scrolls/writing';
+import type pg from 'pg';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 

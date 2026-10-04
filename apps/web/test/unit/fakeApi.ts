@@ -1,6 +1,6 @@
 import type { ReaderApi } from '../../src/api/client.ts';
-import type { WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
-import type { BranchOpenInput, WebBranchOpenResponse, WebEncounterBranchesResponse } from '../../../../packages/contracts/src/semantic.ts';
+import type { WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
+import type { BranchOpenInput, WebBranchOpenResponse, WebEncounterBranchesResponse } from '@knowscroll/contracts/semantic';
 import type {
   AccountDeletionReceipt,
   AccountDeletionRequest,

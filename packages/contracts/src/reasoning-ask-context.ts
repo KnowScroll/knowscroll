@@ -1,14 +1,19 @@
+/*
+ * Schemas for the sealed Ask context compiled for one explicit Ask: its dependencies, payload,
+ * limits and versions. Invariant: shape parsing grants no authority; the compiler and its
+ * versions are pinned here so a stored payload stays verifiable (ADR-0017).
+ */
 import { z } from 'zod';
-import { explicitAskInput } from './index.ts';
+import { explicitAskInput } from './asks.ts';
+import { uuid as id, privacyEpoch } from './primitives.ts';
 import { reasoningCounter } from './reasoning.ts';
 import { contextScroll } from './reasoning-context.ts';
 
-const id = z.string().uuid();
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
 const scope = {
   universeId: id,
-  privacyEpoch: z.number().int().min(0).max(2147483647),
+  privacyEpoch,
 };
 export const ASK_CONTEXT_VERSIONS = Object.freeze({
   compiler: 'direct-ask-evidence-v1',

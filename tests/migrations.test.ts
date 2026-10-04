@@ -4,12 +4,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import pg from 'pg';
-import { ORIGINAL_BOOTSTRAP_SHA256, runMigrations } from '../packages/db/src/migrations.ts';
+import {
+  ORIGINAL_BOOTSTRAP_SHA256,
+  runMigrations,
+} from '@knowscroll/db/migrations';
 
-const databaseUrl: string = process.env.DATABASE_URL ?? (() => { throw new Error('DATABASE_URL required'); })();
+const databaseUrl: string =
+  process.env.DATABASE_URL ??
+  (() => {
+    throw new Error('DATABASE_URL required');
+  })();
 const databaseName = new URL(databaseUrl).pathname.slice(1);
 if (!databaseName.startsWith('knowscroll_test_')) {
-  throw new Error(`Migration tests require a disposable knowscroll_test_* database, received ${databaseName}`);
+  throw new Error(
+    `Migration tests require a disposable knowscroll_test_* database, received ${databaseName}`,
+  );
 }
 
 async function withSchema(
@@ -34,41 +43,75 @@ async function withSchema(
 }
 
 test('migration integrity against disposable PostgreSQL', async (t) => {
-  await t.test('fresh install records checksums and repeat is a no-op', async () => {
-    await withSchema('fresh', async (pool, directory) => {
-      await writeFile(join(directory, '0001_create.sql'), 'CREATE TABLE sample (id integer PRIMARY KEY);\n');
-      assert.deepEqual(await runMigrations(pool, { directory }), { applied: ['0001_create.sql'], adopted: [] });
-      assert.deepEqual(await runMigrations(pool, { directory }), { applied: [], adopted: [] });
-      const rows = await pool.query<{ name: string; checksum: string }>('SELECT name, checksum FROM schema_migrations');
-      assert.equal(rows.rows[0]?.name, '0001_create.sql');
-      assert.match(rows.rows[0]?.checksum ?? '', /^[0-9a-f]{64}$/);
-    });
-  });
+  await t.test(
+    'fresh install records checksums and repeat is a no-op',
+    async () => {
+      await withSchema('fresh', async (pool, directory) => {
+        await writeFile(
+          join(directory, '0001_create.sql'),
+          'CREATE TABLE sample (id integer PRIMARY KEY);\n',
+        );
+        assert.deepEqual(await runMigrations(pool, { directory }), {
+          applied: ['0001_create.sql'],
+          adopted: [],
+        });
+        assert.deepEqual(await runMigrations(pool, { directory }), {
+          applied: [],
+          adopted: [],
+        });
+        const rows = await pool.query<{ name: string; checksum: string }>(
+          'SELECT name, checksum FROM schema_migrations',
+        );
+        assert.equal(rows.rows[0]?.name, '0001_create.sql');
+        assert.match(rows.rows[0]?.checksum ?? '', /^[0-9a-f]{64}$/);
+      });
+    },
+  );
 
-  await t.test('changed and missing applied migrations fail closed', async () => {
-    await withSchema('drift', async (pool, directory) => {
-      const path = join(directory, '0001_create.sql');
-      await writeFile(path, 'CREATE TABLE sample (id integer PRIMARY KEY);\n');
-      await runMigrations(pool, { directory });
-      await writeFile(path, 'CREATE TABLE sample (id bigint PRIMARY KEY);\n');
-      await assert.rejects(runMigrations(pool, { directory }), /checksum mismatch: 0001_create.sql/);
-      await rm(path);
-      await assert.rejects(runMigrations(pool, { directory }), /missing from disk: 0001_create.sql/);
-    });
-  });
+  await t.test(
+    'changed and missing applied migrations fail closed',
+    async () => {
+      await withSchema('drift', async (pool, directory) => {
+        const path = join(directory, '0001_create.sql');
+        await writeFile(
+          path,
+          'CREATE TABLE sample (id integer PRIMARY KEY);\n',
+        );
+        await runMigrations(pool, { directory });
+        await writeFile(path, 'CREATE TABLE sample (id bigint PRIMARY KEY);\n');
+        await assert.rejects(
+          runMigrations(pool, { directory }),
+          /checksum mismatch: 0001_create.sql/,
+        );
+        await rm(path);
+        await assert.rejects(
+          runMigrations(pool, { directory }),
+          /missing from disk: 0001_create.sql/,
+        );
+      });
+    },
+  );
 
-  await t.test('failed migration rolls back its SQL and ledger row', async () => {
-    await withSchema('rollback', async (pool, directory) => {
-      await writeFile(
-        join(directory, '0001_broken.sql'),
-        'CREATE TABLE should_rollback (id integer);\nSELECT missing_column FROM should_rollback;\n',
-      );
-      await assert.rejects(runMigrations(pool, { directory }), /missing_column/);
-      const tables = await pool.query("SELECT to_regclass('should_rollback') AS name, to_regclass('schema_migrations') AS ledger");
-      assert.equal(tables.rows[0]?.name, null);
-      assert.equal(tables.rows[0]?.ledger, null);
-    });
-  });
+  await t.test(
+    'failed migration rolls back its SQL and ledger row',
+    async () => {
+      await withSchema('rollback', async (pool, directory) => {
+        await writeFile(
+          join(directory, '0001_broken.sql'),
+          'CREATE TABLE should_rollback (id integer);\nSELECT missing_column FROM should_rollback;\n',
+        );
+        await assert.rejects(
+          runMigrations(pool, { directory }),
+          /missing_column/,
+        );
+        const tables = await pool.query(
+          "SELECT to_regclass('should_rollback') AS name, to_regclass('schema_migrations') AS ledger",
+        );
+        assert.equal(tables.rows[0]?.name, null);
+        assert.equal(tables.rows[0]?.ledger, null);
+      });
+    },
+  );
 
   await t.test('concurrent runners serialize and apply once', async () => {
     await withSchema('concurrent', async (pool, directory) => {
@@ -80,31 +123,69 @@ test('migration integrity against disposable PostgreSQL', async (t) => {
         runMigrations(pool, { directory }),
         runMigrations(pool, { directory }),
       ]);
-      assert.deepEqual(results.map((result) => result.applied.length).sort(), [0, 1]);
-      assert.equal((await pool.query('SELECT count(*)::int AS count FROM migration_probe')).rows[0]?.count, 1);
-      assert.equal((await pool.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0]?.count, 1);
+      assert.deepEqual(
+        results.map((result) => result.applied.length).sort(),
+        [0, 1],
+      );
+      assert.equal(
+        (await pool.query('SELECT count(*)::int AS count FROM migration_probe'))
+          .rows[0]?.count,
+        1,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            'SELECT count(*)::int AS count FROM schema_migrations',
+          )
+        ).rows[0]?.count,
+        1,
+      );
     });
   });
 
-  await t.test('adopts only the known original bootstrap checksum', async () => {
-    await withSchema('legacy', async (pool, directory) => {
-      const bootstrap = await readFile('packages/db/migrations/0001_bootstrap.sql', 'utf8');
-      await writeFile(join(directory, '0001_bootstrap.sql'), bootstrap);
-      await pool.query(bootstrap);
-      await pool.query('CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-      await pool.query("INSERT INTO schema_migrations(name) VALUES ('0001_bootstrap.sql')");
-      const result = await runMigrations(pool, { directory });
-      assert.deepEqual(result, { applied: [], adopted: ['0001_bootstrap.sql'] });
-      assert.equal((await pool.query('SELECT checksum FROM schema_migrations')).rows[0]?.checksum, ORIGINAL_BOOTSTRAP_SHA256);
-    });
-  });
+  await t.test(
+    'adopts only the known original bootstrap checksum',
+    async () => {
+      await withSchema('legacy', async (pool, directory) => {
+        const bootstrap = await readFile(
+          'packages/db/migrations/0001_bootstrap.sql',
+          'utf8',
+        );
+        await writeFile(join(directory, '0001_bootstrap.sql'), bootstrap);
+        await pool.query(bootstrap);
+        await pool.query(
+          'CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
+        );
+        await pool.query(
+          "INSERT INTO schema_migrations(name) VALUES ('0001_bootstrap.sql')",
+        );
+        const result = await runMigrations(pool, { directory });
+        assert.deepEqual(result, {
+          applied: [],
+          adopted: ['0001_bootstrap.sql'],
+        });
+        assert.equal(
+          (await pool.query('SELECT checksum FROM schema_migrations')).rows[0]
+            ?.checksum,
+          ORIGINAL_BOOTSTRAP_SHA256,
+        );
+      });
+    },
+  );
 
   await t.test('rejects arbitrary checksum-less legacy SQL', async () => {
     await withSchema('untrusted', async (pool, directory) => {
       await writeFile(join(directory, '0001_bootstrap.sql'), 'SELECT 1;\n');
-      await pool.query('CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-      await pool.query("INSERT INTO schema_migrations(name) VALUES ('0001_bootstrap.sql')");
-      await assert.rejects(runMigrations(pool, { directory }), /no trusted checksum: 0001_bootstrap.sql/);
+      await pool.query(
+        'CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
+      );
+      await pool.query(
+        "INSERT INTO schema_migrations(name) VALUES ('0001_bootstrap.sql')",
+      );
+      await assert.rejects(
+        runMigrations(pool, { directory }),
+        /no trusted checksum: 0001_bootstrap.sql/,
+      );
       const columns = await pool.query(
         "SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='schema_migrations' AND column_name='checksum'",
       );
@@ -112,35 +193,80 @@ test('migration integrity against disposable PostgreSQL', async (t) => {
     });
   });
 
-  await t.test('unknown legacy rows reject before adoption or pending SQL', async () => {
-    await withSchema('unknown', async (pool, directory) => {
-      const bootstrap = await readFile('packages/db/migrations/0001_bootstrap.sql', 'utf8');
-      await writeFile(join(directory, '0001_bootstrap.sql'), bootstrap);
-      await writeFile(join(directory, '0002_pending.sql'), 'CREATE TABLE must_not_run (id integer);\n');
-      await pool.query(bootstrap);
-      await pool.query('CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-      await pool.query("INSERT INTO schema_migrations(name) VALUES ('0001_bootstrap.sql'), ('0099_unknown.sql')");
-      await assert.rejects(runMigrations(pool, { directory }), /missing from disk: 0099_unknown.sql/);
-      assert.equal((await pool.query("SELECT to_regclass('must_not_run') AS name")).rows[0]?.name, null);
-      assert.equal(
-        (await pool.query("SELECT count(*)::int AS count FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='schema_migrations' AND column_name='checksum'")).rows[0]?.count,
-        0,
-      );
-    });
-  });
+  await t.test(
+    'unknown legacy rows reject before adoption or pending SQL',
+    async () => {
+      await withSchema('unknown', async (pool, directory) => {
+        const bootstrap = await readFile(
+          'packages/db/migrations/0001_bootstrap.sql',
+          'utf8',
+        );
+        await writeFile(join(directory, '0001_bootstrap.sql'), bootstrap);
+        await writeFile(
+          join(directory, '0002_pending.sql'),
+          'CREATE TABLE must_not_run (id integer);\n',
+        );
+        await pool.query(bootstrap);
+        await pool.query(
+          'CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
+        );
+        await pool.query(
+          "INSERT INTO schema_migrations(name) VALUES ('0001_bootstrap.sql'), ('0099_unknown.sql')",
+        );
+        await assert.rejects(
+          runMigrations(pool, { directory }),
+          /missing from disk: 0099_unknown.sql/,
+        );
+        assert.equal(
+          (await pool.query("SELECT to_regclass('must_not_run') AS name"))
+            .rows[0]?.name,
+          null,
+        );
+        assert.equal(
+          (
+            await pool.query(
+              "SELECT count(*)::int AS count FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='schema_migrations' AND column_name='checksum'",
+            )
+          ).rows[0]?.count,
+          0,
+        );
+      });
+    },
+  );
 
-  await t.test('rejects an out-of-order migration before pending SQL', async () => {
-    await withSchema('order', async (pool, directory) => {
-      await writeFile(join(directory, '0001_first.sql'), 'CREATE TABLE first_done (id integer);\n');
-      await writeFile(join(directory, '0002_gap.sql'), 'CREATE TABLE must_not_run (id integer);\n');
-      await writeFile(join(directory, '0003_third.sql'), 'CREATE TABLE third_done (id integer);\n');
-      await runMigrations(pool, { directory });
-      await pool.query("DELETE FROM schema_migrations WHERE name='0002_gap.sql'");
-      await pool.query('DROP TABLE must_not_run');
-      await assert.rejects(runMigrations(pool, { directory }), /not an ordered prefix: expected 0002_gap.sql before 0003_third.sql/);
-      assert.equal((await pool.query("SELECT to_regclass('must_not_run') AS name")).rows[0]?.name, null);
-    });
-  });
+  await t.test(
+    'rejects an out-of-order migration before pending SQL',
+    async () => {
+      await withSchema('order', async (pool, directory) => {
+        await writeFile(
+          join(directory, '0001_first.sql'),
+          'CREATE TABLE first_done (id integer);\n',
+        );
+        await writeFile(
+          join(directory, '0002_gap.sql'),
+          'CREATE TABLE must_not_run (id integer);\n',
+        );
+        await writeFile(
+          join(directory, '0003_third.sql'),
+          'CREATE TABLE third_done (id integer);\n',
+        );
+        await runMigrations(pool, { directory });
+        await pool.query(
+          "DELETE FROM schema_migrations WHERE name='0002_gap.sql'",
+        );
+        await pool.query('DROP TABLE must_not_run');
+        await assert.rejects(
+          runMigrations(pool, { directory }),
+          /not an ordered prefix: expected 0002_gap.sql before 0003_third.sql/,
+        );
+        assert.equal(
+          (await pool.query("SELECT to_regclass('must_not_run') AS name"))
+            .rows[0]?.name,
+          null,
+        );
+      });
+    },
+  );
 });
 
 /**
@@ -160,11 +286,16 @@ test('the released migration order is never inserted behind', async () => {
   const directory = new URL('../packages/db/migrations/', import.meta.url);
   const released = (await readFile(new URL('RELEASED.txt', directory), 'utf8'))
     .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0 && !line.startsWith('#'));
-  const onDisk = (await readdir(directory)).filter(name => name.endsWith('.sql')).sort();
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+  const onDisk = (await readdir(directory))
+    .filter((name) => name.endsWith('.sql'))
+    .sort();
 
-  assert.ok(released.length > 0, 'RELEASED.txt must list the migrations already released');
+  assert.ok(
+    released.length > 0,
+    'RELEASED.txt must list the migrations already released',
+  );
   assert.deepEqual(
     onDisk.slice(0, released.length),
     released,
@@ -174,6 +305,9 @@ test('the released migration order is never inserted behind', async () => {
   const added = onDisk.slice(released.length);
   const last = released[released.length - 1]!;
   for (const name of added) {
-    assert.ok(name > last, `${name} sorts before the last released migration ${last}; number it after`);
+    assert.ok(
+      name > last,
+      `${name} sorts before the last released migration ${last}; number it after`,
+    );
   }
 });

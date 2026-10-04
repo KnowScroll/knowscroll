@@ -1,5 +1,5 @@
 /**
- * #131 — loading the editorial substrate seed (content/substrate.json) idempotently.
+ * Loading the editorial substrate seed (content/substrate.json) idempotently (#131).
  *
  * Knowledge rows are immutable, so "load" means insert-if-absent and then verify that whatever is
  * present is exactly what the seed says. A different statement under an existing key, or a source
@@ -8,14 +8,14 @@
  * the same validator as every other proposer (`submitBridgeProposal`).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  substrateSeed,
   type SubstrateSeed,
-} from '../../../contracts/src/semantic.ts';
-import { lockSubstrateExclusive, sha256 } from './read-set.ts';
-import { submitBridgeProposal, type ProposalResult } from './proposals.ts';
+  substrateSeed,
+} from '@knowscroll/contracts/semantic';
+import type pg from 'pg';
 import { revalidateAdmittedBridges } from './corrections.ts';
+import { type ProposalResult, submitBridgeProposal } from './proposals.ts';
+import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 
 export class SubstrateSeedConflict extends Error {
   constructor(message: string) {
@@ -41,17 +41,18 @@ export async function ensureRow(
   compare: string[],
 ): Promise<string> {
   const columns = Object.keys(values);
-  const inserted = await client.query(
+  const inserted = await client.query<{ id: string }>(
     `INSERT INTO ${table}(id,${columns.join(',')}) VALUES($1,${columns.map((_, i) => `$${i + 2}`).join(',')})
      ON CONFLICT (${keyColumn}) DO NOTHING RETURNING id`,
     [randomUUID(), ...columns.map((c) => values[c])],
   );
-  if (inserted.rowCount) return inserted.rows[0].id;
+  if (inserted.rowCount) return inserted.rows[0]!.id;
   const row = (
-    await client.query(`SELECT * FROM ${table} WHERE ${keyColumn}=$1`, [
-      values[keyColumn],
-    ])
-  ).rows[0];
+    await client.query<{ id: string; [column: string]: unknown }>(
+      `SELECT * FROM ${table} WHERE ${keyColumn}=$1`,
+      [values[keyColumn]],
+    )
+  ).rows[0]!;
   for (const column of compare) {
     const stored =
       row[column] instanceof Date
@@ -131,7 +132,10 @@ export async function loadSubstrateSeed(
   await lockSubstrateExclusive(client);
 
   const prior = (
-    await client.query(
+    await client.query<{
+      content_sha256: string;
+      counts: SeedLoadResult['counts'];
+    }>(
       'SELECT content_sha256, counts FROM semantic_seed_load WHERE version=$1',
       [seed.version],
     )
@@ -178,7 +182,7 @@ export async function loadSubstrateSeed(
       ['url', 'title', 'publisher', 'family_id'],
     );
     const current = (
-      await client.query(
+      await client.query<{ id: string; content_sha256: string }>(
         'SELECT id, content_sha256 FROM source_snapshot WHERE source_id=$1 AND status=$2',
         [sourceId, 'current'],
       )
@@ -192,11 +196,11 @@ export async function loadSubstrateSeed(
       continue;
     }
     const anyPrior = (
-      await client.query(
+      await client.query<{ n: number }>(
         'SELECT count(*)::int AS n FROM source_snapshot WHERE source_id=$1',
         [sourceId],
       )
-    ).rows[0].n as number;
+    ).rows[0]!.n;
     if (anyPrior > 0)
       throw new SubstrateSeedConflict(
         `source ${s.key} has no current snapshot (corrected or revoked); a new revision needs re-verification`,

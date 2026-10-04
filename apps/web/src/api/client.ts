@@ -20,7 +20,7 @@
  * `setCsrfToken`/`refreshCsrfToken` below.
  */
 import { z, type ZodType } from 'zod';
-import { webAtlasResponseSchema, type WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
+import { webAtlasResponseSchema, type WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
 import {
   branchOpenInput,
   webBranchOpenResponseSchema,
@@ -28,7 +28,7 @@ import {
   type BranchOpenInput,
   type WebBranchOpenResponse,
   type WebEncounterBranchesResponse,
-} from '../../../../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import {
   accountDeletionReceiptSchema,
   encounterFeedbackReceiptSchema,

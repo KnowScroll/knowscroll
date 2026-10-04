@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { webScrollArtifactV1 } from '../../../../packages/contracts/src/web-scroll-artifact.ts';
+import { webScrollArtifactV1 } from '@knowscroll/contracts/web-scroll-artifact';
 import './native-scroll.css';
 
 /** A small, local rendering vocabulary. The server payload remains untrusted until parsed here. */

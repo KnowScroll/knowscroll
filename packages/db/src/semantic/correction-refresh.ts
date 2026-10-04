@@ -1,5 +1,5 @@
 /**
- * #160 (ADR-0040) — a source correction reaches the reader's places while they are away.
+ * A source correction reaches the reader's places while they are away (ADR-0040, #160).
  *
  * A correction changes shared knowledge at once, but a reader's places follow only at their next
  * personal-model refresh, and only their own actions run one. Every refresh records how much of the
@@ -11,11 +11,11 @@
  * a correction is `source_correction`, so it is away news, ADR-0039).
  */
 import type pg from 'pg';
-import { lockUniverse, transaction } from '../index.ts';
+import { lockUniverse, transaction } from '../connection.ts';
 import {
   CORRECTIONS_COMMITTED,
-  refreshPersonalModel,
   type PersonalModelResult,
+  refreshPersonalModel,
 } from './personal-model.ts';
 
 // Recording on, something a correction can change (a place on the map, or a Scroll bound to the
@@ -28,7 +28,7 @@ const BEHIND = `u.recording_paused_at IS NULL
 /** Up to `limit` behind universes, longest-behind first: never recorded, then the oldest refresh.
  * `deferred` (the universes whose refresh failed last pass) go after everyone else: a failure
  * records nothing, so it would otherwise stay longest-behind and take the head of every batch. */
-export async function findBehindUniverses(
+async function findBehindUniverses(
   client: pg.Pool | pg.PoolClient,
   limit: number,
   deferred: readonly string[] = [],
@@ -60,7 +60,7 @@ export async function catchUpUniverse(
 
 /** A failed universe and what kind of error it was: a PostgreSQL error code or the error's name,
  * never its message (which may quote a row). */
-export interface FailedCatchUp {
+interface FailedCatchUp {
   universeId: string;
   error: string;
 }

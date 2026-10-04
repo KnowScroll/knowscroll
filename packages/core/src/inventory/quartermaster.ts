@@ -1,5 +1,5 @@
 /**
- * #164 — the Quartermaster (`quartermaster-v1`, ADR-0046 §2). Pure: one demand's facts in, one
+ * The Quartermaster (`quartermaster-v1`, ADR-0046 §2, #164). Pure: one demand's facts in, one
  * decision out. It runs when a demand is written, when supply changes and in the correction
  * catch-up; the caller loads the facts under the universe and inventory locks and applies exactly
  * this decision.
@@ -10,13 +10,13 @@
  * stops it. A route with no budget left never makes a silent wait. **Adapt** has no v1 path (no
  * Scroll derivation, no Reel generation: #9) and every decision records that.
  */
-import type { CannotMeetReason } from '../../../contracts/src/inventory.ts';
+import type { CannotMeetReason } from '@knowscroll/contracts/inventory';
 import { isWithin } from '../semantic/bridge-validator.ts';
 
 export const QUARTERMASTER_V1 = 'quartermaster-v1';
 
 /** Bench value (ADR-0046 §2): a demand whose requests were refused this often stops asking. */
-export const QUARTERMASTER_LIMITS = Object.freeze({ refusedRequests: 2 });
+const QUARTERMASTER_LIMITS = Object.freeze({ refusedRequests: 2 });
 
 export interface DemandFacts {
   /** The concept the demand needs more about. */

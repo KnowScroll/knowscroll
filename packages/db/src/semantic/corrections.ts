@@ -1,5 +1,5 @@
 /**
- * #131 — deterministic correction propagation.
+ * Deterministic correction propagation (#131).
  *
  * A source snapshot is marked corrected or revoked. Then, in the same transaction:
  *   claims that lose their last current `supports` quote become unsupported;
@@ -11,16 +11,16 @@
  * revision, and a revoked bridge returns only through a new proposal.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   bridgeProposalPayload,
-  sourceCorrectionInput,
   type SourceCorrectionInput,
-} from '../../../contracts/src/semantic.ts';
-import { validateBridgeProposal } from '../../../core/src/semantic/bridge-validator.ts';
+  sourceCorrectionInput,
+} from '@knowscroll/contracts/semantic';
+import { validateBridgeProposal } from '@knowscroll/core/semantic/bridge-validator';
+import type pg from 'pg';
 import { cancelRequestsForCorrectedMaterial } from '../inventory/supply.ts';
-import { loadBridgeReadSet, lockSubstrateExclusive } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
+import { loadBridgeReadSet, lockSubstrateExclusive } from './read-set.ts';
 
 export class SemanticNotFound extends Error {
   readonly statusCode = 404;
@@ -30,7 +30,7 @@ export class SemanticNotFound extends Error {
   }
 }
 
-export type CorrectionEffect = {
+type CorrectionEffect = {
   targetKind: 'claim' | 'bridge' | 'concept_relation';
   targetId: string;
   before: string;

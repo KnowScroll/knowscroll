@@ -1,5 +1,5 @@
 /**
- * #131 — attention accounts (`attention-v1`, ADR-0032 §1). Pure: evidence in, per-concept accounts
+ * Attention accounts (`attention-v1`, ADR-0032 §1, #131). Pure: evidence in, per-concept accounts
  * out. An account is a routing aid for the Composer and Cartographer, never a statement about the
  * person: watching contributes a little, voluntary acts contribute more, nothing here can say why.
  *
@@ -7,10 +7,12 @@
  * being shown + a bonus per distinct voluntary kind (capped) + a separated-return bonus. Credit
  * follows the encounter's annotated concepts by role. Mass decays with a half-life; counts do not.
  */
-export const ATTENTION_POLICY_V1 = 'attention-v1';
+import { round } from '../shared/number.ts';
+
+const ATTENTION_POLICY_V1 = 'attention-v1';
 
 export type MarkKind = 'keep' | 'branch' | 'ask';
-export type ConceptRole = 'primary' | 'secondary' | 'mentioned';
+type ConceptRole = 'primary' | 'secondary' | 'mentioned';
 
 export interface AttentionPolicy {
   version: string;
@@ -69,7 +71,7 @@ export interface NegativeEvidence {
   concepts: readonly string[];
 }
 
-export type AccountState = 'seen' | 'anchored' | 'dormant';
+type AccountState = 'seen' | 'anchored' | 'dormant';
 
 export interface AttentionAccount {
   concept: string;
@@ -230,7 +232,7 @@ export function computeAttentionAccounts(
 
 /** State lines are routing hints. Anchoring needs acts on separate days from separate sources;
  * watching can never cross it. Dormancy is an anchored-shaped history whose mass has faded. */
-export function stateOf(
+function stateOf(
   a: Omit<AttentionAccount, 'state'>,
   nowMs: number,
   policy: AttentionPolicy = ATTENTION_V1,
@@ -249,5 +251,3 @@ export function stateOf(
     ? 'dormant'
     : 'seen';
 }
-
-const round = (n: number) => Math.round(n * 10_000) / 10_000;

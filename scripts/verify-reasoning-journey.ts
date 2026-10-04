@@ -1,24 +1,41 @@
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
-import {dirname, resolve, sep} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {verifyReasoningJourney} from './reasoning-journey-verifier.ts';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { dirname, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { verifyReasoningJourney } from './reasoning-journey-verifier.ts';
 const path = process.argv[2];
-if (!path) throw new Error('Usage: verify-reasoning-journey.ts <J004 receipt path>');
+if (!path)
+  throw new Error('Usage: verify-reasoning-journey.ts <J004 receipt path>');
 const receipt = JSON.parse(await readFile(path, 'utf8'));
 const result = verifyReasoningJourney(receipt);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-assert.equal(receipt.source.revision, execFileSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding: 'utf8'}).trim(),
-  'fresh runtime receipt belongs to another source revision');
+assert.equal(
+  receipt.source.revision,
+  execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim(),
+  'fresh runtime receipt belongs to another source revision',
+);
 // Current runtime proof includes its teardown helper; historical semantic
 // receipts remain valid through verifyReasoningJourney above.
-assert.ok(receipt.source.files.some((file: {path: string}) => file.path === 'scripts/lib/pg-disconnect.ts'),
-  'fresh J004 receipt lacks PostgreSQL disconnect helper hash');
+assert.ok(
+  receipt.source.files.some(
+    (file: { path: string }) => file.path === 'scripts/lib/pg-disconnect.ts',
+  ),
+  'fresh J004 receipt lacks PostgreSQL disconnect helper hash',
+);
 for (const file of receipt.source.files) {
   const target = resolve(root, file.path);
   assert.ok(target.startsWith(root + sep), 'source path escaped repository');
-  assert.equal(createHash('sha256').update(await readFile(target)).digest('hex'), file.sha256, `source drift: ${file.path}`);
+  assert.equal(
+    createHash('sha256')
+      .update(await readFile(target))
+      .digest('hex'),
+    file.sha256,
+    `source drift: ${file.path}`,
+  );
 }
-console.log(JSON.stringify({...result, sourceHashesMatch: true}));
+console.log(JSON.stringify({ ...result, sourceHashesMatch: true }));
