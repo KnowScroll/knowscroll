@@ -9,7 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   applyAskAnswer,
   failAskAnswer,
@@ -17,17 +17,17 @@ import {
   loadAnswerWork,
   type AnswerOutcome,
   type AnswerWork,
-} from '@knowscroll/db/reasoning-answers';
+} from '@knowscroll/db/reasoning/answers';
 import {
   createReasoningFairness,
   type FairnessScheduled,
-} from '@knowscroll/db/reasoning-fairness';
+} from '@knowscroll/db/reasoning/fairness';
 import {
   jobFamily,
   sharedReasoningAuthority,
-} from '@knowscroll/db/reasoning-inquiries';
-import type { ReasoningAuthority } from '@knowscroll/db/reasoning-runtime-policy';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+} from '@knowscroll/db/reasoning/inquiries';
+import type { ReasoningAuthority } from '@knowscroll/db/reasoning/runtime-policy';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
 import type { InquiryTransport } from './inquiry-worker.ts';
 import {
   invokeReasoningOnce,

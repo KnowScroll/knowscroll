@@ -8,7 +8,7 @@ import {
   purgeClosedReasoningAccounting,
   ReasoningReceiptConflict,
   UnknownReasoningReceipt,
-} from '@knowscroll/db/reasoning-storage';
+} from '@knowscroll/db/reasoning/storage';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

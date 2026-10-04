@@ -4,7 +4,7 @@ import {
   rankSignalCandidates,
   type ComposerPolicy,
   type SignalCandidate,
-} from '@knowscroll/core/composer';
+} from '@knowscroll/core/composer/signals';
 import {
   exposureInput,
   interactionInput,

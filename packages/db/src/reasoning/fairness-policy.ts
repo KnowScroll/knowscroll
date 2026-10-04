@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { ReasoningDenied } from './reasoning-runtime-policy.ts';
+import { ReasoningDenied } from './runtime-policy.ts';
 
 export const FAIRNESS_CLASSES = [
   'interactive',

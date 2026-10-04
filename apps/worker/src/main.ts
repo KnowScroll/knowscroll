@@ -11,8 +11,8 @@ import {
   executeInquiryClaim,
   runInquiryPass,
 } from './reasoning/inquiry-worker.ts';
-import { settleAbandonedAnswers } from '@knowscroll/db/reasoning-answers';
-import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+import { settleAbandonedAnswers } from '@knowscroll/db/reasoning/answers';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import { runCorrectionRefreshPass } from '@knowscroll/db/semantic/correction-refresh';
 import {
   runSupplyPass,

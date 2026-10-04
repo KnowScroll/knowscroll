@@ -11,14 +11,14 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
-import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning/answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
   openDueInquiries,
-} from '@knowscroll/db/reasoning-inquiries';
-import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+} from '@knowscroll/db/reasoning/inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import {
   runInquiryPass,
   type InquiryTransport,

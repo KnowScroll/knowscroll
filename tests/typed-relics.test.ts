@@ -24,8 +24,8 @@ import {
   answerAuthority,
   answerFairnessPolicy,
   installAskAnswerRoute,
-} from '@knowscroll/db/reasoning-answers';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+} from '@knowscroll/db/reasoning/answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';

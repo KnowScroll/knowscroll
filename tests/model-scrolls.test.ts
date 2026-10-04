@@ -27,7 +27,7 @@ import { extractVisibleText } from '@knowscroll/core/scrolls/material';
 import { SCROLL_LIMITS } from '@knowscroll/core/scrolls/writing';
 import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
-import { readInquiryInputs } from '@knowscroll/db/reasoning-inquiry-context';
+import { readInquiryInputs } from '@knowscroll/db/reasoning/inquiry-context';
 import { admitModelScroll } from '@knowscroll/db/semantic/model-scrolls';
 import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { formPlaces, loadInquiryFixture } from './helpers/inquiry-fixture.ts';

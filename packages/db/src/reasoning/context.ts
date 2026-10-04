@@ -16,14 +16,14 @@ import {
   type DirectContextPayload,
 } from '@knowscroll/contracts/reasoning-context';
 import { exposureInput, interactionInput } from '@knowscroll/contracts';
-import type { AuthScope } from './identity.ts';
+import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
   validateReasoningPolicy,
   type ReasoningAuthority,
   type ReasoningContextCheck,
   type ReasoningScope,
-} from './reasoning-runtime-policy.ts';
+} from './runtime-policy.ts';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type CompileInput = {

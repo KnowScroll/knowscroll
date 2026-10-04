@@ -7,9 +7,9 @@ import {
   compileDirectContext,
   createDirectContextAuthority,
   validateDirectContext,
-} from '@knowscroll/db/reasoning-context';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/context';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

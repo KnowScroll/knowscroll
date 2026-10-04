@@ -3,21 +3,21 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import pg from 'pg';
 
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   createReasoningFairness,
   type FairnessReadyInput,
   type FairnessScheduled,
-} from '@knowscroll/db/reasoning-fairness';
+} from '@knowscroll/db/reasoning/fairness';
 import {
   lockFairnessResources,
   releaseNotSentFairness,
   settleFairness,
   clearFairnessMembership,
-} from '@knowscroll/db/reasoning-fairness-accounting';
-import { validateFairnessPolicy } from '@knowscroll/db/reasoning-fairness-policy';
+} from '@knowscroll/db/reasoning/fairness-accounting';
+import { validateFairnessPolicy } from '@knowscroll/db/reasoning/fairness-policy';
 import { clearScrollHistory } from '@knowscroll/db/privacy';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
 import { runMigrations } from '@knowscroll/db/migrations';
 import {
   fairnessAuthority,

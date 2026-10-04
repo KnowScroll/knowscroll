@@ -155,12 +155,12 @@ async function main() {
     // The product's own modules, against the disposable database only.
     process.env.DATABASE_URL = url(database);
     const db = await import('@knowscroll/db');
-    const inquiries = await import('@knowscroll/db/reasoning-inquiries');
+    const inquiries = await import('@knowscroll/db/reasoning/inquiries');
     const { answerFairnessPolicy } = await import(
-      '@knowscroll/db/reasoning-answers'
+      '@knowscroll/db/reasoning/answers'
     );
     const { createReasoningFairness } = await import(
-      '@knowscroll/db/reasoning-fairness'
+      '@knowscroll/db/reasoning/fairness'
     );
     const { runCartographer } = await import('@knowscroll/db/atlas');
     const v = 'live-inquiries-v1';

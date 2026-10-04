@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { compileDirectContext } from '@knowscroll/db/reasoning-context';
-import { lockBoundContextSession } from '@knowscroll/db/reasoning-context-session';
-import { compileDirectAskContext } from '@knowscroll/db/reasoning-ask-context';
-import { createSealedContextAuthority } from '@knowscroll/db/reasoning-context-authority';
+import { compileDirectContext } from '@knowscroll/db/reasoning/context';
+import { lockBoundContextSession } from '@knowscroll/db/reasoning/context-session';
+import { compileDirectAskContext } from '@knowscroll/db/reasoning/ask-context';
+import { createSealedContextAuthority } from '@knowscroll/db/reasoning/context-authority';
 import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

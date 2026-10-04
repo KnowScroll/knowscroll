@@ -17,8 +17,8 @@ import { pool, transaction } from '@knowscroll/db';
 import {
   openDueInquiries,
   resolveInquiryPolicy,
-} from '@knowscroll/db/reasoning-inquiries';
-import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+} from '@knowscroll/db/reasoning/inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import {
   runInquiryPass,
   type InquiryTransport,

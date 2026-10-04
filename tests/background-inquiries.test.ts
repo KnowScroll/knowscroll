@@ -17,17 +17,17 @@ import {
   inquiryConsentResponse,
 } from '@knowscroll/contracts/inquiries';
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
-import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning/answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
   openDueInquiries,
   openInquiry,
   resolveInquiryPolicy,
-} from '@knowscroll/db/reasoning-inquiries';
-import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
-import { validateInquiryContext } from '@knowscroll/db/reasoning-inquiry-context';
+} from '@knowscroll/db/reasoning/inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
+import { validateInquiryContext } from '@knowscroll/db/reasoning/inquiry-context';
 import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import {

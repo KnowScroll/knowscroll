@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import { runMigrations } from '@knowscroll/db/migrations';
 
 export const reasoningMaintenanceDatabaseUrl =

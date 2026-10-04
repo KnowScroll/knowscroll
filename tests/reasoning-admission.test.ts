@@ -8,13 +8,13 @@ import {
   REASONING_ADMISSION_LIMITS,
   type ClaimedJob,
   type ReserveAttemptInput,
-} from '@knowscroll/db/reasoning-admission';
+} from '@knowscroll/db/reasoning/admission';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
   type ReasoningScope,
   type ResolvedReasoningPolicy,
-} from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/runtime-policy';
 import { runMigrations } from '@knowscroll/db/migrations';
 
 const databaseUrl =

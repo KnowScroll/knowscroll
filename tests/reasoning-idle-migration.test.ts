@@ -8,8 +8,8 @@ import pg from 'pg';
 
 import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
 import { runMigrations } from '@knowscroll/db/migrations';
-import { compileDirectAskContext } from '@knowscroll/db/reasoning-ask-context';
-import { compileDirectContext } from '@knowscroll/db/reasoning-context';
+import { compileDirectAskContext } from '@knowscroll/db/reasoning/ask-context';
+import { compileDirectContext } from '@knowscroll/db/reasoning/context';
 import { seedWithdrawnReasoningGraph } from './helpers/reasoning-maintenance-fixture.ts';
 import {
   inTransaction,

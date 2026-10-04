@@ -17,15 +17,15 @@ import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import {
   answerFairnessPolicy,
   installAskAnswerRoute,
-} from '@knowscroll/db/reasoning-answers';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
-import { FAIRNESS_CLASSES } from '@knowscroll/db/reasoning-fairness-policy';
+} from '@knowscroll/db/reasoning/answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
+import { FAIRNESS_CLASSES } from '@knowscroll/db/reasoning/fairness-policy';
 import {
   installBackgroundInquiryRoute,
   openDueInquiries,
   sharedReasoningAuthority,
-} from '@knowscroll/db/reasoning-inquiries';
-import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+} from '@knowscroll/db/reasoning/inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import {

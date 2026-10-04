@@ -1,8 +1,8 @@
 /** Test-only separate-process actor; never loaded by the ordinary worker. */
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
 import { invokeReasoningOnce } from '../../apps/worker/src/reasoning/invoke.ts';
 import { authority, body, bodyHash, durable } from './reasoning-support.ts';
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });

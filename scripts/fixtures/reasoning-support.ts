@@ -4,7 +4,7 @@ import type pg from 'pg';
 import type {
   ReasoningAuthority,
   ResolvedReasoningPolicy,
-} from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/runtime-policy';
 import type { Snapshot } from './reasoning-evidence.ts';
 export const usage = {
   inputTokens: 7,

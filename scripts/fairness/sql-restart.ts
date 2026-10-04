@@ -18,9 +18,9 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
 import { runMigrations } from '@knowscroll/db/migrations';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import { authority, seed } from '../fixtures/reasoning-support.ts';
 
 const execFile = promisify(execFileCallback);
@@ -300,13 +300,13 @@ try {
       files: await Promise.all(
         [
           'scripts/fairness/sql-restart.ts',
-          'packages/db/src/reasoning-fairness.ts',
-          'packages/db/src/reasoning-fairness-accounting.ts',
-          'packages/db/src/reasoning-admission.ts',
-          'packages/db/src/reasoning-reconciliation.ts',
-          'packages/db/src/reasoning-storage.ts',
-          'packages/db/src/reasoning-runtime-policy.ts',
-          'packages/db/src/reasoning-fairness-policy.ts',
+          'packages/db/src/reasoning/fairness.ts',
+          'packages/db/src/reasoning/fairness-accounting.ts',
+          'packages/db/src/reasoning/admission.ts',
+          'packages/db/src/reasoning/reconciliation.ts',
+          'packages/db/src/reasoning/storage.ts',
+          'packages/db/src/reasoning/runtime-policy.ts',
+          'packages/db/src/reasoning/fairness-policy.ts',
           'scripts/fixtures/reasoning-support.ts',
           ...(await readdir('packages/db/migrations'))
             .filter((name) => name.endsWith('.sql'))

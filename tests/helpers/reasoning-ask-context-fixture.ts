@@ -4,7 +4,7 @@ import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
 import {
   compileDirectAskContext,
   validateDirectAskContext,
-} from '@knowscroll/db/reasoning-ask-context';
+} from '@knowscroll/db/reasoning/ask-context';
 import {
   attachPendingStep,
   inTransaction,

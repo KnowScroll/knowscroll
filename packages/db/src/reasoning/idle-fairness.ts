@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { ReasoningDenied } from './reasoning-runtime-policy.ts';
+import { ReasoningDenied } from './runtime-policy.ts';
 
 type Lane = { policy_version: string; class: string; universe_id: string };
 type Input = { jobId: string; universeId: string; attemptIds: string[] };

@@ -4,15 +4,15 @@ import test from 'node:test';
 import type pg from 'pg';
 
 import { authenticateAndLock } from '@knowscroll/db/identity';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
   isIdleWithdrawalIneligible,
-} from '@knowscroll/db/reasoning-idle-lifecycle';
-import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/idle-lifecycle';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning/maintenance';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   inTransaction,
   withReasoningContextSchema,

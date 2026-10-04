@@ -15,12 +15,12 @@ import { buildApp } from '../apps/api/src/app.ts';
 import type { EncounterBranchesResponse } from '@knowscroll/contracts/semantic';
 import { inquiriesResponse } from '@knowscroll/contracts/inquiries';
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
-import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning/answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
-} from '@knowscroll/db/reasoning-inquiries';
+} from '@knowscroll/db/reasoning/inquiries';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
 import { formPlaces } from './helpers/inquiry-fixture.ts';

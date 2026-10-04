@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import type { ReasoningScope } from './reasoning-runtime-policy.ts';
+import type { ReasoningScope } from './runtime-policy.ts';
 
 /** Caller already holds the universe lock. Lock the immutable original session
  * before any Job/Step locks. Validators still re-read live authority after waits;

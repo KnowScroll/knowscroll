@@ -1,10 +1,10 @@
 import type pg from 'pg';
 
-import { purgeClosedReasoningAccounting } from './reasoning-storage.ts';
+import { purgeClosedReasoningAccounting } from './storage.ts';
 import {
   expireIdleDirectJob,
   isIdleWithdrawalIneligible,
-} from './reasoning-idle-lifecycle.ts';
+} from './idle-lifecycle.ts';
 
 const DEFAULT_MAX_PROBES = 32;
 const MAX_PROBES = 128;

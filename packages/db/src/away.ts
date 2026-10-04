@@ -32,7 +32,7 @@ import {
 } from '@knowscroll/core/rooms/keeper';
 import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
 import type { AuthScope } from './identity.ts';
-import { bridgeConnection } from './reasoning-inquiries.ts';
+import { bridgeConnection } from './reasoning/inquiries.ts';
 import { lockSubstrateShared } from './semantic/read-set.ts';
 
 export class ReturnError extends Error {

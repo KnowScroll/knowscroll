@@ -209,13 +209,13 @@ try {
   const { seedDirectContextGraph, attachPendingStep, inTransaction } =
     await import('../tests/helpers/reasoning-context-fixture.ts');
   const { compileDirectContext, createDirectContextAuthority } = await import(
-    '@knowscroll/db/reasoning-context'
+    '@knowscroll/db/reasoning/context'
   );
   const { createReasoningAdmission } = await import(
-    '@knowscroll/db/reasoning-admission'
+    '@knowscroll/db/reasoning/admission'
   );
   const { createReasoningReconciliation } = await import(
-    '@knowscroll/db/reasoning-reconciliation'
+    '@knowscroll/db/reasoning/reconciliation'
   );
   async function seedWithdrawn(possibleSend: boolean) {
     const graph = await seedDirectContextGraph(db!);
@@ -698,13 +698,13 @@ try {
           'packages/db/migrations/0008_reasoning_retirement.sql',
           'packages/db/migrations/0011_idle_direct_withdrawal.sql',
           'packages/db/migrations/0012_terminal_private_retirement.sql',
-          'packages/db/src/reasoning-maintenance.ts',
-          'packages/db/src/reasoning-idle-lifecycle.ts',
-          'packages/db/src/reasoning-idle-lifecycle-contract.ts',
-          'packages/db/src/reasoning-idle-fairness.ts',
-          'packages/db/src/reasoning-admission.ts',
-          'packages/db/src/reasoning-context.ts',
-          'packages/db/src/reasoning-storage.ts',
+          'packages/db/src/reasoning/maintenance.ts',
+          'packages/db/src/reasoning/idle-lifecycle.ts',
+          'packages/db/src/reasoning/idle-lifecycle-contract.ts',
+          'packages/db/src/reasoning/idle-fairness.ts',
+          'packages/db/src/reasoning/admission.ts',
+          'packages/db/src/reasoning/context.ts',
+          'packages/db/src/reasoning/storage.ts',
           'apps/worker/src/reasoning/maintenance-main.ts',
           'tests/helpers/reasoning-context-fixture.ts',
         ].map(async (path) => ({

@@ -10,11 +10,11 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   createReasoningFairness,
   type FairnessScheduled,
-} from '@knowscroll/db/reasoning-fairness';
+} from '@knowscroll/db/reasoning/fairness';
 import {
   inquiryAuthority,
   jobFamily,
@@ -22,7 +22,7 @@ import {
   openDueInquiries,
   sharedReasoningAuthority,
   type OpenResult,
-} from '@knowscroll/db/reasoning-inquiries';
+} from '@knowscroll/db/reasoning/inquiries';
 import {
   applyInquiryReply,
   failInquiry,
@@ -31,12 +31,12 @@ import {
   type InquiryOutcome,
   type InquiryWork,
   type ProviderReply,
-} from '@knowscroll/db/reasoning-inquiry-execution';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+} from '@knowscroll/db/reasoning/inquiry-execution';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
-} from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/runtime-policy';
 import {
   createReadinessGate,
   executeAnswerClaim,

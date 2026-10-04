@@ -2,15 +2,15 @@ import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
 import { authenticateAndLock } from '@knowscroll/db/identity';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   compileDirectContext,
   createDirectContextAuthority,
-} from '@knowscroll/db/reasoning-context';
+} from '@knowscroll/db/reasoning/context';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
-} from '@knowscroll/db/reasoning-idle-lifecycle';
+} from '@knowscroll/db/reasoning/idle-lifecycle';
 import {
   attachPendingStep,
   inTransaction,

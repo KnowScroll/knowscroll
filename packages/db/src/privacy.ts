@@ -13,7 +13,7 @@ import type {
   AccountDeletionReceipt,
 } from '@knowscroll/contracts';
 import type { AuthScope } from './identity.ts';
-import { eraseReasoningForHistoryClear } from './reasoning-storage.ts';
+import { eraseReasoningForHistoryClear } from './reasoning/storage.ts';
 import {
   eraseSemanticHistory,
   exportSemanticHistory,
@@ -22,12 +22,12 @@ import {
   erasePersonalModel,
   exportPersonalModel,
 } from './semantic/personal-model.ts';
-import { eraseAskAnswers, exportAskAnswers } from './reasoning-answers.ts';
+import { eraseAskAnswers, exportAskAnswers } from './reasoning/answers.ts';
 import {
   eraseInquiries,
   exportInquiries,
   withdrawInquiries,
-} from './reasoning-inquiries.ts';
+} from './reasoning/inquiries.ts';
 import { eraseAway, exportAway } from './away.ts';
 import { eraseRelics, exportRelics } from './relics.ts';
 import {

@@ -6,8 +6,8 @@ import type pg from 'pg';
 import {
   createReasoningFairness,
   type FairnessScheduled,
-} from '@knowscroll/db/reasoning-fairness';
-import type { FairnessClass } from '@knowscroll/db/reasoning-fairness-policy';
+} from '@knowscroll/db/reasoning/fairness';
+import type { FairnessClass } from '@knowscroll/db/reasoning/fairness-policy';
 import {
   fairnessAuthority,
   seedFairnessGraph,

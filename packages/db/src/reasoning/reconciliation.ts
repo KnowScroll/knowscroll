@@ -2,13 +2,13 @@ import {
   lockFairnessResources,
   pauseFairnessForAttempt,
   settleFairness,
-} from './reasoning-fairness-accounting.ts';
+} from './fairness-accounting.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
   appendRestrictedReasoningReceipt,
   type TrustedReasoningReceiptOrigin,
-} from './reasoning-storage.ts';
+} from './storage.ts';
 
 type Usage = {
   inputTokens: number | null;

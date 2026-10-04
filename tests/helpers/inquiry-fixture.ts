@@ -15,12 +15,12 @@ import type pg from 'pg';
 import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import { runCartographer } from '@knowscroll/db/atlas';
-import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning/answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
-} from '@knowscroll/db/reasoning-inquiries';
+} from '@knowscroll/db/reasoning/inquiries';
 import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 
 export type InquiryFixture = {

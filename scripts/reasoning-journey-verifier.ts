@@ -138,8 +138,8 @@ export function verifyReasoningJourney(value: unknown) {
   assert.match(r.source.revision, /^[a-f0-9]{40}$/);
   assert.ok(typeof r.source.dirty === 'boolean');
   const requiredSources = [
-    'packages/db/src/reasoning-admission.ts',
-    'packages/db/src/reasoning-reconciliation.ts',
+    'packages/db/src/reasoning/admission.ts',
+    'packages/db/src/reasoning/reconciliation.ts',
     'apps/worker/src/reasoning/invoke.ts',
     'scripts/run-isolated-reasoning-journey.ts',
   ];

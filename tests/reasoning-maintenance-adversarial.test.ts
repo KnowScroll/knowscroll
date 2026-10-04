@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning/maintenance';
 import {
   ageWithdrawalForTest,
   seedWithdrawnReasoningGraph,

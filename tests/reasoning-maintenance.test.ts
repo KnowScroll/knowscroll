@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning/maintenance';
 import {
   ageWithdrawalForTest,
   seedPurgeableAccounting,

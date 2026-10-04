@@ -17,15 +17,15 @@ import {
   type ContextValidation,
 } from '@knowscroll/contracts/reasoning-context';
 import { explicitAskInput, exposureInput } from '@knowscroll/contracts';
-import { explicitAskLedgerKey } from './explicit-ask.ts';
-import type { AuthScope } from './identity.ts';
+import { explicitAskLedgerKey } from '../explicit-ask.ts';
+import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
   validateReasoningPolicy,
   type ReasoningAuthority,
   type ReasoningContextCheck,
   type ReasoningScope,
-} from './reasoning-runtime-policy.ts';
+} from './runtime-policy.ts';
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type ContextResult = {
   contextId: string;

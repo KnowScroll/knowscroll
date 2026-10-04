@@ -11,8 +11,8 @@ import {
 } from '@knowscroll/db';
 import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
 import { clearScrollHistory } from '@knowscroll/db/privacy';
-import { compileDirectContext } from '@knowscroll/db/reasoning-context';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+import { compileDirectContext } from '@knowscroll/db/reasoning/context';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

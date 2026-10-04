@@ -26,7 +26,7 @@ import { pool, provisionIdentity } from '@knowscroll/db';
 import {
   renderExplanation,
   type ComposerSignalInputs,
-} from '@knowscroll/core/composer';
+} from '@knowscroll/core/composer/signals';
 import { projectOne } from '../apps/worker/src/project.ts';
 
 if (

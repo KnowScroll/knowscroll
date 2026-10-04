@@ -5,9 +5,9 @@ import type pg from 'pg';
 
 import { authenticateAndLock } from '@knowscroll/db/identity';
 import { clearScrollHistory } from '@knowscroll/db/privacy';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
-import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
-import { appendRestrictedReasoningReceipt } from '@knowscroll/db/reasoning-storage';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning/maintenance';
+import { appendRestrictedReasoningReceipt } from '@knowscroll/db/reasoning/storage';
 import {
   ageWithdrawalForTest,
   inMaintenanceTransaction,

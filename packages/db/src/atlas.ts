@@ -24,7 +24,7 @@ import type { KeeperAsk } from '@knowscroll/core/rooms/keeper';
 import type { RoomSummary } from '@knowscroll/contracts/rooms';
 import type { PlaceDemand } from '@knowscroll/contracts/inventory';
 import { placeDemands } from './inventory/read.ts';
-import { postInquiryMail } from './reasoning-inquiries.ts';
+import { postInquiryMail } from './reasoning/inquiries.ts';
 import { keepRooms, readPlaceRooms, retireRooms } from './rooms.ts';
 
 export class AtlasConflict extends Error {

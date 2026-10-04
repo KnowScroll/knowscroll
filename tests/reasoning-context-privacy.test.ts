@@ -7,8 +7,8 @@ import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   compileDirectContext,
   validateDirectContext,
-} from '@knowscroll/db/reasoning-context';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/context';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

@@ -54,7 +54,9 @@ const { projectOne } = await import('../../apps/worker/src/project.ts');
 const { readScroll, EDITORIAL, askAbout } = await import(
   '../../tests/helpers/reading.ts'
 );
-const { COMPOSER_SIGNALS_V2 } = await import('@knowscroll/core/composer');
+const { COMPOSER_SIGNALS_V2 } = await import(
+  '@knowscroll/core/composer/signals'
+);
 const { COMPOSER_SEMANTIC_V4 } = await import(
   '@knowscroll/core/composer/semantic'
 );
@@ -67,9 +69,9 @@ const { gateTestReel, mintGatedTestReel } = await import(
 );
 const { resolveOwnerEmail } = await import('@knowscroll/db/sign-in');
 const { installAskAnswerRoute, answerAuthority, answerFairnessPolicy } =
-  await import('@knowscroll/db/reasoning-answers');
+  await import('@knowscroll/db/reasoning/answers');
 const { createReasoningFairness } = await import(
-  '@knowscroll/db/reasoning-fairness'
+  '@knowscroll/db/reasoning/fairness'
 );
 const { runAnswerPass } = await import(
   '../../apps/worker/src/reasoning/answer-worker.ts'

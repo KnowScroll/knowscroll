@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
-} from '@knowscroll/db/reasoning-idle-lifecycle';
+} from '@knowscroll/db/reasoning/idle-lifecycle';
 import {
   seedDirectContextGraph,
   withReasoningContextSchema,

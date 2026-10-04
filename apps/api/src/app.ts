@@ -31,13 +31,13 @@ import {
   UnauthorizedSession,
   type AuthScope,
 } from '@knowscroll/db';
-import { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer';
+import { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer/signals';
 import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import {
   COMPOSER_SEMANTIC_V3,
   COMPOSER_SEMANTIC_V4,
 } from '@knowscroll/core/composer/semantic';
-import { composeAndRecordV2 } from '@knowscroll/db/composer-signals';
+import { composeAndRecordV2 } from '@knowscroll/db/composer/signals';
 import { composeAndRecordV3 } from '@knowscroll/db/composer/semantic';
 import { observeExhaustion } from '@knowscroll/db/inventory/demand';
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';

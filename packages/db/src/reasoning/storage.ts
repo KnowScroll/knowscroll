@@ -2,14 +2,14 @@ import {
   lockFairnessResources,
   releaseNotSentFairness,
   clearFairnessMembership,
-} from './reasoning-fairness-accounting.ts';
+} from './fairness-accounting.ts';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import {
   reasoningReceipt,
   type ReasoningReceipt,
 } from '@knowscroll/contracts/reasoning';
-import { lockUniverse } from './connection.ts';
+import { lockUniverse } from '../connection.ts';
 
 export type ReasoningClearScope = {
   universeId: string;

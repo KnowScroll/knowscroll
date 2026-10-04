@@ -61,13 +61,13 @@ const { universeId } = (await response.json()) as { universeId: string };
 const { pool, transaction } = await import('@knowscroll/db');
 const { runCartographer } = await import('@knowscroll/db/atlas');
 const { answerFairnessPolicy } = await import(
-  '@knowscroll/db/reasoning-answers'
+  '@knowscroll/db/reasoning/answers'
 );
 const { createReasoningFairness } = await import(
-  '@knowscroll/db/reasoning-fairness'
+  '@knowscroll/db/reasoning/fairness'
 );
 const { inquiryAuthority, installBackgroundInquiryRoute } = await import(
-  '@knowscroll/db/reasoning-inquiries'
+  '@knowscroll/db/reasoning/inquiries'
 );
 try {
   await createReasoningFairness(pool, inquiryAuthority()).installPolicy(

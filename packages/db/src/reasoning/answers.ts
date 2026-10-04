@@ -17,25 +17,25 @@ import {
   validateAskAnswerProposal,
   type AskAnswerSource,
 } from '@knowscroll/core/reasoning/ask-answer';
-import type { AuthScope } from './identity.ts';
-import { compileDirectAskContext } from './reasoning-ask-context.ts';
-import { createSealedContextAuthority } from './reasoning-context-authority.ts';
-import { lockBoundContextSession } from './reasoning-context-session.ts';
+import type { AuthScope } from '../identity.ts';
+import { compileDirectAskContext } from './ask-context.ts';
+import { createSealedContextAuthority } from './context-authority.ts';
+import { lockBoundContextSession } from './context-session.ts';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
   isIdleWithdrawalIneligible,
   withdrawRecoveredDirectJob,
-} from './reasoning-idle-lifecycle.ts';
+} from './idle-lifecycle.ts';
 import {
   createReasoningAdmission,
   type ReasoningAdmission,
-} from './reasoning-admission.ts';
-import { enqueueFairInTransaction } from './reasoning-fairness.ts';
+} from './admission.ts';
+import { enqueueFairInTransaction } from './fairness.ts';
 import type {
   ReasoningAuthority,
   ResolvedReasoningPolicy,
-} from './reasoning-runtime-policy.ts';
+} from './runtime-policy.ts';
 
 export class AskAnswerError extends Error {
   constructor(

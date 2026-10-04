@@ -30,27 +30,21 @@ import {
   serializeBridgeInquiryRequest,
   type InquiryPair,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
-import type { AuthScope } from './identity.ts';
-import { resolveAnswerPolicy } from './reasoning-answers.ts';
-import { createSealedContextAuthority } from './reasoning-context-authority.ts';
-import { enqueueFairInTransaction } from './reasoning-fairness.ts';
-import {
-  fairnessCharge,
-  validateFairnessPolicy,
-} from './reasoning-fairness-policy.ts';
+import type { AuthScope } from '../identity.ts';
+import { resolveAnswerPolicy } from './answers.ts';
+import { createSealedContextAuthority } from './context-authority.ts';
+import { enqueueFairInTransaction } from './fairness.ts';
+import { fairnessCharge, validateFairnessPolicy } from './fairness-policy.ts';
 import {
   isIdleWithdrawalIneligible,
   withdrawIdleBackgroundJob,
-} from './reasoning-idle-lifecycle.ts';
-import {
-  readInquiryInputs,
-  sealInquiryContext,
-} from './reasoning-inquiry-context.ts';
+} from './idle-lifecycle.ts';
+import { readInquiryInputs, sealInquiryContext } from './inquiry-context.ts';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
   type ResolvedReasoningPolicy,
-} from './reasoning-runtime-policy.ts';
+} from './runtime-policy.ts';
 
 export class InquiryError extends Error {
   constructor(

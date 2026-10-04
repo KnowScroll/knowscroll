@@ -1,8 +1,8 @@
-import { lockBoundContextSession } from './reasoning-context-session.ts';
+import { lockBoundContextSession } from './context-session.ts';
 import {
   lockFairnessResources,
   releaseNotSentFairness,
-} from './reasoning-fairness-accounting.ts';
+} from './fairness-accounting.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
@@ -13,7 +13,7 @@ import {
   type ReasoningAuthority,
   type ReasoningBinding,
   type ResolvedReasoningPolicy,
-} from './reasoning-runtime-policy.ts';
+} from './runtime-policy.ts';
 
 export const REASONING_ADMISSION_LIMITS = Object.freeze({
   minLeaseMs: 1,

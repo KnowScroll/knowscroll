@@ -141,9 +141,9 @@ async function main() {
     // The product's own modules, against the disposable database only.
     process.env.DATABASE_URL = url(database);
     const db = await import('@knowscroll/db');
-    const answers = await import('@knowscroll/db/reasoning-answers');
+    const answers = await import('@knowscroll/db/reasoning/answers');
     const { createReasoningFairness } = await import(
-      '@knowscroll/db/reasoning-fairness'
+      '@knowscroll/db/reasoning/fairness'
     );
     const v = 'live-answers-v1';
     await createReasoningFairness(

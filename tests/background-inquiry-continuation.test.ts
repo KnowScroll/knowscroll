@@ -14,7 +14,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
 import { pool, transaction } from '@knowscroll/db';
-import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import { createReadinessGate } from '../apps/worker/src/reasoning/answer-worker.ts';
 import {

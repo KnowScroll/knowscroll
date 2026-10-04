@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import { clearScrollHistory } from '@knowscroll/db/privacy';
-import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
 import {
   appendRestrictedReasoningReceipt,
   ReasoningReceiptConflict,
-} from '@knowscroll/db/reasoning-storage';
+} from '@knowscroll/db/reasoning/storage';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

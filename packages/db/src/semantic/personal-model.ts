@@ -29,7 +29,7 @@ import {
   runKeeper,
 } from '../atlas.ts';
 import { withdrawCorrectedBindings } from '../inventory/demand.ts';
-import { postInquiryMail } from '../reasoning-inquiries.ts';
+import { postInquiryMail } from '../reasoning/inquiries.ts';
 import { eraseRooms, exportRooms } from '../rooms.ts';
 
 type Row = Record<string, unknown>;

@@ -33,7 +33,7 @@ import {
 import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
 import { markedWrong, ReturnError } from './away.ts';
 import type { AuthScope } from './identity.ts';
-import { bridgeConnection } from './reasoning-inquiries.ts';
+import { bridgeConnection } from './reasoning/inquiries.ts';
 import { lockSubstrateShared } from './semantic/read-set.ts';
 
 type RelicRow = {

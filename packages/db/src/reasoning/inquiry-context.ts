@@ -30,12 +30,12 @@ import {
   type ReasoningAuthority,
   type ReasoningContextCheck,
   type ReasoningScope,
-} from './reasoning-runtime-policy.ts';
+} from './runtime-policy.ts';
 import {
   canonicalJson,
   lockSubstrateShared,
   sha256,
-} from './semantic/read-set.ts';
+} from '../semantic/read-set.ts';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 export type InquiryContextValidation =

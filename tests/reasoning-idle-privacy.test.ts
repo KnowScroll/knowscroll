@@ -8,17 +8,17 @@ import { authenticateAndLock } from '@knowscroll/db/identity';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
-} from '@knowscroll/db/reasoning-idle-lifecycle';
-import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+} from '@knowscroll/db/reasoning/idle-lifecycle';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning/maintenance';
 import { clearScrollHistory } from '@knowscroll/db/privacy';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   compileDirectContext,
   createDirectContextAuthority,
-} from '@knowscroll/db/reasoning-context';
-import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
-import { appendRestrictedReasoningReceipt } from '@knowscroll/db/reasoning-storage';
+} from '@knowscroll/db/reasoning/context';
+import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
+import { appendRestrictedReasoningReceipt } from '@knowscroll/db/reasoning/storage';
 import {
   attachPendingStep,
   inTransaction,

@@ -12,7 +12,7 @@ import {
   InquiryError,
   listInquiries,
   setInquiryConsent,
-} from '@knowscroll/db/reasoning-inquiries';
+} from '@knowscroll/db/reasoning/inquiries';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 

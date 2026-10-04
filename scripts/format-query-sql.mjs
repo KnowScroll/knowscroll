@@ -50,7 +50,7 @@ function formattedQueries(path, source) {
         // A lock-order integration test observes this exact leading query text in
         // pg_stat_activity while the original session row is blocked.
         const observedLockQuery =
-          path.endsWith('reasoning-context-session.ts') &&
+          path.endsWith('reasoning/context-session.ts') &&
           sql.startsWith('SELECT s.id FROM reasoning_context_job_session');
         // Small statements stay inline. Dynamic templates and SQL with comments or escape syntax
         // need a human review, so this tool deliberately does not rewrite them.

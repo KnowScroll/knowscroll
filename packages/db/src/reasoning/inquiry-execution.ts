@@ -25,25 +25,22 @@ import {
 import {
   createReasoningAdmission,
   type ReasoningAdmission,
-} from './reasoning-admission.ts';
-import { enqueueFairInTransaction } from './reasoning-fairness.ts';
-import { withdrawIdleBackgroundJob } from './reasoning-idle-lifecycle.ts';
+} from './admission.ts';
+import { enqueueFairInTransaction } from './fairness.ts';
+import { withdrawIdleBackgroundJob } from './idle-lifecycle.ts';
 import {
   inquiryAuthority,
   inquiryRouteFor,
   requestRoute,
   resolveInquiryPolicy,
   type InquiryRow,
-} from './reasoning-inquiries.ts';
+} from './inquiries.ts';
 import {
   readInquiryPayload,
   validateInquiryContext,
-} from './reasoning-inquiry-context.ts';
-import {
-  ReasoningDenied,
-  type ReasoningAuthority,
-} from './reasoning-runtime-policy.ts';
-import { submitBridgeProposal } from './semantic/proposals.ts';
+} from './inquiry-context.ts';
+import { ReasoningDenied, type ReasoningAuthority } from './runtime-policy.ts';
+import { submitBridgeProposal } from '../semantic/proposals.ts';
 
 export type InquiryWork = {
   universeId: string;

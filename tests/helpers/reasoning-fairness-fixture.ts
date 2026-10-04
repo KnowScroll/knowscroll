@@ -4,7 +4,7 @@ import { runMigrations } from '@knowscroll/db/migrations';
 import type {
   ResolvedReasoningPolicy,
   ReasoningAuthority,
-} from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/runtime-policy';
 
 export const sqlFairnessPolicy = {
   version: 'fairness-v1',

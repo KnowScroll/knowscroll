@@ -9,10 +9,10 @@ import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   compileDirectAskContext,
   validateDirectAskContext,
-} from '@knowscroll/db/reasoning-ask-context';
-import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
-import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
-import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+} from '@knowscroll/db/reasoning/ask-context';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning/maintenance';
+import { ReasoningDenied } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

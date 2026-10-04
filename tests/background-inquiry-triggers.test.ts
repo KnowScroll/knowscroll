@@ -17,7 +17,7 @@ import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import {
   mailRevokedConnections,
   openDueInquiries,
-} from '@knowscroll/db/reasoning-inquiries';
+} from '@knowscroll/db/reasoning/inquiries';
 import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
