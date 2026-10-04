@@ -12,6 +12,21 @@ import {
   generationBrief,
   type GenerationBrief,
 } from '@knowscroll/contracts/generation';
+import {
+  insertGateResult,
+  markEligible,
+  markTestEligible,
+  selectAssetRevision,
+  selectBriefForGates,
+  selectCutroomAttempt,
+  selectFingerprintCorpus,
+  selectGateResults,
+  selectGeneratedReel,
+  selectMediaObject,
+  selectPolicyRequiredGates,
+  selectWinningGateResult,
+  stampFingerprints,
+} from '@knowscroll/db/publication/evaluate';
 import * as gates from './gates.ts';
 import type { GateOutcome } from './gates.ts';
 
@@ -86,35 +101,14 @@ async function loadContext(
   pool: pg.Pool,
   generatedReelId: string,
 ): Promise<LoadedContext> {
-  const reelRow = (
-    await pool.query<{
-      id: string;
-      brief_id: string;
-      attempt_id: string;
-      media_sha256: string;
-      provider_mode: string;
-      truth_state: string;
-      generated_label: boolean;
-      lineage: unknown;
-      availability: string;
-    }>(
-      `SELECT id, brief_id, attempt_id, media_sha256, provider_mode, truth_state, generated_label, lineage, availability
-     FROM generated_reel WHERE id=$1`,
-      [generatedReelId],
-    )
-  ).rows[0];
+  const reelRow = await selectGeneratedReel(pool, generatedReelId);
   if (!reelRow)
     throw new PublicationEvaluationError(
       'unknown_reel',
       `No generated Reel with id ${generatedReelId}`,
     );
 
-  const briefRow = (
-    await pool.query<{ brief: unknown; brief_sha256: string }>(
-      'SELECT brief, brief_sha256 FROM generation_brief WHERE id=$1',
-      [reelRow.brief_id],
-    )
-  ).rows[0];
+  const briefRow = await selectBriefForGates(pool, reelRow.brief_id);
   if (!briefRow)
     throw new PublicationEvaluationError(
       'defect',
@@ -122,28 +116,14 @@ async function loadContext(
     );
   const brief = generationBrief.parse(briefRow.brief);
 
-  const attemptRow = (
-    await pool.query<{
-      contract_revision: string;
-      run_id: string | null;
-      record_summary: unknown;
-    }>(
-      'SELECT contract_revision, run_id, record_summary FROM cutroom_attempt WHERE id=$1',
-      [reelRow.attempt_id],
-    )
-  ).rows[0];
+  const attemptRow = await selectCutroomAttempt(pool, reelRow.attempt_id);
   if (!attemptRow)
     throw new PublicationEvaluationError(
       'defect',
       'generated_reel references a missing cutroom_attempt',
     );
 
-  const mediaRow = (
-    await pool.query<{ byte_size: string; storage_key: string }>(
-      'SELECT byte_size, storage_key FROM media_object WHERE sha256=$1',
-      [reelRow.media_sha256],
-    )
-  ).rows[0];
+  const mediaRow = await selectMediaObject(pool, reelRow.media_sha256);
   if (!mediaRow)
     throw new PublicationEvaluationError(
       'defect',
@@ -196,12 +176,7 @@ async function loadSourceChecks(
   }
   const checks: gates.AssetSourceCheck[] = [];
   for (const entry of bySource.values()) {
-    const row = (
-      await pool.query<{ revision: number }>(
-        'SELECT revision FROM asset WHERE id=$1',
-        [entry.assetId],
-      )
-    ).rows[0];
+    const row = await selectAssetRevision(pool, entry.assetId);
     checks.push({
       assetId: entry.assetId,
       expectedRevision: entry.expectedRevision,
@@ -256,26 +231,19 @@ async function computeGate(
       const argumentFingerprint = gates.computeArgumentFingerprint(ctx.brief);
       // Written once (migration 0014's own trigger enforces this); re-issuing the identical value
       // on a re-evaluation is a no-op as far as that trigger is concerned.
-      await pool.query(
-        `UPDATE generated_reel SET template_fingerprint=$2, argument_fingerprint=$3
-         WHERE id=$1 AND template_fingerprint IS NULL AND argument_fingerprint IS NULL`,
-        [ctx.reel.id, templateFingerprint, argumentFingerprint],
+      await stampFingerprints(
+        pool,
+        ctx.reel.id,
+        templateFingerprint,
+        argumentFingerprint,
       );
-      const corpus = (
-        await pool.query<{
-          generated_reel_id: string;
-          template_fingerprint: string | null;
-          argument_fingerprint: string | null;
-        }>(
-          `SELECT id AS generated_reel_id, template_fingerprint, argument_fingerprint
-         FROM generated_reel WHERE id<>$1 AND (template_fingerprint IS NOT NULL OR argument_fingerprint IS NOT NULL)`,
-          [ctx.reel.id],
-        )
-      ).rows.map((row) => ({
-        generatedReelId: row.generated_reel_id,
-        templateFingerprint: row.template_fingerprint,
-        argumentFingerprint: row.argument_fingerprint,
-      }));
+      const corpus = (await selectFingerprintCorpus(pool, ctx.reel.id)).map(
+        (row) => ({
+          generatedReelId: row.generated_reel_id,
+          templateFingerprint: row.template_fingerprint,
+          argumentFingerprint: row.argument_fingerprint,
+        }),
+      );
       return gates.evaluateRepetition({
         templateFingerprint,
         argumentFingerprint,
@@ -296,12 +264,7 @@ export async function evaluatePublicationGates(
   pool: pg.Pool,
   input: EvaluatePublicationGatesInput,
 ): Promise<EvaluationOutcome> {
-  const policyRow = (
-    await pool.query<{ required_gates: string[] }>(
-      'SELECT required_gates FROM publication_policy WHERE version=$1',
-      [input.policyVersion],
-    )
-  ).rows[0];
+  const policyRow = await selectPolicyRequiredGates(pool, input.policyVersion);
   if (!policyRow)
     throw new PublicationEvaluationError(
       'unknown_policy',
@@ -310,17 +273,11 @@ export async function evaluatePublicationGates(
 
   const ctx = await loadContext(pool, input.generatedReelId);
 
-  const existing = (
-    await pool.query<{
-      gate: string;
-      verdict: string;
-      evidence: unknown;
-      decided_at: Date;
-    }>(
-      'SELECT gate, verdict, evidence, decided_at FROM publication_gate_result WHERE generated_reel_id=$1 AND policy_version=$2',
-      [input.generatedReelId, input.policyVersion],
-    )
-  ).rows;
+  const existing = await selectGateResults(
+    pool,
+    input.generatedReelId,
+    input.policyVersion,
+  );
   const decided = new Map(existing.map((row) => [row.gate, row]));
 
   const results: GateResultRow[] = [];
@@ -337,41 +294,31 @@ export async function evaluatePublicationGates(
       continue;
     }
     const outcome = await computeGate(pool, gateName, ctx, input.mediaRoot);
-    const inserted = await pool.query<{ decided_at: Date }>(
-      `INSERT INTO publication_gate_result(id, generated_reel_id, policy_version, gate, verdict, evidence)
-       VALUES($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (generated_reel_id, policy_version, gate) DO NOTHING
-       RETURNING decided_at`,
-      [
-        randomUUID(),
-        input.generatedReelId,
-        input.policyVersion,
-        gateName,
-        outcome.verdict,
-        JSON.stringify(outcome.evidence),
-      ],
-    );
+    const inserted = await insertGateResult(pool, {
+      id: randomUUID(),
+      generatedReelId: input.generatedReelId,
+      policyVersion: input.policyVersion,
+      gate: gateName,
+      verdict: outcome.verdict,
+      evidenceJson: JSON.stringify(outcome.evidence),
+    });
     if (inserted.rowCount === 1) {
       results.push({
         gate: gateName,
         verdict: outcome.verdict,
         evidence: outcome.evidence,
-        decidedAt: inserted.rows[0]!.decided_at.toISOString(),
+        decidedAt: inserted.decidedAt!.toISOString(),
         newlyRecorded: true,
       });
     } else {
       // Lost a race to a concurrent evaluator for the same (reel, policy, gate): read back the
       // verdict that actually won rather than pretend this call's own computation was recorded.
-      const winner = (
-        await pool.query<{
-          verdict: string;
-          evidence: unknown;
-          decided_at: Date;
-        }>(
-          'SELECT verdict, evidence, decided_at FROM publication_gate_result WHERE generated_reel_id=$1 AND policy_version=$2 AND gate=$3',
-          [input.generatedReelId, input.policyVersion, gateName],
-        )
-      ).rows[0]!;
+      const winner = (await selectWinningGateResult(
+        pool,
+        input.generatedReelId,
+        input.policyVersion,
+        gateName,
+      ))!;
       results.push({
         gate: gateName,
         verdict: winner.verdict,
@@ -407,13 +354,12 @@ async function decideAvailability(
 
   if (input.decide === 'test_eligible') {
     try {
-      const updated = await pool.query(
-        `UPDATE generated_reel SET availability='test_eligible', availability_policy_version=$2, availability_decided_at=clock_timestamp()
-         WHERE id=$1 AND availability='imported'`,
-        [input.generatedReelId, input.policyVersion],
+      const updated = await markTestEligible(
+        pool,
+        input.generatedReelId,
+        input.policyVersion,
       );
-      if (updated.rowCount !== 1)
-        return { decided: false, current: 'imported' };
+      if (updated !== 1) return { decided: false, current: 'imported' };
       return { decided: true, availability: 'test_eligible' };
     } catch (error) {
       return {
@@ -429,11 +375,11 @@ async function decideAvailability(
   );
   if (blocking) return { decided: false, current: 'imported' };
 
-  const updated = await pool.query(
-    `UPDATE generated_reel SET availability='eligible', availability_policy_version=$2, availability_decided_at=clock_timestamp()
-     WHERE id=$1 AND availability='imported'`,
-    [input.generatedReelId, input.policyVersion],
+  const updated = await markEligible(
+    pool,
+    input.generatedReelId,
+    input.policyVersion,
   );
-  if (updated.rowCount !== 1) return { decided: false, current: 'imported' };
+  if (updated !== 1) return { decided: false, current: 'imported' };
   return { decided: true, availability: 'eligible' };
 }
