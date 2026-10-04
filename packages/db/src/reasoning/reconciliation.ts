@@ -1,3 +1,5 @@
+// Settles receipts against reservations and bucket counters, and pauses fairness on divergence.
+// Settlements are append-only by revision; each new revision supersedes the previous one.
 import {
   lockFairnessResources,
   pauseFairnessForAttempt,
@@ -136,6 +138,7 @@ const mergeUsage = (
   };
 };
 
+// Differs from sql/transactions.ts inTransaction: a failed ROLLBACK propagates.
 async function withTransaction<T>(
   db: pg.Pool,
   fn: (client: pg.PoolClient) => Promise<T>,
@@ -208,7 +211,15 @@ async function previousSettlement(
   attemptId: string,
 ): Promise<PreviousSettlement | undefined> {
   const row = (
-    await client.query(
+    await client.query<{
+      id: string;
+      revision: number;
+      input_tokens: Counter;
+      output_tokens: Counter;
+      cache_read_tokens: Counter;
+      cache_write_tokens: Counter;
+      cost_micro_usd: Counter;
+    }>(
       `
    SELECT
      id,
@@ -258,11 +269,11 @@ async function appendSettlement(
   const settlementId = randomUUID(),
     revision = (previous?.revision ?? 0) + 1;
   const fingerprint = (
-    await client.query(
+    await client.query<{ fingerprint: string }>(
       'SELECT fingerprint FROM reasoning_receipt WHERE id=$1',
       [receipt.id],
     )
-  ).rows[0].fingerprint;
+  ).rows[0]!.fingerprint;
   await client.query(
     `
    INSERT INTO
@@ -728,13 +739,13 @@ export function createReasoningReconciliation(db: pg.Pool) {
         );
         if (appended.replayed) {
           const accounting = (
-            await client.query(
+            await client.query<{ review_required: boolean }>(
               'SELECT review_required FROM reasoning_accounting WHERE attempt_id=$1 FOR UPDATE',
               [appended.attemptId],
             )
           ).rows[0];
           const forReceipt = (
-            await client.query(
+            await client.query<{ id: string; revision: number }>(
               'SELECT id,revision FROM reasoning_settlement WHERE attempt_id=$1 AND receipt_id=$2 FOR UPDATE',
               [appended.attemptId, appended.receiptId],
             )

@@ -1,3 +1,5 @@
+// Resolved reasoning policy schema, validation and binding hash, plus the authority interface.
+// The bindingHash is stored and is JSON.stringify in insertion order, so key order is load-bearing.
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { z } from 'zod';

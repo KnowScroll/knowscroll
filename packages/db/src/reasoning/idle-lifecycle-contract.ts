@@ -1,4 +1,5 @@
-/** ADR-0018. Internal helpers require a caller-owned transaction; no public API. */
+// Types shared by idle-lifecycle and its callers, kept apart so callers need not import its SQL.
+// Internal helpers require a caller-owned transaction; no public API (ADR-0018).
 export type IdleDirectJobScope = {
   jobId: string;
   universeId: string;

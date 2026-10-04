@@ -1,3 +1,6 @@
+// Withdraws idle Jobs, direct or background, releasing what never-sent Attempts held (ADR-0018, ADR-0038).
+// Possibly-sent Attempts stay unknown. Every function runs in the caller's transaction and
+// takes no lock after the final authority check.
 import type pg from 'pg';
 
 import type { AuthScope } from '../identity.ts';
@@ -87,7 +90,7 @@ async function checkAuthority(
   lock = false,
 ): Promise<void> {
   const row = (
-    await client.query(
+    await client.query<{ id: string }>(
       `SELECT s.id FROM reasoning_context_job_session b
    JOIN device_session s ON (s.id,s.universe_id)=(b.session_id,b.universe_id)
    JOIN universe u ON u.id=b.universe_id AND u.privacy_epoch=b.privacy_epoch
@@ -545,7 +548,7 @@ export async function withdrawIdleBackgroundJob(
   return withdraw(client, scope, reason, { kind: 'background' });
 }
 
-/** Trusted worker maintenance (#132 review B2). A direct Job whose worker lost its lease, and whose
+/** Trusted worker maintenance (#132). A direct Job whose worker lost its lease, and whose
  * attempts `recoverAttempt` has already closed (leaseless `waiting`, none active), is cancelled the
  * way a reader's idle cancel is: never-sent attempts release everything they held, possibly-sent
  * ones stay `unknown`. ADR-0018 allows `cancelled` only while the original session is live; for a

@@ -1,3 +1,5 @@
+// Retained reasoning storage: history-clear erase, restricted receipt append and accounting purge.
+// The receipt fingerprint is stored and is JSON.stringify in insertion order, so key order is load-bearing.
 import {
   lockFairnessResources,
   releaseNotSentFairness,
@@ -120,7 +122,7 @@ export async function eraseReasoningForHistoryClear(
     [universeId],
   );
   const attempts = (
-    await client.query(
+    await client.query<{ id: string }>(
       'SELECT id FROM reasoning_attempt WHERE universe_id=$1 ORDER BY id FOR UPDATE',
       [universeId],
     )
@@ -265,7 +267,7 @@ export async function eraseReasoningForHistoryClear(
     if (releases.length > 0) {
       const heldCount = Number(
         (
-          await client.query(
+          await client.query<{ count: number }>(
             `
       SELECT
         count(*)::int AS count
@@ -277,7 +279,7 @@ export async function eraseReasoningForHistoryClear(
     `,
             [unconsumedAttemptIds],
           )
-        ).rows[0].count,
+        ).rows[0]!.count,
       );
       await client.query(
         `SELECT id FROM reasoning_bucket WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE`,
@@ -364,7 +366,7 @@ export async function appendRestrictedReasoningReceipt(
   assertTrustedOrigin(receipt, origin);
   const fingerprint = receiptFingerprint(receipt);
   const candidate = (
-    await client.query(
+    await client.query<{ universe_id: string }>(
       'SELECT universe_id FROM reasoning_accounting WHERE attempt_id=$1',
       [receipt.attemptId],
     )
@@ -373,7 +375,12 @@ export async function appendRestrictedReasoningReceipt(
   await lockUniverse(client, String(candidate.universe_id));
 
   const accounting = (
-    await client.query(
+    await client.query<{
+      closure_basis: string | null;
+      state: string;
+      universe_id: string;
+      privacy_epoch: number;
+    }>(
       `
     SELECT
       *
@@ -401,7 +408,7 @@ export async function appendRestrictedReasoningReceipt(
   if (!accounting) throw new ReasoningReceiptConflict();
 
   const existing = (
-    await client.query(
+    await client.query<{ attempt_id: string; fingerprint: string }>(
       'SELECT attempt_id,fingerprint FROM reasoning_receipt WHERE id=$1',
       [receipt.receiptId],
     )
@@ -537,7 +544,7 @@ export async function purgeClosedReasoningAccounting(
     throw new Error('Reasoning cleanup limit must be 1 through 1000');
   await lockUniverse(client, universeId);
   const candidates = (
-    await client.query(
+    await client.query<{ attempt_id: string }>(
       `
     SELECT
       a.attempt_id
