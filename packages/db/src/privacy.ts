@@ -236,12 +236,11 @@ export async function clearScrollHistory(
   return receiptFromRow(receipt);
 }
 
-// ADR-0028 — privacy lifecycle: pause, export and reset. All three require the caller to already
-// hold the universe lock (via `authenticateAndLock`, which every route below goes through) and
-// recheck the authenticated session's epoch after that wait resolves, exactly as Clear does.
+// Privacy lifecycle: pause, export and reset. All three require the caller to already hold the
+// universe lock (via `authenticateAndLock`) and recheck the authenticated session's epoch after
+// that wait resolves, exactly as Clear does (ADR-0028).
 
-// Same result as shared/time.ts `toIsoString`, written as a ternary; kept local because the AST
-// bodies differ and equivalence is not mechanically proven.
+// Same result as shared/time.ts `toIsoString`, written as a ternary.
 function isoDate(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()

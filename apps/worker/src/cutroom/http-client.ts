@@ -1,4 +1,4 @@
-/** ADR-0020: unwired, loopback-only protocol client; no funding or publication authority. */
+/** Unwired, loopback-only protocol client; no funding or publication authority (ADR-0020). */
 import type { ZodType } from 'zod';
 import {
   identity,

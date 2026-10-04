@@ -26,7 +26,7 @@ export const MEDIA_SIMULATED_HEADER = 'x-knowscroll-media-simulated';
  * convention `apps/worker/src/generation/main.ts` uses for the generation worker: an explicit
  * absolute path, defaulting to `$KS_DEV_ROOT/media` when unset. Both processes must agree on where
  * KnowScroll's own media store lives; this is a deliberate small duplication rather than importing
- * a private helper out of a module this lane does not own. */
+ * a private helper out of another module. */
 export function resolveMediaRoot(env: NodeJS.ProcessEnv = process.env): string {
   const raw = env.KS_MEDIA_ROOT;
   if (raw !== undefined && raw !== '') {

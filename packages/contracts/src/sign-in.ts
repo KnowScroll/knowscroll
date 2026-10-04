@@ -1,9 +1,9 @@
 /** Email magic-link sign-in contracts (ADR-0026). The schemas never transform their input. */
 import { z } from 'zod';
 
-// ADR-0026 — real sign-in: one owner account, email magic link. `email`/`token` are never
-// transformed here (normalization is the sign-in module's job, over the exact caller-supplied
-// string) so a schema failure never itself distinguishes anything about the value's content.
+// Sign-in: one owner account, email magic link. `email`/`token` are never transformed here
+// (normalization is the sign-in module's job, over the exact caller-supplied string) so a schema
+// failure never itself distinguishes anything about the value's content (ADR-0026).
 export const magicLinkRequestInput = z
   .object({ email: z.string().min(1).max(320) })
   .strict();

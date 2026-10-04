@@ -65,8 +65,8 @@ const gatesFor = (transports: Record<string, object | undefined> | null) =>
     : {};
 const readiness = gatesFor(answerTransports);
 const inquiryReadiness = gatesFor(inquiryTransports);
-// ADR-0040: readers behind a source correction are caught up on an interval (at least 1 s), a
-// bounded batch (1..100) at a time. Deterministic database work only; no model is called.
+// Readers behind a source correction are caught up on an interval (at least 1 s), a bounded batch
+// (1..100) at a time. Deterministic database work only; no model is called (ADR-0040).
 const correctionRefreshMs = lenientIntSetting(
   'KS_CORRECTION_REFRESH_INTERVAL_MS',
   60_000,
