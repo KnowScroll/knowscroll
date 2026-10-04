@@ -35,6 +35,8 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      # packages/contracts/http-v1.schema.json is generated; this fails if it was not regenerated.
+      - run: pnpm contracts:check
       - run: pnpm test
       - name: Web (apps/web) typecheck
         run: pnpm typecheck:web

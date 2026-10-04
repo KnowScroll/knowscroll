@@ -19,6 +19,8 @@
     "format:check": "node scripts/format-query-sql.mjs --check && biome format apps/api apps/worker packages tests scripts ops",
     "lint": "biome lint apps/api apps/worker packages",
     "typecheck": "tsc --noEmit",
+    "contracts:check": "tsx scripts/export-contracts.ts && git diff --exit-code -- packages/contracts/http-v1.schema.json",
+    "knip": "knip",
     "typecheck:web": "pnpm --filter web typecheck",
     "test": "./scripts/test.sh",
     "test:web": "pnpm --filter web test",
@@ -37,6 +39,7 @@
     "@biomejs/biome": "2.5.14",
     "@types/node": "^22.18.0",
     "@types/pg": "^8.15.5",
+    "knip": "6.39.0",
     "sql-formatter": "15.9.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
