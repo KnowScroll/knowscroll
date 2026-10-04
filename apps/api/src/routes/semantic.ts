@@ -12,9 +12,7 @@
  * an HTTP route: a person's objection never retracts a source-backed claim for everyone.
  */
 import type { FastifyInstance } from 'fastify';
-import type pg from 'pg';
 import { uuid } from '@knowscroll/contracts';
-import type { AuthScope } from '@knowscroll/db';
 import { observeOfferedGaps } from '@knowscroll/db/inventory/demand';
 import {
   listEncounterBranches,
@@ -27,12 +25,8 @@ import type {
   WebBranchOpenResponse,
 } from '@knowscroll/contracts/semantic';
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
+import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
-
-export type Authenticated = <T>(
-  authorization: string | undefined,
-  fn: (scope: AuthScope, client: pg.PoolClient) => Promise<T>,
-) => Promise<T>;
 
 export function registerSemanticRoutes(
   app: FastifyInstance,

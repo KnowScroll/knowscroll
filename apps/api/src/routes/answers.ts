@@ -15,7 +15,7 @@ import {
   requestAskAnswer,
 } from '@knowscroll/db/reasoning/answers';
 import { HttpError } from '../http/errors.ts';
-import type { Authenticated } from './semantic.ts';
+import type { Authenticated } from '../http/authenticated.ts';
 
 const http = (error: unknown): never => {
   if (error instanceof AskAnswerError)

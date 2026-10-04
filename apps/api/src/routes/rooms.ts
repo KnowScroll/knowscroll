@@ -13,7 +13,7 @@ import { uuid } from '@knowscroll/contracts';
 import { readAtlas } from '@knowscroll/db/atlas';
 import { readRoom, readRoomDelta, setRoomAside } from '@knowscroll/db/rooms';
 import { HttpError } from '../http/errors.ts';
-import type { Authenticated } from './semantic.ts';
+import type { Authenticated } from '../http/authenticated.ts';
 
 export function registerRoomRoutes(
   app: FastifyInstance,

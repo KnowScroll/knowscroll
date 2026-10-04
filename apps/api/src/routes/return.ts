@@ -23,7 +23,7 @@ import {
   releaseRelic,
 } from '@knowscroll/db/relics';
 import { HttpError } from '../http/errors.ts';
-import type { Authenticated } from './semantic.ts';
+import type { Authenticated } from '../http/authenticated.ts';
 
 const http = (error: unknown): never => {
   if (error instanceof ReturnError)

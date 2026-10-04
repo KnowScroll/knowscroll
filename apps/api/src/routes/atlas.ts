@@ -15,7 +15,7 @@ import {
   type AtlasView,
 } from '@knowscroll/db/atlas';
 import { HttpError } from '../http/errors.ts';
-import type { Authenticated } from './semantic.ts';
+import type { Authenticated } from '../http/authenticated.ts';
 
 const rejectInput = z
   .object({ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647) })

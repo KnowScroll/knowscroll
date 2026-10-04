@@ -14,7 +14,7 @@ import {
   setInquiryConsent,
 } from '@knowscroll/db/reasoning/inquiries';
 import { HttpError } from '../http/errors.ts';
-import type { Authenticated } from './semantic.ts';
+import type { Authenticated } from '../http/authenticated.ts';
 
 const http = (error: unknown): never => {
   if (error instanceof InquiryError)

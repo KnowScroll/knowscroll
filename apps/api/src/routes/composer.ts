@@ -9,7 +9,7 @@ import { uuid } from '@knowscroll/contracts';
 import { readWhy } from '@knowscroll/db/composer/semantic';
 import { recordEncounterFeedback } from '@knowscroll/db/composer/feedback';
 import { HttpError } from '../http/errors.ts';
-import type { Authenticated } from './semantic.ts';
+import type { Authenticated } from '../http/authenticated.ts';
 
 export function registerComposerRoutes(
   app: FastifyInstance,
