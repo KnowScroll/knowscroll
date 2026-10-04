@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { pool, transaction } from '../packages/db/src/index.ts';
-import { bridgeProposalPayload } from '../packages/contracts/src/semantic.ts';
+import { bridgeProposalPayload } from '@knowscroll/contracts/semantic';
 import { validateBridgeProposal } from '../packages/core/src/semantic/bridge-validator.ts';
 import { loadBridgeReadSet } from '../packages/db/src/semantic/read-set.ts';
 import {

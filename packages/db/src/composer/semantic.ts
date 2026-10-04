@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { FeedAsset } from '../../../contracts/src/inventory.ts';
+import type { FeedAsset } from '@knowscroll/contracts/inventory';
 import {
   COMPOSER_SEMANTIC_V3,
   COMPOSER_SEMANTIC_V4,
@@ -20,7 +20,7 @@ import {
 import {
   SYMMETRIC_BRIDGE_TYPES,
   type BridgeRelationType,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import {
   decayedMass,
   ATTENTION_V1,

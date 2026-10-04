@@ -4,7 +4,7 @@
 import {
   webScrollBlockV1,
   type WebScrollBlockV1,
-} from '../../packages/contracts/src/web-scroll-artifact.ts';
+} from '@knowscroll/contracts/web-scroll-artifact';
 import { createAuthoredTestScrollWebArtifact } from '../../packages/core/src/scrolls/web-artifact.ts';
 
 const configured = process.env.DATABASE_URL;

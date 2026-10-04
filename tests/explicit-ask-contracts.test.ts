@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
-import { explicitAskInput } from '../packages/contracts/src/index.ts';
+import { explicitAskInput } from '@knowscroll/contracts';
 
 test('explicit Ask input preserves literal valid text and rejects invalid source text', () => {
   const clientAskId = randomUUID().toUpperCase(),

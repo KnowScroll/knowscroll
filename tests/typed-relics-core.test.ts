@@ -18,14 +18,14 @@ import {
   relicState,
   type RelicFacts,
 } from '../packages/core/src/relics.ts';
-import { awayItem, awayResponse } from '../packages/contracts/src/away.ts';
+import { awayItem, awayResponse } from '@knowscroll/contracts/away';
 import {
   objectionInput,
   passagesResponse,
   relicKeepInput,
   relicsResponse,
   relicWire,
-} from '../packages/contracts/src/relics.ts';
+} from '@knowscroll/contracts/relics';
 
 type ScrollFacts = Extract<RelicFacts, { kind: 'passage' | 'answer' }>;
 const scroll = (f: Partial<ScrollFacts> = {}): ScrollFacts => ({

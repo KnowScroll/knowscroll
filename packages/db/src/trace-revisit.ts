@@ -1,13 +1,13 @@
 import type pg from 'pg';
 
-import { exposureInput, interactionInput } from '../../contracts/src/index.ts';
+import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import {
   traceRevisitCandidate,
   traceRevisitEventId,
   traceRevisitReceipt,
   traceRevisitScroll,
   type TraceRevisit,
-} from '../../contracts/src/trace-revisit.ts';
+} from '@knowscroll/contracts/trace-revisit';
 import { UnauthorizedSession, type AuthScope } from './identity.ts';
 
 export class TraceRevisitError extends Error {

@@ -16,7 +16,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 
 if (
   !new URL(process.env.DATABASE_URL ?? '').pathname.startsWith(

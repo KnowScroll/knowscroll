@@ -22,7 +22,7 @@ import {
 import type {
   EncounterFeedbackReceipt,
   WhyResponseWire,
-} from '../packages/contracts/src/composer.ts';
+} from '@knowscroll/contracts/composer';
 import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
 import {
   makeSemanticFixture,

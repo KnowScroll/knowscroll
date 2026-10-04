@@ -12,7 +12,7 @@ import type pg from 'pg';
 import {
   substrateSeed,
   type SubstrateSeed,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { submitBridgeProposal, type ProposalResult } from './proposals.ts';
 import { revalidateAdmittedBridges } from './corrections.ts';

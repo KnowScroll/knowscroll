@@ -11,7 +11,7 @@ import type {
   PrivacyExportDeviceSession,
   AccountDeletionInput,
   AccountDeletionReceipt,
-} from '../../contracts/src/index.ts';
+} from '@knowscroll/contracts';
 import type { AuthScope } from './identity.ts';
 import { eraseReasoningForHistoryClear } from './reasoning-storage.ts';
 import {

@@ -1,15 +1,15 @@
 /** ADR-0020: unwired, loopback-only protocol client; no funding or publication authority. */
 import { createHash } from 'node:crypto';
 import type { ZodType } from 'zod';
-import { SubmitRequest } from '../../../../packages/contracts/src/cutroom-v1/request.ts';
+import { SubmitRequest } from '@knowscroll/contracts/cutroom-v1/request';
 import {
   EventsPage,
   RunResult,
   RunStatus,
   SubmitResponse,
-} from '../../../../packages/contracts/src/cutroom-v1/responses.ts';
-import { RunRecord } from '../../../../packages/contracts/src/cutroom-v1/record.ts';
-import { ErrorResponse } from '../../../../packages/contracts/src/cutroom-v1/errors.ts';
+} from '@knowscroll/contracts/cutroom-v1/responses';
+import { RunRecord } from '@knowscroll/contracts/cutroom-v1/record';
+import { ErrorResponse } from '@knowscroll/contracts/cutroom-v1/errors';
 
 type Stage = 'plan' | 'stills' | 'video';
 export type PreparedCutroomRequest = Readonly<{

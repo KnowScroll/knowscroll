@@ -15,7 +15,7 @@ import type pg from 'pg';
 import {
   inquiryAssistantTurn,
   type InquiryContextPayload,
-} from '../../contracts/src/reasoning-inquiry-context.ts';
+} from '@knowscroll/contracts/reasoning-inquiry-context';
 import {
   parseBridgeInquiryReply,
   serializeBridgeInquiryRequest,

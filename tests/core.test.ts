@@ -9,7 +9,7 @@ import {
   exposureInput,
   interactionInput,
   type ScrollAsset,
-} from '../packages/contracts/src/index.ts';
+} from '@knowscroll/contracts';
 const asset = {
   assetId: '10000000-0000-4000-8000-000000000001',
   revision: 1,

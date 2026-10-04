@@ -12,7 +12,7 @@ import {
   ENCOUNTER_SUPPRESSION_DAYS,
   encounterFeedbackInput,
   type EncounterFeedbackReceipt,
-} from '../../../contracts/src/composer.ts';
+} from '@knowscroll/contracts/composer';
 import type { AuthScope } from '../identity.ts';
 import {
   SemanticConflict,

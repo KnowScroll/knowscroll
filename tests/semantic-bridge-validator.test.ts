@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   bridgeProposalPayload,
   type BridgeProposalPayload,
-} from '../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import {
   readSetFromRecord,
   sliceReadSet,

@@ -19,12 +19,12 @@ import {
   type InquiryConsentResponse,
   type InquiryConsentView,
   type InquiryWire,
-} from '../../contracts/src/inquiries.ts';
+} from '@knowscroll/contracts/inquiries';
 import {
   INQUIRY_CONTEXT_LIMITS,
   INQUIRY_DIRTY_SCOPE,
   INQUIRY_KIND,
-} from '../../contracts/src/reasoning-inquiry-context.ts';
+} from '@knowscroll/contracts/reasoning-inquiry-context';
 import {
   selectInquiryPairs,
   serializeBridgeInquiryRequest,

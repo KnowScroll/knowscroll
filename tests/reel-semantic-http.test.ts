@@ -20,11 +20,11 @@ import {
 import type {
   EncounterFeedbackReceipt,
   WhyResponseWire,
-} from '../packages/contracts/src/composer.ts';
+} from '@knowscroll/contracts/composer';
 import type {
   BranchOpenResponse,
   EncounterBranchesResponse,
-} from '../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
 import { mintReelAsset } from '../apps/worker/src/publication/mint.ts';

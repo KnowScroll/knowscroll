@@ -6,7 +6,7 @@
 import {
   AWAY_CURSOR_PATTERN,
   type AWAY_KINDS,
-} from '../../contracts/src/away.ts';
+} from '@knowscroll/contracts/away';
 
 export type AwayCandidate = { kind: string; at: string; key: string };
 

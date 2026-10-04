@@ -11,7 +11,7 @@ import { buildApp } from '../apps/api/src/app.ts';
 import {
   atlasDeltaSchema,
   atlasResponseSchema,
-} from '../packages/contracts/src/atlas.ts';
+} from '@knowscroll/contracts/atlas';
 import {
   pool,
   provisionIdentity,

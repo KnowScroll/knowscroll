@@ -34,7 +34,7 @@ import {
   type SingleInvocationTransport,
 } from './invoke.ts';
 import type { z } from 'zod';
-import type { reasoningUsage } from '../../../../packages/contracts/src/reasoning.ts';
+import type { reasoningUsage } from '@knowscroll/contracts/reasoning';
 
 type ReasoningUsage = z.infer<typeof reasoningUsage>;
 

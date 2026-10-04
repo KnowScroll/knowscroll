@@ -13,7 +13,7 @@
  * POST /v1/connections/feedback; a place is doubted by setting it aside (POST /v1/atlas/places/:id/reject).
  */
 import type { FastifyInstance } from 'fastify';
-import { uuid } from '../../../packages/contracts/src/index.ts';
+import { uuid } from '@knowscroll/contracts';
 import {
   acknowledgeAway,
   readAway,

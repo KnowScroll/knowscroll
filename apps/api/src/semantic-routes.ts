@@ -13,7 +13,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import { uuid } from '../../../packages/contracts/src/index.ts';
+import { uuid } from '@knowscroll/contracts';
 import type { AuthScope } from '../../../packages/db/src/index.ts';
 import { observeOfferedGaps } from '../../../packages/db/src/inventory/demand.ts';
 import {
@@ -25,7 +25,7 @@ import type {
   EncounterBranchesResponse,
   WebEncounterBranchesResponse,
   WebBranchOpenResponse,
-} from '../../../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
 import { HttpError } from './errors.ts';
 

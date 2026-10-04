@@ -30,7 +30,7 @@ import { runMigrations } from '../packages/db/src/migrations.ts';
 import {
   generationBrief,
   type GenerationBrief,
-} from '../packages/contracts/src/generation.ts';
+} from '@knowscroll/contracts/generation';
 import * as storage from '../apps/worker/src/generation/storage.ts';
 import * as operator from '../apps/worker/src/generation/operator.ts';
 import {

@@ -12,7 +12,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import {
   pool,
   provisionIdentity,

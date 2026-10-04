@@ -13,8 +13,8 @@ import {
   nextMarker,
   selectAway,
 } from '../packages/core/src/away.ts';
-import { awayResponse } from '../packages/contracts/src/away.ts';
-import { relicWire } from '../packages/contracts/src/relics.ts';
+import { awayResponse } from '@knowscroll/contracts/away';
+import { relicWire } from '@knowscroll/contracts/relics';
 
 const c = (kind: string, at: string, key = kind) => ({ kind, at, key });
 

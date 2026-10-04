@@ -14,8 +14,8 @@ import {
   type ContextValidation,
   type DirectContextDependency,
   type DirectContextPayload,
-} from '../../contracts/src/reasoning-context.ts';
-import { exposureInput, interactionInput } from '../../contracts/src/index.ts';
+} from '@knowscroll/contracts/reasoning-context';
+import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import type { AuthScope } from './identity.ts';
 import {
   ReasoningDenied,

@@ -10,7 +10,7 @@ import {
   reasoningUsage,
   reasoningWake,
   reasoningSettlement,
-} from '../packages/contracts/src/reasoning.ts';
+} from '@knowscroll/contracts/reasoning';
 
 const ids = Array.from(
   { length: 12 },

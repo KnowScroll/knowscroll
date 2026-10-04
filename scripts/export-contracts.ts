@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { writeFile } from 'node:fs/promises';
-import {
-  exposureInput,
-  interactionInput,
-} from '../packages/contracts/src/index.ts';
+import { exposureInput, interactionInput } from '@knowscroll/contracts';
 await writeFile(
   'packages/contracts/http-v1.schema.json',
   JSON.stringify(

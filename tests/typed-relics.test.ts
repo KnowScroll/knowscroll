@@ -17,8 +17,8 @@ import {
   relicsResponse,
   type RelicKeepInput,
   type RelicWire,
-} from '../packages/contracts/src/relics.ts';
-import type { SubstrateSeed } from '../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/relics';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import {
   pool,
   provisionIdentity,

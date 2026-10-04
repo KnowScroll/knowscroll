@@ -21,8 +21,8 @@ import {
 } from '../../core/src/atlas/cartographer.ts';
 import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
 import type { KeeperAsk } from '../../core/src/rooms/keeper.ts';
-import type { RoomSummary } from '../../contracts/src/rooms.ts';
-import type { PlaceDemand } from '../../contracts/src/inventory.ts';
+import type { RoomSummary } from '@knowscroll/contracts/rooms';
+import type { PlaceDemand } from '@knowscroll/contracts/inventory';
 import { placeDemands } from './inventory/read.ts';
 import { postInquiryMail } from './reasoning-inquiries.ts';
 import { keepRooms, readPlaceRooms, retireRooms } from './rooms.ts';

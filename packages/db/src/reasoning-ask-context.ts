@@ -9,14 +9,14 @@ import {
   compileDirectAskContextInput,
   type AskContextDependency,
   type AskContextPayload,
-} from '../../contracts/src/reasoning-ask-context.ts';
+} from '@knowscroll/contracts/reasoning-ask-context';
 import {
   candidateScroll,
   contextScroll,
   type ContextRefusal,
   type ContextValidation,
-} from '../../contracts/src/reasoning-context.ts';
-import { explicitAskInput, exposureInput } from '../../contracts/src/index.ts';
+} from '@knowscroll/contracts/reasoning-context';
+import { explicitAskInput, exposureInput } from '@knowscroll/contracts';
 import { explicitAskLedgerKey } from './explicit-ask.ts';
 import type { AuthScope } from './identity.ts';
 import {

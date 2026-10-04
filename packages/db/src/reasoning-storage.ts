@@ -8,7 +8,7 @@ import type pg from 'pg';
 import {
   reasoningReceipt,
   type ReasoningReceipt,
-} from '../../contracts/src/reasoning.ts';
+} from '@knowscroll/contracts/reasoning';
 import { lockUniverse } from './index.ts';
 
 export type ReasoningClearScope = {

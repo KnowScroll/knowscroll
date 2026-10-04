@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import { inquiriesResponse } from '../packages/contracts/src/inquiries.ts';
+import { inquiriesResponse } from '@knowscroll/contracts/inquiries';
 import { pool, transaction } from '../packages/db/src/index.ts';
 import {
   openDueInquiries,

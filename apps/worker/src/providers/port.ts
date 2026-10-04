@@ -1,4 +1,4 @@
-import type { Lineage } from '../../../../packages/contracts/src/index.ts';
+import type { Lineage } from '@knowscroll/contracts';
 /** Contract reservation. No model is dispatched in the bootstrap runtime. */
 export interface ReasoningProvider {
   execute(input: {

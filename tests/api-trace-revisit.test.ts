@@ -8,7 +8,7 @@ import {
   traceRevisitCandidate,
   traceRevisitReceipt,
   webTraceRevisitReceipt,
-} from '../packages/contracts/src/trace-revisit.ts';
+} from '@knowscroll/contracts/trace-revisit';
 import { createAuthoredTestScrollWebArtifact } from '../packages/core/src/scrolls/web-artifact.ts';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import {

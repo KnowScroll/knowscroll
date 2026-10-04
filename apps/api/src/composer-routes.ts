@@ -5,7 +5,7 @@
  *   POST /v1/encounters/feedback                  less_like_this | wrong_connection
  */
 import type { FastifyInstance } from 'fastify';
-import { uuid } from '../../../packages/contracts/src/index.ts';
+import { uuid } from '@knowscroll/contracts';
 import { readWhy } from '../../../packages/db/src/composer/semantic.ts';
 import { recordEncounterFeedback } from '../../../packages/db/src/composer/feedback.ts';
 import { HttpError } from './errors.ts';

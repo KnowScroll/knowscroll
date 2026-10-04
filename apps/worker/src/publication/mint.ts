@@ -21,7 +21,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { generationBrief } from '../../../../packages/contracts/src/generation.ts';
+import { generationBrief } from '@knowscroll/contracts/generation';
 import { lockSubstrateShared } from '../../../../packages/db/src/semantic/read-set.ts';
 import { annotateReelsOver } from '../../../../packages/db/src/semantic/seed.ts';
 

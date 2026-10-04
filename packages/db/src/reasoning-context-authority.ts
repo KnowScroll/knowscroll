@@ -1,6 +1,6 @@
-import { DIRECT_CONTEXT_VERSIONS } from '../../contracts/src/reasoning-context.ts';
-import { ASK_CONTEXT_VERSIONS } from '../../contracts/src/reasoning-ask-context.ts';
-import { INQUIRY_CONTEXT_VERSIONS } from '../../contracts/src/reasoning-inquiry-context.ts';
+import { DIRECT_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-context';
+import { ASK_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-ask-context';
+import { INQUIRY_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-inquiry-context';
 import { validateDirectContext } from './reasoning-context.ts';
 import { validateDirectAskContext } from './reasoning-ask-context.ts';
 import { validateInquiryContext } from './reasoning-inquiry-context.ts';

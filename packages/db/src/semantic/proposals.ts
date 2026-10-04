@@ -16,7 +16,7 @@ import {
   type BridgeDecision,
   type BridgeProposalPayload,
   type ProposerKind,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import {
   sliceReadSet,
   validateBridgeProposal,

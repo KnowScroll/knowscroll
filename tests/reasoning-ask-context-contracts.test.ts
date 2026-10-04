@@ -6,7 +6,7 @@ import {
   ASK_CONTEXT_VERSIONS,
   askContextPayload,
   compileDirectAskContextInput,
-} from '../packages/contracts/src/reasoning-ask-context.ts';
+} from '@knowscroll/contracts/reasoning-ask-context';
 
 function fixture(question = '  cafe\u0301\n') {
   const universeId = randomUUID(),

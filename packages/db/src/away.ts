@@ -18,7 +18,7 @@ import {
   type AwayAcknowledgeResponse,
   type AwayItem,
   type AwayResponse,
-} from '../../contracts/src/away.ts';
+} from '@knowscroll/contracts/away';
 import {
   awayCursor,
   clampLine,

@@ -1,4 +1,4 @@
-import type { FeedAsset } from '../../contracts/src/inventory.ts';
+import type { FeedAsset } from '@knowscroll/contracts/inventory';
 
 /**
  * ADR-0028 (#114/#5): the real Composer. Retrieval stays exactly `feedCandidates()` minus

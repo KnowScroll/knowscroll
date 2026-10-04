@@ -28,7 +28,7 @@ import {
   provisionIdentity,
   transaction,
 } from '../packages/db/src/index.ts';
-import type { ScrollAsset } from '../packages/contracts/src/index.ts';
+import type { ScrollAsset } from '@knowscroll/contracts';
 import {
   SHARED_SOURCE_V1,
   deriveWorlds,

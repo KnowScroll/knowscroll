@@ -15,7 +15,7 @@ import {
   atlasDeltaSchema,
   atlasResponseSchema,
   webAtlasResponseSchema,
-} from '../packages/contracts/src/atlas.ts';
+} from '@knowscroll/contracts/atlas';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
 import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
 import { mintGatedTestReel } from '../scripts/fixtures/gated-reel.ts';

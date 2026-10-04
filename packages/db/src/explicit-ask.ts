@@ -7,7 +7,7 @@ import {
   type ExplicitAskInput,
   type ExplicitAskReceipt,
   type ScrollAsset,
-} from '../../contracts/src/index.ts';
+} from '@knowscroll/contracts';
 import { UnauthorizedSession, type AuthScope } from './identity.ts';
 
 export class ExplicitAskError extends Error {

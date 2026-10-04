@@ -4,7 +4,7 @@ import {
   webScrollArtifactV1,
   type WebScrollBlockV1,
   type WebScrollArtifactV1,
-} from '../../../contracts/src/web-scroll-artifact.ts';
+} from '@knowscroll/contracts/web-scroll-artifact';
 
 const MAX_ARTIFACT_BYTES = 65_536;
 const hash = (value: string) =>

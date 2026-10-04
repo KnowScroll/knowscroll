@@ -17,7 +17,7 @@ import {
   type RoomDeltaResponse,
   type RoomResponse,
   type RoomSummary,
-} from '../../contracts/src/rooms.ts';
+} from '@knowscroll/contracts/rooms';
 import type {
   ConceptNode,
   TypedRelation,

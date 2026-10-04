@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { reasoningUsage } from '../../../../packages/contracts/src/reasoning.ts';
+import { reasoningUsage } from '@knowscroll/contracts/reasoning';
 
 export type DispatchAuthorization = {
   universeId: string;

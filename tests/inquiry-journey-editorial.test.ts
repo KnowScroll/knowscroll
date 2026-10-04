@@ -12,8 +12,8 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import type { EncounterBranchesResponse } from '../packages/contracts/src/semantic.ts';
-import { inquiriesResponse } from '../packages/contracts/src/inquiries.ts';
+import type { EncounterBranchesResponse } from '@knowscroll/contracts/semantic';
+import { inquiriesResponse } from '@knowscroll/contracts/inquiries';
 import {
   pool,
   provisionIdentity,

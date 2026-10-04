@@ -17,7 +17,7 @@ import {
 import {
   bridgeProposalPayload,
   type EncounterBranchesResponse,
-} from '../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import {
   readSetFromRecord,
   validateBridgeProposal,

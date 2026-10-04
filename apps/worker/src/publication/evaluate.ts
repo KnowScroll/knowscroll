@@ -11,7 +11,7 @@ import type pg from 'pg';
 import {
   generationBrief,
   type GenerationBrief,
-} from '../../../../packages/contracts/src/generation.ts';
+} from '@knowscroll/contracts/generation';
 import * as gates from './gates.ts';
 import type { GateOutcome } from './gates.ts';
 

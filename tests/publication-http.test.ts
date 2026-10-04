@@ -19,7 +19,7 @@ import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
 import { insertFakeEngine } from './helpers/generation-fixture.ts';
 import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts';
-import { generationBrief } from '../packages/contracts/src/generation.ts';
+import { generationBrief } from '@knowscroll/contracts/generation';
 import { MEDIA_SIMULATED_HEADER } from '../apps/api/src/media.ts';
 
 if (

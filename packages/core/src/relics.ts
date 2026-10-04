@@ -2,7 +2,7 @@
  * ADR-0044 — a Relic's state, derived when read: pure over the facts the database gathers for each
  * kind. Corrected beats doubted, which beats current; nothing here hides a correction.
  */
-import { RELIC_CURSOR_PATTERN } from '../../contracts/src/relics.ts';
+import { RELIC_CURSOR_PATTERN } from '@knowscroll/contracts/relics';
 
 export type RelicState = 'current' | 'corrected' | 'doubted';
 

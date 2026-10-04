@@ -13,7 +13,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { ScrollAsset } from '../../../contracts/src/index.ts';
+import type { ScrollAsset } from '@knowscroll/contracts';
 import {
   SYMMETRIC_BRIDGE_TYPES,
   branchOpenInput,
@@ -23,7 +23,7 @@ import {
   type ConnectionFeedbackReceipt,
   type EncounterBranchesResponse,
   type EncounterBranchWire,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { isWithin } from '../../../core/src/semantic/bridge-validator.ts';
 import { recheckScope, type AuthScope } from '../identity.ts';
 import { observeBranchGap } from '../inventory/demand.ts';

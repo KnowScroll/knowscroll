@@ -16,7 +16,7 @@ import {
   bridgeProposalPayload,
   sourceCorrectionInput,
   type SourceCorrectionInput,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { validateBridgeProposal } from '../../../core/src/semantic/bridge-validator.ts';
 import { cancelRequestsForCorrectedMaterial } from '../inventory/supply.ts';
 import { loadBridgeReadSet, lockSubstrateExclusive } from './read-set.ts';

@@ -10,7 +10,7 @@
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 
 export type SemanticFixture = {
   tag: string;

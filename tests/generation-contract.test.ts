@@ -8,7 +8,7 @@ import {
   compileSubmitRequest,
   generationBrief,
   briefSource,
-} from '../packages/contracts/src/generation.ts';
+} from '@knowscroll/contracts/generation';
 import { prepareCutroomRequest } from '../apps/worker/src/cutroom/http-client.ts';
 
 const databaseUrl =

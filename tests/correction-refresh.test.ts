@@ -15,8 +15,8 @@ import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { awayResponse } from '../packages/contracts/src/away.ts';
-import type { SubstrateSeed } from '../packages/contracts/src/semantic.ts';
+import { awayResponse } from '@knowscroll/contracts/away';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import {
   lockUniverse,
   pool,

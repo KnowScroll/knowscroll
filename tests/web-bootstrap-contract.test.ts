@@ -16,7 +16,7 @@ import {
   feedResponseSchema,
   universeSchema,
   worldSystemResponseSchema,
-} from '../packages/contracts/src/web-bootstrap.ts';
+} from '@knowscroll/contracts/web-bootstrap';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

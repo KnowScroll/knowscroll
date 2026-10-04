@@ -15,7 +15,7 @@ import { createReadStream } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { GenerationBrief } from '../../../../packages/contracts/src/generation.ts';
+import type { GenerationBrief } from '@knowscroll/contracts/generation';
 import {
   checkRegularFile,
   readMp4BoxOrder,
@@ -24,7 +24,7 @@ import { MEDIA_PROFILE } from '../generation/import.ts';
 import type {
   PublicationGateName,
   PublicationGateVerdict,
-} from '../../../../packages/contracts/src/publication.ts';
+} from '@knowscroll/contracts/publication';
 
 const execFileAsync = promisify(execFile);
 

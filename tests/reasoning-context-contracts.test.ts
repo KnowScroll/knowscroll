@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   directContextPayload,
   compileDirectContextInput,
-} from '../packages/contracts/src/reasoning-context.ts';
+} from '@knowscroll/contracts/reasoning-context';
 
 function fixture() {
   const universeId = randomUUID(),

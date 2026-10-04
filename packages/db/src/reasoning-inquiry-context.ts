@@ -19,7 +19,7 @@ import {
   type InquiryContextPayload,
   type InquiryContextRefusal,
   type InquiryDependency,
-} from '../../contracts/src/reasoning-inquiry-context.ts';
+} from '@knowscroll/contracts/reasoning-inquiry-context';
 import type {
   InquiryCandidateInput,
   InquiryPair,

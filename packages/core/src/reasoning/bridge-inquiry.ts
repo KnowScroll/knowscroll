@@ -19,7 +19,7 @@ import {
   bridgeProposalPayload,
   semanticKey,
   type BridgeProposalPayload,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { canonical, wholeObject } from './wire.ts';
 
 export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({

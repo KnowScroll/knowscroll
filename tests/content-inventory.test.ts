@@ -24,9 +24,9 @@ import {
   runSupplyPass,
   scrollTransportsFromEnvironment,
 } from '../apps/worker/src/scrolls/supply-worker.ts';
-import { atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
-import { awayResponse } from '../packages/contracts/src/away.ts';
-import { inventoryResponse } from '../packages/contracts/src/inventory.ts';
+import { atlasResponseSchema } from '@knowscroll/contracts/atlas';
+import { awayResponse } from '@knowscroll/contracts/away';
+import { inventoryResponse } from '@knowscroll/contracts/inventory';
 import type pg from 'pg';
 import {
   lockUniverse,

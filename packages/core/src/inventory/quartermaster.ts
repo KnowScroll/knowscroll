@@ -10,7 +10,7 @@
  * stops it. A route with no budget left never makes a silent wait. **Adapt** has no v1 path (no
  * Scroll derivation, no Reel generation: #9) and every decision records that.
  */
-import type { CannotMeetReason } from '../../../contracts/src/inventory.ts';
+import type { CannotMeetReason } from '@knowscroll/contracts/inventory';
 import { isWithin } from '../semantic/bridge-validator.ts';
 
 export const QUARTERMASTER_V1 = 'quartermaster-v1';

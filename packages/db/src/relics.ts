@@ -23,7 +23,7 @@ import {
   type RelicReleaseResponse,
   type RelicsResponse,
   type RelicWire,
-} from '../../contracts/src/relics.ts';
+} from '@knowscroll/contracts/relics';
 import {
   parseRelicCursor,
   relicCursor,

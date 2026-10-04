@@ -10,12 +10,12 @@ import {
   accountDeletionInput,
   uuid,
   type ScrollAsset,
-} from '../../../packages/contracts/src/index.ts';
+} from '@knowscroll/contracts';
 import {
   parseFeedKinds,
   type FeedAsset,
   type ReelAssetDisplay,
-} from '../../../packages/contracts/src/inventory.ts';
+} from '@knowscroll/contracts/inventory';
 import {
   pool,
   transaction,

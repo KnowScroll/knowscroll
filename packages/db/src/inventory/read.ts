@@ -9,7 +9,7 @@ import {
   type InventoryDemand,
   type InventoryResponse,
   type PlaceDemand,
-} from '../../../contracts/src/inventory.ts';
+} from '@knowscroll/contracts/inventory';
 import type { V3Bound } from '../../../core/src/composer/semantic.ts';
 import type { AuthScope } from '../identity.ts';
 

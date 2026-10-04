@@ -9,7 +9,7 @@
  * Nothing here calls a model, and no source is ever returned.
  */
 import type { FastifyInstance } from 'fastify';
-import { uuid } from '../../../packages/contracts/src/index.ts';
+import { uuid } from '@knowscroll/contracts';
 import { readAtlas } from '../../../packages/db/src/atlas.ts';
 import {
   readRoom,

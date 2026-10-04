@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { FeedAsset } from '../../contracts/src/inventory.ts';
+import type { FeedAsset } from '@knowscroll/contracts/inventory';
 import {
   COMPOSER_SIGNALS_V2,
   rankSignalCandidates,

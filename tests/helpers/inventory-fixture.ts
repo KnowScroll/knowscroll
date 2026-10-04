@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { buildApp } from '../../apps/api/src/app.ts';
-import type { SubstrateSeed } from '../../packages/contracts/src/semantic.ts';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import { pool, transaction } from '../../packages/db/src/index.ts';
 import { loadSubstrateSeed } from '../../packages/db/src/semantic/seed.ts';
 import { readScroll } from './reading.ts';

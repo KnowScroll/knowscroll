@@ -15,7 +15,7 @@ import { buildApp } from '../apps/api/src/app.ts';
 import {
   inquiriesResponse,
   inquiryConsentResponse,
-} from '../packages/contracts/src/inquiries.ts';
+} from '@knowscroll/contracts/inquiries';
 import {
   pool,
   provisionIdentity,

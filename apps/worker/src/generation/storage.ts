@@ -10,7 +10,7 @@ import {
   compileSubmitRequest,
   generationBrief,
   type GenerationBrief,
-} from '../../../../packages/contracts/src/generation.ts';
+} from '@knowscroll/contracts/generation';
 import { prepareCutroomRequest } from '../cutroom/http-client.ts';
 import {
   recordImportedReel,

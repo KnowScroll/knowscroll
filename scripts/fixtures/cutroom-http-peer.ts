@@ -8,7 +8,7 @@ import {
   createCutroomHttpClient,
   prepareCutroomRequest,
 } from '../../apps/worker/src/cutroom/http-client.ts';
-import { SubmitRequest } from '../../packages/contracts/src/cutroom-v1/request.ts';
+import { SubmitRequest } from '@knowscroll/contracts/cutroom-v1/request';
 
 const [mode, directory, origin] = process.argv.slice(2);
 if (!directory || !basename(directory).startsWith('knowscroll-cutroom-http-'))

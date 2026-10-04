@@ -11,7 +11,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { z } from 'zod';
-import { askContextPayload } from '../../contracts/src/reasoning-ask-context.ts';
+import { askContextPayload } from '@knowscroll/contracts/reasoning-ask-context';
 import {
   serializeAskAnswerRequest,
   validateAskAnswerProposal,

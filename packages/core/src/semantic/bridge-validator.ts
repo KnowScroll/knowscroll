@@ -24,7 +24,7 @@ import {
   type BridgeDecision,
   type BridgeProposalPayload,
   type BridgeRejectionReason,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 
 export type ClaimRole = 'subject' | 'object' | 'mechanism' | 'context';
 

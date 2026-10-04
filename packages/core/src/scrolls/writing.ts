@@ -13,10 +13,7 @@
  * A quote it refuses is diagnosed with a code that carries no text (`quote-diagnosis-v1`).
  */
 import { z } from 'zod';
-import {
-  claimConceptRole,
-  conceptCode,
-} from '../../../contracts/src/semantic.ts';
+import { claimConceptRole, conceptCode } from '@knowscroll/contracts/semantic';
 import { canonical, wholeObject } from '../reasoning/wire.ts';
 import { normalizeSnapshotText } from '../semantic/source-text.ts';
 

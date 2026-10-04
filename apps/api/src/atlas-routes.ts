@@ -7,7 +7,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { uuid } from '../../../packages/contracts/src/index.ts';
+import { uuid } from '@knowscroll/contracts';
 import {
   readAtlas,
   readAtlasDelta,

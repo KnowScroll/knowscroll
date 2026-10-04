@@ -14,11 +14,11 @@ import { compareAway } from '../packages/core/src/away.ts';
 import {
   awayResponse,
   awayAcknowledgeResponse,
-} from '../packages/contracts/src/away.ts';
+} from '@knowscroll/contracts/away';
 import {
   relicKeepResponse,
   relicsResponse,
-} from '../packages/contracts/src/relics.ts';
+} from '@knowscroll/contracts/relics';
 import {
   pool,
   provisionIdentity,

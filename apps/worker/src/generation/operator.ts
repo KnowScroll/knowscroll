@@ -4,7 +4,7 @@
  * database rules of its own beyond the friendly refusals called out below. */
 import { readFile } from 'node:fs/promises';
 import type pg from 'pg';
-import { generationBrief } from '../../../../packages/contracts/src/generation.ts';
+import { generationBrief } from '@knowscroll/contracts/generation';
 import * as storage from './storage.ts';
 
 export type OperatorResult =

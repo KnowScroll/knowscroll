@@ -12,14 +12,11 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { atlasResponseSchema } from '../packages/contracts/src/atlas.ts';
-import { awayResponse } from '../packages/contracts/src/away.ts';
+import { atlasResponseSchema } from '@knowscroll/contracts/atlas';
+import { awayResponse } from '@knowscroll/contracts/away';
 import { compareAway } from '../packages/core/src/away.ts';
-import {
-  roomDeltaResponse,
-  roomResponse,
-} from '../packages/contracts/src/rooms.ts';
-import type { SubstrateSeed } from '../packages/contracts/src/semantic.ts';
+import { roomDeltaResponse, roomResponse } from '@knowscroll/contracts/rooms';
+import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import {
   pool,
   provisionIdentity,

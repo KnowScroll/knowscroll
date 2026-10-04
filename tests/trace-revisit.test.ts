@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
-import { traceRevisitReceipt } from '../packages/contracts/src/trace-revisit.ts';
+import { traceRevisitReceipt } from '@knowscroll/contracts/trace-revisit';
 import {
   authenticateAndLock,
   UnauthorizedSession,

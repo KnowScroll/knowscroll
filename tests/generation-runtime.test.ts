@@ -21,7 +21,7 @@ import pg from 'pg';
 import {
   generationBrief,
   type GenerationBrief,
-} from '../packages/contracts/src/generation.ts';
+} from '@knowscroll/contracts/generation';
 import * as storage from '../apps/worker/src/generation/storage.ts';
 import { createLocalImportPort } from '../apps/worker/src/generation/import-port.ts';
 import { processClaimedJob } from '../apps/worker/src/generation/worker.ts';

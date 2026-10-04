@@ -8,7 +8,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { generationBrief } from '../../packages/contracts/src/generation.ts';
+import { generationBrief } from '@knowscroll/contracts/generation';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../../apps/worker/src/generation/storage.ts';
 import { mintReelAsset } from '../../apps/worker/src/publication/mint.ts';
 import { insertFakeEngine } from '../../tests/helpers/generation-fixture.ts';

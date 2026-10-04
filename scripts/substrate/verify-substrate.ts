@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 import {
   substrateSeed,
   type SubstrateSeed,
-} from '../../packages/contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import { normalizeSnapshotText } from '../../packages/core/src/semantic/source-text.ts';
 
 export type QuoteCheck = {

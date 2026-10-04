@@ -6,7 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   magicLinkRequestInput,
   signInConfirmQuery,
-} from '../../../packages/contracts/src/index.ts';
+} from '@knowscroll/contracts';
 import { transaction } from '../../../packages/db/src/index.ts';
 import {
   confirmSignInToken,
