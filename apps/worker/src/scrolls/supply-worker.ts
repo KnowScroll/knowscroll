@@ -16,6 +16,7 @@ import { redecideForSupply } from '@knowscroll/db/inventory/demand';
 import {
   admitRequest,
   nextOpenRequest,
+  requestStatus,
   settleRequest,
   settleStrandedRequests,
   type RequestOutcome,
@@ -115,12 +116,7 @@ export async function runSupplyPass(deps: {
     pool,
     outcome?.status === 'fulfilled' ? outcome.assetId : null,
   );
-  const now = (
-    await pool.query<{ status: string; reasons: string[] }>(
-      'SELECT status, reasons FROM supply_request WHERE id=$1',
-      [request.id],
-    )
-  ).rows[0]!;
+  const now = await requestStatus(pool, request.id);
   return {
     kind: 'done',
     requestId: request.id,

@@ -28,6 +28,13 @@ import {
 } from '@knowscroll/db/reasoning/inquiries';
 import type { ReasoningAuthority } from '@knowscroll/db/reasoning/runtime-policy';
 import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
+import {
+  answerRequestStep,
+  attemptAccountingState,
+  enabledAnswerRoute,
+  enabledInquiryRouteTransport,
+  hasWaitingAnswer,
+} from '@knowscroll/db/reasoning/worker-reads';
 import { inTransaction } from '@knowscroll/db/sql/transactions';
 import type {
   AnswerObservation,
@@ -79,12 +86,7 @@ export async function runAnswerPass(deps: {
   };
 }): Promise<AnswerPass> {
   const { pool, owner, leaseMs, transports, signal } = deps;
-  const route = (
-    await pool.query<{
-      policy_version: string;
-      transport: 'fixture' | 'minimax';
-    }>('SELECT policy_version,transport FROM ask_answer_route WHERE enabled')
-  ).rows[0];
+  const route = await enabledAnswerRoute(pool);
   if (!route) return { kind: 'idle', reason: 'no_enabled_route' };
   const transport = transports[route.transport];
   if (!transport)
@@ -92,12 +94,10 @@ export async function runAnswerPass(deps: {
       kind: 'idle',
       reason: `transport_not_configured:${route.transport}`,
     };
-  const inquiryRoute = (
-    await pool.query<{ transport: 'fixture' | 'minimax' }>(
-      'SELECT transport FROM background_inquiry_route WHERE enabled AND policy_version=$1',
-      [route.policy_version],
-    )
-  ).rows[0];
+  const inquiryRoute = await enabledInquiryRouteTransport(
+    pool,
+    route.policy_version,
+  );
   const inquiryTransport = inquiryRoute
     ? deps.inquiries?.transports[inquiryRoute.transport]
     : undefined;
@@ -105,12 +105,7 @@ export async function runAnswerPass(deps: {
   if (inquiryRoute && !inquiryTransport)
     return { kind: 'idle', reason: 'shared_scheduler_needs_inquiry_transport' };
   // Readiness is asked only when an answer for this route is actually waiting to be scheduled.
-  const waiting = (
-    await pool.query(
-      'SELECT 1 FROM reasoning_fairness_ready r JOIN ask_answer_request a ON a.job_id = r.job_id WHERE a.policy_version = $1 LIMIT 1',
-      [route.policy_version],
-    )
-  ).rowCount;
+  const waiting = await hasWaitingAnswer(pool, route.policy_version);
   if (!waiting) return { kind: 'idle', reason: 'no_answer_waiting' };
   const gate =
     deps.readiness?.[route.transport] ??
@@ -181,12 +176,7 @@ export async function executeAnswerClaim(
   const { pool, owner, transport, signal, authority } = deps;
   const admission = createReasoningAdmission(pool, authority);
   const { claim, reserved } = scheduled;
-  const request = (
-    await pool.query<{ ask_id: string; step_id: string }>(
-      'SELECT ask_id, step_id FROM ask_answer_request WHERE job_id=$1',
-      [claim.jobId],
-    )
-  ).rows[0]!;
+  const request = await answerRequestStep(pool, claim.jobId);
   const fence = {
     universeId: claim.universeId,
     privacyEpoch: claim.privacyEpoch,
@@ -202,12 +192,7 @@ export async function executeAnswerClaim(
   // lease. If even that fails, the recovery sweep closes it after the lease expires.
   const close = async (): Promise<AnswerOutcome> => {
     try {
-      const state = (
-        await pool.query<{ state: string }>(
-          'SELECT state FROM reasoning_accounting WHERE attempt_id=$1',
-          [reserved.attemptId],
-        )
-      ).rows[0]?.state;
+      const state = await attemptAccountingState(pool, reserved.attemptId);
       if (state === 'reserved')
         return await giveBackUnsentAnswer(pool, admission, fence);
       return await inTransaction(pool, (client) =>

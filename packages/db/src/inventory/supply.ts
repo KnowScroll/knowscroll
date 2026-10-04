@@ -418,3 +418,16 @@ export async function cancelRequestsForCorrectedMaterial(
     ).rowCount ?? 0
   );
 }
+
+/** The request's current status and reasons, read on the pool after settlement and re-decision. */
+export async function requestStatus(
+  pool: pg.Pool,
+  requestId: string,
+): Promise<{ status: string; reasons: string[] }> {
+  return (
+    await pool.query<{ status: string; reasons: string[] }>(
+      'SELECT status, reasons FROM supply_request WHERE id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
+}
