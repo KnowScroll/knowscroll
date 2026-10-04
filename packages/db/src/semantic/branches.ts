@@ -1,5 +1,5 @@
 /**
- * #131/#134 — the first personal consumer of the substrate: live continuations for one encounter.
+ * The first personal consumer of the substrate: live continuations for one encounter (#131, #134).
  *
  * `listEncounterBranches` offers a continuation only along an admitted, non-suppressed bridge that
  * touches what this encounter is about, to an editorial Scroll about the other side. There is no
@@ -27,6 +27,7 @@ import {
 import { isWithin } from '@knowscroll/core/semantic/bridge-validator';
 import { recheckScope, type AuthScope } from '../identity.ts';
 import { observeBranchGap } from '../inventory/demand.ts';
+import { isRecordingPaused } from '../sql/recording-paused.ts';
 import { lockSubstrateShared } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
 import { SemanticNotFound } from './corrections.ts';
@@ -434,7 +435,17 @@ export async function openBranch(
   if (!accountRow) throw new Error('Universe accounts state is missing');
 
   const replay = (
-    await client.query(
+    await client.query<{
+      id: string;
+      from_exposure_id: string;
+      bridge_id: string;
+      target_asset_id: string;
+      decision_id: string;
+      candidates: BranchOpenResponse['items'];
+      account_revision: number;
+      relation_type: BranchOpenResponse['branch']['relationType'];
+      direction: BranchOpenResponse['branch']['direction'];
+    }>(
       `
       SELECT
         b.id,
@@ -550,12 +561,7 @@ export async function openBranch(
 
   // While recording is paused nothing is kept — not the choice, not a decision naming it. The
   // continuation is served for reading only; its exposure and Keep are refused by the pause anyway.
-  const paused = (
-    await client.query<{ paused: boolean }>(
-      'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-      [scope.universeId],
-    )
-  ).rows[0]!.paused;
+  const paused = await isRecordingPaused(client, scope.universeId);
   if (paused) {
     return {
       decisionId: null,
@@ -695,7 +701,11 @@ export async function recordConnectionFeedback(
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new SemanticConflict('Feedback privacy epoch is stale');
   const old = (
-    await client.query(
+    await client.query<{
+      id: string;
+      bridge_id: string;
+      objection: ConnectionFeedbackReceipt['objection'];
+    }>(
       'SELECT id, bridge_id, objection FROM connection_feedback WHERE universe_id=$1 AND client_key=$2',
       [scope.universeId, input.clientFeedbackId],
     )

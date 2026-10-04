@@ -1,5 +1,5 @@
 /**
- * #162 — admitting a model-written Scroll (ADR-0041 §2, §6).
+ * Admitting a model-written Scroll (ADR-0041 §2, §6, #162).
  *
  * A checked Scroll enters the library in one transaction under the substrate lock: its family and
  * source (inserted if absent), the snapshot and the private material it was checked against, its

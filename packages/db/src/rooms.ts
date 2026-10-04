@@ -1,12 +1,12 @@
 /**
- * #163 — the reader's Idea Rooms (ADR-0045). Loads the Keeper's inputs, applies its deltas under the
+ * The reader's Idea Rooms (ADR-0045, #163): loads the Keeper's inputs, applies its deltas under the
  * caller's universe lock, reads the rooms for the atlas and the room sheet, and records the reader
  * setting one aside. Every room and inhabitant change is written with its delta in the same
  * transaction (the schema refuses anything else). No model is called, and no source is ever
  * returned: a claim is its statement and truth state.
  *
- * The Keeper runs where the Cartographer runs (`atlas.ts`), after places, over the places as that
- * plan left them; this module never reads the atlas itself.
+ * The Keeper runs where the Cartographer runs (`atlas/writes.ts`), after places, over the places as
+ * that plan left them; this module never reads the atlas itself.
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -41,6 +41,7 @@ import {
   type RoomView,
 } from '@knowscroll/core/rooms/keeper';
 import type { AuthScope } from './identity.ts';
+import { isRecordingPaused } from './sql/recording-paused.ts';
 
 export class RoomError extends Error {
   constructor(
@@ -452,14 +453,7 @@ export async function setRoomAside(
   if (!parsed.success) throw new RoomError(400, 'Invalid set-aside request');
   if (parsed.data.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new RoomError(409, 'Privacy epoch changed');
-  if (
-    (
-      await client.query<{ paused: boolean }>(
-        'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-        [scope.universeId],
-      )
-    ).rows[0]!.paused
-  ) {
+  if (await isRecordingPaused(client, scope.universeId)) {
     throw new RoomError(409, 'Recording is paused');
   }
   const rooms = await loadRooms(client, scope.universeId);
@@ -475,6 +469,7 @@ export async function setRoomAside(
 
 // Reads ------------------------------------------------------------------------------------------
 
+// Takes only a Date (the shared `toIsoString` also parses strings), so it stays separate.
 const iso = (v: Date) => v.toISOString();
 
 /** A held claim as the reader sees it: its sentence and truth state, never its source. */

@@ -1,5 +1,5 @@
 /**
- * #160 (ADR-0040) — a source correction reaches the reader's places while they are away.
+ * A source correction reaches the reader's places while they are away (ADR-0040, #160).
  *
  * A correction changes shared knowledge at once, but a reader's places follow only at their next
  * personal-model refresh, and only their own actions run one. Every refresh records how much of the

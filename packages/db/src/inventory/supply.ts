@@ -1,5 +1,5 @@
 /**
- * #164 — shared supply (ADR-0046 §3): the operator's writing route and material candidates, and the
+ * Shared supply (ADR-0046 §3, #164): the operator's writing route and material candidates, and the
  * shared requests the Quartermaster funds. Nothing here names a universe; no privacy operation
  * erases or exports it.
  *
