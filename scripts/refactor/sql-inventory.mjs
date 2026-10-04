@@ -10,7 +10,7 @@
 // Usage (from the repo root):
 //   node scripts/refactor/sql-inventory.mjs snapshot --out s.json [--roots dir...]
 //   node scripts/refactor/sql-inventory.mjs compare old.json new.json
-//       [--normalize-files path-or-glob...] [--normalize whitespace|whitespace+keyword-case]
+//       [--normalize-files path-or-glob...] [--normalize whitespace|whitespace+keyword-case|tokens]
 //   node scripts/refactor/sql-inventory.mjs observed s.json [s2.json]
 //   node scripts/refactor/sql-inventory.mjs --self-test
 //
@@ -316,7 +316,21 @@ function inventory(roots) {
 const kindGroup = (kind) =>
   kind === 'literal' || kind === 'const' ? 'static' : kind;
 
+// PostgreSQL lexical tokens: quoted strings and identifiers (compared exactly), $n parameters,
+// numbers, words (unquoted, so case-folded), runs of operator characters (one token, so a space
+// inserted inside `->>` or `::` is a difference) and single punctuation.
+const SQL_TOKEN =
+  /'(?:[^']|'')*'|"(?:[^"]|"")*"|\$\d+|\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_$]*|[+\-*/<>=~!@#%^&|`?:]+|[(),;.[\]{}]/g;
+
+/** Equal token sequences mean PostgreSQL parses the same statement: whitespace only separates tokens. */
+function sqlTokens(text) {
+  return (text.match(SQL_TOKEN) ?? [])
+    .map((t) => (/^[A-Za-z_]/.test(t) ? t.toUpperCase() : t))
+    .join(' ');
+}
+
 function normalizeText(text, mode) {
+  if (mode === 'tokens') return sqlTokens(text);
   const spaced = collapse(text);
   if (mode !== 'whitespace+keyword-case') return spaced;
   let out = '';
@@ -523,9 +537,10 @@ function parseArgs(argv) {
   if (
     flags.normalize &&
     flags.normalize !== 'whitespace' &&
-    flags.normalize !== 'whitespace+keyword-case'
+    flags.normalize !== 'whitespace+keyword-case' &&
+    flags.normalize !== 'tokens'
   ) {
-    die('--normalize must be whitespace or whitespace+keyword-case');
+    die('--normalize must be whitespace, whitespace+keyword-case or tokens');
   }
   return flags;
 }
@@ -722,6 +737,33 @@ function selfTest() {
   check(
     quoted.unexplainedNew.length === 1,
     'compare: case inside quoted strings is not normalized',
+  );
+  const tok = compareInventories(
+    [entry('INSERT INTO t(a,b) VALUES($1,true)')],
+    [entry('INSERT INTO\n  t (a, b)\nVALUES\n  ($1, TRUE)')],
+    { normalizeFiles: ['a.ts'], normalize: 'tokens' },
+  );
+  check(
+    tok.explained.length === 1,
+    'compare: tokens mode explains spacing and keyword case',
+  );
+  const tokOp = compareInventories(
+    [entry("SELECT payload->>'x' FROM t")],
+    [entry("SELECT payload- >>'x' FROM t")],
+    { normalizeFiles: ['a.ts'], normalize: 'tokens' },
+  );
+  check(
+    tokOp.unexplainedNew.length === 1,
+    'compare: tokens mode keeps operators whole',
+  );
+  const tokStr = compareInventories(
+    [entry("SELECT 'a b' FROM t")],
+    [entry("SELECT 'A b' FROM t")],
+    { normalizeFiles: ['a.ts'], normalize: 'tokens' },
+  );
+  check(
+    tokStr.unexplainedNew.length === 1,
+    'compare: tokens mode compares strings exactly',
   );
   const both = compareInventories([entry('SELECT x')], [entry('SELECT y')], {
     normalizeFiles: ['a.ts'],
