@@ -10,11 +10,9 @@ export function registerMediaRoutes(
   authenticated: Authenticated,
   mediaRoot: () => string,
 ): void {
-  // ADR-0024 section 4: content-addressed, authenticated media serving. The sha256 path parameter
-  // is validated before anything else touches it; authorization (session, epoch, and an eligible
-  // or test_eligible generated_reel naming this media) happens in ONE short transaction; bytes are
-  // streamed by sendMedia() entirely OUTSIDE that transaction, which has already committed by the
-  // time this handler calls it.
+  // The sha256 is validated before authentication, so a malformed id answers 400 before any 401.
+  // Authorization (session, epoch, and an eligible or test_eligible generated_reel naming this
+  // media) is one short transaction; sendMedia() streams entirely after it has committed.
   app.route<{ Params: { sha256: string } }>({
     method: ['GET', 'HEAD'],
     url: '/v1/media/:sha256',

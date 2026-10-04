@@ -1,21 +1,16 @@
 /**
- * ADR-0026 section 4 / ADR-0027 — delivery is a port. This slice ships two implementations: the
- * local development sink below, and `AgentMailSender` (`agentmail-sender.ts`) for real delivery.
- * Resolved lazily, exactly like `resolveMediaRoot()` in `media/stream.ts`: a test/journey that never calls
- * `POST /v1/auth/magic-link` never needs `KS_DEV_ROOT` (or the AgentMail variables) set.
- * `apps/api/src/main.ts` already refuses to start any production-mode process before this module
- * would ever run; the production check below enforces the same refusal independently (and is
- * unit-tested directly), because a real deployment must never depend on that being the *only* guard.
+ * Selects the magic-link delivery implementation (ADR-0026 section 4, ADR-0027) and owns the
+ * development sink. Resolved lazily, like `resolveMediaRoot()` in `media/stream.ts`: a test or
+ * journey that never calls `POST /v1/auth/magic-link` needs neither `KS_DEV_ROOT` nor the AgentMail
+ * variables. Production refuses the development sink here, independently of the check in
+ * `apps/api/src/main.ts`, so a real deployment never depends on one guard alone.
  */
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { AgentMailSender } from './agentmail-sender.ts';
+import type { MagicLinkSender } from './sender.ts';
 
-export interface MagicLinkSender {
-  /** `to` is accepted for interface realism (any real provider needs a destination) but the one
-   * implementation here never persists or logs it — only `link` is ever written anywhere. */
-  send(input: { to: string; link: string }): Promise<void>;
-}
+export type { MagicLinkSender } from './sender.ts';
 
 /**
  * Writes the confirmation link to a single fixed, mode-0600 file under `KS_DEV_ROOT` and never
