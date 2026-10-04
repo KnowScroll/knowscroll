@@ -1,3 +1,7 @@
+/*
+ * Schemas for revisiting a kept Trace: the revisit event id and the Scroll the reader returns to.
+ * Invariant: ids are lower-cased here so the revisit event id is canonical.
+ */
 import { z } from 'zod';
 import { privacyEpoch } from './primitives.ts';
 import { webScrollArtifactV1 } from './web-scroll-artifact.ts';

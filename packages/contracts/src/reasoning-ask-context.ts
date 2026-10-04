@@ -1,3 +1,8 @@
+/*
+ * Schemas for the sealed Ask context compiled for one explicit Ask: its dependencies, payload,
+ * limits and versions. Invariant: shape parsing grants no authority; the compiler and its
+ * versions are pinned here so a stored payload stays verifiable (ADR-0017).
+ */
 import { z } from 'zod';
 import { privacyEpoch, uuid as id } from './primitives.ts';
 import { explicitAskInput } from './asks.ts';

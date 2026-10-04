@@ -1,3 +1,8 @@
+/*
+ * Process entry for reasoning maintenance: runs bounded batches on an interval until a stop
+ * signal arrives. Invariants: invalid configuration exits 1 before any work; the pool is always
+ * ended on the way out and any error leaves exit code 1; log codes are part of the contract. Retention rules live in packages/db (ADR-0019).
+ */
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { pool } from '@knowscroll/db';

@@ -1,3 +1,7 @@
+/*
+ * Worker entry for the projection loop: one call projects at most one queued job through
+ * packages/db, which owns the transaction (ADR-0005).
+ */
 import {
   projectNextJob,
   type ProjectionResult,
