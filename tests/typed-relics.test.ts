@@ -29,7 +29,7 @@ import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
-import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
+import { createFixtureAnswerTransport } from '../apps/worker/src/providers/fixtures/answer.ts';
 import {
   formPlaces,
   loadInquiryFixture,

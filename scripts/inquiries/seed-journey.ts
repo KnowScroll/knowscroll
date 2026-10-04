@@ -3,7 +3,7 @@
  * KS_SEMANTIC_JOURNEY=inquiry), ADR-0038. Everything here is SUPPLIED, not read:
  *
  *  1. One background inquiry route, installed and enabled, with the labelled FIXTURE transport
- *     (`apps/worker/src/providers/inquiry-fixture.ts`; the runner starts its worker with
+ *     (`apps/worker/src/providers/fixtures/inquiry.ts`; the runner starts its worker with
  *     KS_INQUIRY_TRANSPORT=fixture) and a short coalescing delay (KS_INQUIRY_COALESCING_SECONDS,
  *     default 3), so a device run waits seconds, not minutes. No provider is ever called.
  *  2. A place for The Sun (`astro.sun`), formed by the real Cartographer from an account this script

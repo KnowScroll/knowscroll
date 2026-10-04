@@ -5,8 +5,8 @@ import test from 'node:test';
 import {
   CERTIFICATION_LIMITS,
   type CertificationRequest,
-} from '../apps/worker/src/providers/certification-contract.js';
-import { createMiniMaxCertificationAdapter } from '../apps/worker/src/providers/minimax-certification.js';
+} from '../apps/worker/src/providers/certification/contract.js';
+import { createMiniMaxCertificationAdapter } from '../apps/worker/src/providers/certification/minimax.js';
 
 const API_KEY = 'sk-cp-test-secret-never-log';
 

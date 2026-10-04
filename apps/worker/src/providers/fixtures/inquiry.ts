@@ -15,7 +15,7 @@ import {
 import type {
   InquiryObservation,
   InquiryTransport,
-} from '../reasoning/inquiry-worker.ts';
+} from '../../reasoning/inquiry-worker.ts';
 
 export type InquiryFixtureMode =
   | 'proposal'

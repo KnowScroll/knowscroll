@@ -7,15 +7,15 @@ import {
   type MiniMaxCertificationOptions,
   type NativeMessage,
   type NativeTool,
-} from '../apps/worker/src/providers/certification-contract.ts';
+} from '../apps/worker/src/providers/certification/contract.ts';
 import {
   CertificationJournal,
   inspectCertificationRun,
   type CaseChecks,
   type CertificationCase,
   type PublicCertificationReport,
-} from '../apps/worker/src/providers/certification-journal.ts';
-import { createMiniMaxCertificationAdapter } from '../apps/worker/src/providers/minimax-certification.ts';
+} from '../apps/worker/src/providers/certification/journal.ts';
+import { createMiniMaxCertificationAdapter } from '../apps/worker/src/providers/certification/minimax.ts';
 import {
   checkMiniMaxQuota,
   MINIMAX_QUOTA_URL,

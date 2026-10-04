@@ -23,7 +23,7 @@ import {
   runInquiryPass,
   type InquiryTransport,
 } from '../apps/worker/src/reasoning/inquiry-worker.ts';
-import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
+import { createFixtureInquiryTransport } from '../apps/worker/src/providers/fixtures/inquiry.ts';
 import {
   formPlaces,
   loadInquiryFixture,

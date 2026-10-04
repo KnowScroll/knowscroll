@@ -31,7 +31,7 @@ import {
   createFixtureScrollTransport,
   SCROLL_FIXTURE_MODES,
   type ScrollFixtureMode,
-} from '../../apps/worker/src/providers/scroll-fixture.ts';
+} from '../../apps/worker/src/providers/fixtures/scroll.ts';
 import type {
   ScrollItemResult,
   ScrollTransport,

@@ -8,7 +8,7 @@ import type { AnswerTransport } from './answer-worker.ts';
 import {
   createFixtureAnswerTransport,
   type FixtureMode,
-} from '../providers/answer-fixture.ts';
+} from '../providers/fixtures/answer.ts';
 import {
   createMiniMaxAnswerTransport,
   type MiniMaxTransport,

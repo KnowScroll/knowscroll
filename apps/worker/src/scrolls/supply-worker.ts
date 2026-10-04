@@ -25,7 +25,7 @@ import {
   createFixtureScrollTransport,
   SCROLL_FIXTURE_MODES,
   type ScrollFixtureMode,
-} from '../providers/scroll-fixture.ts';
+} from '../providers/fixtures/scroll.ts';
 import type { AnswerTransport } from '../reasoning/answer-worker.ts';
 import {
   writeScroll,

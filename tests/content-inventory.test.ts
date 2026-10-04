@@ -19,7 +19,7 @@ import { createMiniMaxAnswerTransport } from '../apps/worker/src/providers/minim
 import {
   createFixtureScrollTransport,
   type ScrollFixtureMode,
-} from '../apps/worker/src/providers/scroll-fixture.ts';
+} from '../apps/worker/src/providers/fixtures/scroll.ts';
 import {
   runSupplyPass,
   scrollTransportsFromEnvironment,

@@ -15,8 +15,8 @@ import { promisify } from 'node:util';
 import {
   CertificationJournal,
   inspectCertificationRun,
-} from '../apps/worker/src/providers/certification-journal.ts';
-import type { CertificationObservation } from '../apps/worker/src/providers/certification-contract.ts';
+} from '../apps/worker/src/providers/certification/journal.ts';
+import type { CertificationObservation } from '../apps/worker/src/providers/certification/contract.ts';
 
 const execFileAsync = promisify(execFile);
 const HASH = 'a'.repeat(64);

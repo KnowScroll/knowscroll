@@ -7,7 +7,7 @@
 import type {
   AnswerObservation,
   AnswerTransport,
-} from '../reasoning/answer-worker.ts';
+} from '../../reasoning/answer-worker.ts';
 
 export type FixtureMode =
   | 'answer'

@@ -22,7 +22,7 @@ import {
   runAnswerPass,
   type AnswerTransport,
 } from '../apps/worker/src/reasoning/answer-worker.ts';
-import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
+import { createFixtureAnswerTransport } from '../apps/worker/src/providers/fixtures/answer.ts';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

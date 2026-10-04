@@ -77,7 +77,7 @@ const { runAnswerPass } = await import(
   '../../apps/worker/src/reasoning/answer-worker.ts'
 );
 const { createFixtureAnswerTransport } = await import(
-  '../../apps/worker/src/providers/answer-fixture.ts'
+  '../../apps/worker/src/providers/fixtures/answer.ts'
 );
 assert.equal(
   process.env.KS_MAIL_SENDER,

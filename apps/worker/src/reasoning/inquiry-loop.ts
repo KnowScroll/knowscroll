@@ -9,7 +9,7 @@ import {
   createFixtureInquiryTransport,
   INQUIRY_FIXTURE_MODES,
   type InquiryFixtureMode,
-} from '../providers/inquiry-fixture.ts';
+} from '../providers/fixtures/inquiry.ts';
 import {
   createMiniMaxAnswerTransport,
   type MiniMaxTransport,

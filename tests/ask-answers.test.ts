@@ -21,7 +21,7 @@ import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import {
   createFixtureAnswerTransport,
   type FixtureMode,
-} from '../apps/worker/src/providers/answer-fixture.ts';
+} from '../apps/worker/src/providers/fixtures/answer.ts';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

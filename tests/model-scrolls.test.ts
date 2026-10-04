@@ -17,7 +17,7 @@ import { projectOne } from '../apps/worker/src/project.ts';
 import {
   createFixtureScrollTransport,
   type ScrollFixtureMode,
-} from '../apps/worker/src/providers/scroll-fixture.ts';
+} from '../apps/worker/src/providers/fixtures/scroll.ts';
 import {
   writeScroll,
   type WriteScrollDeps,

@@ -19,8 +19,8 @@ import type {
   CertificationRequest,
   MiniMaxCertificationAdapter,
   MiniMaxCertificationOptions,
-} from '../apps/worker/src/providers/certification-contract.ts';
-import { createMiniMaxCertificationAdapter } from '../apps/worker/src/providers/minimax-certification.ts';
+} from '../apps/worker/src/providers/certification/contract.ts';
+import { createMiniMaxCertificationAdapter } from '../apps/worker/src/providers/certification/minimax.ts';
 
 const execFileAsync = promisify(execFile);
 

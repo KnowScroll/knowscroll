@@ -15,7 +15,7 @@ import {
   CERTIFICATION_LIMITS,
   type CertificationObservation,
   type DispatchMetadata,
-} from './certification-contract.ts';
+} from './contract.ts';
 
 const execFileAsync = promisify(execFile);
 const UUID_PATTERN =

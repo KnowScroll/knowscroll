@@ -10,8 +10,8 @@ import {
   OFFERED_CONCEPTS_MARKER,
   type OfferedConcept,
 } from '@knowscroll/core/scrolls/writing';
-import type { AnswerObservation } from '../reasoning/answer-worker.ts';
-import type { ScrollTransport } from '../scrolls/write-scroll.ts';
+import type { AnswerObservation } from '../../reasoning/answer-worker.ts';
+import type { ScrollTransport } from '../../scrolls/write-scroll.ts';
 
 export type ScrollFixtureMode =
   | 'scroll'

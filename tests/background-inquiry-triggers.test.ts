@@ -21,7 +21,7 @@ import {
 import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
-import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
+import { createFixtureInquiryTransport } from '../apps/worker/src/providers/fixtures/inquiry.ts';
 import {
   consentingReader,
   formPlaces,

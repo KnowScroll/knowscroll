@@ -32,7 +32,7 @@ import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import {
   createFixtureInquiryTransport,
   type InquiryFixtureMode,
-} from '../apps/worker/src/providers/inquiry-fixture.ts';
+} from '../apps/worker/src/providers/fixtures/inquiry.ts';
 import {
   formPlaces,
   loadInquiryFixture,
