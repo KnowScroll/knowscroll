@@ -137,16 +137,27 @@ export function verifyReasoningJourney(value: unknown) {
   assert.equal(r.error, undefined);
   assert.match(r.source.revision, /^[a-f0-9]{40}$/);
   assert.ok(typeof r.source.dirty === 'boolean');
+  // A receipt names each source at the path it had when it was recorded. The db reasoning modules
+  // moved into packages/db/src/reasoning/ (#196, docs/architecture/moved-paths.md), so a receipt
+  // recorded before that move names them at their old paths and is still valid evidence.
   const requiredSources = [
-    'packages/db/src/reasoning/admission.ts',
-    'packages/db/src/reasoning/reconciliation.ts',
-    'apps/worker/src/reasoning/invoke.ts',
-    'scripts/run-isolated-reasoning-journey.ts',
+    [
+      'packages/db/src/reasoning/admission.ts',
+      'packages/db/src/reasoning-admission.ts',
+    ],
+    [
+      'packages/db/src/reasoning/reconciliation.ts',
+      'packages/db/src/reasoning-reconciliation.ts',
+    ],
+    ['apps/worker/src/reasoning/invoke.ts'],
+    ['scripts/run-isolated-reasoning-journey.ts'],
   ];
-  for (const path of requiredSources)
+  for (const [path, ...formerPaths] of requiredSources)
     assert.ok(
       r.source.files.some(
-        (f) => f.path === path && /^[a-f0-9]{64}$/.test(f.sha256),
+        (f) =>
+          (f.path === path || formerPaths.includes(f.path)) &&
+          /^[a-f0-9]{64}$/.test(f.sha256),
       ),
       path,
     );
