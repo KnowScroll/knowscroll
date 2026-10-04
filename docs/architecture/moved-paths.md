@@ -67,3 +67,18 @@ The transport and observation types moved from `answer-worker.ts`, `inquiry-work
 | `apps/api/src/room-routes.ts` | `apps/api/src/routes/rooms.ts` |
 | `apps/api/src/inventory-routes.ts` | `apps/api/src/routes/inventory.ts` |
 | `apps/api/src/sign-in-routes.ts` | `apps/api/src/routes/sign-in.ts` |
+
+## Worker SQL into packages/db (R12)
+
+SQL lives only in `packages/db`; `scripts/check-architecture.mjs` (part of `pnpm lint`) fails on any `.query(` under `apps/`. The worker modules kept their paths and call the db functions below.
+
+| Old home | Current home |
+|---|---|
+| `apps/worker/src/project.ts` (`projectOne`'s transaction and failure settlement) | `packages/db/src/projection/keep.ts` (`projectNextJob`); `project.ts` keeps `projectOne` |
+| the heartbeat statement in `apps/worker/src/main.ts` | `packages/db/src/projection/heartbeat.ts` (`recordWorkerHeartbeat`) |
+| the route and readiness reads in `apps/worker/src/reasoning/{answer-worker,inquiry-worker}.ts` | `packages/db/src/reasoning/worker-reads.ts` |
+| the supply-request status read in `apps/worker/src/scrolls/supply-worker.ts` | `packages/db/src/inventory/supply.ts` (`requestStatus`) |
+| the SQL in `apps/worker/src/publication/{evaluate,mint}.ts` | `packages/db/src/publication/{evaluate,mint}.ts`; the gate decisions and typed refusals stay in the worker |
+| `apps/worker/src/generation/storage.ts` | `packages/db/src/generation/storage.ts`; the worker path re-exports it |
+| `apps/worker/src/generation/import/record.ts` | `packages/db/src/generation/import.ts`; `generation/import.ts` re-exports it |
+| `prepareCutroomRequest` in `apps/worker/src/cutroom/http-client.ts` | `packages/core/src/cutroom/prepare-request.ts`; the client re-exports it |
