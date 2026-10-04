@@ -8,6 +8,18 @@ import {
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
+import { parseInput } from '../http/input.ts';
+
+/** Maps by `kind`, not `statusCode`: the db error carries no HTTP status. Anything else rethrows unchanged. */
+function mapExplicitAskError(error: unknown): unknown {
+  if (!(error instanceof ExplicitAskError)) return error;
+  if (error.kind === 'invalid') return new HttpError(400, 'Invalid Ask');
+  if (error.kind === 'stale_epoch')
+    return new HttpError(409, 'Ask privacy epoch is stale');
+  if (error.kind === 'conflict')
+    return new HttpError(409, 'Ask conflicts with existing request');
+  return new HttpError(422, 'A current matching exposure is required');
+}
 
 export function registerAskRoutes(
   app: FastifyInstance,
@@ -17,20 +29,13 @@ export function registerAskRoutes(
     const result = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = explicitAskInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid Ask');
+        const input = parseInput(explicitAskInput, req.body, 'Invalid Ask');
         try {
-          const receipt = await recordExplicitAsk(client, scope, parsed.data);
+          const receipt = await recordExplicitAsk(client, scope, input);
           await refreshPersonalModel(client, scope.universeId);
           return receipt;
         } catch (error) {
-          if (!(error instanceof ExplicitAskError)) throw error;
-          if (error.kind === 'invalid') throw new HttpError(400, 'Invalid Ask');
-          if (error.kind === 'stale_epoch')
-            throw new HttpError(409, 'Ask privacy epoch is stale');
-          if (error.kind === 'conflict')
-            throw new HttpError(409, 'Ask conflicts with existing request');
-          throw new HttpError(422, 'A current matching exposure is required');
+          throw mapExplicitAskError(error);
         }
       },
     );
