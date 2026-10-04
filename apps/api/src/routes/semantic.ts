@@ -27,7 +27,7 @@ import type {
   WebBranchOpenResponse,
 } from '@knowscroll/contracts/semantic';
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
-import { HttpError } from './errors.ts';
+import { HttpError } from '../http/errors.ts';
 
 export type Authenticated = <T>(
   authorization: string | undefined,

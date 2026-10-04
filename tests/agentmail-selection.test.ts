@@ -13,11 +13,11 @@ import {
   type ServerResponse,
 } from 'node:http';
 import test from 'node:test';
-import { AgentMailSender } from '../apps/api/src/agentmail-sender.ts';
+import { AgentMailSender } from '../apps/api/src/mail/agentmail-sender.ts';
 import {
   createMagicLinkSender,
   DevelopmentMagicLinkSink,
-} from '../apps/api/src/magic-link-sender.ts';
+} from '../apps/api/src/mail/magic-link-sender.ts';
 
 const SCRATCH_DEV_ROOT = '/tmp/ks-agentmail-selection-scratch'; // never written to — construction alone never touches disk.
 

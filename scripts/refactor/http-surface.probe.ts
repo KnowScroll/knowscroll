@@ -47,7 +47,7 @@ await mkdir(mediaRoot, { recursive: true });
 
 const { buildApp } = await import('../../apps/api/src/app.ts');
 const { csrfToken, webSessionConfig } = await import(
-  '../../apps/api/src/web-session.ts'
+  '../../apps/api/src/http/web-session.ts'
 );
 const { pool, provisionIdentity, transaction } = await import('@knowscroll/db');
 const { projectOne } = await import('../../apps/worker/src/project.ts');

@@ -8,7 +8,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { readInventory } from '@knowscroll/db/inventory/read';
-import type { Authenticated } from './semantic-routes.ts';
+import type { Authenticated } from './semantic.ts';
 
 export function registerInventoryRoutes(
   app: FastifyInstance,

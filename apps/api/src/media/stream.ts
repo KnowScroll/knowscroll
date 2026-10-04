@@ -11,7 +11,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { HttpError } from './errors.ts';
+import { HttpError } from '../http/errors.ts';
 
 /** The path parameter must match this before anything else is done with it (ADR-0024 section 4):
  * never used to build a filesystem path directly, only to look up the owning `media_object` row. */

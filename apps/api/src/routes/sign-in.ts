@@ -18,14 +18,14 @@ import {
 import {
   createMagicLinkSender,
   type MagicLinkSender,
-} from './magic-link-sender.ts';
-import { describeSendFailure } from './agentmail-sender.ts';
-import { HttpError } from './errors.ts';
+} from '../mail/magic-link-sender.ts';
+import { describeSendFailure } from '../mail/agentmail-sender.ts';
+import { HttpError } from '../http/errors.ts';
 import {
   csrfToken,
   sessionCookie,
   type WebSessionConfig,
-} from './web-session.ts';
+} from '../http/web-session.ts';
 
 function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.KS_API_BASE_URL;

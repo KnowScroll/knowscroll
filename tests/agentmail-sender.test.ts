@@ -21,7 +21,7 @@ import {
   AgentMailSendError,
   AgentMailSender,
   describeSendFailure,
-} from '../apps/api/src/agentmail-sender.ts';
+} from '../apps/api/src/mail/agentmail-sender.ts';
 
 const FIXTURE_API_KEY = 'sk-agentmail-fixture-secret-must-never-be-logged';
 

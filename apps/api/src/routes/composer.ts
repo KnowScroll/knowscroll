@@ -8,8 +8,8 @@ import type { FastifyInstance } from 'fastify';
 import { uuid } from '@knowscroll/contracts';
 import { readWhy } from '@knowscroll/db/composer/semantic';
 import { recordEncounterFeedback } from '@knowscroll/db/composer/feedback';
-import { HttpError } from './errors.ts';
-import type { Authenticated } from './semantic-routes.ts';
+import { HttpError } from '../http/errors.ts';
+import type { Authenticated } from './semantic.ts';
 
 export function registerComposerRoutes(
   app: FastifyInstance,

@@ -55,23 +55,27 @@ import {
   projectWorldsForEncounter,
   readWorldSystem,
 } from '@knowscroll/db/worlds';
-import { HttpError } from './errors.ts';
-import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
+import { HttpError } from './http/errors.ts';
+import {
+  MEDIA_SHA256_PATTERN,
+  resolveMediaRoot,
+  sendMedia,
+} from './media/stream.ts';
 import {
   clearedSessionCookie,
   csrfToken,
   registerWebSession,
   webSessionConfig,
-} from './web-session.ts';
-import { registerSignInRoutes } from './sign-in-routes.ts';
-import { registerSemanticRoutes } from './semantic-routes.ts';
-import { registerComposerRoutes } from './composer-routes.ts';
-import { registerAnswerRoutes } from './answer-routes.ts';
-import { registerAtlasRoutes } from './atlas-routes.ts';
-import { registerInquiryRoutes } from './inquiry-routes.ts';
-import { registerReturnRoutes } from './return-routes.ts';
-import { registerRoomRoutes } from './room-routes.ts';
-import { registerInventoryRoutes } from './inventory-routes.ts';
+} from './http/web-session.ts';
+import { registerSignInRoutes } from './routes/sign-in.ts';
+import { registerSemanticRoutes } from './routes/semantic.ts';
+import { registerComposerRoutes } from './routes/composer.ts';
+import { registerAnswerRoutes } from './routes/answers.ts';
+import { registerAtlasRoutes } from './routes/atlas.ts';
+import { registerInquiryRoutes } from './routes/inquiries.ts';
+import { registerReturnRoutes } from './routes/return.ts';
+import { registerRoomRoutes } from './routes/rooms.ts';
+import { registerInventoryRoutes } from './routes/inventory.ts';
 import type { MagicLinkRateLimits } from '@knowscroll/db/sign-in';
 
 function bearerToken(authorization: string | undefined): string {

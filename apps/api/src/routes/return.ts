@@ -22,8 +22,8 @@ import {
   recordObjection,
   releaseRelic,
 } from '@knowscroll/db/relics';
-import { HttpError } from './errors.ts';
-import type { Authenticated } from './semantic-routes.ts';
+import { HttpError } from '../http/errors.ts';
+import type { Authenticated } from './semantic.ts';
 
 const http = (error: unknown): never => {
   if (error instanceof ReturnError)

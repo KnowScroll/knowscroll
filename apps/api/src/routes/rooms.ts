@@ -12,8 +12,8 @@ import type { FastifyInstance } from 'fastify';
 import { uuid } from '@knowscroll/contracts';
 import { readAtlas } from '@knowscroll/db/atlas';
 import { readRoom, readRoomDelta, setRoomAside } from '@knowscroll/db/rooms';
-import { HttpError } from './errors.ts';
-import type { Authenticated } from './semantic-routes.ts';
+import { HttpError } from '../http/errors.ts';
+import type { Authenticated } from './semantic.ts';
 
 export function registerRoomRoutes(
   app: FastifyInstance,

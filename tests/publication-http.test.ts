@@ -20,7 +20,7 @@ import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/genera
 import { insertFakeEngine } from './helpers/generation-fixture.ts';
 import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts';
 import { generationBrief } from '@knowscroll/contracts/generation';
-import { MEDIA_SIMULATED_HEADER } from '../apps/api/src/media.ts';
+import { MEDIA_SIMULATED_HEADER } from '../apps/api/src/media/stream.ts';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
