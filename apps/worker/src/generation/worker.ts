@@ -1,6 +1,6 @@
 /** ADR-0023 section 6: the generation worker loop. Claims a job, authorizes exactly one POST,
- * records the outcome, follows events to a terminal run, fetches the result and settles, and (#94
- * stage A2) hands a completed video off to the real verified-import port: a successful import
+ * records the outcome, follows events to a terminal run, fetches the result and settles, and
+ * hands a completed video off to the real verified-import port: a successful import
  * completes the job, a typed refusal leaves it honestly `importing` and retryable, and a missing
  * port is a wiring defect, not a fabricated outcome either way. Holds no provider credentials;
  * talks to Cutroom only through the pinned, unwired HTTP client. Never holds a database
@@ -27,7 +27,7 @@ export type GenerationWorkerOptions = {
   maxLookupRetries?: number;
   importPort?: ImportPort;
   log?: (line: Record<string, unknown>) => void;
-  /** Test-only crash-injection hook (issue #94 J005 S2): called once, right after dispatch
+  /** Test-only crash-injection hook (issue #94): called once, right after dispatch
    * authorization commits and before the first submit is ever sent. `main.ts` wires this from
    * `GENERATION_HOLD_BEFORE_SUBMIT=1` so a harness can SIGKILL the process at a reproducible point
    * between "dispatch committed" and "any outcome recorded" — mirroring Cutroom's own
@@ -349,7 +349,7 @@ type EngineInfo = {
 };
 
 /**
- * ADR-0023 section 4 / issue #94 stage A2: verified import for a finished, completed video
+ * ADR-0023 section 4: verified import for a finished, completed video
  * attempt. Called both right after a fresh `run.finished` (from `processClaimedJob`'s own follow)
  * and on a later lease reclaim of a job still sitting `importing` (the attempt is already
  * `finished`/`settled` in that case; only the import itself is retried). Never marks the job
@@ -679,7 +679,8 @@ export async function runOnce(
 }
 
 /** The worker loop's own body, used by `main.ts` and directly by tests that want a bounded run
- * rather than a full process. Stops when `signal` aborts or after `maxIterations` empty polls. */
+ * rather than a full process. Runs until `signal` aborts; an empty poll sleeps `idlePollMs`
+ * (abortable) before the next claim. */
 export async function runLoop(
   options: GenerationWorkerOptions,
   signal: AbortSignal,

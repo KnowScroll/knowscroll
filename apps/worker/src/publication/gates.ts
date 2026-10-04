@@ -1,5 +1,5 @@
 /**
- * ADR-0024 section 2 — the seven publication gates this slice defines, as pure(ish) functions over
+ * ADR-0024 section 2 — the seven publication gates, as pure(ish) functions over
  * already-fetched data. `evaluate.ts` owns every database read/write; this file owns only what a
  * gate actually decides and the evidence it records. `media_conformance` is the one function here
  * that touches the filesystem (re-hashing and re-probing the stored file); it still makes no
@@ -12,21 +12,17 @@
  */
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { execFile } from 'node:child_process';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import type { GenerationBrief } from '@knowscroll/contracts/generation';
 import {
   checkRegularFile,
   readMp4BoxOrder,
 } from '../generation/media-store.ts';
-import { MEDIA_PROFILE } from '../generation/import.ts';
+import { ffprobeJson, MEDIA_PROFILE } from '../generation/media-profile.ts';
 import type {
   PublicationGateName,
   PublicationGateVerdict,
 } from '@knowscroll/contracts/publication';
-
-const execFileAsync = promisify(execFile);
 
 export interface GateOutcome {
   gate: PublicationGateName;
@@ -124,7 +120,7 @@ export interface AssetSourceCheck {
 
 export interface SourceSupportInput {
   brief: GenerationBrief;
-  /** One entry per distinct (assetId, assetRevision) the brief's claimSources name — this slice's
+  /** One entry per distinct (assetId, assetRevision) the brief's claimSources name — the
    * brief schema requires exactly one, but the gate does not assume that structurally. */
   sourceChecks: AssetSourceCheck[];
 }
@@ -218,53 +214,12 @@ export function evaluateEngineRecord(input: EngineRecordInput): GateOutcome {
 // media_conformance
 // -------------------------------------------------------------------------------------------
 
-// The same required profile ADR-0023 section 4 verifies at import time. Duplicated here (rather
-// than imported from apps/worker/src/generation/import.ts, which does not export it and is not
-// this lane's file to change) because this gate must be able to re-check a CURRENT profile even if
-// import-time policy later diverges from it; see docs/journeys/J006.md for the note this leaves.
-// Re-checking what import enforced means using import's own profile, not a second copy of it:
-// a change to the import-time profile must move this gate with it.
+// Re-checks the profile import enforced, using import's own constants (`media-profile.ts`), so a
+// profile change moves this gate with it. Reason codes and checks below are this gate's own.
 const ASPECT_TARGET = MEDIA_PROFILE.aspectTarget;
 const ASPECT_TOLERANCE_RATIO = MEDIA_PROFILE.aspectToleranceRatio;
 const MIN_DURATION_SECONDS = MEDIA_PROFILE.minDurationSeconds;
 const MAX_DURATION_SECONDS = MEDIA_PROFILE.maxDurationSeconds;
-
-interface FfprobeStream {
-  codec_type?: string;
-  codec_name?: string;
-  width?: number;
-  height?: number;
-}
-interface FfprobeFormat {
-  format_name?: string;
-  duration?: string;
-  tags?: { major_brand?: string };
-}
-interface FfprobeOutput {
-  streams?: FfprobeStream[];
-  format?: FfprobeFormat;
-}
-
-async function ffprobeJson(path: string): Promise<FfprobeOutput | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      'ffprobe',
-      [
-        '-v',
-        'error',
-        '-print_format',
-        'json',
-        '-show_format',
-        '-show_streams',
-        path,
-      ],
-      { maxBuffer: 8 * 1024 * 1024 },
-    );
-    return JSON.parse(stdout) as FfprobeOutput;
-  } catch {
-    return null;
-  }
-}
 
 function withinAspectTolerance(width: number, height: number): boolean {
   if (!(width > 0) || !(height > 0)) return false;

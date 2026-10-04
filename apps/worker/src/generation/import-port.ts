@@ -1,4 +1,4 @@
-/** ADR-0023 section 4, issue #94 stage A2: the generation worker's verified-import boundary.
+/** ADR-0023 section 4: the generation worker's verified-import boundary.
  * `./import.ts` owns the real filesystem/database implementation (containment, hashing, probe,
  * content-addressed write, the `media_object`/`generated_reel` insert); this file owns only the
  * narrow port `worker.ts` calls through, plus the factory that fixes `mediaRoot` (KS_MEDIA_ROOT —

@@ -1086,7 +1086,7 @@ export async function engineOrigin(
     : null;
 }
 
-// --- Verified import (ADR-0023 section 4, issue #94 stage A2) --------------------------------
+// --- Verified import (ADR-0023 section 4) --------------------------------
 
 /** The brief's own content digest, for the `generated_reel.lineage` this job's import records.
  * Never the brief body itself (sources/claim text must never cross into a generated record). */
