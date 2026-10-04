@@ -1,5 +1,5 @@
 /**
- * #162 — fetching one allowlisted page as a model-written Scroll's material (ADR-0041 §1–§2).
+ * Fetching one allowlisted page as a model-written Scroll's material (ADR-0041 §1–§2).
  *
  * Every URL, the first and each redirect hop, is checked by `checkMaterialUrl` before it is
  * requested, so nothing off the allowlist is ever asked for. Redirects are followed by hand (at most

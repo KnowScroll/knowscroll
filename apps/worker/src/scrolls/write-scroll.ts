@@ -1,5 +1,5 @@
 /**
- * #162 — one model-written Scroll from one page (ADR-0041 §2–§7): fetch, write, check, admit.
+ * One model-written Scroll from one page (ADR-0041 §2–§7): fetch, write, check, admit.
  *
  * The plan's concepts must exist; the page must come from the allowlist and, if the substrate
  * already holds it, be unchanged. The request is built and hashed; a material and request already

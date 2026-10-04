@@ -1,5 +1,5 @@
 /**
- * #132 — a deterministic, labelled fixture transport for background bridge inquiries (ADR-0038), for
+ * A deterministic, labelled fixture transport for background bridge inquiries (ADR-0038), for
  * tests and journeys only. It never calls a network. Its default reply proposes a bridge for the first
  * offered pair that has a claim naming both sides, citing only offered claims, so the real validator can
  * admit it; the other modes produce the replies the inquiry path must survive. A continuation (ADR-0042

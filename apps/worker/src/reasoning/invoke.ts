@@ -1,3 +1,8 @@
+/**
+ * The single-invocation protocol for a reserved request: verify the bytes against their reservation,
+ * obtain a fresh dispatch authorization, make at most one transport call and record a minimal receipt.
+ * Anything uncertain after authorization is marked unknown, never retried (ADR-0033 §2).
+ */
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { reasoningUsage } from '@knowscroll/contracts/reasoning';
@@ -54,7 +59,7 @@ const observation = z
     usage: reasoningUsage,
   })
   .strict();
-/** An internal adapter seam. No implementation or ordinary worker wiring invokes a provider. */
+/** The seam between the invocation protocol and a provider: the answer, inquiry and Scroll-writing paths each hand their transport in as this shape. */
 export interface SingleInvocationTransport {
   invoke(input: {
     body: Uint8Array;

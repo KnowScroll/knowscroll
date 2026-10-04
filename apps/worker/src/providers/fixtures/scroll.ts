@@ -1,5 +1,5 @@
 /**
- * #162 — a deterministic, labelled fixture transport for Scroll writing (ADR-0041 §7), for tests and
+ * A deterministic, labelled fixture transport for Scroll writing (ADR-0041 §7), for tests and
  * journeys only. It never calls a network. Its default reply is a labelled stand-in Scroll about the
  * first offered concept whose two claims quote the first two sentences of the offered material
  * verbatim, so the real checks admit it; the other modes produce the replies the writing path must

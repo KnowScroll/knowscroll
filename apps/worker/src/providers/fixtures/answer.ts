@@ -1,5 +1,5 @@
 /**
- * #132 — a deterministic, labelled fixture answer transport for tests and journeys (ADR-0033 §2).
+ * A deterministic, labelled fixture answer transport for tests and journeys (ADR-0033 §2).
  * It never calls a network. Its default reply quotes the Scroll's first sentence verbatim, so the
  * real validator accepts it; the other modes produce the failures the answer path must survive.
  * Replies from this transport are fixture evidence, never a live provider result.

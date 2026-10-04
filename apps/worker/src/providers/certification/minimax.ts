@@ -1,3 +1,8 @@
+/**
+ * The development MiniMax certification adapter (ADR-0011): one raw request through the AI SDK,
+ * with the transport captured so the observation reports only what was actually dispatched.
+ * Certification only; it is not the production answer transport (`../minimax-answer.ts`).
+ */
 import { createHash } from 'node:crypto';
 import { generateText, stepCountIs } from 'ai';
 import { createMinimax } from 'vercel-minimax-ai-provider';
