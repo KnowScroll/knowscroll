@@ -10,8 +10,10 @@ Only the repository-level `tests/` and `scripts/` import an app, by relative pat
 This map was generated from the import graph of commit `eecce45b` (216 files under `apps/api/src`,
 `apps/worker/src` and `packages/*/src`; specifiers resolved with the TypeScript module resolver). It
 shows no boundary violations and no file-level import cycle. The graph tool that produced it
-(`scripts/refactor/import-graph.mjs`) was removed when the refactor merged; to recompute exact edge
-counts, check out that commit and run `node scripts/refactor/import-graph.mjs report`.
+(`scripts/refactor/import-graph.mjs`) lived only on the refactor branch, which was squash-merged.
+To recompute exact edge counts, fetch that commit from the pull request
+(`git fetch origin refs/pull/197/head`), check out `eecce45b`, and run
+`node scripts/refactor/import-graph.mjs report`.
 
 ## Package graph
 
