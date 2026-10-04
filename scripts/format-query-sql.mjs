@@ -17,6 +17,37 @@ const sqlOptions = {
   tabWidth: 2,
 };
 
+// Tests wait for these statements in pg_stat_activity by matching their text with LIKE, so their
+// bytes are part of a test: any query matching one is left exactly as written.
+const TEXT_OBSERVED_BY_TESTS = [
+  // tests/reasoning-ask-context-integration.test.ts: the session row lock while it is blocked.
+  'SELECT s.id FROM reasoning_context_job_session%',
+  // tests/history-clear.test.ts: the worker's Keep projection (apps/worker/src/project.ts) waiting.
+  'UPDATE accounts SET revision=revision+1,%',
+  // tests/trace-revisit.test.ts
+  '%SELECT id FROM universe%',
+  // tests/reasoning-context.test.ts
+  '%FROM asset%',
+  // tests/reasoning-idle-lifecycle.test.ts
+  '%FROM reasoning_bucket%',
+  // tests/reasoning-maintenance-adversarial.test.ts
+  '%DELETE FROM reasoning_context%',
+].map(
+  (like) =>
+    new RegExp(
+      `^${like
+        .split('%')
+        .map((part) =>
+          part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/_/g, '.'),
+        )
+        .join('[\\s\\S]*')}$`,
+    ),
+);
+
+function observedByTests(sql) {
+  return TEXT_OBSERVED_BY_TESTS.some((pattern) => pattern.test(sql));
+}
+
 async function* typeScriptFiles(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -47,15 +78,11 @@ function formattedQueries(path, source) {
         (ts.isStringLiteral(query) || ts.isNoSubstitutionTemplateLiteral(query))
       ) {
         const sql = query.text;
-        // A lock-order integration test observes this exact leading query text in
-        // pg_stat_activity while the original session row is blocked.
-        const observedLockQuery =
-          path.endsWith('reasoning/context-session.ts') &&
-          sql.startsWith('SELECT s.id FROM reasoning_context_job_session');
         // Small statements stay inline. Dynamic templates and SQL with comments or escape syntax
-        // need a human review, so this tool deliberately does not rewrite them.
+        // need a human review, so this tool deliberately does not rewrite them. A statement whose
+        // text a test observes is never rewritten.
         if (
-          !observedLockQuery &&
+          !observedByTests(sql) &&
           sql.length >= minimumLength &&
           !/\$\{|`|\\|--|\/\*|\$\$/.test(sql)
         ) {
