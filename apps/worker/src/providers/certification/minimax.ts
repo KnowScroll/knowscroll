@@ -14,7 +14,7 @@ import {
   type Json,
   type MiniMaxCertificationAdapter,
   type MiniMaxCertificationOptions,
-} from './contract.js';
+} from './contract.ts';
 
 const MODEL = 'MiniMax-M3';
 const DEFAULT_BASE_URL = 'https://api.minimax.io/anthropic/v1';
