@@ -1,3 +1,4 @@
+/** The reader's view of an answer request, and cancelling one that has not started (ADR-0018, ADR-0044). */
 import type pg from 'pg';
 import { z } from 'zod';
 import type { AuthScope } from '../../identity.ts';

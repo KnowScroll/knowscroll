@@ -1,3 +1,8 @@
+/**
+ * The only path from a recorded Ask to an answer Job (ADR-0033 §1). It runs in the caller's
+ * authenticated transaction; a retried request key replays its receipt, and the same key for another
+ * Ask is refused. Never sends anything: it queues the Job.
+ */
 import { randomUUID, createHash } from 'node:crypto';
 import type pg from 'pg';
 import { z } from 'zod';

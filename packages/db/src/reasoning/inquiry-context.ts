@@ -1,12 +1,9 @@
 /**
- * #132 — the background bridge inquiry context family (ADR-0038 §5), routed by
- * `source_policy_version` like the Ask context (ADR-0017), never guessed from JSON shape.
- *
- * `readInquiryInputs` reads what `selectInquiryPairs` needs; `sealInquiryContext` seals the chosen
- * pairs with every fact they rest on — consent, recording, the route, each place, each claim's
- * support and each pair's disconnection; `validateInquiryContext` rechecks those facts at admission,
- * before sending and before applying. Any change is stale: the inquiry is discarded, never re-sent.
- * Callers hold the universe lock; the shared substrate lock follows it (ADR-0031 §7).
+ * The background bridge inquiry context family (ADR-0038 §5, #132), routed by `source_policy_version`
+ * like the Ask context (ADR-0017), never guessed from JSON shape. It seals the chosen pairs with every
+ * fact they rest on and rechecks those facts at admission, before sending and before applying; any
+ * change is stale, so the inquiry is discarded, never re-sent. Callers hold the universe lock; the
+ * shared substrate lock follows it (ADR-0031 §7).
  */
 import type pg from 'pg';
 import {
@@ -43,9 +40,11 @@ export type InquiryContextValidation =
   | { valid: true; contentHash: string; readSetHash: string }
   | { valid: false; reason: InquiryContextRefusal };
 
+// Not the shared `toIsoString`: that wraps the value in `String()` before parsing, this hands it to `new Date` as is.
 const iso = (v: Date | string) =>
   (v instanceof Date ? v : new Date(v)).toISOString();
 
+// Keeps the last of duplicate keys and never refuses; the direct context's version throws on conflicting duplicates.
 function sortDependencies(reads: InquiryDependency[]): InquiryDependency[] {
   const unique = new Map<string, InquiryDependency>();
   for (const read of reads) unique.set(inquiryDependencyKey(read), read);

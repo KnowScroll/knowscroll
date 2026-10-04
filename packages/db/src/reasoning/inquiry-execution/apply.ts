@@ -1,3 +1,7 @@
+/**
+ * Applying a provider reply to an inquiry and closing the inquiry, or its family, under the fence
+ * (ADR-0038 §7, ADR-0042 §4–§5, ADR-0019). A sealed fact that no longer holds discards the reply.
+ */
 import type pg from 'pg';
 import { parseBridgeInquiryReply } from '@knowscroll/core/reasoning/bridge-inquiry';
 import { submitBridgeProposal } from '../../semantic/proposals.ts';

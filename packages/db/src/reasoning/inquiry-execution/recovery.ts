@@ -1,3 +1,7 @@
+/**
+ * Recovery of inquiry Jobs whose worker did not finish: giving back an unsent attempt, closing a
+ * terminal Job, and withdrawing idle ones (ADR-0019, ADR-0018). Nothing here re-sends a request.
+ */
 import type pg from 'pg';
 import type { ReasoningAdmission } from '../admission.ts';
 import { withdrawIdleBackgroundJob } from '../idle-lifecycle.ts';

@@ -1,3 +1,7 @@
+/**
+ * The background-inquiry route (ADR-0038 §4, ADR-0042): operator setup, the request shape the route
+ * fixes, the policy and authorities an inquiry Job resolves to, and which family a Job belongs to.
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { resolveAnswerPolicy } from '../answers.ts';

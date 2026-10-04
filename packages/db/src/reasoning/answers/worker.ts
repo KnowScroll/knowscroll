@@ -1,3 +1,8 @@
+/**
+ * Worker-side execution of one answer attempt: rebuilding the reserved bytes, the lease fence taken
+ * in ADR-0017 order, and applying or failing the reply. Provider text changes state only through the
+ * answer validator (ADR-0033 §4); a stale fence discards the reply instead.
+ */
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import {

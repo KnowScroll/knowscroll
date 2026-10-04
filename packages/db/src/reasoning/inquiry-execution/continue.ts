@@ -1,3 +1,4 @@
+/** The ADR-0042 §1 continuation: supersede a refused Step and queue the next, never sending from here. */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {

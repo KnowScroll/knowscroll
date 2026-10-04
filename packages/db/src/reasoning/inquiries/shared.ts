@@ -1,3 +1,7 @@
+/**
+ * The error class and row types every inquiry module shares. They live apart from the modules that
+ * use them so route, consent, mail, opening and reader can import them without an import cycle.
+ */
 export class InquiryError extends Error {
   constructor(
     readonly statusCode: 400 | 404 | 409 | 503,

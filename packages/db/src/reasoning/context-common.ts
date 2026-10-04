@@ -1,3 +1,7 @@
+/**
+ * Helpers byte-identical in the direct and Ask context compilers. `canonical` and `canonicalHash`
+ * define the stored context hashes: changing either changes both families' hashes.
+ */
 import { createHash } from 'node:crypto';
 import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { ContextRefusal } from '@knowscroll/contracts/reasoning-context';
@@ -11,6 +15,7 @@ export function deny(reason: ContextRefusal): never {
   throw new ReasoningDenied(`context_${reason}`);
 }
 
+// Throws on values that are not JSON data, unlike core's `canonical`; the two are not interchangeable.
 export function canonical(value: unknown): string {
   if (
     value === null ||

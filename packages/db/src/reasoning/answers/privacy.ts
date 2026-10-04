@@ -1,3 +1,4 @@
+/** Clear/Reset erasure and export of answer rows (ADR-0033 §6). */
 import type pg from 'pg';
 
 /** Clear/Reset: answers and requests go before the Ask facts they reference (ADR-0033 §6). */

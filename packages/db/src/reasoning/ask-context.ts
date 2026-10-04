@@ -1,3 +1,8 @@
+/**
+ * The Ask context family: compiles and seals the context for an answer Job from its recorded Ask
+ * and revalidates it at the `lock` and `recheck` phases (ADR-0017, ADR-0033). The authority is the
+ * Ask's own original session; a context that no longer holds is refused, never repaired.
+ */
 import type pg from 'pg';
 import {
   ASK_CONTEXT_LIMITS,

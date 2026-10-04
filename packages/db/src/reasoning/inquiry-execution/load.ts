@@ -1,3 +1,7 @@
+/**
+ * Rebuilding an inquiry attempt's reserved bytes, and the lease fence every finishing path takes
+ * first: universe, then Job, then Step (ADR-0017). A stale fence discards the reply.
+ */
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { inquiryAssistantTurn } from '@knowscroll/contracts/reasoning-inquiry-context';

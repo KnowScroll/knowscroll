@@ -1,3 +1,7 @@
+/**
+ * Standing consent for background inquiries and the daily count of inquiries opened (ADR-0038 §1,
+ * ADR-0042 §4). A consent change runs under the caller's authenticated universe lock.
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
@@ -9,8 +13,6 @@ import {
 import type { AuthScope } from '../../identity.ts';
 import { InquiryError } from './shared.ts';
 import { withdrawInquiries } from './stopping.ts';
-
-// Consent -------------------------------------------------------------------------------------
 
 /** Inquiries the mailbox opened today (UTC): a family counts once, its children never (ADR-0042 §4). */
 export async function openedToday(

@@ -1,3 +1,7 @@
+/**
+ * The worker's intake: opening a due inquiry into its Job, sealed context, Step and fair enqueue
+ * (ADR-0038 §4, ADR-0042 §4). Locks are taken in ADR-0017 order, universe row first.
+ */
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { INQUIRY_DIRTY_SCOPE } from '@knowscroll/contracts/reasoning-inquiry-context';
@@ -13,8 +17,6 @@ import { openedToday } from './consent.ts';
 import { inTransaction } from '../../sql/transactions.ts';
 import { requestRoute, resolveInquiryPolicy } from './route.ts';
 import type { InquiryRoute, InquiryRow } from './shared.ts';
-
-// Opening a due inquiry (worker) ---------------------------------------------------------------
 
 export type OpenResult =
   | 'opened'

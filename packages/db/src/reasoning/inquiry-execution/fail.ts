@@ -1,3 +1,4 @@
+/** Ending an inquiry honestly when the call was refused, failed or unconfirmed (ADR-0038). */
 import type pg from 'pg';
 import { closeInquiry, finish } from './apply.ts';
 import { type InquiryFence, type InquiryOutcome, lockFence } from './load.ts';

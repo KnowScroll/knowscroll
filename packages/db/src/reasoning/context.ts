@@ -1,3 +1,8 @@
+/**
+ * The direct context family: compiles and seals the context for a direct Job and revalidates it at
+ * the `lock` and `recheck` phases (ADR-0017). Callers hold the universe lock; a context that no
+ * longer holds is refused, never repaired.
+ */
 import type pg from 'pg';
 
 import {

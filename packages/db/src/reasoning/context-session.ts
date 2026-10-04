@@ -1,3 +1,4 @@
+/** Locks the session a sealed context was bound to, before any Job or Step lock (ADR-0017 order). */
 import type pg from 'pg';
 import type { ReasoningScope } from './runtime-policy.ts';
 

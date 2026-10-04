@@ -1,3 +1,7 @@
+/**
+ * The answer route (ADR-0033): operator setup, the fairness policy the route is scheduled under, and
+ * the reasoning policy and authority an answer Job resolves to (ADR-0017 family routing).
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { askContextPayload } from '@knowscroll/contracts/reasoning-ask-context';

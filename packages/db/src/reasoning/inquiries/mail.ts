@@ -1,3 +1,7 @@
+/**
+ * Inquiry mail (ADR-0038 §3, ADR-0042 §5): causes recorded into the universe's pending inquiry under
+ * its universe lock. Mail needs consent in this epoch and recording on; nothing earlier is mailed.
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
@@ -5,8 +9,6 @@ import {
   INQUIRY_CONTEXT_LIMITS,
 } from '@knowscroll/contracts/reasoning-inquiry-context';
 import { inTransaction } from '../../sql/transactions.ts';
-
-// Mail ----------------------------------------------------------------------------------------
 
 /** Why a look is worth it (ADR-0042 §5): a planet or region formed, a bridge between two live places
  * revoked, or a personal hypothesis about a live place created or changed. */

@@ -1,3 +1,7 @@
+/**
+ * Recovery for answers whose worker did not finish: giving back an unsent attempt and the sweep for
+ * abandoned Jobs (ADR-0019, ADR-0018). A possibly-sent request is never repeated.
+ */
 import type pg from 'pg';
 import {
   type ReasoningAdmission,
@@ -13,7 +17,7 @@ import { type AnswerOutcome, type Fence, insertAnswer } from './worker.ts';
 import { inTransaction } from '../../sql/transactions.ts';
 
 /**
- * #132 review B2: an admitted attempt that was never sent is given back while this worker still holds
+ * An admitted attempt that was never sent is given back while this worker still holds
  * the lease — every reservation released, the Job cancelled — and the answer fails as `not_sent`.
  */
 export async function giveBackUnsentAnswer(
@@ -195,7 +199,7 @@ async function recoverRespondedAnswer(
   );
 }
 /**
- * #132 review B2: the recovery sweep. An answer Job whose worker died never keeps its reservations
+ * The recovery sweep. An answer Job whose worker died never keeps its reservations
  * or its remote slot beyond what it may have spent, and never stops the sweep for anyone else:
  *  1. a running Job whose lease expired has its attempt recovered (ADR-0019), or, when its reply was
  *     already recorded, closed as unapplied;

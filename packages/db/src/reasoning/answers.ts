@@ -1,12 +1,8 @@
 /**
- * #132 — authorized Scroll Ask answers (ADR-0033), on top of the existing reasoning primitives.
- *
- * `requestAskAnswer` is the only path from a recorded Ask to execution: one explicit request, from
- * the Ask's original live session, creates the direct Job, compiles the sealed Ask context
- * (ADR-0017), creates the Step, derives the exact request bytes and enqueues fairly — in the
- * caller's authenticated transaction. The worker then calls `loadAnswerWork` (rebuilds the bytes
- * and proves the reserved hash), sends them through `invokeReasoningOnce`, and finishes with
- * `applyAskAnswer` or `failAskAnswer`. Provider text changes state only through the answer validator (ask-answer-v2).
+ * Authorized Scroll Ask answers (ADR-0033, #132). The entry of the answer path; implementation lives in
+ * `answers/`. `requestAskAnswer` is the only way from a recorded Ask to execution; the worker then loads
+ * the work, sends it through `invokeReasoningOnce`, and finishes with `applyAskAnswer` or `failAskAnswer`.
+ * Provider text changes state only through the answer validator (ask-answer-v2).
  */
 
 export { AskAnswerError } from './answers/shared.ts';

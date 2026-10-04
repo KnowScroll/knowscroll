@@ -1,13 +1,8 @@
 /**
- * #132 — background bridge inquiries (ADR-0038), on the same reasoning primitives as Ask answers.
- *
- * Standing consent (`setInquiryConsent`, from a live session) lets the Cartographer post mail
- * (`postInquiryMail`, called by `applyDeltas`) into at most one pending inquiry per universe and
- * kind. The worker opens a due inquiry (`openDueInquiries`) with fresh authority under the universe
- * lock: consent, recording, route and today's limit, then either `nothing_to_ask` with no Job, or the
- * background Job, its sealed context, one Step and the exact request bytes, enqueued fairly.
- * Execution, application and recovery live in `inquiry-execution.ts`. Turning consent off
- * and pausing withdraw what has not been sent (`withdrawInquiries`); Clear/Reset erase it all.
+ * Background bridge inquiries (ADR-0038, #132), on the same reasoning primitives as Ask answers. The
+ * entry of the inquiry path; implementation lives in `inquiries/`. Consent, mail and opening run
+ * under the universe lock; turning consent off or pausing withdraws what has not been sent, and
+ * Clear/Reset erase everything. Execution and recovery are in `inquiry-execution.ts`.
  */
 
 export { InquiryError } from './inquiries/shared.ts';

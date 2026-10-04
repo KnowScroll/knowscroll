@@ -1,3 +1,4 @@
+/** The reader's views of inquiries and the bridges they found (ADR-0039, ADR-0044). */
 import type pg from 'pg';
 import {
   type InquiryWire,
@@ -7,8 +8,6 @@ import {
 import type { AuthScope } from '../../identity.ts';
 import { readInquiryConsent } from './consent.ts';
 import type { InquiryRow } from './shared.ts';
-
-// The reader's view -----------------------------------------------------------------------------
 
 const READER_STATUS: Record<string, InquiryWire['status']> = {
   pending: 'waiting',

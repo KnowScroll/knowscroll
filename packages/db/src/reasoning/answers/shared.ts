@@ -1,3 +1,7 @@
+/**
+ * The error class and row types every answer module shares. They live apart from the modules that
+ * use them so route, request, worker and recovery can import them without an import cycle.
+ */
 export class AskAnswerError extends Error {
   constructor(
     readonly statusCode: 400 | 404 | 409 | 503,

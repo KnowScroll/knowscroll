@@ -1,6 +1,5 @@
+/** Clear/Reset erasure and export of mail, inquiries and consent. */
 import type pg from 'pg';
-
-// Privacy -------------------------------------------------------------------------------------
 
 /** Clear/Reset (after the epoch advanced): mail, inquiries and consent go before the atlas deltas and
  * semantic proposals they reference. The Jobs themselves go with the rest of the reasoning graph. */
