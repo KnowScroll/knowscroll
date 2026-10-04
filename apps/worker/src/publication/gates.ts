@@ -1,5 +1,5 @@
 /**
- * ADR-0024 section 2 — the seven publication gates this slice defines, as pure(ish) functions over
+ * ADR-0024 section 2 — the seven publication gates, as pure(ish) functions over
  * already-fetched data. `evaluate.ts` owns every database read/write; this file owns only what a
  * gate actually decides and the evidence it records. `media_conformance` is the one function here
  * that touches the filesystem (re-hashing and re-probing the stored file); it still makes no
@@ -120,7 +120,7 @@ export interface AssetSourceCheck {
 
 export interface SourceSupportInput {
   brief: GenerationBrief;
-  /** One entry per distinct (assetId, assetRevision) the brief's claimSources name — this slice's
+  /** One entry per distinct (assetId, assetRevision) the brief's claimSources name — the
    * brief schema requires exactly one, but the gate does not assume that structurally. */
   sourceChecks: AssetSourceCheck[];
 }

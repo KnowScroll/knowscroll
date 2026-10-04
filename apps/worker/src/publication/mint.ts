@@ -6,10 +6,10 @@
  * This is a deliberately separate, explicitly-invoked step — not an automatic side effect wired
  * into `evaluate.ts`'s `decideAvailability` — for a concrete reason: `evaluatePublicationGates` is
  * exercised by `tests/publication-gates.test.ts` and `tests/publication-http.test.ts` against briefs
- * that predate this slice's optional `title`/`summary` fields (see `generation.ts`), reaching
+ * that predate the optional `title`/`summary` fields (see `generation.ts`), reaching
  * `test_eligible` there today. Hooking minting into that shared decision path would either silently
  * skip minting for those pre-existing fixtures or throw a defect neither test expects — a
- * regression this lane must not cause. Minting is instead its own named step: run it (via the CLI
+ * regression. Minting is instead its own named step: run it (via the CLI
  * below, or a caller such as `scripts/run-inventory-journey.ts`) once availability has already been
  * decided elsewhere.
  *

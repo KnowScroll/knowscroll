@@ -1,6 +1,6 @@
 /**
  * ADR-0023 section 4 — pure filesystem primitives for verified media import. No HTTP, no
- * database, no worker loop: `import.ts` is the only caller, and it owns the ffprobe/policy checks.
+ * database, no worker loop: `import.ts` and the `media_conformance` gate call it; the ffprobe policy checks stay with each caller (`import/probe.ts`, `publication/gates.ts`).
  * A Cutroom engine path is untrusted host metadata (ADR-0007/ADR-0020); every function here treats
  * its filesystem inputs as adversarial rather than trusted configuration.
  */
