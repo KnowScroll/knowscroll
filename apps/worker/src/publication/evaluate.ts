@@ -53,7 +53,7 @@ export interface EvaluatePublicationGatesInput {
   decide?: 'auto' | 'test_eligible';
 }
 
-export interface GateResultRow {
+interface GateResultRow {
   gate: string;
   verdict: string;
   evidence: unknown;
@@ -63,7 +63,7 @@ export interface GateResultRow {
   newlyRecorded: boolean;
 }
 
-export type AvailabilityOutcome =
+type AvailabilityOutcome =
   | { decided: true; availability: 'eligible' | 'test_eligible' }
   | { decided: false; current: string }
   | { decided: false; refused: string; detail: string };

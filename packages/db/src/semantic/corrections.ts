@@ -30,7 +30,7 @@ export class SemanticNotFound extends Error {
   }
 }
 
-export type CorrectionEffect = {
+type CorrectionEffect = {
   targetKind: 'claim' | 'bridge' | 'concept_relation';
   targetId: string;
   before: string;

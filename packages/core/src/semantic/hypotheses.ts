@@ -10,19 +10,19 @@
 import { compareCodeUnits } from '../shared/compare.ts';
 import type { AttentionAccount } from './attention.ts';
 
-export const HYPOTHESIS_RULES_V1 = 'hypothesis-rules-v1';
+const HYPOTHESIS_RULES_V1 = 'hypothesis-rules-v1';
 
-export type HypothesisKind = 'direction' | 'open_question';
-export type PermittedUse =
+type HypothesisKind = 'direction' | 'open_question';
+type PermittedUse =
   | 'composer.family_prior'
   | 'composer.continuity'
   | 'steward.context'
   | 'chronicle.wording';
-export type EvidenceRef = {
+type EvidenceRef = {
   kind: 'exposure' | 'mark' | 'ask' | 'feedback';
   ref: string;
 };
-export type HypothesisStatus = 'active' | 'contested' | 'decayed';
+type HypothesisStatus = 'active' | 'contested' | 'decayed';
 
 export interface HypothesisProposal {
   kind: HypothesisKind;
@@ -44,7 +44,7 @@ export interface HypothesisRulePolicy {
   contestWindowDays: number;
   directionHalfLifeDays: number;
 }
-export const HYPOTHESIS_RULES: HypothesisRulePolicy = {
+const HYPOTHESIS_RULES: HypothesisRulePolicy = {
   directionWindowDays: 7,
   directionMinMarks: 2,
   contestWindowDays: 14,

@@ -19,7 +19,7 @@ import type { ScrollPlanItem } from '@knowscroll/core/scrolls/writing';
 import type pg from 'pg';
 
 /** Bench value: a request marked `sending` this long ago with no settlement (its worker died) is failed as `outcome_unknown`, never sent again. */
-export const ABANDONED_SEND_MS = 30 * 60_000;
+const ABANDONED_SEND_MS = 30 * 60_000;
 
 export type RequestOutcome =
   | { status: 'fulfilled'; writingId: string | null; assetId: string }

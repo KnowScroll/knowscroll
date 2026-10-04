@@ -5,8 +5,7 @@
  * Clear/Reset erase everything. Execution and recovery are in `inquiry-execution.ts`.
  */
 
-export { readInquiryConsent, setInquiryConsent } from './inquiries/consent.ts';
-export type { InquiryMailCause } from './inquiries/mail.ts';
+export { setInquiryConsent } from './inquiries/consent.ts';
 export { mailRevokedConnections, postInquiryMail } from './inquiries/mail.ts';
 export type { OpenResult } from './inquiries/opening.ts';
 export { openDueInquiries, openInquiry } from './inquiries/opening.ts';
@@ -21,6 +20,5 @@ export {
   resolveInquiryPolicy,
   sharedReasoningAuthority,
 } from './inquiries/route.ts';
-export type { InquiryRoute, InquiryRow } from './inquiries/shared.ts';
-export { InquiryError } from './inquiries/shared.ts';
+export type { InquiryRow } from './inquiries/shared.ts';
 export { withdrawInquiries } from './inquiries/stopping.ts';

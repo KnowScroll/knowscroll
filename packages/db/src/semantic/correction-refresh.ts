@@ -28,7 +28,7 @@ const BEHIND = `u.recording_paused_at IS NULL
 /** Up to `limit` behind universes, longest-behind first: never recorded, then the oldest refresh.
  * `deferred` (the universes whose refresh failed last pass) go after everyone else: a failure
  * records nothing, so it would otherwise stay longest-behind and take the head of every batch. */
-export async function findBehindUniverses(
+async function findBehindUniverses(
   client: pg.Pool | pg.PoolClient,
   limit: number,
   deferred: readonly string[] = [],
@@ -60,7 +60,7 @@ export async function catchUpUniverse(
 
 /** A failed universe and what kind of error it was: a PostgreSQL error code or the error's name,
  * never its message (which may quote a row). */
-export interface FailedCatchUp {
+interface FailedCatchUp {
   universeId: string;
   error: string;
 }

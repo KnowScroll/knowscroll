@@ -4,7 +4,7 @@ import pg from 'pg';
 import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import { runMigrations } from '@knowscroll/db/migrations';
 
-export const reasoningMaintenanceDatabaseUrl =
+const reasoningMaintenanceDatabaseUrl =
   process.env.DATABASE_URL ??
   (() => {
     throw new Error('DATABASE_URL required for reasoning maintenance tests');

@@ -35,7 +35,7 @@ function isEnoent(error: unknown): boolean {
   );
 }
 
-export type ContainmentReason =
+type ContainmentReason =
   | 'not_absolute'
   | 'root_unresolvable'
   | 'path_unresolvable'
@@ -73,7 +73,7 @@ export async function checkContainment(
   return { ok: true, realPath: realCandidate };
 }
 
-export type FileKindReason = 'missing' | 'symlink' | 'directory' | 'other';
+type FileKindReason = 'missing' | 'symlink' | 'directory' | 'other';
 export type FileKindOutcome =
   | { ok: true; sizeBytes: number }
   | { ok: false; reason: FileKindReason };

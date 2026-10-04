@@ -30,14 +30,14 @@ type Cursors = {
   next: Lane;
 };
 
-export type ReasoningMaintenanceBatch = {
+type ReasoningMaintenanceBatch = {
   probes: number;
   expiredJobs: number;
   retiredJobs: number;
   purgedAccounting: number;
   skipped: number;
 };
-export type ReasoningMaintenanceRunInput = {
+type ReasoningMaintenanceRunInput = {
   maxProbes?: number;
   signal?: AbortSignal;
 };

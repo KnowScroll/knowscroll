@@ -25,17 +25,8 @@ import {
   streamCopyWithHash,
 } from './media-store.ts';
 
-export {
-  type GeneratedReelLineage,
-  type RecordedMedia,
-  type RecordImportedReelInput,
-  type RecordImportedReelOutcome,
-  recordImportedReel,
-} from '@knowscroll/db/generation/import';
-export type { ImportRefusalReason, ProbeSummary } from './import/probe.ts';
-
+export { recordImportedReel } from '@knowscroll/db/generation/import';
 /** Re-exported for existing importers; the profile itself lives in `media-profile.ts`. */
-export { MEDIA_PROFILE } from './media-profile.ts';
 
 export interface ImportFinishedVideoInput {
   attemptId: string;

@@ -18,13 +18,13 @@ export const MEDIA_PROFILE = {
   maxDurationSeconds: 120,
 } as const;
 
-export interface FfprobeStream {
+interface FfprobeStream {
   codec_type?: string;
   codec_name?: string;
   width?: number;
   height?: number;
 }
-export interface FfprobeFormat {
+interface FfprobeFormat {
   format_name?: string;
   duration?: string;
   tags?: { major_brand?: string };

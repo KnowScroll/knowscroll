@@ -14,7 +14,7 @@ const VERB: Record<RelationKind, string> = {
   compares_mechanism: 'can be compared with',
 };
 
-export function relationPhrase(r: {
+function relationPhrase(r: {
   kind: RelationKind;
   fromName: string;
   toName: string;

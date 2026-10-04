@@ -21,7 +21,7 @@ import {
 } from '../atlas/cartographer.ts';
 import { compareCodeUnits } from '../shared/compare.ts';
 
-export const KEEPER_V1 = 'keeper-v1';
+const KEEPER_V1 = 'keeper-v1';
 export const KEEPER_POLICY = KEEPER_V1;
 const MIN_ASKS = 2;
 const MIN_DAYS = 2;
@@ -37,9 +37,9 @@ export const ROOM_ROLES: readonly RoomRole[] = [
   'connector',
 ];
 export type RoomState = 'opened' | 'arguing' | 'set_aside' | 'retired';
-export type LiveRoomState = Extract<RoomState, 'opened' | 'arguing'>;
+type LiveRoomState = Extract<RoomState, 'opened' | 'arguing'>;
 /** How a held claim bears on the room's anchor: it supports it, or a source qualifies or contradicts it. */
-export type SupportKind = 'supports' | 'qualifies' | 'contradicts';
+type SupportKind = 'supports' | 'qualifies' | 'contradicts';
 export interface HeldClaim {
   claimId: string;
   supportKind: SupportKind;

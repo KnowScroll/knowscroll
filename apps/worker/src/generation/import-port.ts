@@ -14,7 +14,7 @@ import {
 
 export type { ImportOutcome } from './import.ts';
 
-export type ImportFinishedVideoInput = {
+type ImportFinishedVideoInput = {
   /** The `cutroom_attempt.id` the finished result belongs to. */
   attemptId: string;
   /** The Cutroom run id the video was produced by. */

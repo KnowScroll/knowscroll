@@ -48,7 +48,7 @@ export type ReservedAttempt = {
   permitExpiresAt: Date;
 };
 
-export type AuthorizeDispatchInput = {
+type AuthorizeDispatchInput = {
   universeId: string;
   privacyEpoch: number;
   jobId: string;
@@ -63,7 +63,7 @@ export type AuthorizeDispatchInput = {
   dispatchId: string;
 };
 
-export type DispatchGrant = {
+type DispatchGrant = {
   attemptId: string;
   requestId: string;
   dispatchId: string;
@@ -75,7 +75,7 @@ export type DispatchGrant = {
   deadline: string;
 };
 
-export type WithdrawJobInput = {
+type WithdrawJobInput = {
   universeId: string;
   privacyEpoch: number;
   jobId: string;
@@ -83,12 +83,12 @@ export type WithdrawJobInput = {
   leaseFence: string;
   reason: 'cancelled' | 'expired';
 };
-export type WithdrawalResult = {
+type WithdrawalResult = {
   closedNotSent: number;
   preservedUnknown: number;
 };
 
-export type RecoverAttemptInput = {
+type RecoverAttemptInput = {
   universeId: string;
   privacyEpoch: number;
   jobId: string;
@@ -102,7 +102,7 @@ export type RecoveryResult = {
   recoveryFence: string;
 };
 
-export type MarkAttemptUnknownInput = {
+type MarkAttemptUnknownInput = {
   universeId: string;
   privacyEpoch: number;
   jobId: string;
@@ -112,7 +112,7 @@ export type MarkAttemptUnknownInput = {
   leaseFence: string;
   reason: 'transport_loss' | 'deadline' | 'local_cancel';
 };
-export type MarkAttemptUnknownResult = {
+type MarkAttemptUnknownResult = {
   outcome: 'unknown' | 'private_state_gone';
   outputWithdrawn: boolean;
 };

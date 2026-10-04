@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { compareCodeUnits } from '../shared/compare.ts';
 import { canonical, wholeObject } from './wire.ts';
 
+/** @public The versions every inquiry step records, named in one place. */
 export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({
   selection: 'inquiry-pairs-v2',
   prompt: 'bridge-inquiry-prompt-v4',
@@ -36,7 +37,7 @@ export const BRIDGE_INQUIRY_LIMITS = Object.freeze({
   claimsBoth: 8,
 });
 
-export interface InquiryPlace {
+interface InquiryPlace {
   placeId: string;
   code: string;
   name: string;
@@ -65,14 +66,14 @@ export interface InquiryCandidateInput {
   asked: readonly (readonly [string, string])[];
 }
 /** `roles` (claims naming both sides only): each side's role in the claim, in the validator's terms. */
-export interface OfferedClaim {
+interface OfferedClaim {
   key: string;
   statement: string;
   sourceTitle: string;
   roles?: Record<string, string>;
 }
 /** A relation, with its direction, that the pair's own claims could carry (bridge-validator-v1). */
-export interface AdmissibleRelation {
+interface AdmissibleRelation {
   relationType: 'explains' | 'compares_mechanism' | 'analogous_in';
   fromConcept: string;
   toConcept: string;
@@ -368,7 +369,7 @@ export function serializeBridgeInquiryRequest(
   );
 }
 
-export type InquiryShapeReason =
+type InquiryShapeReason =
   | 'not_one_json_object'
   | 'reply_keys'
   | 'payload_invalid'

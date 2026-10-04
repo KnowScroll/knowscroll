@@ -665,7 +665,7 @@ export async function processClaimedJob(
 }
 
 /** Claims and processes exactly one ready job, or returns null when there is none. */
-export async function runOnce(
+async function runOnce(
   options: GenerationWorkerOptions,
   signal?: AbortSignal,
 ): Promise<ProcessOutcome | null> {

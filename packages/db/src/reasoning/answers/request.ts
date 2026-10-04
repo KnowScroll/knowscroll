@@ -14,7 +14,7 @@ import { enqueueFairInTransaction } from '../fairness.ts';
 import { resolveAnswerPolicy, sourceOf } from './route.ts';
 import { AskAnswerError, type RequestRow, type Route } from './shared.ts';
 
-export const askAnswerRequestInput = z
+const askAnswerRequestInput = z
   .object({
     clientRequestId: z.string().uuid(),
     expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),

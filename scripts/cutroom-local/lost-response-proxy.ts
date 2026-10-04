@@ -12,7 +12,7 @@
  */
 import { type AddressInfo, type Socket, connect, createServer } from 'node:net';
 
-export interface DroppedConnection {
+interface DroppedConnection {
   id: number;
   /** When this connection was accepted while the proxy was armed. */
   armedAt: number;

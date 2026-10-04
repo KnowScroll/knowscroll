@@ -25,8 +25,8 @@ export type Family =
   | 'frontier'
   | 'seed'
   | 'fallback';
-export type MarkKind = 'keep' | 'branch' | 'ask';
-export type GateReason = 'kept' | 'suppressed_by_person' | 'current_encounter';
+type MarkKind = 'keep' | 'branch' | 'ask';
+type GateReason = 'kept' | 'suppressed_by_person' | 'current_encounter';
 
 export interface V3Policy {
   version: string;
@@ -75,7 +75,7 @@ export interface V3Policy {
   tieBreak: 'fnv1a' | 'fnv1a-fmix32';
 }
 
-export interface V3Concept {
+interface V3Concept {
   code: string;
   name: string;
   parentCode: string | null;
@@ -93,7 +93,7 @@ export interface V3Asset {
   }[];
   claimKeys: readonly string[];
 }
-export interface V3Bridge {
+interface V3Bridge {
   id: string;
   from: string;
   to: string;
@@ -103,7 +103,7 @@ export interface V3Bridge {
   fromName: string;
   toName: string;
 }
-export interface V3Mark {
+interface V3Mark {
   eventId: string;
   assetId: string;
   kind: MarkKind;
@@ -119,7 +119,7 @@ export interface V3Bound {
   /** A continuation's gap: the bridge and the exposure it was opened from. */
   origin: { bridgeId: string; exposureId: string } | null;
 }
-export interface V3Served {
+interface V3Served {
   assetId: string;
   family: Family | null;
   atMs: number;
@@ -155,7 +155,7 @@ export interface V3State {
 }
 
 export type Facts = Record<string, string | number | null>;
-export type EvidenceStep =
+type EvidenceStep =
   | {
       kind: 'mark';
       markKind: MarkKind;

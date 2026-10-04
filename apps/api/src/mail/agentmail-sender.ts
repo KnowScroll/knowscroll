@@ -22,7 +22,7 @@ const DEFAULT_BASE_URL = 'https://api.agentmail.to';
 /** Bounded per ADR-0027 section 1: generously above a normal AgentMail round trip while still
  * failing well inside the sign-in route's own request lifecycle instead of hanging it. Documented
  * for operators in docs/operations/magic-link-delivery.md. */
-export const AGENTMAIL_TIMEOUT_MS = 10_000;
+const AGENTMAIL_TIMEOUT_MS = 10_000;
 
 /** The real response body is a two-field JSON object; this is far more than AgentMail has ever
  * needed and stops a misbehaving or hostile endpoint from forcing this process to buffer an

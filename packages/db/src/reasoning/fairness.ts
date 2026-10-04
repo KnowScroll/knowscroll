@@ -27,11 +27,8 @@ import { type ReasoningAuthority, ReasoningDenied } from './runtime-policy.ts';
 
 export { enqueueFairInTransaction } from './fairness/enqueue.ts';
 export type {
-  FairnessNoWork,
-  FairnessObservation,
   FairnessReadyInput,
   FairnessScheduled,
-  FairnessScheduleInput,
   ReasoningFairness,
 } from './fairness/types.ts';
 

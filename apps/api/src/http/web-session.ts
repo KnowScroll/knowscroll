@@ -17,7 +17,7 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { HttpError } from './errors.ts';
 
-export const SESSION_COOKIE = 'ks_session';
+const SESSION_COOKIE = 'ks_session';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 
 export type WebSessionConfig = { secret: Buffer; webOrigin: string | null };
@@ -41,10 +41,7 @@ export function webSessionConfig(
 /** A value that is not valid percent-encoding was never set by this API (`sessionCookie` encodes
  * it), so it is no credential at all: the request continues unauthenticated and gets the ordinary
  * 401, never a 500 from `decodeURIComponent` throwing. */
-export function readCookie(
-  header: string | undefined,
-  name: string,
-): string | null {
+function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
   for (const part of header.split(';')) {
     const eq = part.indexOf('=');

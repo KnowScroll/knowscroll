@@ -11,9 +11,10 @@
  */
 import { compareCodeUnits } from '../shared/compare.ts';
 
+/** @public The retired v1 identifier, kept nameable for the policy record. */
 export const CARTOGRAPHER_V1 = 'cartographer-v1';
 /** v2 (ADR-0037) adds foundation Stars; everything v1 decides is unchanged. */
-export const CARTOGRAPHER_V2 = 'cartographer-v2';
+const CARTOGRAPHER_V2 = 'cartographer-v2';
 export const CARTOGRAPHER_POLICY = CARTOGRAPHER_V2;
 const FOUNDATION_KINDS: ReadonlySet<RelationKind> = new Set([
   'explains',
@@ -53,7 +54,7 @@ export interface PlaceAccount {
   mass: number;
   evidence: { episodeIds: string[]; markIds: string[] };
 }
-export type PlaceKind = 'planet' | 'region' | 'sighting';
+type PlaceKind = 'planet' | 'region' | 'sighting';
 export interface PlaceView {
   placeId: string;
   anchor: string;

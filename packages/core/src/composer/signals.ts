@@ -13,7 +13,8 @@ import { fnv1a } from '../shared/fnv.ts';
  * `composer_policy`, immutable forever per migration 0019, but no code path loads it anymore —
  * `packages/core/AGENTS.md` requires "a new policy version, never a code-constant edit to the
  * scoring function" for any ranking change, and the coverage tie-break below is a ranking change.
- * Kept exported only so a reader can still name/reference the historical identifier. */
+ * Kept exported only so a reader can still name/reference the historical identifier.
+ * @public */
 export const COMPOSER_SIGNALS_V1 = 'composer-signals-v1';
 
 /** ADR-0029 amendment (#113): composer-signals-v1 plus a coverage tie-break (see
@@ -41,7 +42,7 @@ export type ComposerSignalInputs = {
   sourceExposureCount: number;
 };
 
-export type ComposerWeights = {
+type ComposerWeights = {
   unreadBonus: number;
   exposurePenalty: number;
   recencyBonus: number;

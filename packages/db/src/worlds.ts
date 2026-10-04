@@ -31,7 +31,7 @@ export interface WorldRow {
   scrollCount: number;
 }
 
-export interface SystemWorldRow extends WorldRow {
+interface SystemWorldRow extends WorldRow {
   /** How many of this world's Scrolls this universe has an `exposure` row for -- migration
    * 0017's `world_system_member_guard` trigger independently recomputes and refuses this too. */
   seenCount: number;

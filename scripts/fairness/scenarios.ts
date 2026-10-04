@@ -1,9 +1,7 @@
 import {
-  CLASSES,
   createSnapshot,
   enqueue,
   scheduleTick,
-  settle,
   snapshotHash,
   type Candidate,
   type FairnessClass,
@@ -68,18 +66,4 @@ export function runScenario(
     decisions.push(...result.decisions);
   }
   return { snapshot, decisions, hash: snapshotHash(snapshot) };
-}
-export const replayScenario = runScenario;
-export const allClasses = CLASSES;
-export function settleActual(
-  policy: FairnessPolicy,
-  snapshot: ReturnType<typeof createSnapshot>,
-  attemptId: string,
-  tokens: number,
-) {
-  return settle(policy, snapshot, attemptId, {
-    receiptId: `receipt-${attemptId}`,
-    actual: { tokens, requests: 1, budget: tokens, rate: tokens, remote: 1 },
-    terminal: true,
-  });
 }

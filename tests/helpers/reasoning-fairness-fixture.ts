@@ -20,7 +20,7 @@ export const sqlFairnessPolicy = {
   maxProbes: 8,
   maxAdmissions: 1,
 };
-export const sqlFairnessDatabaseUrl =
+const sqlFairnessDatabaseUrl =
   process.env.DATABASE_URL ??
   (() => {
     throw new Error('DATABASE_URL required for SQL fairness tests');

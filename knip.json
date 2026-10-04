@@ -28,8 +28,7 @@
     },
     "packages/contracts": {
       "includeEntryExports": false,
-      "project": ["src/**/*.ts"],
-      "ignore": ["src/cutroom-v1/**"]
+      "project": ["src/**/*.ts"]
     },
     "packages/core": {
       "project": ["src/**/*.ts"]

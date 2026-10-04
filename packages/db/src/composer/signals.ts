@@ -16,7 +16,7 @@ import type pg from 'pg';
 /** ADR-0028 section 2: an immutable, versioned ranking policy. Rows never change once created
  * (migration 0017's `composer_policy_immutable` trigger), so this can be read once per request
  * with no staleness risk. */
-export async function loadComposerPolicy(
+async function loadComposerPolicy(
   client: pg.PoolClient,
   version: string,
 ): Promise<ComposerPolicy> {
@@ -42,7 +42,7 @@ export async function loadComposerPolicy(
 
 /** ADR-0028 section 5: the registered, immutable explanation vocabulary, keyed by
  * `explanation_key`. */
-export async function loadComposerExplanationTemplates(
+async function loadComposerExplanationTemplates(
   client: pg.PoolClient,
 ): Promise<Record<string, string>> {
   const rows = (
@@ -63,7 +63,7 @@ export async function loadComposerExplanationTemplates(
  * (`clock_timestamp()`), not the caller's wall clock, so recency is computed against the same
  * instant the signals were read.
  */
-export async function loadComposerSignalCandidates(
+async function loadComposerSignalCandidates(
   client: pg.PoolClient,
   universeId: string,
   assets: readonly FeedAsset[],

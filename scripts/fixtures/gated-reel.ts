@@ -23,7 +23,7 @@ const REQUIRED_GATES = [
   'witness_alignment',
 ];
 
-export interface GatedReelMedia {
+interface GatedReelMedia {
   sha256: string;
   byteSize: number;
   probe: { durationSeconds: number; width: number; height: number };

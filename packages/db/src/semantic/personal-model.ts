@@ -36,7 +36,7 @@ type Row = Record<string, unknown>;
 const ms = (v: unknown) =>
   v instanceof Date ? v.getTime() : new Date(String(v)).getTime();
 
-export interface PersonalEvidence {
+interface PersonalEvidence {
   episodes: EpisodeEvidence[];
   negatives: NegativeEvidence[];
   marks: {
@@ -61,7 +61,7 @@ export interface PersonalEvidence {
   conceptIds: Map<string, string>;
 }
 
-export async function loadPersonalEvidence(
+async function loadPersonalEvidence(
   client: pg.PoolClient,
   universeId: string,
 ): Promise<PersonalEvidence> {

@@ -63,7 +63,7 @@ export interface BridgeReadSet {
 }
 
 /** Ancestors of `code` via parentCode, nearest first. Stops on an unknown parent or a cycle. */
-export function ancestorsOf(
+function ancestorsOf(
   readSet: Pick<BridgeReadSet, 'concepts'>,
   code: string,
 ): string[] {
@@ -138,7 +138,7 @@ function words(text: string): Set<string> {
 }
 
 /** Diagnostic only: the vocabulary the two sides share. Reported, never counted. */
-export function sharedVocabulary(
+function sharedVocabulary(
   readSet: BridgeReadSet,
   from: string,
   to: string,

@@ -9,7 +9,7 @@ import {
 } from '../runtime-policy.ts';
 import { type JobRow, REASONING_ADMISSION_LIMITS } from './types.ts';
 
-export const uuidPattern =
+const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const hashPattern = /^[0-9a-f]{64}$/;
 export const ownerPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/;
@@ -34,7 +34,7 @@ export function validateFence(value: string): void {
   if (!/^(0|[1-9][0-9]*)$/.test(value)) deny('invalid_lease_fence');
 }
 
-export async function rollbackQuietly(client: pg.PoolClient): Promise<void> {
+async function rollbackQuietly(client: pg.PoolClient): Promise<void> {
   try {
     await client.query('ROLLBACK');
   } catch {

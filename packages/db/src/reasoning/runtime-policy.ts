@@ -7,7 +7,7 @@ import { z } from 'zod';
 const id = z.string().uuid(),
   label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-export const reasoningDimension = z.enum([
+const reasoningDimension = z.enum([
   'global_budget',
   'owner_budget',
   'provider_account',
@@ -19,7 +19,7 @@ export const reasoningDimension = z.enum([
   'remote_concurrency',
   'job_budget',
 ]);
-export const settlementBasis = z.enum([
+const settlementBasis = z.enum([
   'input_tokens',
   'output_tokens',
   'total_tokens',
@@ -27,7 +27,7 @@ export const settlementBasis = z.enum([
   'requests',
   'remote_slots',
 ]);
-export const settlementHandling = z.enum(['budget', 'rate', 'remote']);
+const settlementHandling = z.enum(['budget', 'rate', 'remote']);
 const binding = z
   .object({
     bucketId: id,
@@ -40,7 +40,7 @@ const binding = z
     handling: settlementHandling,
   })
   .strict();
-export const resolvedReasoningPolicy = z
+const resolvedReasoningPolicy = z
   .object({
     version: z.literal(1),
     routeId: label,

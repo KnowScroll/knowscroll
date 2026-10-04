@@ -39,21 +39,11 @@ export {
   reserveAttemptInTransaction,
 } from './admission/reserve.ts';
 export type {
-  AuthorizeDispatchInput,
   ClaimedJob,
   ClaimJobInput,
-  DispatchGrant,
-  MarkAttemptUnknownInput,
-  MarkAttemptUnknownResult,
   ReasoningAdmission,
-  ReasoningPreflight,
-  ReasoningPreflightInput,
-  RecoverAttemptInput,
-  RecoveryResult,
   ReserveAttemptInput,
   ReservedAttempt,
-  WithdrawalResult,
-  WithdrawJobInput,
 } from './admission/types.ts';
 export { REASONING_ADMISSION_LIMITS } from './admission/types.ts';
 

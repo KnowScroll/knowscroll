@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
-export interface RecordedMedia {
+interface RecordedMedia {
   sha256: string;
   byteSize: number;
   /** The probe summary from a successful `importFinishedVideo` call; stored as `media_object.probe`. */
@@ -15,7 +15,7 @@ export interface RecordedMedia {
   storageKey: string;
 }
 
-export interface GeneratedReelLineage {
+interface GeneratedReelLineage {
   briefSha256: string;
   contractRevision: string;
   runId: string;

@@ -27,15 +27,11 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const ATTEMPT_PATTERN = /^attempt-(\d{2})\.jsonl$/;
-export const CERTIFICATION_CASES = [
-  'json',
-  'tool-call',
-  'tool-continuation',
-] as const;
+const CERTIFICATION_CASES = ['json', 'tool-call', 'tool-continuation'] as const;
 export type CertificationCase = (typeof CERTIFICATION_CASES)[number];
 
 export type CaseChecks = Readonly<Record<string, boolean>>;
-export type PublicUsage = CertificationObservation['usage'];
+type PublicUsage = CertificationObservation['usage'];
 
 type RunPolicy = {
   version: 1;
@@ -72,7 +68,7 @@ type ResolvedAttempt = {
   checks: CaseChecks;
 };
 
-export type PublicAttempt = PreparedAttempt & {
+type PublicAttempt = PreparedAttempt & {
   status: 'unresolved' | CertificationObservation['outcome'];
   remoteOutcome: 'known' | 'unknown' | 'no_dispatch';
   dispatched: boolean | null;

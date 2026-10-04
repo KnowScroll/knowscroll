@@ -11,7 +11,6 @@ export {
   type DeltaNaming,
   deltaLines,
 } from './atlas/chronicle.ts';
-export { AtlasConflict, AtlasNotFound } from './atlas/errors.ts';
 export { eraseAtlas, exportAtlas } from './atlas/privacy.ts';
 export {
   type AtlasView,

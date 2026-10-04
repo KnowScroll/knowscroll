@@ -15,7 +15,7 @@
  */
 import { type ChildProcess, spawn } from 'node:child_process';
 
-export const ALLOWLISTED_HOST_ENV_NAMES = [
+const ALLOWLISTED_HOST_ENV_NAMES = [
   'PATH',
   'HOME',
   'TMPDIR',

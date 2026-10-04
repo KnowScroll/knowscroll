@@ -12,20 +12,20 @@ export const CLASSES = [
   'housekeeping',
 ] as const;
 export type FairnessClass = (typeof CLASSES)[number];
-export type DimensionKind = 'budget' | 'rate' | 'remote';
-export type NormalizedKind = 'tokens' | 'requests';
-export type ReservationStatus =
+type DimensionKind = 'budget' | 'rate' | 'remote';
+type NormalizedKind = 'tokens' | 'requests';
+type ReservationStatus =
   | 'reserved'
   | 'consumed'
   | 'not_sent'
   | 'unknown'
   | 'terminal';
-export type NormalizedDimension = {
+type NormalizedDimension = {
   key: string;
   kind: NormalizedKind;
   basis: number;
 };
-export type PhysicalDimension = {
+type PhysicalDimension = {
   key: string;
   kind: DimensionKind;
   capacity: number;
@@ -60,7 +60,7 @@ export type Receipt = {
   terminal?: boolean;
   outcome?: 'consumed' | 'not_sent' | 'unknown' | 'terminal';
 };
-export type Reservation = Candidate & {
+type Reservation = Candidate & {
   charge: number;
   settledCharge: number;
   status: ReservationStatus;
@@ -70,18 +70,18 @@ export type Reservation = Candidate & {
   frozen: boolean;
   rateWindowId: number;
 };
-export type Lane = {
+type Lane = {
   credit: number;
   cursor: number;
 };
-export type OpenVisit = {
+type OpenVisit = {
   class: FairnessClass;
   remaining: number;
   universeId: string | null;
   universeRemaining: number;
   innerGeneration: number;
 };
-export type InnerVisit = Pick<
+type InnerVisit = Pick<
   OpenVisit,
   'universeId' | 'universeRemaining' | 'innerGeneration'
 >;
@@ -188,7 +188,7 @@ function universeKey(c: FairnessClass, id: string): string {
 function hasPositiveCredit(lane: Lane): void {
   if (lane.credit > 0) lane.credit = 0;
 }
-export function validatePolicy(policy: FairnessPolicy): void {
+function validatePolicy(policy: FairnessPolicy): void {
   if (!policy.version) throw new Error('missing_policy_version');
   assertSafe(policy.quantum, 'quantum', true);
   assertSafe(policy.maxNormalizedRequest, 'max_normalized_request', true);

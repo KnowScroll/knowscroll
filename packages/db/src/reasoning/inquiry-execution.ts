@@ -6,10 +6,8 @@
  */
 
 export { applyInquiryReply } from './inquiry-execution/apply.ts';
-export type { InquiryFailure } from './inquiry-execution/fail.ts';
 export { failInquiry } from './inquiry-execution/fail.ts';
 export type {
-  InquiryFence,
   InquiryOutcome,
   InquiryWork,
   ProviderReply,

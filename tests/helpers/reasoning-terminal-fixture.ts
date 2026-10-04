@@ -12,7 +12,7 @@ import pg from 'pg';
 
 import { runMigrations } from '@knowscroll/db/migrations';
 
-export const reasoningTerminalDatabaseUrl =
+const reasoningTerminalDatabaseUrl =
   process.env.DATABASE_URL ??
   (() => {
     throw new Error('DATABASE_URL required for terminal retirement tests');

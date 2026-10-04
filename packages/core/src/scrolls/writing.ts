@@ -209,7 +209,7 @@ const CHECK_ORDER = [
   'claim_concept_not_offered',
   'no_supporting_claim',
 ] as const;
-export type ScrollCheckReason = (typeof CHECK_ORDER)[number];
+type ScrollCheckReason = (typeof CHECK_ORDER)[number];
 
 export interface CheckedScroll {
   title: string;
@@ -266,7 +266,7 @@ function runs(list: readonly string[], length: number): string[] {
  * and sentence breaks aside); at least half its words are; or none of these. A diagnosis is a code that
  * carries no text, and never changes a verdict.
  */
-export type QuoteDiagnosis =
+type QuoteDiagnosis =
   | 'quote:typography'
   | 'quote:case'
   | 'quote:words'

@@ -473,7 +473,7 @@ export function computeArgumentFingerprint(brief: GenerationBrief): string {
   return createHash('sha256').update(canonicalJson(shape)).digest('hex');
 }
 
-export interface RepetitionCorpusEntry {
+interface RepetitionCorpusEntry {
   generatedReelId: string;
   templateFingerprint: string | null;
   argumentFingerprint: string | null;

@@ -86,9 +86,9 @@ export const SIGN_IN_TOKEN_TTL_MINUTES = 15;
  * fifteen minutes is nothing without the ability to read them. Both limits are enforced inside the
  * same transaction that would insert the token, serialized with `pg_advisory_xact_lock` so
  * concurrent requests cannot both squeeze through the last remaining slot. */
-export const MAGIC_LINK_ACCOUNT_WINDOW_MINUTES = 15;
+const MAGIC_LINK_ACCOUNT_WINDOW_MINUTES = 15;
 export const MAGIC_LINK_ACCOUNT_MAX_PER_WINDOW = 5;
-export const MAGIC_LINK_FINGERPRINT_WINDOW_MINUTES = 15;
+const MAGIC_LINK_FINGERPRINT_WINDOW_MINUTES = 15;
 export const MAGIC_LINK_FINGERPRINT_MAX_PER_WINDOW = 10;
 
 export interface MagicLinkRateLimits {

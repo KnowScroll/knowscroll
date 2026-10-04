@@ -9,10 +9,10 @@
  */
 import { round } from '../shared/number.ts';
 
-export const ATTENTION_POLICY_V1 = 'attention-v1';
+const ATTENTION_POLICY_V1 = 'attention-v1';
 
 export type MarkKind = 'keep' | 'branch' | 'ask';
-export type ConceptRole = 'primary' | 'secondary' | 'mentioned';
+type ConceptRole = 'primary' | 'secondary' | 'mentioned';
 
 export interface AttentionPolicy {
   version: string;
@@ -71,7 +71,7 @@ export interface NegativeEvidence {
   concepts: readonly string[];
 }
 
-export type AccountState = 'seen' | 'anchored' | 'dormant';
+type AccountState = 'seen' | 'anchored' | 'dormant';
 
 export interface AttentionAccount {
   concept: string;
@@ -232,7 +232,7 @@ export function computeAttentionAccounts(
 
 /** State lines are routing hints. Anchoring needs acts on separate days from separate sources;
  * watching can never cross it. Dormancy is an anchored-shaped history whose mass has faded. */
-export function stateOf(
+function stateOf(
   a: Omit<AttentionAccount, 'state'>,
   nowMs: number,
   policy: AttentionPolicy = ATTENTION_V1,

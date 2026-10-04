@@ -20,7 +20,7 @@ import {
 const USER_AGENT = 'KnowScroll-material/1 (+personal non-commercial)';
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
-export interface FetchedMaterial {
+interface FetchedMaterial {
   /** The final URL, after any allowlisted redirects: the source's URL. */
   url: string;
   host: MaterialHost;
@@ -32,7 +32,7 @@ export interface FetchedMaterial {
   contentSha256: string;
   retrievedAt: string;
 }
-export type MaterialFetchRefusal =
+type MaterialFetchRefusal =
   | MaterialUrlRefusal
   | 'too_many_redirects'
   | 'http_status'

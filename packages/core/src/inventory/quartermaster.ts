@@ -16,7 +16,7 @@ import { isWithin } from '../semantic/bridge-validator.ts';
 export const QUARTERMASTER_V1 = 'quartermaster-v1';
 
 /** Bench value (ADR-0046 §2): a demand whose requests were refused this often stops asking. */
-export const QUARTERMASTER_LIMITS = Object.freeze({ refusedRequests: 2 });
+const QUARTERMASTER_LIMITS = Object.freeze({ refusedRequests: 2 });
 
 export interface DemandFacts {
   /** The concept the demand needs more about. */

@@ -20,7 +20,7 @@ import {
 } from '@knowscroll/contracts/semantic';
 import { normalizeSnapshotText } from '@knowscroll/core/semantic/source-text';
 
-export type QuoteCheck = {
+type QuoteCheck = {
   claimKey: string;
   sourceKey: string;
   status: 'verified' | 'missing_in_snapshot' | 'unverified_no_snapshot';

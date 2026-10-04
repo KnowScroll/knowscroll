@@ -19,7 +19,7 @@ export const ASK_ANSWER_VERSIONS = Object.freeze({
   prompt: 'ask-answer-prompt-v1',
   validator: 'ask-answer-v2',
 });
-export const ASK_ANSWER_LIMITS = Object.freeze({
+const ASK_ANSWER_LIMITS = Object.freeze({
   answerChars: 1200,
   limitsChars: 400,
   quoteMinChars: 12,
@@ -44,7 +44,7 @@ export interface AskAnswerRoute {
   maxOutputTokens: number;
 }
 
-export type AskAnswerProposal =
+type AskAnswerProposal =
   | {
       kind: 'answered';
       answer: string;
@@ -52,7 +52,7 @@ export type AskAnswerProposal =
       limits: string;
     }
   | { kind: 'not_in_source'; limits: string };
-export type AskAnswerRejection =
+type AskAnswerRejection =
   | 'not_one_json_object'
   | 'shape_invalid'
   | 'basis_missing'

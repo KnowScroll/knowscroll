@@ -42,7 +42,7 @@ import {
   exportPersonalModel,
 } from './semantic/personal-model.ts';
 
-export class HistoryClearConflict extends Error {
+class HistoryClearConflict extends Error {
   readonly statusCode = 409;
   constructor(
     message = 'History clear conflicts with the current privacy epoch',
@@ -252,7 +252,7 @@ function isoDate(value: unknown): string {
     : new Date(String(value)).toISOString();
 }
 
-export class PrivacyLifecycleConflict extends Error {
+class PrivacyLifecycleConflict extends Error {
   readonly statusCode = 409;
   constructor(
     message = 'Privacy operation conflicts with the current privacy epoch',

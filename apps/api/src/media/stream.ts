@@ -43,7 +43,7 @@ export function resolveMediaRoot(env: NodeJS.ProcessEnv = process.env): string {
   return `${devRoot}/media`;
 }
 
-export interface ParsedRange {
+interface ParsedRange {
   start: number;
   end: number;
 }
@@ -55,7 +55,7 @@ export interface ParsedRange {
  * end of the file, or whose bounds are not a valid non-negative integer pair, is refused (`null`),
  * which the caller turns into `416` with `Content-Range: bytes *\/<size>`.
  */
-export function parseRangeHeader(
+function parseRangeHeader(
   header: string,
   totalSize: number,
 ): ParsedRange | null {

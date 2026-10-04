@@ -43,7 +43,7 @@ import type pg from 'pg';
 import type { AuthScope } from './identity.ts';
 import { isRecordingPaused } from './sql/recording-paused.ts';
 
-export class RoomError extends Error {
+class RoomError extends Error {
   constructor(
     readonly statusCode: 400 | 404 | 409,
     message: string,

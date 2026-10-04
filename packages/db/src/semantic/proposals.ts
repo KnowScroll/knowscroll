@@ -40,7 +40,7 @@ export class SemanticInputError extends Error {
     this.name = 'SemanticInputError';
   }
 }
-export class SemanticStaleEpoch extends Error {
+class SemanticStaleEpoch extends Error {
   readonly statusCode = 409;
   constructor() {
     super('The universe privacy epoch changed; this proposal is discarded');

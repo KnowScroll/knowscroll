@@ -6,7 +6,7 @@ import type {
   ResolvedReasoningPolicy,
 } from '@knowscroll/db/reasoning/runtime-policy';
 import type { Snapshot } from './reasoning-evidence.ts';
-export const usage = {
+const usage = {
   inputTokens: 7,
   outputTokens: 3,
   cacheReadTokens: null,

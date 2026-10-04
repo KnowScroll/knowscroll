@@ -72,7 +72,7 @@ export async function loadV3Policy(
   };
 }
 
-export async function loadReasonTemplates(
+async function loadReasonTemplates(
   client: pg.PoolClient,
 ): Promise<Map<string, string>> {
   return new Map(
@@ -167,7 +167,7 @@ async function describeAssets(
 }
 
 /** Everything the pure policy reads, for one universe and the requested kinds. */
-export async function loadV3State(
+async function loadV3State(
   client: pg.PoolClient,
   universeId: string,
   eligible: readonly FeedAsset[],

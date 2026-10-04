@@ -18,7 +18,7 @@ import { refreshPersonalModel } from './semantic/personal-model.ts';
 import { projectWorldsForEncounter } from './worlds.ts';
 
 /** A refusal the API returns as-is: its global error handler answers `statusCode` with `message`. */
-export class EncounterError extends Error {
+class EncounterError extends Error {
   constructor(
     public statusCode: number,
     message: string,
