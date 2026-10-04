@@ -1,3 +1,8 @@
+/**
+ * Privacy lifecycle contracts: clear history, pause/resume, export, reset and account deletion.
+ * Every destructive input carries its own confirmation literal and the caller's expected
+ * privacy epoch, so a stale or accidental request cannot erase a newer universe (ADR-0028, ADR-0035).
+ */
 import { z } from 'zod';
 import { privacyEpoch, uuid } from './primitives.ts';
 

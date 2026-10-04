@@ -1,3 +1,4 @@
+/** Email magic-link sign-in contracts (ADR-0026). The schemas never transform their input. */
 import { z } from 'zod';
 
 // ADR-0026 — real sign-in: one owner account, email magic link. `email`/`token` are never

@@ -1,3 +1,7 @@
+/**
+ * Wire shapes for exposures, keeps and the Scroll asset, plus the lineage ids events carry.
+ * Input schemas are strict: an unknown field is a refusal, never silently dropped.
+ */
 import { z } from 'zod';
 import { uuid } from './primitives.ts';
 

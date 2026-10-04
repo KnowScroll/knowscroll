@@ -1,3 +1,4 @@
+/** The explicit Ask request. Ask and exposure ids are lower-cased on parse. */
 import { z } from 'zod';
 import { privacyEpoch, uuid } from './primitives.ts';
 
