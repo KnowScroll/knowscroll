@@ -10,8 +10,15 @@
 import { pool } from '../../packages/db/src/index.ts';
 import { correctSourceSnapshot } from '../../packages/db/src/semantic/corrections.ts';
 
-const arg = (name: string) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
-const input = { sourceKey: arg('--source'), action: arg('--action'), reason: arg('--reason') };
+const arg = (name: string) => {
+  const i = process.argv.indexOf(name);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
+const input = {
+  sourceKey: arg('--source'),
+  action: arg('--action'),
+  reason: arg('--reason'),
+};
 const apply = process.argv.includes('--apply');
 const client = await pool.connect();
 try {

@@ -2,7 +2,7 @@
  * a job, request cancellation, and show job/attempt status. No public HTTP route exists for any
  * of this — it is a local operator/coordinator tool, run as
  * `pnpm exec tsx scripts/generation.ts <command> --flag value ...`. */
-import {pool} from '../packages/db/src/index.ts';
+import { pool } from '../packages/db/src/index.ts';
 import * as operator from '../apps/worker/src/generation/operator.ts';
 
 function flags(argv: string[]): Record<string, string> {
@@ -12,7 +12,8 @@ function flags(argv: string[]): Record<string, string> {
     if (token?.startsWith('--')) {
       const key = token.slice(2);
       const value = argv[i + 1];
-      if (value === undefined || value.startsWith('--')) throw new Error(`Missing value for --${key}`);
+      if (value === undefined || value.startsWith('--'))
+        throw new Error(`Missing value for --${key}`);
       out[key] = value;
       i += 1;
     }
@@ -25,11 +26,13 @@ function required(values: Record<string, string>, key: string): string {
   return value;
 }
 function providerMode(value: string): 'standin' | 'live' {
-  if (value !== 'standin' && value !== 'live') throw new Error('--provider-mode/--mode must be "standin" or "live"');
+  if (value !== 'standin' && value !== 'live')
+    throw new Error('--provider-mode/--mode must be "standin" or "live"');
   return value;
 }
 function stage(value: string): 'plan' | 'stills' | 'video' {
-  if (value !== 'plan' && value !== 'stills' && value !== 'video') throw new Error('--until must be "plan", "stills" or "video"');
+  if (value !== 'plan' && value !== 'stills' && value !== 'video')
+    throw new Error('--until must be "plan", "stills" or "video"');
   return value;
 }
 
@@ -51,7 +54,11 @@ async function main(): Promise<void> {
       result = await operator.retireEngine(pool, required(args, 'engine-id'));
       break;
     case 'add-brief':
-      result = await operator.addBriefFromFile(pool, required(args, 'file'), required(args, 'authored-by'));
+      result = await operator.addBriefFromFile(
+        pool,
+        required(args, 'file'),
+        required(args, 'authored-by'),
+      );
       break;
     case 'approve-brief':
       result = await operator.approveBrief(pool, required(args, 'brief-id'));
@@ -81,7 +88,9 @@ async function main(): Promise<void> {
       result = await operator.jobStatus(pool, required(args, 'job-id'));
       break;
     default:
-      throw new Error(`Unknown command "${command}". Expected one of: register-engine, retire-engine, add-brief, approve-brief, create-grant, create-job, cancel-job, job-status.`);
+      throw new Error(
+        `Unknown command "${command}". Expected one of: register-engine, retire-engine, add-brief, approve-brief, create-grant, create-job, cancel-job, job-status.`,
+      );
   }
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok) process.exitCode = 1;

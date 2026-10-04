@@ -13,27 +13,55 @@ type App = ReturnType<typeof buildApp>;
 type Headers = Record<string, string>;
 
 /** Yesterday, for a universe whose history includes an Ask (`scripts/lib/backdate.ts`). */
-export const yesterday = (universeId: string) => transaction(client => backdateOneDay(client, universeId));
+export const yesterday = (universeId: string) =>
+  transaction((client) => backdateOneDay(client, universeId));
 
-export const GRAVITY_QUESTIONS = { dayOne: 'Why does everything fall toward the ground?', dayTwo: 'So what is gravity, really?' } as const;
+export const GRAVITY_QUESTIONS = {
+  dayOne: 'Why does everything fall toward the ground?',
+  dayTwo: 'So what is gravity, really?',
+} as const;
 
 /** Keeps "One force, many jobs", asks about it, and moves the day back. Returns the Ask. */
-export async function askOnDayOne(app: App, headers: Headers, universeId: string): Promise<string> {
-  const askId = await askAbout(app, headers, await readScroll(app, headers, EDITORIAL.oneForce, true), GRAVITY_QUESTIONS.dayOne);
+export async function askOnDayOne(
+  app: App,
+  headers: Headers,
+  universeId: string,
+): Promise<string> {
+  const askId = await askAbout(
+    app,
+    headers,
+    await readScroll(app, headers, EDITORIAL.oneForce, true),
+    GRAVITY_QUESTIONS.dayOne,
+  );
   await yesterday(universeId);
   return askId;
 }
 
 /** Keeps "The pull you can't see" and a Scroll from a second source family: Gravity is anchored.
  * Returns the first exposure, for the day's own question. */
-export async function anchorGravityOnDayTwo(app: App, headers: Headers): Promise<string> {
+export async function anchorGravityOnDayTwo(
+  app: App,
+  headers: Headers,
+): Promise<string> {
   const pull = await readScroll(app, headers, EDITORIAL.unseenPull, true);
   await readScroll(app, headers, EDITORIAL.oceanRhythm, true);
   return pull;
 }
 
 /** Both days, and the second question that opens the room. */
-export async function carryGravityQuestion(app: App, headers: Headers, universeId: string): Promise<{ dayOne: string; dayTwo: string }> {
+export async function carryGravityQuestion(
+  app: App,
+  headers: Headers,
+  universeId: string,
+): Promise<{ dayOne: string; dayTwo: string }> {
   const dayOne = await askOnDayOne(app, headers, universeId);
-  return { dayOne, dayTwo: await askAbout(app, headers, await anchorGravityOnDayTwo(app, headers), GRAVITY_QUESTIONS.dayTwo) };
+  return {
+    dayOne,
+    dayTwo: await askAbout(
+      app,
+      headers,
+      await anchorGravityOnDayTwo(app, headers),
+      GRAVITY_QUESTIONS.dayTwo,
+    ),
+  };
 }

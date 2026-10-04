@@ -13,9 +13,21 @@ import { CUTROOM_CONTRACT_REVISION as REVISION } from '../../apps/worker/src/gen
 import { mintReelAsset } from '../../apps/worker/src/publication/mint.ts';
 import { insertFakeEngine } from '../../tests/helpers/generation-fixture.ts';
 
-const REQUIRED_GATES = ['lineage_complete', 'source_support', 'engine_record', 'media_conformance', 'truth_label', 'repetition', 'witness_alignment'];
+const REQUIRED_GATES = [
+  'lineage_complete',
+  'source_support',
+  'engine_record',
+  'media_conformance',
+  'truth_label',
+  'repetition',
+  'witness_alignment',
+];
 
-export interface GatedReelMedia { sha256: string; byteSize: number; probe: { durationSeconds: number; width: number; height: number } }
+export interface GatedReelMedia {
+  sha256: string;
+  byteSize: number;
+  probe: { durationSeconds: number; width: number; height: number };
+}
 
 export interface GatedReelOptions {
   tag: string;
@@ -27,22 +39,44 @@ export interface GatedReelOptions {
   artifactRoot?: string;
 }
 
-export interface GatedReel { assetId: string; generatedReelId: string; mediaSha256: string; storageKey: string; sourceAssetId: string }
+export interface GatedReel {
+  assetId: string;
+  generatedReelId: string;
+  mediaSha256: string;
+  storageKey: string;
+  sourceAssetId: string;
+}
 
 const sentence = (text: string, claimIds: string[]) => ({ text, claimIds });
 
-export async function mintGatedTestReel(pool: pg.Pool, sourceAssetId: string, options: GatedReelOptions): Promise<GatedReel> {
+export async function mintGatedTestReel(
+  pool: pg.Pool,
+  sourceAssetId: string,
+  options: GatedReelOptions,
+): Promise<GatedReel> {
   const gated = await gateTestReel(pool, sourceAssetId, options);
   const minted = await mintReelAsset(pool, gated.generatedReelId);
   return { ...gated, assetId: minted.assetId };
 }
 
 /** Everything up to `test_eligible`, for a caller that mints the Reel itself (e.g. to race it). */
-export async function gateTestReel(pool: pg.Pool, sourceAssetId: string, options: GatedReelOptions): Promise<Omit<GatedReel, 'assetId'>> {
+export async function gateTestReel(
+  pool: pg.Pool,
+  sourceAssetId: string,
+  options: GatedReelOptions,
+): Promise<Omit<GatedReel, 'assetId'>> {
   const { tag } = options;
   const artifactRoot = options.artifactRoot ?? '/tmp/gated-reel-fixtures';
-  const source = (await pool.query<{ revision: number }>(`SELECT revision FROM asset WHERE id=$1 AND kind='Scroll'`, [sourceAssetId])).rows[0];
-  if (!source) throw new Error(`No library Scroll ${sourceAssetId} to mint a test Reel over`);
+  const source = (
+    await pool.query<{ revision: number }>(
+      `SELECT revision FROM asset WHERE id=$1 AND kind='Scroll'`,
+      [sourceAssetId],
+    )
+  ).rows[0];
+  if (!source)
+    throw new Error(
+      `No library Scroll ${sourceAssetId} to mint a test Reel over`,
+    );
 
   const briefJson = generationBrief.parse({
     version: 1,
@@ -53,26 +87,65 @@ export async function gateTestReel(pool: pg.Pool, sourceAssetId: string, options
       sentence(`Sentence three ${tag}.`, ['c2']),
       sentence(`Sentence four ${tag}.`, ['c2']),
     ],
-    claims: [{ id: 'c1', role: 'main' }, { id: 'c2', role: 'supporting' }],
-    claimSources: [{ claimId: 'c1', assetId: sourceAssetId, assetRevision: source.revision }, { claimId: 'c2', assetId: sourceAssetId, assetRevision: source.revision }],
-    criteria: { mustShow: [{ id: 'show-1', text: 'Something visible.', type: 'presence', claimId: 'c1' }], mustNotShow: [], depictionPolicyVersion: 'depiction-v1' },
-    style: { id: 'library', version: 1, text: 'Quiet, documentary, no captions burned in.' },
+    claims: [
+      { id: 'c1', role: 'main' },
+      { id: 'c2', role: 'supporting' },
+    ],
+    claimSources: [
+      { claimId: 'c1', assetId: sourceAssetId, assetRevision: source.revision },
+      { claimId: 'c2', assetId: sourceAssetId, assetRevision: source.revision },
+    ],
+    criteria: {
+      mustShow: [
+        {
+          id: 'show-1',
+          text: 'Something visible.',
+          type: 'presence',
+          claimId: 'c1',
+        },
+      ],
+      mustNotShow: [],
+      depictionPolicyVersion: 'depiction-v1',
+    },
+    style: {
+      id: 'library',
+      version: 1,
+      text: 'Quiet, documentary, no captions burned in.',
+    },
     title: options.title,
     summary: options.summary,
   });
-  const briefSha256 = createHash('sha256').update(JSON.stringify(briefJson)).digest('hex');
+  const briefSha256 = createHash('sha256')
+    .update(JSON.stringify(briefJson))
+    .digest('hex');
   const briefId = randomUUID();
   await pool.query(
     `INSERT INTO generation_brief(id,source_asset_id,source_asset_revision,truth_state,brief,brief_sha256,authored_by,review_state)
      VALUES($1,$2,$3,'synthesis',$4,$5,'test','approved')`,
-    [briefId, sourceAssetId, source.revision, JSON.stringify(briefJson), briefSha256],
+    [
+      briefId,
+      sourceAssetId,
+      source.revision,
+      JSON.stringify(briefJson),
+      briefSha256,
+    ],
   );
 
   const engineId = randomUUID();
-  await insertFakeEngine(pool, { id: engineId, artifactRoot, providerMode: 'standin' });
+  await insertFakeEngine(pool, {
+    id: engineId,
+    artifactRoot,
+    providerMode: 'standin',
+  });
   const grantId = randomUUID();
-  await pool.query(`INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`, [grantId]);
-  await pool.query('UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1', [grantId]);
+  await pool.query(
+    `INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`,
+    [grantId],
+  );
+  await pool.query(
+    'UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1',
+    [grantId],
+  );
 
   const jobId = randomUUID();
   await pool.query(
@@ -86,12 +159,25 @@ export async function gateTestReel(pool: pg.Pool, sourceAssetId: string, options
   await pool.query(
     `INSERT INTO cutroom_attempt(id,job_id,ordinal,request_id,request_body,body_sha256,contract_revision)
      VALUES($1,$2,1,$3,$4,$5,$6)`,
-    [attemptId, jobId, `ks-gen-${attemptId}`, requestBody, createHash('sha256').update(requestBody).digest('hex'), REVISION],
+    [
+      attemptId,
+      jobId,
+      `ks-gen-${attemptId}`,
+      requestBody,
+      createHash('sha256').update(requestBody).digest('hex'),
+      REVISION,
+    ],
   );
   const runId = `run-${attemptId}`;
   const enginePath = `${artifactRoot}/${attemptId}.mp4`;
-  await pool.query(`UPDATE cutroom_attempt SET state='dispatch_committed', dispatch_committed_at=now() WHERE id=$1`, [attemptId]);
-  await pool.query(`UPDATE cutroom_attempt SET state='accepted', run_id=$2, accepted_at=now() WHERE id=$1`, [attemptId, runId]);
+  await pool.query(
+    `UPDATE cutroom_attempt SET state='dispatch_committed', dispatch_committed_at=now() WHERE id=$1`,
+    [attemptId],
+  );
+  await pool.query(
+    `UPDATE cutroom_attempt SET state='accepted', run_id=$2, accepted_at=now() WHERE id=$1`,
+    [attemptId, runId],
+  );
   await pool.query(
     `UPDATE cutroom_attempt SET state='finished', finished_at=now(), reported_cost_cents=0, settlement='settled',
        result=jsonb_build_object('status','completed','until','video','video',jsonb_build_object('path',$2::text)),
@@ -103,7 +189,8 @@ export async function gateTestReel(pool: pg.Pool, sourceAssetId: string, options
   );
 
   const media = options.media ?? {
-    sha256: createHash('sha256').update(`${attemptId}-media`).digest('hex'), byteSize: 4096,
+    sha256: createHash('sha256').update(`${attemptId}-media`).digest('hex'),
+    byteSize: 4096,
     probe: { durationSeconds: 7.25, width: 1080, height: 1920 },
   };
   const storageKey = `sha256/${media.sha256.slice(0, 2)}/${media.sha256.slice(2, 4)}/${media.sha256}.mp4`;
@@ -113,20 +200,48 @@ export async function gateTestReel(pool: pg.Pool, sourceAssetId: string, options
   );
 
   const generatedReelId = randomUUID();
-  const lineage = { briefSha256, contractRevision: REVISION, runId, recordSummary: { takes: 1, used: 1 } };
+  const lineage = {
+    briefSha256,
+    contractRevision: REVISION,
+    runId,
+    recordSummary: { takes: 1, used: 1 },
+  };
   await pool.query(
     `INSERT INTO generated_reel(id,attempt_id,brief_id,engine_id,cutroom_run_id,media_sha256,engine_path,provider_mode,truth_state,generated_label,lineage)
      VALUES($1,$2,$3,$4,$5,$6,$7,'standin','synthesis',true,$8)`,
-    [generatedReelId, attemptId, briefId, engineId, runId, media.sha256, enginePath, JSON.stringify(lineage)],
+    [
+      generatedReelId,
+      attemptId,
+      briefId,
+      engineId,
+      runId,
+      media.sha256,
+      enginePath,
+      JSON.stringify(lineage),
+    ],
   );
 
   for (const gate of REQUIRED_GATES) {
     const verdict = gate === 'witness_alignment' ? 'unavailable' : 'pass';
     await pool.query(
       `INSERT INTO publication_gate_result(id,generated_reel_id,policy_version,gate,verdict,evidence) VALUES($1,$2,'publication-v1',$3,$4,$5)`,
-      [randomUUID(), generatedReelId, gate, verdict, JSON.stringify(verdict === 'unavailable' ? { reason: 'test' } : {})],
+      [
+        randomUUID(),
+        generatedReelId,
+        gate,
+        verdict,
+        JSON.stringify(verdict === 'unavailable' ? { reason: 'test' } : {}),
+      ],
     );
   }
-  await pool.query(`UPDATE generated_reel SET availability='test_eligible', availability_policy_version='publication-v1', availability_decided_at=now() WHERE id=$1`, [generatedReelId]);
-  return { generatedReelId, mediaSha256: media.sha256, storageKey, sourceAssetId };
+  await pool.query(
+    `UPDATE generated_reel SET availability='test_eligible', availability_policy_version='publication-v1', availability_decided_at=now() WHERE id=$1`,
+    [generatedReelId],
+  );
+  return {
+    generatedReelId,
+    mediaSha256: media.sha256,
+    storageKey,
+    sourceAssetId,
+  };
 }

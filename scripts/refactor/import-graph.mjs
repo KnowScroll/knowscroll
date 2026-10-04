@@ -256,13 +256,7 @@ export function scanSource(rel, text) {
       : ext === '.mjs' || ext === '.js'
         ? ts.ScriptKind.JS
         : ts.ScriptKind.TS;
-  const sf = ts.createSourceFile(
-    rel,
-    text,
-    ts.ScriptTarget.Latest,
-    true,
-    kind,
-  );
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, kind);
   const specs = [];
   const dynamicNonLiteral = [];
   const lineOf = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
@@ -329,7 +323,8 @@ export function collectFiles({ withTestsScripts, withWeb }) {
   for (const p of ['contracts', 'core', 'db']) {
     walk(`packages/${p}/src`, ts_, files);
   }
-  if (withTestsScripts) for (const d of ['tests', 'scripts', 'ops']) walk(d, ts_, files);
+  if (withTestsScripts)
+    for (const d of ['tests', 'scripts', 'ops']) walk(d, ts_, files);
   if (withWeb) walk('apps/web/src', ts_, files);
   return [...new Set(files)].sort(cmp);
 }
@@ -495,7 +490,10 @@ export function analyze(opts) {
       const [from, to, t] = k.split('\0');
       return { from, to, typeOnly: t === 'true', statements: n };
     })
-    .sort((a, b) => cmp(a.from, b.from) || cmp(a.to, b.to) || a.typeOnly - b.typeOnly);
+    .sort(
+      (a, b) =>
+        cmp(a.from, b.from) || cmp(a.to, b.to) || a.typeOnly - b.typeOnly,
+    );
 
   const pkgPairs = {};
   const pkgFilePairs = {};
@@ -520,9 +518,13 @@ export function analyze(opts) {
   const fileNodes = g.files;
   const folderNodes = [...new Set(g.files.map(dir))];
   const fileEdgesAll = edges.map((e) => [e.from, e.to]);
-  const fileEdgesValue = edges.filter((e) => !e.typeOnly).map((e) => [e.from, e.to]);
+  const fileEdgesValue = edges
+    .filter((e) => !e.typeOnly)
+    .map((e) => [e.from, e.to]);
   const folderEdges = (list) =>
-    list.filter(([a, b]) => dir(a) !== dir(b)).map(([a, b]) => [dir(a), dir(b)]);
+    list
+      .filter(([a, b]) => dir(a) !== dir(b))
+      .map(([a, b]) => [dir(a), dir(b)]);
   const cycles = {
     file: {
       all: sccs(fileNodes, fileEdgesAll),
@@ -550,7 +552,10 @@ export function analyze(opts) {
   }
   violations.sort(
     (a, b) =>
-      cmp(a.rule, b.rule) || cmp(a.file, b.file) || a.line - b.line || cmp(a.spec, b.spec),
+      cmp(a.rule, b.rule) ||
+      cmp(a.file, b.file) ||
+      a.line - b.line ||
+      cmp(a.spec, b.spec),
   );
 
   return sortKeys({
@@ -566,7 +571,10 @@ export function analyze(opts) {
     cycles,
     cycleSummary: {
       directSelfImports: selfImports,
-      fileSccCount: { all: cycles.file.all.length, value: cycles.file.value.length },
+      fileSccCount: {
+        all: cycles.file.all.length,
+        value: cycles.file.value.length,
+      },
       filesInFileSccs: {
         all: countFiles(cycles.file.all),
         value: countFiles(cycles.file.value),
@@ -674,7 +682,8 @@ function formatMarkdown(r) {
   for (const v of r.violations) (byRule[v.rule] ??= []).push(v);
   for (const [rule, list] of Object.entries(byRule)) {
     L.push(`### ${rule} (${list.length})`, '');
-    for (const v of list) L.push(`- \`${v.file}:${v.line}\` imports \`${v.spec}\``);
+    for (const v of list)
+      L.push(`- \`${v.file}:${v.line}\` imports \`${v.spec}\``);
     L.push('');
   }
   return `${L.join('\n')}\n`;
@@ -710,10 +719,11 @@ function compareReports(oldR, newR) {
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (cmd === 'report') {
-    const { flags } = parseArgs(rest, ['json', 'markdown'], [
-      'with-tests-scripts',
-      'with-web',
-    ]);
+    const { flags } = parseArgs(
+      rest,
+      ['json', 'markdown'],
+      ['with-tests-scripts', 'with-web'],
+    );
     const r = analyze({
       withTestsScripts: !!flags['with-tests-scripts'],
       withWeb: !!flags['with-web'],
@@ -740,7 +750,10 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     main();
   } catch (e) {

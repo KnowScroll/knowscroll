@@ -44,7 +44,8 @@ import {
 const PACKAGES = ['contracts', 'core', 'db'];
 const APPS = ['api', 'worker'];
 const FORMAT =
-  ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
+  ts.TypeFormatFlags.NoTruncation |
+  ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
 
 function globToRegex(glob) {
   let re = '';
@@ -158,7 +159,16 @@ function describeSymbol(checker, describer, exported, moduleExports) {
   const hasValue = !!(target.flags & ts.SymbolFlags.Value);
   const hasType = !!(target.flags & ts.SymbolFlags.Type);
   const hasNamespace = !!(target.flags & ts.SymbolFlags.Namespace);
-  const kind = hasValue && hasType ? 'value+type' : hasValue ? 'value' : hasType ? 'type' : hasNamespace ? 'namespace' : 'unknown';
+  const kind =
+    hasValue && hasType
+      ? 'value+type'
+      : hasValue
+        ? 'value'
+        : hasType
+          ? 'type'
+          : hasNamespace
+            ? 'namespace'
+            : 'unknown';
   const entry = {
     kind,
     decl: [...new Set(decls.map(declKind))].sort(cmp).join('+'),
@@ -177,7 +187,11 @@ function describeSymbol(checker, describer, exported, moduleExports) {
   };
   const declaredType = () => {
     const t = checker.getDeclaredTypeOfSymbol(target);
-    let s = checker.typeToString(t, undefined, FORMAT | ts.TypeFormatFlags.InTypeAlias);
+    let s = checker.typeToString(
+      t,
+      undefined,
+      FORMAT | ts.TypeFormatFlags.InTypeAlias,
+    );
     if (
       target.flags &
       (ts.SymbolFlags.Interface | ts.SymbolFlags.Class | ts.SymbolFlags.Enum)
@@ -321,10 +335,16 @@ const comparable = (e) =>
     : entrySignature(e);
 
 function diffMaps(oldMap, newMap) {
-  const added = Object.keys(newMap).filter((n) => !(n in oldMap)).sort(cmp);
-  const removed = Object.keys(oldMap).filter((n) => !(n in newMap)).sort(cmp);
+  const added = Object.keys(newMap)
+    .filter((n) => !(n in oldMap))
+    .sort(cmp);
+  const removed = Object.keys(oldMap)
+    .filter((n) => !(n in newMap))
+    .sort(cmp);
   const changed = Object.keys(newMap)
-    .filter((n) => n in oldMap && comparable(oldMap[n]) !== comparable(newMap[n]))
+    .filter(
+      (n) => n in oldMap && comparable(oldMap[n]) !== comparable(newMap[n]),
+    )
     .sort(cmp);
   return { added, removed, changed };
 }
@@ -364,18 +384,27 @@ function compareSnapshots(oldS, newS, { allow, byModule, moveMap }) {
       lines.push(
         `  ${label}: ${unexplained.length}${allowed ? ` (+${allowed} allowed)` : ''}`,
       );
-      for (const n of unexplained) lines.push(`    ${n}${show ? `  ${show(n)}` : ''}`);
+      for (const n of unexplained)
+        lines.push(`    ${n}${show ? `  ${show(n)}` : ''}`);
       failures += unexplained.length;
     };
     lines.push(`${title}:`);
     report('added', d.added, (n) => brief(newMap[n]).slice(0, 200));
     report('removed', d.removed, (n) => brief(oldMap[n]).slice(0, 200));
-    report('changed', d.changed, (n) =>
-      `\n      old: ${brief(oldMap[n]).slice(0, 400)}\n      new: ${brief(newMap[n]).slice(0, 400)}`,
+    report(
+      'changed',
+      d.changed,
+      (n) =>
+        `\n      old: ${brief(oldMap[n]).slice(0, 400)}\n      new: ${brief(newMap[n]).slice(0, 400)}`,
     );
   };
   for (const pkg of PACKAGES) {
-    section(`package ${pkg}`, oldS.packages[pkg] ?? {}, newS.packages[pkg] ?? {}, pkg);
+    section(
+      `package ${pkg}`,
+      oldS.packages[pkg] ?? {},
+      newS.packages[pkg] ?? {},
+      pkg,
+    );
   }
   for (const app of APPS) {
     section(`app ${app}`, oldS.apps[app] ?? {}, newS.apps[app] ?? {}, app);
@@ -394,7 +423,9 @@ function compareSnapshots(oldS, newS, { allow, byModule, moveMap }) {
         const names = Object.keys(oldS.byModule[oldMod]);
         // A module that is no longer imported by tests/scripts simply drops out of the app view
         if (oldMod.startsWith('apps/')) continue;
-        lines.push(`  module missing: ${oldMod} -> ${newMod} (${names.length} exports)`);
+        lines.push(
+          `  module missing: ${oldMod} -> ${newMod} (${names.length} exports)`,
+        );
         failures++;
         continue;
       }
@@ -430,7 +461,11 @@ function compareSnapshots(oldS, newS, { allow, byModule, moveMap }) {
   for (const a of allow) {
     if (!used.has(a)) lines.push(`warning: allow entry never matched: ${a}`);
   }
-  lines.push(failures ? `UNEXPLAINED DIFFERENCES: ${failures}` : 'OK: no unexplained differences');
+  lines.push(
+    failures
+      ? `UNEXPLAINED DIFFERENCES: ${failures}`
+      : 'OK: no unexplained differences',
+  );
   return { text: `${lines.join('\n')}\n`, failures };
 }
 
@@ -443,32 +478,51 @@ function main() {
     fs.writeFileSync(flags.out, `${JSON.stringify(snap, null, 2)}\n`);
     const count = (m) => Object.keys(m).length;
     for (const p of PACKAGES) {
-      console.log(`package ${p}: ${count(snap.packages[p])} exports, ${Object.keys(snap.internal[p]).length} internal modules`);
+      console.log(
+        `package ${p}: ${count(snap.packages[p])} exports, ${Object.keys(snap.internal[p]).length} internal modules`,
+      );
     }
     for (const a of APPS) {
-      const mods = new Set(Object.values(snap.apps[a]).flatMap((e) => (e.conflict ? e.conflict.flatMap((x) => x.modules) : e.modules)));
-      console.log(`app ${a}: ${count(snap.apps[a])} exports across ${mods.size} test/script-imported modules`);
+      const mods = new Set(
+        Object.values(snap.apps[a]).flatMap((e) =>
+          e.conflict ? e.conflict.flatMap((x) => x.modules) : e.modules,
+        ),
+      );
+      console.log(
+        `app ${a}: ${count(snap.apps[a])} exports across ${mods.size} test/script-imported modules`,
+      );
     }
     const conflicts = [
       ...PACKAGES.map((p) => [p, snap.packages[p]]),
       ...APPS.map((a) => [a, snap.apps[a]]),
     ].flatMap(([k, m]) =>
-      Object.entries(m).filter(([, e]) => e.conflict).map(([n]) => `${k}:${n}`),
+      Object.entries(m)
+        .filter(([, e]) => e.conflict)
+        .map(([n]) => `${k}:${n}`),
     );
-    console.log(`name conflicts (same name, different kind/type): ${conflicts.length}${conflicts.length ? ` ${conflicts.join(', ')}` : ''}`);
+    console.log(
+      `name conflicts (same name, different kind/type): ${conflicts.length}${conflicts.length ? ` ${conflicts.join(', ')}` : ''}`,
+    );
   } else if (cmd === 'compare') {
-    const { flags, positional } = parseArgs(rest, ['allow', 'move-map'], ['by-module']);
+    const { flags, positional } = parseArgs(
+      rest,
+      ['allow', 'move-map'],
+      ['by-module'],
+    );
     const [a, b] = positional;
     if (!a || !b) throw new Error('usage: compare <old.json> <new.json>');
     const byModule = !!flags['by-module'];
-    if (byModule && !flags['move-map']) throw new Error('--by-module needs --move-map <map.json>');
+    if (byModule && !flags['move-map'])
+      throw new Error('--by-module needs --move-map <map.json>');
     const res = compareSnapshots(
       JSON.parse(fs.readFileSync(a, 'utf8')),
       JSON.parse(fs.readFileSync(b, 'utf8')),
       {
         allow: loadAllow(flags.allow),
         byModule,
-        moveMap: byModule ? JSON.parse(fs.readFileSync(flags['move-map'], 'utf8')) : {},
+        moveMap: byModule
+          ? JSON.parse(fs.readFileSync(flags['move-map'], 'utf8'))
+          : {},
       },
     );
     process.stdout.write(res.text);
@@ -481,7 +535,10 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     main();
   } catch (e) {

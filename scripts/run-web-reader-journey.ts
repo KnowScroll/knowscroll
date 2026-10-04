@@ -23,7 +23,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function localConfig(text: string): Record<string, string> {
   return Object.fromEntries(
-    text.split('\n').flatMap(line => {
+    text.split('\n').flatMap((line) => {
       const match = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line);
       return match ? [[match[1], match[2]]] : [];
     }),
@@ -38,7 +38,13 @@ function quoteIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
-type ManagedProcess = { child: ChildProcess; startupError?: Error; label: string; stopping: boolean; recentOutput: string[] };
+type ManagedProcess = {
+  child: ChildProcess;
+  startupError?: Error;
+  label: string;
+  stopping: boolean;
+  recentOutput: string[];
+};
 const activeCommands = new Set<ChildProcess>();
 /** Every process started via `start()` (api/worker/fault-proxy/web-dev), so a fatal abort can kill
  * all of them even outside `cleanup()` -- `activeCommands` alone (populated only by `run()`) never
@@ -55,9 +61,20 @@ function appendRecentOutput(recentOutput: string[], text: string): void {
 }
 
 /** quiet=true buffers output only for the eventual error message (migrate/seed noise); quiet=false also streams it live (Playwright's own progress) -- piped either way so both modes can report progress to the watchdog and, on an abnormal exit, their own last output. */
-function run(command: string, args: string[], env: NodeJS.ProcessEnv, cwd = root, quiet = true): Promise<{ stdout: string; stderr: string }> {
+function run(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  cwd = root,
+  quiet = true,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolveRun, reject) => {
-    const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    });
     activeCommands.add(child);
     let stdout = '',
       stderr = '';
@@ -70,39 +87,72 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv, cwd = root
     };
     child.stdout?.on('data', onChunk(false));
     child.stderr?.on('data', onChunk(true));
-    child.once('error', error => {
+    child.once('error', (error) => {
       activeCommands.delete(child);
       reject(error);
     });
-    child.once('exit', code => {
+    child.once('exit', (code) => {
       activeCommands.delete(child);
       if (code === 0) return resolveRun({ stdout, stderr });
       // A kill we ourselves issued (fatal abort or SIGINT/SIGTERM) already has a clearer, more
       // specific error in flight (triggerFatal's, or the interruption itself); don't bury it
       // under this child's own "exited 143(SIGTERM)" noise.
-      if (fatalTriggered) return reject(fatalError ?? new Error(`${command} ${args.join(' ')} exited ${code} during an aborted run`));
-      if (interrupted) return reject(new Error(`${command} ${args.join(' ')} exited ${code}: web-reader journey runner interrupted`));
+      if (fatalTriggered)
+        return reject(
+          fatalError ??
+            new Error(
+              `${command} ${args.join(' ')} exited ${code} during an aborted run`,
+            ),
+        );
+      if (interrupted)
+        return reject(
+          new Error(
+            `${command} ${args.join(' ')} exited ${code}: web-reader journey runner interrupted`,
+          ),
+        );
       // Output that was streamed live (quiet=false: Playwright) is not repeated in the error, which is
       // printed again and recorded in the tracked receipt with absolute stack paths.
-      reject(new Error(quiet ? `${command} ${args.join(' ')} exited ${code}: ${stderr || stdout}` : `${command} ${args.join(' ')} exited ${code} (output above)`));
+      reject(
+        new Error(
+          quiet
+            ? `${command} ${args.join(' ')} exited ${code}: ${stderr || stdout}`
+            : `${command} ${args.join(' ')} exited ${code} (output above)`,
+        ),
+      );
     });
   });
 }
 
-function start(command: string, args: string[], env: NodeJS.ProcessEnv, label: string, cwd = root): ManagedProcess {
-  const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
-  const managed: ManagedProcess = { child, label, stopping: false, recentOutput: [] };
+function start(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  label: string,
+  cwd = root,
+): ManagedProcess {
+  const child = spawn(command, args, {
+    cwd,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
+  });
+  const managed: ManagedProcess = {
+    child,
+    label,
+    stopping: false,
+    recentOutput: [],
+  };
   managedProcesses.push(managed);
-  child.once('error', error => {
+  child.once('error', (error) => {
     managed.startupError = error;
   });
-  child.stdout?.on('data', chunk => {
+  child.stdout?.on('data', (chunk) => {
     const text = String(chunk);
     process.stdout.write(`[${label}] ${text}`);
     noteActivity();
     appendRecentOutput(managed.recentOutput, text);
   });
-  child.stderr?.on('data', chunk => {
+  child.stderr?.on('data', (chunk) => {
     const text = String(chunk);
     process.stderr.write(`[${label}] ${text}`);
     noteActivity();
@@ -119,7 +169,9 @@ function start(command: string, args: string[], env: NodeJS.ProcessEnv, label: s
       new Error(
         [
           `web-reader journey: managed child "${label}" exited unexpectedly during phase "${currentPhase}" (${reason}).`,
-          tail ? `Last output from "${label}" (up to ${RECENT_OUTPUT_LINES} lines):\n${tail}` : `"${label}" produced no output before exiting.`,
+          tail
+            ? `Last output from "${label}" (up to ${RECENT_OUTPUT_LINES} lines):\n${tail}`
+            : `"${label}" produced no output before exiting.`,
         ].join('\n'),
       ),
     );
@@ -133,22 +185,34 @@ async function freePort(): Promise<number> {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
-      if (!address || typeof address === 'string') return reject(new Error('No TCP port assigned'));
+      if (!address || typeof address === 'string')
+        return reject(new Error('No TCP port assigned'));
       const port = address.port;
-      server.close(error => (error ? reject(error) : resolvePort(port)));
+      server.close((error) => (error ? reject(error) : resolvePort(port)));
     });
   });
 }
 
-async function waitForHealth(url: string, headers: Record<string, string>, processes: ManagedProcess[], label: string): Promise<void> {
+async function waitForHealth(
+  url: string,
+  headers: Record<string, string>,
+  processes: ManagedProcess[],
+  label: string,
+): Promise<void> {
   let last: unknown;
   for (let attempt = 0; attempt < 100; attempt++) {
     for (const proc of processes) {
       if (proc.startupError) throw proc.startupError;
-      if (proc.child.exitCode !== null) throw new Error(`${proc.label} exited before ${label} became ready: ${proc.child.exitCode}`);
+      if (proc.child.exitCode !== null)
+        throw new Error(
+          `${proc.label} exited before ${label} became ready: ${proc.child.exitCode}`,
+        );
     }
     try {
-      const response = await fetch(url, { headers, signal: AbortSignal.timeout(1500) });
+      const response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(1500),
+      });
       if (response.ok) return;
       last = await response.text();
     } catch (error) {
@@ -170,7 +234,10 @@ async function stop(managed: ManagedProcess | undefined): Promise<void> {
   } catch {
     child.kill('SIGTERM');
   }
-  await Promise.race([new Promise<void>(resolveExit => child.once('exit', () => resolveExit())), sleep(5000)]);
+  await Promise.race([
+    new Promise<void>((resolveExit) => child.once('exit', () => resolveExit())),
+    sleep(5000),
+  ]);
   if (child.exitCode === null) {
     try {
       process.kill(-child.pid, 'SIGKILL');
@@ -192,7 +259,10 @@ const WATCHDOG_MS = (() => {
   const raw = process.env.KS_WEB_JOURNEY_WATCHDOG_MS;
   if (raw === undefined || raw === '') return 10 * 60 * 1000;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`KS_WEB_JOURNEY_WATCHDOG_MS must be a positive number of milliseconds; got ${JSON.stringify(raw)}`);
+  if (!Number.isFinite(parsed) || parsed <= 0)
+    throw new Error(
+      `KS_WEB_JOURNEY_WATCHDOG_MS must be a positive number of milliseconds; got ${JSON.stringify(raw)}`,
+    );
   return parsed;
 })();
 const WATCHDOG_POLL_MS = 15_000;
@@ -294,7 +364,8 @@ process.once('SIGINT', onSignal);
 process.once('SIGTERM', onSignal);
 
 async function cleanup(): Promise<{ databaseDropped: boolean }> {
-  if (cleanupPromise) return cleanupPromise.then(() => ({ databaseDropped: true }));
+  if (cleanupPromise)
+    return cleanupPromise.then(() => ({ databaseDropped: true }));
   let databaseDropped = false;
   cleanupPromise = (async () => {
     const errors: unknown[] = [];
@@ -308,7 +379,9 @@ async function cleanup(): Promise<{ databaseDropped: boolean }> {
     if (admin) {
       if (databaseCreated) {
         try {
-          await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`);
+          await admin.query(
+            `DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)} WITH (FORCE)`,
+          );
           databaseDropped = true;
         } catch (error) {
           errors.push(error);
@@ -327,20 +400,28 @@ async function cleanup(): Promise<{ databaseDropped: boolean }> {
         errors.push(error);
       }
     }
-    if (errors.length) throw new AggregateError(errors, 'web-reader journey cleanup failed');
+    if (errors.length)
+      throw new AggregateError(errors, 'web-reader journey cleanup failed');
   })();
   await cleanupPromise;
   return { databaseDropped };
 }
 
 function throwIfInterrupted(): void {
-  if (interrupted) throw fatalError ?? new Error('web-reader journey runner interrupted');
+  if (interrupted)
+    throw fatalError ?? new Error('web-reader journey runner interrupted');
 }
 
-const receipt: Record<string, unknown> = { journey: 'web-reader-92', startedAt: new Date().toISOString() };
+const receipt: Record<string, unknown> = {
+  journey: 'web-reader-92',
+  startedAt: new Date().toISOString(),
+};
 /** The receipt is tracked evidence: strip the checkout's absolute path and bound its length. */
 function forReceipt(error: unknown): string {
-  return String(error).replaceAll(root, '<repo>').replaceAll(process.env.HOME ?? '\u0000', '<home>').slice(0, 2000);
+  return String(error)
+    .replaceAll(root, '<repo>')
+    .replaceAll(process.env.HOME ?? '\u0000', '<home>')
+    .slice(0, 2000);
 }
 let primaryError: unknown;
 
@@ -352,17 +433,25 @@ try {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   const sourceUrl = process.env.DATABASE_URL ?? config.DATABASE_URL;
-  if (!sourceUrl) throw new Error('DATABASE_URL is required in the environment or the lane .env');
+  if (!sourceUrl)
+    throw new Error(
+      'DATABASE_URL is required in the environment or the lane .env',
+    );
   const source = new URL(sourceUrl);
   if (!['127.0.0.1', 'localhost', '::1'].includes(source.hostname)) {
     throw new Error('This runner only permits a loopback PostgreSQL server');
   }
   if (source.pathname.replace(/^\//, '') === 'knowscroll') {
-    throw new Error('Refusing to use the owner database name "knowscroll" as the admin connection target');
+    throw new Error(
+      'Refusing to use the owner database name "knowscroll" as the admin connection target',
+    );
   }
 
   startWatchdog();
-  admin = new pg.Client({ connectionString: databaseUrl(sourceUrl, 'postgres'), connectionTimeoutMillis: 5000 });
+  admin = new pg.Client({
+    connectionString: databaseUrl(sourceUrl, 'postgres'),
+    connectionTimeoutMillis: 5000,
+  });
   notePhase('connecting to the admin PostgreSQL database');
   await guarded(admin.connect());
   throwIfInterrupted();
@@ -370,21 +459,34 @@ try {
   // Set before CREATE: if a stalled CREATE is abandoned by the watchdog it may still commit on the
   // server, and cleanup must then drop it (the drop tolerates a database that never appeared).
   databaseCreated = true;
-  await guarded(admin.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`));
+  await guarded(
+    admin.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`),
+  );
   throwIfInterrupted();
 
   const disposableUrl = databaseUrl(sourceUrl, databaseName);
   const apiPort = await freePort();
   const token = randomBytes(32).toString('hex');
   const runtimeEnvironment = Object.fromEntries(
-    ['PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR'].flatMap(name => {
+    [
+      'PATH',
+      'HOME',
+      'LANG',
+      'LC_ALL',
+      'KS_DEV_ROOT',
+      'npm_config_cache',
+      'COREPACK_HOME',
+      'TMPDIR',
+    ].flatMap((name) => {
       const value = process.env[name];
       return value === undefined ? [] : [[name, value]];
     }),
   );
   if (reelMode) {
     if (!process.env.KS_NATIVE_VIDEO?.startsWith('/Volumes/')) {
-      throw new Error('Reel journey requires KS_NATIVE_VIDEO on the external SSD');
+      throw new Error(
+        'Reel journey requires KS_NATIVE_VIDEO on the external SSD',
+      );
     }
     const fixtureParent = resolve(root, 'apps/web/artifacts');
     mkdirSync(fixtureParent, { recursive: true });
@@ -392,7 +494,7 @@ try {
   }
   const backendEnvironment = {
     ...runtimeEnvironment,
-    ...Object.fromEntries(Object.keys(config).map(key => [key, ''])), // never inherit the lane .env's own values into child processes
+    ...Object.fromEntries(Object.keys(config).map((key) => [key, ''])), // never inherit the lane .env's own values into child processes
     DATABASE_URL: disposableUrl,
     KS_DEV_TOKEN: token,
     PORT: String(apiPort),
@@ -401,36 +503,73 @@ try {
   };
 
   notePhase('running database migrations');
-  await guarded(run('pnpm', ['exec', 'tsx', 'scripts/migrate.ts'], backendEnvironment));
+  await guarded(
+    run('pnpm', ['exec', 'tsx', 'scripts/migrate.ts'], backendEnvironment),
+  );
   throwIfInterrupted();
   notePhase('seeding the disposable database');
   // The reader journey proves mechanics over a finite three-Scroll library (its own fixture), not
   // the size of the product library, which grows with editorial content (#131).
-  await guarded(run('pnpm', ['exec', 'tsx', 'scripts/seed.ts'],
-    branchMode ? backendEnvironment : { ...backendEnvironment, KS_SEED_SCROLLS: 'apps/web/e2e/fixtures/reader-library.json', KS_SEED_SUBSTRATE: 'none' }));
+  await guarded(
+    run(
+      'pnpm',
+      ['exec', 'tsx', 'scripts/seed.ts'],
+      branchMode
+        ? backendEnvironment
+        : {
+            ...backendEnvironment,
+            KS_SEED_SCROLLS: 'apps/web/e2e/fixtures/reader-library.json',
+            KS_SEED_SUBSTRATE: 'none',
+          },
+    ),
+  );
   throwIfInterrupted();
   if (reelMode) {
     notePhase('seeding labelled Reel test media');
-    await guarded(run('pnpm', ['exec', 'tsx', 'scripts/fixtures/native-reel.ts'], {
-      ...backendEnvironment,
-      KS_NATIVE_VIDEO: process.env.KS_NATIVE_VIDEO,
-      KS_NATIVE_TAG: 'web-reader-test',
-    }));
+    await guarded(
+      run('pnpm', ['exec', 'tsx', 'scripts/fixtures/native-reel.ts'], {
+        ...backendEnvironment,
+        KS_NATIVE_VIDEO: process.env.KS_NATIVE_VIDEO,
+        KS_NATIVE_TAG: 'web-reader-test',
+      }),
+    );
     throwIfInterrupted();
   }
 
   notePhase('starting the API and worker');
-  api = start('pnpm', ['exec', 'tsx', 'apps/api/src/main.ts'], backendEnvironment, 'api');
-  worker = start('pnpm', ['exec', 'tsx', 'apps/worker/src/main.ts'], backendEnvironment, 'worker');
+  api = start(
+    'pnpm',
+    ['exec', 'tsx', 'apps/api/src/main.ts'],
+    backendEnvironment,
+    'api',
+  );
+  worker = start(
+    'pnpm',
+    ['exec', 'tsx', 'apps/worker/src/main.ts'],
+    backendEnvironment,
+    'worker',
+  );
   const apiBase = `http://127.0.0.1:${apiPort}`;
   notePhase('waiting for the disposable API/worker to become healthy');
-  await guarded(waitForHealth(`${apiBase}/health`, { authorization: `Bearer ${token}` }, [api, worker], 'disposable API/worker'));
+  await guarded(
+    waitForHealth(
+      `${apiBase}/health`,
+      { authorization: `Bearer ${token}` },
+      [api, worker],
+      'disposable API/worker',
+    ),
+  );
   throwIfInterrupted();
 
   // Fault-injecting proxy sits between the Vite dev-auth proxy and the real API.
   notePhase('starting the fault-injecting proxy');
   const faultProxyLog = { port: 0 };
-  faultProxy = start('pnpm', ['exec', 'tsx', 'apps/web/e2e/support/fault-proxy-cli.ts', apiBase], backendEnvironment, 'fault-proxy');
+  faultProxy = start(
+    'pnpm',
+    ['exec', 'tsx', 'apps/web/e2e/support/fault-proxy-cli.ts', apiBase],
+    backendEnvironment,
+    'fault-proxy',
+  );
   const faultProxyPort = await guarded(
     new Promise<number>((resolvePort, reject) => {
       const onData = (chunk: Buffer) => {
@@ -441,8 +580,15 @@ try {
         }
       };
       faultProxy!.child.stdout?.on('data', onData);
-      faultProxy!.child.once('exit', code => reject(new Error(`fault-proxy exited before reporting its port: ${code}`)));
-      setTimeout(() => reject(new Error('fault-proxy never reported its port')), 10000).unref();
+      faultProxy!.child.once('exit', (code) =>
+        reject(
+          new Error(`fault-proxy exited before reporting its port: ${code}`),
+        ),
+      );
+      setTimeout(
+        () => reject(new Error('fault-proxy never reported its port')),
+        10000,
+      ).unref();
     }),
   );
   faultProxyLog.port = faultProxyPort;
@@ -457,20 +603,39 @@ try {
     NODE_ENV: 'development',
   };
   notePhase('starting the Vite dev server');
-  webDev = start('pnpm', ['exec', 'vite', '--config', 'vite.config.ts'], webEnvironment, 'web-dev', resolve(root, 'apps/web'));
+  webDev = start(
+    'pnpm',
+    ['exec', 'vite', '--config', 'vite.config.ts'],
+    webEnvironment,
+    'web-dev',
+    resolve(root, 'apps/web'),
+  );
   const webBase = `http://127.0.0.1:${webPort}`;
   notePhase('waiting for the Vite dev server to become healthy');
-  await guarded(waitForHealth(webBase, {}, [webDev, api, worker, faultProxy], 'Vite dev server'));
+  await guarded(
+    waitForHealth(
+      webBase,
+      {},
+      [webDev, api, worker, faultProxy],
+      'Vite dev server',
+    ),
+  );
   throwIfInterrupted();
 
   // Smoke-check the dev-auth proxy end to end before handing off to Playwright:
   // an unauthenticated curl-style request to the proxied path must succeed
   // because Vite injects the bearer token server-side.
   notePhase('running the dev-auth proxy smoke check');
-  const proxyCheck = await guarded(fetch(`${webBase}/v1/session`, { signal: AbortSignal.timeout(3000) }));
-  if (proxyCheck.status !== 200) throw new Error(`Dev-auth proxy smoke check failed: HTTP ${proxyCheck.status}`);
+  const proxyCheck = await guarded(
+    fetch(`${webBase}/v1/session`, { signal: AbortSignal.timeout(3000) }),
+  );
+  if (proxyCheck.status !== 200)
+    throw new Error(
+      `Dev-auth proxy smoke check failed: HTTP ${proxyCheck.status}`,
+    );
   const proxyCheckBody = (await proxyCheck.json()) as { sessionId?: string };
-  if (!proxyCheckBody.sessionId) throw new Error('Dev-auth proxy smoke check: unexpected /v1/session shape');
+  if (!proxyCheckBody.sessionId)
+    throw new Error('Dev-auth proxy smoke check: unexpected /v1/session shape');
 
   const playwrightEnvironment = {
     ...runtimeEnvironment,
@@ -478,7 +643,9 @@ try {
     KS_FAULT_PROXY_URL: `http://127.0.0.1:${faultProxyPort}`,
     KS_TEST_API_BASE: apiBase,
     KS_TEST_API_TOKEN: token,
-    PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ?? resolve(runtimeEnvironment.KS_DEV_ROOT ?? '', 'playwright-browsers'),
+    PLAYWRIGHT_BROWSERS_PATH:
+      process.env.PLAYWRIGHT_BROWSERS_PATH ??
+      resolve(runtimeEnvironment.KS_DEV_ROOT ?? '', 'playwright-browsers'),
     // The cached browser *binary* is required to live on the SSD (ADR-0022/#92
     // brief); the ephemeral per-launch --user-data-dir profile does not. Measured
     // on this SSD, launching Chromium with its scratch profile under
@@ -498,7 +665,24 @@ try {
   notePhase('running the Playwright web-reader journey');
   let playwrightError: unknown;
   try {
-    await guarded(run('pnpm', ['exec', 'playwright', 'test', ...(reelMode ? ['99-reel-media.spec.ts'] : branchMode ? ['98-branch-navigation.spec.ts'] : [])], playwrightEnvironment, resolve(root, 'apps/web'), false));
+    await guarded(
+      run(
+        'pnpm',
+        [
+          'exec',
+          'playwright',
+          'test',
+          ...(reelMode
+            ? ['99-reel-media.spec.ts']
+            : branchMode
+              ? ['98-branch-navigation.spec.ts']
+              : []),
+        ],
+        playwrightEnvironment,
+        resolve(root, 'apps/web'),
+        false,
+      ),
+    );
   } catch (error) {
     playwrightError = error;
   }
@@ -507,18 +691,28 @@ try {
   receipt.apiPort = apiPort;
   receipt.faultProxyPort = faultProxyPort;
   receipt.webPort = webPort;
-  receipt.devAuthProxySmokeCheck = 'passed (unauthenticated /v1/session via proxy returned 200)';
-  receipt.playwright = playwrightError ? { result: 'failed', message: forReceipt(playwrightError) } : { result: 'passed' };
-  receipt.mode = reelMode ? 'labelled-Reel-test-media' : branchMode ? 'source-backed-branch' : 'reader';
+  receipt.devAuthProxySmokeCheck =
+    'passed (unauthenticated /v1/session via proxy returned 200)';
+  receipt.playwright = playwrightError
+    ? { result: 'failed', message: forReceipt(playwrightError) }
+    : { result: 'passed' };
+  receipt.mode = reelMode
+    ? 'labelled-Reel-test-media'
+    : branchMode
+      ? 'source-backed-branch'
+      : 'reader';
   receipt.browser = process.env.KS_PW_BROWSER ?? 'chromium';
   receipt.finishedAt = new Date().toISOString();
 
   if (playwrightError) throw playwrightError;
-  console.log(JSON.stringify({ journey: 'web-reader-92', result: 'passed', ...receipt }));
+  console.log(
+    JSON.stringify({ journey: 'web-reader-92', result: 'passed', ...receipt }),
+  );
 } catch (error) {
   primaryError = error;
   receipt.error = forReceipt(error);
-  if (fatalTriggered) receipt.fatal = { phase: currentPhase, watchdogMs: WATCHDOG_MS };
+  if (fatalTriggered)
+    receipt.fatal = { phase: currentPhase, watchdogMs: WATCHDOG_MS };
   throw error;
 } finally {
   stopWatchdog();
@@ -528,13 +722,23 @@ try {
   try {
     cleanupResult = await cleanup();
   } catch (error) {
-    if (primaryError) console.error('web-reader journey cleanup failed after primary error', error);
+    if (primaryError)
+      console.error(
+        'web-reader journey cleanup failed after primary error',
+        error,
+      );
     else throw error;
   }
-  receipt.databaseDropped = cleanupResult?.databaseDropped ?? databaseCreated === false;
+  receipt.databaseDropped =
+    cleanupResult?.databaseDropped ?? databaseCreated === false;
   try {
-    mkdirSync(resolve(root, 'docs/journeys/evidence/web-reader'), { recursive: true });
-    writeFileSync(resolve(root, 'docs/journeys/evidence/web-reader/last-run-receipt.json'), JSON.stringify(receipt, null, 2));
+    mkdirSync(resolve(root, 'docs/journeys/evidence/web-reader'), {
+      recursive: true,
+    });
+    writeFileSync(
+      resolve(root, 'docs/journeys/evidence/web-reader/last-run-receipt.json'),
+      JSON.stringify(receipt, null, 2),
+    );
   } catch {
     // Evidence write is best-effort; it must never mask the primary result.
   }

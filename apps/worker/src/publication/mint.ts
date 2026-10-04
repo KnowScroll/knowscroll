@@ -26,7 +26,10 @@ import { lockSubstrateShared } from '../../../../packages/db/src/semantic/read-s
 import { annotateReelsOver } from '../../../../packages/db/src/semantic/seed.ts';
 
 export class MintError extends Error {
-  constructor(readonly code: string, message: string) {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
     super(message);
     this.name = 'MintError';
   }
@@ -52,36 +55,71 @@ interface ReelRow {
  * inserting nothing. Refuses (typed) a Reel that has not cleared its gates, or whose brief carries
  * no `title`/`summary` to display — never invents either from the engine's own record.
  */
-export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Promise<MintOutcome> {
-  const reel = (await pool.query<ReelRow>(
-    `SELECT id, brief_id, availability, media_sha256, provider_mode, truth_state
+export async function mintReelAsset(
+  pool: pg.Pool,
+  generatedReelId: string,
+): Promise<MintOutcome> {
+  const reel = (
+    await pool.query<ReelRow>(
+      `SELECT id, brief_id, availability, media_sha256, provider_mode, truth_state
      FROM generated_reel WHERE id=$1`,
-    [generatedReelId],
-  )).rows[0];
-  if (!reel) throw new MintError('unknown_reel', `No generated Reel with id ${generatedReelId}`);
+      [generatedReelId],
+    )
+  ).rows[0];
+  if (!reel)
+    throw new MintError(
+      'unknown_reel',
+      `No generated Reel with id ${generatedReelId}`,
+    );
 
-  const existing = (await pool.query<{ id: string }>(
-    'SELECT id FROM asset WHERE generated_reel_id=$1', [generatedReelId],
-  )).rows[0];
+  const existing = (
+    await pool.query<{ id: string }>(
+      'SELECT id FROM asset WHERE generated_reel_id=$1',
+      [generatedReelId],
+    )
+  ).rows[0];
   if (existing) return { assetId: existing.id, created: false };
 
-  if (reel.availability !== 'eligible' && reel.availability !== 'test_eligible') {
-    throw new MintError('not_gated', `Generated Reel ${generatedReelId} is "${reel.availability}", not eligible or test_eligible`);
+  if (
+    reel.availability !== 'eligible' &&
+    reel.availability !== 'test_eligible'
+  ) {
+    throw new MintError(
+      'not_gated',
+      `Generated Reel ${generatedReelId} is "${reel.availability}", not eligible or test_eligible`,
+    );
   }
 
-  const briefRow = (await pool.query<{ brief: unknown; source_asset_id: string }>(
-    'SELECT brief, source_asset_id FROM generation_brief WHERE id=$1', [reel.brief_id],
-  )).rows[0];
-  if (!briefRow) throw new MintError('defect', 'generated_reel references a missing generation_brief');
+  const briefRow = (
+    await pool.query<{ brief: unknown; source_asset_id: string }>(
+      'SELECT brief, source_asset_id FROM generation_brief WHERE id=$1',
+      [reel.brief_id],
+    )
+  ).rows[0];
+  if (!briefRow)
+    throw new MintError(
+      'defect',
+      'generated_reel references a missing generation_brief',
+    );
   const brief = generationBrief.parse(briefRow.brief);
   if (brief.title === undefined || brief.summary === undefined) {
-    throw new MintError('brief_missing_display_text', 'This brief carries no title/summary to mint an inventory asset from');
+    throw new MintError(
+      'brief_missing_display_text',
+      'This brief carries no title/summary to mint an inventory asset from',
+    );
   }
 
-  const source = (await pool.query<{ title: string; url: string }>(
-    'SELECT source_title AS title, source_url AS url FROM asset WHERE id=$1', [briefRow.source_asset_id],
-  )).rows[0];
-  if (!source) throw new MintError('defect', 'generation_brief references a missing source asset');
+  const source = (
+    await pool.query<{ title: string; url: string }>(
+      'SELECT source_title AS title, source_url AS url FROM asset WHERE id=$1',
+      [briefRow.source_asset_id],
+    )
+  ).rows[0];
+  if (!source)
+    throw new MintError(
+      'defect',
+      'generation_brief references a missing source asset',
+    );
 
   const assetId = randomUUID();
   const simulated = reel.provider_mode === 'standin';
@@ -99,21 +137,40 @@ export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Pro
        VALUES($1,1,'Reel',$2,$3,'',$4,$5,$6,NULL,$7,$8,$9)
        ON CONFLICT (generated_reel_id) DO NOTHING
        RETURNING id`,
-      [assetId, brief.title, brief.summary, source.title, source.url, reel.truth_state, reel.media_sha256, generatedReelId, simulated],
+      [
+        assetId,
+        brief.title,
+        brief.summary,
+        source.title,
+        source.url,
+        reel.truth_state,
+        reel.media_sha256,
+        generatedReelId,
+        simulated,
+      ],
     );
     // ADR-0043: a Reel is about what its one source Scroll is about, so it carries that Scroll's
     // concepts with the same roles, in the transaction that mints it.
-    if (inserted.rowCount === 1) await annotateReelsOver(client, briefRow.source_asset_id);
+    if (inserted.rowCount === 1)
+      await annotateReelsOver(client, briefRow.source_asset_id);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
-    throw new MintError('mint_refused', error instanceof Error ? error.message : String(error));
+    throw new MintError(
+      'mint_refused',
+      error instanceof Error ? error.message : String(error),
+    );
   } finally {
     client.release();
   }
   if (inserted.rowCount === 1) return { assetId, created: true };
   // Lost a race to a concurrent minter for the same generated Reel: return the row that won.
-  const winner = (await pool.query<{ id: string }>('SELECT id FROM asset WHERE generated_reel_id=$1', [generatedReelId])).rows[0]!;
+  const winner = (
+    await pool.query<{ id: string }>(
+      'SELECT id FROM asset WHERE generated_reel_id=$1',
+      [generatedReelId],
+    )
+  ).rows[0]!;
   return { assetId: winner.id, created: false };
 }
 
@@ -124,15 +181,28 @@ export async function mintReelAsset(pool: pg.Pool, generatedReelId: string): Pro
  * reversal anyway. Never deletes the asset (migration 0015 forbids it structurally); only sets
  * `withdrawn_at` once.
  */
-export async function withdrawGeneratedReel(pool: pg.Pool, generatedReelId: string): Promise<{ withdrawn: boolean }> {
+export async function withdrawGeneratedReel(
+  pool: pg.Pool,
+  generatedReelId: string,
+): Promise<{ withdrawn: boolean }> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const reel = (await client.query<{ availability: string }>(
-      'SELECT availability FROM generated_reel WHERE id=$1 FOR UPDATE', [generatedReelId],
-    )).rows[0];
-    if (!reel) throw new MintError('unknown_reel', `No generated Reel with id ${generatedReelId}`);
-    if (reel.availability !== 'eligible' && reel.availability !== 'test_eligible') {
+    const reel = (
+      await client.query<{ availability: string }>(
+        'SELECT availability FROM generated_reel WHERE id=$1 FOR UPDATE',
+        [generatedReelId],
+      )
+    ).rows[0];
+    if (!reel)
+      throw new MintError(
+        'unknown_reel',
+        `No generated Reel with id ${generatedReelId}`,
+      );
+    if (
+      reel.availability !== 'eligible' &&
+      reel.availability !== 'test_eligible'
+    ) {
       await client.query('ROLLBACK');
       return { withdrawn: false };
     }
@@ -144,7 +214,10 @@ export async function withdrawGeneratedReel(pool: pg.Pool, generatedReelId: stri
       `UPDATE asset SET withdrawn_at=clock_timestamp() WHERE generated_reel_id=$1 AND withdrawn_at IS NULL`,
       [generatedReelId],
     );
-    await client.query(`UPDATE generated_reel SET availability='withdrawn' WHERE id=$1`, [generatedReelId]);
+    await client.query(
+      `UPDATE generated_reel SET availability='withdrawn' WHERE id=$1`,
+      [generatedReelId],
+    );
     await client.query('COMMIT');
     return { withdrawn: true };
   } catch (error) {

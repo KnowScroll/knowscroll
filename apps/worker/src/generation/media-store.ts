@@ -6,7 +6,15 @@
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { lstat, mkdir, open, realpath, rename, rm, stat } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  open,
+  realpath,
+  rename,
+  rm,
+  stat,
+} from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 
 /** Migration 0013's own ceiling on `media_object.byte_size`. */
@@ -14,16 +22,27 @@ export const MAX_MEDIA_BYTES = 512 * 1024 * 1024;
 
 /** Exactly migration 0013's `media_object.storage_key` CHECK: `sha256/<aa>/<bb>/<sha>.mp4`. */
 export function computeStorageKey(sha256: string): string {
-  if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('sha256 must be 64 lowercase hex characters');
+  if (!/^[0-9a-f]{64}$/.test(sha256))
+    throw new Error('sha256 must be 64 lowercase hex characters');
   return `sha256/${sha256.slice(0, 2)}/${sha256.slice(2, 4)}/${sha256}.mp4`;
 }
 
 function isEnoent(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as NodeJS.ErrnoException).code === 'ENOENT';
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
+  );
 }
 
-export type ContainmentReason = 'not_absolute' | 'root_unresolvable' | 'path_unresolvable' | 'not_contained';
-export type ContainmentOutcome = { ok: true; realPath: string } | { ok: false; reason: ContainmentReason };
+export type ContainmentReason =
+  | 'not_absolute'
+  | 'root_unresolvable'
+  | 'path_unresolvable'
+  | 'not_contained';
+export type ContainmentOutcome =
+  | { ok: true; realPath: string }
+  | { ok: false; reason: ContainmentReason };
 
 /**
  * `candidate` must be absolute and its realpath must sit strictly inside `root`'s own realpath.
@@ -31,7 +50,10 @@ export type ContainmentOutcome = { ok: true; realPath: string } | { ok: false; r
  * file); a `..` escape and a symlink that resolves outside the root are both refused here, before
  * anything looks at what `candidate` itself is (see `checkRegularFile` for that).
  */
-export async function checkContainment(root: string, candidate: string): Promise<ContainmentOutcome> {
+export async function checkContainment(
+  root: string,
+  candidate: string,
+): Promise<ContainmentOutcome> {
   if (!isAbsolute(candidate)) return { ok: false, reason: 'not_absolute' };
   let realRoot: string;
   try {
@@ -46,19 +68,24 @@ export async function checkContainment(root: string, candidate: string): Promise
     return { ok: false, reason: 'path_unresolvable' };
   }
   const rel = relative(realRoot, realCandidate);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return { ok: false, reason: 'not_contained' };
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel))
+    return { ok: false, reason: 'not_contained' };
   return { ok: true, realPath: realCandidate };
 }
 
 export type FileKindReason = 'missing' | 'symlink' | 'directory' | 'other';
-export type FileKindOutcome = { ok: true; sizeBytes: number } | { ok: false; reason: FileKindReason };
+export type FileKindOutcome =
+  | { ok: true; sizeBytes: number }
+  | { ok: false; reason: FileKindReason };
 
 /**
  * `lstat`s the ORIGINAL candidate path, never the resolved realpath: a symlink whose target is an
  * ordinary file genuinely inside the root is still refused here, because the candidate itself is a
  * link, not a plain file.
  */
-export async function checkRegularFile(candidate: string): Promise<FileKindOutcome> {
+export async function checkRegularFile(
+  candidate: string,
+): Promise<FileKindOutcome> {
   let info;
   try {
     info = await lstat(candidate);
@@ -83,7 +110,10 @@ export interface StreamCopyResult {
  * explicit fsync). The caller is responsible for fsyncing the containing directory and for the
  * eventual rename into the content-addressed store.
  */
-export async function streamCopyWithHash(sourcePath: string, destPath: string): Promise<StreamCopyResult> {
+export async function streamCopyWithHash(
+  sourcePath: string,
+  destPath: string,
+): Promise<StreamCopyResult> {
   const hash = createHash('sha256');
   let byteSize = 0;
   await new Promise<void>((resolvePromise, reject) => {
@@ -153,7 +183,11 @@ export interface StoreResult {
  * file is discarded and `created:false` is returned, so importing the same bytes twice never
  * duplicates the write or leaves two files behind.
  */
-export async function installAtContentAddress(tempPath: string, mediaRoot: string, sha256: string): Promise<StoreResult> {
+export async function installAtContentAddress(
+  tempPath: string,
+  mediaRoot: string,
+  sha256: string,
+): Promise<StoreResult> {
   const storageKey = computeStorageKey(sha256);
   const absolutePath = join(mediaRoot, storageKey);
   const directory = dirname(absolutePath);

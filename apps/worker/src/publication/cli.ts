@@ -9,7 +9,10 @@
  * operator-CLI convention.
  */
 import { pool } from '../../../../packages/db/src/index.ts';
-import { evaluatePublicationGates, PublicationEvaluationError } from './evaluate.ts';
+import {
+  evaluatePublicationGates,
+  PublicationEvaluationError,
+} from './evaluate.ts';
 import { mintReelAsset, withdrawGeneratedReel, MintError } from './mint.ts';
 
 function flags(argv: string[]): Record<string, string> {
@@ -19,7 +22,8 @@ function flags(argv: string[]): Record<string, string> {
     if (token?.startsWith('--')) {
       const key = token.slice(2);
       const value = argv[i + 1];
-      if (value === undefined || value.startsWith('--')) throw new Error(`Missing value for --${key}`);
+      if (value === undefined || value.startsWith('--'))
+        throw new Error(`Missing value for --${key}`);
       out[key] = value;
       i += 1;
     }
@@ -33,17 +37,21 @@ function required(values: Record<string, string>, key: string): string {
 }
 function mediaRootSetting(explicit: string | undefined): string {
   if (explicit !== undefined) {
-    if (!explicit.startsWith('/')) throw new Error('--media-root must be an absolute path');
+    if (!explicit.startsWith('/'))
+      throw new Error('--media-root must be an absolute path');
     return explicit;
   }
   const raw = process.env.KS_MEDIA_ROOT;
   if (raw !== undefined && raw !== '') {
-    if (!raw.startsWith('/')) throw new Error('KS_MEDIA_ROOT must be an absolute path');
+    if (!raw.startsWith('/'))
+      throw new Error('KS_MEDIA_ROOT must be an absolute path');
     return raw;
   }
   const devRoot = process.env.KS_DEV_ROOT;
   if (devRoot === undefined || devRoot === '' || !devRoot.startsWith('/')) {
-    throw new Error('pass --media-root, or set KS_MEDIA_ROOT / KS_DEV_ROOT, before evaluating gates');
+    throw new Error(
+      'pass --media-root, or set KS_MEDIA_ROOT / KS_DEV_ROOT, before evaluating gates',
+    );
   }
   return `${devRoot}/media`;
 }
@@ -63,30 +71,66 @@ async function main(): Promise<void> {
       mediaRoot: mediaRootSetting(args['media-root']),
       decide: decideFlag(args['decide']),
     });
-    console.log(JSON.stringify({ service: 'publication-worker', event: 'evaluated', ...result }));
+    console.log(
+      JSON.stringify({
+        service: 'publication-worker',
+        event: 'evaluated',
+        ...result,
+      }),
+    );
     return;
   }
   if (command === 'mint') {
     const result = await mintReelAsset(pool, required(args, 'reel-id'));
-    console.log(JSON.stringify({ service: 'publication-worker', event: 'minted', ...result }));
+    console.log(
+      JSON.stringify({
+        service: 'publication-worker',
+        event: 'minted',
+        ...result,
+      }),
+    );
     return;
   }
   if (command === 'withdraw') {
     const result = await withdrawGeneratedReel(pool, required(args, 'reel-id'));
-    console.log(JSON.stringify({ service: 'publication-worker', event: 'withdrawn', ...result }));
+    console.log(
+      JSON.stringify({
+        service: 'publication-worker',
+        event: 'withdrawn',
+        ...result,
+      }),
+    );
     return;
   }
-  throw new Error(`Unknown command "${String(command)}". Expected: evaluate, mint or withdraw.`);
+  throw new Error(
+    `Unknown command "${String(command)}". Expected: evaluate, mint or withdraw.`,
+  );
 }
 
 try {
   await main();
 } catch (error) {
-  if (error instanceof PublicationEvaluationError || error instanceof MintError) {
-    console.log(JSON.stringify({ service: 'publication-worker', event: 'refused', code: error.code, detail: error.message }));
+  if (
+    error instanceof PublicationEvaluationError ||
+    error instanceof MintError
+  ) {
+    console.log(
+      JSON.stringify({
+        service: 'publication-worker',
+        event: 'refused',
+        code: error.code,
+        detail: error.message,
+      }),
+    );
     process.exitCode = 1;
   } else {
-    console.error(JSON.stringify({ service: 'publication-worker', event: 'error', detail: error instanceof Error ? error.message : String(error) }));
+    console.error(
+      JSON.stringify({
+        service: 'publication-worker',
+        event: 'error',
+        detail: error instanceof Error ? error.message : String(error),
+      }),
+    );
     process.exitCode = 1;
   }
 } finally {

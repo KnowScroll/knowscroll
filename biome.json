@@ -5,7 +5,12 @@
       "apps/api/**/*.ts",
       "packages/core/**/*.ts",
       "packages/db/**/*.ts",
-      "packages/contracts/src/*.ts"
+      "packages/contracts/src/*.ts",
+      "apps/worker/**/*.ts",
+      "tests/**/*.ts",
+      "scripts/**/*.ts",
+      "scripts/**/*.mjs",
+      "ops/**/*.ts"
     ]
   },
   "formatter": {

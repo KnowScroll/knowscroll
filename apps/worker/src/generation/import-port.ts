@@ -6,9 +6,13 @@
  * `ImportOutcome` is never thrown: `{ok:false, reason}` is a well-typed, expected refusal the
  * worker records honestly. A THROWN error from a port instead means the port itself is missing or
  * broken (a wiring defect, not a data refusal) — see `createUnimplementedImportPort` below. */
-import {importFinishedVideo, type ImportFinishedVideoInput as RealImportInput, type ImportOutcome} from './import.ts';
+import {
+  importFinishedVideo,
+  type ImportFinishedVideoInput as RealImportInput,
+  type ImportOutcome,
+} from './import.ts';
 
-export type {ImportOutcome} from './import.ts';
+export type { ImportOutcome } from './import.ts';
 
 export type ImportFinishedVideoInput = {
   /** The `cutroom_attempt.id` the finished result belongs to. */
@@ -30,8 +34,10 @@ export interface ImportPort {
  * never a per-attempt value a caller could vary. */
 export function createLocalImportPort(mediaRoot: string): ImportPort {
   return {
-    async importFinishedVideo(input: ImportFinishedVideoInput): Promise<ImportOutcome> {
-      const full: RealImportInput = {...input, mediaRoot};
+    async importFinishedVideo(
+      input: ImportFinishedVideoInput,
+    ): Promise<ImportOutcome> {
+      const full: RealImportInput = { ...input, mediaRoot };
       return importFinishedVideo(full);
     },
   };
@@ -45,7 +51,9 @@ export function createLocalImportPort(mediaRoot: string): ImportPort {
 export function createUnimplementedImportPort(): ImportPort {
   return {
     async importFinishedVideo(): Promise<ImportOutcome> {
-      throw new Error('import_port_not_implemented: the media import lane is not wired into this stage');
+      throw new Error(
+        'import_port_not_implemented: the media import lane is not wired into this stage',
+      );
     },
   };
 }

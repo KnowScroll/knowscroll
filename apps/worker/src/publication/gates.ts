@@ -16,9 +16,15 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { GenerationBrief } from '../../../../packages/contracts/src/generation.ts';
-import { checkRegularFile, readMp4BoxOrder } from '../generation/media-store.ts';
-import {MEDIA_PROFILE} from '../generation/import.ts';
-import type { PublicationGateName, PublicationGateVerdict } from '../../../../packages/contracts/src/publication.ts';
+import {
+  checkRegularFile,
+  readMp4BoxOrder,
+} from '../generation/media-store.ts';
+import { MEDIA_PROFILE } from '../generation/import.ts';
+import type {
+  PublicationGateName,
+  PublicationGateVerdict,
+} from '../../../../packages/contracts/src/publication.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -31,7 +37,9 @@ export interface GateOutcome {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -50,7 +58,9 @@ export interface LineageCompleteInput {
   brief: GenerationBrief;
 }
 
-export function evaluateLineageComplete(input: LineageCompleteInput): GateOutcome {
+export function evaluateLineageComplete(
+  input: LineageCompleteInput,
+): GateOutcome {
   const lineage = asRecord(input.lineage);
   const briefShaObserved = lineage?.briefSha256;
   const contractRevisionObserved = lineage?.contractRevision;
@@ -58,23 +68,45 @@ export function evaluateLineageComplete(input: LineageCompleteInput): GateOutcom
   const recordSummary = lineage?.recordSummary;
 
   const briefShaMatches = briefShaObserved === input.storedBriefSha256;
-  const contractRevisionMatches = contractRevisionObserved === input.attemptContractRevision;
-  const runIdMatches = input.attemptRunId !== null && runIdObserved === input.attemptRunId;
-  const recordSummaryPresent = recordSummary !== undefined && recordSummary !== null;
+  const contractRevisionMatches =
+    contractRevisionObserved === input.attemptContractRevision;
+  const runIdMatches =
+    input.attemptRunId !== null && runIdObserved === input.attemptRunId;
+  const recordSummaryPresent =
+    recordSummary !== undefined && recordSummary !== null;
 
   const listedClaimIds = input.brief.claims.map((claim) => claim.id);
-  const sourcedClaimIds = new Set(input.brief.claimSources.map((source) => source.claimId));
-  const unsourcedClaims = listedClaimIds.filter((id) => !sourcedClaimIds.has(id));
+  const sourcedClaimIds = new Set(
+    input.brief.claimSources.map((source) => source.claimId),
+  );
+  const unsourcedClaims = listedClaimIds.filter(
+    (id) => !sourcedClaimIds.has(id),
+  );
 
   const evidence = {
-    briefShaMatches, briefShaExpected: input.storedBriefSha256, briefShaObserved: briefShaObserved ?? null,
-    contractRevisionMatches, contractRevisionExpected: input.attemptContractRevision, contractRevisionObserved: contractRevisionObserved ?? null,
-    runIdMatches, runIdExpected: input.attemptRunId, runIdObserved: runIdObserved ?? null,
+    briefShaMatches,
+    briefShaExpected: input.storedBriefSha256,
+    briefShaObserved: briefShaObserved ?? null,
+    contractRevisionMatches,
+    contractRevisionExpected: input.attemptContractRevision,
+    contractRevisionObserved: contractRevisionObserved ?? null,
+    runIdMatches,
+    runIdExpected: input.attemptRunId,
+    runIdObserved: runIdObserved ?? null,
     recordSummaryPresent,
     unsourcedClaims,
   };
-  const pass = briefShaMatches && contractRevisionMatches && runIdMatches && recordSummaryPresent && unsourcedClaims.length === 0;
-  return { gate: 'lineage_complete', verdict: pass ? 'pass' : 'fail', evidence };
+  const pass =
+    briefShaMatches &&
+    contractRevisionMatches &&
+    runIdMatches &&
+    recordSummaryPresent &&
+    unsourcedClaims.length === 0;
+  return {
+    gate: 'lineage_complete',
+    verdict: pass ? 'pass' : 'fail',
+    evidence,
+  };
 }
 
 // -------------------------------------------------------------------------------------------
@@ -99,10 +131,15 @@ export interface SourceSupportInput {
 
 export function evaluateSourceSupport(input: SourceSupportInput): GateOutcome {
   const sentencesWithoutClaim = input.brief.narration
-    .map((sentence, index) => ({ index, sourced: sentence.claimIds.length > 0 }))
+    .map((sentence, index) => ({
+      index,
+      sourced: sentence.claimIds.length > 0,
+    }))
     .filter((entry) => !entry.sourced)
     .map((entry) => entry.index);
-  const allSourcesUnchanged = input.sourceChecks.every((check) => check.assetExists && check.unchanged);
+  const allSourcesUnchanged = input.sourceChecks.every(
+    (check) => check.assetExists && check.unchanged,
+  );
   const evidence = {
     sentenceCount: input.brief.narration.length,
     sentencesWithoutClaim,
@@ -137,17 +174,32 @@ export interface EngineRecordInput {
 export function evaluateEngineRecord(input: EngineRecordInput): GateOutcome {
   const record = asRecord(input.recordSummary) as RunRecordLike | null;
   if (!record || !Array.isArray(record.takes)) {
-    return { gate: 'engine_record', verdict: 'fail', evidence: { recordSummaryPresent: false } };
+    return {
+      gate: 'engine_record',
+      verdict: 'fail',
+      evidence: { recordSummaryPresent: false },
+    };
   }
   const takes = record.takes as RunRecordTakeLike[];
   const usedTakes = takes.filter((take) => take.used === true);
   const failingUsedTakes = usedTakes
-    .filter((take) => Array.isArray(take.checks) && (take.checks as Array<{ outcome?: unknown }>).some((check) => check.outcome === 'fail'))
+    .filter(
+      (take) =>
+        Array.isArray(take.checks) &&
+        (take.checks as Array<{ outcome?: unknown }>).some(
+          (check) => check.outcome === 'fail',
+        ),
+    )
     .map((take) => ({
-      takeId: take.takeId, shotId: take.shotId,
-      failingChecks: (take.checks as Array<{ gate?: unknown; outcome?: unknown }>).filter((check) => check.outcome === 'fail'),
+      takeId: take.takeId,
+      shotId: take.shotId,
+      failingChecks: (
+        take.checks as Array<{ gate?: unknown; outcome?: unknown }>
+      ).filter((check) => check.outcome === 'fail'),
     }));
-  const degradations = Array.isArray(record.degradations) ? record.degradations : [];
+  const degradations = Array.isArray(record.degradations)
+    ? record.degradations
+    : [];
   const evidence = {
     recordSummaryPresent: true,
     usedTakeCount: usedTakes.length,
@@ -155,8 +207,10 @@ export function evaluateEngineRecord(input: EngineRecordInput): GateOutcome {
     degradationCount: degradations.length,
     degradations,
   };
-  if (failingUsedTakes.length > 0) return { gate: 'engine_record', verdict: 'fail', evidence };
-  if (degradations.length > 0) return { gate: 'engine_record', verdict: 'pass_with_label', evidence };
+  if (failingUsedTakes.length > 0)
+    return { gate: 'engine_record', verdict: 'fail', evidence };
+  if (degradations.length > 0)
+    return { gate: 'engine_record', verdict: 'pass_with_label', evidence };
   return { gate: 'engine_record', verdict: 'pass', evidence };
 }
 
@@ -175,13 +229,37 @@ const ASPECT_TOLERANCE_RATIO = MEDIA_PROFILE.aspectToleranceRatio;
 const MIN_DURATION_SECONDS = MEDIA_PROFILE.minDurationSeconds;
 const MAX_DURATION_SECONDS = MEDIA_PROFILE.maxDurationSeconds;
 
-interface FfprobeStream { codec_type?: string; codec_name?: string; width?: number; height?: number }
-interface FfprobeFormat { format_name?: string; duration?: string; tags?: { major_brand?: string } }
-interface FfprobeOutput { streams?: FfprobeStream[]; format?: FfprobeFormat }
+interface FfprobeStream {
+  codec_type?: string;
+  codec_name?: string;
+  width?: number;
+  height?: number;
+}
+interface FfprobeFormat {
+  format_name?: string;
+  duration?: string;
+  tags?: { major_brand?: string };
+}
+interface FfprobeOutput {
+  streams?: FfprobeStream[];
+  format?: FfprobeFormat;
+}
 
 async function ffprobeJson(path: string): Promise<FfprobeOutput | null> {
   try {
-    const { stdout } = await execFileAsync('ffprobe', ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', path], { maxBuffer: 8 * 1024 * 1024 });
+    const { stdout } = await execFileAsync(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-print_format',
+        'json',
+        '-show_format',
+        '-show_streams',
+        path,
+      ],
+      { maxBuffer: 8 * 1024 * 1024 },
+    );
     return JSON.parse(stdout) as FfprobeOutput;
   } catch {
     return null;
@@ -191,48 +269,104 @@ async function ffprobeJson(path: string): Promise<FfprobeOutput | null> {
 function withinAspectTolerance(width: number, height: number): boolean {
   if (!(width > 0) || !(height > 0)) return false;
   const ratio = width / height;
-  return Math.abs(ratio - ASPECT_TARGET) <= ASPECT_TARGET * ASPECT_TOLERANCE_RATIO;
+  return (
+    Math.abs(ratio - ASPECT_TARGET) <= ASPECT_TARGET * ASPECT_TOLERANCE_RATIO
+  );
 }
 
-interface ReprobeResult { ok: boolean; reason?: string; details: Record<string, unknown> }
+interface ReprobeResult {
+  ok: boolean;
+  reason?: string;
+  details: Record<string, unknown>;
+}
 
-async function reprobeAgainstRequiredProfile(path: string): Promise<ReprobeResult> {
+async function reprobeAgainstRequiredProfile(
+  path: string,
+): Promise<ReprobeResult> {
   const data = await ffprobeJson(path);
-  if (!data || !data.format) return { ok: false, reason: 'probe_failed', details: {} };
+  if (!data || !data.format)
+    return { ok: false, reason: 'probe_failed', details: {} };
   const formatName = data.format.format_name ?? '';
   const majorBrand = data.format.tags?.major_brand?.trim() ?? null;
-  const looksLikeMp4 = formatName.split(',').includes('mp4') && majorBrand !== 'qt';
-  if (!looksLikeMp4) return { ok: false, reason: 'not_mp4', details: { formatName, majorBrand } };
+  const looksLikeMp4 =
+    formatName.split(',').includes('mp4') && majorBrand !== 'qt';
+  if (!looksLikeMp4)
+    return {
+      ok: false,
+      reason: 'not_mp4',
+      details: { formatName, majorBrand },
+    };
 
   const streams = data.streams ?? [];
   const video = streams.find((entry) => entry.codec_type === 'video');
   if (!video) return { ok: false, reason: 'missing_video_stream', details: {} };
-  if (video.codec_name !== 'h264') return { ok: false, reason: 'video_codec_not_h264', details: { videoCodec: video.codec_name } };
+  if (video.codec_name !== 'h264')
+    return {
+      ok: false,
+      reason: 'video_codec_not_h264',
+      details: { videoCodec: video.codec_name },
+    };
   const width = video.width ?? 0;
   const height = video.height ?? 0;
-  if (!withinAspectTolerance(width, height)) return { ok: false, reason: 'aspect_ratio_not_9_16', details: { width, height } };
+  if (!withinAspectTolerance(width, height))
+    return {
+      ok: false,
+      reason: 'aspect_ratio_not_9_16',
+      details: { width, height },
+    };
 
   const audio = streams.find((entry) => entry.codec_type === 'audio');
-  if (audio && audio.codec_name !== 'aac') return { ok: false, reason: 'audio_codec_not_aac', details: { audioCodec: audio.codec_name } };
+  if (audio && audio.codec_name !== 'aac')
+    return {
+      ok: false,
+      reason: 'audio_codec_not_aac',
+      details: { audioCodec: audio.codec_name },
+    };
 
-  const durationSeconds = data.format.duration !== undefined ? Number(data.format.duration) : NaN;
-  if (!Number.isFinite(durationSeconds)) return { ok: false, reason: 'duration_unreadable', details: {} };
-  if (durationSeconds < MIN_DURATION_SECONDS || durationSeconds > MAX_DURATION_SECONDS) {
-    return { ok: false, reason: 'duration_out_of_range', details: { durationSeconds } };
+  const durationSeconds =
+    data.format.duration !== undefined ? Number(data.format.duration) : NaN;
+  if (!Number.isFinite(durationSeconds))
+    return { ok: false, reason: 'duration_unreadable', details: {} };
+  if (
+    durationSeconds < MIN_DURATION_SECONDS ||
+    durationSeconds > MAX_DURATION_SECONDS
+  ) {
+    return {
+      ok: false,
+      reason: 'duration_out_of_range',
+      details: { durationSeconds },
+    };
   }
 
   const boxOrder = await readMp4BoxOrder(path);
-  const progressive = boxOrder.moovOffset !== null && (boxOrder.mdatOffset === null || boxOrder.moovOffset < boxOrder.mdatOffset);
-  if (!progressive) return { ok: false, reason: 'not_progressive', details: { boxOrder } };
+  const progressive =
+    boxOrder.moovOffset !== null &&
+    (boxOrder.mdatOffset === null || boxOrder.moovOffset < boxOrder.mdatOffset);
+  if (!progressive)
+    return { ok: false, reason: 'not_progressive', details: { boxOrder } };
 
-  return { ok: true, details: { formatName, majorBrand, width, height, videoCodec: video.codec_name, audioCodec: audio?.codec_name ?? null, durationSeconds, progressive } };
+  return {
+    ok: true,
+    details: {
+      formatName,
+      majorBrand,
+      width,
+      height,
+      videoCodec: video.codec_name,
+      audioCodec: audio?.codec_name ?? null,
+      durationSeconds,
+      progressive,
+    },
+  };
 }
 
 function hashFile(path: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     const hash = createHash('sha256');
     const stream = createReadStream(path);
-    stream.on('data', (chunk: string | Buffer) => hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on('data', (chunk: string | Buffer) =>
+      hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
+    );
     stream.on('error', reject);
     stream.on('end', () => resolvePromise(hash.digest('hex')));
   });
@@ -243,38 +377,76 @@ export interface MediaConformanceInput {
   media: { sha256: string; byteSize: number; storageKey: string };
 }
 
-export async function evaluateMediaConformance(input: MediaConformanceInput): Promise<GateOutcome> {
+export async function evaluateMediaConformance(
+  input: MediaConformanceInput,
+): Promise<GateOutcome> {
   const absolutePath = join(input.mediaRoot, input.media.storageKey);
   const kind = await checkRegularFile(absolutePath);
   if (!kind.ok) {
-    return { gate: 'media_conformance', verdict: 'fail', evidence: { fileExists: false, storageKey: input.media.storageKey, reason: kind.reason } };
+    return {
+      gate: 'media_conformance',
+      verdict: 'fail',
+      evidence: {
+        fileExists: false,
+        storageKey: input.media.storageKey,
+        reason: kind.reason,
+      },
+    };
   }
   let observedHash: string;
   try {
     observedHash = await hashFile(absolutePath);
   } catch (error) {
-    return { gate: 'media_conformance', verdict: 'fail', evidence: { fileExists: true, hashError: error instanceof Error ? error.message : String(error) } };
+    return {
+      gate: 'media_conformance',
+      verdict: 'fail',
+      evidence: {
+        fileExists: true,
+        hashError: error instanceof Error ? error.message : String(error),
+      },
+    };
   }
   const hashMatches = observedHash === input.media.sha256;
   const sizeMatches = kind.sizeBytes === input.media.byteSize;
   const probe = await reprobeAgainstRequiredProfile(absolutePath);
   const evidence = {
-    fileExists: true, hashMatches, sizeMatches,
-    observedSize: kind.sizeBytes, expectedSize: input.media.byteSize,
-    observedHash, expectedHash: input.media.sha256,
-    probeOk: probe.ok, probeReason: probe.reason ?? null, probeDetails: probe.details,
+    fileExists: true,
+    hashMatches,
+    sizeMatches,
+    observedSize: kind.sizeBytes,
+    expectedSize: input.media.byteSize,
+    observedHash,
+    expectedHash: input.media.sha256,
+    probeOk: probe.ok,
+    probeReason: probe.reason ?? null,
+    probeDetails: probe.details,
   };
   const pass = hashMatches && sizeMatches && probe.ok;
-  return { gate: 'media_conformance', verdict: pass ? 'pass' : 'fail', evidence };
+  return {
+    gate: 'media_conformance',
+    verdict: pass ? 'pass' : 'fail',
+    evidence,
+  };
 }
 
 // -------------------------------------------------------------------------------------------
 // truth_label
 // -------------------------------------------------------------------------------------------
 
-export function evaluateTruthLabel(input: { truthState: string; generatedLabel: boolean }): GateOutcome {
-  const pass = input.truthState === 'synthesis' && input.generatedLabel === true;
-  return { gate: 'truth_label', verdict: pass ? 'pass' : 'fail', evidence: { truthState: input.truthState, generatedLabel: input.generatedLabel } };
+export function evaluateTruthLabel(input: {
+  truthState: string;
+  generatedLabel: boolean;
+}): GateOutcome {
+  const pass =
+    input.truthState === 'synthesis' && input.generatedLabel === true;
+  return {
+    gate: 'truth_label',
+    verdict: pass ? 'pass' : 'fail',
+    evidence: {
+      truthState: input.truthState,
+      generatedLabel: input.generatedLabel,
+    },
+  };
 }
 
 // -------------------------------------------------------------------------------------------
@@ -287,7 +459,10 @@ function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value !== null && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+      .join(',')}}`;
   }
   return JSON.stringify(value);
 }
@@ -303,10 +478,16 @@ function normalizeText(text: string): string {
  */
 export function computeTemplateFingerprint(brief: GenerationBrief): string {
   const shape = {
-    narrationClaimCounts: brief.narration.map((sentence) => sentence.claimIds.length),
+    narrationClaimCounts: brief.narration.map(
+      (sentence) => sentence.claimIds.length,
+    ),
     claimRoles: [...brief.claims.map((claim) => claim.role)].sort(),
-    mustShowTypes: [...brief.criteria.mustShow.map((criterion) => criterion.type)].sort(),
-    mustNotShowTypes: [...brief.criteria.mustNotShow.map((criterion) => criterion.type)].sort(),
+    mustShowTypes: [
+      ...brief.criteria.mustShow.map((criterion) => criterion.type),
+    ].sort(),
+    mustNotShowTypes: [
+      ...brief.criteria.mustNotShow.map((criterion) => criterion.type),
+    ].sort(),
     depictionPolicyVersion: brief.criteria.depictionPolicyVersion,
     styleId: brief.style.id,
     styleVersion: brief.style.version,
@@ -323,8 +504,16 @@ export function computeTemplateFingerprint(brief: GenerationBrief): string {
 export function computeArgumentFingerprint(brief: GenerationBrief): string {
   const shape = {
     worldId: brief.worldId,
-    sources: [...new Set(brief.claimSources.map((source) => `${source.assetId}@${source.assetRevision}`))].sort(),
-    narrationText: brief.narration.map((sentence) => normalizeText(sentence.text)).sort(),
+    sources: [
+      ...new Set(
+        brief.claimSources.map(
+          (source) => `${source.assetId}@${source.assetRevision}`,
+        ),
+      ),
+    ].sort(),
+    narrationText: brief.narration
+      .map((sentence) => normalizeText(sentence.text))
+      .sort(),
   };
   return createHash('sha256').update(canonicalJson(shape)).digest('hex');
 }
@@ -344,8 +533,12 @@ export interface RepetitionInput {
 }
 
 export function evaluateRepetition(input: RepetitionInput): GateOutcome {
-  const templateMatches = input.corpus.filter((entry) => entry.templateFingerprint === input.templateFingerprint).map((entry) => entry.generatedReelId);
-  const argumentMatches = input.corpus.filter((entry) => entry.argumentFingerprint === input.argumentFingerprint).map((entry) => entry.generatedReelId);
+  const templateMatches = input.corpus
+    .filter((entry) => entry.templateFingerprint === input.templateFingerprint)
+    .map((entry) => entry.generatedReelId);
+  const argumentMatches = input.corpus
+    .filter((entry) => entry.argumentFingerprint === input.argumentFingerprint)
+    .map((entry) => entry.generatedReelId);
   const evidence = {
     templateFingerprint: input.templateFingerprint,
     argumentFingerprint: input.argumentFingerprint,
@@ -365,6 +558,9 @@ export function evaluateWitnessAlignment(): GateOutcome {
   return {
     gate: 'witness_alignment',
     verdict: 'unavailable',
-    evidence: { reason: 'No Visual Witness model exists in this deployment; ADR-0024 section 2 keeps this gate unavailable, and therefore eligibility structurally blocked, until one is implemented and authorized.' },
+    evidence: {
+      reason:
+        'No Visual Witness model exists in this deployment; ADR-0024 section 2 keeps this gate unavailable, and therefore eligibility structurally blocked, until one is implemented and authorized.',
+    },
   };
 }

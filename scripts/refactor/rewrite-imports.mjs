@@ -75,13 +75,15 @@ function git(args) {
 }
 
 function repoFiles() {
-  return git(['ls-files', '-co', '--exclude-standard', '-z'])
-    .split('\0')
-    .filter(Boolean)
-    // The refactor tooling names paths in its own comments and fixtures; never rewrite it.
-    .filter((f) => !f.startsWith('scripts/refactor/'))
-    .filter((f) => fs.existsSync(path.join(REPO, f)))
-    .sort(cmp);
+  return (
+    git(['ls-files', '-co', '--exclude-standard', '-z'])
+      .split('\0')
+      .filter(Boolean)
+      // The refactor tooling names paths in its own comments and fixtures; never rewrite it.
+      .filter((f) => !f.startsWith('scripts/refactor/'))
+      .filter((f) => fs.existsSync(path.join(REPO, f)))
+      .sort(cmp)
+  );
 }
 
 const inRoots = (f, roots) =>
@@ -91,7 +93,12 @@ const posix = (p) => p.split(path.sep).join('/');
 
 function lineAt(text, index) {
   let n = 1;
-  for (let i = text.indexOf('\n'); i !== -1 && i < index; i = text.indexOf('\n', i + 1)) n++;
+  for (
+    let i = text.indexOf('\n');
+    i !== -1 && i < index;
+    i = text.indexOf('\n', i + 1)
+  )
+    n++;
   return n;
 }
 
@@ -110,17 +117,23 @@ function resolveSpec(spec, fromRel) {
 function pkgSpecifier(rel) {
   const m = /^packages\/(contracts|core|db)\/src\/(.+)\.ts$/.exec(rel);
   if (!m) return null;
-  return m[2] === 'index' ? `@knowscroll/${m[1]}` : `@knowscroll/${m[1]}/${m[2]}`;
+  return m[2] === 'index'
+    ? `@knowscroll/${m[1]}`
+    : `@knowscroll/${m[1]}/${m[2]}`;
 }
 
 function relativeSpecifier(fromRel, toRel_, like) {
   let r = posix(
-    path.relative(path.join(REPO, path.dirname(fromRel)), path.join(REPO, toRel_)),
+    path.relative(
+      path.join(REPO, path.dirname(fromRel)),
+      path.join(REPO, toRel_),
+    ),
   );
   // Keep the extension style of the original specifier.
   const ext = path.extname(like);
   const targetExt = path.extname(toRel_);
-  if (like.endsWith('.js') && targetExt === '.ts') r = r.replace(/\.ts$/, '.js');
+  if (like.endsWith('.js') && targetExt === '.ts')
+    r = r.replace(/\.ts$/, '.js');
   else if (!['.ts', '.tsx', '.mts', '.js', '.mjs', '.json'].includes(ext)) {
     r = r.replace(/\.(ts|tsx|mts)$/, '');
     if (/(^|\/)index$/.test(r) && !/(^|\/)index$/.test(like)) {
@@ -188,7 +201,8 @@ function scanStringLiterals(rel, text) {
 // ---------------------------------------------------------------- mode: packages
 
 function runPackages({ pkg, roots, dryRun }) {
-  if (!PKGS.includes(pkg)) throw new Abort('--pkg must be contracts, core or db');
+  if (!PKGS.includes(pkg))
+    throw new Abort('--pkg must be contracts, core or db');
   const files = repoFiles().filter(
     (f) => inRoots(f, roots) && hasExt(f, SRC_EXT),
   );
@@ -259,8 +273,17 @@ function runPackages({ pkg, roots, dryRun }) {
     const text = fs.readFileSync(path.join(REPO, file), 'utf8');
     writes.set(file, applyEdits(text, list, file));
   }
-  summarize({ mode: `packages (${pkg})`, roots, edits, dryRun, verbose: false });
-  report('path strings into packages/' + pkg + '/src (not edited)', pathStrings);
+  summarize({
+    mode: `packages (${pkg})`,
+    roots,
+    edits,
+    dryRun,
+    verbose: false,
+  });
+  report(
+    'path strings into packages/' + pkg + '/src (not edited)',
+    pathStrings,
+  );
   report('outside-src cross-package imports (not rewritten)', problems);
   report('unresolved specifiers', unresolved);
   report('dynamic import() with non-literal argument (manual review)', dynamic);
@@ -281,7 +304,8 @@ function rewriteLiteral(lit, fileRel, newFileRel, map, oldSet) {
       return lit.slice(0, lit.length - oldP.length) + map[oldP];
     }
   }
-  const relLike = lit.startsWith('./') || lit.startsWith('../') || /^[\w.-]+\//.test(lit);
+  const relLike =
+    lit.startsWith('./') || lit.startsWith('../') || /^[\w.-]+\//.test(lit);
   if (relLike && !/[\s*?${}]/.test(lit)) {
     const abs = toRel(path.resolve(REPO, path.dirname(fileRel), lit));
     if (oldSet.has(abs)) {
@@ -304,13 +328,17 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
   if (olds.length === 0) throw new Abort('empty move map');
   const oldSet = new Set(olds);
   const newSet = new Set(Object.values(map));
-  if (newSet.size !== olds.length) throw new Abort('move map has duplicate targets');
+  if (newSet.size !== olds.length)
+    throw new Abort('move map has duplicate targets');
 
   // 1. Preconditions.
   const tracked = new Set(git(['ls-files', '-z']).split('\0').filter(Boolean));
   const absent = olds.filter((o) => !fs.existsSync(path.join(REPO, o)));
   const applied = olds.every(
-    (o) => !tracked.has(o) && !fs.existsSync(path.join(REPO, o)) && fs.existsSync(path.join(REPO, map[o])),
+    (o) =>
+      !tracked.has(o) &&
+      !fs.existsSync(path.join(REPO, o)) &&
+      fs.existsSync(path.join(REPO, map[o])),
   );
   if (applied) {
     console.log('move map already applied; nothing to do');
@@ -338,7 +366,8 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
   const all = repoFiles();
   const scanRoots = [...new Set([...roots, 'apps/web'])];
   const specFiles = all.filter(
-    (f) => inRoots(f, scanRoots) && hasExt(f, SRC_EXT) && !f.startsWith(VENDORED),
+    (f) =>
+      inRoots(f, scanRoots) && hasExt(f, SRC_EXT) && !f.startsWith(VENDORED),
   );
 
   // 2. Plan specifier edits against the CURRENT layout.
@@ -347,11 +376,13 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
   const dynamic = [];
   const problems = [];
   const specStartsByFile = new Map();
-  const push = (file, e) => (edits.get(file) ?? edits.set(file, []).get(file)).push(e);
+  const push = (file, e) =>
+    (edits.get(file) ?? edits.set(file, []).get(file)).push(e);
   for (const file of specFiles) {
     const text = fs.readFileSync(path.join(REPO, file), 'utf8');
     const scan = scanSource(file, text);
-    for (const d of scan.dynamicNonLiteral) dynamic.push(`${file}:${d.line}: ${d.text}`);
+    for (const d of scan.dynamicNonLiteral)
+      dynamic.push(`${file}:${d.line}: ${d.text}`);
     const starts = new Set();
     specStartsByFile.set(file, starts);
     const newFile = moved(file);
@@ -372,7 +403,9 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
         if (newTarget === r.rel) continue;
         next = pkgSpecifier(newTarget);
         if (!next) {
-          problems.push(`${file}:${s.line}: ${s.spec} -> ${newTarget} is no longer exportable as a package subpath`);
+          problems.push(
+            `${file}:${s.line}: ${s.spec} -> ${newTarget} is no longer exportable as a package subpath`,
+          );
           continue;
         }
       } else {
@@ -380,7 +413,14 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
         next = relativeSpecifier(newFile, newTarget, s.spec);
       }
       if (next !== s.spec) {
-        push(file, { start: s.start, end: s.end, old: s.spec, next, line: s.line, kind: 'specifier' });
+        push(file, {
+          start: s.start,
+          end: s.end,
+          old: s.spec,
+          next,
+          line: s.line,
+          kind: 'specifier',
+        });
       }
     }
   }
@@ -389,13 +429,19 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
   const pathEdits = [];
   const literalFiles = all.filter(
     (f) =>
-      (/^(scripts|tests|ops|apps)\//.test(f) && hasExt(f, SRC_EXT) && !f.startsWith(VENDORED)) ||
+      (/^(scripts|tests|ops|apps)\//.test(f) &&
+        hasExt(f, SRC_EXT) &&
+        !f.startsWith(VENDORED)) ||
       f.endsWith('.py') ||
       f.endsWith('.sh'),
   );
   for (const file of literalFiles) {
     const text = fs.readFileSync(path.join(REPO, file), 'utf8');
-    if (!olds.some((o) => text.includes(path.basename(o))) && !/\.\.?\//.test(text)) continue;
+    if (
+      !olds.some((o) => text.includes(path.basename(o))) &&
+      !/\.\.?\//.test(text)
+    )
+      continue;
     const newFile = moved(file);
     if (file.endsWith('.py') || file.endsWith('.sh')) {
       const re = /(["'])((?:\\.|(?!\1)[^\\\n])*)\1/g;
@@ -404,7 +450,14 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
         const next = rewriteLiteral(inner, file, newFile, map, oldSet);
         if (next !== null && next !== inner) {
           const start = m.index + 1;
-          const e = { start, end: start + inner.length, old: inner, next, line: lineAt(text, start), kind: 'path-string' };
+          const e = {
+            start,
+            end: start + inner.length,
+            old: inner,
+            next,
+            line: lineAt(text, start),
+            kind: 'path-string',
+          };
           push(file, e);
           pathEdits.push({ file, ...e });
         }
@@ -416,7 +469,14 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
         if (lit.text.includes('\\')) continue;
         const next = rewriteLiteral(lit.text, file, newFile, map, oldSet);
         if (next !== null && next !== lit.text) {
-          const e = { start: lit.start, end: lit.end, old: lit.text, next, line: lit.line, kind: 'path-string' };
+          const e = {
+            start: lit.start,
+            end: lit.end,
+            old: lit.text,
+            next,
+            line: lit.line,
+            kind: 'path-string',
+          };
           push(file, e);
           pathEdits.push({ file, ...e });
         }
@@ -444,7 +504,16 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
       needles.push({ old: o, text: o.slice(idx + 5) });
     }
   }
-  const LIST_EXT = ['.md', '.json', '.yml', '.yaml', '.py', '.sh', '.ts', '.mjs'];
+  const LIST_EXT = [
+    '.md',
+    '.json',
+    '.yml',
+    '.yaml',
+    '.py',
+    '.sh',
+    '.ts',
+    '.mjs',
+  ];
   const leftovers = [];
   const movedNew = new Set(newSet);
   for (const f of all) {
@@ -459,9 +528,13 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       for (const n of needles) {
-        const re = new RegExp(`(?<![A-Za-z0-9_-])${n.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_-])`);
+        const re = new RegExp(
+          `(?<![A-Za-z0-9_-])${n.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_-])`,
+        );
         if (re.test(lines[i])) {
-          leftovers.push(`${finalPath}:${i + 1}: ${lines[i].trim().slice(0, 160)}`);
+          leftovers.push(
+            `${finalPath}:${i + 1}: ${lines[i].trim().slice(0, 160)}`,
+          );
           break;
         }
       }
@@ -469,12 +542,21 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
   }
   void movedNew;
 
-  summarize({ mode: 'moves', roots: [...scanRoots, 'scripts'], edits, dryRun, verbose, movedFiles: olds.length });
+  summarize({
+    mode: 'moves',
+    roots: [...scanRoots, 'scripts'],
+    edits,
+    dryRun,
+    verbose,
+    movedFiles: olds.length,
+  });
   report(
     'path-string rewrites (non-import string literals)',
     pathEdits.map((e) => `${e.file}:${e.line}: '${e.old}' -> '${e.next}'`),
   );
-  report('REMAINING old-path occurrences (edit by hand)', [...new Set(leftovers)]);
+  report('REMAINING old-path occurrences (edit by hand)', [
+    ...new Set(leftovers),
+  ]);
   report('unresolved specifiers', unresolved);
   report('dynamic import() with non-literal argument (manual review)', dynamic);
 
@@ -499,7 +581,9 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
       fs.writeFileSync(path.join(REPO, finalPath), content);
     }
   } catch (e) {
-    console.error(`execution failed (${e.message}); rolling back with git reset --hard`);
+    console.error(
+      `execution failed (${e.message}); rolling back with git reset --hard`,
+    );
     git(['reset', '--hard', '-q', 'HEAD']);
     for (const d of createdDirs.reverse()) {
       try {
@@ -508,14 +592,18 @@ function runMoves({ mapFile, roots, dryRun, verbose }) {
     }
     throw new Abort('rolled back');
   }
-  console.log(`moved ${olds.length} file(s). Undo: git reset --hard (tree was clean).`);
+  console.log(
+    `moved ${olds.length} file(s). Undo: git reset --hard (tree was clean).`,
+  );
 }
 
 // -------------------------------------------------------------------- reporting
 
 function summarize({ mode, roots, edits, dryRun, verbose, movedFiles }) {
   const rootOf = (f) =>
-    [...roots].sort((a, b) => b.length - a.length).find((r) => f === r || f.startsWith(`${r}/`)) ?? '(other)';
+    [...roots]
+      .sort((a, b) => b.length - a.length)
+      .find((r) => f === r || f.startsWith(`${r}/`)) ?? '(other)';
   const per = {};
   for (const [file, list] of edits) {
     const r = rootOf(file);
@@ -523,13 +611,17 @@ function summarize({ mode, roots, edits, dryRun, verbose, movedFiles }) {
     e.files++;
     e.edits += list.length;
   }
-  console.log(`${dryRun ? '[dry-run] ' : ''}mode ${mode}${movedFiles ? `, ${movedFiles} file(s) moved` : ''}`);
+  console.log(
+    `${dryRun ? '[dry-run] ' : ''}mode ${mode}${movedFiles ? `, ${movedFiles} file(s) moved` : ''}`,
+  );
   const keys = Object.keys(per).sort(cmp);
   if (keys.length === 0) console.log('  no edits');
   let tf = 0;
   let te = 0;
   for (const k of keys) {
-    console.log(`  ${k}: ${per[k].files} file(s) changed, ${per[k].edits} edit(s)`);
+    console.log(
+      `  ${k}: ${per[k].files} file(s) changed, ${per[k].edits} edit(s)`,
+    );
     tf += per[k].files;
     te += per[k].edits;
   }
@@ -556,7 +648,9 @@ function main() {
     ['mode', 'pkg', 'roots', 'map'],
     ['dry-run', 'verbose'],
   );
-  const roots = multi.roots?.length ? multi.roots.map((r) => r.replace(/\/$/, '')) : DEFAULT_ROOTS;
+  const roots = multi.roots?.length
+    ? multi.roots.map((r) => r.replace(/\/$/, ''))
+    : DEFAULT_ROOTS;
   const opts = { roots, dryRun: !!flags['dry-run'], verbose: !!flags.verbose };
   if (flags.mode === 'packages') {
     if (!flags.pkg) throw new Abort('--mode packages needs --pkg');
@@ -572,11 +666,16 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     main();
   } catch (e) {
-    process.stderr.write(`${e instanceof Abort ? 'ABORT: ' : ''}${e.message}\n`);
+    process.stderr.write(
+      `${e instanceof Abort ? 'ABORT: ' : ''}${e.message}\n`,
+    );
     if (!(e instanceof Abort)) process.stderr.write(`${e.stack}\n`);
     process.exit(e instanceof Abort ? 1 : 2);
   }

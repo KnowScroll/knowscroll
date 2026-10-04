@@ -1,6 +1,6 @@
-import {createHash} from 'node:crypto';
-import {generateText, stepCountIs} from 'ai';
-import {createMinimax} from 'vercel-minimax-ai-provider';
+import { createHash } from 'node:crypto';
+import { generateText, stepCountIs } from 'ai';
+import { createMinimax } from 'vercel-minimax-ai-provider';
 
 import {
   CERTIFICATION_LIMITS,
@@ -37,11 +37,17 @@ const emptyUsage = () => ({
 });
 
 function nullableToken(value: unknown): number | null {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
 function usageFrom(raw: RawResponse | null): CertificationObservation['usage'] {
-  if (raw?.usage === null || typeof raw?.usage !== 'object' || Array.isArray(raw.usage)) {
+  if (
+    raw?.usage === null ||
+    typeof raw?.usage !== 'object' ||
+    Array.isArray(raw.usage)
+  ) {
     return emptyUsage();
   }
   const usage = raw.usage as Record<string, unknown>;
@@ -54,21 +60,32 @@ function usageFrom(raw: RawResponse | null): CertificationObservation['usage'] {
   };
 }
 
-function nativeContentFrom(raw: RawResponse | null): {[key: string]: Json}[] {
+function nativeContentFrom(raw: RawResponse | null): { [key: string]: Json }[] {
   if (!Array.isArray(raw?.content)) return [];
   return raw.content.filter(
-    (part): part is {[key: string]: Json} => part !== null && typeof part === 'object' && !Array.isArray(part),
+    (part): part is { [key: string]: Json } =>
+      part !== null && typeof part === 'object' && !Array.isArray(part),
   );
 }
 
-function providerRequestIdFrom(raw: RawResponse | null, apiKey: string): string | null {
+function providerRequestIdFrom(
+  raw: RawResponse | null,
+  apiKey: string,
+): string | null {
   const id = raw?.id;
-  if (typeof id !== 'string' || id === apiKey || !/^[A-Za-z0-9._:-]{1,256}$/.test(id)) return null;
+  if (
+    typeof id !== 'string' ||
+    id === apiKey ||
+    !/^[A-Za-z0-9._:-]{1,256}$/.test(id)
+  )
+    return null;
   return id;
 }
 
 function stopReasonFrom(raw: RawResponse | null): string | null {
-  return typeof raw?.stop_reason === 'string' && raw.stop_reason.length <= 128 ? raw.stop_reason : null;
+  return typeof raw?.stop_reason === 'string' && raw.stop_reason.length <= 128
+    ? raw.stop_reason
+    : null;
 }
 
 function observation(
@@ -83,7 +100,9 @@ function observation(
     dispatched: transport.dispatched,
     httpStatus: transport.httpStatus,
     requestHash: transport.requestHash,
-    providerRequestId: completed ? providerRequestIdFrom(transport.rawResponse, apiKey) : null,
+    providerRequestId: completed
+      ? providerRequestIdFrom(transport.rawResponse, apiKey)
+      : null,
     usage: usageFrom(transport.rawResponse),
     nativeContent: completed ? nativeContentFrom(transport.rawResponse) : [],
     text: completed ? text : '',
@@ -94,7 +113,9 @@ function observation(
 function parseRawResponse(text: string): RawResponse | null {
   try {
     const value: unknown = JSON.parse(text);
-    return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as RawResponse) : null;
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as RawResponse)
+      : null;
   } catch {
     return null;
   }
@@ -109,7 +130,11 @@ function responseForSdk(rawText: string, response: Response): Response {
 }
 
 function hasValidOutputLimit(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0 && value <= CERTIFICATION_LIMITS.maxOutputTokens;
+  return (
+    Number.isSafeInteger(value) &&
+    value > 0 &&
+    value <= CERTIFICATION_LIMITS.maxOutputTokens
+  );
 }
 
 export function createMiniMaxCertificationAdapter(
@@ -119,7 +144,9 @@ export function createMiniMaxCertificationAdapter(
   const baseURL = options.baseURL ?? DEFAULT_BASE_URL;
 
   return {
-    async invoke(request: CertificationRequest): Promise<CertificationObservation> {
+    async invoke(
+      request: CertificationRequest,
+    ): Promise<CertificationObservation> {
       const transport: CapturedTransport = {
         dispatched: false,
         httpStatus: null,
@@ -127,14 +154,18 @@ export function createMiniMaxCertificationAdapter(
         rawResponse: null,
       };
 
-      const {beforeDispatch, deadline, maxOutputTokens, signal, thinking} = request;
+      const { beforeDispatch, deadline, maxOutputTokens, signal, thinking } =
+        request;
       let nativeMessages: CertificationRequest['messages'];
       let nativeTools: CertificationRequest['tools'];
       try {
         // Snapshot the charged request synchronously. Caller mutation while the
         // reservation is being persisted cannot alter the later wire body.
         nativeMessages = structuredClone(request.messages);
-        nativeTools = request.tools === undefined ? undefined : structuredClone(request.tools);
+        nativeTools =
+          request.tools === undefined
+            ? undefined
+            : structuredClone(request.tools);
       } catch {
         return observation('not_dispatched', transport, options.apiKey);
       }
@@ -157,23 +188,34 @@ export function createMiniMaxCertificationAdapter(
         abortKind = 'aborted';
         controller.abort(signal.reason);
       };
-      signal.addEventListener('abort', onCallerAbort, {once: true});
-      const timeoutMs = Math.min(deadlineMs - Date.now(), CERTIFICATION_LIMITS.requestTimeoutMs);
+      signal.addEventListener('abort', onCallerAbort, { once: true });
+      const timeoutMs = Math.min(
+        deadlineMs - Date.now(),
+        CERTIFICATION_LIMITS.requestTimeoutMs,
+      );
       const timeout = setTimeout(() => {
         if (!controller.signal.aborted) {
           abortKind = 'timeout';
-          controller.abort(new DOMException('Certification deadline reached', 'TimeoutError'));
+          controller.abort(
+            new DOMException('Certification deadline reached', 'TimeoutError'),
+          );
         }
       }, timeoutMs);
 
       let fetchCalls = 0;
       const guardedFetch: typeof fetch = async (input, init) => {
         fetchCalls += 1;
-        if (fetchCalls !== 1) throw new Error('Certification transport called more than once');
-        if (typeof init?.body !== 'string') throw new Error('Certification request body is not serialized JSON');
+        if (fetchCalls !== 1)
+          throw new Error('Certification transport called more than once');
+        if (typeof init?.body !== 'string')
+          throw new Error('Certification request body is not serialized JSON');
 
         const generated: unknown = JSON.parse(init.body);
-        if (generated === null || typeof generated !== 'object' || Array.isArray(generated)) {
+        if (
+          generated === null ||
+          typeof generated !== 'object' ||
+          Array.isArray(generated)
+        ) {
           throw new Error('Certification request body is not an object');
         }
         const body: Record<string, unknown> = {
@@ -181,7 +223,7 @@ export function createMiniMaxCertificationAdapter(
           model: MODEL,
           messages: nativeMessages,
           max_tokens: maxOutputTokens,
-          thinking: {type: thinking},
+          thinking: { type: thinking },
         };
         if (nativeTools === undefined) delete body.tools;
         else {
@@ -194,7 +236,9 @@ export function createMiniMaxCertificationAdapter(
 
         const serialized = JSON.stringify(body);
         const inputBytes = Buffer.byteLength(serialized, 'utf8');
-        transport.requestHash = createHash('sha256').update(serialized).digest('hex');
+        transport.requestHash = createHash('sha256')
+          .update(serialized)
+          .digest('hex');
         if (inputBytes > CERTIFICATION_LIMITS.maxInputBytes) {
           throw new RangeError('Certification request exceeds byte limit');
         }
@@ -211,7 +255,10 @@ export function createMiniMaxCertificationAdapter(
         }
         if (Date.now() >= deadlineMs || controller.signal.aborted) {
           if (abortKind === null) abortKind = 'timeout';
-          throw controller.signal.reason ?? new DOMException('Deadline reached', 'TimeoutError');
+          throw (
+            controller.signal.reason ??
+            new DOMException('Deadline reached', 'TimeoutError')
+          );
         }
 
         transport.dispatched = true;
@@ -228,10 +275,16 @@ export function createMiniMaxCertificationAdapter(
       };
 
       try {
-        const provider = createMinimax({apiKey: options.apiKey, baseURL, fetch: guardedFetch});
+        const provider = createMinimax({
+          apiKey: options.apiKey,
+          baseURL,
+          fetch: guardedFetch,
+        });
         const result = await generateText({
           model: provider(MODEL),
-          messages: [{role: 'user', content: 'certification transport fixture'}],
+          messages: [
+            { role: 'user', content: 'certification transport fixture' },
+          ],
           maxOutputTokens,
           maxRetries: 0,
           stopWhen: stepCountIs(1),
@@ -248,7 +301,10 @@ export function createMiniMaxCertificationAdapter(
         if (!transport.dispatched) {
           return observation('not_dispatched', transport, options.apiKey);
         }
-        if (transport.httpStatus !== null && (transport.httpStatus < 200 || transport.httpStatus >= 300)) {
+        if (
+          transport.httpStatus !== null &&
+          (transport.httpStatus < 200 || transport.httpStatus >= 300)
+        ) {
           return observation('http_error', transport, options.apiKey);
         }
         if (transport.httpStatus !== null) {
