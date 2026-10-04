@@ -6,7 +6,8 @@
  * order stay visible.
  */
 
-const UUID = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
+const UUID =
+  /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
 const ISO_TIMESTAMP =
   /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})\b/g;
 // Lookarounds instead of \b: a hex run glued to other word characters (a token, a prefixed key)
@@ -26,7 +27,9 @@ export class Normalizer {
   registerToken(value: string): void {
     if (value.length < 8 || this.tokens.has(value)) return;
     this.tokens.set(value, this.tokens.size + 1);
-    this.tokenList = [...this.tokens.keys()].sort((a, b) => b.length - a.length);
+    this.tokenList = [...this.tokens.keys()].sort(
+      (a, b) => b.length - a.length,
+    );
   }
 
   private string(value: string): string {

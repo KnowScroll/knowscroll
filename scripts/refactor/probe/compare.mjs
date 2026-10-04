@@ -14,13 +14,20 @@ const b = load(newPath);
 
 const show = (value) => {
   const text = JSON.stringify(value);
-  return text === undefined ? '<absent>' : text.length > 400 ? `${text.slice(0, 400)}...` : text;
+  return text === undefined
+    ? '<absent>'
+    : text.length > 400
+      ? `${text.slice(0, 400)}...`
+      : text;
 };
 
 function diff(x, y, path, out) {
   if (JSON.stringify(x) === JSON.stringify(y)) return;
   const bothObjects =
-    x !== null && y !== null && typeof x === 'object' && typeof y === 'object' &&
+    x !== null &&
+    y !== null &&
+    typeof x === 'object' &&
+    typeof y === 'object' &&
     Array.isArray(x) === Array.isArray(y);
   if (!bothObjects) {
     out.push(`    ${path || '(root)'}: ${show(x)}  ->  ${show(y)}`);
@@ -84,5 +91,9 @@ if (metaOld !== metaNew) {
   say(`META differs: ${metaOld} -> ${metaNew}`);
   differences += 1;
 }
-say(differences === 0 ? `identical (${a.cases.length} cases, ${routesOld.length} routes)` : `${differences} difference(s)`);
+say(
+  differences === 0
+    ? `identical (${a.cases.length} cases, ${routesOld.length} routes)`
+    : `${differences} difference(s)`,
+);
 process.exit(differences === 0 ? 0 : 1);

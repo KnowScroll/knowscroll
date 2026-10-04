@@ -79,8 +79,9 @@ function repoFiles() {
     git(['ls-files', '-co', '--exclude-standard', '-z'])
       .split('\0')
       .filter(Boolean)
-      // The refactor tooling names paths in its own comments and fixtures; never rewrite it.
-      .filter((f) => !f.startsWith('scripts/refactor/'))
+      // The refactor tools name paths in their own comments and fixtures; never rewrite them. The
+      // HTTP probe (.ts) is rewritten like any other script, so it follows moved modules.
+      .filter((f) => !(f.startsWith('scripts/refactor/') && f.endsWith('.mjs')))
       .filter((f) => fs.existsSync(path.join(REPO, f)))
       .sort(cmp)
   );
