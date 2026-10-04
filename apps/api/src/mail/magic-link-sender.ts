@@ -1,7 +1,7 @@
 /**
  * ADR-0026 section 4 / ADR-0027 — delivery is a port. This slice ships two implementations: the
  * local development sink below, and `AgentMailSender` (`agentmail-sender.ts`) for real delivery.
- * Resolved lazily, exactly like `resolveMediaRoot()` in `media.ts`: a test/journey that never calls
+ * Resolved lazily, exactly like `resolveMediaRoot()` in `media/stream.ts`: a test/journey that never calls
  * `POST /v1/auth/magic-link` never needs `KS_DEV_ROOT` (or the AgentMail variables) set.
  * `apps/api/src/main.ts` already refuses to start any production-mode process before this module
  * would ever run; the production check below enforces the same refusal independently (and is

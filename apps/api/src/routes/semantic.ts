@@ -1,6 +1,6 @@
 /**
  * #131 — HTTP for the semantic substrate's personal consumers. Kept in its own module (like
- * `sign-in-routes.ts`) so `app.ts` only wires it in.
+ * `routes/sign-in.ts`) so `app.ts` only wires it in.
  *
  *   GET  /v1/assets/:assetId/branches   live continuations along admitted, non-suppressed bridges (and,
  *                                       for one into a concept with nothing unseen, its need: ADR-0046)

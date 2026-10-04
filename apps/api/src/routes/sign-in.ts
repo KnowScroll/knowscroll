@@ -1,6 +1,6 @@
 /**
  * ADR-0026 — `POST /v1/auth/magic-link`, `GET /v1/auth/confirm`, `POST /v1/auth/session`. Kept in
- * its own module (mirroring `media.ts`) so `app.ts` only wires it in, rather than growing further.
+ * its own module (mirroring `media/stream.ts`) so `app.ts` only wires it in, rather than growing further.
  */
 import type { FastifyInstance } from 'fastify';
 import {

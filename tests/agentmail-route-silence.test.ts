@@ -3,7 +3,7 @@
  * at a local fake AgentMail HTTP server this file starts and stops itself. Never reaches
  * `api.agentmail.to`.
  *
- * `resolvedSender()` in `sign-in-routes.ts` reads `process.env` lazily and caches **only on a
+ * `resolvedSender()` in `routes/sign-in.ts` reads `process.env` lazily and caches **only on a
  * successful construction** (a throw inside `createMagicLinkSender()` is never cached, so the next
  * call re-resolves from whatever the environment is at that moment); and `requestMagicLink()` only
  * calls the sender at all for the configured **owner** address — a non-owner request never reaches

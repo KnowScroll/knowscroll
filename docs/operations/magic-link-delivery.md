@@ -3,8 +3,8 @@
 [Issue #106](https://github.com/KnowScroll/knowscroll/issues/106) implements the real
 `MagicLinkSender` [ADR-0027](../decisions/0027-agentmail-magic-link-delivery.md) defines on top of
 [ADR-0026](../decisions/0026-magic-link-single-user-identity.md)'s sign-in. Delivery stays a port
-(`apps/api/src/magic-link-sender.ts`): the development sink (a local file, ADR-0026 section 4) and
-`AgentMailSender` (`apps/api/src/agentmail-sender.ts`) are its only two implementations, and
+(`apps/api/src/mail/magic-link-sender.ts`): the development sink (a local file, ADR-0026 section 4) and
+`AgentMailSender` (`apps/api/src/mail/agentmail-sender.ts`) are its only two implementations, and
 `POST /v1/auth/magic-link`'s `202` never varies with which one is configured or whether it succeeded.
 
 ## Choosing a sender: `KS_MAIL_SENDER`

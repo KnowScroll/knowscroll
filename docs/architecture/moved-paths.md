@@ -48,3 +48,22 @@ The db barrel's infrastructure (`loadLocalEnv`, `pool`, `OWNER_ID`, `transaction
 | `apps/worker/src/reasoning/inquiry-loop.ts` | `apps/worker/src/reasoning/transport-selection.ts` (`inquiryTransportsFromEnvironment`) |
 
 The transport and observation types moved from `answer-worker.ts`, `inquiry-worker.ts` and `scrolls/write-scroll.ts` into `apps/worker/src/providers/transports.ts`; `createReadinessGate` from `answer-worker.ts` into `reasoning/readiness-gate.ts`; `scrollTransportsFromEnvironment` from `scrolls/supply-worker.ts` into `reasoning/transport-selection.ts`. `cutroom/port.ts` and `providers/port.ts` were unused reservations and are deleted.
+
+## apps/api (R7)
+
+| Old path | Current path |
+|---|---|
+| `apps/api/src/errors.ts` | `apps/api/src/http/errors.ts` |
+| `apps/api/src/web-session.ts` | `apps/api/src/http/web-session.ts` |
+| `apps/api/src/media.ts` | `apps/api/src/media/stream.ts` |
+| `apps/api/src/magic-link-sender.ts` | `apps/api/src/mail/magic-link-sender.ts` |
+| `apps/api/src/agentmail-sender.ts` | `apps/api/src/mail/agentmail-sender.ts` |
+| `apps/api/src/semantic-routes.ts` | `apps/api/src/routes/semantic.ts` |
+| `apps/api/src/composer-routes.ts` | `apps/api/src/routes/composer.ts` |
+| `apps/api/src/answer-routes.ts` | `apps/api/src/routes/answers.ts` |
+| `apps/api/src/atlas-routes.ts` | `apps/api/src/routes/atlas.ts` |
+| `apps/api/src/inquiry-routes.ts` | `apps/api/src/routes/inquiries.ts` |
+| `apps/api/src/return-routes.ts` | `apps/api/src/routes/return.ts` |
+| `apps/api/src/room-routes.ts` | `apps/api/src/routes/rooms.ts` |
+| `apps/api/src/inventory-routes.ts` | `apps/api/src/routes/inventory.ts` |
+| `apps/api/src/sign-in-routes.ts` | `apps/api/src/routes/sign-in.ts` |

@@ -28,7 +28,7 @@ export class PublicationEvaluationError extends Error {
 export interface EvaluatePublicationGatesInput {
   generatedReelId: string;
   policyVersion: string;
-  /** KnowScroll's own media store root (deployment configuration; see apps/api/src/media.ts and
+  /** KnowScroll's own media store root (deployment configuration; see apps/api/src/media/stream.ts and
    * apps/worker/src/generation/main.ts for the same KS_MEDIA_ROOT convention). */
   mediaRoot: string;
   /** Default 'auto': only ever moves 'imported' -> 'eligible', and only when every required gate
