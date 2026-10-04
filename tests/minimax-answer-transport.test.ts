@@ -9,7 +9,7 @@ import {
   createMiniMaxAnswerTransport,
   MINIMAX_ANSWER_URL,
 } from '../apps/worker/src/providers/minimax-answer.ts';
-import { createReadinessGate } from '../apps/worker/src/reasoning/answer-worker.ts';
+import { createReadinessGate } from '../apps/worker/src/reasoning/readiness-gate.ts';
 import { MINIMAX_QUOTA_URL } from '../apps/worker/src/providers/minimax-quota.ts';
 import type { AnswerWork } from '@knowscroll/db/reasoning/answers';
 

@@ -33,8 +33,8 @@ import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import {
   executeInquiryClaim,
   runInquiryPass,
-  type InquiryTransport,
 } from '../apps/worker/src/reasoning/inquiry-worker.ts';
+import type { InquiryTransport } from '../apps/worker/src/providers/transports.ts';
 import {
   createFixtureInquiryTransport,
   type InquiryFixtureMode,

@@ -4,10 +4,7 @@
  * real validator accepts it; the other modes produce the failures the answer path must survive.
  * Replies from this transport are fixture evidence, never a live provider result.
  */
-import type {
-  AnswerObservation,
-  AnswerTransport,
-} from '../../reasoning/answer-worker.ts';
+import type { AnswerObservation, AnswerTransport } from '../transports.ts';
 
 export type FixtureMode =
   | 'answer'

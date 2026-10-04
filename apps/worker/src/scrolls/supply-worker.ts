@@ -20,18 +20,8 @@ import {
   settleStrandedRequests,
   type RequestOutcome,
 } from '@knowscroll/db/inventory/supply';
-import { createMiniMaxAnswerTransport } from '../providers/minimax-answer.ts';
-import {
-  createFixtureScrollTransport,
-  SCROLL_FIXTURE_MODES,
-  type ScrollFixtureMode,
-} from '../providers/fixtures/scroll.ts';
-import type { AnswerTransport } from '../reasoning/answer-worker.ts';
-import {
-  writeScroll,
-  type ScrollItemResult,
-  type ScrollTransport,
-} from './write-scroll.ts';
+import { writeScroll, type ScrollItemResult } from './write-scroll.ts';
+import type { ScrollTransport } from '../providers/transports.ts';
 
 type Transports = Partial<Record<'fixture' | 'minimax', ScrollTransport>>;
 
@@ -39,38 +29,6 @@ type Transports = Partial<Record<'fixture' | 'minimax', ScrollTransport>>;
 export type SupplyPass =
   | { kind: 'idle'; reason: string }
   | { kind: 'done'; requestId: string; status: string; reasons: string[] };
-
-/**
- * Which Scroll-writing transport this worker process may use. Configured only from the worker's own
- * environment: KS_SCROLL_TRANSPORT=fixture|minimax (unset: supply requests are not written).
- * `minimax` needs a subscription (`sk-cp-`) key in MINIMAX_API_KEY; when answers already use MiniMax,
- * that same client (and so the same quota readiness) serves Scroll writing too.
- */
-export function scrollTransportsFromEnvironment(
-  env: NodeJS.ProcessEnv,
-  answers?: Partial<Record<'fixture' | 'minimax', AnswerTransport>> | null,
-): Transports | null {
-  const kind = env.KS_SCROLL_TRANSPORT;
-  if (!kind) return null;
-  if (kind === 'fixture') {
-    // Test/journey only: KS_SCROLL_FIXTURE_MODE picks the reply the fixture should produce.
-    const mode = (env.KS_SCROLL_FIXTURE_MODE ?? 'scroll') as ScrollFixtureMode;
-    if (!SCROLL_FIXTURE_MODES.includes(mode))
-      throw new Error('Unknown KS_SCROLL_FIXTURE_MODE');
-    return { fixture: createFixtureScrollTransport(() => mode) };
-  }
-  if (kind === 'minimax') {
-    if (answers?.minimax) return { minimax: answers.minimax };
-    const apiKey = env.MINIMAX_API_KEY;
-    if (!apiKey)
-      throw new Error(
-        'KS_SCROLL_TRANSPORT=minimax needs MINIMAX_API_KEY in the worker environment',
-      );
-    // The transport itself refuses anything but a subscription (sk-cp-) key.
-    return { minimax: createMiniMaxAnswerTransport({ apiKey }) };
-  }
-  throw new Error('KS_SCROLL_TRANSPORT must be fixture or minimax');
-}
 
 /** How one item's result settles its request; null when the gate did not send it (it either held
  * the request back, still open, or already settled it). */

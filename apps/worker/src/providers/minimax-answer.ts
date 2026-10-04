@@ -9,11 +9,8 @@
  * reason. Nothing here is logged or persisted: no prompt, reply, header or key.
  */
 import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
-import type { AnswerTransport } from '../reasoning/answer-worker.ts';
-import type {
-  InquiryObservation,
-  InquiryTransport,
-} from '../reasoning/inquiry-worker.ts';
+import type { AnswerTransport } from './transports.ts';
+import type { InquiryObservation, InquiryTransport } from './transports.ts';
 import { checkMiniMaxQuota } from './minimax-quota.ts';
 
 export const MINIMAX_ANSWER_URL =

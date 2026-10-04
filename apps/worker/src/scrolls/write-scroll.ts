@@ -30,22 +30,11 @@ import {
   recordRefusedScroll,
   sourceStanding,
 } from '@knowscroll/db/semantic/model-scrolls';
-import type { AnswerObservation } from '../reasoning/answer-worker.ts';
-import type { InquiryTransport } from '../reasoning/inquiry-worker.ts';
+import type {
+  AnswerObservation,
+  ScrollTransport,
+} from '../providers/transports.ts';
 import { fetchMaterial } from './fetch-material.ts';
-
-/** The inquiry path's seam: exactly the given bytes, sent once; the minimal receipt and the reply
- * text. The MiniMax transport (`providers/minimax-answer.ts`) serves answers, inquiries and Scrolls; a
- * Scroll reads only the text, never an inquiry's continuation turn (ADR-0042), so it asks for the
- * answer-level observation. */
-export interface ScrollTransport
-  extends Pick<InquiryTransport, 'kind' | 'ready'> {
-  send(input: {
-    body: Uint8Array;
-    maxOutputTokens: number;
-    signal: AbortSignal;
-  }): Promise<AnswerObservation>;
-}
 
 export interface WriteScrollDeps {
   transport: ScrollTransport;

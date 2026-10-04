@@ -34,9 +34,9 @@ import {
 } from '../../apps/worker/src/providers/fixtures/scroll.ts';
 import type {
   ScrollItemResult,
-  ScrollTransport,
   WriteScrollDeps,
 } from '../../apps/worker/src/scrolls/write-scroll.ts';
+import type { ScrollTransport } from '../../apps/worker/src/providers/transports.ts';
 import { MATERIAL_POLICY_VERSION } from '@knowscroll/core/scrolls/material';
 import {
   SCROLL_WRITING_VERSIONS,

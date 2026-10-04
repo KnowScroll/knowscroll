@@ -28,37 +28,16 @@ import {
 } from '@knowscroll/db/reasoning/inquiries';
 import type { ReasoningAuthority } from '@knowscroll/db/reasoning/runtime-policy';
 import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
-import type { InquiryTransport } from './inquiry-worker.ts';
+import type {
+  AnswerObservation,
+  AnswerTransport,
+  InquiryTransport,
+} from '../providers/transports.ts';
 import {
   invokeReasoningOnce,
   type SingleInvocationTransport,
 } from './invoke.ts';
-import type { z } from 'zod';
-import type { reasoningUsage } from '@knowscroll/contracts/reasoning';
-
-type ReasoningUsage = z.infer<typeof reasoningUsage>;
-
-/** What a provider transport observed: the minimal receipt fields, plus the reply text for the validator only. */
-export type AnswerObservation = {
-  remoteDisposition: 'terminal' | 'unconfirmed';
-  outcome: 'success' | 'refusal' | 'error' | 'unclassified';
-  httpStatus: number | null;
-  usage: ReasoningUsage;
-  text: string | null;
-};
-export interface AnswerTransport {
-  readonly kind: 'fixture' | 'minimax';
-  /** Checked before anything is scheduled or reserved (e.g. provider quota); false leaves the queue untouched. */
-  ready?(
-    signal: AbortSignal,
-  ): Promise<{ ok: true } | { ok: false; reason: string }>;
-  send(input: {
-    body: Uint8Array;
-    maxOutputTokens: number;
-    signal: AbortSignal;
-    work: AnswerWork;
-  }): Promise<AnswerObservation>;
-}
+import { createReadinessGate, type ReadinessGate } from './readiness-gate.ts';
 
 export type AnswerPass =
   | { kind: 'idle'; reason: string }
@@ -99,41 +78,6 @@ async function inTransaction<T>(
   } finally {
     client.release();
   }
-}
-
-type Readiness = { ok: true } | { ok: false; reason: string };
-/** Asks a transport's readiness; `spend()` records that a request was dispatched on the trust it gave. */
-export type ReadinessGate = ((signal: AbortSignal) => Promise<Readiness>) & {
-  spend(): void;
-};
-
-/**
- * Provider readiness (a quota request that carries the key) is asked at most once per window, not
- * on every loop: a success is trusted for `okMs` while work waits, a refusal backs off for `failMs`
- * (#132 review I2). A dispatch spends the trusted success, so every request, a continuation included,
- * has its own preflight (ADR-0033 §2, ADR-0042 §3).
- */
-export function createReadinessGate(
-  transport: AnswerTransport,
-  options: { okMs?: number; failMs?: number; now?: () => number } = {},
-): ReadinessGate {
-  const okMs = options.okMs ?? 30_000,
-    failMs = options.failMs ?? 60_000,
-    now = options.now ?? Date.now;
-  let until = 0,
-    last: Readiness = { ok: true };
-  const gate = async (signal: AbortSignal): Promise<Readiness> => {
-    if (!transport.ready) return { ok: true };
-    if (now() < until) return last;
-    last = await transport.ready(signal);
-    until = now() + (last.ok ? okMs : failMs);
-    return last;
-  };
-  return Object.assign(gate, {
-    spend() {
-      if (last.ok) until = 0;
-    },
-  });
 }
 
 export async function runAnswerPass(deps: {

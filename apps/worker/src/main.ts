@@ -1,12 +1,10 @@
 import { setTimeout } from 'node:timers/promises';
 import { pool } from '@knowscroll/db';
 import { projectOne } from './project.ts';
-import { answerTransportsFromEnvironment } from './reasoning/answer-loop.ts';
-import {
-  createReadinessGate,
-  runAnswerPass,
-} from './reasoning/answer-worker.ts';
-import { inquiryTransportsFromEnvironment } from './reasoning/inquiry-loop.ts';
+import { answerTransportsFromEnvironment } from './reasoning/transport-selection.ts';
+import { runAnswerPass } from './reasoning/answer-worker.ts';
+import { createReadinessGate } from './reasoning/readiness-gate.ts';
+import { inquiryTransportsFromEnvironment } from './reasoning/transport-selection.ts';
 import {
   executeInquiryClaim,
   runInquiryPass,
@@ -14,10 +12,8 @@ import {
 import { settleAbandonedAnswers } from '@knowscroll/db/reasoning/answers';
 import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import { runCorrectionRefreshPass } from '@knowscroll/db/semantic/correction-refresh';
-import {
-  runSupplyPass,
-  scrollTransportsFromEnvironment,
-} from './scrolls/supply-worker.ts';
+import { runSupplyPass } from './scrolls/supply-worker.ts';
+import { scrollTransportsFromEnvironment } from './reasoning/transport-selection.ts';
 let running = true;
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {

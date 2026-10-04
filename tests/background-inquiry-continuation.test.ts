@@ -16,12 +16,12 @@ import { buildApp } from '../apps/api/src/app.ts';
 import { pool, transaction } from '@knowscroll/db';
 import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
 import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
-import { createReadinessGate } from '../apps/worker/src/reasoning/answer-worker.ts';
-import {
-  runInquiryPass,
-  type InquiryObservation,
-  type InquiryTransport,
-} from '../apps/worker/src/reasoning/inquiry-worker.ts';
+import { createReadinessGate } from '../apps/worker/src/reasoning/readiness-gate.ts';
+import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
+import type {
+  InquiryObservation,
+  InquiryTransport,
+} from '../apps/worker/src/providers/transports.ts';
 import {
   createFixtureInquiryTransport,
   type InquiryFixtureMode,

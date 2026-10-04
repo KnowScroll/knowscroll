@@ -9,7 +9,6 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
 import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   createReasoningFairness,
@@ -37,37 +36,19 @@ import {
   ReasoningDenied,
   type ReasoningAuthority,
 } from '@knowscroll/db/reasoning/runtime-policy';
-import {
-  createReadinessGate,
-  executeAnswerClaim,
-  type AnswerObservation,
-  type AnswerPass,
-  type AnswerTransport,
-  type ReadinessGate,
-} from './answer-worker.ts';
+import type {
+  AnswerObservation,
+  AnswerTransport,
+  InquiryObservation,
+  InquiryTransport,
+} from '../providers/transports.ts';
+import { executeAnswerClaim, type AnswerPass } from './answer-worker.ts';
+import { createReadinessGate, type ReadinessGate } from './readiness-gate.ts';
 import {
   invokeReasoningOnce,
   type SingleInvocationTransport,
 } from './invoke.ts';
 
-/** What an inquiry transport observed: the answer path's fields, plus the assistant turn's native content
- * blocks and stop reason (ADR-0042 §1–§2). Protected: never logged, stored only for a continuation. */
-export type InquiryObservation = AnswerObservation & {
-  content: AssistantBlock[];
-  stopReason: string | null;
-};
-/** The same transport seam as answers: exactly the reserved bytes, the minimal receipt, the reply. */
-export interface InquiryTransport {
-  readonly kind: 'fixture' | 'minimax';
-  ready?(
-    signal: AbortSignal,
-  ): Promise<{ ok: true } | { ok: false; reason: string }>;
-  send(input: {
-    body: Uint8Array;
-    maxOutputTokens: number;
-    signal: AbortSignal;
-  }): Promise<InquiryObservation>;
-}
 type Transports<T> = Partial<Record<'fixture' | 'minimax', T>>;
 type Gates = Partial<Record<'fixture' | 'minimax', ReadinessGate>>;
 

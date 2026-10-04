@@ -31,8 +31,8 @@ import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import {
   executeInquiryClaim,
   runInquiryPass,
-  type InquiryTransport,
 } from '../apps/worker/src/reasoning/inquiry-worker.ts';
+import type { InquiryTransport } from '../apps/worker/src/providers/transports.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/fixtures/answer.ts';
 import { createFixtureInquiryTransport } from '../apps/worker/src/providers/fixtures/inquiry.ts';
 import {

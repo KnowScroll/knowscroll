@@ -18,10 +18,8 @@ import {
   settleAbandonedAnswers,
 } from '@knowscroll/db/reasoning/answers';
 import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
-import {
-  runAnswerPass,
-  type AnswerTransport,
-} from '../apps/worker/src/reasoning/answer-worker.ts';
+import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
+import type { AnswerTransport } from '../apps/worker/src/providers/transports.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/fixtures/answer.ts';
 
 if (

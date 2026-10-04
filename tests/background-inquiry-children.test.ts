@@ -19,10 +19,8 @@ import {
   resolveInquiryPolicy,
 } from '@knowscroll/db/reasoning/inquiries';
 import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
-import {
-  runInquiryPass,
-  type InquiryTransport,
-} from '../apps/worker/src/reasoning/inquiry-worker.ts';
+import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
+import type { InquiryTransport } from '../apps/worker/src/providers/transports.ts';
 import {
   createFixtureInquiryTransport,
   type InquiryFixtureMode,

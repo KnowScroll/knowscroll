@@ -12,10 +12,7 @@ import {
   INQUIRY_PAIRS_MARKER,
   type AssistantBlock,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
-import type {
-  InquiryObservation,
-  InquiryTransport,
-} from '../../reasoning/inquiry-worker.ts';
+import type { InquiryObservation, InquiryTransport } from '../transports.ts';
 
 export type InquiryFixtureMode =
   | 'proposal'

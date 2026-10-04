@@ -20,10 +20,8 @@ import {
   createFixtureScrollTransport,
   type ScrollFixtureMode,
 } from '../apps/worker/src/providers/fixtures/scroll.ts';
-import {
-  runSupplyPass,
-  scrollTransportsFromEnvironment,
-} from '../apps/worker/src/scrolls/supply-worker.ts';
+import { runSupplyPass } from '../apps/worker/src/scrolls/supply-worker.ts';
+import { scrollTransportsFromEnvironment } from '../apps/worker/src/reasoning/transport-selection.ts';
 import { atlasResponseSchema } from '@knowscroll/contracts/atlas';
 import { awayResponse } from '@knowscroll/contracts/away';
 import { inventoryResponse } from '@knowscroll/contracts/inventory';
