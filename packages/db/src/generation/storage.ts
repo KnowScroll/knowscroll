@@ -131,8 +131,19 @@ export async function registerEngine(
 ): Promise<{ id: string }> {
   const id = input.id ?? randomUUID();
   await db.query(
-    `INSERT INTO cutroom_engine(id,origin,contract_revision,artifact_root,provider_mode,declared_by)
-     VALUES($1,$2,$3,$4,$5,$6)`,
+    `
+      INSERT INTO
+        cutroom_engine (
+          id,
+          origin,
+          contract_revision,
+          artifact_root,
+          provider_mode,
+          declared_by
+        )
+      VALUES
+        ($1, $2, $3, $4, $5, $6)
+    `,
     [
       id,
       input.origin,
@@ -173,8 +184,21 @@ export async function addBrief(
   const id = input.id ?? randomUUID();
   const briefSha256 = sha256(canonical(parsed));
   await db.query(
-    `INSERT INTO generation_brief(id,source_asset_id,source_asset_revision,truth_state,brief,brief_sha256,authored_by,review_state)
-     VALUES($1,$2,$3,'synthesis',$4,$5,$6,'draft')`,
+    `
+      INSERT INTO
+        generation_brief (
+          id,
+          source_asset_id,
+          source_asset_revision,
+          truth_state,
+          brief,
+          brief_sha256,
+          authored_by,
+          review_state
+        )
+      VALUES
+        ($1, $2, $3, 'synthesis', $4, $5, $6, 'draft')
+    `,
     [
       id,
       source.assetId,
@@ -222,8 +246,18 @@ export async function createGrant(
   }
   const id = input.id ?? randomUUID();
   await db.query(
-    `INSERT INTO generation_budget_grant(id,mode,cap_cents,authorization_ref,expires_at)
-     VALUES($1,$2,$3,$4,$5)`,
+    `
+      INSERT INTO
+        generation_budget_grant (
+          id,
+          mode,
+          cap_cents,
+          authorization_ref,
+          expires_at
+        )
+      VALUES
+        ($1, $2, $3, $4, $5)
+    `,
     [
       id,
       input.mode,
@@ -313,8 +347,14 @@ export async function createJob(
     // Reserve first: an atomic, guarded increment. Exactly-at-cap succeeds; one cent over fails
     // this WHERE clause (rowCount 0) before any job/attempt row is ever written.
     const reserved = await client.query(
-      `UPDATE generation_budget_grant SET reserved_cents=reserved_cents+$2
-       WHERE id=$1 AND reserved_cents+spent_cents+$2<=cap_cents`,
+      `
+        UPDATE generation_budget_grant
+        SET
+          reserved_cents = reserved_cents + $2
+        WHERE
+          id = $1
+          AND reserved_cents + spent_cents + $2 <= cap_cents
+      `,
       [input.grantId, input.budgetCents],
     );
     if (reserved.rowCount !== 1) deny('grant_cap_exceeded');
@@ -333,8 +373,20 @@ export async function createJob(
     // The admission trigger re-validates brief/engine/grant against the current row images;
     // it is the schema's own authority and this call trusts it rather than duplicating it.
     await client.query(
-      `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      `
+        INSERT INTO
+          generation_job (
+            id,
+            brief_id,
+            engine_id,
+            grant_id,
+            until,
+            budget_cents,
+            deadline_at
+          )
+        VALUES
+          ($1, $2, $3, $4, $5, $6, $7)
+      `,
       [
         jobId,
         input.briefId,
@@ -346,8 +398,20 @@ export async function createJob(
       ],
     );
     await client.query(
-      `INSERT INTO cutroom_attempt(id,job_id,ordinal,request_id,request_body,body_sha256,contract_revision)
-       VALUES($1,$2,1,$3,$4,$5,$6)`,
+      `
+        INSERT INTO
+          cutroom_attempt (
+            id,
+            job_id,
+            ordinal,
+            request_id,
+            request_body,
+            body_sha256,
+            contract_revision
+          )
+        VALUES
+          ($1, $2, 1, $3, $4, $5, $6)
+      `,
       [
         attemptId,
         jobId,
@@ -410,22 +474,58 @@ export async function claimJob(
     fence: string;
     lease_expires_at: Date;
   }>(
-    `WITH candidate AS (
-       SELECT id FROM generation_job
-       WHERE (status='queued' AND lease_owner IS NULL AND deadline_at>clock_timestamp())
-          OR (status=ANY($3::text[]) AND lease_expires_at<=clock_timestamp())
-       ORDER BY created_at,id
-       FOR UPDATE SKIP LOCKED LIMIT 1
-     )
-     UPDATE generation_job j SET
-       status=CASE WHEN j.status='queued' THEN 'dispatching' ELSE j.status END,
-       lease_owner=$1,
-       lease_expires_at=clock_timestamp()+($2::bigint*interval '1 millisecond'),
-       fence=j.fence+1,
-       updated_at=clock_timestamp()
-     FROM candidate WHERE j.id=candidate.id
-     RETURNING j.id,j.brief_id,j.engine_id,j.grant_id,j.until,j.budget_cents,j.status,j.deadline_at,
-       j.cancel_requested_at,j.fence,j.lease_expires_at`,
+    `
+      WITH
+        candidate AS (
+          SELECT
+            id
+          FROM
+            generation_job
+          WHERE
+            (
+              status = 'queued'
+              AND lease_owner IS NULL
+              AND deadline_at > clock_timestamp()
+            )
+            OR (
+              status = ANY ($3::TEXT[])
+              AND lease_expires_at <= clock_timestamp()
+            )
+          ORDER BY
+            created_at,
+            id
+          FOR UPDATE
+            SKIP LOCKED
+          LIMIT
+            1
+        )
+      UPDATE generation_job j
+      SET
+        status = CASE
+          WHEN j.status = 'queued' THEN 'dispatching'
+          ELSE j.status
+        END,
+        lease_owner = $1,
+        lease_expires_at = clock_timestamp() + ($2::bigint * interval '1 millisecond'),
+        fence = j.fence + 1,
+        updated_at = clock_timestamp()
+      FROM
+        candidate
+      WHERE
+        j.id = candidate.id
+      RETURNING
+        j.id,
+        j.brief_id,
+        j.engine_id,
+        j.grant_id,
+        j.until,
+        j.budget_cents,
+        j.status,
+        j.deadline_at,
+        j.cancel_requested_at,
+        j.fence,
+        j.lease_expires_at
+    `,
     [input.owner, input.leaseMs, RECLAIMABLE_STATUSES],
   );
   const row = result.rows[0];
@@ -467,8 +567,24 @@ async function requireLeasedJob(client: pg.PoolClient, holder: LeaseHolder) {
       deadline_at: Date;
       cancel_requested_at: Date | null;
     }>(
-      `SELECT engine_id,grant_id,budget_cents,until,status,lease_owner,fence,lease_expires_at,deadline_at,cancel_requested_at
-     FROM generation_job WHERE id=$1 FOR UPDATE`,
+      `
+        SELECT
+          engine_id,
+          grant_id,
+          budget_cents,
+          until,
+          status,
+          lease_owner,
+          fence,
+          lease_expires_at,
+          deadline_at,
+          cancel_requested_at
+        FROM
+          generation_job
+        WHERE
+          id = $1
+        FOR UPDATE
+      `,
       [holder.jobId],
     )
   ).rows[0];
@@ -528,15 +644,36 @@ export async function authorizeDispatch(
         contract_revision: string;
         state: string;
       }>(
-        'SELECT id,request_id,request_body,body_sha256,contract_revision,state FROM cutroom_attempt WHERE job_id=$1 AND ordinal=1 FOR UPDATE',
+        `
+          SELECT
+            id,
+            request_id,
+            request_body,
+            body_sha256,
+            contract_revision,
+            state
+          FROM
+            cutroom_attempt
+          WHERE
+            job_id = $1
+            AND ordinal = 1
+          FOR UPDATE
+        `,
         [holder.jobId],
       )
     ).rows[0];
     if (!attempt || attempt.state !== 'prepared')
       deny('attempt_not_preparable');
     const updated = await client.query(
-      `UPDATE cutroom_attempt SET state='dispatch_committed',dispatch_committed_at=clock_timestamp()
-       WHERE id=$1 AND state='prepared'`,
+      `
+        UPDATE cutroom_attempt
+        SET
+          state = 'dispatch_committed',
+          dispatch_committed_at = clock_timestamp()
+        WHERE
+          id = $1
+          AND state = 'prepared'
+      `,
       [attempt.id],
     );
     if (updated.rowCount !== 1) deny('dispatch_race_lost');
@@ -574,7 +711,14 @@ export async function closeNotSent(
       [attempt.id],
     );
     const released = await client.query(
-      `UPDATE generation_budget_grant SET reserved_cents=reserved_cents-$2 WHERE id=$1 AND reserved_cents>=$2`,
+      `
+        UPDATE generation_budget_grant
+        SET
+          reserved_cents = reserved_cents - $2
+        WHERE
+          id = $1
+          AND reserved_cents >= $2
+      `,
       [job.grant_id, job.budget_cents],
     );
     if (released.rowCount !== 1) deny('grant_reservation_missing');
@@ -608,7 +752,16 @@ export async function recordAccepted(
     if (!attempt || !['dispatch_committed', 'unknown'].includes(attempt.state))
       deny('attempt_not_dispatched');
     await client.query(
-      `UPDATE cutroom_attempt SET state='accepted',run_id=$2,replayed=$3,accepted_at=clock_timestamp() WHERE id=$1`,
+      `
+        UPDATE cutroom_attempt
+        SET
+          state = 'accepted',
+          run_id = $2,
+          replayed = $3,
+          accepted_at = clock_timestamp()
+        WHERE
+          id = $1
+      `,
       [attempt.id, outcome.runId, outcome.replayed],
     );
     await client.query(
@@ -639,7 +792,14 @@ export async function recordRefused(
       [attempt.id, JSON.stringify(refusal)],
     );
     const released = await client.query(
-      `UPDATE generation_budget_grant SET reserved_cents=reserved_cents-$2 WHERE id=$1 AND reserved_cents>=$2`,
+      `
+        UPDATE generation_budget_grant
+        SET
+          reserved_cents = reserved_cents - $2
+        WHERE
+          id = $1
+          AND reserved_cents >= $2
+      `,
       [job.grant_id, job.budget_cents],
     );
     if (released.rowCount !== 1) deny('grant_reservation_missing');
@@ -715,7 +875,21 @@ export async function parkNeedsOperator(
   await transaction(db, async (client) => {
     await requireLeasedJob(client, holder);
     const updated = await client.query(
-      `UPDATE generation_job SET status='needs_operator',status_detail=$2 WHERE id=$1 AND status NOT IN ('completed','refused','stopped','failed','cancelled')`,
+      `
+        UPDATE generation_job
+        SET
+          status = 'needs_operator',
+          status_detail = $2
+        WHERE
+          id = $1
+          AND status NOT IN (
+            'completed',
+            'refused',
+            'stopped',
+            'failed',
+            'cancelled'
+          )
+      `,
       [holder.jobId, detail],
     );
     if (updated.rowCount !== 1) deny('job_already_terminal');
@@ -745,7 +919,13 @@ export async function appendEvents(
     for (const item of page.events) {
       if (item.seq <= cursor) deny('event_seq_regression');
       const inserted = await client.query(
-        `INSERT INTO cutroom_event(attempt_id,seq,event) VALUES($1,$2,$3) ON CONFLICT(attempt_id,seq) DO NOTHING`,
+        `
+          INSERT INTO
+            cutroom_event (attempt_id, seq, event)
+          VALUES
+            ($1, $2, $3)
+          ON CONFLICT (attempt_id, seq) DO NOTHING
+        `,
         [attempt.id, item.seq, JSON.stringify(item.event)],
       );
       stored += inserted.rowCount ?? 0;
@@ -782,7 +962,16 @@ export async function recordResult(
     ).rows[0];
     if (!attempt || attempt.state !== 'accepted') deny('attempt_not_accepted');
     await client.query(
-      `UPDATE cutroom_attempt SET state='finished',result=$2,reported_cost_cents=$3,finished_at=clock_timestamp() WHERE id=$1`,
+      `
+        UPDATE cutroom_attempt
+        SET
+          state = 'finished',
+          result = $2,
+          reported_cost_cents = $3,
+          finished_at = clock_timestamp()
+        WHERE
+          id = $1
+      `,
       [attempt.id, JSON.stringify(outcome.body), outcome.costCents],
     );
     const jobStatus =
@@ -840,7 +1029,19 @@ export async function settle(
         settlement: string;
         reported_cost_cents: number | null;
       }>(
-        'SELECT id,state,settlement,reported_cost_cents FROM cutroom_attempt WHERE job_id=$1 AND ordinal=1 FOR UPDATE',
+        `
+          SELECT
+            id,
+            state,
+            settlement,
+            reported_cost_cents
+          FROM
+            cutroom_attempt
+          WHERE
+            job_id = $1
+            AND ordinal = 1
+          FOR UPDATE
+        `,
         [holder.jobId],
       )
     ).rows[0];
@@ -859,17 +1060,34 @@ export async function settle(
     // happens: the money was spent whether or not our reservation anticipated it.
     const overageCents = Math.max(0, reportedCostCents - job.budget_cents);
     const updatedGrant = await client.query(
-      `UPDATE generation_budget_grant
-         SET reserved_cents=reserved_cents-$2,
-             spent_cents=spent_cents+$3,
-             overage_cents=overage_cents+$4,
-             admission_paused_at=CASE WHEN $4>0 AND admission_paused_at IS NULL THEN clock_timestamp() ELSE admission_paused_at END
-       WHERE id=$1 AND reserved_cents>=$2`,
+      `
+        UPDATE generation_budget_grant
+        SET
+          reserved_cents = reserved_cents - $2,
+          spent_cents = spent_cents + $3,
+          overage_cents = overage_cents + $4,
+          admission_paused_at = CASE
+            WHEN $4 > 0
+            AND admission_paused_at IS NULL THEN clock_timestamp()
+            ELSE admission_paused_at
+          END
+        WHERE
+          id = $1
+          AND reserved_cents >= $2
+      `,
       [job.grant_id, job.budget_cents, reportedCostCents, overageCents],
     );
     if (updatedGrant.rowCount !== 1) deny('grant_reservation_missing');
     const updatedAttempt = await client.query(
-      `UPDATE cutroom_attempt SET settlement='settled' WHERE id=$1 AND state='finished' AND settlement='held'`,
+      `
+        UPDATE cutroom_attempt
+        SET
+          settlement = 'settled'
+        WHERE
+          id = $1
+          AND state = 'finished'
+          AND settlement = 'held'
+      `,
       [attempt.id],
     );
     if (updatedAttempt.rowCount !== 1) deny('settlement_race_lost');
@@ -888,8 +1106,21 @@ export async function settle(
 export async function requestCancel(db: pg.Pool, jobId: string): Promise<void> {
   validateUuid(jobId, 'invalid_job_id');
   const result = await db.query(
-    `UPDATE generation_job SET cancel_requested_at=clock_timestamp()
-     WHERE id=$1 AND cancel_requested_at IS NULL AND status NOT IN ('completed','refused','stopped','failed','cancelled')`,
+    `
+      UPDATE generation_job
+      SET
+        cancel_requested_at = clock_timestamp()
+      WHERE
+        id = $1
+        AND cancel_requested_at IS NULL
+        AND status NOT IN (
+          'completed',
+          'refused',
+          'stopped',
+          'failed',
+          'cancelled'
+        )
+    `,
     [jobId],
   );
   if (result.rowCount !== 1) deny('job_not_cancellable');
@@ -929,12 +1160,26 @@ export async function closeQueuedCancelled(
       [attempt.id],
     );
     const released = await client.query(
-      `UPDATE generation_budget_grant SET reserved_cents=reserved_cents-$2 WHERE id=$1 AND reserved_cents>=$2`,
+      `
+        UPDATE generation_budget_grant
+        SET
+          reserved_cents = reserved_cents - $2
+        WHERE
+          id = $1
+          AND reserved_cents >= $2
+      `,
       [job.grant_id, job.budget_cents],
     );
     if (released.rowCount !== 1) deny('grant_reservation_missing');
     await client.query(
-      `UPDATE generation_job SET status='cancelled',status_detail='closed not_sent: cancelled while queued' WHERE id=$1`,
+      `
+        UPDATE generation_job
+        SET
+          status = 'cancelled',
+          status_detail = 'closed not_sent: cancelled while queued'
+        WHERE
+          id = $1
+      `,
       [jobId],
     );
   });
@@ -979,9 +1224,28 @@ export async function loadAttempt(
       reported_cost_cents: number | null;
       settlement: string;
     }>(
-      `SELECT id,state,request_id,request_body,body_sha256,contract_revision,run_id,replayed,next_since,resend_count,
-      result,record_summary,reported_cost_cents,settlement
-     FROM cutroom_attempt WHERE job_id=$1 AND ordinal=1`,
+      `
+        SELECT
+          id,
+          state,
+          request_id,
+          request_body,
+          body_sha256,
+          contract_revision,
+          run_id,
+          replayed,
+          next_since,
+          resend_count,
+          result,
+          record_summary,
+          reported_cost_cents,
+          settlement
+        FROM
+          cutroom_attempt
+        WHERE
+          job_id = $1
+          AND ordinal = 1
+      `,
       [jobId],
     )
   ).rows[0];
@@ -1037,8 +1301,25 @@ export async function loadJob(
       lease_owner: string | null;
       fence: string;
     }>(
-      `SELECT id,brief_id,engine_id,grant_id,until,budget_cents,status,status_detail,cancel_requested_at,deadline_at,lease_owner,fence
-     FROM generation_job WHERE id=$1`,
+      `
+        SELECT
+          id,
+          brief_id,
+          engine_id,
+          grant_id,
+          until,
+          budget_cents,
+          status,
+          status_detail,
+          cancel_requested_at,
+          deadline_at,
+          lease_owner,
+          fence
+        FROM
+          generation_job
+        WHERE
+          id = $1
+      `,
       [jobId],
     )
   ).rows[0];

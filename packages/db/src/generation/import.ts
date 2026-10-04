@@ -79,9 +79,19 @@ export async function recordImportedReel(
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO media_object(sha256,byte_size,content_type,probe,storage_key)
-       VALUES($1,$2,'video/mp4',$3,$4)
-       ON CONFLICT (sha256) DO NOTHING`,
+      `
+        INSERT INTO
+          media_object (
+            sha256,
+            byte_size,
+            content_type,
+            probe,
+            storage_key
+          )
+        VALUES
+          ($1, $2, 'video/mp4', $3, $4)
+        ON CONFLICT (sha256) DO NOTHING
+      `,
       [
         input.media.sha256,
         input.media.byteSize,
@@ -90,10 +100,39 @@ export async function recordImportedReel(
       ],
     );
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO generated_reel(id,attempt_id,brief_id,engine_id,cutroom_run_id,media_sha256,engine_path,provider_mode,truth_state,generated_label,lineage)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'synthesis',true,$9)
-       ON CONFLICT (attempt_id) DO NOTHING
-       RETURNING id`,
+      `
+        INSERT INTO
+          generated_reel (
+            id,
+            attempt_id,
+            brief_id,
+            engine_id,
+            cutroom_run_id,
+            media_sha256,
+            engine_path,
+            provider_mode,
+            truth_state,
+            generated_label,
+            lineage
+          )
+        VALUES
+          (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            'synthesis',
+            TRUE,
+            $9
+          )
+        ON CONFLICT (attempt_id) DO NOTHING
+        RETURNING
+          id
+      `,
       [
         candidateId,
         input.attemptId,
