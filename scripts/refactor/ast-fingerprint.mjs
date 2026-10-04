@@ -14,6 +14,9 @@
 //   node scripts/refactor/ast-fingerprint.mjs same-body <file>#<name> <file>#<name> [...]
 //   node scripts/refactor/ast-fingerprint.mjs --self-test
 //
+// --js (snapshot, snapshot-decls, same-body): compare the transpiled JavaScript, so edits that
+// change only types (row interfaces, `!`, annotations) compare identical.
+//
 // Default roots: apps/api apps/worker packages tests scripts ops
 // apps/web/src apps/web/e2e (.ts .tsx .mts .mjs .js; node_modules, dist,
 // build and artifacts are skipped).
@@ -82,7 +85,33 @@ function scriptKindFor(file) {
   return ts.ScriptKind.TS;
 }
 
+// --js: fingerprint what runs, not what type-checks. TypeScript files are first transpiled
+// (types, interfaces, type-only imports, `!`, `as` and `satisfies` erased); only code that would
+// execute is compared. Used to prove typed-row, JSDoc and annotation-only commits.
+let emitJs = false;
+
+function transpiled(file, text) {
+  return ts.transpileModule(text, {
+    fileName: file,
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.ESNext,
+      jsx: ts.JsxEmit.Preserve,
+      removeComments: true,
+    },
+  }).outputText;
+}
+
 function parse(file, text) {
+  if (emitJs && /\.(ts|tsx|mts)$/.test(file) && !file.endsWith('.d.ts')) {
+    return ts.createSourceFile(
+      file,
+      transpiled(file, text),
+      ts.ScriptTarget.Latest,
+      true,
+      file.endsWith('.tsx') ? ts.ScriptKind.JSX : ts.ScriptKind.JS,
+    );
+  }
   return ts.createSourceFile(
     file,
     text,
@@ -766,7 +795,10 @@ function parseArgs(argv) {
     if (arg === '--out' || arg === '--move-map')
       flags[arg.slice(2)] = argv[++i];
     else if (arg === '--resolve-specifiers') flags.resolve = true;
-    else if (arg === '--self-test') flags.selfTest = true;
+    else if (arg === '--js') {
+      flags.js = true;
+      emitJs = true;
+    } else if (arg === '--self-test') flags.selfTest = true;
     else if (arg.startsWith('--')) die(`unknown option ${arg}`);
     else flags.positional.push(arg);
   }
@@ -811,7 +843,11 @@ function cmdSnapshot(flags) {
     }
   }
   writeJson(flags.out, {
-    meta: { mode: flags.resolve ? 'resolve-specifiers' : 'plain', roots },
+    meta: {
+      mode: flags.resolve ? 'resolve-specifiers' : 'plain',
+      js: Boolean(flags.js),
+      roots,
+    },
     files: sortedObject(entries),
   });
   if (flags.resolve)
@@ -962,7 +998,11 @@ function cmdSnapshotDecls(flags) {
     );
   }
   writeJson(flags.out, {
-    meta: { mode: flags.resolve ? 'resolve-specifiers' : 'plain', roots },
+    meta: {
+      mode: flags.resolve ? 'resolve-specifiers' : 'plain',
+      js: Boolean(flags.js),
+      roots,
+    },
     decls: sortedObject(Object.entries(byHash)),
   });
   console.log(`${count} declarations in ${files.length} files -> ${flags.out}`);
