@@ -78,6 +78,8 @@ function repoFiles() {
   return git(['ls-files', '-co', '--exclude-standard', '-z'])
     .split('\0')
     .filter(Boolean)
+    // The refactor tooling names paths in its own comments and fixtures; never rewrite it.
+    .filter((f) => !f.startsWith('scripts/refactor/'))
     .filter((f) => fs.existsSync(path.join(REPO, f)))
     .sort(cmp);
 }
