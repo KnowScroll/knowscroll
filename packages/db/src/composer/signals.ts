@@ -1,3 +1,8 @@
+/**
+ * Persistence for `composer-signals-v2`: reads the immutable policy and the bounded per-candidate
+ * exposure signals, runs the pure ranking in core, and records the decision and its
+ * `decision_signal` rows in the caller's authenticated transaction (ADR-0028, ADR-0029).
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
@@ -140,8 +145,8 @@ export async function loadComposerSignalCandidates(
 
 /**
  * ADR-0028/0029 — rank with `composer-signals-v2` and record its decision and `decision_signal`
- * rows. Moved here from the feed route so the route only chooses a policy. Still available as a
- * configured policy and for offline comparison with `composer-semantic-v3` (ADR-0032).
+ * rows. Still available as a configured policy and for offline comparison with
+ * `composer-semantic-v3` (ADR-0032).
  */
 export async function composeAndRecordV2(
   client: pg.PoolClient,

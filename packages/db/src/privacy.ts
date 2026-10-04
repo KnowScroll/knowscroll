@@ -1,3 +1,9 @@
+/**
+ * Privacy lifecycle: history Clear, pause/resume, export, Reset and account deletion. Each runs in
+ * the caller's authenticated transaction with the universe lock already held, and statement order
+ * and lock order inside them are load-bearing (FK-safe erasure, receipts written before the
+ * deletions their guards permit). ADR-0009, ADR-0010, ADR-0028, ADR-0030, ADR-0035.
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type {
@@ -159,7 +165,7 @@ export async function clearScrollHistory(
     throw new HistoryClearConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -234,6 +240,8 @@ export async function clearScrollHistory(
 // hold the universe lock (via `authenticateAndLock`, which every route below goes through) and
 // recheck the authenticated session's epoch after that wait resolves, exactly as Clear does.
 
+// Same result as shared/time.ts `toIsoString`, written as a ternary; kept local because the AST
+// bodies differ and equivalence is not mechanically proven.
 function isoDate(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
@@ -276,9 +284,8 @@ async function setRecordingPaused(
   action: 'pause' | 'resume',
   input: PrivacyLifecycleInput,
 ): Promise<PrivacyRecordingReceipt> {
-  // The action is part of the replay key. Matching on the request id alone meant a client that
-  // reused an id it had already spent on the opposite action got that earlier receipt back: a
-  // pause request answered 200 with a resume receipt, and recording never stopped. A privacy
+  // The action is part of the replay key: matching on the request id alone would answer a pause
+  // that reuses a spent resume id with the resume receipt while recording never stopped. A privacy
   // control must never report success for something it did not do.
   const old = (
     await client.query(
@@ -711,7 +718,7 @@ export async function resetPersonalUniverse(
     throw new PrivacyLifecycleConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -735,7 +742,7 @@ export async function resetPersonalUniverse(
   );
 
   // Beyond Clear: end every session for this universe, including the caller's own.
-  const revoked = await client.query(
+  const revoked = await client.query<{ id: string }>(
     `
     UPDATE device_session
     SET
@@ -825,7 +832,7 @@ export async function deleteAccount(
   ]);
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET

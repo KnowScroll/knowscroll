@@ -20,10 +20,9 @@ import {
 } from '../semantic/branches.ts';
 import { SemanticInputError } from '../semantic/proposals.ts';
 import { refreshPersonalModel } from '../semantic/personal-model.ts';
+import { toIsoString } from '../shared/time.ts';
 
 type Row = Record<string, unknown>;
-const iso = (v: unknown) =>
-  (v instanceof Date ? v : new Date(String(v))).toISOString();
 
 export async function recordEncounterFeedback(
   client: pg.PoolClient,
@@ -44,7 +43,7 @@ export async function recordEncounterFeedback(
       family: String(r.family),
       concept: r.code === null ? null : String(r.code),
       bridgeId: r.bridge_id === null ? null : String(r.bridge_id),
-      until: iso(r.suppress_until),
+      until: toIsoString(r.suppress_until),
     },
   });
   const old = (

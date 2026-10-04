@@ -1,3 +1,9 @@
+/**
+ * Applies the SQL files in a migrations directory in name order, once each, in a single
+ * transaction under an advisory lock. Every applied file's SHA-256 is stored and re-checked, so an
+ * edited, missing or reordered migration is refused; only the original bootstrap may be adopted
+ * without a stored checksum.
+ */
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';

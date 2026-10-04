@@ -1,6 +1,13 @@
+/**
+ * Device sessions: provisioning, bearer-token authentication and the post-wait recheck. Tokens are
+ * stored only as SHA-256 hashes; never change a hash input, or every stored session stops matching.
+ * `authenticateAndLock` takes the universe lock before any session or domain row (ADR-0009,
+ * ADR-0026, ADR-0035).
+ */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { OWNER_ID, lockUniverse, transaction } from './connection.ts';
+import { tokenHash } from './shared/token-hash.ts';
 
 /** Also reused by `sign-in.ts` (ADR-0026 section 3) so a magic-link session's expiry stays
  * consistent with every other device session's default. */
@@ -21,10 +28,6 @@ export class UnauthorizedSession extends Error {
     super('Unauthorized');
     this.name = 'UnauthorizedSession';
   }
-}
-
-function tokenHash(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
 function uuidFromHash(hash: string, domain: string): string {

@@ -48,9 +48,9 @@ export interface SystemResult {
  * carrying every asset row sharing that pair as its `world_member` evidence. Idempotent by
  * construction -- a world is looked up by `(derivation_method, source_url)` before ever being
  * inserted, and `world_member` rows are inserted `ON CONFLICT DO NOTHING`, so a second call against
- * unchanged `asset` rows produces identical rows, though it does restate each `computed_at` (only `scroll_count`/`computed_at` are always
- * re-stated, to the same value, which migration 0017's trigger accepts because it is already
- * correct). Must run inside the caller's own transaction, with the universe lock already held if
+ * unchanged `asset` rows produces identical rows. Only `scroll_count` and `computed_at` are
+ * restated each time, and migration 0017's trigger accepts that because the value is already
+ * correct. Must run inside the caller's own transaction, with the universe lock already held if
  * the caller is a request path (this module never acquires it itself, since the world catalog
  * itself is universe-independent -- ADR-0028's "alternatives" section 4).
  *
