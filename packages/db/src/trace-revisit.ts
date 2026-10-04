@@ -226,7 +226,17 @@ export async function readTraceRevisit(
   const row = rows[0]!,
     selected = selectedSnapshot(row, scope);
   const asset = (
-    await client.query(
+    await client.query<{
+      assetId: string;
+      revision: number;
+      kind: string;
+      title: string;
+      summary: string;
+      body: string;
+      sourceTitle: string;
+      sourceUrl: string;
+      truthState: string;
+    }>(
       `
     SELECT
       id AS "assetId",

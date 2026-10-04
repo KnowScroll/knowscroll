@@ -14,17 +14,18 @@ async function settleFailure(jobId: string, universeId: string): Promise<void> {
   await transaction(async (c) => {
     await lockUniverse(c, universeId);
     const j = (
-      await c.query(
+      await c.query<{ status: string; privacy_epoch: number }>(
         'SELECT status,privacy_epoch FROM job WHERE id=$1 AND universe_id=$2 FOR UPDATE',
         [jobId, universeId],
       )
     ).rows[0];
     if (!j || j.status !== 'pending') return;
     const epoch = (
-      await c.query('SELECT privacy_epoch FROM universe WHERE id=$1', [
-        universeId,
-      ])
-    ).rows[0].privacy_epoch;
+      await c.query<{ privacy_epoch: number }>(
+        'SELECT privacy_epoch FROM universe WHERE id=$1',
+        [universeId],
+      )
+    ).rows[0]!.privacy_epoch;
     if (j.privacy_epoch !== epoch) {
       await c.query(
         `
@@ -65,7 +66,7 @@ export async function projectNextJob(): Promise<ProjectionResult | null> {
   try {
     return await transaction(async (c) => {
       const candidate = (
-        await c.query(`
+        await c.query<{ id: string; universe_id: string }>(`
           SELECT
             j.id,
             j.universe_id
@@ -89,7 +90,12 @@ export async function projectNextJob(): Promise<ProjectionResult | null> {
       universeId = candidate.universe_id;
       await lockUniverse(c, universeId);
       const j = (
-        await c.query(
+        await c.query<{
+          id: string;
+          universe_id: string;
+          event_id: string;
+          privacy_epoch: number;
+        }>(
           `
             SELECT
               *
@@ -107,12 +113,19 @@ export async function projectNextJob(): Promise<ProjectionResult | null> {
       ).rows[0];
       if (!j) return null;
       const universe = (
-        await c.query('SELECT privacy_epoch FROM universe WHERE id=$1', [
-          j.universe_id,
-        ])
-      ).rows[0];
+        await c.query<{ privacy_epoch: number }>(
+          'SELECT privacy_epoch FROM universe WHERE id=$1',
+          [j.universe_id],
+        )
+      ).rows[0]!;
       const e = (
-        await c.query('SELECT * FROM ledger WHERE id=$1', [j.event_id])
+        await c.query<{
+          id: string;
+          universe_id: string;
+          kind: string;
+          payload: { assetId: string };
+          privacy_epoch: number;
+        }>('SELECT * FROM ledger WHERE id=$1', [j.event_id])
       ).rows[0];
       if (
         j.privacy_epoch !== universe.privacy_epoch ||

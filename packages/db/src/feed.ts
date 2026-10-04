@@ -67,7 +67,7 @@ export async function feedCandidates(
 ): Promise<FeedAsset[]> {
   const scrolls = kinds.includes('Scroll')
     ? ((
-        await client.query(
+        await client.query<ScrollAsset>(
           `
       SELECT
         id AS "assetId",

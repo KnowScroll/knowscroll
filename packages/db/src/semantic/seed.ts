@@ -48,10 +48,11 @@ export async function ensureRow(
   );
   if (inserted.rowCount) return inserted.rows[0]!.id;
   const row = (
-    await client.query(`SELECT * FROM ${table} WHERE ${keyColumn}=$1`, [
-      values[keyColumn],
-    ])
-  ).rows[0];
+    await client.query<{ id: string; [column: string]: unknown }>(
+      `SELECT * FROM ${table} WHERE ${keyColumn}=$1`,
+      [values[keyColumn]],
+    )
+  ).rows[0]!;
   for (const column of compare) {
     const stored =
       row[column] instanceof Date
