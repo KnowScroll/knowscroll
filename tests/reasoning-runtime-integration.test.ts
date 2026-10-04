@@ -7,7 +7,7 @@ import { runMigrations } from '@knowscroll/db/migrations';
 import { clearScrollHistory } from '@knowscroll/db/privacy';
 import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
-import { type ResolvedReasoningPolicy } from '@knowscroll/db/reasoning/runtime-policy';
+import type { ResolvedReasoningPolicy } from '@knowscroll/db/reasoning/runtime-policy';
 import { invokeReasoningOnce } from '../apps/worker/src/reasoning/invoke.ts';
 
 const databaseUrl = process.env.DATABASE_URL!;

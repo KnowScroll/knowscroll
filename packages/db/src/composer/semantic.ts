@@ -9,7 +9,7 @@ import type pg from 'pg';
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
 import {
   COMPOSER_SEMANTIC_V3,
-  COMPOSER_SEMANTIC_V4,
+  type COMPOSER_SEMANTIC_V4,
   composeSemantic,
   renderReason,
   type Family,
