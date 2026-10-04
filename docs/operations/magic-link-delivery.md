@@ -42,7 +42,8 @@ Set these as ordinary process environment variables — naming them here, never 
   fake HTTP server instead of the real host; leave it unset in every real deployment, where it
   defaults to `https://api.agentmail.to`.
 - `AGENTMAIL_TIMEOUT_MS` — optional. Bounds the one attempt AgentMail gets per send; unset means the
-  documented default of 10 seconds (`AGENTMAIL_TIMEOUT_MS` export in `agentmail-sender.ts`). Exists
+  documented default of 10 seconds (the `AGENTMAIL_TIMEOUT_MS` constant in
+  `apps/api/src/mail/agentmail-sender.ts`). Exists
   so a test can bound a stalled-connection scenario without waiting out the real default; a real
   deployment should not normally need to set this.
 
