@@ -10,8 +10,7 @@
         "tests/**/*.test.ts",
         "ops/**/*.ts"
       ],
-      "project": ["scripts/**/*.{ts,mjs}", "tests/**/*.ts", "ops/**/*.ts"],
-      "ignore": ["scripts/refactor/**"]
+      "project": ["scripts/**/*.{ts,mjs}", "tests/**/*.ts", "ops/**/*.ts"]
     },
     "apps/api": {
       "entry": ["src/main.ts"],
