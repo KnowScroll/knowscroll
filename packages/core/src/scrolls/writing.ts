@@ -1,5 +1,5 @@
 /**
- * #162 — the pure Scroll-writing boundary (ADR-0041 §3–§5). Three steps, no I/O:
+ * The pure Scroll-writing boundary (ADR-0041 §3–§5, #162). Three steps, no I/O:
  *
  * `serializeScrollWritingRequest` turns the offered concepts and the fetched material into the exact
  * request bytes, trimming the material at a word so the whole request stays within the bound.
@@ -12,8 +12,9 @@
  * bounded, and the concepts are the substrate's own. Provider text carries no authority of its own.
  * A quote it refuses is diagnosed with a code that carries no text (`quote-diagnosis-v1`).
  */
-import { z } from 'zod';
+
 import { claimConceptRole, conceptCode } from '@knowscroll/contracts/semantic';
+import { z } from 'zod';
 import { canonical, wholeObject } from '../reasoning/wire.ts';
 import { normalizeSnapshotText } from '../semantic/source-text.ts';
 
@@ -242,7 +243,8 @@ export type ScrollVerdict =
       quoteDiagnoses?: QuoteDiagnosis[];
     };
 
-/** Case-folded words; punctuation (hyphens included) separates, apostrophes belong to a word. */
+/** Versioned text rule (with the policy that records it), deliberately not shared with `bridge-validator`'s `words`.
+ * Case-folded words; punctuation (hyphens included) separates, apostrophes belong to a word. */
 function words(text: string): string[] {
   return text
     .toLowerCase()
@@ -334,7 +336,7 @@ export function checkScrollDraft(
     )
   )
     found.add('copied_passage');
-  // v2 (review of #178): a bare domain names a source as surely as a URL, and claim statements reach
+  // quote-diagnosis v2 (#178): a bare domain names a source as surely as a URL, and claim statements reach
   // readers as evidence, so both are checked.
   if (
     [...prose, ...claims.map((c) => c.statement)].some((part) =>

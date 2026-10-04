@@ -1,9 +1,9 @@
 /** Deterministic artifact authoring and delivery validation; never executes generated code. */
 import { createHash } from 'node:crypto';
 import {
-  webScrollArtifactV1,
-  type WebScrollBlockV1,
   type WebScrollArtifactV1,
+  type WebScrollBlockV1,
+  webScrollArtifactV1,
 } from '@knowscroll/contracts/web-scroll-artifact';
 
 const MAX_ARTIFACT_BYTES = 65_536;
@@ -11,7 +11,8 @@ const hash = (value: string) =>
   createHash('sha256').update(value).digest('hex');
 
 /** JSONB does not preserve object insertion order. Hash a stable JSON tree so
- * the persisted representation has the same digest as the authored one. */
+ * the persisted representation has the same digest as the authored one. Not `shared/canonical-json`: this
+ * drops `undefined` members and sorts keys with `localeCompare`, and stored digests depend on that. */
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value !== null && typeof value === 'object') {

@@ -1,6 +1,6 @@
 /**
- * #134 — one quiet line per atlas change (ADR-0036 §2; target 07 §4.2: "a chronicle line, not a
- * card"). Pure wording over the delta's own kind, cause and names; it never says anything about
+ * One quiet line per atlas change (ADR-0036 §2; target 07 §4.2: "a chronicle line, not a
+ * card", #134). Pure wording over the delta's own kind, cause and names; it never says anything about
  * the reader beyond what they did.
  */
 import type { RelationKind } from './cartographer.ts';

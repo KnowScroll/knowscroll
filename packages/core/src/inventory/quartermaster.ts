@@ -1,5 +1,5 @@
 /**
- * #164 — the Quartermaster (`quartermaster-v1`, ADR-0046 §2). Pure: one demand's facts in, one
+ * The Quartermaster (`quartermaster-v1`, ADR-0046 §2, #164). Pure: one demand's facts in, one
  * decision out. It runs when a demand is written, when supply changes and in the correction
  * catch-up; the caller loads the facts under the universe and inventory locks and applies exactly
  * this decision.
