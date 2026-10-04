@@ -11,7 +11,7 @@
  * a correction is `source_correction`, so it is away news, ADR-0039).
  */
 import type pg from 'pg';
-import { lockUniverse, transaction } from '../index.ts';
+import { lockUniverse, transaction } from '../connection.ts';
 import {
   CORRECTIONS_COMMITTED,
   refreshPersonalModel,

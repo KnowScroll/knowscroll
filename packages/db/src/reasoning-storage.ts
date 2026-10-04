@@ -9,7 +9,7 @@ import {
   reasoningReceipt,
   type ReasoningReceipt,
 } from '@knowscroll/contracts/reasoning';
-import { lockUniverse } from './index.ts';
+import { lockUniverse } from './connection.ts';
 
 export type ReasoningClearScope = {
   universeId: string;

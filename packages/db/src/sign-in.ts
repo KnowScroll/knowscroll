@@ -12,7 +12,7 @@
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { OWNER_ID, lockUniverse } from './index.ts';
+import { OWNER_ID, lockUniverse } from './connection.ts';
 import { DEFAULT_EXPIRY_HOURS, UnauthorizedSession } from './identity.ts';
 
 type Queryable = Pick<pg.PoolClient, 'query'>;

@@ -22,7 +22,7 @@ import {
   type QuartermasterDecision,
 } from '@knowscroll/core/inventory/quartermaster';
 import type { AuthScope } from '../identity.ts';
-import { lockUniverse, transaction } from '../index.ts';
+import { lockUniverse, transaction } from '../connection.ts';
 import { loadSupplyFacts, lockSupply, openRequest } from './supply.ts';
 
 /** Bench value: how many distinct causes one demand keeps. */
