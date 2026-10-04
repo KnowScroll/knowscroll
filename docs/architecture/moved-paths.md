@@ -33,3 +33,18 @@ names (`@knowscroll/db/reasoning/admission`, not a relative path).
 
 The db barrel's infrastructure (`loadLocalEnv`, `pool`, `OWNER_ID`, `transaction`, `lockUniverse`) moved from
 `packages/db/src/index.ts` into `packages/db/src/connection.ts`; `@knowscroll/db` still exports the same names.
+
+## apps/worker (R11)
+
+| Old path | Current path |
+|---|---|
+| `apps/worker/src/providers/answer-fixture.ts` | `apps/worker/src/providers/fixtures/answer.ts` |
+| `apps/worker/src/providers/inquiry-fixture.ts` | `apps/worker/src/providers/fixtures/inquiry.ts` |
+| `apps/worker/src/providers/scroll-fixture.ts` | `apps/worker/src/providers/fixtures/scroll.ts` |
+| `apps/worker/src/providers/certification-contract.ts` | `apps/worker/src/providers/certification/contract.ts` |
+| `apps/worker/src/providers/certification-journal.ts` | `apps/worker/src/providers/certification/journal.ts` |
+| `apps/worker/src/providers/minimax-certification.ts` | `apps/worker/src/providers/certification/minimax.ts` |
+| `apps/worker/src/reasoning/answer-loop.ts` | `apps/worker/src/reasoning/transport-selection.ts` (`answerTransportsFromEnvironment`) |
+| `apps/worker/src/reasoning/inquiry-loop.ts` | `apps/worker/src/reasoning/transport-selection.ts` (`inquiryTransportsFromEnvironment`) |
+
+The transport and observation types moved from `answer-worker.ts`, `inquiry-worker.ts` and `scrolls/write-scroll.ts` into `apps/worker/src/providers/transports.ts`; `createReadinessGate` from `answer-worker.ts` into `reasoning/readiness-gate.ts`; `scrollTransportsFromEnvironment` from `scrolls/supply-worker.ts` into `reasoning/transport-selection.ts`. `cutroom/port.ts` and `providers/port.ts` were unused reservations and are deleted.
