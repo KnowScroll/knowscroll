@@ -217,8 +217,98 @@ function describeSymbol(checker, describer, exported, moduleExports) {
   return entry;
 }
 
+/**
+ * TypeScript prints union members in type-creation order, which moves when files are added or
+ * loaded in another order (`1 | 0 | -1` vs `0 | 1 | -1`). Comparing with every union's members
+ * sorted removes that noise and nothing else: an added, removed or changed member still differs.
+ */
+export function normalizeUnions(text) {
+  const closers = { '(': ')', '[': ']', '{': '}', '<': '>' };
+  let i = 0;
+  const readString = () => {
+    const quote = text[i];
+    let out = quote;
+    i++;
+    while (i < text.length && text[i] !== quote) {
+      if (text[i] === '\\') out += text[i++];
+      out += text[i++];
+    }
+    out += text[i++] ?? '';
+    return out;
+  };
+  // A union: members separated by top-level `|`, ending at `,`, `;` or the group's closer.
+  // `name:`, `name?:`, `readonly name:`, `"quoted":` or `[key: string]:` labels a property or
+  // parameter; only what follows the colon is the union.
+  const LABEL =
+    /^\s*(?:readonly\s+)?(?:\[[^\]]*\]|[A-Za-z_$][\w$]*|"[^"]*"|'[^']*'|\d+)\??\s*$/;
+  const union = (closer) => {
+    const members = [];
+    let current = '';
+    let label = '';
+    // `A extends B ? X : Y` binds looser than `|`: such a union is left in its printed order.
+    let conditional = false;
+    while (i < text.length) {
+      const c = text[i];
+      if (c === closer || c === ',' || c === ';') break;
+      if (c === '?' && text[i + 1] !== ':' && text[i + 1] !== '.')
+        conditional = true;
+      if (c === ':' && !label && members.length === 0 && LABEL.test(current)) {
+        label = `${current}:`;
+        current = '';
+        i++;
+      } else if (c === "'" || c === '"' || c === '`') current += readString();
+      else if (c === '=' && text[i + 1] === '>') {
+        i += 2;
+        current += `=>${union(closer)}`;
+      } else if (c in closers) {
+        i++;
+        current += c + list(closers[c]) + (text[i++] ?? '');
+      } else if (c === '|') {
+        members.push(current.trim());
+        current = '';
+        i++;
+      } else {
+        current += c;
+        i++;
+      }
+    }
+    members.push(current.trim());
+    return members.length > 1
+      ? `${label} ${(conditional ? members : members.sort(cmp)).join(' | ')}`
+      : label + current;
+  };
+  // A list: unions separated by `,` or `;` until the closer. Inside `{ }` the `;`-separated
+  // members are sorted too: member order never changes an object type, and a mapped type over a
+  // union prints its keys in the union's (unstable) order. Parameter lists and tuples keep theirs.
+  const list = (closer) => {
+    const items = [];
+    let out = '';
+    while (i < text.length && text[i] !== closer) {
+      const item = union(closer);
+      if (closer === '}' && text[i] === ';') {
+        items.push(item.trim());
+        i++;
+      } else {
+        out += item;
+        if (text[i] === ',' || text[i] === ';') out += text[i++];
+      }
+    }
+    if (closer === '}' && items.length) {
+      const rest = out.trim();
+      return ` ${[...items, ...(rest ? [rest] : [])].sort(cmp).join('; ')}; `;
+    }
+    return out;
+  };
+  return list(undefined).replace(/\s+/g, ' ').trim();
+}
+
 function entrySignature(e) {
-  return JSON.stringify([e.kind, e.decl, e.type, e.declaredType ?? null]);
+  return JSON.stringify([
+    e.kind,
+    e.decl,
+    e.type === undefined ? undefined : normalizeUnions(e.type),
+    e.declaredType === undefined ? null : normalizeUnions(e.declaredType),
+  ]);
 }
 
 function aggregate(perModule) {
