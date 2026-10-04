@@ -159,7 +159,7 @@ export async function clearScrollHistory(
     throw new HistoryClearConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -713,7 +713,7 @@ export async function resetPersonalUniverse(
     throw new PrivacyLifecycleConflict();
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
@@ -737,7 +737,7 @@ export async function resetPersonalUniverse(
   );
 
   // Beyond Clear: end every session for this universe, including the caller's own.
-  const revoked = await client.query(
+  const revoked = await client.query<{ id: string }>(
     `
     UPDATE device_session
     SET
@@ -827,7 +827,7 @@ export async function deleteAccount(
   ]);
 
   const nextEpoch = scope.privacyEpoch + 1;
-  const universe = await client.query(
+  const universe = await client.query<{ privacy_epoch: number }>(
     `
    UPDATE universe
    SET
