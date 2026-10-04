@@ -1,7 +1,7 @@
 /**
- * ADR-0027 — AgentMail delivers the real magic-link email. Implements the same `MagicLinkSender`
- * port `magic-link-sender.ts` already defines for `DevelopmentMagicLinkSink`; `createMagicLinkSender()`
- * there is the only place that constructs this class for real use.
+ * ADR-0027 — AgentMail delivers the real magic-link email. Implements the `MagicLinkSender` port
+ * (`sender.ts`); `createMagicLinkSender()` in `magic-link-sender.ts` is the only place that
+ * constructs this class for real use.
  *
  * One POST, one attempt: a bounded timeout, a bounded response read, no automatic retry and no
  * redirect following (ADR-0027 section 1 — a retry is the person asking for another link, and a
@@ -11,7 +11,7 @@
  * in the one outbound request body; nothing here persists or logs any of them (mirroring
  * `DevelopmentMagicLinkSink`, which never logs `to` either).
  */
-import type { MagicLinkSender } from './magic-link-sender.ts';
+import type { MagicLinkSender } from './sender.ts';
 
 /** The real AgentMail host every non-test caller reaches. Overridable — via the `baseUrl`
  * constructor option, which `createMagicLinkSender()` wires to `AGENTMAIL_BASE_URL` — for exactly
