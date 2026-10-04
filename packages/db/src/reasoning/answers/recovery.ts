@@ -10,6 +10,7 @@ import {
 import { answerAuthority } from './route.ts';
 import type { RequestRow } from './shared.ts';
 import { type AnswerOutcome, type Fence, insertAnswer } from './worker.ts';
+import { inTransaction } from '../../sql/transactions.ts';
 
 /**
  * #132 review B2: an admitted attempt that was never sent is given back while this worker still holds
@@ -106,23 +107,6 @@ async function closeTerminalAnswer(
     reasons: [reason],
   });
   return true;
-}
-async function inTransaction<T>(
-  pool: pg.Pool,
-  body: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const value = await body(client);
-    await client.query('COMMIT');
-    return value;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 /**
  * A reply that was recorded but never applied (it arrived after the lease expired, or the worker

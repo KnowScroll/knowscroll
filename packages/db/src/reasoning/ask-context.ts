@@ -17,6 +17,7 @@ import {
 } from '@knowscroll/contracts/reasoning-context';
 import { explicitAskInput, exposureInput } from '@knowscroll/contracts';
 import { explicitAskLedgerKey } from '../explicit-ask.ts';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
@@ -28,7 +29,6 @@ import {
   canonical,
   digest,
   canonicalHash,
-  codepointCompare,
   asIso,
   policyDigest,
   record,
@@ -111,7 +111,7 @@ function sortDependencies(
     unique.set(identity, read);
   }
   return [...unique.values()].sort((left, right) =>
-    codepointCompare(dependencyIdentity(left), dependencyIdentity(right)),
+    compareCodeUnits(dependencyIdentity(left), dependencyIdentity(right)),
   );
 }
 
@@ -202,7 +202,7 @@ async function lockAssets(
   client: pg.PoolClient,
   assetIds: string[],
 ): Promise<void> {
-  const sorted = [...new Set(assetIds)].sort(codepointCompare);
+  const sorted = [...new Set(assetIds)].sort(compareCodeUnits);
   const rows = await client.query<{ id: string }>(
     'SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',
     [sorted],

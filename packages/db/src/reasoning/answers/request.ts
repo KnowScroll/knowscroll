@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { serializeAskAnswerRequest } from '@knowscroll/core/reasoning/ask-answer';
 import type { AuthScope } from '../../identity.ts';
 import { compileDirectAskContext } from '../ask-context.ts';
+import { isRecordingPaused } from '../../sql/recording-paused.ts';
 import { enqueueFairInTransaction } from '../fairness.ts';
 import { resolveAnswerPolicy, sourceOf } from './route.ts';
 import { AskAnswerError, type RequestRow, type Route } from './shared.ts';
@@ -69,12 +70,7 @@ export async function requestAskAnswer(
       'An answer was already requested for this Ask',
     );
 
-  const paused = (
-    await client.query<{ paused: boolean }>(
-      'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-      [scope.universeId],
-    )
-  ).rows[0]!.paused;
+  const paused = await isRecordingPaused(client, scope.universeId);
   if (paused) throw new AskAnswerError(409, 'Recording is paused');
   const route = (
     await client.query<Route>('SELECT * FROM ask_answer_route WHERE enabled')

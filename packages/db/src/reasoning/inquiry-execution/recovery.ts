@@ -4,24 +4,8 @@ import { withdrawIdleBackgroundJob } from '../idle-lifecycle.ts';
 import type { InquiryRow } from '../inquiries.ts';
 import { closeInquiry, staleOutcome } from './apply.ts';
 import type { InquiryFence, InquiryOutcome } from './load.ts';
+import { inTransaction } from '../../sql/transactions.ts';
 
-export async function inTransaction<T>(
-  pool: pg.Pool,
-  body: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const value = await body(client);
-    await client.query('COMMIT');
-    return value;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
-}
 /** The Job's last Attempt: that of its latest Step (a continuation adds Steps, ADR-0042 §1). */
 export async function latestAttempt(
   client: pg.PoolClient,

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { ContextRefusal } from '@knowscroll/contracts/reasoning-context';
 import {
   ReasoningDenied,
@@ -37,10 +38,6 @@ export function canonicalHash(value: unknown): string {
   return digest(canonical(value));
 }
 
-export function codepointCompare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
 export function asIso(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime()))
@@ -63,7 +60,7 @@ export function policyDigest(
       ...resolved,
       requiredDimensions: [...resolved.requiredDimensions].sort(),
       buckets: [...resolved.buckets].sort((left, right) =>
-        codepointCompare(left.bucketId, right.bucketId),
+        compareCodeUnits(left.bucketId, right.bucketId),
       ),
     },
   };

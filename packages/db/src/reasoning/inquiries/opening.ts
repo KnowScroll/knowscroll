@@ -10,7 +10,8 @@ import { enqueueFairInTransaction } from '../fairness.ts';
 import { sealInquiryContext, readInquiryInputs } from '../inquiry-context.ts';
 import { ReasoningDenied } from '../runtime-policy.ts';
 import { openedToday } from './consent.ts';
-import { inTransaction, requestRoute, resolveInquiryPolicy } from './route.ts';
+import { inTransaction } from '../../sql/transactions.ts';
+import { requestRoute, resolveInquiryPolicy } from './route.ts';
 import type { InquiryRoute, InquiryRow } from './shared.ts';
 
 // Opening a due inquiry (worker) ---------------------------------------------------------------

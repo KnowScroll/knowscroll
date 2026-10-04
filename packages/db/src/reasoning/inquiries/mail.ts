@@ -4,7 +4,7 @@ import {
   INQUIRY_KIND,
   INQUIRY_CONTEXT_LIMITS,
 } from '@knowscroll/contracts/reasoning-inquiry-context';
-import { inTransaction } from './route.ts';
+import { inTransaction } from '../../sql/transactions.ts';
 
 // Mail ----------------------------------------------------------------------------------------
 

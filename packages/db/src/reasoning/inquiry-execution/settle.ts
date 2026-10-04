@@ -2,10 +2,10 @@ import type pg from 'pg';
 import { createReasoningAdmission } from '../admission.ts';
 import { inquiryAuthority, resolveInquiryPolicy } from '../inquiries.ts';
 import { validateInquiryContext } from '../inquiry-context.ts';
+import { inTransaction } from '../../sql/transactions.ts';
 import { staleOutcome } from './apply.ts';
 import {
   closeTerminalInquiry,
-  inTransaction,
   latestAttempt,
   recoverRespondedInquiry,
   withdrawIdleInquiry,

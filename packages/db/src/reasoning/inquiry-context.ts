@@ -24,6 +24,7 @@ import type {
   InquiryCandidateInput,
   InquiryPair,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import {
   ReasoningDenied,
   validateReasoningPolicy,
@@ -42,7 +43,6 @@ export type InquiryContextValidation =
   | { valid: true; contentHash: string; readSetHash: string }
   | { valid: false; reason: InquiryContextRefusal };
 
-const codepoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const iso = (v: Date | string) =>
   (v instanceof Date ? v : new Date(v)).toISOString();
 
@@ -50,7 +50,7 @@ function sortDependencies(reads: InquiryDependency[]): InquiryDependency[] {
   const unique = new Map<string, InquiryDependency>();
   for (const read of reads) unique.set(inquiryDependencyKey(read), read);
   return [...unique.values()].sort((a, b) =>
-    codepoint(inquiryDependencyKey(a), inquiryDependencyKey(b)),
+    compareCodeUnits(inquiryDependencyKey(a), inquiryDependencyKey(b)),
   );
 }
 
@@ -72,7 +72,7 @@ function policyDigest(
           ...resolved,
           requiredDimensions: [...resolved.requiredDimensions].sort(),
           buckets: [...resolved.buckets].sort((a, b) =>
-            codepoint(a.bucketId, b.bucketId),
+            compareCodeUnits(a.bucketId, b.bucketId),
           ),
         },
       }),
@@ -786,7 +786,7 @@ async function loadSealed(
           throw new Error('bad dependency');
         return { identity: row.identity, value: row.canonical_dependency };
       })
-      .sort((a, b) => codepoint(a.identity, b.identity));
+      .sort((a, b) => compareCodeUnits(a.identity, b.identity));
     if (
       canonicalJson(stored) !== canonicalJson(expected) ||
       sha256(canonicalJson(stored)) !== sealed.read_set_hash

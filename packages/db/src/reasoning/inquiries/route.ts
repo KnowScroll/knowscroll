@@ -8,6 +8,7 @@ import type {
   ReasoningAuthority,
 } from '../runtime-policy.ts';
 import type { InquiryRoute } from './shared.ts';
+import { inTransaction } from '../../sql/transactions.ts';
 
 /** Operator/test setup, like `installAskAnswerRoute`. The fairness policy of the same version must
  * already be installed, and must admit this route's largest request as at most one quantum. */
@@ -323,21 +324,4 @@ export async function jobFamily(
     )
   ).rows[0]!;
   return row.answer ? 'answer' : row.inquiry ? 'inquiry' : null;
-}
-export async function inTransaction<T>(
-  pool: pg.Pool,
-  body: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const value = await body(client);
-    await client.query('COMMIT');
-    return value;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
 }

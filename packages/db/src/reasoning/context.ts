@@ -15,6 +15,7 @@ import {
   type DirectContextPayload,
 } from '@knowscroll/contracts/reasoning-context';
 import { exposureInput, interactionInput } from '@knowscroll/contracts';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
@@ -26,7 +27,6 @@ import {
   canonical,
   digest,
   canonicalHash,
-  codepointCompare,
   asIso,
   policyDigest,
   record,
@@ -111,7 +111,7 @@ function sortDependencies(
     unique.set(identity, read);
   }
   return [...unique.values()].sort((left, right) =>
-    codepointCompare(dependencyIdentity(left), dependencyIdentity(right)),
+    compareCodeUnits(dependencyIdentity(left), dependencyIdentity(right)),
   );
 }
 
@@ -308,7 +308,7 @@ async function lockAssets(
   client: pg.PoolClient,
   assetIds: string[],
 ): Promise<void> {
-  const sorted = [...new Set(assetIds)].sort(codepointCompare);
+  const sorted = [...new Set(assetIds)].sort(compareCodeUnits);
   const rows = await client.query<{ id: string }>(
     'SELECT id FROM asset WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE',
     [sorted],
@@ -447,13 +447,13 @@ function lineagePayload(
   return {
     facts: facts.sort((left, right) =>
       BigInt(left.keepSequence) === BigInt(right.keepSequence)
-        ? codepointCompare(left.keepEventId, right.keepEventId)
+        ? compareCodeUnits(left.keepEventId, right.keepEventId)
         : BigInt(left.keepSequence) < BigInt(right.keepSequence)
           ? -1
           : 1,
     ),
     assets: [...assets.values()].sort((left, right) =>
-      codepointCompare(left.assetId, right.assetId),
+      compareCodeUnits(left.assetId, right.assetId),
     ),
     dependencies: sortDependencies(dependencies),
   };
@@ -915,7 +915,7 @@ function expectedDependencyIdentities(payload: DirectContextPayload): string[] {
   for (const asset of payload.assets) identities.add(`asset:${asset.assetId}`);
   identities.add(`session:${payload.sessionId}`);
   identities.add(`runtime_policy:${payload.runtimePolicyVersion}`);
-  return [...identities].sort(codepointCompare);
+  return [...identities].sort(compareCodeUnits);
 }
 
 export async function validateDirectContext(
