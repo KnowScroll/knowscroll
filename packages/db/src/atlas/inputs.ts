@@ -2,13 +2,14 @@
  * What the Cartographer and the Keeper read: the shared concept substrate and one universe's places.
  * Read-only; callers hold whatever lock their transaction needs (ADR-0036).
  */
-import type pg from 'pg';
+
 import type {
   ConceptNode,
   PlaceView,
   RelationKind,
   TypedRelation,
 } from '@knowscroll/core/atlas/cartographer';
+import type pg from 'pg';
 
 export interface Substrate {
   concepts: ConceptNode[];

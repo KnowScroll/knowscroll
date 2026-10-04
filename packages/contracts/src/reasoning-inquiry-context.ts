@@ -5,9 +5,9 @@
  * that must still hold at admission, before sending and before applying. Any change is stale.
  */
 import { z } from 'zod';
-import { privacyEpoch, uuid as id } from './primitives.ts';
-import { conceptCode, semanticKey } from './semantic.ts';
+import { uuid as id, privacyEpoch } from './primitives.ts';
 import { reasoningCounter } from './reasoning.ts';
+import { conceptCode, semanticKey } from './semantic.ts';
 
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);

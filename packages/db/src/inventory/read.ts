@@ -3,7 +3,7 @@
  * place's live demand (`GET /v1/atlas`) and the bound Scrolls the Composer serves first. A demand
  * names its concept and, once bound, the Scroll's id and title: never a source or its material.
  */
-import type pg from 'pg';
+
 import {
   INVENTORY_LIST_LIMIT,
   type InventoryDemand,
@@ -11,6 +11,7 @@ import {
   type PlaceDemand,
 } from '@knowscroll/contracts/inventory';
 import type { V3Bound } from '@knowscroll/core/composer/semantic';
+import type pg from 'pg';
 import type { AuthScope } from '../identity.ts';
 
 type Row = {

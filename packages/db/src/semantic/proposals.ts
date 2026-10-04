@@ -10,17 +10,17 @@
  * Provider text never reaches the database except through a payload that parsed and was decided.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  bridgeProposalPayload,
   type BridgeDecision,
   type BridgeProposalPayload,
+  bridgeProposalPayload,
   type ProposerKind,
 } from '@knowscroll/contracts/semantic';
 import {
   sliceReadSet,
   validateBridgeProposal,
 } from '@knowscroll/core/semantic/bridge-validator';
+import type pg from 'pg';
 import {
   canonicalJson,
   loadBridgeReadSet,

@@ -6,23 +6,26 @@
 import { setTimeout } from 'node:timers/promises';
 import { pool } from '@knowscroll/db';
 import { recordWorkerHeartbeat } from '@knowscroll/db/projection/heartbeat';
+import { settleAbandonedAnswers } from '@knowscroll/db/reasoning/answers';
+import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
+import { runCorrectionRefreshPass } from '@knowscroll/db/semantic/correction-refresh';
 import { projectOne } from './project.ts';
-import { answerTransportsFromEnvironment } from './reasoning/transport-selection.ts';
 import { runAnswerPass } from './reasoning/answer-worker.ts';
-import { createReadinessGate } from './reasoning/readiness-gate.ts';
-import { inquiryTransportsFromEnvironment } from './reasoning/transport-selection.ts';
 import {
   executeInquiryClaim,
   runInquiryPass,
 } from './reasoning/inquiry-worker.ts';
-import { settleAbandonedAnswers } from '@knowscroll/db/reasoning/answers';
-import { settleInquiries } from '@knowscroll/db/reasoning/inquiry-execution';
-import { runCorrectionRefreshPass } from '@knowscroll/db/semantic/correction-refresh';
-import { runSupplyPass } from './scrolls/supply-worker.ts';
-import { scrollTransportsFromEnvironment } from './reasoning/transport-selection.ts';
+import { createReadinessGate } from './reasoning/readiness-gate.ts';
+import {
+  answerTransportsFromEnvironment,
+  inquiryTransportsFromEnvironment,
+  scrollTransportsFromEnvironment,
+} from './reasoning/transport-selection.ts';
 import { logError, logLine } from './runtime/log.ts';
 import { lenientIntSetting } from './runtime/settings.ts';
 import { onStopSignal } from './runtime/stop-signal.ts';
+import { runSupplyPass } from './scrolls/supply-worker.ts';
+
 let running = true;
 onStopSignal(() => {
   running = false;

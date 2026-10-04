@@ -6,7 +6,7 @@
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { OWNER_ID, lockUniverse, transaction } from './connection.ts';
+import { lockUniverse, OWNER_ID, transaction } from './connection.ts';
 import { tokenHash } from './shared/token-hash.ts';
 
 /** Also reused by `sign-in.ts` (ADR-0026 section 3) so a magic-link session's expiry stays

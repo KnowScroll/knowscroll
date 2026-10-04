@@ -20,7 +20,6 @@
  * in front of those triggers; they mirror the same conditions and can never substitute for them.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import { generationBrief } from '@knowscroll/contracts/generation';
 import {
   insertReelAsset,
@@ -31,6 +30,7 @@ import {
   selectWinningAssetForReel,
   withdrawReelAndAsset,
 } from '@knowscroll/db/publication/mint';
+import type pg from 'pg';
 
 export class MintError extends Error {
   constructor(

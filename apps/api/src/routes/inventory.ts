@@ -6,8 +6,9 @@
  * Read only: demands are written by the reading that observed them (the feed, an opened continuation)
  * and supply by the worker. No source is ever named.
  */
-import type { FastifyInstance } from 'fastify';
+
 import { readInventory } from '@knowscroll/db/inventory/read';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { noStore } from '../http/input.ts';
 

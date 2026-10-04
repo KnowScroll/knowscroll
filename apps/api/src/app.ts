@@ -3,7 +3,7 @@
  * and registers the routes in a fixed order. Routes run their work through the one authenticated
  * transaction (`http/authenticated.ts`); the process entrypoint is `main.ts` (ADR-0003, ADR-0009).
  */
-import Fastify from 'fastify';
+
 import {
   COMPOSER_SEMANTIC_V3,
   type COMPOSER_SEMANTIC_V4,
@@ -11,6 +11,7 @@ import {
 import type { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer/signals';
 import { ensureDevelopmentSession, UnauthorizedSession } from '@knowscroll/db';
 import type { MagicLinkRateLimits } from '@knowscroll/db/sign-in';
+import Fastify from 'fastify';
 import { authenticated } from './http/authenticated.ts';
 import { registerWebSession, webSessionConfig } from './http/web-session.ts';
 import { resolveMediaRoot } from './media/stream.ts';

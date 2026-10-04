@@ -3,12 +3,12 @@
  * define the stored context hashes: changing either changes both families' hashes.
  */
 import { createHash } from 'node:crypto';
-import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import type { ContextRefusal } from '@knowscroll/contracts/reasoning-context';
+import { compareCodeUnits } from '@knowscroll/core/shared/compare';
 import {
   ReasoningDenied,
-  validateReasoningPolicy,
   type ReasoningScope,
+  validateReasoningPolicy,
 } from './runtime-policy.ts';
 
 export function deny(reason: ContextRefusal): never {

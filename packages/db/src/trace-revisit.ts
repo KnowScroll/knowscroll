@@ -4,17 +4,17 @@
  * locked FOR SHARE and the scope rechecked after that wait; a changed source is refused
  * ('source_changed') rather than shown as if it were the original.
  */
-import type pg from 'pg';
 
 import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import {
+  type TraceRevisit,
   traceRevisitCandidate,
   traceRevisitEventId,
   traceRevisitReceipt,
   traceRevisitScroll,
-  type TraceRevisit,
 } from '@knowscroll/contracts/trace-revisit';
-import { UnauthorizedSession, type AuthScope } from './identity.ts';
+import type pg from 'pg';
+import { type AuthScope, UnauthorizedSession } from './identity.ts';
 
 export class TraceRevisitError extends Error {
   constructor(

@@ -3,12 +3,12 @@
  * terminal Job, and withdrawing idle ones (ADR-0019, ADR-0018). Nothing here re-sends a request.
  */
 import type pg from 'pg';
+import { inTransaction } from '../../sql/transactions.ts';
 import type { ReasoningAdmission } from '../admission.ts';
 import { withdrawIdleBackgroundJob } from '../idle-lifecycle.ts';
 import type { InquiryRow } from '../inquiries.ts';
 import { closeInquiry, staleOutcome } from './apply.ts';
 import type { InquiryFence, InquiryOutcome } from './load.ts';
-import { inTransaction } from '../../sql/transactions.ts';
 
 /** The Job's last Attempt: that of its latest Step (a continuation adds Steps, ADR-0042 §1). */
 export async function latestAttempt(

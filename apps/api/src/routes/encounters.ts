@@ -1,5 +1,5 @@
 /** Exposures, Keeps, the reader's world system and one ledger event (ADR-0004, ADR-0028). */
-import type { FastifyInstance } from 'fastify';
+
 import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import {
   readLedgerEvent,
@@ -7,6 +7,7 @@ import {
   recordKeep,
 } from '@knowscroll/db/encounters';
 import { readWorldSystem, SHARED_SOURCE_V1 } from '@knowscroll/db/worlds';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
 import { parseInput, requireUuid } from '../http/input.ts';

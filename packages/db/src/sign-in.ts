@@ -11,10 +11,10 @@
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { OWNER_ID, lockUniverse } from './connection.ts';
+import { lockUniverse, OWNER_ID } from './connection.ts';
 import { DEFAULT_EXPIRY_HOURS, UnauthorizedSession } from './identity.ts';
-import type { Queryable } from './sql/queryable.ts';
 import { tokenHash } from './shared/token-hash.ts';
+import type { Queryable } from './sql/queryable.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Configuration: KS_OWNER_EMAIL. Never a secret (it is an address, not a credential), but treated

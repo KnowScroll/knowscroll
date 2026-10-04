@@ -4,14 +4,14 @@
  * `decision_signal` rows in the caller's authenticated transaction (ADR-0028, ADR-0029).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
 import {
   COMPOSER_SIGNALS_V2,
-  rankSignalCandidates,
   type ComposerPolicy,
+  rankSignalCandidates,
   type SignalCandidate,
 } from '@knowscroll/core/composer/signals';
+import type pg from 'pg';
 
 /** ADR-0028 section 2: an immutable, versioned ranking policy. Rows never change once created
  * (migration 0017's `composer_policy_immutable` trigger), so this can be read once per request

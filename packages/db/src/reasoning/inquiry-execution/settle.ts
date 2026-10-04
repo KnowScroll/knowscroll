@@ -1,9 +1,9 @@
 /** The inquiry recovery sweep over expired, leaseless, stale and terminal Jobs (ADR-0019, ADR-0018). */
 import type pg from 'pg';
+import { inTransaction } from '../../sql/transactions.ts';
 import { createReasoningAdmission } from '../admission.ts';
 import { inquiryAuthority, resolveInquiryPolicy } from '../inquiries.ts';
 import { validateInquiryContext } from '../inquiry-context.ts';
-import { inTransaction } from '../../sql/transactions.ts';
 import { staleOutcome } from './apply.ts';
 import {
   closeTerminalInquiry,

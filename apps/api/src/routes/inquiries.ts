@@ -7,11 +7,12 @@
  * The API never calls a provider and never creates an inquiry Job; the worker does
  * (apps/worker/src/reasoning/inquiry-worker.ts).
  */
-import type { FastifyInstance } from 'fastify';
+
 import {
   listInquiries,
   setInquiryConsent,
 } from '@knowscroll/db/reasoning/inquiries';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { noStore } from '../http/input.ts';
 

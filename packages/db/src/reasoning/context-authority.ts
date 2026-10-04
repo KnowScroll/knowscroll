@@ -1,11 +1,12 @@
 /** Routes a sealed context to its family's validator by its stored `source_policy_version` (ADR-0017). */
-import { DIRECT_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-context';
+
 import { ASK_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-ask-context';
+import { DIRECT_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-context';
 import { INQUIRY_CONTEXT_VERSIONS } from '@knowscroll/contracts/reasoning-inquiry-context';
-import { validateDirectContext } from './context.ts';
 import { validateDirectAskContext } from './ask-context.ts';
+import { validateDirectContext } from './context.ts';
 import { validateInquiryContext } from './inquiry-context.ts';
-import { ReasoningDenied, type ReasoningAuthority } from './runtime-policy.ts';
+import { type ReasoningAuthority, ReasoningDenied } from './runtime-policy.ts';
 
 /** Explicit immutable metadata routing; never guess a family from JSON shape.
  * This remains an internal authority adapter, not a product execution consumer.

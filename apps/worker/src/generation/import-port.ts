@@ -7,9 +7,9 @@
  * worker records honestly. A THROWN error from a port instead means the port itself is missing or
  * broken (a wiring defect, not a data refusal) — see `createUnimplementedImportPort` below. */
 import {
+  type ImportOutcome,
   importFinishedVideo,
   type ImportFinishedVideoInput as RealImportInput,
-  type ImportOutcome,
 } from './import.ts';
 
 export type { ImportOutcome } from './import.ts';

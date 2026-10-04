@@ -9,37 +9,37 @@
  * that plan left them; this module never reads the atlas itself.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   ROOM_CHRONICLE_LIMIT,
-  roomSetAsideInput,
   type RoomClaim,
   type RoomDeltaResponse,
   type RoomResponse,
   type RoomSummary,
+  roomSetAsideInput,
 } from '@knowscroll/contracts/rooms';
 import type {
   ConceptNode,
   TypedRelation,
 } from '@knowscroll/core/atlas/cartographer';
 import {
-  isLiveRoom,
-  planRetirements,
-  planRooms,
-  planSetAside,
-  roomChronicleLine,
-  ROOM_ROLES,
   type AskEvidence,
   type HeldClaim,
+  isLiveRoom,
   type KeeperAsk,
   type KeeperBridge,
   type KeeperClaim,
   type KeeperPlace,
+  planRetirements,
+  planRooms,
+  planSetAside,
+  ROOM_ROLES,
   type RoomDelta,
   type RoomRole,
   type RoomState,
   type RoomView,
+  roomChronicleLine,
 } from '@knowscroll/core/rooms/keeper';
+import type pg from 'pg';
 import type { AuthScope } from './identity.ts';
 import { isRecordingPaused } from './sql/recording-paused.ts';
 

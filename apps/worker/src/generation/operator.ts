@@ -3,8 +3,8 @@
  * product client. Every command is a thin, explicit wrapper over `storage.ts`; it adds no new
  * database rules of its own beyond the friendly refusals called out below. */
 import { readFile } from 'node:fs/promises';
-import type pg from 'pg';
 import { generationBrief } from '@knowscroll/contracts/generation';
+import type pg from 'pg';
 import * as storage from './storage.ts';
 
 export type OperatorResult =

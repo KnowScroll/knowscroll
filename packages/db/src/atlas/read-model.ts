@@ -2,21 +2,22 @@
  * The atlas as the reader sees it, and one delta with its evidence (ADR-0036, ADR-0037). Read-only:
  * every figure is derived from rows, and a connection whose source was revoked is never shown.
  */
-import type pg from 'pg';
+
+import type { PlaceDemand } from '@knowscroll/contracts/inventory';
+import type { RoomSummary } from '@knowscroll/contracts/rooms';
 import {
   CARTOGRAPHER_POLICY,
   homeAnchor,
-  relationKey,
   type PlaceView,
   type RelationKind,
+  relationKey,
   type TypedRelation,
 } from '@knowscroll/core/atlas/cartographer';
-import type { PlaceDemand } from '@knowscroll/contracts/inventory';
-import type { RoomSummary } from '@knowscroll/contracts/rooms';
-import { toIsoString } from '../shared/time.ts';
+import type pg from 'pg';
 import { placeDemands } from '../inventory/read.ts';
 import { readPlaceRooms } from '../rooms.ts';
-import { DELTA_PLACES, deltaLine, type DeltaNaming } from './chronicle.ts';
+import { toIsoString } from '../shared/time.ts';
+import { DELTA_PLACES, type DeltaNaming, deltaLine } from './chronicle.ts';
 import { AtlasNotFound } from './errors.ts';
 import { loadPlaces, loadSubstrate, type PlaceRow } from './inputs.ts';
 

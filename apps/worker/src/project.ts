@@ -3,8 +3,8 @@
  * packages/db, which owns the transaction (ADR-0005).
  */
 import {
-  projectNextJob,
   type ProjectionResult,
+  projectNextJob,
 } from '@knowscroll/db/projection/keep';
 
 export type { ProjectionResult };

@@ -9,17 +9,18 @@
  *   GET  /v1/atlas/deltas/:deltaId          one change and its evidence
  *   POST /v1/atlas/places/:placeId/reject   the reader sets a planet or region aside
  */
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
+
 import { uuid } from '@knowscroll/contracts';
 import {
+  type AtlasView,
   readAtlas,
   readAtlasDelta,
   rejectPlace,
-  type AtlasView,
 } from '@knowscroll/db/atlas';
-import { HttpError } from '../http/errors.ts';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import type { Authenticated } from '../http/authenticated.ts';
+import { HttpError } from '../http/errors.ts';
 import { noStore, requireUuid } from '../http/input.ts';
 
 const rejectInput = z

@@ -5,21 +5,34 @@
  * deletions their guards permit). ADR-0009, ADR-0010, ADR-0028, ADR-0030, ADR-0035.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import type {
+  AccountDeletionInput,
+  AccountDeletionReceipt,
   HistoryClearInput,
   HistoryClearReceipt,
+  PrivacyExportDeviceSession,
+  PrivacyExportResult,
   PrivacyLifecycleInput,
   PrivacyRecordingReceipt,
   PrivacyResetInput,
   PrivacyResetReceipt,
-  PrivacyExportResult,
-  PrivacyExportDeviceSession,
-  AccountDeletionInput,
-  AccountDeletionReceipt,
 } from '@knowscroll/contracts';
+import type pg from 'pg';
+import { eraseAway, exportAway } from './away.ts';
 import type { AuthScope } from './identity.ts';
+import {
+  cancelDemands,
+  eraseInventory,
+  exportInventory,
+} from './inventory/demand.ts';
+import { eraseAskAnswers, exportAskAnswers } from './reasoning/answers.ts';
+import {
+  eraseInquiries,
+  exportInquiries,
+  withdrawInquiries,
+} from './reasoning/inquiries.ts';
 import { eraseReasoningForHistoryClear } from './reasoning/storage.ts';
+import { eraseRelics, exportRelics } from './relics.ts';
 import {
   eraseSemanticHistory,
   exportSemanticHistory,
@@ -28,19 +41,6 @@ import {
   erasePersonalModel,
   exportPersonalModel,
 } from './semantic/personal-model.ts';
-import { eraseAskAnswers, exportAskAnswers } from './reasoning/answers.ts';
-import {
-  eraseInquiries,
-  exportInquiries,
-  withdrawInquiries,
-} from './reasoning/inquiries.ts';
-import { eraseAway, exportAway } from './away.ts';
-import { eraseRelics, exportRelics } from './relics.ts';
-import {
-  cancelDemands,
-  eraseInventory,
-  exportInventory,
-} from './inventory/demand.ts';
 
 export class HistoryClearConflict extends Error {
   readonly statusCode = 409;

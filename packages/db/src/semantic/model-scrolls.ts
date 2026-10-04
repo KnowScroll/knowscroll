@@ -9,13 +9,13 @@
  * that decision and writes nothing.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import type { MaterialHost } from '@knowscroll/core/scrolls/material';
+import { createCheckedScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import type {
   CheckedScroll,
   OfferedConcept,
 } from '@knowscroll/core/scrolls/writing';
-import { createCheckedScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
+import type pg from 'pg';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 

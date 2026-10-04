@@ -1,12 +1,13 @@
 // Settles receipts against reservations and bucket counters, and pauses fairness on divergence.
 // Settlements are append-only by revision; each new revision supersedes the previous one.
+
+import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
 import {
   lockFairnessResources,
   pauseFairnessForAttempt,
   settleFairness,
 } from './fairness-accounting.ts';
-import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   appendRestrictedReasoningReceipt,
   type TrustedReasoningReceiptOrigin,

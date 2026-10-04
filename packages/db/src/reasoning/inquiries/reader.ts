@@ -1,10 +1,11 @@
 /** The reader's views of inquiries and the bridges they found (ADR-0039, ADR-0044). */
-import type pg from 'pg';
+
 import {
-  type InquiryWire,
-  type InquiriesResponse,
   INQUIRY_LIST_LIMIT,
+  type InquiriesResponse,
+  type InquiryWire,
 } from '@knowscroll/contracts/inquiries';
+import type pg from 'pg';
 import type { AuthScope } from '../../identity.ts';
 import { readInquiryConsent } from './consent.ts';
 import type { InquiryRow } from './shared.ts';

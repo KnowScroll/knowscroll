@@ -6,16 +6,15 @@
  * meanwhile refuses the Ask instead of recording against stale ground.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import type pg from 'pg';
-
 import {
-  explicitAskInput,
-  exposureInput,
   type ExplicitAskInput,
   type ExplicitAskReceipt,
+  explicitAskInput,
+  exposureInput,
   type ScrollAsset,
 } from '@knowscroll/contracts';
-import { UnauthorizedSession, type AuthScope } from './identity.ts';
+import type pg from 'pg';
+import { type AuthScope, UnauthorizedSession } from './identity.ts';
 
 export class ExplicitAskError extends Error {
   constructor(

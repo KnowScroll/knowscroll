@@ -14,15 +14,15 @@
  * it, and the route's bucket row after that.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  decideDemand,
-  withinConcept,
   type DemandFacts,
+  decideDemand,
   type QuartermasterDecision,
+  withinConcept,
 } from '@knowscroll/core/inventory/quartermaster';
-import type { AuthScope } from '../identity.ts';
+import type pg from 'pg';
 import { lockUniverse, transaction } from '../connection.ts';
+import type { AuthScope } from '../identity.ts';
 import { isRecordingPaused } from '../sql/recording-paused.ts';
 import { loadSupplyFacts, lockSupply, openRequest } from './supply.ts';
 

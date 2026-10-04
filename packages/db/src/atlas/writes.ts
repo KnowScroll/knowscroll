@@ -4,15 +4,15 @@
  * Statement order within a plan is behavior: deltas apply in plan order (ADR-0036, ADR-0037).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
+  type PlaceAccount,
+  type PlaceDelta,
   planFoundations,
   planPlaces,
   planRejection,
-  type PlaceAccount,
-  type PlaceDelta,
 } from '@knowscroll/core/atlas/cartographer';
 import type { KeeperAsk } from '@knowscroll/core/rooms/keeper';
+import type pg from 'pg';
 import { postInquiryMail } from '../reasoning/inquiries.ts';
 import { keepRooms, retireRooms } from '../rooms.ts';
 import { AtlasConflict, AtlasNotFound } from './errors.ts';

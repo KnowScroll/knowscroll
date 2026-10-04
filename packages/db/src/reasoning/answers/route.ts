@@ -3,13 +3,13 @@
  * the reasoning policy and authority an answer Job resolves to (ADR-0017 family routing).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import { askContextPayload } from '@knowscroll/contracts/reasoning-ask-context';
 import type { AskAnswerSource } from '@knowscroll/core/reasoning/ask-answer';
+import type pg from 'pg';
 import { createSealedContextAuthority } from '../context-authority.ts';
 import type {
-  ResolvedReasoningPolicy,
   ReasoningAuthority,
+  ResolvedReasoningPolicy,
 } from '../runtime-policy.ts';
 import type { RequestRow, Route } from './shared.ts';
 

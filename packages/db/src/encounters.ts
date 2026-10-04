@@ -6,13 +6,13 @@
  * refused (ADR-0004, ADR-0005, ADR-0009).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
-import type { z } from 'zod';
 import type {
   exposureInput,
   InteractionInput,
   ScrollAsset,
 } from '@knowscroll/contracts';
+import type pg from 'pg';
+import type { z } from 'zod';
 import type { AuthScope } from './identity.ts';
 import { refreshPersonalModel } from './semantic/personal-model.ts';
 import { projectWorldsForEncounter } from './worlds.ts';

@@ -4,12 +4,13 @@
  *   GET  /v1/decisions/:decisionId/why?assetId=   the recorded reason, family and evidence path
  *   POST /v1/encounters/feedback                  less_like_this | wrong_connection
  */
-import type { FastifyInstance } from 'fastify';
+
 import { uuid } from '@knowscroll/contracts';
-import { readWhy } from '@knowscroll/db/composer/semantic';
 import { recordEncounterFeedback } from '@knowscroll/db/composer/feedback';
-import { HttpError } from '../http/errors.ts';
+import { readWhy } from '@knowscroll/db/composer/semantic';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
+import { HttpError } from '../http/errors.ts';
 import { noStore } from '../http/input.ts';
 
 export function registerComposerRoutes(

@@ -1,5 +1,5 @@
 /** The reader's universe summary and a kept Trace revisited (docs/contracts/trace-revisit.md). */
-import type { FastifyInstance } from 'fastify';
+
 import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import {
   readTraceRevisit,
@@ -7,6 +7,7 @@ import {
   TraceRevisitError,
 } from '@knowscroll/db/trace-revisit';
 import { readUniverseSummary } from '@knowscroll/db/universe';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
 import { noStore } from '../http/input.ts';

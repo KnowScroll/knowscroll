@@ -1,35 +1,35 @@
 // One scheduler probe: lock the cursor, inspect a single head, then admit, bypass or dequeue it.
 // Invariant: the whole probe is one transaction, so a claim, debit and reservation commit together.
 import type pg from 'pg';
-import { ReasoningDenied, type ReasoningAuthority } from '../runtime-policy.ts';
+import {
+  preflightAttemptInTransaction,
+  reserveAttemptInTransaction,
+} from '../admission.ts';
+import { lockBoundContextSession } from '../context-session.ts';
 import {
   FAIRNESS_WEIGHTS,
   fairnessCharge,
   fairnessClassCap,
   fairnessUniverseCap,
 } from '../fairness-policy.ts';
-import {
-  preflightAttemptInTransaction,
-  reserveAttemptInTransaction,
-} from '../admission.ts';
-import { lockBoundContextSession } from '../context-session.ts';
 import { expireIdleDirectJob } from '../idle-lifecycle.ts';
-import type {
-  FairnessScheduleInput,
-  FairnessObservation,
-  FairnessScheduled,
-  State,
-  UniverseLane,
-  Discovery,
-} from './types.ts';
+import { type ReasoningAuthority, ReasoningDenied } from '../runtime-policy.ts';
 import {
+  cap,
   deny,
   INELIGIBLE_HEAD,
   nextClass,
-  cap,
-  tx,
   policyFor,
+  tx,
 } from './shared.ts';
+import type {
+  Discovery,
+  FairnessObservation,
+  FairnessScheduled,
+  FairnessScheduleInput,
+  State,
+  UniverseLane,
+} from './types.ts';
 
 /** A scheduler's probes run one at a time (#177). Each one that progresses moves the single generation,
  * so concurrent probes can only fence each other: one that found the head's universe held by another

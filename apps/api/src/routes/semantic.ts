@@ -10,19 +10,20 @@
  * Corrections to shared knowledge are an operator tool (scripts/substrate/correct-source.ts), not
  * an HTTP route: a person's objection never retracts a source-backed claim for everyone.
  */
-import type { FastifyInstance } from 'fastify';
+
+import type {
+  EncounterBranchesResponse,
+  WebBranchOpenResponse,
+  WebEncounterBranchesResponse,
+} from '@knowscroll/contracts/semantic';
 import { observeOfferedGaps } from '@knowscroll/db/inventory/demand';
 import {
   listEncounterBranches,
   openBranch,
   recordConnectionFeedback,
 } from '@knowscroll/db/semantic/branches';
-import type {
-  EncounterBranchesResponse,
-  WebEncounterBranchesResponse,
-  WebBranchOpenResponse,
-} from '@knowscroll/contracts/semantic';
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { noStore, requireUuid } from '../http/input.ts';
 

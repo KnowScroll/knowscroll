@@ -4,8 +4,10 @@
  * NODE_ENV=production, since that identity is development-only. SIGINT/SIGTERM close the server,
  * then the database pool, then exit 0.
  */
-import { buildApp } from './app.ts';
+
 import { pool } from '@knowscroll/db';
+import { buildApp } from './app.ts';
+
 if (process.env.NODE_ENV === 'production')
   throw new Error(
     'Bootstrap identity is development-only; implement production authentication before deployment',

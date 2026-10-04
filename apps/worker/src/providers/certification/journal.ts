@@ -4,18 +4,18 @@
  * symlink-free paths, with each attempt reserved before it is dispatched.
  */
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
 import {
   lstat,
   mkdir,
   open,
-  readFile,
   readdir,
+  readFile,
   realpath,
 } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
-import { randomUUID } from 'node:crypto';
 import {
   CERTIFICATION_LIMITS,
   type CertificationObservation,

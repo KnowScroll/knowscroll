@@ -9,8 +9,8 @@
  * Replies from this transport are fixture evidence, never a live provider result.
  */
 import {
-  INQUIRY_PAIRS_MARKER,
   type AssistantBlock,
+  INQUIRY_PAIRS_MARKER,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
 import type { InquiryObservation, InquiryTransport } from '../transports.ts';
 

@@ -7,14 +7,15 @@
  *
  * The API never calls a provider; the worker does (apps/worker/src/reasoning/answer-worker.ts).
  */
-import type { FastifyInstance } from 'fastify';
+
 import {
   cancelAskAnswer,
   readAskAnswer,
   requestAskAnswer,
 } from '@knowscroll/db/reasoning/answers';
-import { HttpError } from '../http/errors.ts';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
+import { HttpError } from '../http/errors.ts';
 import { noStore } from '../http/input.ts';
 
 export function registerAnswerRoutes(

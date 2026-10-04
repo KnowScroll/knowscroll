@@ -1,6 +1,7 @@
 /** The reader's session: who it is, signing out, and the cookie session's page token (ADR-0009, ADR-0034). */
-import type { FastifyInstance } from 'fastify';
+
 import { revokeSession } from '@knowscroll/db';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
 import { noStore } from '../http/input.ts';

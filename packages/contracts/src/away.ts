@@ -5,8 +5,8 @@
  * like `./inquiries.ts`.
  */
 import { z } from 'zod';
-import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import { inquiryFound } from './inquiries.ts';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import { conceptCode } from './semantic.ts';
 
 const at = z.string().datetime();

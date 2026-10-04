@@ -8,14 +8,14 @@
  * the same validator as every other proposer (`submitBridgeProposal`).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  substrateSeed,
   type SubstrateSeed,
+  substrateSeed,
 } from '@knowscroll/contracts/semantic';
-import { lockSubstrateExclusive, sha256 } from './read-set.ts';
-import { submitBridgeProposal, type ProposalResult } from './proposals.ts';
+import type pg from 'pg';
 import { revalidateAdmittedBridges } from './corrections.ts';
+import { type ProposalResult, submitBridgeProposal } from './proposals.ts';
+import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 
 export class SubstrateSeedConflict extends Error {
   constructor(message: string) {

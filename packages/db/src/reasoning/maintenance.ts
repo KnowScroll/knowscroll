@@ -1,12 +1,11 @@
 // Bounded maintenance probes that retire expired Jobs and purge closed accounting.
 // Each probe runs under lock and statement timeouts, and shutdown is observed only between probes.
 import type pg from 'pg';
-
-import { purgeClosedReasoningAccounting } from './storage.ts';
 import {
   expireIdleDirectJob,
   isIdleWithdrawalIneligible,
 } from './idle-lifecycle.ts';
+import { purgeClosedReasoningAccounting } from './storage.ts';
 
 const DEFAULT_MAX_PROBES = 32;
 const MAX_PROBES = 128;

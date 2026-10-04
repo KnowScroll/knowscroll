@@ -5,23 +5,23 @@
  * (migration 0027) refuse a recorded decision that contradicts itself.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
+import {
+  type BridgeRelationType,
+  SYMMETRIC_BRIDGE_TYPES,
+} from '@knowscroll/contracts/semantic';
 import {
   COMPOSER_SEMANTIC_V3,
   type COMPOSER_SEMANTIC_V4,
   composeSemantic,
-  renderReason,
   type Family,
+  renderReason,
   type V3Asset,
   type V3Policy,
   type V3State,
 } from '@knowscroll/core/composer/semantic';
-import {
-  SYMMETRIC_BRIDGE_TYPES,
-  type BridgeRelationType,
-} from '@knowscroll/contracts/semantic';
-import { decayedMass, ATTENTION_V1 } from '@knowscroll/core/semantic/attention';
+import { ATTENTION_V1, decayedMass } from '@knowscroll/core/semantic/attention';
+import type pg from 'pg';
 import type { AuthScope } from '../identity.ts';
 import { loadBoundScrolls } from '../inventory/read.ts';
 import { BRANCH_POLICY_VERSION } from '../semantic/branches.ts';

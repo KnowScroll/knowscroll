@@ -4,13 +4,14 @@
  * and the route's work runs in that same transaction, so no route acts on a stale session or epoch
  * (ADR-0009, ADR-0034).
  */
-import type pg from 'pg';
+
 import {
+  type AuthScope,
   authenticateAndLock,
   transaction,
   UnauthorizedSession,
-  type AuthScope,
 } from '@knowscroll/db';
+import type pg from 'pg';
 
 /** The route-facing shape of `authenticated`, so route modules can take it as a parameter. */
 export type Authenticated = <T>(

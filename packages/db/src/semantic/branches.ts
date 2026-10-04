@@ -12,25 +12,25 @@
  * voluntary-act evidence later Accounts/Cartographer work reads; it proves nothing about belief.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import type { ScrollAsset } from '@knowscroll/contracts';
 import {
-  SYMMETRIC_BRIDGE_TYPES,
-  branchOpenInput,
-  connectionFeedbackInput,
   type BranchOpenResponse,
   type BridgeRelationType,
+  branchOpenInput,
   type ConnectionFeedbackReceipt,
+  connectionFeedbackInput,
   type EncounterBranchesResponse,
   type EncounterBranchWire,
+  SYMMETRIC_BRIDGE_TYPES,
 } from '@knowscroll/contracts/semantic';
 import { isWithin } from '@knowscroll/core/semantic/bridge-validator';
-import { recheckScope, type AuthScope } from '../identity.ts';
+import type pg from 'pg';
+import { type AuthScope, recheckScope } from '../identity.ts';
 import { observeBranchGap } from '../inventory/demand.ts';
 import { isRecordingPaused } from '../sql/recording-paused.ts';
-import { lockSubstrateShared } from './read-set.ts';
-import { SemanticInputError } from './proposals.ts';
 import { SemanticNotFound } from './corrections.ts';
+import { SemanticInputError } from './proposals.ts';
+import { lockSubstrateShared } from './read-set.ts';
 
 export const BRANCH_POLICY_VERSION = 'branch-bridge-v1';
 const MAX_BRANCHES = 4;

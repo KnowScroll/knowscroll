@@ -7,19 +7,19 @@
  * Neither retracts shared knowledge. The caller holds the universe lock.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   ENCOUNTER_SUPPRESSION_DAYS,
-  encounterFeedbackInput,
   type EncounterFeedbackReceipt,
+  encounterFeedbackInput,
 } from '@knowscroll/contracts/composer';
+import type pg from 'pg';
 import type { AuthScope } from '../identity.ts';
 import {
   SemanticConflict,
   SemanticUnprocessable,
 } from '../semantic/branches.ts';
-import { SemanticInputError } from '../semantic/proposals.ts';
 import { refreshPersonalModel } from '../semantic/personal-model.ts';
+import { SemanticInputError } from '../semantic/proposals.ts';
 import { toIsoString } from '../shared/time.ts';
 
 type Row = Record<string, unknown>;

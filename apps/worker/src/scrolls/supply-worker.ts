@@ -10,19 +10,20 @@
  * before the one send: it is never retried. The outcome settles the request, and every waiter's
  * demand gets its own fresh decision.
  */
-import type pg from 'pg';
+
 import { transaction } from '@knowscroll/db';
 import { redecideForSupply } from '@knowscroll/db/inventory/demand';
 import {
   admitRequest,
   nextOpenRequest,
+  type RequestOutcome,
   requestStatus,
   settleRequest,
   settleStrandedRequests,
-  type RequestOutcome,
 } from '@knowscroll/db/inventory/supply';
-import { writeScroll, type ScrollItemResult } from './write-scroll.ts';
+import type pg from 'pg';
 import type { ScrollTransport } from '../providers/transports.ts';
+import { type ScrollItemResult, writeScroll } from './write-scroll.ts';
 
 type Transports = Partial<Record<'fixture' | 'minimax', ScrollTransport>>;
 

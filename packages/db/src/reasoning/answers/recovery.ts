@@ -3,9 +3,10 @@
  * abandoned Jobs (ADR-0019, ADR-0018). A possibly-sent request is never repeated.
  */
 import type pg from 'pg';
+import { inTransaction } from '../../sql/transactions.ts';
 import {
-  type ReasoningAdmission,
   createReasoningAdmission,
+  type ReasoningAdmission,
 } from '../admission.ts';
 import {
   expireIdleDirectJob,
@@ -14,7 +15,6 @@ import {
 import { answerAuthority } from './route.ts';
 import type { RequestRow } from './shared.ts';
 import { type AnswerOutcome, type Fence, insertAnswer } from './worker.ts';
-import { inTransaction } from '../../sql/transactions.ts';
 
 /**
  * An admitted attempt that was never sent is given back while this worker still holds

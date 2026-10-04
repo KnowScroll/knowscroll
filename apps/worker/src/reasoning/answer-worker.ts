@@ -8,15 +8,14 @@
  * scheduled without one, or before the inquiry transport's quota check too (#153).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
+  type AnswerOutcome,
+  type AnswerWork,
   applyAskAnswer,
   failAskAnswer,
   giveBackUnsentAnswer,
   loadAnswerWork,
-  type AnswerOutcome,
-  type AnswerWork,
 } from '@knowscroll/db/reasoning/answers';
 import {
   createReasoningFairness,
@@ -26,8 +25,8 @@ import {
   jobFamily,
   sharedReasoningAuthority,
 } from '@knowscroll/db/reasoning/inquiries';
-import type { ReasoningAuthority } from '@knowscroll/db/reasoning/runtime-policy';
 import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
+import type { ReasoningAuthority } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   answerRequestStep,
   attemptAccountingState,
@@ -36,6 +35,7 @@ import {
   hasWaitingAnswer,
 } from '@knowscroll/db/reasoning/worker-reads';
 import { inTransaction } from '@knowscroll/db/sql/transactions';
+import type pg from 'pg';
 import type {
   AnswerObservation,
   AnswerTransport,

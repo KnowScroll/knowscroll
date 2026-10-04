@@ -2,7 +2,6 @@
  * and no private universe material may enter it. Parsing is not authorization: a brief grants no
  * budget, engine or dispatch (ADR-0023). */
 import { z } from 'zod';
-import { uuid } from './primitives.ts';
 import {
   ClaimRef,
   Criteria,
@@ -10,6 +9,7 @@ import {
   StyleContract,
   SubmitRequest,
 } from './cutroom-v1/request.ts';
+import { uuid } from './primitives.ts';
 
 /** One claim's evidence inside KnowScroll. The label alone crosses the wire; this never does. */
 export const briefClaimSource = z

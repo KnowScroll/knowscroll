@@ -11,12 +11,12 @@
  * `settleRequest`; the waiters' demands are then decided again (`inventory/demand.ts`).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   checkMaterialUrl,
   MATERIAL_POLICY_VERSION,
 } from '@knowscroll/core/scrolls/material';
 import type { ScrollPlanItem } from '@knowscroll/core/scrolls/writing';
+import type pg from 'pg';
 
 /** Bench value: a request marked `sending` this long ago with no settlement (its worker died) is failed as `outcome_unknown`, never sent again. */
 export const ABANDONED_SEND_MS = 30 * 60_000;

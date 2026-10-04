@@ -11,13 +11,12 @@
  * Nothing here calls a model or words anything but a delta's own chronicle line.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   AWAY_LIST_LIMIT,
-  awayAcknowledgeInput,
   type AwayAcknowledgeResponse,
   type AwayItem,
   type AwayResponse,
+  awayAcknowledgeInput,
 } from '@knowscroll/contracts/away';
 import {
   awayCursor,
@@ -27,10 +26,11 @@ import {
   selectAway,
 } from '@knowscroll/core/away';
 import {
-  roomChronicleLine,
   type RoomRole,
+  roomChronicleLine,
 } from '@knowscroll/core/rooms/keeper';
-import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
+import type pg from 'pg';
+import { DELTA_PLACES, type DeltaNaming, deltaLines } from './atlas.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning/inquiries.ts';
 import { lockSubstrateShared } from './semantic/read-set.ts';

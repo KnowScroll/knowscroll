@@ -1,6 +1,5 @@
 /** The ADR-0042 §1 continuation: supersede a refused Step and queue the next, never sending from here. */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   type InquiryContextPayload,
   inquiryAssistantTurn,
@@ -9,6 +8,7 @@ import {
   type ContinuationTurn,
   serializeBridgeInquiryRequest,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
+import type pg from 'pg';
 import { enqueueFairInTransaction } from '../fairness.ts';
 import {
   type InquiryRow,

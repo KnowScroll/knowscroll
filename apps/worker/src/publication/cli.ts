@@ -13,7 +13,7 @@ import {
   evaluatePublicationGates,
   PublicationEvaluationError,
 } from './evaluate.ts';
-import { mintReelAsset, withdrawGeneratedReel, MintError } from './mint.ts';
+import { MintError, mintReelAsset, withdrawGeneratedReel } from './mint.ts';
 
 function flags(argv: string[]): Record<string, string> {
   const out: Record<string, string> = {};

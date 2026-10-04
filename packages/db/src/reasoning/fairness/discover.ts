@@ -2,8 +2,8 @@
 // Only constant-size indexed reads happen here; the generation it records is advisory until probe re-checks it.
 import type pg from 'pg';
 import { FAIRNESS_CLASSES } from '../fairness-policy.ts';
-import type { State, Lane, UniverseLane, Ready, Discovery } from './types.ts';
-import { deny, readyColumns, decode } from './shared.ts';
+import { decode, deny, readyColumns } from './shared.ts';
+import type { Discovery, Lane, Ready, State, UniverseLane } from './types.ts';
 
 /** Constant-size indexed probes; expired/ineligible heads are inspected, never
  * filtered through an unbounded scan before LIMIT. The generation is advisory.

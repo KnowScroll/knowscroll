@@ -4,11 +4,11 @@
  * answer validator (ADR-0033 §4); a stale fence discards the reply instead.
  */
 import { createHash } from 'node:crypto';
-import type pg from 'pg';
 import {
   serializeAskAnswerRequest,
   validateAskAnswerProposal,
 } from '@knowscroll/core/reasoning/ask-answer';
+import type pg from 'pg';
 import { lockBoundContextSession } from '../context-session.ts';
 import type { ReasoningAuthority } from '../runtime-policy.ts';
 import { routeFor, sourceOf } from './route.ts';

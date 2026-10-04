@@ -1,5 +1,5 @@
 /** History Clear, recording pause/resume, export, Reset and account deletion (ADR-0010, ADR-0030, ADR-0035). */
-import type { FastifyInstance } from 'fastify';
+
 import {
   accountDeletionInput,
   historyClearInput,
@@ -14,6 +14,7 @@ import {
   resetPersonalUniverse,
   resumeRecording,
 } from '@knowscroll/db';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { parseInput } from '../http/input.ts';
 import { clearedSessionCookie } from '../http/web-session.ts';

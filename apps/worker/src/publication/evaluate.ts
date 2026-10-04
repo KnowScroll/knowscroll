@@ -7,10 +7,9 @@
  * database — not this function — is the final authority on whether that succeeds.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  generationBrief,
   type GenerationBrief,
+  generationBrief,
 } from '@knowscroll/contracts/generation';
 import {
   insertGateResult,
@@ -27,8 +26,9 @@ import {
   selectWinningGateResult,
   stampFingerprints,
 } from '@knowscroll/db/publication/evaluate';
-import * as gates from './gates.ts';
+import type pg from 'pg';
 import type { GateOutcome } from './gates.ts';
+import * as gates from './gates.ts';
 
 export class PublicationEvaluationError extends Error {
   constructor(

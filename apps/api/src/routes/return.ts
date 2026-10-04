@@ -12,7 +12,7 @@
  * Nothing here calls a provider. "Seems wrong" on a connection is the existing
  * POST /v1/connections/feedback; a place is doubted by setting it aside (POST /v1/atlas/places/:id/reject).
  */
-import type { FastifyInstance } from 'fastify';
+
 import { acknowledgeAway, readAway } from '@knowscroll/db/away';
 import {
   keepRelic,
@@ -21,6 +21,7 @@ import {
   recordObjection,
   releaseRelic,
 } from '@knowscroll/db/relics';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { noStore, requireUuid } from '../http/input.ts';
 

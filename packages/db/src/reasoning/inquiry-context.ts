@@ -5,35 +5,36 @@
  * change is stale, so the inquiry is discarded, never re-sent. Callers hold the universe lock; the
  * shared substrate lock follows it (ADR-0031 §7).
  */
-import type pg from 'pg';
+
 import {
   INQUIRY_CONTEXT_LIMITS,
   INQUIRY_CONTEXT_VERSIONS,
   INQUIRY_DIRTY_SCOPE,
-  inquiryContextPayload,
-  inquiryDependency,
-  inquiryDependencyKey,
   type InquiryContextPayload,
   type InquiryContextRefusal,
   type InquiryDependency,
+  inquiryContextPayload,
+  inquiryDependency,
+  inquiryDependencyKey,
 } from '@knowscroll/contracts/reasoning-inquiry-context';
 import type {
   InquiryCandidateInput,
   InquiryPair,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
 import { compareCodeUnits } from '@knowscroll/core/shared/compare';
-import {
-  ReasoningDenied,
-  validateReasoningPolicy,
-  type ReasoningAuthority,
-  type ReasoningContextCheck,
-  type ReasoningScope,
-} from './runtime-policy.ts';
+import type pg from 'pg';
 import {
   canonicalJson,
   lockSubstrateShared,
   sha256,
 } from '../semantic/read-set.ts';
+import {
+  type ReasoningAuthority,
+  type ReasoningContextCheck,
+  ReasoningDenied,
+  type ReasoningScope,
+  validateReasoningPolicy,
+} from './runtime-policy.ts';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 export type InquiryContextValidation =

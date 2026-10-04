@@ -11,6 +11,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import {
+  type ImportRefusalReason,
+  type ProbeCheck,
+  type ProbeSummary,
+  probeVideo,
+} from './import/probe.ts';
+import {
   checkContainment,
   checkRegularFile,
   fsyncDirectory,
@@ -18,21 +24,15 @@ import {
   MAX_MEDIA_BYTES,
   streamCopyWithHash,
 } from './media-store.ts';
-import {
-  type ImportRefusalReason,
-  type ProbeCheck,
-  type ProbeSummary,
-  probeVideo,
-} from './import/probe.ts';
 
-export type { ImportRefusalReason, ProbeSummary } from './import/probe.ts';
 export {
   type GeneratedReelLineage,
+  type RecordedMedia,
   type RecordImportedReelInput,
   type RecordImportedReelOutcome,
-  type RecordedMedia,
   recordImportedReel,
 } from '@knowscroll/db/generation/import';
+export type { ImportRefusalReason, ProbeSummary } from './import/probe.ts';
 
 /** Re-exported for existing importers; the profile itself lives in `media-profile.ts`. */
 export { MEDIA_PROFILE } from './media-profile.ts';

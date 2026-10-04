@@ -11,16 +11,16 @@
  * revision, and a revoked bridge returns only through a new proposal.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   bridgeProposalPayload,
-  sourceCorrectionInput,
   type SourceCorrectionInput,
+  sourceCorrectionInput,
 } from '@knowscroll/contracts/semantic';
 import { validateBridgeProposal } from '@knowscroll/core/semantic/bridge-validator';
+import type pg from 'pg';
 import { cancelRequestsForCorrectedMaterial } from '../inventory/supply.ts';
-import { loadBridgeReadSet, lockSubstrateExclusive } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
+import { loadBridgeReadSet, lockSubstrateExclusive } from './read-set.ts';
 
 export class SemanticNotFound extends Error {
   readonly statusCode = 404;

@@ -5,15 +5,15 @@
  * here ever re-sends a request.
  */
 
-export { loadInquiryWork } from './inquiry-execution/load.ts';
-export type {
-  InquiryWork,
-  InquiryFence,
-  ProviderReply,
-  InquiryOutcome,
-} from './inquiry-execution/load.ts';
 export { applyInquiryReply } from './inquiry-execution/apply.ts';
-export { failInquiry } from './inquiry-execution/fail.ts';
 export type { InquiryFailure } from './inquiry-execution/fail.ts';
+export { failInquiry } from './inquiry-execution/fail.ts';
+export type {
+  InquiryFence,
+  InquiryOutcome,
+  InquiryWork,
+  ProviderReply,
+} from './inquiry-execution/load.ts';
+export { loadInquiryWork } from './inquiry-execution/load.ts';
 export { giveBackUnsentInquiry } from './inquiry-execution/recovery.ts';
 export { settleInquiries } from './inquiry-execution/settle.ts';

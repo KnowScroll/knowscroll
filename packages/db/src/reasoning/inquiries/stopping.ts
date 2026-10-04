@@ -1,8 +1,8 @@
 /** Withdrawing pending inquiries when consent goes off or recording pauses (ADR-0038 §8). */
 import type pg from 'pg';
 import {
-  withdrawIdleBackgroundJob,
   isIdleWithdrawalIneligible,
+  withdrawIdleBackgroundJob,
 } from '../idle-lifecycle.ts';
 
 /**

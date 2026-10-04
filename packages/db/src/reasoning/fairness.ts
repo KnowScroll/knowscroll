@@ -2,38 +2,38 @@
 // A probe inspects one head or empty scope per transaction and holds the universe-first lock order.
 // Discovery, probing and enqueue live in fairness/ (ADR-0013; docs/operations/reasoning-sql-fairness.md).
 import type pg from 'pg';
-import { ReasoningDenied, type ReasoningAuthority } from './runtime-policy.ts';
-import {
-  FAIRNESS_CLASSES,
-  validateFairnessPolicy,
-  type FairnessClass,
-} from './fairness-policy.ts';
 import { REASONING_ADMISSION_LIMITS } from './admission.ts';
-import type {
-  FairnessObservation,
-  FairnessNoWork,
-  ReasoningFairness,
-} from './fairness/types.ts';
-import { deny, tx, policyFor } from './fairness/shared.ts';
 import { discover } from './fairness/discover.ts';
+import { enqueueFairInTransaction } from './fairness/enqueue.ts';
 import {
-  lockProbe,
   lockCursor,
-  save,
+  lockProbe,
   observation,
   probe,
+  save,
 } from './fairness/probe.ts';
-import { enqueueFairInTransaction } from './fairness/enqueue.ts';
+import { deny, policyFor, tx } from './fairness/shared.ts';
+import type {
+  FairnessNoWork,
+  FairnessObservation,
+  ReasoningFairness,
+} from './fairness/types.ts';
+import {
+  FAIRNESS_CLASSES,
+  type FairnessClass,
+  validateFairnessPolicy,
+} from './fairness-policy.ts';
+import { type ReasoningAuthority, ReasoningDenied } from './runtime-policy.ts';
 
+export { enqueueFairInTransaction } from './fairness/enqueue.ts';
 export type {
   FairnessNoWork,
   FairnessObservation,
   FairnessReadyInput,
-  FairnessScheduleInput,
   FairnessScheduled,
+  FairnessScheduleInput,
   ReasoningFairness,
 } from './fairness/types.ts';
-export { enqueueFairInTransaction } from './fairness/enqueue.ts';
 
 export function createReasoningFairness(
   db: pg.Pool,

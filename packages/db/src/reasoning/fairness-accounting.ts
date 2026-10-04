@@ -2,11 +2,11 @@
 // Invariant: scheduler resources are always locked before physical bucket locks.
 import type pg from 'pg';
 import {
+  type FairnessClass,
   fairnessCharge,
   fairnessClassCap,
   fairnessUniverseCap,
   validateFairnessPolicy,
-  type FairnessClass,
 } from './fairness-policy.ts';
 
 /** Caller holds universe and affected accounting locks. All scheduler resources

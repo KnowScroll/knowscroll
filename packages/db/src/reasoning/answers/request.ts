@@ -3,13 +3,13 @@
  * authenticated transaction; a retried request key replays its receipt, and the same key for another
  * Ask is refused. Never sends anything: it queues the Job.
  */
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { serializeAskAnswerRequest } from '@knowscroll/core/reasoning/ask-answer';
 import type pg from 'pg';
 import { z } from 'zod';
-import { serializeAskAnswerRequest } from '@knowscroll/core/reasoning/ask-answer';
 import type { AuthScope } from '../../identity.ts';
-import { compileDirectAskContext } from '../ask-context.ts';
 import { isRecordingPaused } from '../../sql/recording-paused.ts';
+import { compileDirectAskContext } from '../ask-context.ts';
 import { enqueueFairInTransaction } from '../fairness.ts';
 import { resolveAnswerPolicy, sourceOf } from './route.ts';
 import { AskAnswerError, type RequestRow, type Route } from './shared.ts';

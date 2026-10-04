@@ -8,29 +8,29 @@ import {
   releaseNotSentFairness,
 } from '../fairness-accounting.ts';
 import {
-  reservationAmount,
   type ReasoningAuthority,
   type ResolvedReasoningPolicy,
+  reservationAmount,
 } from '../runtime-policy.ts';
 import {
-  hashPattern,
+  assertBucketBindings,
   deny,
-  validBoundedInteger,
-  validateUuid,
+  hashPattern,
+  lockCurrentJob,
+  lockPolicyBuckets,
+  lockUniverse,
+  resolveAndValidatePolicy,
   validateFence,
   validateOwnerAndDuration,
-  lockUniverse,
-  lockCurrentJob,
-  resolveAndValidatePolicy,
-  lockPolicyBuckets,
-  assertBucketBindings,
+  validateUuid,
+  validBoundedInteger,
 } from './guards.ts';
 import type {
+  JobRow,
+  ReasoningPreflight,
+  ReasoningPreflightInput,
   ReserveAttemptInput,
   ReservedAttempt,
-  JobRow,
-  ReasoningPreflightInput,
-  ReasoningPreflight,
 } from './types.ts';
 
 /** Internal closure primitive; caller owns universe/Job/Attempt/accounting locks.

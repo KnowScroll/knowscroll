@@ -1,11 +1,11 @@
 // Helpers shared by discover, probe and enqueue: denial, the transaction wrapper, policy load and row decode.
 import type pg from 'pg';
-import { ReasoningDenied } from '../runtime-policy.ts';
 import {
   FAIRNESS_CLASSES,
-  validateFairnessPolicy,
   type FairnessClass,
+  validateFairnessPolicy,
 } from '../fairness-policy.ts';
+import { ReasoningDenied } from '../runtime-policy.ts';
 import type { Ready } from './types.ts';
 
 export const deny: (code: string) => never = (code) => {

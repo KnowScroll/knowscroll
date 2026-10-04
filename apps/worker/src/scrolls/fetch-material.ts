@@ -12,9 +12,9 @@ import {
   checkMaterialUrl,
   extractVisibleText,
   MATERIAL_LIMITS,
-  titleSaysNotFound,
   type MaterialHost,
   type MaterialUrlRefusal,
+  titleSaysNotFound,
 } from '@knowscroll/core/scrolls/material';
 
 const USER_AGENT = 'KnowScroll-material/1 (+personal non-commercial)';

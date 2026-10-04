@@ -8,7 +8,6 @@
  * class-aware fairness — not this loop's order — decides between them.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import { createReasoningAdmission } from '@knowscroll/db/reasoning/admission';
 import {
   createReasoningFairness,
@@ -18,23 +17,23 @@ import {
   inquiryAuthority,
   jobFamily,
   mailRevokedConnections,
+  type OpenResult,
   openDueInquiries,
   sharedReasoningAuthority,
-  type OpenResult,
 } from '@knowscroll/db/reasoning/inquiries';
 import {
   applyInquiryReply,
   failInquiry,
   giveBackUnsentInquiry,
-  loadInquiryWork,
   type InquiryOutcome,
   type InquiryWork,
+  loadInquiryWork,
   type ProviderReply,
 } from '@knowscroll/db/reasoning/inquiry-execution';
 import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
 import {
-  ReasoningDenied,
   type ReasoningAuthority,
+  ReasoningDenied,
 } from '@knowscroll/db/reasoning/runtime-policy';
 import {
   attemptAccountingState,
@@ -44,17 +43,18 @@ import {
   inquiryAttemptStep,
 } from '@knowscroll/db/reasoning/worker-reads';
 import { inTransaction } from '@knowscroll/db/sql/transactions';
+import type pg from 'pg';
 import type {
   AnswerObservation,
   AnswerTransport,
   InquiryTransport,
 } from '../providers/transports.ts';
-import { executeAnswerClaim, type AnswerPass } from './answer-worker.ts';
-import { createReadinessGate, type ReadinessGate } from './readiness-gate.ts';
+import { type AnswerPass, executeAnswerClaim } from './answer-worker.ts';
 import {
   invokeReasoningOnce,
   type SingleInvocationTransport,
 } from './invoke.ts';
+import { createReadinessGate, type ReadinessGate } from './readiness-gate.ts';
 
 type Transports<T> = Partial<Record<'fixture' | 'minimax', T>>;
 type Gates = Partial<Record<'fixture' | 'minimax', ReadinessGate>>;

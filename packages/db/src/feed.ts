@@ -2,13 +2,14 @@
  * The feed's candidate assets and the reads around a feed decision (ADR-0025 §2). Read-only; runs in
  * the caller's authenticated transaction.
  */
-import type pg from 'pg';
+
 import type { ScrollAsset } from '@knowscroll/contracts';
 import type {
   FeedAsset,
   ReelAssetDisplay,
 } from '@knowscroll/contracts/inventory';
 import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
+import type pg from 'pg';
 
 interface ReelRow {
   assetId: string;

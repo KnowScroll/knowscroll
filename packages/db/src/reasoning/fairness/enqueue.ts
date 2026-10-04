@@ -1,8 +1,8 @@
 // Adds a queued Job to the fairness ready ring inside the caller's transaction (ADR-0013).
 import type pg from 'pg';
 import { FAIRNESS_CLASSES, fairnessCharge } from '../fairness-policy.ts';
-import type { FairnessReadyInput } from './types.ts';
 import { deny, policyFor } from './shared.ts';
+import type { FairnessReadyInput } from './types.ts';
 
 /** Enqueue inside the caller's transaction, so a Job's creation and its ready membership commit
  * together (ADR-0033). Same checks and lock order as `enqueue`. */

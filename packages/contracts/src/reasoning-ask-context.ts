@@ -4,8 +4,8 @@
  * versions are pinned here so a stored payload stays verifiable (ADR-0017).
  */
 import { z } from 'zod';
-import { privacyEpoch, uuid as id } from './primitives.ts';
 import { explicitAskInput } from './asks.ts';
+import { uuid as id, privacyEpoch } from './primitives.ts';
 import { reasoningCounter } from './reasoning.ts';
 import { contextScroll } from './reasoning-context.ts';
 

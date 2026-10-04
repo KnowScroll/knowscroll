@@ -4,18 +4,18 @@
  * authority and every function here is written to fail the same way the schema would. No
  * network I/O happens inside any transaction in this file. */
 import { createHash, randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   briefSource,
   compileSubmitRequest,
-  generationBrief,
   type GenerationBrief,
+  generationBrief,
 } from '@knowscroll/contracts/generation';
 import { prepareCutroomRequest } from '@knowscroll/core/cutroom/prepare-request';
+import type pg from 'pg';
 import {
-  recordImportedReel,
   type RecordImportedReelInput,
   type RecordImportedReelOutcome,
+  recordImportedReel,
 } from './import.ts';
 
 /** The Cutroom revision this worker is pinned to (ADR-0020/0021). An engine declaring a

@@ -1,11 +1,12 @@
 /** `POST /v1/asks`: record a reader's literal question about an exposure (ADR-0016). */
-import type { FastifyInstance } from 'fastify';
+
 import { explicitAskInput } from '@knowscroll/contracts';
 import {
   ExplicitAskError,
   recordExplicitAsk,
 } from '@knowscroll/db/explicit-ask';
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
 import { parseInput } from '../http/input.ts';

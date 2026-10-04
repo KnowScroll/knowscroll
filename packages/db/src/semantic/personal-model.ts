@@ -8,7 +8,6 @@
  * history needs incremental episodes with the same arithmetic.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   ATTENTION_V1,
   computeAttentionAccounts,
@@ -17,11 +16,11 @@ import {
   type NegativeEvidence,
 } from '@knowscroll/core/semantic/attention';
 import {
+  type HypothesisProposal,
   proposeHypotheses,
   validateHypothesis,
-  type HypothesisProposal,
 } from '@knowscroll/core/semantic/hypotheses';
-import { BRANCH_POLICY_VERSION } from './branches.ts';
+import type pg from 'pg';
 import {
   eraseAtlas,
   exportAtlas,
@@ -31,6 +30,7 @@ import {
 import { withdrawCorrectedBindings } from '../inventory/demand.ts';
 import { postInquiryMail } from '../reasoning/inquiries.ts';
 import { eraseRooms, exportRooms } from '../rooms.ts';
+import { BRANCH_POLICY_VERSION } from './branches.ts';
 
 type Row = Record<string, unknown>;
 const ms = (v: unknown) =>

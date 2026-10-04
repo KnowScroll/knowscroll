@@ -8,8 +8,8 @@
  * Self-contained: imports nothing from `./index.ts` or `./worlds.ts`.
  */
 import { z } from 'zod';
-import { uuid } from './primitives.ts';
 import { reelAsset } from './inventory.ts';
+import { uuid } from './primitives.ts';
 import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
 export const capabilitiesSchema = z

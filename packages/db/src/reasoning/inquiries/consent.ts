@@ -3,13 +3,13 @@
  * ADR-0042 §4). A consent change runs under the caller's authenticated universe lock.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  type InquiryConsentView,
   INQUIRY_DAILY_LIMIT,
   type InquiryConsentResponse,
+  type InquiryConsentView,
   inquiryConsentInput,
 } from '@knowscroll/contracts/inquiries';
+import type pg from 'pg';
 import type { AuthScope } from '../../identity.ts';
 import { InquiryError } from './shared.ts';
 import { withdrawInquiries } from './stopping.ts';

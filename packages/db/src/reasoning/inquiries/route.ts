@@ -8,8 +8,8 @@ import { resolveAnswerPolicy } from '../answers.ts';
 import { createSealedContextAuthority } from '../context-authority.ts';
 import { fairnessCharge, validateFairnessPolicy } from '../fairness-policy.ts';
 import type {
-  ResolvedReasoningPolicy,
   ReasoningAuthority,
+  ResolvedReasoningPolicy,
 } from '../runtime-policy.ts';
 import type { InquiryRoute } from './shared.ts';
 

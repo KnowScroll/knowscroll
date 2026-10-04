@@ -9,9 +9,12 @@
  * reason. Nothing here is logged or persisted: no prompt, reply, header or key.
  */
 import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
-import type { AnswerTransport } from './transports.ts';
-import type { InquiryObservation, InquiryTransport } from './transports.ts';
 import { checkMiniMaxQuota } from './minimax-quota.ts';
+import type {
+  AnswerTransport,
+  InquiryObservation,
+  InquiryTransport,
+} from './transports.ts';
 
 export const MINIMAX_ANSWER_URL =
   'https://api.minimax.io/anthropic/v1/messages';

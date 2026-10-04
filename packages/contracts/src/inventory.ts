@@ -8,8 +8,8 @@
  * and, once bound, a Scroll: never a source, a material page or anything the reader wrote.
  */
 import { z } from 'zod';
-import { privacyEpoch, uuid as id } from './primitives.ts';
 import type { ScrollAsset } from './ledger.ts';
+import { uuid as id, privacyEpoch } from './primitives.ts';
 import { conceptCode } from './semantic.ts';
 
 /** The two consumption objects the feed can be asked for, in the exact spelling `GET /v1/feed`'s

@@ -4,8 +4,8 @@
  * Anything uncertain after authorization is marked unknown, never retried (ADR-0033 §2).
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { z } from 'zod';
 import { reasoningUsage } from '@knowscroll/contracts/reasoning';
+import { z } from 'zod';
 
 export type DispatchAuthorization = {
   universeId: string;

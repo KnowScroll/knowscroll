@@ -3,41 +3,43 @@
  * and revalidates it at the `lock` and `recheck` phases (ADR-0017, ADR-0033). The authority is the
  * Ask's own original session; a context that no longer holds is refused, never repaired.
  */
-import type pg from 'pg';
+
+import { explicitAskInput, exposureInput } from '@knowscroll/contracts';
 import {
   ASK_CONTEXT_LIMITS,
   ASK_CONTEXT_VERSIONS,
+  type AskContextDependency,
+  type AskContextPayload,
   askContextDependency,
   askContextDependencyKey,
   askContextPayload,
   compileDirectAskContextInput,
-  type AskContextDependency,
-  type AskContextPayload,
 } from '@knowscroll/contracts/reasoning-ask-context';
 import {
-  candidateScroll,
-  contextScroll,
   type ContextRefusal,
   type ContextValidation,
+  candidateScroll,
+  contextScroll,
 } from '@knowscroll/contracts/reasoning-context';
-import { explicitAskInput, exposureInput } from '@knowscroll/contracts';
-import { explicitAskLedgerKey } from '../explicit-ask.ts';
 import { compareCodeUnits } from '@knowscroll/core/shared/compare';
+import type pg from 'pg';
+import { explicitAskLedgerKey } from '../explicit-ask.ts';
 import type { AuthScope } from '../identity.ts';
 import {
-  ReasoningDenied,
-  type ReasoningAuthority,
-  type ReasoningContextCheck,
-} from './runtime-policy.ts';
-import {
-  deny,
-  canonical,
-  digest,
-  canonicalHash,
   asIso,
+  canonical,
+  canonicalHash,
+  deny,
+  digest,
   policyDigest,
   record,
 } from './context-common.ts';
+import {
+  type ReasoningAuthority,
+  type ReasoningContextCheck,
+  ReasoningDenied,
+} from './runtime-policy.ts';
+
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type ContextResult = {
   contextId: string;

@@ -4,10 +4,10 @@
  * (KnowScroll's own media store) and the pool from `packages/db/src/index.ts`. No public HTTP
  * route: operator commands live in `scripts/generation.ts`. */
 import { pool } from '@knowscroll/db';
-import { createLocalImportPort } from './import-port.ts';
 import { logError, logLine } from '../runtime/log.ts';
 import { strictIntSetting } from '../runtime/settings.ts';
 import { onStopSignal } from '../runtime/stop-signal.ts';
+import { createLocalImportPort } from './import-port.ts';
 import { runLoop } from './worker.ts';
 
 /** `KS_MEDIA_ROOT` is an explicit setting (an absolute path), defaulting under `$KS_DEV_ROOT` when

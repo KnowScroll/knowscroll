@@ -5,7 +5,7 @@
  * A magic-link request never reveals whether the address exists or whether delivery worked, and a
  * session request never distinguishes a malformed token from an expired, consumed or unknown one.
  */
-import type { FastifyInstance } from 'fastify';
+
 import {
   magicLinkRequestInput,
   signInConfirmQuery,
@@ -14,13 +14,11 @@ import { transaction } from '@knowscroll/db';
 import {
   confirmSignInToken,
   consumeSignInToken,
-  requestMagicLink,
   type MagicLinkRateLimits,
   requesterFingerprint,
+  requestMagicLink,
 } from '@knowscroll/db/sign-in';
-import { createMagicLinkSender } from '../mail/magic-link-sender.ts';
-import type { MagicLinkSender } from '../mail/sender.ts';
-import { describeSendFailure } from '../mail/agentmail-sender.ts';
+import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../http/errors.ts';
 import { parseInput } from '../http/input.ts';
 import {
@@ -28,6 +26,9 @@ import {
   sessionCookie,
   type WebSessionConfig,
 } from '../http/web-session.ts';
+import { describeSendFailure } from '../mail/agentmail-sender.ts';
+import { createMagicLinkSender } from '../mail/magic-link-sender.ts';
+import type { MagicLinkSender } from '../mail/sender.ts';
 
 function resolveApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.KS_API_BASE_URL;

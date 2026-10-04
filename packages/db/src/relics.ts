@@ -8,29 +8,29 @@
  * provenance recorded for them.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  objectionInput,
-  PASSAGE_LIST_LIMIT,
-  RELIC_LIST_LIMIT,
-  relicKeepInput,
-  relicReleaseInput,
   type ObjectionInput,
   type ObjectionResponse,
+  objectionInput,
+  PASSAGE_LIST_LIMIT,
   type PassagesResponse,
+  RELIC_LIST_LIMIT,
   type RelicKeepInput,
   type RelicKeepResponse,
   type RelicReleaseResponse,
   type RelicsResponse,
   type RelicWire,
+  relicKeepInput,
+  relicReleaseInput,
 } from '@knowscroll/contracts/relics';
 import {
   parseRelicCursor,
+  type RelicFacts,
   relicCursor,
   relicState,
-  type RelicFacts,
 } from '@knowscroll/core/relics';
-import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
+import type pg from 'pg';
+import { DELTA_PLACES, type DeltaNaming, deltaLines } from './atlas.ts';
 import { markedWrong, ReturnError } from './away.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning/inquiries.ts';

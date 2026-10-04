@@ -3,18 +3,18 @@
  * (ADR-0038 §4, ADR-0042 §4). Locks are taken in ADR-0017 order, universe row first.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import { INQUIRY_DIRTY_SCOPE } from '@knowscroll/contracts/reasoning-inquiry-context';
 import {
   type InquiryPair,
-  serializeBridgeInquiryRequest,
   selectInquiryPairs,
+  serializeBridgeInquiryRequest,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
+import type pg from 'pg';
+import { inTransaction } from '../../sql/transactions.ts';
 import { enqueueFairInTransaction } from '../fairness.ts';
-import { sealInquiryContext, readInquiryInputs } from '../inquiry-context.ts';
+import { readInquiryInputs, sealInquiryContext } from '../inquiry-context.ts';
 import { ReasoningDenied } from '../runtime-policy.ts';
 import { openedToday } from './consent.ts';
-import { inTransaction } from '../../sql/transactions.ts';
 import { requestRoute, resolveInquiryPolicy } from './route.ts';
 import type { InquiryRoute, InquiryRow } from './shared.ts';
 

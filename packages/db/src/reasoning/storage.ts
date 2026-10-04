@@ -1,17 +1,18 @@
 // Retained reasoning storage: history-clear erase, restricted receipt append and accounting purge.
 // The receipt fingerprint is stored and is JSON.stringify in insertion order, so key order is load-bearing.
+
+import { createHash } from 'node:crypto';
 import {
+  type ReasoningReceipt,
+  reasoningReceipt,
+} from '@knowscroll/contracts/reasoning';
+import type pg from 'pg';
+import { lockUniverse } from '../connection.ts';
+import {
+  clearFairnessMembership,
   lockFairnessResources,
   releaseNotSentFairness,
-  clearFairnessMembership,
 } from './fairness-accounting.ts';
-import { createHash } from 'node:crypto';
-import type pg from 'pg';
-import {
-  reasoningReceipt,
-  type ReasoningReceipt,
-} from '@knowscroll/contracts/reasoning';
-import { lockUniverse } from '../connection.ts';
 
 export type ReasoningClearScope = {
   universeId: string;

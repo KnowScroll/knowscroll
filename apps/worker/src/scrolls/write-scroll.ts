@@ -19,8 +19,8 @@ import {
   judgeScrollReply,
   SCROLL_LIMITS,
   SCROLL_WRITING_VERSIONS,
-  serializeScrollWritingRequest,
   type ScrollPlanItem,
+  serializeScrollWritingRequest,
 } from '@knowscroll/core/scrolls/writing';
 import { transaction } from '@knowscroll/db';
 import {

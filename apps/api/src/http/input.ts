@@ -3,9 +3,10 @@
  * behavior the routes had inline: refuse unparseable input with a 400 and the route's own message,
  * refuse a non-UUID id the same way, and mark a response as not cacheable.
  */
+
+import { uuid } from '@knowscroll/contracts';
 import type { FastifyReply } from 'fastify';
 import type { z } from 'zod';
-import { uuid } from '@knowscroll/contracts';
 import { HttpError } from './errors.ts';
 
 /** `schema.safeParse(value)`'s data, or `HttpError(400, message)`. */

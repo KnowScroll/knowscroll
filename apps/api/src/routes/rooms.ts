@@ -7,9 +7,10 @@
  *
  * Nothing here calls a model, and no source is ever returned.
  */
-import type { FastifyInstance } from 'fastify';
+
 import { readAtlas } from '@knowscroll/db/atlas';
 import { readRoom, readRoomDelta, setRoomAside } from '@knowscroll/db/rooms';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { noStore, requireUuid } from '../http/input.ts';
 

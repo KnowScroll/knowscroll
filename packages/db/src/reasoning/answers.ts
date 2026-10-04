@@ -5,29 +5,29 @@
  * Provider text changes state only through the answer validator (ask-answer-v2).
  */
 
-export { AskAnswerError } from './answers/shared.ts';
-export { askAnswerRequestInput, requestAskAnswer } from './answers/request.ts';
-export type { AnswerRequestReceipt } from './answers/request.ts';
-export {
-  answerFairnessPolicy,
-  installAskAnswerRoute,
-  resolveAnswerPolicy,
-  answerAuthority,
-} from './answers/route.ts';
-export {
-  loadAnswerWork,
-  applyAskAnswer,
-  failAskAnswer,
-} from './answers/worker.ts';
-export type {
-  AnswerWork,
-  AnswerOutcome,
-  AnswerFailure,
-} from './answers/worker.ts';
+export { eraseAskAnswers, exportAskAnswers } from './answers/privacy.ts';
+export type { AskAnswerView } from './answers/reader.ts';
+export { cancelAskAnswer, readAskAnswer } from './answers/reader.ts';
 export {
   giveBackUnsentAnswer,
   settleAbandonedAnswers,
 } from './answers/recovery.ts';
-export { readAskAnswer, cancelAskAnswer } from './answers/reader.ts';
-export type { AskAnswerView } from './answers/reader.ts';
-export { eraseAskAnswers, exportAskAnswers } from './answers/privacy.ts';
+export type { AnswerRequestReceipt } from './answers/request.ts';
+export { askAnswerRequestInput, requestAskAnswer } from './answers/request.ts';
+export {
+  answerAuthority,
+  answerFairnessPolicy,
+  installAskAnswerRoute,
+  resolveAnswerPolicy,
+} from './answers/route.ts';
+export { AskAnswerError } from './answers/shared.ts';
+export type {
+  AnswerFailure,
+  AnswerOutcome,
+  AnswerWork,
+} from './answers/worker.ts';
+export {
+  applyAskAnswer,
+  failAskAnswer,
+  loadAnswerWork,
+} from './answers/worker.ts';

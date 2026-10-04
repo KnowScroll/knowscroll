@@ -3,39 +3,40 @@
  * the `lock` and `recheck` phases (ADR-0017). Callers hold the universe lock; a context that no
  * longer holds is refused, never repaired.
  */
-import type pg from 'pg';
+
+import { exposureInput, interactionInput } from '@knowscroll/contracts';
 
 import {
+  type ContextRefusal,
+  type ContextValidation,
+  candidateScroll,
+  compileDirectContextInput,
+  contextScroll,
   DIRECT_CONTEXT_LIMITS,
   DIRECT_CONTEXT_VERSIONS,
-  compileDirectContextInput,
-  candidateScroll,
-  contextScroll,
+  type DirectContextDependency,
+  type DirectContextPayload,
   directContextDependency,
   directContextDependencyKey,
   directContextPayload,
-  type ContextRefusal,
-  type ContextValidation,
-  type DirectContextDependency,
-  type DirectContextPayload,
 } from '@knowscroll/contracts/reasoning-context';
-import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import { compareCodeUnits } from '@knowscroll/core/shared/compare';
+import type pg from 'pg';
 import type { AuthScope } from '../identity.ts';
 import {
-  ReasoningDenied,
-  type ReasoningAuthority,
-  type ReasoningContextCheck,
-} from './runtime-policy.ts';
-import {
-  deny,
-  canonical,
-  digest,
-  canonicalHash,
   asIso,
+  canonical,
+  canonicalHash,
+  deny,
+  digest,
   policyDigest,
   record,
 } from './context-common.ts';
+import {
+  type ReasoningAuthority,
+  type ReasoningContextCheck,
+  ReasoningDenied,
+} from './runtime-policy.ts';
 
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type CompileInput = {

@@ -3,23 +3,20 @@
 // universe, session, Job, children, fairness, bucket; reordering them risks deadlock or double spend.
 // Helpers live in admission/ (types, guards, reserve).
 import type pg from 'pg';
-import { lockBoundContextSession } from './context-session.ts';
-import { lockFairnessResources } from './fairness-accounting.ts';
-import type { ReasoningAuthority } from './runtime-policy.ts';
 import {
-  hashPattern,
-  ownerPattern,
-  deny,
-  validBoundedInteger,
-  validateUuid,
-  validateFence,
-  transaction,
-  validateOwnerAndDuration,
-  lockUniverse,
-  lockCurrentJob,
-  resolveAndValidatePolicy,
-  lockPolicyBuckets,
   assertBucketBindings,
+  deny,
+  hashPattern,
+  lockCurrentJob,
+  lockPolicyBuckets,
+  lockUniverse,
+  ownerPattern,
+  resolveAndValidatePolicy,
+  transaction,
+  validateFence,
+  validateOwnerAndDuration,
+  validateUuid,
+  validBoundedInteger,
 } from './admission/guards.ts';
 import {
   releaseUnconsumed,
@@ -27,17 +24,24 @@ import {
 } from './admission/reserve.ts';
 import type {
   ClaimedJob,
-  RecoveryResult,
-  ReasoningAdmission,
   JobRow,
+  ReasoningAdmission,
+  RecoveryResult,
   ReservationRow,
 } from './admission/types.ts';
+import { lockBoundContextSession } from './context-session.ts';
+import { lockFairnessResources } from './fairness-accounting.ts';
+import type { ReasoningAuthority } from './runtime-policy.ts';
 
-export { REASONING_ADMISSION_LIMITS } from './admission/types.ts';
+export {
+  preflightAttemptInTransaction,
+  releaseUnconsumed,
+  reserveAttemptInTransaction,
+} from './admission/reserve.ts';
 export type {
   AuthorizeDispatchInput,
-  ClaimJobInput,
   ClaimedJob,
+  ClaimJobInput,
   DispatchGrant,
   MarkAttemptUnknownInput,
   MarkAttemptUnknownResult,
@@ -48,14 +52,10 @@ export type {
   RecoveryResult,
   ReserveAttemptInput,
   ReservedAttempt,
-  WithdrawJobInput,
   WithdrawalResult,
+  WithdrawJobInput,
 } from './admission/types.ts';
-export {
-  preflightAttemptInTransaction,
-  releaseUnconsumed,
-  reserveAttemptInTransaction,
-} from './admission/reserve.ts';
+export { REASONING_ADMISSION_LIMITS } from './admission/types.ts';
 
 export function createReasoningAdmission(
   db: pg.Pool,

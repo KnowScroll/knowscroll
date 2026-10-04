@@ -14,8 +14,8 @@ import type pg from 'pg';
 import { lockUniverse, transaction } from '../connection.ts';
 import {
   CORRECTIONS_COMMITTED,
-  refreshPersonalModel,
   type PersonalModelResult,
+  refreshPersonalModel,
 } from './personal-model.ts';
 
 // Recording on, something a correction can change (a place on the map, or a Scroll bound to the

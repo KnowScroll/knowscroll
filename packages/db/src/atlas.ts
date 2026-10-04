@@ -5,16 +5,17 @@
  * The entry module keeps the public face; `atlas/` holds the inputs, writes, read model, chronicle
  * and privacy functions.
  */
-export { AtlasConflict, AtlasNotFound } from './atlas/errors.ts';
+
 export {
   DELTA_PLACES,
-  deltaLines,
   type DeltaNaming,
+  deltaLines,
 } from './atlas/chronicle.ts';
+export { AtlasConflict, AtlasNotFound } from './atlas/errors.ts';
 export { eraseAtlas, exportAtlas } from './atlas/privacy.ts';
 export {
+  type AtlasView,
   readAtlas,
   readAtlasDelta,
-  type AtlasView,
 } from './atlas/read-model.ts';
 export { rejectPlace, runCartographer, runKeeper } from './atlas/writes.ts';

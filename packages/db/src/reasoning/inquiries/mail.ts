@@ -3,11 +3,11 @@
  * its universe lock. Mail needs consent in this epoch and recording on; nothing earlier is mailed.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  INQUIRY_KIND,
   INQUIRY_CONTEXT_LIMITS,
+  INQUIRY_KIND,
 } from '@knowscroll/contracts/reasoning-inquiry-context';
+import type pg from 'pg';
 import { inTransaction } from '../../sql/transactions.ts';
 
 /** Why a look is worth it (ADR-0042 §5): a planet or region formed, a bridge between two live places

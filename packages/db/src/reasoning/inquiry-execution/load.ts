@@ -3,13 +3,13 @@
  * first: universe, then Job, then Step (ADR-0017). A stale fence discards the reply.
  */
 import { createHash } from 'node:crypto';
-import type pg from 'pg';
 import { inquiryAssistantTurn } from '@knowscroll/contracts/reasoning-inquiry-context';
 import {
+  type AssistantBlock,
   type ContinuationTurn,
   serializeBridgeInquiryRequest,
-  type AssistantBlock,
 } from '@knowscroll/core/reasoning/bridge-inquiry';
+import type pg from 'pg';
 import {
   type InquiryRow,
   inquiryRouteFor,

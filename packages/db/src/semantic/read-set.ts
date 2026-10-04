@@ -13,7 +13,6 @@
  * A larger substrate needs a bounded neighbourhood query with the same slice semantics.
  */
 import { createHash } from 'node:crypto';
-import type pg from 'pg';
 import type {
   BridgeReadSet,
   ClaimRole,
@@ -22,6 +21,7 @@ import type {
   ReadSetConcept,
   ReadSetRelation,
 } from '@knowscroll/core/semantic/bridge-validator';
+import type pg from 'pg';
 
 const SUBSTRATE_LOCK = 0x5ea_0131;
 

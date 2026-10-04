@@ -1,6 +1,7 @@
 /** `GET`/`HEAD /v1/media/:sha256`: authorized in one short transaction, streamed after it commits (ADR-0024). */
-import type { FastifyInstance } from 'fastify';
+
 import { findServableMedia } from '@knowscroll/db/media';
+import type { FastifyInstance } from 'fastify';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
 import { MEDIA_SHA256_PATTERN, sendMedia } from '../media/stream.ts';

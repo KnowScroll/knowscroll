@@ -3,9 +3,10 @@
 // keys, refuses to start without DATABASE_URL, and creates the process's single pg pool. Every db
 // module that needs the pool imports it from here, so loading any of them loads the environment
 // exactly once (ADR-0048).
-import pg from 'pg';
+
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import pg from 'pg';
 // Optional local configuration; never required or loaded implicitly in deployment.
 export function loadLocalEnv() {
   try {

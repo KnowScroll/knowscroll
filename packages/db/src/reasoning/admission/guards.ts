@@ -2,12 +2,12 @@
 // Every lock helper expects the caller's open transaction and fixes where in the lock order it sits.
 import type pg from 'pg';
 import {
-  ReasoningDenied,
-  validateReasoningPolicy,
   type ReasoningAuthority,
+  ReasoningDenied,
   type ResolvedReasoningPolicy,
+  validateReasoningPolicy,
 } from '../runtime-policy.ts';
-import { REASONING_ADMISSION_LIMITS, type JobRow } from './types.ts';
+import { type JobRow, REASONING_ADMISSION_LIMITS } from './types.ts';
 
 export const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
