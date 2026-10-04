@@ -47,6 +47,8 @@ type SourceRow = {
 
 const ASK_LEDGER_KEY_DOMAIN = 'knowscroll:explicit-ask:ledger-key:v1';
 
+// Throws on non-JSON values (undefined, functions), unlike core's `canonical`, so the two are not
+// interchangeable; the Ask ledger key and replay comparison depend on that refusal.
 function canonical(value: unknown): string {
   if (
     value === null ||

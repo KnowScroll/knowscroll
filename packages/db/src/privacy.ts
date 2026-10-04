@@ -234,6 +234,8 @@ export async function clearScrollHistory(
 // hold the universe lock (via `authenticateAndLock`, which every route below goes through) and
 // recheck the authenticated session's epoch after that wait resolves, exactly as Clear does.
 
+// Same result as shared/time.ts `toIsoString`, written as a ternary; kept local because the AST
+// bodies differ and equivalence is not mechanically proven.
 function isoDate(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
