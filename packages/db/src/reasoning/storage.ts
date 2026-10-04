@@ -128,7 +128,11 @@ export async function eraseReasoningForHistoryClear(
     )
   ).rows.map((row) => String(row.id));
   const accountings = (
-    await client.query(
+    await client.query<{
+      attempt_id: string;
+      state: string;
+      dispatch_id: string | null;
+    }>(
       `
     SELECT
       attempt_id,
@@ -167,7 +171,11 @@ export async function eraseReasoningForHistoryClear(
     accountingIds.length === 0
       ? []
       : (
-          await client.query(
+          await client.query<{
+            id: string;
+            attempt_id: string;
+            state: 'reserved' | 'consumed' | 'revoked' | 'expired';
+          }>(
             `
     SELECT
       id,
@@ -246,7 +254,7 @@ export async function eraseReasoningForHistoryClear(
     }
 
     const releases = (
-      await client.query(
+      await client.query<{ bucket_id: string; amount: string }>(
         `
      SELECT
        r.bucket_id,
