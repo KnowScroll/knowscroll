@@ -30,7 +30,8 @@
       },
       "correctness": {
         "noUnusedImports": "off",
-        "noUnusedVariables": "off"
+        "noUnusedVariables": "off",
+        "noUndeclaredDependencies": "error"
       },
       "style": {
         "noNonNullAssertion": "off",
@@ -43,5 +44,203 @@
         "noImplicitAnyLet": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "packages/contracts/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "packages/contracts holds wire schemas only (ADR-0048).",
+                  "fastify": "packages/contracts holds wire schemas only (ADR-0048).",
+                  "ai": "Provider SDKs are imported only by apps/worker (apps/worker/AGENTS.md).",
+                  "vercel-minimax-ai-provider": "Provider SDKs are imported only by apps/worker (apps/worker/AGENTS.md)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@knowscroll/core",
+                      "@knowscroll/core/**",
+                      "@knowscroll/db",
+                      "@knowscroll/db/**"
+                    ],
+                    "message": "packages/contracts depends on nothing else in the workspace (ADR-0048)."
+                  },
+                  {
+                    "group": [
+                      "**/packages/**",
+                      "**/apps/**",
+                      "**/tests/**",
+                      "**/scripts/**",
+                      "**/contracts/src/**",
+                      "**/core/src/**",
+                      "**/db/src/**"
+                    ],
+                    "message": "Import another package by its name (@knowscroll/<pkg>[/<subpath>]); a relative path may not leave this package (ADR-0048)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/core/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "packages/core is pure: no database, HTTP or provider imports (packages/core/AGENTS.md).",
+                  "fastify": "packages/core is pure: no database, HTTP or provider imports (packages/core/AGENTS.md).",
+                  "ai": "packages/core is pure: no database, HTTP or provider imports (packages/core/AGENTS.md).",
+                  "vercel-minimax-ai-provider": "packages/core is pure: no database, HTTP or provider imports (packages/core/AGENTS.md)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@knowscroll/db",
+                      "@knowscroll/db/**"
+                    ],
+                    "message": "packages/core is pure: no database, HTTP or provider imports (packages/core/AGENTS.md)."
+                  },
+                  {
+                    "group": [
+                      "**/packages/**",
+                      "**/apps/**",
+                      "**/tests/**",
+                      "**/scripts/**",
+                      "**/contracts/src/**",
+                      "**/core/src/**",
+                      "**/db/src/**"
+                    ],
+                    "message": "Import another package by its name (@knowscroll/<pkg>[/<subpath>]); a relative path may not leave this package (ADR-0048)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/db/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "fastify": "packages/db is persistence and domain transactions; HTTP stays in apps/api (ADR-0048).",
+                  "ai": "Provider SDKs are imported only by apps/worker (apps/worker/AGENTS.md).",
+                  "vercel-minimax-ai-provider": "Provider SDKs are imported only by apps/worker (apps/worker/AGENTS.md)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "**/packages/**",
+                      "**/apps/**",
+                      "**/tests/**",
+                      "**/scripts/**",
+                      "**/contracts/src/**",
+                      "**/core/src/**",
+                      "**/db/src/**"
+                    ],
+                    "message": "Import another package by its name (@knowscroll/<pkg>[/<subpath>]); a relative path may not leave this package (ADR-0048)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/api/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "ai": "Provider SDKs are imported only by apps/worker (apps/worker/AGENTS.md).",
+                  "vercel-minimax-ai-provider": "Provider SDKs are imported only by apps/worker (apps/worker/AGENTS.md)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "**/packages/**",
+                      "**/apps/**",
+                      "**/tests/**",
+                      "**/scripts/**",
+                      "**/api/src/**",
+                      "**/worker/src/**",
+                      "**/web/src/**",
+                      "**/contracts/src/**",
+                      "**/core/src/**",
+                      "**/db/src/**"
+                    ],
+                    "message": "Import packages by name (@knowscroll/<pkg>[/<subpath>]); an app never imports another app (ADR-0048)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/worker/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "fastify": "HTTP serving stays in apps/api; the worker runs loops and provider I/O (ADR-0048)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "**/packages/**",
+                      "**/apps/**",
+                      "**/tests/**",
+                      "**/scripts/**",
+                      "**/api/src/**",
+                      "**/worker/src/**",
+                      "**/web/src/**",
+                      "**/contracts/src/**",
+                      "**/core/src/**",
+                      "**/db/src/**"
+                    ],
+                    "message": "Import packages by name (@knowscroll/<pkg>[/<subpath>]); an app never imports another app (ADR-0048)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
