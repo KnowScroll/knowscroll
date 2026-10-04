@@ -366,7 +366,7 @@ async function settleReceipt(
   >
 > {
   const receipt = (
-    await client.query(
+    await client.query<Receipt>(
       `
    SELECT
      id,
@@ -390,7 +390,7 @@ async function settleReceipt(
   if (!receipt)
     throw new Error('Reasoning receipt disappeared before settlement');
   const accounting = (
-    await client.query(
+    await client.query<Accounting>(
       `
    SELECT
      attempt_id,
@@ -426,7 +426,7 @@ async function settleReceipt(
   );
   await lockFairnessResources(client, [receipt.attempt_id]);
   const reservations = (
-    await client.query(
+    await client.query<Reservation>(
       `
    SELECT
      id,
@@ -466,7 +466,7 @@ async function settleReceipt(
     receiptUsage(receipt),
   );
   const terminal = (
-    await client.query(
+    await client.query<{ outcome: string }>(
       `
    SELECT
      outcome
@@ -635,7 +635,7 @@ async function settleReceipt(
   }
 
   const current = (
-    await client.query(
+    await client.query<Reservation>(
       `
    SELECT
      id,

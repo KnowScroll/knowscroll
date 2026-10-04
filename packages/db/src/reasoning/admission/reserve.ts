@@ -18,7 +18,6 @@ import {
   validBoundedInteger,
   validateUuid,
   validateFence,
-  transaction,
   validateOwnerAndDuration,
   lockUniverse,
   lockCurrentJob,

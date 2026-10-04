@@ -12,7 +12,6 @@ import type {
   ReasoningAuthority,
 } from '../runtime-policy.ts';
 import type { InquiryRoute } from './shared.ts';
-import { inTransaction } from '../../sql/transactions.ts';
 
 /** Operator/test setup, like `installAskAnswerRoute`. The fairness policy of the same version must
  * already be installed, and must admit this route's largest request as at most one quantum. */
