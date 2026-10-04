@@ -47,7 +47,6 @@ import { inTransaction } from '@knowscroll/db/sql/transactions';
 import type {
   AnswerObservation,
   AnswerTransport,
-  InquiryObservation,
   InquiryTransport,
 } from '../providers/transports.ts';
 import { executeAnswerClaim, type AnswerPass } from './answer-worker.ts';

@@ -19,7 +19,6 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nodeVersionOk } from './host.ts';

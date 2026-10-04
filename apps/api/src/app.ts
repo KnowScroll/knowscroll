@@ -6,9 +6,9 @@
 import Fastify from 'fastify';
 import {
   COMPOSER_SEMANTIC_V3,
-  COMPOSER_SEMANTIC_V4,
+  type COMPOSER_SEMANTIC_V4,
 } from '@knowscroll/core/composer/semantic';
-import { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer/signals';
+import type { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer/signals';
 import { ensureDevelopmentSession, UnauthorizedSession } from '@knowscroll/db';
 import type { MagicLinkRateLimits } from '@knowscroll/db/sign-in';
 import { authenticated } from './http/authenticated.ts';

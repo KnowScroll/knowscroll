@@ -7,7 +7,7 @@ import { setTimeout } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-import { type AuthScope, provisionIdentity } from '@knowscroll/db/identity';
+import { provisionIdentity } from '@knowscroll/db/identity';
 import { pool } from '@knowscroll/db';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');

@@ -51,7 +51,6 @@ const TSX_BIN = join(REPO_ROOT, 'node_modules/.bin/tsx');
 const API_MAIN = join(REPO_ROOT, 'apps/api/src/main.ts');
 const WORKER_MAIN = join(REPO_ROOT, 'apps/worker/src/main.ts');
 const PUBLICATION_CLI = join(REPO_ROOT, 'apps/worker/src/publication/cli.ts');
-const EVIDENCE_DIR = join(REPO_ROOT, 'docs/journeys/evidence/reel-inventory');
 
 const KS_DEV_ROOT = process.env.KS_DEV_ROOT;
 if (!KS_DEV_ROOT)

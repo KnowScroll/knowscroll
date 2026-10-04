@@ -268,7 +268,7 @@ async function ageWithdrawalForTest(
   }
 }
 
-test('sealed Ask context retains the literal fact and cannot substitute its original session', async (t) => {
+test('sealed Ask context retains the literal fact and cannot substitute its original session', async (_t) => {
   await withReasoningContextSchema(
     'ask_context_original_session',
     async (pool) => {

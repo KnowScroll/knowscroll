@@ -39,7 +39,7 @@ export async function recordExposure(
   body: z.infer<typeof exposureInput>,
 ): Promise<{ exposureId: string; eventId: string }> {
   const decision = (
-    await client.query(
+    await client.query<{ candidates: ScrollAsset[]; privacy_epoch: number }>(
       'SELECT candidates, privacy_epoch FROM decision WHERE id=$1 AND universe_id=$2',
       [body.decisionId, scope.universeId],
     )
@@ -49,10 +49,15 @@ export async function recordExposure(
   if (decision.privacy_epoch !== scope.privacyEpoch)
     throw new EncounterError(409, 'Decision belongs to an older privacy epoch');
   const old = (
-    await client.query(
-      'SELECT * FROM exposure WHERE universe_id=$1 AND client_key=$2',
-      [scope.universeId, body.clientExposureId],
-    )
+    await client.query<{
+      id: string;
+      decision_id: string;
+      asset_id: string;
+      event_id: string;
+    }>('SELECT * FROM exposure WHERE universe_id=$1 AND client_key=$2', [
+      scope.universeId,
+      body.clientExposureId,
+    ])
   ).rows[0];
   if (old) {
     if (old.decision_id !== body.decisionId || old.asset_id !== body.assetId)
@@ -123,7 +128,11 @@ export async function recordKeep(
   body: InteractionInput,
 ): Promise<{ eventId: string; jobId: string; status: 'accepted' }> {
   const exposure = (
-    await client.query(
+    await client.query<{
+      event_id: string;
+      asset_id: string;
+      privacy_epoch: number;
+    }>(
       `
         SELECT
           e.event_id,
@@ -144,7 +153,11 @@ export async function recordKeep(
   if (exposure.privacy_epoch !== scope.privacyEpoch)
     throw new EncounterError(409, 'Exposure belongs to an older privacy epoch');
   const old = (
-    await client.query(
+    await client.query<{
+      id: string;
+      payload: Pick<InteractionInput, 'exposureId' | 'assetId'>;
+      job_id: string;
+    }>(
       `
         SELECT
           l.id,

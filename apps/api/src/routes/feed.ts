@@ -1,7 +1,7 @@
 /** `GET /v1/feed`: one composed decision over the candidate assets (ADR-0025, ADR-0032). */
 import type { FastifyInstance } from 'fastify';
 import { parseFeedKinds } from '@knowscroll/contracts/inventory';
-import {
+import type {
   COMPOSER_SEMANTIC_V3,
   COMPOSER_SEMANTIC_V4,
 } from '@knowscroll/core/composer/semantic';

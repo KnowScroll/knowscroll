@@ -20,7 +20,6 @@ import {
   checkMiniMaxQuota,
   MINIMAX_QUOTA_URL,
   validateQuotaResponse,
-  type QuotaObservation,
 } from '../apps/worker/src/providers/minimax-quota.ts';
 export { checkMiniMaxQuota, MINIMAX_QUOTA_URL, validateQuotaResponse };
 

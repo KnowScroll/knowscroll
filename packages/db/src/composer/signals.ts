@@ -21,7 +21,12 @@ export async function loadComposerPolicy(
   version: string,
 ): Promise<ComposerPolicy> {
   const row = (
-    await client.query(
+    await client.query<{
+      version: string;
+      weights: ComposerPolicy['weights'];
+      slate_size: number;
+      max_per_source: number;
+    }>(
       'SELECT version, weights, slate_size, max_per_source FROM composer_policy WHERE version=$1',
       [version],
     )

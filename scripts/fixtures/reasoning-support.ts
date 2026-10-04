@@ -30,7 +30,7 @@ export async function durable(path: string, event: unknown) {
     await file.close();
   }
 }
-export function authority(db: pg.Pool): ReasoningAuthority {
+export function authority(_db: pg.Pool): ReasoningAuthority {
   return {
     resolvePolicy: async (client, scope) =>
       (
@@ -133,8 +133,6 @@ export async function snapshot(
   ids: Record<string, unknown>,
 ): Promise<Snapshot> {
   const u = ids.universeId,
-    a = ids.attemptId,
-    j = ids.jobId,
     b =
       (ids.policy as ResolvedReasoningPolicy | undefined)?.buckets.map(
         (x) => x.bucketId,

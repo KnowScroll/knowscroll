@@ -241,7 +241,7 @@ export async function confirmSignInToken(
   rawToken: string,
 ): Promise<boolean> {
   const row = (
-    await client.query(
+    await client.query<{ '?column?': number }>(
       `
       SELECT
         1

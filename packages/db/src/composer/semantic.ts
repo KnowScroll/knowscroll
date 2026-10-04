@@ -9,7 +9,7 @@ import type pg from 'pg';
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
 import {
   COMPOSER_SEMANTIC_V3,
-  COMPOSER_SEMANTIC_V4,
+  type COMPOSER_SEMANTIC_V4,
   composeSemantic,
   renderReason,
   type Family,
@@ -46,7 +46,12 @@ export async function loadV3Policy(
   version: SemanticPolicyVersion = COMPOSER_SEMANTIC_V3,
 ): Promise<V3Policy> {
   const row = (
-    await client.query(
+    await client.query<{
+      version: string;
+      weights: unknown;
+      slate_size: number;
+      max_per_source: number;
+    }>(
       'SELECT version, weights, slate_size, max_per_source FROM composer_policy WHERE version=$1',
       [version],
     )
@@ -195,7 +200,7 @@ export async function loadV3State(
 
   const kept = new Set<string>(
     ((
-      await client.query(
+      await client.query<{ kept_asset_ids: string[] }>(
         'SELECT kept_asset_ids FROM accounts WHERE universe_id=$1',
         [universeId],
       )

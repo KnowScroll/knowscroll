@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
 
-import { authenticateAndLock } from '@knowscroll/db/identity';
 import { createReasoningFairness } from '@knowscroll/db/reasoning/fairness';
 import {
   cancelIdleDirectJob,
