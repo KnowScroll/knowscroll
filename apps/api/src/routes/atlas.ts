@@ -3,7 +3,7 @@
  *
  * Every read carries `Cache-Control: no-store`. `?webReader=v1` is the only accepted query and
  * selects the reader projection, which drops source titles and source families; any other query is
- * refused with 400 before the db is read.
+ * refused with 400 before the atlas is read.
  *
  *   GET  /v1/atlas                          live places, typed relations between them, chronicle
  *   GET  /v1/atlas/deltas/:deltaId          one change and its evidence
