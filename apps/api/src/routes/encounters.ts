@@ -1,6 +1,6 @@
 /** Exposures, Keeps, the reader's world system and one ledger event (ADR-0004, ADR-0028). */
 import type { FastifyInstance } from 'fastify';
-import { exposureInput, interactionInput, uuid } from '@knowscroll/contracts';
+import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import {
   readLedgerEvent,
   recordExposure,
@@ -9,6 +9,7 @@ import {
 import { readWorldSystem, SHARED_SOURCE_V1 } from '@knowscroll/db/worlds';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
+import { parseInput, requireUuid } from '../http/input.ts';
 
 export function registerEncounterRoutes(
   app: FastifyInstance,
@@ -18,9 +19,7 @@ export function registerEncounterRoutes(
     const result = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = exposureInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid exposure');
-        const body = parsed.data;
+        const body = parseInput(exposureInput, req.body, 'Invalid exposure');
         return recordExposure(client, scope, body);
       },
     );
@@ -38,9 +37,11 @@ export function registerEncounterRoutes(
     const result = await authenticated(
       req.headers.authorization,
       async (scope, client) => {
-        const parsed = interactionInput.safeParse(req.body);
-        if (!parsed.success) throw new HttpError(400, 'Invalid interaction');
-        const body = parsed.data;
+        const body = parseInput(
+          interactionInput,
+          req.body,
+          'Invalid interaction',
+        );
         return recordKeep(client, scope, body);
       },
     );
@@ -56,8 +57,7 @@ export function registerEventRoutes(
     '/v1/events/:eventId',
     async (req) => {
       return authenticated(req.headers.authorization, async (scope, client) => {
-        if (!uuid.safeParse(req.params.eventId).success)
-          throw new HttpError(400, 'Invalid event ID');
+        requireUuid(req.params.eventId, 'Invalid event ID');
         const row = await readLedgerEvent(client, scope, req.params.eventId);
         if (!row) throw new HttpError(404, 'Event not found');
         return row;

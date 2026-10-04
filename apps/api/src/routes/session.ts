@@ -3,12 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { revokeSession } from '@knowscroll/db';
 import type { Authenticated } from '../http/authenticated.ts';
 import { HttpError } from '../http/errors.ts';
+import { noStore } from '../http/input.ts';
 import {
   clearedSessionCookie,
   csrfToken,
   type WebSessionConfig,
 } from '../http/web-session.ts';
 
+/** Revoke takes no input; any body other than `{}` is refused. */
 function emptyObject(value: unknown): value is Record<string, never> {
   return (
     typeof value === 'object' &&
@@ -37,13 +39,13 @@ export function registerSessionRoutes(
     return reply.code(204).send();
   });
 
-  // ADR-0034: the page's CSRF token for its cookie session (derived; survives reloads and tabs).
+  // The token is derived from the cookie session, so it survives reloads and tabs (ADR-0034).
   app.get('/v1/session/csrf', async (req, reply) => {
     await authenticated(req.headers.authorization, async () => undefined);
     if (!req.ksCookieSession)
       throw new HttpError(400, 'Only a cookie session has a CSRF token');
-    return reply
-      .header('Cache-Control', 'no-store')
-      .send({ csrfToken: csrfToken(webSession.secret, req.ksCookieSession) });
+    return noStore(reply).send({
+      csrfToken: csrfToken(webSession.secret, req.ksCookieSession),
+    });
   });
 }

@@ -1,9 +1,9 @@
 /**
- * Recording what a reader was shown and what they kept (ADR-0004, ADR-0005, ADR-0009). Each function runs in
- * the caller's authenticated transaction, under the universe lock it already holds. The ledger event
- * and its exposure or projection job are written together; a retried request with the same client
- * key replays the stored result before anything else runs, and the same key with different content
- * is refused.
+ * Recording what a reader was shown and what they kept. Each function runs in the caller's
+ * authenticated transaction, under the universe lock it already holds. The ledger event and its
+ * exposure or projection job are written together; a retried request with the same client key
+ * replays the stored result before anything else runs, and the same key with different content is
+ * refused (ADR-0004, ADR-0005, ADR-0009).
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -104,12 +104,10 @@ export async function recordExposure(
       body.clientExposureId,
     ],
   );
-  // ADR-0028: a reader encountering more is exactly what keeps their world/system current.
-  // Runs inside this same transaction, under the universe lock `authenticateAndLock` already
-  // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
-  // is the one deterministic projection step that must never lag behind it.
+  // A brand-new exposure is the only new evidence this endpoint produces, so the world projection
+  // must run in this same transaction and never lag behind it (ADR-0028).
   await projectWorldsForEncounter(client, scope.universeId);
-  // ADR-0032: the private personal model follows the same evidence, in the same transaction.
+  // The private personal model follows the same evidence in the same transaction (ADR-0032).
   await refreshPersonalModel(client, scope.universeId);
   return { exposureId, eventId };
 }

@@ -3,6 +3,7 @@ import type pg from 'pg';
 import type { AuthScope } from './identity.ts';
 import { listSavedTraces } from './trace-revisit.ts';
 
+/** Read-only; `capabilities` is a fixed answer for this release, not derived from data. */
 export async function readUniverseSummary(
   client: pg.PoolClient,
   scope: AuthScope,
