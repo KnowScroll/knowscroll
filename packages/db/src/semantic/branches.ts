@@ -27,6 +27,7 @@ import {
 import { isWithin } from '@knowscroll/core/semantic/bridge-validator';
 import { recheckScope, type AuthScope } from '../identity.ts';
 import { observeBranchGap } from '../inventory/demand.ts';
+import { isRecordingPaused } from '../sql/recording-paused.ts';
 import { lockSubstrateShared } from './read-set.ts';
 import { SemanticInputError } from './proposals.ts';
 import { SemanticNotFound } from './corrections.ts';
@@ -550,12 +551,7 @@ export async function openBranch(
 
   // While recording is paused nothing is kept — not the choice, not a decision naming it. The
   // continuation is served for reading only; its exposure and Keep are refused by the pause anyway.
-  const paused = (
-    await client.query<{ paused: boolean }>(
-      'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-      [scope.universeId],
-    )
-  ).rows[0]!.paused;
+  const paused = await isRecordingPaused(client, scope.universeId);
   if (paused) {
     return {
       decisionId: null,

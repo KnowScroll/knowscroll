@@ -9,6 +9,7 @@ import {
 } from '@knowscroll/core/atlas/cartographer';
 import type { PlaceDemand } from '@knowscroll/contracts/inventory';
 import type { RoomSummary } from '@knowscroll/contracts/rooms';
+import { toIsoString } from '../shared/time.ts';
 import { placeDemands } from '../inventory/read.ts';
 import { readPlaceRooms } from '../rooms.ts';
 import { DELTA_PLACES, deltaLine, type DeltaNaming } from './chronicle.ts';
@@ -71,9 +72,6 @@ export interface AtlasView {
     line: string;
   }[];
 }
-
-const iso = (v: unknown) =>
-  (v instanceof Date ? v : new Date(String(v))).toISOString();
 
 /** `anySnapshot`: a change's own evidence keeps naming the claim even after its source was corrected. */
 async function describeRefs(
@@ -345,7 +343,7 @@ export async function readAtlas(
         attention:
           p.kind === 'sighting' ? null : (accounts.get(p.anchor) ?? null),
         scrolls: counts.get(p.placeId) ?? { total: 0, seen: 0 },
-        formedAt: f ? iso(f.created_at) : iso(new Date()),
+        formedAt: f ? toIsoString(f.created_at) : toIsoString(new Date()),
         formedBy: f?.kind ?? 'place_formed',
         foundation: foundationOf(p),
         rooms: rooms.get(p.placeId) ?? [],
@@ -364,7 +362,7 @@ export async function readAtlas(
       parentPlaceId: d.parent_place_id,
       kind: d.kind,
       causalClass: d.causal_class,
-      at: iso(d.created_at),
+      at: toIsoString(d.created_at),
       line: deltaLine(d, nameOf),
     })),
   };
@@ -425,7 +423,7 @@ export async function readAtlasDelta(
     kind: d.kind,
     causalClass: d.causal_class,
     policyVersion: d.policy_version,
-    at: iso(d.created_at),
+    at: toIsoString(d.created_at),
     anchor: { code: d.anchor, name: d.name },
     before: d.before,
     after: d.after,

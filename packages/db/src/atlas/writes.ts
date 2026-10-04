@@ -288,6 +288,7 @@ export async function rejectPlace(
   universeId: string,
   placeId: string,
 ): Promise<{ deltas: number }> {
+  // A missing universe counts as not paused here (`rows[0]?.`), unlike `isRecordingPaused`, which throws.
   const paused = (
     await client.query<{ paused: boolean }>(
       'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',

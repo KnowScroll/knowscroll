@@ -34,6 +34,7 @@ import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning/inquiries.ts';
 import { lockSubstrateShared } from './semantic/read-set.ts';
+import { isRecordingPaused } from './sql/recording-paused.ts';
 
 export class ReturnError extends Error {
   constructor(
@@ -45,6 +46,7 @@ export class ReturnError extends Error {
   }
 }
 
+// Takes only a Date (the shared `toIsoString` also parses strings), so it stays separate.
 const iso = (d: Date) => d.toISOString();
 type Keyed = AwayItem & { key: string };
 
@@ -60,18 +62,6 @@ async function currentMarker(
       )
     ).rows[0]?.through ?? null
   );
-}
-
-async function paused(
-  client: pg.PoolClient,
-  universeId: string,
-): Promise<boolean> {
-  return (
-    await client.query<{ paused: boolean }>(
-      'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-      [universeId],
-    )
-  ).rows[0]!.paused;
 }
 
 /**
@@ -371,7 +361,7 @@ export async function readAway(
     items: picked.items.map(({ key: _key, ...item }) => item as AwayItem),
     more: picked.more,
     nextPage: picked.more > 0 && last ? awayCursor(last) : null,
-    recordingPaused: await paused(client, scope.universeId),
+    recordingPaused: await isRecordingPaused(client, scope.universeId),
   };
 }
 
@@ -459,7 +449,7 @@ export async function acknowledgeAway(
   }
   if (input.expectedPrivacyEpoch !== scope.privacyEpoch)
     throw new ReturnError(409, 'Privacy epoch is stale');
-  if (await paused(client, scope.universeId))
+  if (await isRecordingPaused(client, scope.universeId))
     throw new ReturnError(409, 'Recording is paused');
   const current = await currentMarker(client, scope);
   if (current && nextMarker(iso(current), input.through) === null)

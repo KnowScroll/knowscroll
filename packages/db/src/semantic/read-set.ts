@@ -39,19 +39,7 @@ export async function lockSubstrateShared(
 }
 
 /** Key-sorted JSON so the same payload always hashes the same. */
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value as object)
-      .sort()
-      .map(
-        (k) =>
-          `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`,
-      )
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
+export { canonical as canonicalJson } from '@knowscroll/core/shared/canonical-json';
 export const sha256 = (text: string) =>
   createHash('sha256').update(text, 'utf8').digest('hex');
 

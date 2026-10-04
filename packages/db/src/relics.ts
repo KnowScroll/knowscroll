@@ -35,6 +35,7 @@ import { markedWrong, ReturnError } from './away.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning/inquiries.ts';
 import { lockSubstrateShared } from './semantic/read-set.ts';
+import { isRecordingPaused } from './sql/recording-paused.ts';
 
 type RelicRow = {
   id: string;
@@ -58,14 +59,6 @@ type RelicRow = {
 /** `kept_cursor` is the keep time at the database's microseconds: a page never splits a millisecond. */
 const COLUMNS = `id, kind, kept_at, to_char(kept_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS kept_cursor, cited_claim_keys,
   bridge_id, inquiry_id, validator_version, place_id, place_kind, formation_delta_id, asset_id, asset_revision, scroll_title, claim_id, ask_id`;
-
-const paused = async (client: pg.PoolClient, universeId: string) =>
-  (
-    await client.query<{ paused: boolean }>(
-      'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-      [universeId],
-    )
-  ).rows[0]!.paused;
 
 // Reading --------------------------------------------------------------------------------------
 
@@ -600,7 +593,7 @@ export async function keepRelic(
         relic: await relicView(client, scope, kept),
       },
     };
-  if (await paused(client, scope.universeId))
+  if (await isRecordingPaused(client, scope.universeId))
     throw new ReturnError(409, 'Recording is paused');
   // A source correction takes this lock exclusively: what is read next cannot be withdrawn before
   // the insert, so a racing correction gives a clean refusal, never a guard error (review M2).
@@ -664,7 +657,7 @@ export async function listRelics(
       rows.length > RELIC_LIST_LIMIT && last
         ? relicCursor(last.kept_cursor, last.id)
         : null,
-    recordingPaused: await paused(client, scope.universeId),
+    recordingPaused: await isRecordingPaused(client, scope.universeId),
   };
 }
 
@@ -739,7 +732,7 @@ export async function recordObjection(
       created: false,
       body: { privacyEpoch: scope.privacyEpoch, objectionId: made.id },
     };
-  if (await paused(client, scope.universeId))
+  if (await isRecordingPaused(client, scope.universeId))
     throw new ReturnError(409, 'Recording is paused');
   const id = randomUUID();
   if (input.kind === 'passage') {
@@ -902,7 +895,7 @@ export async function readPassages(
     privacyEpoch: scope.privacyEpoch,
     assetId,
     revision: scroll.revision,
-    recordingPaused: await paused(client, scope.universeId),
+    recordingPaused: await isRecordingPaused(client, scope.universeId),
     passages: passages.map((p) => ({
       claimKey: p.key,
       statement: p.statement,

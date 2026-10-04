@@ -23,6 +23,7 @@ import {
 } from '@knowscroll/core/inventory/quartermaster';
 import type { AuthScope } from '../identity.ts';
 import { lockUniverse, transaction } from '../connection.ts';
+import { isRecordingPaused } from '../sql/recording-paused.ts';
 import { loadSupplyFacts, lockSupply, openRequest } from './supply.ts';
 
 /** Bench value: how many distinct causes one demand keeps. */
@@ -74,18 +75,6 @@ const causeKey = (c: Cause) =>
 const stamped = (value: object) => JSON.stringify(value);
 const APPEND = (column: string, param: string) =>
   `${column} || jsonb_build_array(${param}::jsonb || jsonb_build_object('at', clock_timestamp()))`;
-
-async function isPaused(
-  client: pg.PoolClient,
-  universeId: string,
-): Promise<boolean> {
-  return (
-    await client.query<{ paused: boolean }>(
-      'SELECT recording_paused_at IS NOT NULL AS paused FROM universe WHERE id=$1',
-      [universeId],
-    )
-  ).rows[0]!.paused;
-}
 
 async function conceptParents(
   client: pg.PoolClient,
@@ -148,7 +137,7 @@ export async function observeExhaustion(
   scope: AuthScope,
   decisionId: string,
 ): Promise<void> {
-  if (await isPaused(client, scope.universeId)) return;
+  if (await isRecordingPaused(client, scope.universeId)) return;
   const places = (
     await client.query<{ id: string; concept_id: string; code: string }>(
       `
@@ -205,7 +194,7 @@ export async function observeBranchGap(
     served: string | null;
   },
 ): Promise<void> {
-  if (await isPaused(client, scope.universeId)) return;
+  if (await isRecordingPaused(client, scope.universeId)) return;
   const within = withinConcept(await conceptParents(client), gap.concept);
   if (
     (await eligibleScrolls(client, scope.universeId, gap.served)).some(
@@ -638,7 +627,7 @@ export async function redecideForSupply(
   for (const [universeId, demands] of byUniverse) {
     decided += await transaction(async (client) => {
       await lockUniverse(client, universeId);
-      if (await isPaused(client, universeId)) return 0;
+      if (await isRecordingPaused(client, universeId)) return 0;
       let n = 0;
       for (const id of demands) {
         // Rechecked under the lock: the reader may have cleared, paused or moved on meanwhile.
