@@ -1,5 +1,5 @@
 /**
- * #132 — the worker's Ask-answer consumer (ADR-0033 §2–§4). One pass: fair scheduling admits one
+ * The worker's Ask-answer consumer (ADR-0033 §2–§4). One pass: fair scheduling admits one
  * answer attempt; the reserved bytes are rebuilt from the sealed context and proven; exactly one
  * provider call goes through `invokeReasoningOnce`; the reply is applied only through
  * the answer validator (ask-answer-v2), or the answer fails honestly. Nothing here is reachable from the API process.
@@ -28,6 +28,7 @@ import {
 } from '@knowscroll/db/reasoning/inquiries';
 import type { ReasoningAuthority } from '@knowscroll/db/reasoning/runtime-policy';
 import { createReasoningReconciliation } from '@knowscroll/db/reasoning/reconciliation';
+import { inTransaction } from '@knowscroll/db/sql/transactions';
 import type {
   AnswerObservation,
   AnswerTransport,
@@ -61,24 +62,6 @@ export type InquiryExecutor = (
   },
   scheduled: FairnessScheduled,
 ) => Promise<{ invocation: 'recorded' | 'unknown' | 'not_invoked' }>;
-
-async function inTransaction<T>(
-  pool: pg.Pool,
-  body: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const value = await body(client);
-    await client.query('COMMIT');
-    return value;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
-}
 
 export async function runAnswerPass(deps: {
   pool: pg.Pool;
@@ -214,7 +197,7 @@ export async function executeAnswerClaim(
     leaseFence: claim.leaseFence,
   };
 
-  // #132 review B2: from here on every exit closes the attempt. Never sent → given back at once (all
+  // From here on every exit closes the attempt. Never sent → given back at once (all
   // reservations released); possibly sent or answered-but-unapplied → failed honestly under the
   // lease. If even that fails, the recovery sweep closes it after the lease expires.
   const close = async (): Promise<AnswerOutcome> => {

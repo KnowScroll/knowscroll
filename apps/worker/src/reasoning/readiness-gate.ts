@@ -13,9 +13,8 @@ export type ReadinessGate = ((signal: AbortSignal) => Promise<Readiness>) & {
 
 /**
  * Provider readiness (a quota request that carries the key) is asked at most once per window, not
- * on every loop: a success is trusted for `okMs` while work waits, a refusal backs off for `failMs`
- * (#132 review I2). A dispatch spends the trusted success, so every request, a continuation included,
- * has its own preflight (ADR-0033 §2, ADR-0042 §3).
+ * on every loop: a success is trusted for `okMs` while work waits, a refusal backs off for `failMs`. A dispatch spends the trusted success, so every request, a
+ * continuation included, has its own preflight (ADR-0033 §2, ADR-0042 §3).
  */
 export function createReadinessGate(
   transport: AnswerTransport,

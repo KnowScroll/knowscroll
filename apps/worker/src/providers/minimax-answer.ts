@@ -1,5 +1,5 @@
 /**
- * #132 — the worker-only MiniMax answer transport (ADR-0033 §2), also the background inquiry path's
+ * The worker-only MiniMax answer transport (ADR-0033 §2), also the background inquiry path's
  * (ADR-0038) and model-written Scrolls' (ADR-0041): it sends whatever request bytes it is given.
  * MiniMax-M3 through the fixed Anthropic-compatible subscription route; the caller supplies an
  * `sk-cp-` key from its own process environment. `ready()` runs the quota preflight before anything
@@ -32,6 +32,10 @@ export type MiniMaxTransport = AnswerTransport &
     ): Promise<{ ok: true } | { ok: false; reason: string }>;
   };
 
+/**
+ * The one MiniMax client. Despite the name it serves answers, background inquiries and Scroll
+ * writing alike (the name is referenced by tests and scripts, so it stays).
+ */
 export function createMiniMaxAnswerTransport(options: {
   apiKey: string;
   fetchImpl?: typeof fetch;

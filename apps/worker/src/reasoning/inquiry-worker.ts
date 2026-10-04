@@ -1,5 +1,5 @@
 /**
- * #132 — the worker's background bridge inquiry consumer (ADR-0038 §4–§8). One pass: open the due
+ * The worker's background bridge inquiry consumer (ADR-0038 §4–§8). One pass: open the due
  * inquiries (fresh authority; `nothing_to_ask` never reaches a provider), then fair scheduling
  * admits one attempt; the reserved bytes are rebuilt from the sealed context and proven; exactly one
  * call goes through `invokeReasoningOnce`; the reply changes state only as a proposal that
@@ -36,6 +36,7 @@ import {
   ReasoningDenied,
   type ReasoningAuthority,
 } from '@knowscroll/db/reasoning/runtime-policy';
+import { inTransaction } from '@knowscroll/db/sql/transactions';
 import type {
   AnswerObservation,
   AnswerTransport,
@@ -63,24 +64,6 @@ export type InquiryPass =
   | (InquiryDone & { opened: Record<OpenResult, number> })
   /** The shared scheduler admitted a direct Ask here; the answer path ran it. */
   | { kind: 'answer'; pass: AnswerPass; opened: Record<OpenResult, number> };
-
-async function inTransaction<T>(
-  pool: pg.Pool,
-  body: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const value = await body(client);
-    await client.query('COMMIT');
-    return value;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
-}
 
 export async function runInquiryPass(deps: {
   pool: pg.Pool;

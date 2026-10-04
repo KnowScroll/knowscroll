@@ -1,3 +1,8 @@
+/**
+ * The certification journal (ADR-0011): one UUID run directory under the git-ignored
+ * `artifacts/minimax-certification`, written with exclusive creates, O_APPEND and fsyncs through
+ * symlink-free paths, with each attempt reserved before it is dispatched.
+ */
 import { execFile } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
 import {

@@ -1,5 +1,5 @@
 /**
- * #164 — the worker's writing loop over shared supply requests (ADR-0046 §3).
+ * The worker's writing loop over shared supply requests (ADR-0046 §3).
  *
  * A pass first settles what can no longer be sent as it is (a request on a route that is no longer
  * enabled; a send a dead worker left unsettled) and decides again every demand still waiting on a
