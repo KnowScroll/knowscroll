@@ -40,12 +40,7 @@ after(async () => {
   await pool.end();
 });
 
-const {
-  oneForce: ONE_FORCE,
-  unseenPull: UNSEEN_PULL,
-  oceanRhythm: OCEAN_RHYTHM,
-  starBorn: STAR_BORN,
-} = EDITORIAL;
+const { oneForce: ONE_FORCE, starBorn: STAR_BORN } = EDITORIAL;
 const h = (i: Identity) => ({ authorization: `Bearer ${i.token}` });
 const epoch = async (i: Identity) =>
   (await app.inject({ url: '/v1/universe', headers: h(i) })).json()

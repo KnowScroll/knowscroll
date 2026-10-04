@@ -957,7 +957,7 @@ test('a positive lease_fence is required and a changed fence is refused before s
   );
 });
 
-test('a stamp failure rolls back the Job status', async (t) => {
+test('a stamp failure rolls back the Job status', async (_t) => {
   await withReasoningTerminalSchema('trigger_rollback', async (pool) => {
     const graph = await seedTerminalGraph(pool);
     const before = await readJob(pool, graph.jobId);

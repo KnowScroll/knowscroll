@@ -67,7 +67,7 @@ export function expireGraph(pool: pg.Pool, graph: IdleGraph) {
     }),
   );
 }
-export async function reserveIdleGraph(pool: pg.Pool, graph: IdleGraph) {
+export async function reserveIdleGraph(_pool: pg.Pool, graph: IdleGraph) {
   const owner = 'idle-fixture';
   const claim = await graph.admission.claimJob({ owner, leaseMs: 30_000 });
   if (!claim || claim.jobId !== graph.jobId)

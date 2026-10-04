@@ -18,13 +18,7 @@ import { execFileSync } from 'node:child_process';
 import pg from 'pg';
 import { runMigrations } from '@knowscroll/db/migrations';
 import { trackPoolDisconnect } from './lib/pg-disconnect.ts';
-import {
-  body,
-  bodyHash,
-  metadata,
-  seed,
-  snapshot,
-} from './fixtures/reasoning-support.ts';
+import { metadata, seed, snapshot } from './fixtures/reasoning-support.ts';
 import {
   J004_CASE_NAMES,
   type Barrier,
@@ -1375,7 +1369,7 @@ try {
   );
   for (const c of cases) {
     for (const op of c.operations) {
-      const result = op.result as any;
+      op.result;
       if (
         op.denial &&
         ![

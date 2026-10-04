@@ -476,15 +476,6 @@ function spawnGenerationWorker(
   allSpawned.push(host);
   return host;
 }
-function isStartedLine(
-  value: unknown,
-): value is { service: string; event: string } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as Record<string, unknown>).event === 'started'
-  );
-}
 function isHeldBeforeSubmit(
   value: unknown,
 ): value is { event: string; jobId: string } {
@@ -1595,15 +1586,8 @@ function ownerEngineSnapshot(): {
   };
 }
 
-let ownerBefore: {
-  apiAlive: boolean;
-  workerAlive: boolean;
-  apiStart?: string;
-  workerStart?: string;
-};
-
 await (async () => {
-  ownerBefore = ownerEngineSnapshot();
+  ownerEngineSnapshot();
   try {
     await main();
   } finally {

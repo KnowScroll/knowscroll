@@ -366,7 +366,7 @@ export function enqueue(
   return state;
 }
 function heldFor(
-  policy: FairnessPolicy,
+  _policy: FairnessPolicy,
   state: FairnessSnapshot,
   r: Reservation,
   d: PhysicalDimension,
@@ -482,7 +482,7 @@ function nextCandidate(
     }
     try {
       normalizedCharge(policy, candidate.demand);
-    } catch (error) {
+    } catch (_error) {
       return {
         candidate: null,
         reason: null,
