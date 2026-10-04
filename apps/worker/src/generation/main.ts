@@ -5,22 +5,10 @@
  * route: operator commands live in `scripts/generation.ts`. */
 import { pool } from '@knowscroll/db';
 import { createLocalImportPort } from './import-port.ts';
+import { logError, logLine } from '../runtime/log.ts';
+import { strictIntSetting } from '../runtime/settings.ts';
+import { onStopSignal } from '../runtime/stop-signal.ts';
 import { runLoop } from './worker.ts';
-
-function setting(
-  name: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = process.env[name];
-  if (raw === undefined) return fallback;
-  if (!/^[1-9][0-9]*$/.test(raw)) throw new Error('invalid_config');
-  const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value < min || value > max)
-    throw new Error('invalid_config');
-  return value;
-}
 
 /** `KS_MEDIA_ROOT` is an explicit setting (an absolute path), defaulting under `$KS_DEV_ROOT` when
  * unset. This is KnowScroll's own media store — deployment configuration, never per-attempt data
@@ -42,14 +30,17 @@ async function main(): Promise<void> {
   const owner = `generation-${process.pid}`;
   let leaseMs: number, pollMs: number, idlePollMs: number, mediaRoot: string;
   try {
-    leaseMs = setting('GENERATION_LEASE_MS', 30_000, 1_000, 300_000);
-    pollMs = setting('GENERATION_POLL_MS', 500, 50, 60_000);
-    idlePollMs = setting('GENERATION_IDLE_POLL_MS', 1_000, 100, 60_000);
+    leaseMs = strictIntSetting('GENERATION_LEASE_MS', 30_000, 1_000, 300_000);
+    pollMs = strictIntSetting('GENERATION_POLL_MS', 500, 50, 60_000);
+    idlePollMs = strictIntSetting(
+      'GENERATION_IDLE_POLL_MS',
+      1_000,
+      100,
+      60_000,
+    );
     mediaRoot = mediaRootSetting();
   } catch {
-    console.error(
-      JSON.stringify({ service, event: 'error', code: 'invalid_config' }),
-    );
+    logError({ service, event: 'error', code: 'invalid_config' });
     process.exitCode = 1;
     await pool.end();
     return;
@@ -61,12 +52,9 @@ async function main(): Promise<void> {
     stopping = true;
     stop.abort();
   };
-  process.on('SIGINT', requestStop);
-  process.on('SIGTERM', requestStop);
+  onStopSignal(requestStop);
   pool.on('error', () => {
-    console.error(
-      JSON.stringify({ service, event: 'error', code: 'pool_error' }),
-    );
+    logError({ service, event: 'error', code: 'pool_error' });
     requestStop();
   });
 
@@ -75,23 +63,12 @@ async function main(): Promise<void> {
   const holdBeforeSubmit =
     process.env.GENERATION_HOLD_BEFORE_SUBMIT === '1'
       ? async ({ jobId }: { jobId: string }) => {
-          console.log(
-            JSON.stringify({ service, event: 'held_before_submit', jobId }),
-          );
+          logLine({ service, event: 'held_before_submit', jobId });
           await new Promise<void>(() => {}); // blocks forever; the caller must SIGKILL to proceed.
         }
       : undefined;
 
-  console.log(
-    JSON.stringify({
-      service,
-      event: 'started',
-      owner,
-      leaseMs,
-      pollMs,
-      mediaRoot,
-    }),
-  );
+  logLine({ service, event: 'started', owner, leaseMs, pollMs, mediaRoot });
   try {
     await runLoop(
       {
@@ -107,7 +84,7 @@ async function main(): Promise<void> {
     );
   } finally {
     await pool.end();
-    console.log(JSON.stringify({ service, event: 'stopped' }));
+    logLine({ service, event: 'stopped' });
     if (stopping === false) process.exitCode = 1; // runLoop returned without being asked to stop: unexpected.
   }
 }
