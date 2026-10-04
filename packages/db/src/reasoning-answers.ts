@@ -16,7 +16,7 @@ import {
   serializeAskAnswerRequest,
   validateAskAnswerProposal,
   type AskAnswerSource,
-} from '../../core/src/reasoning/ask-answer.ts';
+} from '@knowscroll/core/reasoning/ask-answer';
 import type { AuthScope } from './identity.ts';
 import { compileDirectAskContext } from './reasoning-ask-context.ts';
 import { createSealedContextAuthority } from './reasoning-context-authority.ts';

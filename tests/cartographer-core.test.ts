@@ -13,7 +13,7 @@ import {
   type PlaceView,
   type PlaceAccount,
   type TypedRelation,
-} from '../packages/core/src/atlas/cartographer.ts';
+} from '@knowscroll/core/atlas/cartographer';
 
 const concepts: ConceptNode[] = [
   { code: 'earth', parent: null, name: 'Earth' },

@@ -10,7 +10,7 @@ import {
   type InventoryResponse,
   type PlaceDemand,
 } from '@knowscroll/contracts/inventory';
-import type { V3Bound } from '../../../core/src/composer/semantic.ts';
+import type { V3Bound } from '@knowscroll/core/composer/semantic';
 import type { AuthScope } from '../identity.ts';
 
 type Row = {

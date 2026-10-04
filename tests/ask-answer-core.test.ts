@@ -12,7 +12,7 @@ import {
   serializeAskAnswerRequest,
   validateAskAnswerProposal,
   type AskAnswerSource,
-} from '../packages/core/src/reasoning/ask-answer.ts';
+} from '@knowscroll/core/reasoning/ask-answer';
 
 const source: AskAnswerSource = {
   question: '  Why does the sea rise twice a day?\n',

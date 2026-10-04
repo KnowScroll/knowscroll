@@ -24,7 +24,7 @@ import {
   type EncounterBranchesResponse,
   type EncounterBranchWire,
 } from '@knowscroll/contracts/semantic';
-import { isWithin } from '../../../core/src/semantic/bridge-validator.ts';
+import { isWithin } from '@knowscroll/core/semantic/bridge-validator';
 import { recheckScope, type AuthScope } from '../identity.ts';
 import { observeBranchGap } from '../inventory/demand.ts';
 import { lockSubstrateShared } from './read-set.ts';

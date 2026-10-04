@@ -14,14 +14,14 @@ import { createHash } from 'node:crypto';
 import {
   MATERIAL_POLICY_VERSION,
   offeredText,
-} from '../../../../packages/core/src/scrolls/material.ts';
+} from '@knowscroll/core/scrolls/material';
 import {
   judgeScrollReply,
   SCROLL_LIMITS,
   SCROLL_WRITING_VERSIONS,
   serializeScrollWritingRequest,
   type ScrollPlanItem,
-} from '../../../../packages/core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/writing';
 import { transaction } from '../../../../packages/db/src/index.ts';
 import {
   admitModelScroll,

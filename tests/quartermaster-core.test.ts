@@ -9,7 +9,7 @@ import {
   decideDemand,
   QUARTERMASTER_V1,
   type DemandFacts,
-} from '../packages/core/src/inventory/quartermaster.ts';
+} from '@knowscroll/core/inventory/quartermaster';
 
 const parents = new Map<string, string | null>([
   ['earth', null],

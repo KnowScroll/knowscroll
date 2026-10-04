@@ -18,7 +18,7 @@ import {
   substrateSeed,
   type SubstrateSeed,
 } from '@knowscroll/contracts/semantic';
-import { normalizeSnapshotText } from '../../packages/core/src/semantic/source-text.ts';
+import { normalizeSnapshotText } from '@knowscroll/core/semantic/source-text';
 
 export type QuoteCheck = {
   claimKey: string;

@@ -14,7 +14,7 @@ import {
   type PlaceAccount,
   type PlaceView,
   type TypedRelation,
-} from '../packages/core/src/atlas/cartographer.ts';
+} from '@knowscroll/core/atlas/cartographer';
 
 const concepts: ConceptNode[] = [
   'physics.gravity',

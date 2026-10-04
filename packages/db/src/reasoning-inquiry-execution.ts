@@ -21,7 +21,7 @@ import {
   serializeBridgeInquiryRequest,
   type AssistantBlock,
   type ContinuationTurn,
-} from '../../core/src/reasoning/bridge-inquiry.ts';
+} from '@knowscroll/core/reasoning/bridge-inquiry';
 import {
   createReasoningAdmission,
   type ReasoningAdmission,

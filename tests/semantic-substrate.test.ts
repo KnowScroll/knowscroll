@@ -21,7 +21,7 @@ import {
 import {
   readSetFromRecord,
   validateBridgeProposal,
-} from '../packages/core/src/semantic/bridge-validator.ts';
+} from '@knowscroll/core/semantic/bridge-validator';
 import {
   loadSubstrateSeed,
   SubstrateSeedConflict,

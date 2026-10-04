@@ -12,13 +12,13 @@ import {
   computeAttentionAccounts,
   decayedMass,
   type EpisodeEvidence,
-} from '../packages/core/src/semantic/attention.ts';
+} from '@knowscroll/core/semantic/attention';
 import {
   proposeHypotheses,
   validateHypothesis,
   type HypothesisProposal,
   type RuleInputs,
-} from '../packages/core/src/semantic/hypotheses.ts';
+} from '@knowscroll/core/semantic/hypotheses';
 
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-09-24T12:00:00Z');

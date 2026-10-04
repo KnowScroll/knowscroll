@@ -5,7 +5,7 @@ import {
   createAuthoredTestScrollWebArtifact,
   createCheckedScrollWebArtifact,
   validateScrollWebArtifact,
-} from '../packages/core/src/scrolls/web-artifact.ts';
+} from '@knowscroll/core/scrolls/web-artifact';
 
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');

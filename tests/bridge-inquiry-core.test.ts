@@ -15,7 +15,7 @@ import {
   type InquiryCandidateInput,
   type InquiryPair,
   type InquirySubstrateClaim,
-} from '../packages/core/src/reasoning/bridge-inquiry.ts';
+} from '@knowscroll/core/reasoning/bridge-inquiry';
 
 const place = (code: string, name: string) => ({
   placeId: `00000000-0000-4000-8000-${createHash('sha256').update(code).digest('hex').slice(0, 12)}`,

@@ -22,10 +22,10 @@ import {
   writeScroll,
   type WriteScrollDeps,
 } from '../apps/worker/src/scrolls/write-scroll.ts';
-import { selectInquiryPairs } from '../packages/core/src/reasoning/bridge-inquiry.ts';
-import { extractVisibleText } from '../packages/core/src/scrolls/material.ts';
-import { SCROLL_LIMITS } from '../packages/core/src/scrolls/writing.ts';
-import { validateScrollWebArtifact } from '../packages/core/src/scrolls/web-artifact.ts';
+import { selectInquiryPairs } from '@knowscroll/core/reasoning/bridge-inquiry';
+import { extractVisibleText } from '@knowscroll/core/scrolls/material';
+import { SCROLL_LIMITS } from '@knowscroll/core/scrolls/writing';
+import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import {
   pool,
   provisionIdentity,

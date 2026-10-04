@@ -16,15 +16,12 @@ import {
   type V3Asset,
   type V3Policy,
   type V3State,
-} from '../../../core/src/composer/semantic.ts';
+} from '@knowscroll/core/composer/semantic';
 import {
   SYMMETRIC_BRIDGE_TYPES,
   type BridgeRelationType,
 } from '@knowscroll/contracts/semantic';
-import {
-  decayedMass,
-  ATTENTION_V1,
-} from '../../../core/src/semantic/attention.ts';
+import { decayedMass, ATTENTION_V1 } from '@knowscroll/core/semantic/attention';
 import type { AuthScope } from '../identity.ts';
 import { loadBoundScrolls } from '../inventory/read.ts';
 import { BRANCH_POLICY_VERSION } from '../semantic/branches.ts';

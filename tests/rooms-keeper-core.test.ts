@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import type {
   ConceptNode,
   TypedRelation,
-} from '../packages/core/src/atlas/cartographer.ts';
+} from '@knowscroll/core/atlas/cartographer';
 import {
   KEEPER_POLICY,
   openingRef,
@@ -22,7 +22,7 @@ import {
   type KeeperPlace,
   type RoomDelta,
   type RoomView,
-} from '../packages/core/src/rooms/keeper.ts';
+} from '@knowscroll/core/rooms/keeper';
 
 const concepts: ConceptNode[] = [
   { code: 'physics', parent: null, name: 'Physics' },

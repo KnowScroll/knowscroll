@@ -29,7 +29,7 @@ import {
   relicCursor,
   relicState,
   type RelicFacts,
-} from '../../core/src/relics.ts';
+} from '@knowscroll/core/relics';
 import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
 import { markedWrong, ReturnError } from './away.ts';
 import type { AuthScope } from './identity.ts';

@@ -20,7 +20,7 @@ import {
   type ReadSetClaim,
   type ReadSetConcept,
   type ReadSetRelation,
-} from '../packages/core/src/semantic/bridge-validator.ts';
+} from '@knowscroll/core/semantic/bridge-validator';
 
 const concept = (
   code: string,

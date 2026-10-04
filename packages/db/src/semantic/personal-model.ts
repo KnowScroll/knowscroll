@@ -15,12 +15,12 @@ import {
   type EpisodeEvidence,
   type MarkKind,
   type NegativeEvidence,
-} from '../../../core/src/semantic/attention.ts';
+} from '@knowscroll/core/semantic/attention';
 import {
   proposeHypotheses,
   validateHypothesis,
   type HypothesisProposal,
-} from '../../../core/src/semantic/hypotheses.ts';
+} from '@knowscroll/core/semantic/hypotheses';
 import { BRANCH_POLICY_VERSION } from './branches.ts';
 import {
   eraseAtlas,

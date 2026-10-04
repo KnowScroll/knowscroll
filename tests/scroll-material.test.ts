@@ -14,7 +14,7 @@ import {
   MATERIAL_FAMILIES,
   MATERIAL_LIMITS,
   offeredText,
-} from '../packages/core/src/scrolls/material.ts';
+} from '@knowscroll/core/scrolls/material';
 import { fetchMaterial } from '../apps/worker/src/scrolls/fetch-material.ts';
 
 test('the allowlist: US federal public-domain hosts over https, OpenStax refused by name', () => {

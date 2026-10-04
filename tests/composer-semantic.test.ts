@@ -18,7 +18,7 @@ import {
   type V3Candidate,
   type V3Policy,
   type V3State,
-} from '../packages/core/src/composer/semantic.ts';
+} from '@knowscroll/core/composer/semantic';
 
 const concepts = new Map([
   ['physics', { code: 'physics', name: 'Physics', parentCode: null }],

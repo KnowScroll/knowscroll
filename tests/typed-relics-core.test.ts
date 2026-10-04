@@ -11,13 +11,13 @@ import {
   awayCursor,
   compareAway,
   parseAwayCursor,
-} from '../packages/core/src/away.ts';
+} from '@knowscroll/core/away';
 import {
   parseRelicCursor,
   relicCursor,
   relicState,
   type RelicFacts,
-} from '../packages/core/src/relics.ts';
+} from '@knowscroll/core/relics';
 import { awayItem, awayResponse } from '@knowscroll/contracts/away';
 import {
   objectionInput,

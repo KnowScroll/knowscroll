@@ -10,12 +10,12 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { MaterialHost } from '../../../core/src/scrolls/material.ts';
+import type { MaterialHost } from '@knowscroll/core/scrolls/material';
 import type {
   CheckedScroll,
   OfferedConcept,
-} from '../../../core/src/scrolls/writing.ts';
-import { createCheckedScrollWebArtifact } from '../../../core/src/scrolls/web-artifact.ts';
+} from '@knowscroll/core/scrolls/writing';
+import { createCheckedScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 

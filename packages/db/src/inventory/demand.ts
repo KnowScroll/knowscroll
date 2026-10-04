@@ -20,7 +20,7 @@ import {
   withinConcept,
   type DemandFacts,
   type QuartermasterDecision,
-} from '../../../core/src/inventory/quartermaster.ts';
+} from '@knowscroll/core/inventory/quartermaster';
 import type { AuthScope } from '../identity.ts';
 import { lockUniverse, transaction } from '../index.ts';
 import { loadSupplyFacts, lockSupply, openRequest } from './supply.ts';

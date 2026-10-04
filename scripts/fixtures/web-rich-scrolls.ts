@@ -5,7 +5,7 @@ import {
   webScrollBlockV1,
   type WebScrollBlockV1,
 } from '@knowscroll/contracts/web-scroll-artifact';
-import { createAuthoredTestScrollWebArtifact } from '../../packages/core/src/scrolls/web-artifact.ts';
+import { createAuthoredTestScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 
 const configured = process.env.DATABASE_URL;
 if (!configured || process.env.KS_RICH_SCROLL_FIXTURE !== '1')

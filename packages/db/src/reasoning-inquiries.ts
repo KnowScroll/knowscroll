@@ -29,7 +29,7 @@ import {
   selectInquiryPairs,
   serializeBridgeInquiryRequest,
   type InquiryPair,
-} from '../../core/src/reasoning/bridge-inquiry.ts';
+} from '@knowscroll/core/reasoning/bridge-inquiry';
 import type { AuthScope } from './identity.ts';
 import { resolveAnswerPolicy } from './reasoning-answers.ts';
 import { createSealedContextAuthority } from './reasoning-context-authority.ts';

@@ -9,7 +9,7 @@ import {
   traceRevisitReceipt,
   webTraceRevisitReceipt,
 } from '@knowscroll/contracts/trace-revisit';
-import { createAuthoredTestScrollWebArtifact } from '../packages/core/src/scrolls/web-artifact.ts';
+import { createAuthoredTestScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import { pool, provisionIdentity } from '../packages/db/src/index.ts';
 import {
   rejectRevisitWrites,

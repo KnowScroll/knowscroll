@@ -4,7 +4,7 @@ import {
   rankSignalCandidates,
   type ComposerPolicy,
   type SignalCandidate,
-} from '../packages/core/src/composer.ts';
+} from '@knowscroll/core/composer';
 import {
   exposureInput,
   interactionInput,

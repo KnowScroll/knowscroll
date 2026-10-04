@@ -10,7 +10,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { buildApp } from '../apps/api/src/app.ts';
-import { compareAway } from '../packages/core/src/away.ts';
+import { compareAway } from '@knowscroll/core/away';
 import {
   awayResponse,
   awayAcknowledgeResponse,

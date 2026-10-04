@@ -21,7 +21,7 @@ import type {
   ReadSetClaim,
   ReadSetConcept,
   ReadSetRelation,
-} from '../../../core/src/semantic/bridge-validator.ts';
+} from '@knowscroll/core/semantic/bridge-validator';
 
 const SUBSTRATE_LOCK = 0x5ea_0131;
 

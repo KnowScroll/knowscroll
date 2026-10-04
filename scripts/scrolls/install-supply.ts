@@ -20,7 +20,7 @@ import { z } from 'zod';
 import {
   scrollPlanItem,
   type ScrollPlanItem,
-} from '../../packages/core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/writing';
 import { localDisposableDatabaseUrl } from '../lib/demo-database-guard.ts';
 
 /** Bench value: the most requests one installed route may hold. */

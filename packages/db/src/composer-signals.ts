@@ -6,7 +6,7 @@ import {
   rankSignalCandidates,
   type ComposerPolicy,
   type SignalCandidate,
-} from '../../core/src/composer.ts';
+} from '@knowscroll/core/composer';
 
 /** ADR-0028 section 2: an immutable, versioned ranking policy. Rows never change once created
  * (migration 0017's `composer_policy_immutable` trigger), so this can be read once per request

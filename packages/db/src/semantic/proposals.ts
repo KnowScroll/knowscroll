@@ -20,7 +20,7 @@ import {
 import {
   sliceReadSet,
   validateBridgeProposal,
-} from '../../../core/src/semantic/bridge-validator.ts';
+} from '@knowscroll/core/semantic/bridge-validator';
 import {
   canonicalJson,
   loadBridgeReadSet,

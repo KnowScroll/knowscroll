@@ -8,7 +8,7 @@
  * for a background inquiry's continuation (ADR-0042 §1) the whole assistant turn and its stop
  * reason. Nothing here is logged or persisted: no prompt, reply, header or key.
  */
-import type { AssistantBlock } from '../../../../packages/core/src/reasoning/bridge-inquiry.ts';
+import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
 import type { AnswerTransport } from '../reasoning/answer-worker.ts';
 import type {
   InquiryObservation,

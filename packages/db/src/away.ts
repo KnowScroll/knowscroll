@@ -25,11 +25,11 @@ import {
   nextMarker,
   parseAwayCursor,
   selectAway,
-} from '../../core/src/away.ts';
+} from '@knowscroll/core/away';
 import {
   roomChronicleLine,
   type RoomRole,
-} from '../../core/src/rooms/keeper.ts';
+} from '@knowscroll/core/rooms/keeper';
 import { DELTA_PLACES, deltaLines, type DeltaNaming } from './atlas.ts';
 import type { AuthScope } from './identity.ts';
 import { bridgeConnection } from './reasoning-inquiries.ts';

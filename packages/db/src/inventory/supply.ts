@@ -15,8 +15,8 @@ import type pg from 'pg';
 import {
   checkMaterialUrl,
   MATERIAL_POLICY_VERSION,
-} from '../../../core/src/scrolls/material.ts';
-import type { ScrollPlanItem } from '../../../core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/material';
+import type { ScrollPlanItem } from '@knowscroll/core/scrolls/writing';
 
 /** Bench value: a request marked `sending` this long ago with no settlement (its worker died) is failed as `outcome_unknown`, never sent again. */
 export const ABANDONED_SEND_MS = 30 * 60_000;

@@ -18,9 +18,9 @@ import {
   type PlaceView,
   type RelationKind,
   type TypedRelation,
-} from '../../core/src/atlas/cartographer.ts';
-import { chronicleLine } from '../../core/src/atlas/chronicle.ts';
-import type { KeeperAsk } from '../../core/src/rooms/keeper.ts';
+} from '@knowscroll/core/atlas/cartographer';
+import { chronicleLine } from '@knowscroll/core/atlas/chronicle';
+import type { KeeperAsk } from '@knowscroll/core/rooms/keeper';
 import type { RoomSummary } from '@knowscroll/contracts/rooms';
 import type { PlaceDemand } from '@knowscroll/contracts/inventory';
 import { placeDemands } from './inventory/read.ts';

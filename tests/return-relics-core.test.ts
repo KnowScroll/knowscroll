@@ -12,7 +12,7 @@ import {
   clampLine,
   nextMarker,
   selectAway,
-} from '../packages/core/src/away.ts';
+} from '@knowscroll/core/away';
 import { awayResponse } from '@knowscroll/contracts/away';
 import { relicWire } from '@knowscroll/contracts/relics';
 

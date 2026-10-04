@@ -31,12 +31,12 @@ import {
   UnauthorizedSession,
   type AuthScope,
 } from '../../../packages/db/src/index.ts';
-import { COMPOSER_SIGNALS_V2 } from '../../../packages/core/src/composer.ts';
-import { validateScrollWebArtifact } from '../../../packages/core/src/scrolls/web-artifact.ts';
+import { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer';
+import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import {
   COMPOSER_SEMANTIC_V3,
   COMPOSER_SEMANTIC_V4,
-} from '../../../packages/core/src/composer/semantic.ts';
+} from '@knowscroll/core/composer/semantic';
 import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts';
 import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
 import { observeExhaustion } from '../../../packages/db/src/inventory/demand.ts';

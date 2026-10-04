@@ -37,12 +37,12 @@ import type {
   ScrollTransport,
   WriteScrollDeps,
 } from '../../apps/worker/src/scrolls/write-scroll.ts';
-import { MATERIAL_POLICY_VERSION } from '../../packages/core/src/scrolls/material.ts';
+import { MATERIAL_POLICY_VERSION } from '@knowscroll/core/scrolls/material';
 import {
   SCROLL_WRITING_VERSIONS,
   scrollPlanItem,
   type ScrollPlanItem,
-} from '../../packages/core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/writing';
 import {
   assertDisposableDatabaseName,
   localDisposableDatabaseUrl,

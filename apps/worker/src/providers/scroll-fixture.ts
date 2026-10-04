@@ -9,7 +9,7 @@ import {
   MATERIAL_MARKER,
   OFFERED_CONCEPTS_MARKER,
   type OfferedConcept,
-} from '../../../../packages/core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/writing';
 import type { AnswerObservation } from '../reasoning/answer-worker.ts';
 import type { ScrollTransport } from '../scrolls/write-scroll.ts';
 

@@ -21,7 +21,7 @@ import {
 import type {
   ConceptNode,
   TypedRelation,
-} from '../../core/src/atlas/cartographer.ts';
+} from '@knowscroll/core/atlas/cartographer';
 import {
   isLiveRoom,
   planRetirements,
@@ -39,7 +39,7 @@ import {
   type RoomRole,
   type RoomState,
   type RoomView,
-} from '../../core/src/rooms/keeper.ts';
+} from '@knowscroll/core/rooms/keeper';
 import type { AuthScope } from './identity.ts';
 
 export class RoomError extends Error {

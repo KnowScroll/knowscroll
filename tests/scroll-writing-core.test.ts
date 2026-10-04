@@ -17,8 +17,8 @@ import {
   scrollPlanItem,
   serializeScrollWritingRequest,
   type ScrollDraft,
-} from '../packages/core/src/scrolls/writing.ts';
-import { normalizeSnapshotText } from '../packages/core/src/semantic/source-text.ts';
+} from '@knowscroll/core/scrolls/writing';
+import { normalizeSnapshotText } from '@knowscroll/core/semantic/source-text';
 
 const MATERIAL =
   normalizeSnapshotText(`Fixture material, written by hand for tests. The Moon pulls on the whole Earth, but it pulls hardest on the side that faces it.

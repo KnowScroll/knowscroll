@@ -14,7 +14,7 @@ import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { atlasResponseSchema } from '@knowscroll/contracts/atlas';
 import { awayResponse } from '@knowscroll/contracts/away';
-import { compareAway } from '../packages/core/src/away.ts';
+import { compareAway } from '@knowscroll/core/away';
 import { roomDeltaResponse, roomResponse } from '@knowscroll/contracts/rooms';
 import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
 import {

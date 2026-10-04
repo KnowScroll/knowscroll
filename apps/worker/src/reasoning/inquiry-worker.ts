@@ -9,7 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { AssistantBlock } from '../../../../packages/core/src/reasoning/bridge-inquiry.ts';
+import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
 import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-admission.ts';
 import {
   createReasoningFairness,

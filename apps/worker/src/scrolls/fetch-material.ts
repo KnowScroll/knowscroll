@@ -15,7 +15,7 @@ import {
   titleSaysNotFound,
   type MaterialHost,
   type MaterialUrlRefusal,
-} from '../../../../packages/core/src/scrolls/material.ts';
+} from '@knowscroll/core/scrolls/material';
 
 const USER_AGENT = 'KnowScroll-material/1 (+personal non-commercial)';
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);

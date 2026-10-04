@@ -19,7 +19,7 @@ import {
 } from '../packages/db/src/index.ts';
 import { readAtlas, runCartographer } from '../packages/db/src/atlas.ts';
 import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import type { PlaceAccount } from '../packages/core/src/atlas/cartographer.ts';
+import type { PlaceAccount } from '@knowscroll/core/atlas/cartographer';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

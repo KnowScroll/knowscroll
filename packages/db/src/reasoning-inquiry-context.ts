@@ -23,7 +23,7 @@ import {
 import type {
   InquiryCandidateInput,
   InquiryPair,
-} from '../../core/src/reasoning/bridge-inquiry.ts';
+} from '@knowscroll/core/reasoning/bridge-inquiry';
 import {
   ReasoningDenied,
   validateReasoningPolicy,

@@ -34,7 +34,7 @@ import {
   COMPOSER_SEMANTIC_V4,
   COMPOSER_V3_POLICY,
   COMPOSER_V4_POLICY,
-} from '../packages/core/src/composer/semantic.ts';
+} from '@knowscroll/core/composer/semantic';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

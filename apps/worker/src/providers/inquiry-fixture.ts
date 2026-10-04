@@ -11,7 +11,7 @@
 import {
   INQUIRY_PAIRS_MARKER,
   type AssistantBlock,
-} from '../../../../packages/core/src/reasoning/bridge-inquiry.ts';
+} from '@knowscroll/core/reasoning/bridge-inquiry';
 import type {
   InquiryObservation,
   InquiryTransport,
