@@ -1,7 +1,12 @@
 /** ADR-0020: unwired, loopback-only protocol client; no funding or publication authority. */
-import { createHash } from 'node:crypto';
 import type { ZodType } from 'zod';
-import { SubmitRequest } from '@knowscroll/contracts/cutroom-v1/request';
+import {
+  identity,
+  isPreparedCutroomRequest,
+  type PreparedCutroomRequest,
+  prepareCutroomRequest,
+  validIdentity,
+} from '@knowscroll/core/cutroom/prepare-request';
 import {
   EventsPage,
   RunResult,
@@ -11,13 +16,9 @@ import {
 import { RunRecord } from '@knowscroll/contracts/cutroom-v1/record';
 import { ErrorResponse } from '@knowscroll/contracts/cutroom-v1/errors';
 
+export { type PreparedCutroomRequest, prepareCutroomRequest };
+
 type Stage = 'plan' | 'stills' | 'video';
-export type PreparedCutroomRequest = Readonly<{
-  requestId: string;
-  until: Stage;
-  body: string;
-  bodySha256: string;
-}>;
 export type CutroomRunRef = Readonly<{
   requestId: string;
   runId: string;
@@ -49,51 +50,8 @@ export type CutroomFailure =
     };
 type Value<T> = { kind: 'ok'; value: T };
 type Pending = { kind: 'pending'; value: RunStatus };
-const preparedRequests = new WeakSet<object>();
-const MAX_REQUEST_BYTES = 256 * 1024;
-
-export function prepareCutroomRequest(input: unknown): PreparedCutroomRequest {
-  const parsed = SubmitRequest.safeParse(input);
-  if (
-    !parsed.success ||
-    !([undefined, 'shotCount'] as unknown[]).includes(
-      parsed.data.options.planVaryOn,
-    )
-  )
-    throw new Error('Invalid Cutroom request');
-  identity(parsed.data.requestId);
-  const body = JSON.stringify(parsed.data);
-  if (Buffer.byteLength(body) > MAX_REQUEST_BYTES)
-    throw new Error('Cutroom request exceeds byte limit');
-  const prepared = Object.freeze({
-    requestId: parsed.data.requestId,
-    until: parsed.data.options.until,
-    body,
-    bodySha256: createHash('sha256').update(body).digest('hex'),
-  });
-  preparedRequests.add(prepared);
-  return prepared;
-}
-
-function validIdentity(value: unknown): value is string {
-  if (
-    typeof value !== 'string' ||
-    value.length === 0 ||
-    Buffer.byteLength(value) > 1024
-  )
-    return false;
-  try {
-    encodeURIComponent(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
 function validRunId(value: unknown): value is string {
   return validIdentity(value) && value !== '.' && value !== '..';
-}
-function identity(value: unknown): asserts value is string {
-  if (!validIdentity(value)) throw new Error('Invalid Cutroom identity');
 }
 function reference(ref: CutroomRunRef) {
   identity(ref?.requestId);
@@ -278,7 +236,7 @@ export function createCutroomHttpClient(options: {
   }
   return Object.freeze({
     submit(prepared: PreparedCutroomRequest, signal?: AbortSignal) {
-      if (!preparedRequests.has(prepared))
+      if (!isPreparedCutroomRequest(prepared))
         throw new Error('Cutroom request must be prepared before submission');
       type Result =
         | {

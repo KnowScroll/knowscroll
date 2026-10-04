@@ -1,6 +1,6 @@
 /**
  * ADR-0023 section 4 — verified local-host import. Entry module: the filesystem half lives here,
- * the ffprobe policy in `import/probe.ts` and the database record in `import/record.ts`.
+ * the ffprobe policy in `import/probe.ts` and the database record in `@knowscroll/db/generation/import`.
  *
  * `importFinishedVideo` never trusts an engine-reported path (ADR-0007/ADR-0020: engine paths are
  * untrusted host metadata with no retention promise), and it never leaves a half-imported asset —
@@ -32,7 +32,7 @@ export {
   type RecordImportedReelOutcome,
   type RecordedMedia,
   recordImportedReel,
-} from './import/record.ts';
+} from '@knowscroll/db/generation/import';
 
 /** Re-exported for existing importers; the profile itself lives in `media-profile.ts`. */
 export { MEDIA_PROFILE } from './media-profile.ts';
