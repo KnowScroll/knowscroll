@@ -1,6 +1,6 @@
 /**
- * #162 — where a model-written Scroll's material may come from, and what of a page it is
- * (ADR-0041 §1–§2). No I/O: the fetcher (`apps/worker/src/scrolls/fetch-material.ts`) asks
+ * Where a model-written Scroll's material may come from, and what of a page it is
+ * (ADR-0041 §1–§2, #162). No I/O: the fetcher (`apps/worker/src/scrolls/fetch-material.ts`) asks
  * `checkMaterialUrl` before every request and every redirect hop, and turns the page it read into
  * material with `extractVisibleText`.
  */

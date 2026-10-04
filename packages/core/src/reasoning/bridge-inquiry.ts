@@ -1,5 +1,5 @@
 /**
- * #132 — the pure background bridge inquiry boundary (ADR-0038 §5 and §7). Three functions, no I/O:
+ * The pure background bridge inquiry boundary (ADR-0038 §5 and §7, #132). Three functions, no I/O:
  *
  * `selectInquiryPairs` decides what a model may be shown: at most three pairs of the reader's live
  * planets/regions that nothing connects yet, each with the currently supported claims about its two
@@ -221,7 +221,7 @@ export function selectInquiryPairs(
             [b.code]: roleOn(c, chainB) ?? 'subject',
           },
         }));
-      // Only a pair the validator could admit is worth a paid request (review I1): the connecting claim
+      // Only a pair the validator could admit is worth a paid request: the connecting claim
       // must name both sides, and each side needs a claim the offer gives to that side.
       if (named.length === 0 || claimsA.length === 0 || claimsB.length === 0)
         continue;

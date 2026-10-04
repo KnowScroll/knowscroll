@@ -1,5 +1,5 @@
 /**
- * #133 — `composer-semantic-v3` (ADR-0032 §3–§4). A pure function from a recorded state snapshot to
+ * `composer-semantic-v3` (ADR-0032 §3–§4, #133). A pure function from a recorded state snapshot to
  * an ordered slate plus the full record of every candidate considered. No database, HTTP, provider
  * or UI import; the caller loads the state with bounded SQL and persists exactly this output.
  *

@@ -1,6 +1,5 @@
-import { compareCodeUnits } from '../shared/compare.ts';
 /**
- * #134 — Cartographer v1 (ADR-0036). Pure: the substrate, the reader's attention accounts and the
+ * Cartographer v1 (ADR-0036, #134). Pure: the substrate, the reader's attention accounts and the
  * current places in; the deltas that should happen out. Every delta carries its cause and evidence;
  * the database applies them and refuses a place change without one.
  *
@@ -10,6 +9,8 @@ import { compareCodeUnits } from '../shared/compare.ts';
  *   admitted bridge away that the reader has never been shown, by substrate degree.
  * - A sighting whose relation is no longer active retires; a rejection is the reader's and is final.
  */
+import { compareCodeUnits } from '../shared/compare.ts';
+
 export const CARTOGRAPHER_V1 = 'cartographer-v1';
 /** v2 (ADR-0037) adds foundation Stars; everything v1 decides is unchanged. */
 export const CARTOGRAPHER_V2 = 'cartographer-v2';

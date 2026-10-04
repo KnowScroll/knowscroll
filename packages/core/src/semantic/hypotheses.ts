@@ -1,5 +1,5 @@
 /**
- * #131 — revisable personal hypotheses (`hypothesis-rules-v1`, ADR-0032 §2). Pure.
+ * Revisable personal hypotheses (`hypothesis-rules-v1`, ADR-0032 §2, #131). Pure.
  *
  * A hypothesis is a typed, evidence-linked, decaying proposal with at least one competing
  * alternative and explicit permitted uses. It stages encounters; it never declares who someone is.

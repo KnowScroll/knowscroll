@@ -1,6 +1,5 @@
-import { round } from '../shared/number.ts';
 /**
- * #131 — attention accounts (`attention-v1`, ADR-0032 §1). Pure: evidence in, per-concept accounts
+ * Attention accounts (`attention-v1`, ADR-0032 §1, #131). Pure: evidence in, per-concept accounts
  * out. An account is a routing aid for the Composer and Cartographer, never a statement about the
  * person: watching contributes a little, voluntary acts contribute more, nothing here can say why.
  *
@@ -8,6 +7,8 @@ import { round } from '../shared/number.ts';
  * being shown + a bonus per distinct voluntary kind (capped) + a separated-return bonus. Credit
  * follows the encounter's annotated concepts by role. Mass decays with a half-life; counts do not.
  */
+import { round } from '../shared/number.ts';
+
 export const ATTENTION_POLICY_V1 = 'attention-v1';
 
 export type MarkKind = 'keep' | 'branch' | 'ask';

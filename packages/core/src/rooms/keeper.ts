@@ -1,5 +1,5 @@
 /**
- * #163 — the Keeper v1 (ADR-0045). Pure: the reader's Asks, places and rooms and the substrate's
+ * The Keeper v1 (ADR-0045, #163). Pure: the reader's Asks, places and rooms and the substrate's
  * currently supported claims in; the room deltas that should happen out. Every delta carries its
  * cause and evidence; the database applies them and refuses a room change without one. No model is
  * called: an inhabitant speaks only through the claims it holds.

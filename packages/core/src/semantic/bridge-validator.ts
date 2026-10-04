@@ -1,5 +1,5 @@
 /**
- * #131 — the deterministic bridge validator (ADR-0031). Pure: it reads only the proposal and a
+ * The deterministic bridge validator (ADR-0031, #131). Pure: it reads only the proposal and a
  * read set the caller assembled under the universe/substrate locks, and returns a decision with a
  * closed vocabulary of reasons. No database, HTTP, provider or UI import (packages/core/AGENTS.md).
  *
@@ -127,6 +127,7 @@ const STOP = new Set([
   'when',
   'about',
 ]);
+// Versioned text rule (bridge-validator-v1): deliberately not shared with `scrolls/writing.ts`'s `words`.
 function words(text: string): Set<string> {
   return new Set(
     text

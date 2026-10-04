@@ -1,5 +1,5 @@
 /**
- * #132 — the pure Ask-answer boundary (ADR-0033). Two functions, no I/O:
+ * The pure Ask-answer boundary (ADR-0033, #132). Two functions, no I/O:
  *
  * `serializeAskAnswerRequest` turns the sealed literal question and the complete Scroll it was asked
  * on into the exact request bytes. Admission reserves their hash; the worker rebuilds the same
@@ -163,6 +163,7 @@ const TRAITS = [
   /\byou(?: clearly| obviously| probably| really)? (?:love|like|prefer|enjoy|adore)\b/g,
   /\byour (?:personality|interests?|nature|curiosity|character|taste|tastes|passion|kind of person)\b/g,
 ];
+// Versioned text rule (ask-answer): deliberately not shared with `semantic/source-text.ts`.
 const normalize = (text: string) =>
   text
     .replace(/[\u2018\u2019\u02bc]/g, "'")
