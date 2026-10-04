@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { WebEncounterBranch, WebEncounterBranchesResponse, WebBranchOpenResponse } from '../../../../packages/contracts/src/semantic.ts';
+import type { WebEncounterBranch, WebEncounterBranchesResponse, WebBranchOpenResponse } from '@knowscroll/contracts/semantic';
 import { ReaderStore } from '../../src/state/readerStore.ts';
 import { MemoryStorageBackend, ReaderStorage } from '../../src/state/storage.ts';
 import { FakeApi, feedItem, universeOf } from './fakeApi.ts';

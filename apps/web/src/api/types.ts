@@ -16,9 +16,9 @@
  * gap in #120/#121 is exactly the failure mode this closes).
  */
 import { z } from 'zod';
-import { webTraceRevisitReceipt, webTraceRevisitScroll } from '../../../../packages/contracts/src/trace-revisit.ts';
-import { accountDeletionInput, privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
-import { ENCOUNTER_SUPPRESSION_DAYS, encounterFeedbackInput, encounterFeedbackKind } from '../../../../packages/contracts/src/composer.ts';
+import { webTraceRevisitReceipt, webTraceRevisitScroll } from '@knowscroll/contracts/trace-revisit';
+import { accountDeletionInput, privacyLifecycleInput, privacyResetInput } from '@knowscroll/contracts';
+import { ENCOUNTER_SUPPRESSION_DAYS, encounterFeedbackInput, encounterFeedbackKind } from '@knowscroll/contracts/composer';
 import {
   capabilitiesSchema,
   traceSchema,
@@ -35,7 +35,7 @@ import {
   type WebFeedResponse as FeedResponse,
   type WorldSummary,
   type WorldSystemResponse,
-} from '../../../../packages/contracts/src/web-bootstrap.ts';
+} from '@knowscroll/contracts/web-bootstrap';
 
 export type ScrollAsset = z.infer<typeof webTraceRevisitScroll>;
 

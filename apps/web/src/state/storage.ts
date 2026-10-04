@@ -9,7 +9,7 @@
  * ADR-0009 fence and the issue's "no restore across a changed epoch" clause.
  */
 import type { FeedItem } from '../api/types.ts';
-import type { BranchOpenInput } from '../../../../packages/contracts/src/semantic.ts';
+import type { BranchOpenInput } from '@knowscroll/contracts/semantic';
 
 const NAMESPACE = 'ks_web_v1';
 const key = (name: string) => `${NAMESPACE}:${name}`;

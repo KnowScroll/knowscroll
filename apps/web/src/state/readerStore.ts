@@ -24,8 +24,8 @@ import type {
 } from '../api/types.ts';
 import { canRequestDiscovery, selectDiscovery, tripExclude, type DiscoveryState, type KeepState } from './discovery.ts';
 import type { ReaderStorage, RevisitSession, ScrollSession } from './storage.ts';
-import type { WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
-import type { BranchOpenInput, WebEncounterBranch } from '../../../../packages/contracts/src/semantic.ts';
+import type { WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
+import type { BranchOpenInput, WebEncounterBranch } from '@knowscroll/contracts/semantic';
 
 function randomUuid(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();

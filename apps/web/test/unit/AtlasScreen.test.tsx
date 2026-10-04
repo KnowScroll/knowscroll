@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AtlasScreen, type AtlasScreenProps } from '../../src/components/AtlasScreen.tsx';
-import type { WebAtlasResponse as AtlasResponse } from '../../../../packages/contracts/src/atlas.ts';
+import type { WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
 
 const planetId = '00000000-0000-4000-8000-000000000001';
 const regionId = '00000000-0000-4000-8000-000000000002';
