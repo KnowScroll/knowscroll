@@ -1,3 +1,7 @@
+// Owns the Job/Attempt/Permit admission lifecycle: claim, reserve, authorize dispatch, withdraw,
+// recover and mark-unknown. Each method owns its transaction and takes locks in the order
+// universe, session, Job, children, fairness, bucket; reordering them risks deadlock or double spend.
+// Helpers live in admission/ (types, guards, reserve).
 import type pg from 'pg';
 import { lockBoundContextSession } from './context-session.ts';
 import { lockFairnessResources } from './fairness-accounting.ts';

@@ -1,3 +1,5 @@
+// One scheduler probe: lock the cursor, inspect a single head, then admit, bypass or dequeue it.
+// Invariant: the whole probe is one transaction, so a claim, debit and reservation commit together.
 import type pg from 'pg';
 import { ReasoningDenied, type ReasoningAuthority } from '../runtime-policy.ts';
 import {
@@ -29,7 +31,7 @@ import {
   policyFor,
 } from './shared.ts';
 
-/** #177: a scheduler's probes run one at a time. Each one that progresses moves the single generation,
+/** A scheduler's probes run one at a time (#177). Each one that progresses moves the single generation,
  * so concurrent probes can only fence each other: one that found the head's universe held by another
  * probe committed a blocked round under it, and two in step did so until both spent every probe.
  * Taken first, while nothing else is held, so it adds no edge to the universe-first lock order. */

@@ -1,3 +1,5 @@
+// Reservation of an Attempt: preflight, reserve and release of unconsumed holds.
+// All run in the caller's transaction; physical bucket locks come after every private lock.
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { lockBoundContextSession } from '../context-session.ts';

@@ -1,3 +1,5 @@
+// Retained reasoning storage: history-clear erase, restricted receipt append and accounting purge.
+// The receipt fingerprint is stored and is JSON.stringify in insertion order, so key order is load-bearing.
 import {
   lockFairnessResources,
   releaseNotSentFairness,

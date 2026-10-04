@@ -1,3 +1,6 @@
+// Owns the fairness scheduler facade: policy install, enqueue and schedule.
+// A probe inspects one head or empty scope per transaction and holds the universe-first lock order.
+// Discovery, probing and enqueue live in fairness/; ADR-0033.
 import type pg from 'pg';
 import { ReasoningDenied, type ReasoningAuthority } from './runtime-policy.ts';
 import {

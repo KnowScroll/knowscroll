@@ -1,3 +1,5 @@
+// Settles receipts against reservations and bucket counters, and pauses fairness on divergence.
+// Settlements are append-only by revision; each new revision supersedes the previous one.
 import {
   lockFairnessResources,
   pauseFairnessForAttempt,
@@ -136,6 +138,7 @@ const mergeUsage = (
   };
 };
 
+// Differs from sql/transactions.ts inTransaction: a failed ROLLBACK propagates.
 async function withTransaction<T>(
   db: pg.Pool,
   fn: (client: pg.PoolClient) => Promise<T>,

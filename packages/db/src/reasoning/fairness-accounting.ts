@@ -1,3 +1,5 @@
+// Fairness credit accounting: lock the scheduler resources, charge, refund and settle per Attempt.
+// Invariant: scheduler resources are always locked before physical bucket locks.
 import type pg from 'pg';
 import {
   fairnessCharge,

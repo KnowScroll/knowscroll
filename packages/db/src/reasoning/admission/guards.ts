@@ -1,3 +1,5 @@
+// Input validation, denial helper and the universe/Job/bucket lock helpers admission shares.
+// Every lock helper expects the caller's open transaction and fixes where in the lock order it sits.
 import type pg from 'pg';
 import {
   ReasoningDenied,
@@ -40,6 +42,8 @@ export async function rollbackQuietly(client: pg.PoolClient): Promise<void> {
   }
 }
 
+// Differs from sql/transactions.ts inTransaction: also maps constraint violations to
+// ReasoningDenied('storage_constraint').
 export async function transaction<T>(
   db: pg.Pool,
   body: (client: pg.PoolClient) => Promise<T>,
@@ -80,6 +84,7 @@ export function validateOwnerAndDuration(
   if (!validBoundedInteger(value, 1, maximum)) deny(`invalid_${kind}_duration`);
 }
 
+// Variant: refuses on a missing universe or a stale epoch; the other lockUniverse copies differ.
 export async function lockUniverse(
   client: pg.PoolClient,
   universeId: string,

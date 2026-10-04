@@ -1,3 +1,5 @@
+// Reads the scheduler state and the head of the next ring without taking locks that a probe later needs.
+// Only constant-size indexed reads happen here; the generation it records is advisory until probe re-checks it.
 import type pg from 'pg';
 import { FAIRNESS_CLASSES } from '../fairness-policy.ts';
 import type { State, Lane, UniverseLane, Ready, Discovery } from './types.ts';

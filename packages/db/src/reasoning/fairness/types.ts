@@ -1,3 +1,4 @@
+// Public and internal row/result types for the fairness scheduler.
 import type {
   ClaimJobInput,
   ReserveAttemptInput,

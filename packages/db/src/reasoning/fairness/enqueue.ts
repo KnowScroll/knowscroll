@@ -1,3 +1,4 @@
+// Adds a queued Job to the fairness ready ring inside the caller's transaction (ADR-0033).
 import type pg from 'pg';
 import { FAIRNESS_CLASSES, fairnessCharge } from '../fairness-policy.ts';
 import type { FairnessReadyInput } from './types.ts';

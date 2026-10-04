@@ -1,3 +1,5 @@
+// Bounded maintenance probes that retire expired Jobs and purge closed accounting.
+// Each probe runs under lock and statement timeouts, and shutdown is observed only between probes.
 import type pg from 'pg';
 
 import { purgeClosedReasoningAccounting } from './storage.ts';
@@ -63,6 +65,7 @@ function isExpectedContention(error: unknown): boolean {
   );
 }
 
+// Differs from sql/transactions.ts inTransaction: sets lock and statement timeouts after BEGIN.
 async function transaction<T>(
   pool: pg.Pool,
   body: (client: pg.PoolClient) => Promise<T>,
@@ -150,6 +153,7 @@ async function expireJob(
   ).changed;
 }
 
+// SKIP LOCKED variant: reports contention instead of waiting; the other lockUniverse copies differ.
 async function lockUniverse(
   client: pg.PoolClient,
   universeId: string,

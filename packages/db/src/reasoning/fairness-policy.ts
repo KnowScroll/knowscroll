@@ -1,3 +1,5 @@
+// Validates and hashes the fairness policy and derives its caps and charges.
+// The policy hash is stored: it is JSON.stringify in insertion order, so key order here is load-bearing.
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { ReasoningDenied } from './runtime-policy.ts';

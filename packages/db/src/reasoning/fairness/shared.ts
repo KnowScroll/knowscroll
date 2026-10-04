@@ -1,3 +1,4 @@
+// Helpers shared by discover, probe and enqueue: denial, the transaction wrapper, policy load and row decode.
 import type pg from 'pg';
 import { ReasoningDenied } from '../runtime-policy.ts';
 import {
@@ -23,6 +24,8 @@ export const nextClass = (klass: FairnessClass) =>
   (FAIRNESS_CLASSES.indexOf(klass) + 1) % FAIRNESS_CLASSES.length;
 export const cap = (value: bigint, maximum: number) =>
   value > BigInt(maximum) ? BigInt(maximum) : value;
+// Same as sql/transactions.ts inTransaction except the ROLLBACK is guarded by try/catch rather
+// than .catch; kept separate because that form is not proven identical.
 export async function tx<T>(
   db: pg.Pool,
   body: (client: pg.PoolClient) => Promise<T>,

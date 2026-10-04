@@ -1,3 +1,5 @@
+// Public input/result types and limits for admission, plus the row shapes its queries read.
+// Kept apart from the entry so guards and reserve can import them without importing admission.ts.
 import type {
   ReasoningBinding,
   ResolvedReasoningPolicy,

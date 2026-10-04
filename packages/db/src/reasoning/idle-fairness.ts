@@ -1,3 +1,5 @@
+// Removes an idle Job from fairness membership and clamps its lanes (ADR-0018).
+// Runs only on locks the caller already holds.
 import type pg from 'pg';
 import { ReasoningDenied } from './runtime-policy.ts';
 
