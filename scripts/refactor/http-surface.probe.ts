@@ -51,7 +51,7 @@ const { csrfToken, webSessionConfig } = await import(
 );
 const { pool, provisionIdentity, transaction } = await import('@knowscroll/db');
 const { projectOne } = await import('../../apps/worker/src/project.ts');
-const { readScroll, EDITORIAL, askAbout } = await import(
+const { readScroll, EDITORIAL } = await import(
   '../../tests/helpers/reading.ts'
 );
 const { COMPOSER_SIGNALS_V2 } = await import(
@@ -2393,7 +2393,7 @@ test('http surface', { timeout: 600_000 }, async () => {
     url: '/v1/relics',
     payload: placeBody,
   });
-  const placeRelic = await call(RELIC_KEEP, 'valid-place', 'keep a place', {
+  await call(RELIC_KEEP, 'valid-place', 'keep a place', {
     method: 'POST',
     url: '/v1/relics',
     headers: A.headers,

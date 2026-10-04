@@ -163,7 +163,7 @@ function literalText(sf, node) {
   return null;
 }
 
-function resolveConst(checker, sf, identifier) {
+function resolveConst(checker, _sf, identifier) {
   let symbol = checker.getSymbolAtLocation(identifier);
   if (symbol && symbol.flags & ts.SymbolFlags.Alias) {
     try {
