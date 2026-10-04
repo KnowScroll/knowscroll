@@ -6,7 +6,7 @@
  * kind. The worker opens a due inquiry (`openDueInquiries`) with fresh authority under the universe
  * lock: consent, recording, route and today's limit, then either `nothing_to_ask` with no Job, or the
  * background Job, its sealed context, one Step and the exact request bytes, enqueued fairly.
- * Execution, application and recovery live in `reasoning-inquiry-execution.ts`. Turning consent off
+ * Execution, application and recovery live in `inquiry-execution.ts`. Turning consent off
  * and pausing withdraw what has not been sent (`withdrawInquiries`); Clear/Reset erase it all.
  */
 import { createHash, randomUUID } from 'node:crypto';

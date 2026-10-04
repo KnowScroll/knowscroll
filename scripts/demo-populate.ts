@@ -1,7 +1,7 @@
 /**
  * demo-populate.ts — fill a disposable universe to a chosen stage so the Cosmos/Living Observatory
  * interface (docs/product/ui-system.md §5b/§5c) can be judged, without waiting on a recommendation
- * engine that does not exist yet (`compose()` in packages/core/src/composer.ts is still only
+ * engine that does not exist yet (`compose()` in packages/core/src/composer/signals.ts is still only
  * "exclude what is kept, take three" — there is no ranking, no inferred interest, nothing to
  * demonstrate progression with otherwise).
  *

@@ -115,7 +115,7 @@ The SQL pass formats static PostgreSQL strings of at least 100 characters passed
 `.query(...)`. It leaves short statements inline and skips dynamic templates, SQL comments, and
 escape syntax for manual review. It changes SQL whitespace and keyword case only; keep parameter
 placeholders and quoted values intact when reviewing a formatting diff. The original-session lock
-query in `reasoning-context-session.ts` retains its leading bytes because an integration test
+query in `reasoning/context-session.ts` retains its leading bytes because an integration test
 observes that exact text in `pg_stat_activity` during a lock wait.
 
 `python3 scripts/android-journey.py` (after sourcing scripts/env.sh) creates a disposable PostgreSQL database, runs API/worker on port4311, installs a separate `.journey` app, and proves process-death restoration, keep/recreation, unavailable-server behavior and compact-screen recovery. It preserves the normal development database and app. Receipts/screenshots go to ignored artifacts/android-journey; reviewed snapshots belong in docs/journeys/evidence.

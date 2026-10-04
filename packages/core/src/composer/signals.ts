@@ -5,7 +5,7 @@ import type { FeedAsset } from '@knowscroll/contracts/inventory';
  * `accounts.kept_asset_ids`, unchanged from the retired bootstrap policy this file used to
  * implement; everything past that — ranking, diversity and the rendered explanation — is a pure
  * function over a signal snapshot the caller fetched with one bounded SQL query
- * (`packages/db/src/composer-signals.ts`) and a registered template it also fetched
+ * (`packages/db/src/composer/signals.ts`) and a registered template it also fetched
  * (`composer_explanation_template`). No database, HTTP, provider or UI import happens here
  * (packages/core/AGENTS.md); the caller (apps/api) owns fetching signals/policy/templates and
  * persisting `decision_signal` rows that record exactly this function's own output, so a later
@@ -68,7 +68,7 @@ export type SignalCandidate = {
   lastExposedAtMs: number | null;
   /** #113/ADR-0029 amendment: total recorded exposures in this universe across every asset that
    * shares this candidate's `sourceKey` — bounded to the sourceKeys present in this request's own
-   * candidate set (`packages/db/src/composer-signals.ts`), never every source the universe has
+   * candidate set (`packages/db/src/composer/signals.ts`), never every source the universe has
    * ever seen. This is the coverage tie-break's only new input. */
   sourceExposureCount: number;
 };
