@@ -1,3 +1,10 @@
+/**
+ * Records an explicit Ask: a reader's question about an exposed Scroll. The ledger key and the
+ * stored payload are what make a retry replay the same receipt; the same client ask id with
+ * different content is refused as a conflict. The source exposure and its asset are re-read and the
+ * authenticated scope rechecked after the asset lock wait, so a correction or Reset that landed
+ * meanwhile refuses the Ask instead of recording against stale ground.
+ */
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 

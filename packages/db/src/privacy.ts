@@ -1,3 +1,9 @@
+/**
+ * Privacy lifecycle: history Clear, pause/resume, export, Reset and account deletion. Each runs in
+ * the caller's authenticated transaction with the universe lock already held, and statement order
+ * and lock order inside them are load-bearing (FK-safe erasure, receipts written before the
+ * deletions their guards permit). ADR-0009, ADR-0010, ADR-0028, ADR-0030, ADR-0035.
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type {
@@ -278,9 +284,8 @@ async function setRecordingPaused(
   action: 'pause' | 'resume',
   input: PrivacyLifecycleInput,
 ): Promise<PrivacyRecordingReceipt> {
-  // The action is part of the replay key. Matching on the request id alone meant a client that
-  // reused an id it had already spent on the opposite action got that earlier receipt back: a
-  // pause request answered 200 with a resume receipt, and recording never stopped. A privacy
+  // The action is part of the replay key: matching on the request id alone would answer a pause
+  // that reuses a spent resume id with the resume receipt while recording never stopped. A privacy
   // control must never report success for something it did not do.
   const old = (
     await client.query(

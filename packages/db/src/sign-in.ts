@@ -1,7 +1,6 @@
 /**
  * ADR-0026 — real sign-in: one owner account, email magic link. Built on migration 0016
- * (`account`, `sign_in_token`, `device_session.origin`/`account_id`), which this lane does not
- * modify. Nothing here erases or reveals history; it only issues/consumes a one-time secret and,
+ * (`account`, `sign_in_token`, `device_session.origin`/`account_id`). Nothing here erases or reveals history; it only issues/consumes a one-time secret and,
  * on success, mints an ordinary `device_session` through the same shape ADR-0009 already defines.
  *
  * Every function here is deliberately silent about *why* a request failed: `requestMagicLink`
@@ -74,7 +73,7 @@ export function requesterFingerprint(rawIdentifier: string): string {
 // ---------------------------------------------------------------------------------------------
 
 /** A sign-in token lives at most 15 minutes (migration 0016's own CHECK constraint enforces the
- * outer bound independently; this is the value this lane actually issues). */
+ * outer bound independently; this is the value actually issued). */
 export const SIGN_IN_TOKEN_TTL_MINUTES = 15;
 
 /** Rate limits (ADR-0026 section 2: "choose and document the numbers"). Fifteen minutes matches

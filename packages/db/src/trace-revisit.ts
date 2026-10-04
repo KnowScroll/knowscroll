@@ -1,3 +1,9 @@
+/**
+ * Reads a kept Trace back as a revisit: resolves the ledger lineage (exposure, decision, Scroll
+ * selection), then compares the Scroll the reader saw with the asset as it is now. The asset is
+ * locked FOR SHARE and the scope rechecked after that wait; a changed source is refused
+ * ('source_changed') rather than shown as if it were the original.
+ */
 import type pg from 'pg';
 
 import { exposureInput, interactionInput } from '@knowscroll/contracts';

@@ -1,3 +1,9 @@
+/**
+ * Device sessions: provisioning, bearer-token authentication and the post-wait recheck. Tokens are
+ * stored only as SHA-256 hashes; never change a hash input, or every stored session stops matching.
+ * `authenticateAndLock` takes the universe lock before any session or domain row (ADR-0009,
+ * ADR-0026, ADR-0035).
+ */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { OWNER_ID, lockUniverse, transaction } from './connection.ts';
