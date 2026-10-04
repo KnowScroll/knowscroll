@@ -1,5 +1,5 @@
 /**
- * #131 — the private personal model (ADR-0032 §1–§2): attention accounts and rule hypotheses,
+ * The private personal model (ADR-0032 §1–§2, #131): attention accounts and rule hypotheses,
  * recomputed from this universe's Ledger in the same transaction that records new evidence.
  *
  * The caller holds the universe lock. Everything here is a projection: Clear/Reset erase it with
@@ -480,8 +480,8 @@ export async function refreshPersonalModel(
     }
   }
 
-  // #134: places follow the accounts just written (ADR-0036), and #163: rooms follow the places and
-  // the reader's Asks (ADR-0045); nothing runs while paused (above).
+  // Places follow the accounts just written (ADR-0036, #134), and rooms follow the places and the
+  // reader's Asks (ADR-0045, #163). Nothing runs while paused.
   const places = await runCartographer(client, universeId, [
     ...accounts.values(),
   ]);

@@ -1,5 +1,5 @@
 /**
- * #164 — reading a reader's inventory (ADR-0046 §2, §6): their demands (`GET /v1/inventory`), each
+ * Reading a reader's inventory (ADR-0046 §2, §6, #164): their demands (`GET /v1/inventory`), each
  * place's live demand (`GET /v1/atlas`) and the bound Scrolls the Composer serves first. A demand
  * names its concept and, once bound, the Scroll's id and title: never a source or its material.
  */

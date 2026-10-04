@@ -1,5 +1,5 @@
 /**
- * #131 — assembling the validator's read set from PostgreSQL, and the substrate lock.
+ * Assembling the validator's read set from PostgreSQL, and the substrate lock (#131).
  *
  * Lock order (ADR-0031 §7): the universe row lock, when a request holds
  * one, always comes first; the substrate advisory lock second. Writers of shared knowledge

@@ -1,5 +1,5 @@
 /**
- * #134 — "While you were away" (ADR-0039 §1-2): what changed in this universe and epoch since the
+ * "While you were away" (ADR-0039 §1-2, #134): what changed in this universe and epoch since the
  * reader's marker that they did not cause, and the marker they move once they have seen it.
  *
  * Sources, each limited to the current epoch:

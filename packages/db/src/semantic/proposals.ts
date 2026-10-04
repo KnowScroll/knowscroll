@@ -1,5 +1,5 @@
 /**
- * #131 — deciding a bridge proposal. One transaction: take the locks, assemble the read set,
+ * Deciding a bridge proposal (#131). One transaction: take the locks, assemble the read set,
  * run the pure validator, record the proposal with the exact read-set slice it was judged on,
  * and — only when admitted — create the bridge and its evidence rows. The database's own
  * commit-time guard (migration 0026) refuses an admitted bridge without current evidence even if

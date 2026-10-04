@@ -1,3 +1,7 @@
+/**
+ * What the Cartographer and the Keeper read: the shared concept substrate and one universe's places.
+ * Read-only; callers hold whatever lock their transaction needs (ADR-0036).
+ */
 import type pg from 'pg';
 import type {
   ConceptNode,

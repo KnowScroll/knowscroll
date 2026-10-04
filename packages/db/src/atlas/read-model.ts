@@ -1,3 +1,7 @@
+/**
+ * The atlas as the reader sees it, and one delta with its evidence (ADR-0036, ADR-0037). Read-only:
+ * every figure is derived from rows, and a connection whose source was revoked is never shown.
+ */
 import type pg from 'pg';
 import {
   CARTOGRAPHER_POLICY,

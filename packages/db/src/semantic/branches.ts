@@ -1,5 +1,5 @@
 /**
- * #131/#134 — the first personal consumer of the substrate: live continuations for one encounter.
+ * The first personal consumer of the substrate: live continuations for one encounter (#131, #134).
  *
  * `listEncounterBranches` offers a continuation only along an admitted, non-suppressed bridge that
  * touches what this encounter is about, to an editorial Scroll about the other side. There is no

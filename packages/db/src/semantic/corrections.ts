@@ -1,5 +1,5 @@
 /**
- * #131 — deterministic correction propagation.
+ * Deterministic correction propagation (#131).
  *
  * A source snapshot is marked corrected or revoked. Then, in the same transaction:
  *   claims that lose their last current `supports` quote become unsupported;

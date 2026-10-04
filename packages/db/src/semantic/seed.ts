@@ -1,5 +1,5 @@
 /**
- * #131 — loading the editorial substrate seed (content/substrate.json) idempotently.
+ * Loading the editorial substrate seed (content/substrate.json) idempotently (#131).
  *
  * Knowledge rows are immutable, so "load" means insert-if-absent and then verify that whatever is
  * present is exactly what the seed says. A different statement under an existing key, or a source

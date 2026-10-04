@@ -1,5 +1,10 @@
+/**
+ * Atlas erasure and export. Erasure deletes deltas before places; the statement order is behavior
+ * and must not change.
+ */
 import type pg from 'pg';
 
+/** Needs the caller's universe lock; runs in the caller's transaction. */
 export async function eraseAtlas(
   client: pg.PoolClient,
   universeId: string,

@@ -1,3 +1,4 @@
+/** Refusals the API maps by `statusCode` (409 conflict, 404 not found) in its global handler. */
 export class AtlasConflict extends Error {
   readonly statusCode = 409;
   constructor(message: string) {

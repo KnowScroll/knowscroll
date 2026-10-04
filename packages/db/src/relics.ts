@@ -1,5 +1,5 @@
 /**
- * #134/#165 — Relics (ADR-0039, ADR-0044): durable, private things the reader deliberately keeps — a
+ * Relics (ADR-0039, ADR-0044; #134, #165): durable, private things the reader deliberately keeps — a
  * connection, one of their places, a passage of a Scroll they read, an answer to their own Ask. The
  * row is immutable and records its provenance here, at keep time; its state is derived when read
  * (core `relicState`: corrected beats doubted, which beats current), so a later source correction, a
@@ -596,7 +596,7 @@ export async function keepRelic(
   if (await isRecordingPaused(client, scope.universeId))
     throw new ReturnError(409, 'Recording is paused');
   // A source correction takes this lock exclusively: what is read next cannot be withdrawn before
-  // the insert, so a racing correction gives a clean refusal, never a guard error (review M2).
+  // the insert, so a racing correction gives a clean refusal, never a guard error.
   await lockSubstrateShared(client);
   const { columns, cited } = await provenanceOf(client, scope, input);
   const names = Object.keys(columns);

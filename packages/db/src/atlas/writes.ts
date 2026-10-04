@@ -1,3 +1,8 @@
+/**
+ * The Cartographer's writes: every place change is inserted together with its delta, in the
+ * caller's transaction under the caller's universe lock (the schema refuses a change without one).
+ * Statement order within a plan is behavior: deltas apply in plan order (ADR-0036, ADR-0037).
+ */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {
@@ -247,7 +252,10 @@ async function applyDeltas(
   return deltas.length;
 }
 
-/** Called by the personal-model refresh after attention accounts are written (never while paused). */
+/**
+ * Called by the personal-model refresh after attention accounts are written (never while paused).
+ * Runs in the caller's transaction and needs the caller's universe lock.
+ */
 export async function runCartographer(
   client: pg.PoolClient,
   universeId: string,
@@ -283,6 +291,11 @@ export async function runKeeper(
   );
 }
 
+/**
+ * The reader sets a planet or region aside. Runs in the caller's transaction under the universe lock.
+ * Refusals: recording paused (409), unknown place (404), a place that is not a live planet or region
+ * (409). Setting aside a place already rejected replays as zero deltas.
+ */
 export async function rejectPlace(
   client: pg.PoolClient,
   universeId: string,

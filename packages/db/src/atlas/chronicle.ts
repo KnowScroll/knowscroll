@@ -1,3 +1,7 @@
+/**
+ * The chronicle's deterministic lines (ADR-0036): wording comes from core's `chronicleLine`, never
+ * from a model. `DELTA_PLACES` is SQL text shared by the readers that name a delta's places.
+ */
 import type pg from 'pg';
 import type { RelationKind } from '@knowscroll/core/atlas/cartographer';
 import { chronicleLine } from '@knowscroll/core/atlas/chronicle';

@@ -1,5 +1,5 @@
 /**
- * #164 — a reader's content demand (ADR-0046 §1–§2, §4–§5, §7).
+ * A reader's content demand (ADR-0046 §1–§2, §4–§5, §7, #164).
  *
  * A demand is written in the transaction that observed the need, never while recording is paused:
  *   - `exhaustion`: a v3 feed decision for a reader with a live planet or region whose subtree holds

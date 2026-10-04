@@ -1,12 +1,12 @@
 /**
- * #163 — the reader's Idea Rooms (ADR-0045). Loads the Keeper's inputs, applies its deltas under the
+ * The reader's Idea Rooms (ADR-0045, #163): loads the Keeper's inputs, applies its deltas under the
  * caller's universe lock, reads the rooms for the atlas and the room sheet, and records the reader
  * setting one aside. Every room and inhabitant change is written with its delta in the same
  * transaction (the schema refuses anything else). No model is called, and no source is ever
  * returned: a claim is its statement and truth state.
  *
- * The Keeper runs where the Cartographer runs (`atlas.ts`), after places, over the places as that
- * plan left them; this module never reads the atlas itself.
+ * The Keeper runs where the Cartographer runs (`atlas/writes.ts`), after places, over the places as
+ * that plan left them; this module never reads the atlas itself.
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
