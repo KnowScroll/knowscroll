@@ -6,11 +6,10 @@
  * Strict: clients refuse an unexpected shape. Imported directly, like `./inquiries.ts`.
  */
 import { z } from 'zod';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import { inquiryFound } from './inquiries.ts';
 import { conceptCode, semanticKey } from './semantic.ts';
 
-const id = z.string().uuid();
-const epoch = z.number().int().min(0).max(2147483647);
 const at = z.string().datetime();
 const revision = z.number().int().min(1).max(2147483647);
 const title = z.string().min(1).max(300);

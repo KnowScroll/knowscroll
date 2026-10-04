@@ -4,14 +4,13 @@
  * refuse an unexpected shape. Imported directly, like `./atlas.ts`.
  */
 import { z } from 'zod';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import {
   bridgeRelationType,
   conceptCode,
   evidenceSupports,
 } from './semantic.ts';
 
-const id = z.string().uuid();
-const epoch = z.number().int().min(0).max(2147483647);
 const at = z.string().datetime();
 
 export const INQUIRY_DAILY_LIMIT = Object.freeze({ default: 3, max: 10 });

@@ -7,9 +7,8 @@
  * Imported directly, like `./away.ts`.
  */
 import { z } from 'zod';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 
-const id = z.string().uuid();
-const epoch = z.number().int().min(0).max(2147483647);
 const at = z.string().datetime();
 
 export const ROOM_CHRONICLE_LIMIT = 50;

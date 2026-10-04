@@ -1,13 +1,12 @@
 import { z } from 'zod';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 
 /** ADR-0012 metadata contracts. Parsing is not authorization or a database transition. */
-const id = z.string().uuid();
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
 const instant = z.iso.datetime({ offset: true });
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveCount = count.min(1);
-const epoch = z.number().int().min(0).max(2147483647);
 /** PostgreSQL bigint wire values never pass through a lossy JS number. */
 export const reasoningCounter = z
   .string()

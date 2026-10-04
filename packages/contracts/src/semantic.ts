@@ -10,6 +10,7 @@
  * attention only — nothing in this file can express a belief, a mastery level or an identity.
  */
 import { z } from 'zod';
+import { privacyEpoch, uuid } from './primitives.ts';
 
 export const SEMANTIC_CONTRACT_VERSION = 'semantic-v1';
 /** The validator policy a decision was made under. A changed rule is a new version, recorded on
@@ -273,7 +274,7 @@ export const substrateSeed = z
     assets: z.array(
       z
         .object({
-          assetId: z.string().uuid(),
+          assetId: uuid,
           concepts: z
             .array(
               z.object({ code: conceptCode, role: assetConceptRole }).strict(),
@@ -309,9 +310,9 @@ export type SourceCorrectionInput = z.infer<typeof sourceCorrectionInput>;
 export const connectionObjection = z.enum(['not_useful', 'seems_wrong']);
 export const connectionFeedbackInput = z
   .object({
-    clientFeedbackId: z.string().uuid(),
-    bridgeId: z.string().uuid(),
-    expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+    clientFeedbackId: uuid,
+    bridgeId: uuid,
+    expectedPrivacyEpoch: privacyEpoch,
     objection: connectionObjection,
   })
   .strict();
@@ -377,8 +378,8 @@ export interface EncounterBranchesResponse {
  * names or URLs from the continuation surface. */
 export const webEncounterBranchSchema = z
   .object({
-    branchId: z.string().uuid(),
-    bridgeId: z.string().uuid(),
+    branchId: uuid,
+    bridgeId: uuid,
     relationType: bridgeRelationType,
     direction: z.enum(['forward', 'reverse']),
     relationPhrase: z.string(),
@@ -400,7 +401,7 @@ export const webEncounterBranchSchema = z
     ),
     target: z
       .object({
-        assetId: z.string().uuid(),
+        assetId: uuid,
         revision: z.number().int().positive(),
         kind: z.literal('Scroll'),
         title: z.string(),
@@ -414,7 +415,7 @@ export type WebEncounterBranch = z.infer<typeof webEncounterBranchSchema>;
 
 export const webEncounterBranchesResponseSchema = z
   .object({
-    assetId: z.string().uuid(),
+    assetId: uuid,
     revision: z.number().int().positive(),
     privacyEpoch: z.number().int().nonnegative(),
     branches: z.array(webEncounterBranchSchema).max(4),
@@ -443,7 +444,7 @@ export type WebEncounterBranchesResponse = z.infer<
  * because this explicit continuation route does not compile media or generated Scroll artifacts. */
 export const webBranchScrollItemSchema = z
   .object({
-    assetId: z.string().uuid(),
+    assetId: uuid,
     revision: z.number().int().positive(),
     kind: z.literal('Scroll'),
     title: z.string(),
@@ -456,16 +457,16 @@ export const webBranchScrollItemSchema = z
   .strict();
 export const webBranchOpenResponseSchema = z
   .object({
-    decisionId: z.string().uuid().nullable(),
-    universeId: z.string().uuid(),
+    decisionId: uuid.nullable(),
+    universeId: uuid,
     accountRevision: z.number().int().nonnegative(),
     privacyEpoch: z.number().int().nonnegative(),
     items: z.array(webBranchScrollItemSchema).length(1),
     branch: z
       .object({
-        branchOpenId: z.string().uuid().nullable(),
+        branchOpenId: uuid.nullable(),
         recorded: z.boolean(),
-        bridgeId: z.string().uuid(),
+        bridgeId: uuid,
         relationType: bridgeRelationType,
         direction: z.enum(['forward', 'reverse']),
       })
@@ -486,11 +487,11 @@ export type WebBranchOpenResponse = z.infer<typeof webBranchOpenResponseSchema>;
 
 export const branchOpenInput = z
   .object({
-    clientBranchId: z.string().uuid(),
-    fromExposureId: z.string().uuid(),
-    bridgeId: z.string().uuid(),
-    targetAssetId: z.string().uuid(),
-    expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+    clientBranchId: uuid,
+    fromExposureId: uuid,
+    bridgeId: uuid,
+    targetAssetId: uuid,
+    expectedPrivacyEpoch: privacyEpoch,
   })
   .strict();
 export type BranchOpenInput = z.infer<typeof branchOpenInput>;

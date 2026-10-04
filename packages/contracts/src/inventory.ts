@@ -8,7 +8,8 @@
  * and, once bound, a Scroll: never a source, a material page or anything the reader wrote.
  */
 import { z } from 'zod';
-import type { ScrollAsset } from './index.ts';
+import { privacyEpoch, uuid as id } from './primitives.ts';
+import type { ScrollAsset } from './ledger.ts';
 import { conceptCode } from './semantic.ts';
 
 /** The two consumption objects the feed can be asked for, in the exact spelling `GET /v1/feed`'s
@@ -43,7 +44,7 @@ export function parseFeedKinds(raw: string | undefined): FeedKindName[] | null {
  */
 export const reelAsset = z
   .object({
-    assetId: z.string().uuid(),
+    assetId: id,
     revision: z.number().int().positive(),
     kind: z.literal('Reel'),
     title: z.string(),
@@ -72,7 +73,6 @@ export type ReelAssetDisplay = z.infer<typeof reelAsset>;
  * changes `ScrollAsset` itself. */
 export type FeedAsset = ScrollAsset | ReelAssetDisplay;
 
-const id = z.string().uuid();
 const reason = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
 
 export const INVENTORY_LIST_LIMIT = 50;
@@ -146,7 +146,7 @@ export type InventoryDemand = z.infer<typeof inventoryDemand>;
 
 export const inventoryResponse = z
   .object({
-    privacyEpoch: z.number().int().min(0).max(2147483647),
+    privacyEpoch,
     /** This epoch's demands, most recently changed first. */
     demands: z.array(inventoryDemand).max(INVENTORY_LIST_LIMIT),
   })

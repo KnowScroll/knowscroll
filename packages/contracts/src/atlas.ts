@@ -4,10 +4,10 @@
  * Imported directly, like `./worlds.ts`.
  */
 import { z } from 'zod';
+import { uuid as id } from './primitives.ts';
 import { roomSummary } from './rooms.ts';
 import { placeDemand } from './inventory.ts';
 
-const id = z.string().uuid();
 const relationKind = z.enum([
   'prerequisite_for',
   'explains',
