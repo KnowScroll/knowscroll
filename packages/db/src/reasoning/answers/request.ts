@@ -97,13 +97,12 @@ export async function requestAskAnswer(
       'Only the session that asked can request its answer',
     );
 
-  const owner =
-    (
-      await client.query<{ bucket_id: string }>(
-        'SELECT bucket_id FROM ask_answer_owner_bucket WHERE policy_version=$1 AND universe_id=$2',
-        [route.policy_version, scope.universeId],
-      )
-    ).rows[0]?.bucket_id ??
+  (
+    await client.query<{ bucket_id: string }>(
+      'SELECT bucket_id FROM ask_answer_owner_bucket WHERE policy_version=$1 AND universe_id=$2',
+      [route.policy_version, scope.universeId],
+    )
+  ).rows[0]?.bucket_id ??
     (await (async () => {
       const id = randomUUID();
       await client.query(

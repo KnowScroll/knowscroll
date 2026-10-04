@@ -356,13 +356,12 @@ export async function openInquiry(
     universeId: inquiry.universe_id,
     privacyEpoch: inquiry.privacy_epoch,
   };
-  const owner =
-    (
-      await client.query<{ bucket_id: string }>(
-        'SELECT bucket_id FROM background_inquiry_owner_bucket WHERE policy_version=$1 AND universe_id=$2',
-        [route.policy_version, scope.universeId],
-      )
-    ).rows[0]?.bucket_id ??
+  (
+    await client.query<{ bucket_id: string }>(
+      'SELECT bucket_id FROM background_inquiry_owner_bucket WHERE policy_version=$1 AND universe_id=$2',
+      [route.policy_version, scope.universeId],
+    )
+  ).rows[0]?.bucket_id ??
     (await (async () => {
       const id = randomUUID();
       await client.query(
