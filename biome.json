@@ -29,23 +29,49 @@
         "useOptionalChain": "off"
       },
       "correctness": {
-        "noUnusedImports": "off",
-        "noUnusedVariables": "off",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error",
         "noUndeclaredDependencies": "error"
       },
       "style": {
         "noNonNullAssertion": "off",
         "useExponentiationOperator": "off",
-        "useImportType": "off",
+        "useImportType": "error",
         "useTemplate": "off"
       },
       "suspicious": {
         "noAssignInExpressions": "off",
-        "noImplicitAnyLet": "off"
+        "noImplicitAnyLet": "off",
+        "noImportCycles": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
       }
     }
   },
   "overrides": [
+    {
+      "includes": [
+        "tests/**",
+        "scripts/**",
+        "ops/**"
+      ],
+      "assist": {
+        "actions": {
+          "source": {
+            "organizeImports": "off"
+          }
+        }
+      }
+    },
     {
       "includes": [
         "packages/contracts/**"
