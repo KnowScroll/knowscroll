@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import {
   ASK_CONTEXT_LIMITS,
@@ -21,11 +20,19 @@ import { explicitAskLedgerKey } from '../explicit-ask.ts';
 import type { AuthScope } from '../identity.ts';
 import {
   ReasoningDenied,
-  validateReasoningPolicy,
   type ReasoningAuthority,
   type ReasoningContextCheck,
-  type ReasoningScope,
 } from './runtime-policy.ts';
+import {
+  deny,
+  canonical,
+  digest,
+  canonicalHash,
+  codepointCompare,
+  asIso,
+  policyDigest,
+  record,
+} from './context-common.ts';
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type ContextResult = {
   contextId: string;
@@ -88,48 +95,6 @@ type DependencyRow = {
   universe_id: string;
   privacy_epoch: number;
 };
-function deny(reason: ContextRefusal): never {
-  throw new ReasoningDenied(`context_${reason}`);
-}
-
-function canonical(value: unknown): string {
-  if (
-    value === null ||
-    typeof value === 'boolean' ||
-    typeof value === 'number' ||
-    typeof value === 'string'
-  )
-    return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
-      .join(',')}}`;
-  }
-  throw new Error('Canonical context values must be JSON data');
-}
-
-function digest(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
-function canonicalHash(value: unknown): string {
-  return digest(canonical(value));
-}
-
-function codepointCompare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function asIso(value: Date | string): string {
-  const date = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(date.getTime()))
-    throw new Error('Invalid stored timestamp');
-  return date.toISOString();
-}
-
 function dependencyIdentity(read: AskContextDependency): string {
   return askContextDependencyKey(read);
 }
@@ -148,31 +113,6 @@ function sortDependencies(
   return [...unique.values()].sort((left, right) =>
     codepointCompare(dependencyIdentity(left), dependencyIdentity(right)),
   );
-}
-
-function policyDigest(
-  policy: unknown,
-  scope: ReasoningScope,
-): { version: string; hash: string } {
-  const resolved = validateReasoningPolicy(policy, scope).policy;
-  const canonicalPolicy = {
-    scope: {
-      jobId: scope.jobId,
-      privacyEpoch: scope.privacyEpoch,
-      universeId: scope.universeId,
-    },
-    policy: {
-      ...resolved,
-      requiredDimensions: [...resolved.requiredDimensions].sort(),
-      buckets: [...resolved.buckets].sort((left, right) =>
-        codepointCompare(left.bucketId, right.bucketId),
-      ),
-    },
-  };
-  return {
-    version: resolved.policyVersion,
-    hash: canonicalHash(canonicalPolicy),
-  };
 }
 
 function scrollFromRow(row: LineageRow): unknown {
@@ -268,12 +208,6 @@ async function lockAssets(
     [sorted],
   );
   if (rows.rowCount !== sorted.length) deny('stale_asset');
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 async function highWater(
