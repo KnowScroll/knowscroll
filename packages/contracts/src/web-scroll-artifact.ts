@@ -1,5 +1,6 @@
 /** Public, declarative web representation of a checked Scroll. No source material or code. */
 import { z } from 'zod';
+import { uuid } from './primitives.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 const textList = (maxItems: number) => z.array(text(800)).min(1).max(maxItems);
@@ -80,7 +81,7 @@ export const webScrollArtifactV1 = z
   .object({
     schemaVersion: z.literal(1),
     level: z.literal('declarative'),
-    assetId: z.string().uuid(),
+    assetId: uuid,
     revision: z.number().int().positive(),
     blocks: z.array(webScrollBlockV1).min(1).max(24),
     accessibility: z.object({ title: text(160) }).strict(),

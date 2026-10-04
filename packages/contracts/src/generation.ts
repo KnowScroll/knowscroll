@@ -2,6 +2,7 @@
  * writes one, and no private universe material may enter it. Parsing is not authorization: a brief
  * grants no budget, engine or dispatch. */
 import { z } from 'zod';
+import { uuid } from './primitives.ts';
 import {
   ClaimRef,
   Criteria,
@@ -14,7 +15,7 @@ import {
 export const briefClaimSource = z
   .strictObject({
     claimId: z.string().min(1),
-    assetId: z.string().uuid(),
+    assetId: uuid,
     assetRevision: z.number().int().positive(),
   })
   .readonly();

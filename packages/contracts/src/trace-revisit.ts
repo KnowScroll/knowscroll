@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { privacyEpoch } from './primitives.ts';
 import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
 const uuid = z
@@ -40,7 +41,7 @@ export const traceRevisitReceipt = z
     mode: z.literal('kept_revisit'),
     traceEventId: uuid,
     universeId: uuid,
-    privacyEpoch: z.number().int().min(0).max(2147483647),
+    privacyEpoch,
     exposureId: uuid,
     keptAt: z.string().datetime({ offset: true }),
     scroll: traceRevisitScroll,

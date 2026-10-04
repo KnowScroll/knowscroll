@@ -1,11 +1,10 @@
 import { z } from 'zod';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import { reasoningCounter } from './reasoning.ts';
 
 /** ADR-0014 internal development contracts. Shape parsing grants no authority. */
-const id = z.string().uuid();
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const label = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/);
-const epoch = z.number().int().min(0).max(2147483647);
 const scope = { universeId: id, privacyEpoch: epoch };
 export const DIRECT_CONTEXT_LIMITS = Object.freeze({
   maxKeeps: 16,

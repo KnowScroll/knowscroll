@@ -5,11 +5,10 @@
  * like `./inquiries.ts`.
  */
 import { z } from 'zod';
+import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import { inquiryFound } from './inquiries.ts';
 import { conceptCode } from './semantic.ts';
 
-const id = z.string().uuid();
-const epoch = z.number().int().min(0).max(2147483647);
 const at = z.string().datetime();
 const reason = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
 const conceptRef = z

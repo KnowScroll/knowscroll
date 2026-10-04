@@ -22,6 +22,7 @@
  * needs to touch either of those existing files, which other work may also be changing.
  */
 import { z } from 'zod';
+import { uuid } from './primitives.ts';
 import { reelAsset } from './inventory.ts';
 import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
@@ -63,7 +64,7 @@ export type Universe = z.infer<typeof universeSchema>;
 /** Both consumption objects carry the Composer's recorded selection reason. */
 const scrollFeedItemSchema = z
   .object({
-    assetId: z.string().uuid(),
+    assetId: uuid,
     revision: z.number().int().positive(),
     kind: z.literal('Scroll'),
     title: z.string(),
