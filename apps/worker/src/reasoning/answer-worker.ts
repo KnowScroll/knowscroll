@@ -9,7 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-admission.ts';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
 import {
   applyAskAnswer,
   failAskAnswer,
@@ -17,17 +17,17 @@ import {
   loadAnswerWork,
   type AnswerOutcome,
   type AnswerWork,
-} from '../../../../packages/db/src/reasoning-answers.ts';
+} from '@knowscroll/db/reasoning-answers';
 import {
   createReasoningFairness,
   type FairnessScheduled,
-} from '../../../../packages/db/src/reasoning-fairness.ts';
+} from '@knowscroll/db/reasoning-fairness';
 import {
   jobFamily,
   sharedReasoningAuthority,
-} from '../../../../packages/db/src/reasoning-inquiries.ts';
-import type { ReasoningAuthority } from '../../../../packages/db/src/reasoning-runtime-policy.ts';
-import { createReasoningReconciliation } from '../../../../packages/db/src/reasoning-reconciliation.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import type { ReasoningAuthority } from '@knowscroll/db/reasoning-runtime-policy';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
 import type { InquiryTransport } from './inquiry-worker.ts';
 import {
   invokeReasoningOnce,

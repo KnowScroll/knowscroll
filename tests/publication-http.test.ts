@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool, provisionIdentity } from '../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
 import { insertFakeEngine } from './helpers/generation-fixture.ts';
 import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts';

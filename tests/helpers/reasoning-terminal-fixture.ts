@@ -10,7 +10,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import pg from 'pg';
 
-import { runMigrations } from '../../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 export const reasoningTerminalDatabaseUrl =
   process.env.DATABASE_URL ??

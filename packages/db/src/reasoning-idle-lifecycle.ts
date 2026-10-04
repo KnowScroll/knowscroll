@@ -1,15 +1,15 @@
 import type pg from 'pg';
 
-import type { AuthScope } from './identity.js';
-import { releaseUnconsumed } from './reasoning-admission.js';
-import { lockFairnessResources } from './reasoning-fairness-accounting.js';
-import { finalizeIdleJobFairness } from './reasoning-idle-fairness.js';
+import type { AuthScope } from './identity.ts';
+import { releaseUnconsumed } from './reasoning-admission.ts';
+import { lockFairnessResources } from './reasoning-fairness-accounting.ts';
+import { finalizeIdleJobFairness } from './reasoning-idle-fairness.ts';
 import {
   IDLE_WITHDRAWAL_LIMITS,
   type IdleDirectJobScope,
   type IdleWithdrawalResult,
-} from './reasoning-idle-lifecycle-contract.js';
-import { ReasoningDenied } from './reasoning-runtime-policy.js';
+} from './reasoning-idle-lifecycle-contract.ts';
+import { ReasoningDenied } from './reasoning-runtime-policy.ts';
 
 type Reason = IdleWithdrawalResult['status'];
 type Job = {

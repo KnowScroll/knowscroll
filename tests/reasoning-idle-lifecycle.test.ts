@@ -3,16 +3,16 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
 
-import { authenticateAndLock } from '../packages/db/src/identity.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { authenticateAndLock } from '@knowscroll/db/identity';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
   isIdleWithdrawalIneligible,
-} from '../packages/db/src/reasoning-idle-lifecycle.ts';
-import { createReasoningMaintenance } from '../packages/db/src/reasoning-maintenance.ts';
-import { createReasoningReconciliation } from '../packages/db/src/reasoning-reconciliation.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-idle-lifecycle';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
 import {
   inTransaction,
   withReasoningContextSchema,

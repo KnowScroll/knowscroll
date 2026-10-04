@@ -18,7 +18,7 @@ if (
   !['localhost', '127.0.0.1'].includes(db.hostname)
 )
   throw Error('Disposable native database required');
-const { pool } = await import('../../packages/db/src/index.ts');
+const { pool } = await import('@knowscroll/db');
 const mediaRoot = process.env.KS_MEDIA_ROOT!;
 if (!mediaRoot.startsWith('/Volumes/'))
   throw Error('SSD media directory required');

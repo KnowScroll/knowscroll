@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
-import { compileDirectContext } from '../packages/db/src/reasoning-context.ts';
-import { createSealedContextAuthority } from '../packages/db/src/reasoning-context-authority.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { createReasoningMaintenance } from '../packages/db/src/reasoning-maintenance.ts';
+import { compileDirectContext } from '@knowscroll/db/reasoning-context';
+import { createSealedContextAuthority } from '@knowscroll/db/reasoning-context-authority';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
 import {
   attachPendingStep,
   inTransaction,

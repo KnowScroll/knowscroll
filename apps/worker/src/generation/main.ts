@@ -3,7 +3,7 @@
  * hold theirs — and is given only the engine registry (loopback origins), `KS_MEDIA_ROOT`
  * (KnowScroll's own media store) and the pool from `packages/db/src/index.ts`. No public HTTP
  * route: operator commands live in `scripts/generation.ts`. */
-import { pool } from '../../../../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 import { createLocalImportPort } from './import-port.ts';
 import { runLoop } from './worker.ts';
 

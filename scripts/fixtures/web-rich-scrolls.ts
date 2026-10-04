@@ -17,7 +17,7 @@ if (
 ) {
   throw new Error('Disposable loopback database required');
 }
-const { pool } = await import('../../packages/db/src/index.ts');
+const { pool } = await import('@knowscroll/db');
 
 type Row = { id: string; revision: number; title: string; body: string };
 function paragraphs(body: string): string[] {

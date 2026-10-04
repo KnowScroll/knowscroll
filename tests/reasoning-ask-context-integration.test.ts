@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { compileDirectContext } from '../packages/db/src/reasoning-context.ts';
-import { lockBoundContextSession } from '../packages/db/src/reasoning-context-session.ts';
-import { compileDirectAskContext } from '../packages/db/src/reasoning-ask-context.ts';
-import { createSealedContextAuthority } from '../packages/db/src/reasoning-context-authority.ts';
-import { recordExplicitAsk } from '../packages/db/src/explicit-ask.ts';
-import { createReasoningAdmission } from '../packages/db/src/reasoning-admission.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
+import { compileDirectContext } from '@knowscroll/db/reasoning-context';
+import { lockBoundContextSession } from '@knowscroll/db/reasoning-context-session';
+import { compileDirectAskContext } from '@knowscroll/db/reasoning-ask-context';
+import { createSealedContextAuthority } from '@knowscroll/db/reasoning-context-authority';
+import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

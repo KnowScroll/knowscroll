@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
 import pg from 'pg';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 import { generationBrief } from '@knowscroll/contracts/generation';
 import {
   importFinishedVideo,

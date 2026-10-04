@@ -1,4 +1,4 @@
-import { transaction, lockUniverse } from '../../../packages/db/src/index.ts';
+import { transaction, lockUniverse } from '@knowscroll/db';
 
 export type ProjectionResult = {
   jobId: string;

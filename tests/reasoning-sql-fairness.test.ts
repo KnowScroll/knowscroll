@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   fairnessAuthority,
   seedFairnessGraph,

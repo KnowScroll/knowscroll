@@ -23,11 +23,9 @@ process.env.KS_DEV_ROOT = scratch;
 
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
-const { pool, ensureDevelopmentSession } = await import(
-  '../packages/db/src/index.ts'
-);
+const { pool, ensureDevelopmentSession } = await import('@knowscroll/db');
 const { resolveOwnerEmail, requestMagicLink } = await import(
-  '../packages/db/src/sign-in.ts'
+  '@knowscroll/db/sign-in'
 );
 const { carryGravityQuestion } = await import('./helpers/rooms.ts');
 const { readScroll } = await import('./helpers/reading.ts');

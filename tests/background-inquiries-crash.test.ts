@@ -11,17 +11,13 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { answerFairnessPolicy } from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
-} from '../packages/db/src/reasoning-inquiries.ts';
+} from '@knowscroll/db/reasoning-inquiries';
 import {
   formPlaces,
   loadInquiryFixture,

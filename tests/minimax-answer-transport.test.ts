@@ -11,7 +11,7 @@ import {
 } from '../apps/worker/src/providers/minimax-answer.ts';
 import { createReadinessGate } from '../apps/worker/src/reasoning/answer-worker.ts';
 import { MINIMAX_QUOTA_URL } from '../apps/worker/src/providers/minimax-quota.ts';
-import type { AnswerWork } from '../packages/db/src/reasoning-answers.ts';
+import type { AnswerWork } from '@knowscroll/db/reasoning-answers';
 
 const key = `sk-cp-${'x'.repeat(24)}`;
 const quota = (interval: number, weekly: number) => ({

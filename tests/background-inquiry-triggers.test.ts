@@ -13,17 +13,13 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import {
   mailRevokedConnections,
   openDueInquiries,
-} from '../packages/db/src/reasoning-inquiries.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
 import {

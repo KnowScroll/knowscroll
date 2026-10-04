@@ -6,13 +6,13 @@ import { traceRevisitReceipt } from '@knowscroll/contracts/trace-revisit';
 import {
   authenticateAndLock,
   UnauthorizedSession,
-} from '../packages/db/src/identity.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+} from '@knowscroll/db/identity';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   listSavedTraces,
   readTraceRevisit,
   TraceRevisitError,
-} from '../packages/db/src/trace-revisit.ts';
+} from '@knowscroll/db/trace-revisit';
 import {
   inRevisitTransaction,
   rejectRevisitWrites,

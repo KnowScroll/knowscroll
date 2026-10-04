@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { buildApp } from '../../apps/api/src/app.ts';
 import { projectOne } from '../../apps/worker/src/project.ts';
-import { pool, provisionIdentity } from '../../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
 
 /** Asks the feed for more, skipping what this trip already saw, until the target is offered; exposes
  * only it, and keeps it when asked (its projection job runs at once). The library bounds the trip:

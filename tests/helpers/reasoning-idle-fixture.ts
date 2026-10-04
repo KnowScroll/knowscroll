@@ -1,16 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
-import { authenticateAndLock } from '../../packages/db/src/identity.ts';
-import { createReasoningAdmission } from '../../packages/db/src/reasoning-admission.ts';
+import { authenticateAndLock } from '@knowscroll/db/identity';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
 import {
   compileDirectContext,
   createDirectContextAuthority,
-} from '../../packages/db/src/reasoning-context.ts';
+} from '@knowscroll/db/reasoning-context';
 import {
   cancelIdleDirectJob,
   expireIdleDirectJob,
-} from '../../packages/db/src/reasoning-idle-lifecycle.ts';
+} from '@knowscroll/db/reasoning-idle-lifecycle';
 import {
   attachPendingStep,
   inTransaction,

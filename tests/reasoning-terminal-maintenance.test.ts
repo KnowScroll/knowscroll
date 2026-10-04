@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
-import { createReasoningMaintenance } from '../packages/db/src/reasoning-maintenance.ts';
-import { createReasoningReconciliation } from '../packages/db/src/reasoning-reconciliation.ts';
-import { authenticateAndLock } from '../packages/db/src/identity.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { authenticateAndLock } from '@knowscroll/db/identity';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   seedIdleGraph,
   reserveIdleGraph,

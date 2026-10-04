@@ -25,7 +25,7 @@ import {
   type ReasoningAuthority,
   type ReasoningContextCheck,
   type ReasoningScope,
-} from './reasoning-runtime-policy.js';
+} from './reasoning-runtime-policy.ts';
 type PolicyResolver = ReasoningAuthority['resolvePolicy'];
 type ContextResult = {
   contextId: string;

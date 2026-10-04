@@ -1,4 +1,4 @@
-import { expireIdleDirectJob } from './reasoning-idle-lifecycle.js';
+import { expireIdleDirectJob } from './reasoning-idle-lifecycle.ts';
 import { lockBoundContextSession } from './reasoning-context-session.ts';
 import type pg from 'pg';
 import {
@@ -8,11 +8,11 @@ import {
   type ClaimJobInput,
   type ReserveAttemptInput,
   type ReservedAttempt,
-} from './reasoning-admission.js';
+} from './reasoning-admission.ts';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
-} from './reasoning-runtime-policy.js';
+} from './reasoning-runtime-policy.ts';
 import {
   FAIRNESS_CLASSES,
   FAIRNESS_WEIGHTS,
@@ -22,7 +22,7 @@ import {
   validateFairnessPolicy,
   type FairnessClass,
   type SqlFairnessPolicy,
-} from './reasoning-fairness-policy.js';
+} from './reasoning-fairness-policy.ts';
 
 export type FairnessReadyInput = Omit<
   ReserveAttemptInput,

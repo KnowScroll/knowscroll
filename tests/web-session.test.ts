@@ -20,8 +20,8 @@ process.env.KS_DEV_ROOT = scratch;
 
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { webSessionConfig } = await import('../apps/api/src/web-session.ts');
-const { pool } = await import('../packages/db/src/index.ts');
-const { resolveOwnerEmail } = await import('../packages/db/src/sign-in.ts');
+const { pool } = await import('@knowscroll/db');
+const { resolveOwnerEmail } = await import('@knowscroll/db/sign-in');
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

@@ -5,7 +5,7 @@ import {
   fairnessUniverseCap,
   validateFairnessPolicy,
   type FairnessClass,
-} from './reasoning-fairness-policy.js';
+} from './reasoning-fairness-policy.ts';
 
 /** Caller holds universe and affected accounting locks. All scheduler resources
  * precede physical bucket locks; multi-attempt operations acquire the union once.

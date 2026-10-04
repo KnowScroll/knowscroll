@@ -49,9 +49,7 @@ const { buildApp } = await import('../../apps/api/src/app.ts');
 const { csrfToken, webSessionConfig } = await import(
   '../../apps/api/src/web-session.ts'
 );
-const { pool, provisionIdentity, transaction } = await import(
-  '../../packages/db/src/index.ts'
-);
+const { pool, provisionIdentity, transaction } = await import('@knowscroll/db');
 const { projectOne } = await import('../../apps/worker/src/project.ts');
 const { readScroll, EDITORIAL, askAbout } = await import(
   '../../tests/helpers/reading.ts'
@@ -67,11 +65,11 @@ const { seedTraceRevisitGraph } = await import(
 const { gateTestReel, mintGatedTestReel } = await import(
   '../fixtures/gated-reel.ts'
 );
-const { resolveOwnerEmail } = await import('../../packages/db/src/sign-in.ts');
+const { resolveOwnerEmail } = await import('@knowscroll/db/sign-in');
 const { installAskAnswerRoute, answerAuthority, answerFairnessPolicy } =
-  await import('../../packages/db/src/reasoning-answers.ts');
+  await import('@knowscroll/db/reasoning-answers');
 const { createReasoningFairness } = await import(
-  '../../packages/db/src/reasoning-fairness.ts'
+  '@knowscroll/db/reasoning-fairness'
 );
 const { runAnswerPass } = await import(
   '../../apps/worker/src/reasoning/answer-worker.ts'

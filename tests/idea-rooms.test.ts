@@ -17,12 +17,8 @@ import { awayResponse } from '@knowscroll/contracts/away';
 import { compareAway } from '@knowscroll/core/away';
 import { roomDeltaResponse, roomResponse } from '@knowscroll/contracts/rooms';
 import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { drain, withdraw } from './helpers/corrections.ts';
 import { insertScroll } from './helpers/inquiry-fixture.ts';
 import { askAbout, readFirstOffered, readScroll } from './helpers/reading.ts';

@@ -16,24 +16,20 @@ import {
   inquiriesResponse,
   inquiryConsentResponse,
 } from '@knowscroll/contracts/inquiries';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { answerFairnessPolicy } from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
   openDueInquiries,
   openInquiry,
   resolveInquiryPolicy,
-} from '../packages/db/src/reasoning-inquiries.ts';
-import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
-import { validateInquiryContext } from '../packages/db/src/reasoning-inquiry-context.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+import { validateInquiryContext } from '@knowscroll/db/reasoning-inquiry-context';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import {
   executeInquiryClaim,
   runInquiryPass,

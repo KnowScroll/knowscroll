@@ -10,19 +10,15 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { answerFairnessPolicy } from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
   openDueInquiries,
-} from '../packages/db/src/reasoning-inquiries.ts';
-import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
 import {
   runInquiryPass,
   type InquiryTransport,

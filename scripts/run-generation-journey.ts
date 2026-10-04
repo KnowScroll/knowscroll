@@ -26,7 +26,7 @@ import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import pg from 'pg';
 
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 import {
   generationBrief,
   type GenerationBrief,

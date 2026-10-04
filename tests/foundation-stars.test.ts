@@ -12,13 +12,9 @@ import {
   atlasDeltaSchema,
   atlasResponseSchema,
 } from '@knowscroll/contracts/atlas';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { readAtlas, runCartographer } from '../packages/db/src/atlas.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { readAtlas, runCartographer } from '@knowscroll/db/atlas';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import type { PlaceAccount } from '@knowscroll/core/atlas/cartographer';
 
 if (

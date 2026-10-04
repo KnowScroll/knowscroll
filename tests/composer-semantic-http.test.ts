@@ -14,22 +14,18 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import type {
   EncounterFeedbackReceipt,
   WhyResponseWire,
 } from '@knowscroll/contracts/composer';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import {
   makeSemanticFixture,
   type SemanticFixture,
 } from './helpers/semantic-fixture.ts';
-import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
-import { loadV3Policy } from '../packages/db/src/composer/semantic.ts';
+import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
+import { loadV3Policy } from '@knowscroll/db/composer/semantic';
 import {
   COMPOSER_SEMANTIC_V4,
   COMPOSER_V3_POLICY,

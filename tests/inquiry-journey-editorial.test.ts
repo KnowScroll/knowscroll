@@ -14,17 +14,13 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { buildApp } from '../apps/api/src/app.ts';
 import type { EncounterBranchesResponse } from '@knowscroll/contracts/semantic';
 import { inquiriesResponse } from '@knowscroll/contracts/inquiries';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { answerFairnessPolicy } from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
-} from '../packages/db/src/reasoning-inquiries.ts';
+} from '@knowscroll/db/reasoning-inquiries';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
 import { formPlaces } from './helpers/inquiry-fixture.ts';

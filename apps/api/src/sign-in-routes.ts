@@ -7,14 +7,14 @@ import {
   magicLinkRequestInput,
   signInConfirmQuery,
 } from '@knowscroll/contracts';
-import { transaction } from '../../../packages/db/src/index.ts';
+import { transaction } from '@knowscroll/db';
 import {
   confirmSignInToken,
   consumeSignInToken,
   requestMagicLink,
   type MagicLinkRateLimits,
   requesterFingerprint,
-} from '../../../packages/db/src/sign-in.ts';
+} from '@knowscroll/db/sign-in';
 import {
   createMagicLinkSender,
   type MagicLinkSender,

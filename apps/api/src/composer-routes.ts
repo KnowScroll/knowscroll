@@ -6,8 +6,8 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { uuid } from '@knowscroll/contracts';
-import { readWhy } from '../../../packages/db/src/composer/semantic.ts';
-import { recordEncounterFeedback } from '../../../packages/db/src/composer/feedback.ts';
+import { readWhy } from '@knowscroll/db/composer/semantic';
+import { recordEncounterFeedback } from '@knowscroll/db/composer/feedback';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 

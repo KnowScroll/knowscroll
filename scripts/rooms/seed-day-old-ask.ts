@@ -160,10 +160,8 @@ async function keepOneForceManyJobs(): Promise<string> {
   );
 }
 
-const { pool, transaction } = await import('../../packages/db/src/index.ts');
-const { loadSubstrateSeed } = await import(
-  '../../packages/db/src/semantic/seed.ts'
-);
+const { pool, transaction } = await import('@knowscroll/db');
+const { loadSubstrateSeed } = await import('@knowscroll/db/semantic/seed');
 const { backdateOneDay } = await import('../lib/backdate.ts');
 try {
   const loaded = await transaction((client) =>

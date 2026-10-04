@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { recordExplicitAsk } from '../../packages/db/src/explicit-ask.ts';
+import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
 import {
   compileDirectAskContext,
   validateDirectAskContext,
-} from '../../packages/db/src/reasoning-ask-context.ts';
+} from '@knowscroll/db/reasoning-ask-context';
 import {
   attachPendingStep,
   inTransaction,

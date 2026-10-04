@@ -1,5 +1,5 @@
 import { buildApp } from './app.ts';
-import { pool } from '../../../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 if (process.env.NODE_ENV === 'production')
   throw new Error(
     'Bootstrap identity is development-only; implement production authentication before deployment',

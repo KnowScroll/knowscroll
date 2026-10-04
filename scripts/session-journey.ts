@@ -7,11 +7,8 @@ import { setTimeout } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-import {
-  type AuthScope,
-  provisionIdentity,
-} from '../packages/db/src/identity.ts';
-import { pool } from '../packages/db/src/index.ts';
+import { type AuthScope, provisionIdentity } from '@knowscroll/db/identity';
+import { pool } from '@knowscroll/db';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const helperUrl = process.env.DATABASE_URL,

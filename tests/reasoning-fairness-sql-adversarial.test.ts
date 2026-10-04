@@ -3,22 +3,22 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import pg from 'pg';
 
-import { createReasoningAdmission } from '../packages/db/src/reasoning-admission.ts';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
 import {
   createReasoningFairness,
   type FairnessReadyInput,
   type FairnessScheduled,
-} from '../packages/db/src/reasoning-fairness.ts';
+} from '@knowscroll/db/reasoning-fairness';
 import {
   lockFairnessResources,
   releaseNotSentFairness,
   settleFairness,
   clearFairnessMembership,
-} from '../packages/db/src/reasoning-fairness-accounting.ts';
-import { validateFairnessPolicy } from '../packages/db/src/reasoning-fairness-policy.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
-import { createReasoningReconciliation } from '../packages/db/src/reasoning-reconciliation.ts';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+} from '@knowscroll/db/reasoning-fairness-accounting';
+import { validateFairnessPolicy } from '@knowscroll/db/reasoning-fairness-policy';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { runMigrations } from '@knowscroll/db/migrations';
 import {
   fairnessAuthority,
   seedFairnessGraph,

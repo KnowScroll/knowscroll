@@ -13,12 +13,12 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
 import { inquiriesResponse } from '@knowscroll/contracts/inquiries';
-import { pool, transaction } from '../packages/db/src/index.ts';
+import { pool, transaction } from '@knowscroll/db';
 import {
   openDueInquiries,
   resolveInquiryPolicy,
-} from '../packages/db/src/reasoning-inquiries.ts';
-import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
 import {
   runInquiryPass,
   type InquiryTransport,

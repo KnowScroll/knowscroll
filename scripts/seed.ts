@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { pool, transaction, OWNER_ID } from '../packages/db/src/index.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { pool, transaction, OWNER_ID } from '@knowscroll/db';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 // A journey that exercises reader mechanics over a small, finite library can seed its own fixture
 // (KS_SEED_SCROLLS) and skip the substrate (KS_SEED_SUBSTRATE=none), so the product library can grow
 // without changing what that journey proves. Product seeding uses the defaults.

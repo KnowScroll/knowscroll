@@ -21,10 +21,10 @@ import { join } from 'node:path';
 import test from 'node:test';
 import pg from 'pg';
 
-import { recordExplicitAsk } from '../packages/db/src/explicit-ask.ts';
-import { runMigrations } from '../packages/db/src/migrations.ts';
-import { compileDirectAskContext } from '../packages/db/src/reasoning-ask-context.ts';
-import { compileDirectContext } from '../packages/db/src/reasoning-context.ts';
+import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
+import { runMigrations } from '@knowscroll/db/migrations';
+import { compileDirectAskContext } from '@knowscroll/db/reasoning-ask-context';
+import { compileDirectContext } from '@knowscroll/db/reasoning-context';
 import { seedWithdrawnReasoningGraph } from './helpers/reasoning-maintenance-fixture.ts';
 import {
   inTransaction,

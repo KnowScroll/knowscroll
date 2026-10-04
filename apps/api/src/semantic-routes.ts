@@ -14,19 +14,19 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { uuid } from '@knowscroll/contracts';
-import type { AuthScope } from '../../../packages/db/src/index.ts';
-import { observeOfferedGaps } from '../../../packages/db/src/inventory/demand.ts';
+import type { AuthScope } from '@knowscroll/db';
+import { observeOfferedGaps } from '@knowscroll/db/inventory/demand';
 import {
   listEncounterBranches,
   openBranch,
   recordConnectionFeedback,
-} from '../../../packages/db/src/semantic/branches.ts';
+} from '@knowscroll/db/semantic/branches';
 import type {
   EncounterBranchesResponse,
   WebEncounterBranchesResponse,
   WebBranchOpenResponse,
 } from '@knowscroll/contracts/semantic';
-import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
+import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
 import { HttpError } from './errors.ts';
 
 export type Authenticated = <T>(

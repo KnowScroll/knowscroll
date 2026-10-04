@@ -19,19 +19,15 @@ import {
   type RelicWire,
 } from '@knowscroll/contracts/relics';
 import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import {
   answerAuthority,
   answerFairnessPolicy,
   installAskAnswerRoute,
-} from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+} from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
 import {

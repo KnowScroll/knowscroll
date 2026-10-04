@@ -22,14 +22,14 @@ import {
   serializeScrollWritingRequest,
   type ScrollPlanItem,
 } from '@knowscroll/core/scrolls/writing';
-import { transaction } from '../../../../packages/db/src/index.ts';
+import { transaction } from '@knowscroll/db';
 import {
   admitModelScroll,
   findScrollWriting,
   loadConceptOffer,
   recordRefusedScroll,
   sourceStanding,
-} from '../../../../packages/db/src/semantic/model-scrolls.ts';
+} from '@knowscroll/db/semantic/model-scrolls';
 import type { AnswerObservation } from '../reasoning/answer-worker.ts';
 import type { InquiryTransport } from '../reasoning/inquiry-worker.ts';
 import { fetchMaterial } from './fetch-material.ts';

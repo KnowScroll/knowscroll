@@ -13,7 +13,7 @@ import {
   readAtlasDelta,
   rejectPlace,
   type AtlasView,
-} from '../../../packages/db/src/atlas.ts';
+} from '@knowscroll/db/atlas';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 

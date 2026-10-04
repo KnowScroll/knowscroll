@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import pg from 'pg';
 
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 import { generationBrief } from '@knowscroll/contracts/generation';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
 import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts';

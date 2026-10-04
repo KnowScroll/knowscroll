@@ -30,31 +30,31 @@ import {
   revokeSession,
   UnauthorizedSession,
   type AuthScope,
-} from '../../../packages/db/src/index.ts';
+} from '@knowscroll/db';
 import { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer';
 import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import {
   COMPOSER_SEMANTIC_V3,
   COMPOSER_SEMANTIC_V4,
 } from '@knowscroll/core/composer/semantic';
-import { composeAndRecordV2 } from '../../../packages/db/src/composer-signals.ts';
-import { composeAndRecordV3 } from '../../../packages/db/src/composer/semantic.ts';
-import { observeExhaustion } from '../../../packages/db/src/inventory/demand.ts';
-import { refreshPersonalModel } from '../../../packages/db/src/semantic/personal-model.ts';
+import { composeAndRecordV2 } from '@knowscroll/db/composer-signals';
+import { composeAndRecordV3 } from '@knowscroll/db/composer/semantic';
+import { observeExhaustion } from '@knowscroll/db/inventory/demand';
+import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
 import {
   ExplicitAskError,
   recordExplicitAsk,
-} from '../../../packages/db/src/explicit-ask.ts';
+} from '@knowscroll/db/explicit-ask';
 import {
   listSavedTraces,
   readTraceRevisit,
   TraceRevisitError,
-} from '../../../packages/db/src/trace-revisit.ts';
+} from '@knowscroll/db/trace-revisit';
 import {
   SHARED_SOURCE_V1,
   projectWorldsForEncounter,
   readWorldSystem,
-} from '../../../packages/db/src/worlds.ts';
+} from '@knowscroll/db/worlds';
 import { HttpError } from './errors.ts';
 import { MEDIA_SHA256_PATTERN, resolveMediaRoot, sendMedia } from './media.ts';
 import {
@@ -72,7 +72,7 @@ import { registerInquiryRoutes } from './inquiry-routes.ts';
 import { registerReturnRoutes } from './return-routes.ts';
 import { registerRoomRoutes } from './room-routes.ts';
 import { registerInventoryRoutes } from './inventory-routes.ts';
-import type { MagicLinkRateLimits } from '../../../packages/db/src/sign-in.ts';
+import type { MagicLinkRateLimits } from '@knowscroll/db/sign-in';
 
 function bearerToken(authorization: string | undefined): string {
   const match = /^Bearer (\S+)$/.exec(authorization ?? '');

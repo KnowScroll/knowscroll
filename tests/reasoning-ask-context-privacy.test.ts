@@ -3,16 +3,16 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
 
-import { recordExplicitAsk } from '../packages/db/src/explicit-ask.ts';
-import { authenticateAndLock } from '../packages/db/src/identity.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
+import { authenticateAndLock } from '@knowscroll/db/identity';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   compileDirectAskContext,
   validateDirectAskContext,
-} from '../packages/db/src/reasoning-ask-context.ts';
-import { createReasoningAdmission } from '../packages/db/src/reasoning-admission.ts';
-import { createReasoningMaintenance } from '../packages/db/src/reasoning-maintenance.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-ask-context';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

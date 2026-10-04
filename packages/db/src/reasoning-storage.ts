@@ -2,7 +2,7 @@ import {
   lockFairnessResources,
   releaseNotSentFairness,
   clearFairnessMembership,
-} from './reasoning-fairness-accounting.js';
+} from './reasoning-fairness-accounting.ts';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import {

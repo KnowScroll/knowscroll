@@ -58,16 +58,16 @@ if (response.status !== 200)
   throw new Error(`seed-journey: /v1/universe returned ${response.status}`);
 const { universeId } = (await response.json()) as { universeId: string };
 
-const { pool, transaction } = await import('../../packages/db/src/index.ts');
-const { runCartographer } = await import('../../packages/db/src/atlas.ts');
+const { pool, transaction } = await import('@knowscroll/db');
+const { runCartographer } = await import('@knowscroll/db/atlas');
 const { answerFairnessPolicy } = await import(
-  '../../packages/db/src/reasoning-answers.ts'
+  '@knowscroll/db/reasoning-answers'
 );
 const { createReasoningFairness } = await import(
-  '../../packages/db/src/reasoning-fairness.ts'
+  '@knowscroll/db/reasoning-fairness'
 );
 const { inquiryAuthority, installBackgroundInquiryRoute } = await import(
-  '../../packages/db/src/reasoning-inquiries.ts'
+  '@knowscroll/db/reasoning-inquiries'
 );
 try {
   await createReasoningFairness(pool, inquiryAuthority()).installPolicy(

@@ -1,18 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   appendRestrictedReasoningReceipt,
   purgeClosedReasoningAccounting,
   ReasoningReceiptConflict,
   UnknownReasoningReceipt,
-} from '../packages/db/src/reasoning-storage.ts';
+} from '@knowscroll/db/reasoning-storage';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

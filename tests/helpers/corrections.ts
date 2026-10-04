@@ -2,9 +2,9 @@
  * #160/#163 — a committed source correction and the worker's catch-up pass (ADR-0040), shared by the
  * tests that watch a correction reach a reader who is away: their places, and their rooms.
  */
-import { pool, transaction } from '../../packages/db/src/index.ts';
-import { runCorrectionRefreshPass } from '../../packages/db/src/semantic/correction-refresh.ts';
-import { correctSourceSnapshot } from '../../packages/db/src/semantic/corrections.ts';
+import { pool, transaction } from '@knowscroll/db';
+import { runCorrectionRefreshPass } from '@knowscroll/db/semantic/correction-refresh';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 
 /** The publisher withdraws a page: an operator correction, committed. */
 export const withdraw = (sourceKey: string) =>

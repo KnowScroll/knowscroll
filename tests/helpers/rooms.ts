@@ -5,7 +5,7 @@
  * two more Scrolls, which anchors Gravity as a planet; a second Ask then opens its room.
  */
 import type { buildApp } from '../../apps/api/src/app.ts';
-import { transaction } from '../../packages/db/src/index.ts';
+import { transaction } from '@knowscroll/db';
 import { backdateOneDay } from '../../scripts/lib/backdate.ts';
 import { askAbout, EDITORIAL, readScroll } from './reading.ts';
 

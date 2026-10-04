@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import pg from 'pg';
 
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 const databaseUrl = process.env.DATABASE_URL!;
 if (!new URL(databaseUrl).pathname.startsWith('/knowscroll_test_'))
@@ -337,7 +337,7 @@ test('history written at 0009 survives the upgrade to head unchanged and the cur
 
     // --- The current API reads it -----------------------------------------------------------------
     process.env.DATABASE_URL = url.toString();
-    const db = await import('../packages/db/src/index.ts');
+    const db = await import('@knowscroll/db');
     const { buildApp } = await import('../apps/api/src/app.ts');
     const app = buildApp(randomBytes(32).toString('hex'));
     try {

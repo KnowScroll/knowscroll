@@ -26,14 +26,10 @@ import { selectInquiryPairs } from '@knowscroll/core/reasoning/bridge-inquiry';
 import { extractVisibleText } from '@knowscroll/core/scrolls/material';
 import { SCROLL_LIMITS } from '@knowscroll/core/scrolls/writing';
 import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { readInquiryInputs } from '../packages/db/src/reasoning-inquiry-context.ts';
-import { admitModelScroll } from '../packages/db/src/semantic/model-scrolls.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { readInquiryInputs } from '@knowscroll/db/reasoning-inquiry-context';
+import { admitModelScroll } from '@knowscroll/db/semantic/model-scrolls';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { formPlaces, loadInquiryFixture } from './helpers/inquiry-fixture.ts';
 import {
   makeSemanticFixture,

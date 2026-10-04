@@ -8,11 +8,11 @@ import {
   pool,
   provisionIdentity,
   transaction,
-} from '../packages/db/src/index.ts';
-import { recordExplicitAsk } from '../packages/db/src/explicit-ask.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
-import { compileDirectContext } from '../packages/db/src/reasoning-context.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db';
+import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
+import { compileDirectContext } from '@knowscroll/db/reasoning-context';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

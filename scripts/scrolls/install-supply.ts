@@ -79,9 +79,9 @@ async function main(argv: string[]): Promise<number> {
   }
 
   // Loaded only now: the database module connects to DATABASE_URL, which is checked above.
-  const { pool, transaction } = await import('../../packages/db/src/index.ts');
+  const { pool, transaction } = await import('@knowscroll/db');
   const { installMaterialCandidates, installScrollWritingRoute } = await import(
-    '../../packages/db/src/inventory/supply.ts'
+    '@knowscroll/db/inventory/supply'
   );
   try {
     const route = {

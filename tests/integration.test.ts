@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { pool, OWNER_ID } from '../packages/db/src/index.ts';
+import { pool, OWNER_ID } from '@knowscroll/db';
 import { buildApp } from '../apps/api/src/app.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
 if (

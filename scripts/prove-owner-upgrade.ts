@@ -127,7 +127,7 @@ async function main() {
     const before = await tableCounts(pool);
     // 3. Migrate the clone with the product's own migrator.
     process.env.DATABASE_URL = url(clone);
-    const { runMigrations } = await import('../packages/db/src/migrations.ts');
+    const { runMigrations } = await import('@knowscroll/db/migrations');
     const migrated = await runMigrations(pool, {
       directory: 'packages/db/migrations',
     });
@@ -161,7 +161,7 @@ async function main() {
       recordedChecksumsUnchanged: checksums,
     });
     // 4. Recovery: the real API against the clone, as the owner.
-    const db = await import('../packages/db/src/index.ts');
+    const db = await import('@knowscroll/db');
     const { buildApp } = await import('../apps/api/src/app.ts');
     const identity = await db.provisionIdentity({
       universeId: db.OWNER_ID,

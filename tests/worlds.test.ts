@@ -23,18 +23,14 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import type { ScrollAsset } from '@knowscroll/contracts';
 import {
   SHARED_SOURCE_V1,
   deriveWorlds,
   deriveWorldSystemForUniverse,
   readWorldSystem,
-} from '../packages/db/src/worlds.ts';
+} from '@knowscroll/db/worlds';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { compileDirectAskContext } from '../packages/db/src/reasoning-ask-context.ts';
-import { compileDirectContext } from '../packages/db/src/reasoning-context.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+import { compileDirectAskContext } from '@knowscroll/db/reasoning-ask-context';
+import { compileDirectContext } from '@knowscroll/db/reasoning-context';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   attachPendingStep,
   compileAsk,

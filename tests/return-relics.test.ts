@@ -19,19 +19,15 @@ import {
   relicKeepResponse,
   relicsResponse,
 } from '@knowscroll/contracts/relics';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
-import { answerFairnessPolicy } from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import { answerFairnessPolicy } from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   inquiryAuthority,
   installBackgroundInquiryRoute,
-} from '../packages/db/src/reasoning-inquiries.ts';
-import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import { runInquiryPass } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import {
   createFixtureInquiryTransport,

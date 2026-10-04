@@ -275,7 +275,7 @@ async function main(argv: string[]): Promise<number> {
 
   const stop = new AbortController();
   process.once('SIGINT', () => stop.abort());
-  const { pool } = await import('../../packages/db/src/index.ts');
+  const { pool } = await import('@knowscroll/db');
   try {
     const { receipt, path } = await runWriteScrolls(
       { database, plan, apply, at, signal: stop.signal },

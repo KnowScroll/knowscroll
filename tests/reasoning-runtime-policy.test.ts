@@ -6,7 +6,7 @@ import {
   reservationAmount,
   type ResolvedReasoningPolicy,
   ReasoningDenied,
-} from '../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-runtime-policy';
 const scope = {
   universeId: randomUUID(),
   jobId: randomUUID(),

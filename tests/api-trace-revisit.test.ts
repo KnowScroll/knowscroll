@@ -10,7 +10,7 @@ import {
   webTraceRevisitReceipt,
 } from '@knowscroll/contracts/trace-revisit';
 import { createAuthoredTestScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
-import { pool, provisionIdentity } from '../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
 import {
   rejectRevisitWrites,
   seedTraceRevisitGraph,

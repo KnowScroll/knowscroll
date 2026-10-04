@@ -6,7 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { execFileSync } from 'node:child_process';
 import pg from 'pg';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 const name = `knowscroll_test_ask_${randomUUID().replaceAll('-', '')}`;
 const token = randomBytes(32).toString('hex');

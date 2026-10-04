@@ -10,7 +10,7 @@ import {
   transaction,
   UnauthorizedSession,
   OWNER_ID,
-} from '../packages/db/src/index.ts';
+} from '@knowscroll/db';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

@@ -17,10 +17,10 @@ import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
-import { runMigrations } from '../../packages/db/src/migrations.ts';
-import { createReasoningAdmission } from '../../packages/db/src/reasoning-admission.ts';
-import { createReasoningReconciliation } from '../../packages/db/src/reasoning-reconciliation.ts';
-import { createReasoningFairness } from '../../packages/db/src/reasoning-fairness.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import { authority, seed } from '../fixtures/reasoning-support.ts';
 
 const execFile = promisify(execFileCallback);

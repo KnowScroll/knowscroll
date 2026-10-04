@@ -33,16 +33,16 @@ import {
   pool,
   provisionIdentity,
   transaction,
-} from '../packages/db/src/index.ts';
-import { observeBranchGap } from '../packages/db/src/inventory/demand.ts';
-import { loadBoundScrolls } from '../packages/db/src/inventory/read.ts';
+} from '@knowscroll/db';
+import { observeBranchGap } from '@knowscroll/db/inventory/demand';
+import { loadBoundScrolls } from '@knowscroll/db/inventory/read';
 import {
   admitRequest,
   installMaterialCandidates,
   installScrollWritingRoute,
-} from '../packages/db/src/inventory/supply.ts';
-import { catchUpUniverse } from '../packages/db/src/semantic/correction-refresh.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
+} from '@knowscroll/db/inventory/supply';
+import { catchUpUniverse } from '@knowscroll/db/semantic/correction-refresh';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 import {
   fixtureNetwork,
   makeInventoryFixture,

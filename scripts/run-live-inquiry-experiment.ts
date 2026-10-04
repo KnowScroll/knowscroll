@@ -154,15 +154,15 @@ async function main() {
     run('pnpm', ['db:seed'], base);
     // The product's own modules, against the disposable database only.
     process.env.DATABASE_URL = url(database);
-    const db = await import('../packages/db/src/index.ts');
-    const inquiries = await import('../packages/db/src/reasoning-inquiries.ts');
+    const db = await import('@knowscroll/db');
+    const inquiries = await import('@knowscroll/db/reasoning-inquiries');
     const { answerFairnessPolicy } = await import(
-      '../packages/db/src/reasoning-answers.ts'
+      '@knowscroll/db/reasoning-answers'
     );
     const { createReasoningFairness } = await import(
-      '../packages/db/src/reasoning-fairness.ts'
+      '@knowscroll/db/reasoning-fairness'
     );
-    const { runCartographer } = await import('../packages/db/src/atlas.ts');
+    const { runCartographer } = await import('@knowscroll/db/atlas');
     const v = 'live-inquiries-v1';
     await createReasoningFairness(
       db.pool,

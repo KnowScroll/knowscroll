@@ -7,7 +7,7 @@ import {
   provisionIdentity,
   revokeSession,
   transaction,
-} from '../packages/db/src/index.ts';
+} from '@knowscroll/db';
 
 function usage(): never {
   throw new Error(

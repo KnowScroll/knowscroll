@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import pg from 'pg';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 import { generationBrief } from '@knowscroll/contracts/generation';
 import { CUTROOM_CONTRACT_REVISION as REVISION } from '../apps/worker/src/generation/storage.ts';
 import { insertFakeEngine } from './helpers/generation-fixture.ts';

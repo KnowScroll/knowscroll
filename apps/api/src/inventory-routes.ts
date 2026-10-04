@@ -7,7 +7,7 @@
  * and supply by the worker. No source is ever named.
  */
 import type { FastifyInstance } from 'fastify';
-import { readInventory } from '../../../packages/db/src/inventory/read.ts';
+import { readInventory } from '@knowscroll/db/inventory/read';
 import type { Authenticated } from './semantic-routes.ts';
 
 export function registerInventoryRoutes(

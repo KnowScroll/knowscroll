@@ -5,10 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { setTimeout } from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import pg from 'pg';
-import {
-  loadLocalEnv,
-  pool as localEnvironmentPool,
-} from '../packages/db/src/index.ts';
+import { loadLocalEnv, pool as localEnvironmentPool } from '@knowscroll/db';
 import { verifyPersistedJourney } from './journey-verifier.ts';
 loadLocalEnv();
 const base = `http://127.0.0.1:${process.env.PORT ?? 4310}`;

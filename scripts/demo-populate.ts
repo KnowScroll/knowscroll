@@ -152,11 +152,9 @@ await ensureDatabaseExists(databaseUrl!, databaseName);
 // process.env.DATABASE_URL is already exactly `databaseUrl` (we never mutate it), so every module
 // imported from here on that reads it — including packages/db's own local `.env` fallback, which
 // only ever fills in a variable that is still unset — resolves to the same validated demo database.
-const { pool, transaction, OWNER_ID } = await import(
-  '../packages/db/src/index.ts'
-);
-const { runMigrations } = await import('../packages/db/src/migrations.ts');
-const { provisionIdentity } = await import('../packages/db/src/identity.ts');
+const { pool, transaction, OWNER_ID } = await import('@knowscroll/db');
+const { runMigrations } = await import('@knowscroll/db/migrations');
+const { provisionIdentity } = await import('@knowscroll/db/identity');
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
 

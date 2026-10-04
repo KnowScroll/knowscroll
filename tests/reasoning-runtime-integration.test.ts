@@ -3,11 +3,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 import { test } from 'node:test';
 import pg from 'pg';
-import { runMigrations } from '../packages/db/src/migrations.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
-import { createReasoningAdmission } from '../packages/db/src/reasoning-admission.ts';
-import { createReasoningReconciliation } from '../packages/db/src/reasoning-reconciliation.ts';
-import { type ResolvedReasoningPolicy } from '../packages/db/src/reasoning-runtime-policy.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
+import { type ResolvedReasoningPolicy } from '@knowscroll/db/reasoning-runtime-policy';
 import { invokeReasoningOnce } from '../apps/worker/src/reasoning/invoke.ts';
 
 const databaseUrl = process.env.DATABASE_URL!;

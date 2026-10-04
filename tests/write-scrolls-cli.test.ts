@@ -19,8 +19,8 @@ import {
   MINIMAX_ANSWER_URL,
 } from '../apps/worker/src/providers/minimax-answer.ts';
 import { MINIMAX_QUOTA_URL } from '../apps/worker/src/providers/minimax-quota.ts';
-import { pool, transaction } from '../packages/db/src/index.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { pool, transaction } from '@knowscroll/db';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { countLedgerRequest } from '../scripts/lib/session-ledger.ts';
 import {
   liveRequestGate,

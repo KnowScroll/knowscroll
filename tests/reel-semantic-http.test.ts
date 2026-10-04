@@ -12,11 +12,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import type {
   EncounterFeedbackReceipt,
   WhyResponseWire,
@@ -25,8 +21,8 @@ import type {
   BranchOpenResponse,
   EncounterBranchesResponse,
 } from '@knowscroll/contracts/semantic';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { mintReelAsset } from '../apps/worker/src/publication/mint.ts';
 import {
   makeSemanticFixture,

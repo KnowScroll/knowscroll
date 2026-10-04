@@ -42,8 +42,8 @@ if (response.status !== 200)
   );
 const { universeId } = (await response.json()) as { universeId: string };
 
-const { pool, transaction } = await import('../../packages/db/src/index.ts');
-const { runCartographer } = await import('../../packages/db/src/atlas.ts');
+const { pool, transaction } = await import('@knowscroll/db');
+const { runCartographer } = await import('@knowscroll/db/atlas');
 try {
   const deltas = await transaction(async (client) => {
     await client.query('SELECT 1 FROM universe WHERE id=$1 FOR UPDATE', [

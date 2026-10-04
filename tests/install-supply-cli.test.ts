@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { pool } from '../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 import { makeInventoryFixture } from './helpers/inventory-fixture.ts';
 
 const database = new URL(process.env.DATABASE_URL!).pathname.slice(1);

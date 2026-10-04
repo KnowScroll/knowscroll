@@ -1,5 +1,5 @@
 import { setTimeout } from 'node:timers/promises';
-import { pool } from '../../../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 import { projectOne } from './project.ts';
 import { answerTransportsFromEnvironment } from './reasoning/answer-loop.ts';
 import {
@@ -11,9 +11,9 @@ import {
   executeInquiryClaim,
   runInquiryPass,
 } from './reasoning/inquiry-worker.ts';
-import { settleAbandonedAnswers } from '../../../packages/db/src/reasoning-answers.ts';
-import { settleInquiries } from '../../../packages/db/src/reasoning-inquiry-execution.ts';
-import { runCorrectionRefreshPass } from '../../../packages/db/src/semantic/correction-refresh.ts';
+import { settleAbandonedAnswers } from '@knowscroll/db/reasoning-answers';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+import { runCorrectionRefreshPass } from '@knowscroll/db/semantic/correction-refresh';
 import {
   runSupplyPass,
   scrollTransportsFromEnvironment,

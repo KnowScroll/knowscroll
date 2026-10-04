@@ -10,12 +10,8 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { uuid } from '@knowscroll/contracts';
-import { readAtlas } from '../../../packages/db/src/atlas.ts';
-import {
-  readRoom,
-  readRoomDelta,
-  setRoomAside,
-} from '../../../packages/db/src/rooms.ts';
+import { readAtlas } from '@knowscroll/db/atlas';
+import { readRoom, readRoomDelta, setRoomAside } from '@knowscroll/db/rooms';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 

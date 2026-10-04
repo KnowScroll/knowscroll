@@ -10,14 +10,14 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool, provisionIdentity } from '../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
 import {
   atlasDeltaSchema,
   atlasResponseSchema,
   webAtlasResponseSchema,
 } from '@knowscroll/contracts/atlas';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
 import { mintGatedTestReel } from '../scripts/fixtures/gated-reel.ts';
 import {
   EDITORIAL,

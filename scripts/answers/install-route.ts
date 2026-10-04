@@ -3,13 +3,13 @@
  * one: refused otherwise). KS_ANSWER_TRANSPORT=fixture|minimax, KS_ANSWER_REQUEST_CAP (default 2).
  * Used by the emulator journey runner; the product itself never installs a route implicitly.
  */
-import { pool, transaction } from '../../packages/db/src/index.ts';
+import { pool, transaction } from '@knowscroll/db';
 import {
   answerAuthority,
   answerFairnessPolicy,
   installAskAnswerRoute,
-} from '../../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../../packages/db/src/reasoning-fairness.ts';
+} from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

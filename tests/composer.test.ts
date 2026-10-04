@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool, provisionIdentity } from '../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
 import {
   renderExplanation,
   type ComposerSignalInputs,

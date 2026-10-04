@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-import type { AuthScope } from '../../packages/db/src/identity.ts';
-import type { ResolvedReasoningPolicy } from '../../packages/db/src/reasoning-runtime-policy.ts';
-import { runMigrations } from '../../packages/db/src/migrations.ts';
+import type { AuthScope } from '@knowscroll/db/identity';
+import type { ResolvedReasoningPolicy } from '@knowscroll/db/reasoning-runtime-policy';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 export const reasoningContextDatabaseUrl =
   process.env.DATABASE_URL ??

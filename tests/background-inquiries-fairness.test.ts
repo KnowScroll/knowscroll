@@ -10,23 +10,19 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import {
   answerFairnessPolicy,
   installAskAnswerRoute,
-} from '../packages/db/src/reasoning-answers.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { FAIRNESS_CLASSES } from '../packages/db/src/reasoning-fairness-policy.ts';
+} from '@knowscroll/db/reasoning-answers';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { FAIRNESS_CLASSES } from '@knowscroll/db/reasoning-fairness-policy';
 import {
   installBackgroundInquiryRoute,
   openDueInquiries,
   sharedReasoningAuthority,
-} from '../packages/db/src/reasoning-inquiries.ts';
-import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
+} from '@knowscroll/db/reasoning-inquiries';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
 import { runAnswerPass } from '../apps/worker/src/reasoning/answer-worker.ts';
 import {
   executeInquiryClaim,
@@ -34,7 +30,7 @@ import {
 } from '../apps/worker/src/reasoning/inquiry-worker.ts';
 import { createFixtureAnswerTransport } from '../apps/worker/src/providers/answer-fixture.ts';
 import { createFixtureInquiryTransport } from '../apps/worker/src/providers/inquiry-fixture.ts';
-import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import {
   formPlaces,
   gravitySunPayload,

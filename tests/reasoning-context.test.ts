@@ -6,11 +6,11 @@ import {
   compileDirectContext,
   createDirectContextAuthority,
   validateDirectContext,
-} from '../packages/db/src/reasoning-context.ts';
-import { createReasoningAdmission } from '../packages/db/src/reasoning-admission.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+} from '@knowscroll/db/reasoning-context';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   attachPendingStep,
   inTransaction,

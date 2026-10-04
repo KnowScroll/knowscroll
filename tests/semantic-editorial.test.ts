@@ -9,10 +9,10 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { pool, transaction } from '../packages/db/src/index.ts';
+import { pool, transaction } from '@knowscroll/db';
 import { bridgeProposalPayload } from '@knowscroll/contracts/semantic';
 import { validateBridgeProposal } from '@knowscroll/core/semantic/bridge-validator';
-import { loadBridgeReadSet } from '../packages/db/src/semantic/read-set.ts';
+import { loadBridgeReadSet } from '@knowscroll/db/semantic/read-set';
 import {
   checkSubstrateSeed,
   loadEditorialAssetIds,

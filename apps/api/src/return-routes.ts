@@ -14,18 +14,14 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { uuid } from '@knowscroll/contracts';
-import {
-  acknowledgeAway,
-  readAway,
-  ReturnError,
-} from '../../../packages/db/src/away.ts';
+import { acknowledgeAway, readAway, ReturnError } from '@knowscroll/db/away';
 import {
   keepRelic,
   listRelics,
   readPassages,
   recordObjection,
   releaseRelic,
-} from '../../../packages/db/src/relics.ts';
+} from '@knowscroll/db/relics';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 

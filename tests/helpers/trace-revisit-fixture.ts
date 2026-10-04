@@ -1,12 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-import {
-  authenticateAndLock,
-  type AuthScope,
-} from '../../packages/db/src/identity.ts';
-import { runMigrations } from '../../packages/db/src/migrations.ts';
-import { readTraceRevisit } from '../../packages/db/src/trace-revisit.ts';
+import { authenticateAndLock, type AuthScope } from '@knowscroll/db/identity';
+import { runMigrations } from '@knowscroll/db/migrations';
+import { readTraceRevisit } from '@knowscroll/db/trace-revisit';
 
 const databaseUrl =
   process.env.DATABASE_URL ??

@@ -21,7 +21,7 @@ import {
   pool,
   transaction,
   UnauthorizedSession,
-} from '../packages/db/src/index.ts';
+} from '@knowscroll/db';
 import {
   confirmSignInToken,
   consumeSignInToken,
@@ -33,7 +33,7 @@ import {
   requesterFingerprint,
   resolveOwnerEmail,
   SIGN_IN_TOKEN_TTL_MINUTES,
-} from '../packages/db/src/sign-in.ts';
+} from '@knowscroll/db/sign-in';
 import {
   TEST_OWNER_EMAIL,
   useTestOwnerEmail,

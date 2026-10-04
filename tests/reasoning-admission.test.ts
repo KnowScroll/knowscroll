@@ -8,14 +8,14 @@ import {
   REASONING_ADMISSION_LIMITS,
   type ClaimedJob,
   type ReserveAttemptInput,
-} from '../packages/db/src/reasoning-admission.ts';
+} from '@knowscroll/db/reasoning-admission';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
   type ReasoningScope,
   type ResolvedReasoningPolicy,
-} from '../packages/db/src/reasoning-runtime-policy.ts';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+} from '@knowscroll/db/reasoning-runtime-policy';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 const databaseUrl =
   process.env.DATABASE_URL ??

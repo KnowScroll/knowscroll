@@ -7,7 +7,7 @@ import pg from 'pg';
 import {
   ORIGINAL_BOOTSTRAP_SHA256,
   runMigrations,
-} from '../packages/db/src/migrations.ts';
+} from '@knowscroll/db/migrations';
 
 const databaseUrl: string =
   process.env.DATABASE_URL ??

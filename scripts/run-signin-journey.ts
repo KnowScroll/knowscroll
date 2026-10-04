@@ -35,7 +35,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import pg from 'pg';
 
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 const execFileAsync = promisify(execFile);
 const OWNER_ID = '00000000-0000-4000-8000-000000000001';

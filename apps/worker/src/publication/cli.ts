@@ -8,7 +8,7 @@
  * exits 0 on success, 1 on a typed refusal or error — matching `scripts/generation.ts`'s own
  * operator-CLI convention.
  */
-import { pool } from '../../../../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 import {
   evaluatePublicationGates,
   PublicationEvaluationError,

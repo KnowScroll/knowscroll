@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import test from 'node:test';
 
-import { validateDirectAskContext } from '../packages/db/src/reasoning-ask-context.ts';
+import { validateDirectAskContext } from '@knowscroll/db/reasoning-ask-context';
 import {
   attachPendingStep,
   compileAsk,

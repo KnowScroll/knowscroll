@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-import { createReasoningAdmission } from '../../packages/db/src/reasoning-admission.ts';
-import { runMigrations } from '../../packages/db/src/migrations.ts';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 export const reasoningMaintenanceDatabaseUrl =
   process.env.DATABASE_URL ??

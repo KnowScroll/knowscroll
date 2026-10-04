@@ -7,9 +7,9 @@ import {
   compileDirectContext,
   createDirectContextAuthority,
   validateDirectContext,
-} from '../packages/db/src/reasoning-context.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-context';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

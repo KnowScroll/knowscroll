@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import pg from 'pg';
 
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
-import { lockUniverse } from '../packages/db/src/index.ts';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
+import { lockUniverse } from '@knowscroll/db';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 const databaseUrl =
   process.env.DATABASE_URL ??

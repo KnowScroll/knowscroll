@@ -2,7 +2,7 @@ import {
   lockFairnessResources,
   pauseFairnessForAttempt,
   settleFairness,
-} from './reasoning-fairness-accounting.js';
+} from './reasoning-fairness-accounting.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import {

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { pool } from '../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 try {
   const migrations = (
     await pool.query('SELECT * FROM schema_migrations ORDER BY name')

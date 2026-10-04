@@ -30,8 +30,8 @@ import {
 } from 'node:http';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool } from '../packages/db/src/index.ts';
-import { resolveOwnerEmail } from '../packages/db/src/sign-in.ts';
+import { pool } from '@knowscroll/db';
+import { resolveOwnerEmail } from '@knowscroll/db/sign-in';
 import { useTestOwnerEmail } from './helpers/owner-address.ts';
 
 useTestOwnerEmail();

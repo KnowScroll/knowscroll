@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { pool } from '../../../../packages/db/src/index.ts';
-import { createReasoningMaintenance } from '../../../../packages/db/src/reasoning-maintenance.ts';
+import { pool } from '@knowscroll/db';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
 
 const service = 'reasoning-maintenance';
 

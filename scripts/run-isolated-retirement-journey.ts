@@ -204,18 +204,18 @@ try {
   db.on('error', (error) => {
     recordPoolError('db_pool', error);
   });
-  const { runMigrations } = await import('../packages/db/src/migrations.ts');
+  const { runMigrations } = await import('@knowscroll/db/migrations');
   await runMigrations(db, { directory: 'packages/db/migrations' });
   const { seedDirectContextGraph, attachPendingStep, inTransaction } =
     await import('../tests/helpers/reasoning-context-fixture.ts');
   const { compileDirectContext, createDirectContextAuthority } = await import(
-    '../packages/db/src/reasoning-context.ts'
+    '@knowscroll/db/reasoning-context'
   );
   const { createReasoningAdmission } = await import(
-    '../packages/db/src/reasoning-admission.ts'
+    '@knowscroll/db/reasoning-admission'
   );
   const { createReasoningReconciliation } = await import(
-    '../packages/db/src/reasoning-reconciliation.ts'
+    '@knowscroll/db/reasoning-reconciliation'
   );
   async function seedWithdrawn(possibleSend: boolean) {
     const graph = await seedDirectContextGraph(db!);

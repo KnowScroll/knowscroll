@@ -2,16 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 
-import {
-  authenticateAndLock,
-  type AuthScope,
-} from '../packages/db/src/identity.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
+import { authenticateAndLock, type AuthScope } from '@knowscroll/db/identity';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
 import {
   compileDirectContext,
   validateDirectContext,
-} from '../packages/db/src/reasoning-context.ts';
-import { ReasoningDenied } from '../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-context';
+import { ReasoningDenied } from '@knowscroll/db/reasoning-runtime-policy';
 import {
   attachPendingStep,
   inTransaction,

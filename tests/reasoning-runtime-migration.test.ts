@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import pg from 'pg';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 const url = process.env.DATABASE_URL!;
 if (!new URL(url).pathname.startsWith('/knowscroll_test_'))
   throw new Error('Disposable test database required');

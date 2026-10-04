@@ -105,10 +105,8 @@ const seed: SubstrateSeed = {
   bridgeProposals: [],
 };
 
-const { pool, transaction } = await import('../../packages/db/src/index.ts');
-const { loadSubstrateSeed } = await import(
-  '../../packages/db/src/semantic/seed.ts'
-);
+const { pool, transaction } = await import('@knowscroll/db');
+const { loadSubstrateSeed } = await import('@knowscroll/db/semantic/seed');
 try {
   const loaded = await transaction((client) =>
     loadSubstrateSeed(client, JSON.stringify(seed)),

@@ -2,7 +2,7 @@
  * a job, request cancellation, and show job/attempt status. No public HTTP route exists for any
  * of this — it is a local operator/coordinator tool, run as
  * `pnpm exec tsx scripts/generation.ts <command> --flag value ...`. */
-import { pool } from '../packages/db/src/index.ts';
+import { pool } from '@knowscroll/db';
 import * as operator from '../apps/worker/src/generation/operator.ts';
 
 function flags(argv: string[]): Record<string, string> {

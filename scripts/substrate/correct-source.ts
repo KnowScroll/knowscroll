@@ -7,8 +7,8 @@
  * (claims losing support, relations and bridges revoked). With `--apply` it commits. Corrections
  * are shared-knowledge operations: they are not an HTTP route and never run on behalf of a reader.
  */
-import { pool } from '../../packages/db/src/index.ts';
-import { correctSourceSnapshot } from '../../packages/db/src/semantic/corrections.ts';
+import { pool } from '@knowscroll/db';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
 
 const arg = (name: string) => {
   const i = process.argv.indexOf(name);

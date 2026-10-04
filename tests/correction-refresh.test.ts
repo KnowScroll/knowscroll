@@ -22,14 +22,14 @@ import {
   pool,
   provisionIdentity,
   transaction,
-} from '../packages/db/src/index.ts';
+} from '@knowscroll/db';
 import {
   catchUpUniverse,
   runCorrectionRefreshPass,
-} from '../packages/db/src/semantic/correction-refresh.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { refreshPersonalModel } from '../packages/db/src/semantic/personal-model.ts';
-import { loadSubstrateSeed } from '../packages/db/src/semantic/seed.ts';
+} from '@knowscroll/db/semantic/correction-refresh';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { drain, withdraw } from './helpers/corrections.ts';
 import { insertScroll } from './helpers/inquiry-fixture.ts';
 import { readFirstOffered, readScroll } from './helpers/reading.ts';

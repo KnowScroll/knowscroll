@@ -3,11 +3,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type pg from 'pg';
 
-import { authenticateAndLock } from '../packages/db/src/identity.ts';
-import { clearScrollHistory } from '../packages/db/src/privacy.ts';
-import { createReasoningAdmission } from '../packages/db/src/reasoning-admission.ts';
-import { createReasoningMaintenance } from '../packages/db/src/reasoning-maintenance.ts';
-import { appendRestrictedReasoningReceipt } from '../packages/db/src/reasoning-storage.ts';
+import { authenticateAndLock } from '@knowscroll/db/identity';
+import { clearScrollHistory } from '@knowscroll/db/privacy';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
+import { createReasoningMaintenance } from '@knowscroll/db/reasoning-maintenance';
+import { appendRestrictedReasoningReceipt } from '@knowscroll/db/reasoning-storage';
 import {
   ageWithdrawalForTest,
   inMaintenanceTransaction,

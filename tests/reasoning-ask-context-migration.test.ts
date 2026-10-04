@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import pg from 'pg';
 
-import { recordExplicitAsk } from '../packages/db/src/explicit-ask.ts';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { recordExplicitAsk } from '@knowscroll/db/explicit-ask';
+import { runMigrations } from '@knowscroll/db/migrations';
 import {
   inTransaction,
   reasoningContextDatabaseUrl,

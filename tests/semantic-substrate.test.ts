@@ -9,11 +9,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import {
-  pool,
-  provisionIdentity,
-  transaction,
-} from '../packages/db/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import {
   bridgeProposalPayload,
   type EncounterBranchesResponse,
@@ -25,9 +21,9 @@ import {
 import {
   loadSubstrateSeed,
   SubstrateSeedConflict,
-} from '../packages/db/src/semantic/seed.ts';
-import { correctSourceSnapshot } from '../packages/db/src/semantic/corrections.ts';
-import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+} from '@knowscroll/db/semantic/seed';
+import { correctSourceSnapshot } from '@knowscroll/db/semantic/corrections';
+import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import {
   makeSemanticFixture,
   type SemanticFixture,

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { projectOne } from '../apps/worker/src/project.ts';
-import { pool, provisionIdentity } from '../packages/db/src/index.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
 
 if (
   !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { finalizeIdleJobFairness } from '../packages/db/src/reasoning-idle-fairness.ts';
-import { createReasoningFairness } from '../packages/db/src/reasoning-fairness.ts';
+import { finalizeIdleJobFairness } from '@knowscroll/db/reasoning-idle-fairness';
+import { createReasoningFairness } from '@knowscroll/db/reasoning-fairness';
 import {
   fairnessAuthority,
   seedFairnessGraph,

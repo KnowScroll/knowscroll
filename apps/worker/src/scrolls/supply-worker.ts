@@ -11,15 +11,15 @@
  * demand gets its own fresh decision.
  */
 import type pg from 'pg';
-import { transaction } from '../../../../packages/db/src/index.ts';
-import { redecideForSupply } from '../../../../packages/db/src/inventory/demand.ts';
+import { transaction } from '@knowscroll/db';
+import { redecideForSupply } from '@knowscroll/db/inventory/demand';
 import {
   admitRequest,
   nextOpenRequest,
   settleRequest,
   settleStrandedRequests,
   type RequestOutcome,
-} from '../../../../packages/db/src/inventory/supply.ts';
+} from '@knowscroll/db/inventory/supply';
 import { createMiniMaxAnswerTransport } from '../providers/minimax-answer.ts';
 import {
   createFixtureScrollTransport,

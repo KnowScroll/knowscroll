@@ -12,8 +12,8 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { buildApp } from '../../apps/api/src/app.ts';
 import type { SubstrateSeed } from '@knowscroll/contracts/semantic';
-import { pool, transaction } from '../../packages/db/src/index.ts';
-import { loadSubstrateSeed } from '../../packages/db/src/semantic/seed.ts';
+import { pool, transaction } from '@knowscroll/db';
+import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { readScroll } from './reading.ts';
 
 export type InventoryFixture = {

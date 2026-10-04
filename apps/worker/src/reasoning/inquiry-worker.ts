@@ -10,11 +10,11 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { AssistantBlock } from '@knowscroll/core/reasoning/bridge-inquiry';
-import { createReasoningAdmission } from '../../../../packages/db/src/reasoning-admission.ts';
+import { createReasoningAdmission } from '@knowscroll/db/reasoning-admission';
 import {
   createReasoningFairness,
   type FairnessScheduled,
-} from '../../../../packages/db/src/reasoning-fairness.ts';
+} from '@knowscroll/db/reasoning-fairness';
 import {
   inquiryAuthority,
   jobFamily,
@@ -22,7 +22,7 @@ import {
   openDueInquiries,
   sharedReasoningAuthority,
   type OpenResult,
-} from '../../../../packages/db/src/reasoning-inquiries.ts';
+} from '@knowscroll/db/reasoning-inquiries';
 import {
   applyInquiryReply,
   failInquiry,
@@ -31,12 +31,12 @@ import {
   type InquiryOutcome,
   type InquiryWork,
   type ProviderReply,
-} from '../../../../packages/db/src/reasoning-inquiry-execution.ts';
-import { createReasoningReconciliation } from '../../../../packages/db/src/reasoning-reconciliation.ts';
+} from '@knowscroll/db/reasoning-inquiry-execution';
+import { createReasoningReconciliation } from '@knowscroll/db/reasoning-reconciliation';
 import {
   ReasoningDenied,
   type ReasoningAuthority,
-} from '../../../../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-runtime-policy';
 import {
   createReadinessGate,
   executeAnswerClaim,

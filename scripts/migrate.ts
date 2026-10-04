@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { pool } from '../packages/db/src/index.ts';
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { pool } from '@knowscroll/db';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 try {
   const result = await runMigrations(pool, {

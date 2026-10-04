@@ -140,10 +140,10 @@ async function main() {
     run('pnpm', ['db:seed'], base);
     // The product's own modules, against the disposable database only.
     process.env.DATABASE_URL = url(database);
-    const db = await import('../packages/db/src/index.ts');
-    const answers = await import('../packages/db/src/reasoning-answers.ts');
+    const db = await import('@knowscroll/db');
+    const answers = await import('@knowscroll/db/reasoning-answers');
     const { createReasoningFairness } = await import(
-      '../packages/db/src/reasoning-fairness.ts'
+      '@knowscroll/db/reasoning-fairness'
     );
     const v = 'live-answers-v1';
     await createReasoningFairness(

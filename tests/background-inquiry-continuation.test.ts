@@ -13,9 +13,9 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool, transaction } from '../packages/db/src/index.ts';
-import { settleInquiries } from '../packages/db/src/reasoning-inquiry-execution.ts';
-import { submitBridgeProposal } from '../packages/db/src/semantic/proposals.ts';
+import { pool, transaction } from '@knowscroll/db';
+import { settleInquiries } from '@knowscroll/db/reasoning-inquiry-execution';
+import { submitBridgeProposal } from '@knowscroll/db/semantic/proposals';
 import { createReadinessGate } from '../apps/worker/src/reasoning/answer-worker.ts';
 import {
   runInquiryPass,

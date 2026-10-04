@@ -20,8 +20,8 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { buildApp } from '../apps/api/src/app.ts';
 import { createMagicLinkSender } from '../apps/api/src/magic-link-sender.ts';
-import { pool } from '../packages/db/src/index.ts';
-import { resolveOwnerEmail } from '../packages/db/src/sign-in.ts';
+import { pool } from '@knowscroll/db';
+import { resolveOwnerEmail } from '@knowscroll/db/sign-in';
 import { projectOne } from '../apps/worker/src/project.ts';
 import { useTestOwnerEmail } from './helpers/owner-address.ts';
 

@@ -13,7 +13,7 @@ import {
   cancelAskAnswer,
   readAskAnswer,
   requestAskAnswer,
-} from '../../../packages/db/src/reasoning-answers.ts';
+} from '@knowscroll/db/reasoning-answers';
 import { HttpError } from './errors.ts';
 import type { Authenticated } from './semantic-routes.ts';
 

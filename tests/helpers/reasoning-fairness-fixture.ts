@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { runMigrations } from '../../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 import type {
   ResolvedReasoningPolicy,
   ReasoningAuthority,
-} from '../../packages/db/src/reasoning-runtime-policy.ts';
+} from '@knowscroll/db/reasoning-runtime-policy';
 
 export const sqlFairnessPolicy = {
   version: 'fairness-v1',

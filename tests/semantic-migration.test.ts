@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import pg from 'pg';
 
-import { runMigrations } from '../packages/db/src/migrations.ts';
-import { projectWorldsForEncounter } from '../packages/db/src/worlds.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
+import { projectWorldsForEncounter } from '@knowscroll/db/worlds';
 
 const databaseUrl = process.env.DATABASE_URL!;
 if (!new URL(databaseUrl).pathname.startsWith('/knowscroll_test_'))
