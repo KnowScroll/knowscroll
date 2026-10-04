@@ -1,6 +1,6 @@
-/** ADR-0023: editorial generation briefs. Authored and reviewed outside the runtime; no model
- * writes one, and no private universe material may enter it. Parsing is not authorization: a brief
- * grants no budget, engine or dispatch. */
+/** Editorial generation briefs. Authored and reviewed outside the runtime; no model writes one,
+ * and no private universe material may enter it. Parsing is not authorization: a brief grants no
+ * budget, engine or dispatch (ADR-0023). */
 import { z } from 'zod';
 import { uuid } from './primitives.ts';
 import {
@@ -20,7 +20,7 @@ export const briefClaimSource = z
   })
   .readonly();
 
-/** The stage this slice may ask for. Plan and stills stay available for cheaper rehearsals. */
+/** The stage a brief may ask for. Plan and stills stay available for cheaper rehearsals. */
 export const briefStage = z.enum(['plan', 'stills', 'video']);
 
 export const generationBrief = z
@@ -37,7 +37,7 @@ export const generationBrief = z
     /**
      * ADR-0025: the editorial display text an inventory asset is minted with once this brief's Reel
      * clears its gates — never the engine's own record summary. Optional so every brief already
-     * authored/stored before this slice (none of which carried these fields) keeps parsing exactly as
+     * authored/stored earlier (none of which carried these fields) keeps parsing exactly as
      * it always has; `apps/worker/src/publication/mint.ts` itself requires both before minting, and
      * neither ever crosses into `compileSubmitRequest`'s wire request.
      */

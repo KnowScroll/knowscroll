@@ -1,3 +1,8 @@
+/*
+ * Wire schemas for reasoning jobs, steps, leases, permits, attempts, receipts and settlements.
+ * Invariant: parsing a shape grants no authority and performs no database transition; bigint
+ * counters stay strings so no value passes through a lossy JS number (ADR-0012).
+ */
 import { z } from 'zod';
 import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 

@@ -20,9 +20,9 @@ export type HistoryClearReceipt = {
   clearedAt: string;
 };
 
-// ADR-0028 — privacy lifecycle: pause, export and reset. Pause/resume and export share one
-// unconfirmed shape (no destructive confirmation literal is needed for either); reset requires
-// its own deliberate confirmation literal, matching Clear's pattern, because it is irreversible.
+// Privacy lifecycle: pause, export and reset. Pause/resume and export share one unconfirmed shape
+// (no destructive confirmation literal is needed for either); reset requires its own deliberate
+// confirmation literal, matching Clear's pattern, because it is irreversible (ADR-0028).
 export const privacyLifecycleInput = z
   .object({
     requestId: uuid,
@@ -38,8 +38,8 @@ export const privacyResetInput = z
   })
   .strict();
 export type PrivacyResetInput = z.infer<typeof privacyResetInput>;
-// ADR-0035: deleting the account is Reset plus the account, its sessions, sign-in tokens and dated
-// privacy receipts; it has its own literal because it removes more than Reset does.
+// Deleting the account is Reset plus the account, its sessions, sign-in tokens and dated privacy
+// receipts; it has its own literal because it removes more than Reset does (ADR-0035).
 export const accountDeletionInput = z
   .object({
     requestId: uuid,

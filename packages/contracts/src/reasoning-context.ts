@@ -1,3 +1,8 @@
+/*
+ * Schemas for the sealed direct-context payload a reasoning job reads: its Scrolls, dependencies,
+ * limits and refusals. Invariant: shape parsing grants no authority; the compiler and its
+ * versions are pinned here so a stored payload hash stays reproducible (ADR-0014).
+ */
 import { z } from 'zod';
 import { privacyEpoch as epoch, uuid as id } from './primitives.ts';
 import { reasoningCounter } from './reasoning.ts';

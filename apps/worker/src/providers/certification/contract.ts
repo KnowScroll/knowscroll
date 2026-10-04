@@ -1,4 +1,4 @@
-/** ADR-0011: development certification only; not a production reasoning permit. */
+/** Development certification only; not a production reasoning permit (ADR-0011). */
 export type Json =
   | null
   | boolean

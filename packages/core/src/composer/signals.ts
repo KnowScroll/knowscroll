@@ -1,17 +1,13 @@
+/*
+ * The signal-ranked Composer: retrieval is `feedCandidates()` minus `accounts.kept_asset_ids`;
+ * ranking, diversity and the rendered explanation are pure functions over a signal snapshot and a
+ * registered template the caller fetched (`packages/db/src/composer/signals.ts`). Invariants: no
+ * database, HTTP, provider or UI import here (packages/core/AGENTS.md), and the caller persists
+ * `decision_signal` rows recording exactly this output so a reader can recompute and check it
+ * (ADR-0028, #114).
+ */
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
 import { fnv1a } from '../shared/fnv.ts';
-
-/**
- * ADR-0028 (#114/#5): the real Composer. Retrieval stays exactly `feedCandidates()` minus
- * `accounts.kept_asset_ids`, unchanged from the retired bootstrap policy this file used to
- * implement; everything past that — ranking, diversity and the rendered explanation — is a pure
- * function over a signal snapshot the caller fetched with one bounded SQL query
- * (`packages/db/src/composer/signals.ts`) and a registered template it also fetched
- * (`composer_explanation_template`). No database, HTTP, provider or UI import happens here
- * (packages/core/AGENTS.md); the caller (apps/api) owns fetching signals/policy/templates and
- * persisting `decision_signal` rows that record exactly this function's own output, so a later
- * reader can recompute it and check the claim instead of trusting it.
- */
 
 /** Retired without ever being dispatched (#113/ADR-0029 amendment): this row remains in
  * `composer_policy`, immutable forever per migration 0019, but no code path loads it anymore —
