@@ -28,6 +28,7 @@ import {
   selectMintBrief,
   selectMintReel,
   selectSourceAsset,
+  selectWinningAssetForReel,
   withdrawReelAndAsset,
 } from '@knowscroll/db/publication/mint';
 
@@ -115,7 +116,7 @@ export async function mintReelAsset(
     throw new MintError('mint_refused', inserted.message);
   if (inserted.rowCount === 1) return { assetId, created: true };
   // Lost a race to a concurrent minter for the same generated Reel: return the row that won.
-  const winner = (await selectAssetIdForReel(pool, generatedReelId))!;
+  const winner = (await selectWinningAssetForReel(pool, generatedReelId))!;
   return { assetId: winner.id, created: false };
 }
 

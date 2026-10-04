@@ -64,6 +64,19 @@ export async function selectMintBrief(
   ).rows[0];
 }
 
+/** Read-back after losing the insert race to a concurrent minter. */
+export async function selectWinningAssetForReel(
+  pool: pg.Pool,
+  generatedReelId: string,
+): Promise<{ id: string } | undefined> {
+  return (
+    await pool.query<{ id: string }>(
+      'SELECT id FROM asset WHERE generated_reel_id=$1',
+      [generatedReelId],
+    )
+  ).rows[0];
+}
+
 export async function selectSourceAsset(
   pool: pg.Pool,
   sourceAssetId: string,
