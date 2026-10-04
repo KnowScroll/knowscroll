@@ -1,5 +1,5 @@
 /**
- * #133 — "Why this appeared" and the reader's correction (ADR-0032 §5), in their own module.
+ * "Why this appeared" and the reader's correction (ADR-0032 §5; #133).
  *
  *   GET  /v1/decisions/:decisionId/why?assetId=   the recorded reason, family and evidence path
  *   POST /v1/encounters/feedback                  less_like_this | wrong_connection
@@ -10,6 +10,7 @@ import { readWhy } from '@knowscroll/db/composer/semantic';
 import { recordEncounterFeedback } from '@knowscroll/db/composer/feedback';
 import { HttpError } from '../http/errors.ts';
 import type { Authenticated } from '../http/authenticated.ts';
+import { noStore } from '../http/input.ts';
 
 export function registerComposerRoutes(
   app: FastifyInstance,
@@ -41,7 +42,7 @@ export function registerComposerRoutes(
         return why;
       },
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
 
   app.post('/v1/encounters/feedback', async (req, reply) => {
