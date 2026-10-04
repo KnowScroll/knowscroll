@@ -14,12 +14,14 @@
  * pair that cites only offered claims (still only a proposal — bridge-validator-v1 decides), an honest
  * "none", or a shape rejection naming the rule it broke. Provider text carries no authority of its own.
  */
-import { z } from 'zod';
+
 import {
+  type BridgeProposalPayload,
   bridgeProposalPayload,
   semanticKey,
-  type BridgeProposalPayload,
 } from '@knowscroll/contracts/semantic';
+import { z } from 'zod';
+import { compareCodeUnits } from '../shared/compare.ts';
 import { canonical, wholeObject } from './wire.ts';
 
 export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({
@@ -84,7 +86,6 @@ export interface InquiryPair {
   admissible: AdmissibleRelation[];
 }
 
-const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const pairKey = (x: string, y: string) => (x < y ? `${x}\0${y}` : `${y}\0${x}`);
 
 function ancestors(
@@ -147,7 +148,9 @@ function roleOn(
 export function selectInquiryPairs(
   input: InquiryCandidateInput,
 ): InquiryPair[] {
-  const places = [...input.places].sort((x, y) => byCode(x.code, y.code));
+  const places = [...input.places].sort((x, y) =>
+    compareCodeUnits(x.code, y.code),
+  );
   const claims = input.claims.filter((c) => c.supported);
   const chain = new Map(
     places.map((p) => [p.code, [p.code, ...ancestors(input.parentOf, p.code)]]),
@@ -200,7 +203,8 @@ export function selectInquiryPairs(
         list
           .sort(
             (x, y) =>
-              x.distance - y.distance || byCode(x.claim.key, y.claim.key),
+              x.distance - y.distance ||
+              compareCodeUnits(x.claim.key, y.claim.key),
           )
           .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor)
           .map((x) => offered(x.claim));
@@ -208,7 +212,7 @@ export function selectInquiryPairs(
         claimsB = rank(sideB);
       // A claim naming both says which role each side plays in it: "explains" is carried by those roles.
       const named = both
-        .sort((x, y) => byCode(x.key, y.key))
+        .sort((x, y) => compareCodeUnits(x.key, y.key))
         .slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
         .map((c) => ({
           ...offered(c),
@@ -244,7 +248,7 @@ export function selectInquiryPairs(
       }
       const admissible: AdmissibleRelation[] = [
         ...[...explains.values()].sort((x, y) =>
-          byCode(x.fromConcept, y.fromConcept),
+          compareCodeUnits(x.fromConcept, y.fromConcept),
         ),
         {
           relationType: 'compares_mechanism',
@@ -272,8 +276,8 @@ export function selectInquiryPairs(
     .sort(
       (x, y) =>
         Number(y.named) - Number(x.named) ||
-        byCode(x.a.code, y.a.code) ||
-        byCode(x.b.code, y.b.code),
+        compareCodeUnits(x.a.code, y.a.code) ||
+        compareCodeUnits(x.b.code, y.b.code),
     )
     .slice(0, BRIDGE_INQUIRY_LIMITS.maxPairs)
     .map(({ named: _named, ...pair }) => pair);

@@ -1,9 +1,9 @@
 /** Deterministic artifact authoring and delivery validation; never executes generated code. */
 import { createHash } from 'node:crypto';
 import {
-  webScrollArtifactV1,
-  type WebScrollBlockV1,
   type WebScrollArtifactV1,
+  type WebScrollBlockV1,
+  webScrollArtifactV1,
 } from '@knowscroll/contracts/web-scroll-artifact';
 
 const MAX_ARTIFACT_BYTES = 65_536;

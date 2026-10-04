@@ -20,10 +20,10 @@
  */
 import {
   BRIDGE_VALIDATOR_VERSION,
-  SYMMETRIC_BRIDGE_TYPES,
   type BridgeDecision,
   type BridgeProposalPayload,
   type BridgeRejectionReason,
+  SYMMETRIC_BRIDGE_TYPES,
 } from '@knowscroll/contracts/semantic';
 
 export type ClaimRole = 'subject' | 'object' | 'mechanism' | 'context';

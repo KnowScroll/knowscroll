@@ -13,12 +13,13 @@
  * - A room whose place is no longer live retires; the reader's setting a room aside is final.
  */
 import {
-  homeAnchor,
   type CausalClass,
   type ConceptNode,
+  homeAnchor,
   type PlaceView,
   type TypedRelation,
 } from '../atlas/cartographer.ts';
+import { compareCodeUnits } from '../shared/compare.ts';
 
 export const KEEPER_V1 = 'keeper-v1';
 export const KEEPER_POLICY = KEEPER_V1;
@@ -131,7 +132,6 @@ export const isLiveRoom = (r: { state: RoomState }): boolean =>
   r.state === 'opened' || r.state === 'arguing';
 const isLivePlace = (p: KeeperPlace) =>
   p.state === 'live' && (p.kind === 'planet' || p.kind === 'region');
-const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 /** UTC calendar days, as attention counts them (`semantic/attention.ts`). */
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const askEvidence = (a: KeeperAsk): AskEvidence => ({
@@ -176,12 +176,12 @@ export function planRooms(input: KeeperInput): RoomDelta[] {
   // and what the reader said no to never reopens anywhere.
   const held = new Set(input.rooms.flatMap((r) => r.askIds));
   for (const place of [...live.values()].sort((a, b) =>
-    byCode(a.anchor, b.anchor),
+    compareCodeUnits(a.anchor, b.anchor),
   )) {
     const here = rooms.filter((r) => r.placeId === place.placeId);
     const carried = (asksAt.get(place.placeId) ?? [])
       .filter((a) => !held.has(a.askId))
-      .sort((a, b) => a.atMs - b.atMs || byCode(a.askId, b.askId));
+      .sort((a, b) => a.atMs - b.atMs || compareCodeUnits(a.askId, b.askId));
     if (
       carried.length < MIN_ASKS ||
       new Set(carried.map((a) => isoDay(a.atMs))).size < MIN_DAYS
@@ -217,7 +217,8 @@ export function planRooms(input: KeeperInput): RoomDelta[] {
     } else if (liveHere.length > 0) {
       // Beyond a cap a carried question never opens another room; with no room of its own to join, it waits.
       const recent = [...liveHere].sort(
-        (a, b) => b.openedAtMs - a.openedAtMs || byCode(a.roomId, b.roomId),
+        (a, b) =>
+          b.openedAtMs - a.openedAtMs || compareCodeUnits(a.roomId, b.roomId),
       )[0]!;
       recent.askIds = [...recent.askIds, ...carried.map((a) => a.askId)];
       deltas.push({
@@ -330,7 +331,7 @@ function neighbourhood(
   ): HeldClaim[] =>
     [...ids]
       .map((id) => supported.get(id)!)
-      .sort((a, b) => byCode(a.key, b.key))
+      .sort((a, b) => compareCodeUnits(a.key, b.key))
       .slice(0, MAX_POSITION)
       .map((c) => ({ claimId: c.claimId, supportKind: kind(c.claimId) }));
   const connecting = [...liveTies].filter((id) => !doubt.has(id));

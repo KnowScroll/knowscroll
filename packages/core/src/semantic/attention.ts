@@ -1,3 +1,4 @@
+import { round } from '../shared/number.ts';
 /**
  * #131 — attention accounts (`attention-v1`, ADR-0032 §1). Pure: evidence in, per-concept accounts
  * out. An account is a routing aid for the Composer and Cartographer, never a statement about the
@@ -249,5 +250,3 @@ export function stateOf(
     ? 'dormant'
     : 'seen';
 }
-
-const round = (n: number) => Math.round(n * 10_000) / 10_000;

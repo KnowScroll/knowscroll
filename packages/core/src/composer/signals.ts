@@ -1,4 +1,5 @@
 import type { FeedAsset } from '@knowscroll/contracts/inventory';
+import { fnv1a } from '../shared/fnv.ts';
 
 /**
  * ADR-0028 (#114/#5): the real Composer. Retrieval stays exactly `feedCandidates()` minus
@@ -94,14 +95,6 @@ const MS_PER_DAY = 86_400_000;
  * the same slate (the property the determinism tests check), without rewarding a particular id's
  * literal ordinal value.
  */
-function tiebreakKey(assetId: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < assetId.length; i += 1) {
-    hash ^= assetId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
 
 /** The entire scoring function (ADR-0028 section 2): one bounded arithmetic expression over
  * recorded facts, never a provider call. An unread candidate outranks any exposed one by the
@@ -202,8 +195,7 @@ export function rankSignalCandidates(
       // preference for a particular source, only what this universe's own history already records.
       if (a.c.sourceExposureCount !== b.c.sourceExposureCount)
         return a.c.sourceExposureCount - b.c.sourceExposureCount;
-      const hashDiff =
-        tiebreakKey(a.c.asset.assetId) - tiebreakKey(b.c.asset.assetId);
+      const hashDiff = fnv1a(a.c.asset.assetId) - fnv1a(b.c.asset.assetId);
       if (hashDiff !== 0) return hashDiff;
       // Only reached on an actual hash collision (astronomically unlikely for 32 bits over a
       // realistic candidate count): fall back to the raw id so the order stays a strict total
