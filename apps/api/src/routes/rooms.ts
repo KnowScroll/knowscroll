@@ -1,6 +1,5 @@
 /**
- * #163 — the reader's Idea Rooms (ADR-0045), in their own module. A place's live rooms come with
- * `GET /v1/atlas`.
+ * The reader's Idea Rooms (ADR-0045; #163). A place's live rooms come with `GET /v1/atlas`.
  *
  *   GET  /v1/rooms/:roomId              one room: question, state, inhabitants, chronicle with evidence
  *   GET  /v1/rooms/deltas/:deltaId      one change and its evidence
@@ -9,11 +8,10 @@
  * Nothing here calls a model, and no source is ever returned.
  */
 import type { FastifyInstance } from 'fastify';
-import { uuid } from '@knowscroll/contracts';
 import { readAtlas } from '@knowscroll/db/atlas';
 import { readRoom, readRoomDelta, setRoomAside } from '@knowscroll/db/rooms';
-import { HttpError } from '../http/errors.ts';
 import type { Authenticated } from '../http/authenticated.ts';
+import { noStore, requireUuid } from '../http/input.ts';
 
 export function registerRoomRoutes(
   app: FastifyInstance,
@@ -25,12 +23,11 @@ export function registerRoomRoutes(
       const room = await authenticated(
         req.headers.authorization,
         async (scope, client) => {
-          if (!uuid.safeParse(req.params.roomId).success)
-            throw new HttpError(400, 'Invalid room id');
+          requireUuid(req.params.roomId, 'Invalid room id');
           return readRoom(client, scope.universeId, req.params.roomId);
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(room);
+      return noStore(reply).send(room);
     },
   );
 
@@ -40,12 +37,11 @@ export function registerRoomRoutes(
       const delta = await authenticated(
         req.headers.authorization,
         async (scope, client) => {
-          if (!uuid.safeParse(req.params.deltaId).success)
-            throw new HttpError(400, 'Invalid delta id');
+          requireUuid(req.params.deltaId, 'Invalid delta id');
           return readRoomDelta(client, scope.universeId, req.params.deltaId);
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(delta);
+      return noStore(reply).send(delta);
     },
   );
 
@@ -55,13 +51,12 @@ export function registerRoomRoutes(
       const atlas = await authenticated(
         req.headers.authorization,
         async (scope, client) => {
-          if (!uuid.safeParse(req.params.roomId).success)
-            throw new HttpError(400, 'Invalid room id');
+          requireUuid(req.params.roomId, 'Invalid room id');
           await setRoomAside(client, scope, req.params.roomId, req.body);
           return readAtlas(client, scope.universeId);
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(atlas);
+      return noStore(reply).send(atlas);
     },
   );
 }

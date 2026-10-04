@@ -1,5 +1,5 @@
 /**
- * #132 — background bridge inquiries (ADR-0038): the reader's standing consent and what was looked for.
+ * Background bridge inquiries (ADR-0038): the reader's standing consent and what was looked for.
  *
  *   PUT /v1/inquiries/consent   {enabled, dailyLimit?, clientRequestId, expectedPrivacyEpoch} -> {privacyEpoch, consent}
  *   GET /v1/inquiries           {privacyEpoch, consent, inquiries[]}, newest first
@@ -9,18 +9,11 @@
  */
 import type { FastifyInstance } from 'fastify';
 import {
-  InquiryError,
   listInquiries,
   setInquiryConsent,
 } from '@knowscroll/db/reasoning/inquiries';
-import { HttpError } from '../http/errors.ts';
 import type { Authenticated } from '../http/authenticated.ts';
-
-const http = (error: unknown): never => {
-  if (error instanceof InquiryError)
-    throw new HttpError(error.statusCode, error.message);
-  throw error;
-};
+import { noStore } from '../http/input.ts';
 
 export function registerInquiryRoutes(
   app: FastifyInstance,
@@ -29,15 +22,15 @@ export function registerInquiryRoutes(
   app.put('/v1/inquiries/consent', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
-      (scope, client) => setInquiryConsent(client, scope, req.body).catch(http),
+      (scope, client) => setInquiryConsent(client, scope, req.body),
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
   app.get('/v1/inquiries', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
       (scope, client) => listInquiries(client, scope),
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
 }

@@ -1,5 +1,5 @@
 /**
- * #164 — the reader's content demands (ADR-0046 §6), in their own module.
+ * The reader's content demands (ADR-0046 §6; #164).
  *
  *   GET /v1/inventory   {privacyEpoch, demands[]}: state, decision, reason, concept and, once bound, the Scroll
  *
@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { readInventory } from '@knowscroll/db/inventory/read';
 import type { Authenticated } from '../http/authenticated.ts';
+import { noStore } from '../http/input.ts';
 
 export function registerInventoryRoutes(
   app: FastifyInstance,
@@ -19,6 +20,6 @@ export function registerInventoryRoutes(
       req.headers.authorization,
       (scope, client) => readInventory(client, scope),
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
 }

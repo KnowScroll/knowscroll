@@ -1,6 +1,5 @@
 /**
- * #131 — HTTP for the semantic substrate's personal consumers. Kept in its own module (like
- * `routes/sign-in.ts`) so `app.ts` only wires it in.
+ * HTTP for the semantic substrate's personal consumers (#131).
  *
  *   GET  /v1/assets/:assetId/branches   live continuations along admitted, non-suppressed bridges (and,
  *                                       for one into a concept with nothing unseen, its need: ADR-0046)
@@ -12,7 +11,6 @@
  * an HTTP route: a person's objection never retracts a source-backed claim for everyone.
  */
 import type { FastifyInstance } from 'fastify';
-import { uuid } from '@knowscroll/contracts';
 import { observeOfferedGaps } from '@knowscroll/db/inventory/demand';
 import {
   listEncounterBranches,
@@ -26,7 +24,7 @@ import type {
 } from '@knowscroll/contracts/semantic';
 import { refreshPersonalModel } from '@knowscroll/db/semantic/personal-model';
 import type { Authenticated } from '../http/authenticated.ts';
-import { HttpError } from '../http/errors.ts';
+import { noStore, requireUuid } from '../http/input.ts';
 
 export function registerSemanticRoutes(
   app: FastifyInstance,
@@ -38,8 +36,7 @@ export function registerSemanticRoutes(
       const result = await authenticated(
         req.headers.authorization,
         async (scope, client) => {
-          if (!uuid.safeParse(req.params.assetId).success)
-            throw new HttpError(400, 'Invalid asset ID');
+          requireUuid(req.params.assetId, 'Invalid asset ID');
           const listed = await listEncounterBranches(
             client,
             scope,
@@ -55,7 +52,7 @@ export function registerSemanticRoutes(
           return isWebReader(req.query) ? webBranches(listed) : listed;
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(result);
+      return noStore(reply).send(result);
     },
   );
 

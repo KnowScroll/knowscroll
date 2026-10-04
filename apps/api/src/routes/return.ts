@@ -1,5 +1,5 @@
 /**
- * #134/#165 — the return and Relics (ADR-0039, ADR-0044).
+ * The reader's return (what changed while away) and Relics, objections and passages (ADR-0039, ADR-0044; #134, #165).
  *
  *   GET  /v1/away[?page=]                    what changed that the reader did not cause, since their marker, a page at a time
  *   POST /v1/away/acknowledge                {clientRequestId, expectedPrivacyEpoch, through} -> {privacyEpoch, since}
@@ -13,8 +13,7 @@
  * POST /v1/connections/feedback; a place is doubted by setting it aside (POST /v1/atlas/places/:id/reject).
  */
 import type { FastifyInstance } from 'fastify';
-import { uuid } from '@knowscroll/contracts';
-import { acknowledgeAway, readAway, ReturnError } from '@knowscroll/db/away';
+import { acknowledgeAway, readAway } from '@knowscroll/db/away';
 import {
   keepRelic,
   listRelics,
@@ -22,14 +21,8 @@ import {
   recordObjection,
   releaseRelic,
 } from '@knowscroll/db/relics';
-import { HttpError } from '../http/errors.ts';
 import type { Authenticated } from '../http/authenticated.ts';
-
-const http = (error: unknown): never => {
-  if (error instanceof ReturnError)
-    throw new HttpError(error.statusCode, error.message);
-  throw error;
-};
+import { noStore, requireUuid } from '../http/input.ts';
 
 type Paged = { Querystring: { page?: string } };
 
@@ -40,33 +33,30 @@ export function registerReturnRoutes(
   app.get<Paged>('/v1/away', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
-      (scope, client) => readAway(client, scope, req.query.page).catch(http),
+      (scope, client) => readAway(client, scope, req.query.page),
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
   app.post('/v1/away/acknowledge', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
-      (scope, client) => acknowledgeAway(client, scope, req.body).catch(http),
+      (scope, client) => acknowledgeAway(client, scope, req.body),
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
   app.get<Paged>('/v1/relics', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
-      (scope, client) => listRelics(client, scope, req.query.page).catch(http),
+      (scope, client) => listRelics(client, scope, req.query.page),
     );
-    return reply.header('Cache-Control', 'no-store').send(result);
+    return noStore(reply).send(result);
   });
   app.post('/v1/relics', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
-      (scope, client) => keepRelic(client, scope, req.body).catch(http),
+      (scope, client) => keepRelic(client, scope, req.body),
     );
-    return reply
-      .code(result.created ? 201 : 200)
-      .header('Cache-Control', 'no-store')
-      .send(result.body);
+    return noStore(reply.code(result.created ? 201 : 200)).send(result.body);
   });
   app.post<{ Params: { relicId: string } }>(
     '/v1/relics/:relicId/release',
@@ -74,28 +64,19 @@ export function registerReturnRoutes(
       const result = await authenticated(
         req.headers.authorization,
         (scope, client) => {
-          if (!uuid.safeParse(req.params.relicId).success)
-            throw new HttpError(400, 'Invalid Relic ID');
-          return releaseRelic(
-            client,
-            scope,
-            req.params.relicId,
-            req.body,
-          ).catch(http);
+          requireUuid(req.params.relicId, 'Invalid Relic ID');
+          return releaseRelic(client, scope, req.params.relicId, req.body);
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(result);
+      return noStore(reply).send(result);
     },
   );
   app.post('/v1/objections', async (req, reply) => {
     const result = await authenticated(
       req.headers.authorization,
-      (scope, client) => recordObjection(client, scope, req.body).catch(http),
+      (scope, client) => recordObjection(client, scope, req.body),
     );
-    return reply
-      .code(result.created ? 201 : 200)
-      .header('Cache-Control', 'no-store')
-      .send(result.body);
+    return noStore(reply.code(result.created ? 201 : 200)).send(result.body);
   });
   app.get<{ Params: { assetId: string } }>(
     '/v1/scrolls/:assetId/passages',
@@ -103,12 +84,11 @@ export function registerReturnRoutes(
       const result = await authenticated(
         req.headers.authorization,
         (scope, client) => {
-          if (!uuid.safeParse(req.params.assetId).success)
-            throw new HttpError(400, 'Invalid Scroll ID');
-          return readPassages(client, scope, req.params.assetId).catch(http);
+          requireUuid(req.params.assetId, 'Invalid Scroll ID');
+          return readPassages(client, scope, req.params.assetId);
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(result);
+      return noStore(reply).send(result);
     },
   );
 }

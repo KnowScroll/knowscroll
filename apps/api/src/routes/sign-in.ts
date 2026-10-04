@@ -1,6 +1,9 @@
 /**
- * ADR-0026 — `POST /v1/auth/magic-link`, `GET /v1/auth/confirm`, `POST /v1/auth/session`. Kept in
- * its own module (mirroring `media/stream.ts`) so `app.ts` only wires it in, rather than growing further.
+ * Sign-in (ADR-0026): `POST /v1/auth/magic-link`, `GET /v1/auth/confirm`, `POST /v1/auth/session`,
+ * and the cookie variant `POST /v1/auth/web-session` (ADR-0034).
+ *
+ * A magic-link request never reveals whether the address exists or whether delivery worked, and a
+ * session request never distinguishes a malformed token from an expired, consumed or unknown one.
  */
 import type { FastifyInstance } from 'fastify';
 import {
@@ -21,6 +24,7 @@ import {
 } from '../mail/magic-link-sender.ts';
 import { describeSendFailure } from '../mail/agentmail-sender.ts';
 import { HttpError } from '../http/errors.ts';
+import { parseInput } from '../http/input.ts';
 import {
   csrfToken,
   sessionCookie,
@@ -46,8 +50,11 @@ export function registerSignInRoutes(
   const resolvedSender = () => sender ?? (sender = createMagicLinkSender());
 
   app.post('/v1/auth/magic-link', async (req, reply) => {
-    const parsed = magicLinkRequestInput.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, 'Invalid magic-link request');
+    const input = parseInput(
+      magicLinkRequestInput,
+      req.body,
+      'Invalid magic-link request',
+    );
     const fingerprint = requesterFingerprint(req.ip);
     // `limits` is injected only by tests that need many links inside one window; production
     // always uses the documented defaults in packages/db/src/sign-in.ts.
@@ -55,7 +62,7 @@ export function registerSignInRoutes(
       requestMagicLink(
         client,
         {
-          email: parsed.data.email,
+          email: input.email,
           requesterFingerprint: fingerprint,
         },
         limits,
@@ -78,7 +85,7 @@ export function registerSignInRoutes(
       // httpStatus/reason/messageId that is safe by construction, never `error.message` or a stack,
       // and never the address, the token or the link this route just built.
       try {
-        await resolvedSender().send({ to: parsed.data.email, link });
+        await resolvedSender().send({ to: input.email, link });
       } catch (error) {
         console.error(
           JSON.stringify({
@@ -93,11 +100,13 @@ export function registerSignInRoutes(
   });
 
   app.get('/v1/auth/confirm', async (req, reply) => {
-    const parsed = signInConfirmQuery.safeParse(req.query);
-    if (!parsed.success)
-      throw new HttpError(400, 'Invalid confirmation request');
+    const query = parseInput(
+      signInConfirmQuery,
+      req.query,
+      'Invalid confirmation request',
+    );
     const valid = await transaction((client) =>
-      confirmSignInToken(client, parsed.data.token),
+      confirmSignInToken(client, query.token),
     );
     return reply.code(200).send({ valid });
   });

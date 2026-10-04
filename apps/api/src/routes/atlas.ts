@@ -1,5 +1,9 @@
 /**
- * #134 — the reader's places (ADR-0036), in their own module.
+ * The reader's places (ADR-0036; #134).
+ *
+ * Every read carries `Cache-Control: no-store`. `?webReader=v1` is the only accepted query and
+ * selects the reader projection, which drops source titles and source families; any other query is
+ * refused with 400 before the db is read.
  *
  *   GET  /v1/atlas                          live places, typed relations between them, chronicle
  *   GET  /v1/atlas/deltas/:deltaId          one change and its evidence
@@ -16,6 +20,7 @@ import {
 } from '@knowscroll/db/atlas';
 import { HttpError } from '../http/errors.ts';
 import type { Authenticated } from '../http/authenticated.ts';
+import { noStore, requireUuid } from '../http/input.ts';
 
 const rejectInput = z
   .object({ expectedPrivacyEpoch: z.number().int().min(0).max(2147483647) })
@@ -73,9 +78,9 @@ export function registerAtlasRoutes(
           atlas: await readAtlas(client, scope.universeId),
         }),
       );
-      return reply
-        .header('Cache-Control', 'no-store')
-        .send(result.webReader ? readerAtlas(result.atlas) : result.atlas);
+      return noStore(reply).send(
+        result.webReader ? readerAtlas(result.atlas) : result.atlas,
+      );
     },
   );
 
@@ -85,12 +90,11 @@ export function registerAtlasRoutes(
       const delta = await authenticated(
         req.headers.authorization,
         async (scope, client) => {
-          if (!uuid.safeParse(req.params.deltaId).success)
-            throw new HttpError(400, 'Invalid delta id');
+          requireUuid(req.params.deltaId, 'Invalid delta id');
           return readAtlasDelta(client, scope.universeId, req.params.deltaId);
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(delta);
+      return noStore(reply).send(delta);
     },
   );
 
@@ -111,8 +115,8 @@ export function registerAtlasRoutes(
         return { webReader, atlas: await readAtlas(client, scope.universeId) };
       },
     );
-    return reply
-      .header('Cache-Control', 'no-store')
-      .send(result.webReader ? readerAtlas(result.atlas) : result.atlas);
+    return noStore(reply).send(
+      result.webReader ? readerAtlas(result.atlas) : result.atlas,
+    );
   });
 }

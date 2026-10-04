@@ -1,5 +1,5 @@
 /**
- * #132 — Ask answers (ADR-0033): the reader's explicit request, its state, and cancellation.
+ * Ask answers (ADR-0033): the reader's explicit request, its state, and cancellation.
  *
  *   POST /v1/asks/:askId/answer          fresh authority for one answer (202), exact retry replays
  *   GET  /v1/asks/:askId/answer          queued | running | answered | not_in_source | rejected | failed | cancelled | unavailable
@@ -9,19 +9,13 @@
  */
 import type { FastifyInstance } from 'fastify';
 import {
-  AskAnswerError,
   cancelAskAnswer,
   readAskAnswer,
   requestAskAnswer,
 } from '@knowscroll/db/reasoning/answers';
 import { HttpError } from '../http/errors.ts';
 import type { Authenticated } from '../http/authenticated.ts';
-
-const http = (error: unknown): never => {
-  if (error instanceof AskAnswerError)
-    throw new HttpError(error.statusCode, error.message);
-  throw error;
-};
+import { noStore } from '../http/input.ts';
 
 export function registerAnswerRoutes(
   app: FastifyInstance,
@@ -33,9 +27,7 @@ export function registerAnswerRoutes(
       const result = await authenticated(
         req.headers.authorization,
         (scope, client) =>
-          requestAskAnswer(client, scope, req.params.askId, req.body).catch(
-            http,
-          ),
+          requestAskAnswer(client, scope, req.params.askId, req.body),
       );
       return reply.code(202).send(result);
     },
@@ -52,7 +44,7 @@ export function registerAnswerRoutes(
           return view;
         },
       );
-      return reply.header('Cache-Control', 'no-store').send(result);
+      return noStore(reply).send(result);
     },
   );
   app.post<{ Params: { askId: string } }>(
@@ -61,9 +53,7 @@ export function registerAnswerRoutes(
       const result = await authenticated(
         req.headers.authorization,
         (scope, client) =>
-          cancelAskAnswer(client, scope, req.params.askId, req.body).catch(
-            http,
-          ),
+          cancelAskAnswer(client, scope, req.params.askId, req.body),
       );
       return reply.code(200).send(result);
     },
