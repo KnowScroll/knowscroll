@@ -5,6 +5,7 @@
  * values are clamped silently here, unlike the other entrypoints which exit 1. */
 import { setTimeout } from 'node:timers/promises';
 import { pool } from '@knowscroll/db';
+import { recordWorkerHeartbeat } from '@knowscroll/db/projection/heartbeat';
 import { projectOne } from './project.ts';
 import { answerTransportsFromEnvironment } from './reasoning/transport-selection.ts';
 import { runAnswerPass } from './reasoning/answer-worker.ts';
@@ -110,10 +111,7 @@ const inquiries = inquiryTransports
 
 /** Deliberately outside any try: one transient database error here ends the process. */
 async function heartbeat(): Promise<void> {
-  await pool.query(
-    'INSERT INTO worker_heartbeat(worker_id,last_seen) VALUES($1,now()) ON CONFLICT(worker_id) DO UPDATE SET last_seen=now()',
-    [workerId],
-  );
+  await recordWorkerHeartbeat(pool, workerId);
 }
 
 async function projectionTick(): Promise<void> {

@@ -36,6 +36,13 @@ import {
   ReasoningDenied,
   type ReasoningAuthority,
 } from '@knowscroll/db/reasoning/runtime-policy';
+import {
+  attemptAccountingState,
+  enabledAnswerRouteTransport,
+  enabledInquiryRoute,
+  hasWaitingReasoningJob,
+  inquiryAttemptStep,
+} from '@knowscroll/db/reasoning/worker-reads';
 import { inTransaction } from '@knowscroll/db/sql/transactions';
 import type {
   AnswerObservation,
@@ -84,23 +91,14 @@ export async function runInquiryPass(deps: {
     reason,
     opened,
   });
-  const route = (
-    await pool.query<{
-      policy_version: string;
-      transport: 'fixture' | 'minimax';
-    }>(
-      'SELECT policy_version, transport FROM background_inquiry_route WHERE enabled',
-    )
-  ).rows[0];
+  const route = await enabledInquiryRoute(pool);
   if (!route) return idle('no_enabled_route');
   const transport = transports[route.transport];
   if (!transport) return idle(`transport_not_configured:${route.transport}`);
-  const answerRoute = (
-    await pool.query<{ transport: 'fixture' | 'minimax' }>(
-      'SELECT transport FROM ask_answer_route WHERE enabled AND policy_version=$1',
-      [route.policy_version],
-    )
-  ).rows[0];
+  const answerRoute = await enabledAnswerRouteTransport(
+    pool,
+    route.policy_version,
+  );
   const answerTransport = answerRoute
     ? deps.answers?.transports[answerRoute.transport]
     : undefined;
@@ -108,14 +106,7 @@ export async function runInquiryPass(deps: {
   if (answerRoute && !answerTransport)
     return idle('shared_scheduler_needs_answer_transport');
   // Readiness is asked only when something is actually waiting to be scheduled.
-  if (
-    !(
-      await pool.query(
-        'SELECT 1 FROM reasoning_fairness_ready WHERE policy_version=$1 LIMIT 1',
-        [route.policy_version],
-      )
-    ).rowCount
-  )
+  if (!(await hasWaitingReasoningJob(pool, route.policy_version)))
     return idle('no_inquiry_waiting');
   const gate = (
     t: InquiryTransport | AnswerTransport,
@@ -171,12 +162,11 @@ export async function executeInquiryClaim(
   const admission = createReasoningAdmission(pool, authority);
   const { claim, reserved } = scheduled;
   // The admitted Step: the inquiry's first, or a continuation (ADR-0042 §1).
-  const inquiry = (
-    await pool.query<{ id: string; step_id: string }>(
-      'SELECT i.id, a.step_id FROM background_inquiry i JOIN reasoning_attempt a ON a.job_id = i.job_id WHERE i.job_id=$1 AND a.id=$2',
-      [claim.jobId, reserved.attemptId],
-    )
-  ).rows[0]!;
+  const inquiry = await inquiryAttemptStep(
+    pool,
+    claim.jobId,
+    reserved.attemptId,
+  );
   const fence = {
     universeId: claim.universeId,
     privacyEpoch: claim.privacyEpoch,
@@ -203,12 +193,7 @@ export async function executeInquiryClaim(
     refusal: string | null = null,
   ): Promise<InquiryOutcome> => {
     try {
-      const state = (
-        await pool.query<{ state: string }>(
-          'SELECT state FROM reasoning_accounting WHERE attempt_id=$1',
-          [reserved.attemptId],
-        )
-      ).rows[0]?.state;
+      const state = await attemptAccountingState(pool, reserved.attemptId);
       if (state === 'reserved')
         return await giveBackUnsentInquiry(pool, admission, fence, refusal);
       return await inTransaction(pool, (client) =>
