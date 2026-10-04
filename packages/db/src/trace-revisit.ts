@@ -300,3 +300,18 @@ export async function listSavedTraces(
   await currentScope(client, scope);
   return traces;
 }
+
+/**
+ * The stored web artifact of a revisited Scroll, read after `readTraceRevisit` tied its revision and
+ * body to the original Keep (its asset share lock is still held). Undefined when the row has none.
+ */
+export async function readTraceWebArtifact(
+  client: pg.PoolClient,
+  assetId: string,
+): Promise<unknown> {
+  const artifactRow = await client.query<{ web_artifact: unknown }>(
+    'SELECT web_artifact FROM asset WHERE id=$1',
+    [assetId],
+  );
+  return artifactRow.rows[0]?.web_artifact;
+}

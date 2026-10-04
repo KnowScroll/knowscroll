@@ -50,3 +50,8 @@ export async function lockUniverse(c: pg.PoolClient, universeId = OWNER_ID) {
   ]);
   if (!row.rowCount) throw new Error('Universe not found');
 }
+
+/** `/health`'s probe: one trivial statement on the pool, which throws when the database is unreachable. */
+export async function checkDatabase(db: pg.Pool = pool): Promise<void> {
+  await db.query('SELECT 1');
+}

@@ -1,5 +1,4 @@
 import Fastify from 'fastify';
-import { randomUUID } from 'node:crypto';
 import {
   explicitAskInput,
   exposureInput,
@@ -9,15 +8,10 @@ import {
   privacyResetInput,
   accountDeletionInput,
   uuid,
-  type ScrollAsset,
 } from '@knowscroll/contracts';
+import { parseFeedKinds } from '@knowscroll/contracts/inventory';
 import {
-  parseFeedKinds,
-  type FeedAsset,
-  type ReelAssetDisplay,
-} from '@knowscroll/contracts/inventory';
-import {
-  pool,
+  checkDatabase,
   transaction,
   authenticateAndLock,
   ensureDevelopmentSession,
@@ -46,15 +40,23 @@ import {
   recordExplicitAsk,
 } from '@knowscroll/db/explicit-ask';
 import {
-  listSavedTraces,
   readTraceRevisit,
+  readTraceWebArtifact,
   TraceRevisitError,
 } from '@knowscroll/db/trace-revisit';
+import { SHARED_SOURCE_V1, readWorldSystem } from '@knowscroll/db/worlds';
 import {
-  SHARED_SOURCE_V1,
-  projectWorldsForEncounter,
-  readWorldSystem,
-} from '@knowscroll/db/worlds';
+  readLedgerEvent,
+  recordExposure,
+  recordKeep,
+} from '@knowscroll/db/encounters';
+import {
+  feedCandidates,
+  readFeedAccount,
+  readFeedWebArtifacts,
+} from '@knowscroll/db/feed';
+import { findServableMedia } from '@knowscroll/db/media';
+import { readUniverseSummary } from '@knowscroll/db/universe';
 import { HttpError } from './http/errors.ts';
 import {
   MEDIA_SHA256_PATTERN,
@@ -91,123 +93,6 @@ function emptyObject(value: unknown): value is Record<string, never> {
     !Array.isArray(value) &&
     Object.keys(value).length === 0
   );
-}
-
-interface ReelRow {
-  assetId: string;
-  revision: number;
-  title: string;
-  summary: string;
-  truthState: string;
-  simulated: boolean;
-  mediaSha256: string;
-  sourceTitle: string;
-  sourceUrl: string;
-  probe: unknown;
-}
-
-/** ADR-0025 section 2: only ever built from a stored ffprobe `probe` and the KnowScroll-owned
- * content-addressed media route — the engine's own file path is never sent. */
-function toReelAsset(row: ReelRow): ReelAssetDisplay {
-  const probe = row.probe as {
-    durationSeconds?: unknown;
-    width?: unknown;
-    height?: unknown;
-  } | null;
-  const durationSeconds =
-    typeof probe?.durationSeconds === 'number' ? probe.durationSeconds : 0;
-  const width = typeof probe?.width === 'number' ? probe.width : 0;
-  const height = typeof probe?.height === 'number' ? probe.height : 0;
-  return {
-    assetId: row.assetId,
-    revision: row.revision,
-    kind: 'Reel',
-    title: row.title,
-    summary: row.summary,
-    truthState: 'synthesis',
-    generatedLabel: true,
-    simulated: row.simulated,
-    mediaUrl: `/v1/media/${row.mediaSha256}`,
-    durationSeconds,
-    aspect: `${width}:${height}`,
-    sourceTitle: row.sourceTitle,
-    sourceUrl: row.sourceUrl,
-  };
-}
-
-/**
- * ADR-0025 section 2: candidates for `GET /v1/feed`. The default (`kinds` absent, or explicitly
- * `Scroll` alone) queries and returns EXACTLY what this route has always returned — the Reel query
- * never even runs — so an existing client sees no change at all. When `Reel` is requested, eligible/
- * test_eligible non-withdrawn Reel assets are interleaved (Scroll, Reel, Scroll, Reel, …) with the
- * Scroll list before `compose()`'s own bound/kept-filter runs, so a bounded few candidates are not
- * permanently dominated by whichever kind currently has more rows; this is still no inference and
- * no engagement signal, only a fixed, documented merge order.
- */
-async function feedCandidates(
-  client: import('pg').PoolClient,
-  kinds: readonly ('Scroll' | 'Reel')[],
-): Promise<FeedAsset[]> {
-  const scrolls = kinds.includes('Scroll')
-    ? ((
-        await client.query(
-          `
-      SELECT
-        id AS "assetId",
-        revision,
-        kind,
-        title,
-        summary,
-        body,
-        source_title AS "sourceTitle",
-        source_url AS "sourceUrl",
-        truth_state AS "truthState"
-      FROM
-        asset
-      WHERE
-        kind = 'Scroll'
-      ORDER BY
-        editorial_order
-    `,
-        )
-      ).rows as ScrollAsset[])
-    : [];
-  if (!kinds.includes('Reel')) return scrolls;
-  const reelRows = (
-    await client.query<ReelRow>(
-      `
-      SELECT
-        a.id AS "assetId",
-        a.revision,
-        a.title,
-        a.summary,
-        a.truth_state AS "truthState",
-        a.simulated,
-        a.media_sha256 AS "mediaSha256",
-        a.source_title AS "sourceTitle",
-        a.source_url AS "sourceUrl",
-        m.probe AS probe
-      FROM
-        asset a
-        JOIN generated_reel g ON g.id = a.generated_reel_id
-        JOIN media_object m ON m.sha256 = a.media_sha256
-      WHERE
-        a.kind = 'Reel'
-        AND a.withdrawn_at IS NULL
-        AND g.availability IN ('eligible', 'test_eligible')
-      ORDER BY
-        g.created_at,
-        a.id
-    `,
-    )
-  ).rows;
-  const reels = reelRows.map(toReelAsset);
-  const merged: FeedAsset[] = [];
-  for (let i = 0; i < Math.max(scrolls.length, reels.length); i += 1) {
-    if (scrolls[i]) merged.push(scrolls[i]!);
-    if (reels[i]) merged.push(reels[i]!);
-  }
-  return merged;
 }
 
 /** `exclude`: up to 256 comma-separated asset UUIDs, or absent. Null when malformed. */
@@ -311,7 +196,7 @@ export function buildApp(
   registerInventoryRoutes(app, authenticated);
 
   app.get('/health', async () => {
-    await pool.query('SELECT 1');
+    await checkDatabase();
     return { status: 'ok', database: true };
   });
 
@@ -421,23 +306,7 @@ export function buildApp(
 
   app.get('/v1/universe', async (req) =>
     authenticated(req.headers.authorization, async (scope, client) => {
-      const universe = (
-        await client.query(
-          'SELECT revision, privacy_epoch, recording_paused_at FROM universe WHERE id=$1',
-          [scope.universeId],
-        )
-      ).rows[0];
-      const traces = await listSavedTraces(client, scope);
-      return {
-        universeId: scope.universeId,
-        revision: universe.revision,
-        privacyEpoch: universe.privacy_epoch,
-        recordingPausedAt: universe.recording_paused_at
-          ? new Date(universe.recording_paused_at).toISOString()
-          : null,
-        traces,
-        capabilities: { reasoning: false, reels: false, worldEvolution: false },
-      };
+      return readUniverseSummary(client, scope);
     }),
   );
 
@@ -473,18 +342,15 @@ export function buildApp(
             // The guarded revisit has already tied this exact revision/body to the
             // original Keep and still holds the asset share lock. A checked web
             // artifact is an additive representation of that same Scroll.
-            const artifactRow = await client.query<{ web_artifact: unknown }>(
-              'SELECT web_artifact FROM asset WHERE id=$1',
-              [receipt.scroll.assetId],
+            const webArtifactValue = await readTraceWebArtifact(
+              client,
+              receipt.scroll.assetId,
             );
-            const webArtifact = validateScrollWebArtifact(
-              artifactRow.rows[0]?.web_artifact,
-              {
-                assetId: receipt.scroll.assetId,
-                revision: receipt.scroll.revision,
-                body: receipt.scroll.body,
-              },
-            );
+            const webArtifact = validateScrollWebArtifact(webArtifactValue, {
+              assetId: receipt.scroll.assetId,
+              revision: receipt.scroll.revision,
+              body: receipt.scroll.body,
+            });
             return { ...receipt, scroll: { ...readerScroll, webArtifact } };
           } catch (error) {
             if (!(error instanceof TraceRevisitError)) throw error;
@@ -542,11 +408,7 @@ export function buildApp(
       const exclude = parseFeedExclude(req.query.exclude);
       if (exclude === null)
         throw new HttpError(400, 'Invalid exclude parameter');
-      const account = (
-        await client.query('SELECT * FROM accounts WHERE universe_id=$1', [
-          scope.universeId,
-        ])
-      ).rows[0];
+      const account = await readFeedAccount(client, scope.universeId);
       const candidates = await feedCandidates(client, kinds);
       // Disposable preview only: offer authored examples through the same composer, decision,
       // exposure and Keep path as any encounter. This never changes the ordinary feed.
@@ -588,27 +450,7 @@ export function buildApp(
               .filter((item) => item.kind === 'Scroll')
               .map((item) => item.assetId)
           : [];
-      const artifacts = new Map<string, unknown>();
-      if (scrollIds.length > 0) {
-        const rows = await client.query<{
-          id: string;
-          revision: number;
-          body: string;
-          web_artifact: unknown;
-        }>(
-          'SELECT id, revision, body, web_artifact FROM asset WHERE id = ANY($1::uuid[])',
-          [scrollIds],
-        );
-        for (const row of rows.rows)
-          artifacts.set(
-            row.id,
-            validateScrollWebArtifact(row.web_artifact, {
-              assetId: row.id,
-              revision: row.revision,
-              body: row.body,
-            }),
-          );
-      }
+      const artifacts = await readFeedWebArtifacts(client, scrollIds);
       const delivered =
         req.query.webArtifact === 'v1'
           ? items.map((item) => {
@@ -642,86 +484,7 @@ export function buildApp(
         const parsed = exposureInput.safeParse(req.body);
         if (!parsed.success) throw new HttpError(400, 'Invalid exposure');
         const body = parsed.data;
-        const decision = (
-          await client.query(
-            'SELECT candidates, privacy_epoch FROM decision WHERE id=$1 AND universe_id=$2',
-            [body.decisionId, scope.universeId],
-          )
-        ).rows[0];
-        if (!decision)
-          throw new HttpError(422, 'Asset was not selected in this decision');
-        if (decision.privacy_epoch !== scope.privacyEpoch)
-          throw new HttpError(
-            409,
-            'Decision belongs to an older privacy epoch',
-          );
-        const old = (
-          await client.query(
-            'SELECT * FROM exposure WHERE universe_id=$1 AND client_key=$2',
-            [scope.universeId, body.clientExposureId],
-          )
-        ).rows[0];
-        if (old) {
-          if (
-            old.decision_id !== body.decisionId ||
-            old.asset_id !== body.assetId
-          )
-            throw new HttpError(
-              409,
-              'Exposure key reused with different content',
-            );
-          return { exposureId: old.id, eventId: old.event_id };
-        }
-        if (
-          !decision.candidates.some(
-            (asset: ScrollAsset) => asset.assetId === body.assetId,
-          )
-        )
-          throw new HttpError(422, 'Asset was not selected in this decision');
-        const exposureId = randomUUID();
-        const eventId = randomUUID();
-        await client.query(
-          'INSERT INTO ledger(id,universe_id,kind,client_key,payload,privacy_epoch) VALUES($1,$2,$3,$4,$5,$6)',
-          [
-            eventId,
-            scope.universeId,
-            'exposure',
-            body.clientExposureId,
-            JSON.stringify({ ...body, exposureId }),
-            scope.privacyEpoch,
-          ],
-        );
-        await client.query(
-          `
-        INSERT INTO
-          exposure (
-            id,
-            universe_id,
-            decision_id,
-            asset_id,
-            event_id,
-            client_key
-          )
-        VALUES
-          ($1, $2, $3, $4, $5, $6)
-      `,
-          [
-            exposureId,
-            scope.universeId,
-            body.decisionId,
-            body.assetId,
-            eventId,
-            body.clientExposureId,
-          ],
-        );
-        // ADR-0028: a reader encountering more is exactly what keeps their world/system current.
-        // Runs inside this same transaction, under the universe lock `authenticateAndLock` already
-        // holds -- a brand-new exposure is the only new evidence this endpoint can produce, and this
-        // is the one deterministic projection step that must never lag behind it.
-        await projectWorldsForEncounter(client, scope.universeId);
-        // ADR-0032: the private personal model follows the same evidence, in the same transaction.
-        await refreshPersonalModel(client, scope.universeId);
-        return { exposureId, eventId };
+        return recordExposure(client, scope, body);
       },
     );
     return reply.code(201).send(result);
@@ -741,97 +504,7 @@ export function buildApp(
         const parsed = interactionInput.safeParse(req.body);
         if (!parsed.success) throw new HttpError(400, 'Invalid interaction');
         const body = parsed.data;
-        const exposure = (
-          await client.query(
-            `
-        SELECT
-          e.event_id,
-          e.asset_id,
-          l.privacy_epoch
-        FROM
-          exposure e
-          JOIN ledger l ON l.id = e.event_id
-        WHERE
-          e.id = $1
-          AND e.universe_id = $2
-      `,
-            [body.exposureId, scope.universeId],
-          )
-        ).rows[0];
-        if (!exposure)
-          throw new HttpError(422, 'A matching exposure is required');
-        if (exposure.privacy_epoch !== scope.privacyEpoch)
-          throw new HttpError(
-            409,
-            'Exposure belongs to an older privacy epoch',
-          );
-        const old = (
-          await client.query(
-            `
-        SELECT
-          l.id,
-          l.payload,
-          j.id AS job_id
-        FROM
-          ledger l
-          JOIN job j ON j.event_id = l.id
-        WHERE
-          l.universe_id = $1
-          AND l.kind = 'keep'
-          AND l.client_key = $2
-      `,
-            [scope.universeId, body.clientEventId],
-          )
-        ).rows[0];
-        if (old) {
-          if (
-            old.payload.exposureId !== body.exposureId ||
-            old.payload.assetId !== body.assetId
-          )
-            throw new HttpError(409, 'Event key reused with different content');
-          return { eventId: old.id, jobId: old.job_id, status: 'accepted' };
-        }
-        if (exposure.asset_id !== body.assetId)
-          throw new HttpError(422, 'A matching exposure is required');
-        const eventId = randomUUID();
-        const jobId = randomUUID();
-        await client.query(
-          `
-        INSERT INTO
-          ledger (
-            id,
-            universe_id,
-            kind,
-            client_key,
-            causation_id,
-            payload,
-            privacy_epoch
-          )
-        VALUES
-          ($1, $2, $3, $4, $5, $6, $7)
-      `,
-          [
-            eventId,
-            scope.universeId,
-            'keep',
-            body.clientEventId,
-            exposure.event_id,
-            JSON.stringify(body),
-            scope.privacyEpoch,
-          ],
-        );
-        await client.query(
-          'INSERT INTO job(id,universe_id,event_id,kind,privacy_epoch) VALUES($1,$2,$3,$4,$5)',
-          [
-            jobId,
-            scope.universeId,
-            eventId,
-            'project_keep',
-            scope.privacyEpoch,
-          ],
-        );
-        await refreshPersonalModel(client, scope.universeId);
-        return { eventId, jobId, status: 'accepted' };
+        return recordKeep(client, scope, body);
       },
     );
     return reply.code(202).send(result);
@@ -867,27 +540,7 @@ export function buildApp(
       return authenticated(req.headers.authorization, async (scope, client) => {
         if (!uuid.safeParse(req.params.eventId).success)
           throw new HttpError(400, 'Invalid event ID');
-        const row = (
-          await client.query(
-            `
-        SELECT
-          l.id AS "eventId",
-          l.causation_id AS "causationId",
-          l.payload ->> 'exposureId' AS "exposureId",
-          l.kind,
-          j.id AS "jobId",
-          j.status AS "jobStatus",
-          COALESCE(j.status = 'completed', FALSE) AS projected
-        FROM
-          ledger l
-          LEFT JOIN job j ON j.event_id = l.id
-        WHERE
-          l.id = $1
-          AND l.universe_id = $2
-      `,
-            [req.params.eventId, scope.universeId],
-          )
-        ).rows[0];
+        const row = await readLedgerEvent(client, scope, req.params.eventId);
         if (!row) throw new HttpError(404, 'Event not found');
         return row;
       });
@@ -913,30 +566,7 @@ export function buildApp(
           // (the same bytes imported twice). If ANY of them is a genuine 'eligible' reference, this
           // never reports the simulated marker for that content — a real Reel's bytes are never
           // mislabelled as stand-in just because some other row also names them 'test_eligible'.
-          const row = (
-            await client.query<{ storage_key: string; simulated: boolean }>(
-              `
-            SELECT
-              m.storage_key,
-              (g.availability = 'test_eligible') AS simulated
-            FROM
-              generated_reel g
-              JOIN media_object m ON m.sha256 = g.media_sha256
-            WHERE
-              g.media_sha256 = $1
-              AND g.availability IN ('eligible', 'test_eligible')
-            ORDER BY
-              (g.availability = 'eligible') DESC,
-              g.created_at ASC
-            LIMIT
-              1
-          `,
-              [sha256],
-            )
-          ).rows[0];
-          return row
-            ? { storageKey: row.storage_key, simulated: row.simulated }
-            : null;
+          return findServableMedia(client, sha256);
         },
       );
       // Unknown, ineligible and (below, inside sendMedia) missing-on-disk all return the same 404:
