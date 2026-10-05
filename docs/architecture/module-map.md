@@ -15,6 +15,9 @@ To recompute exact edge counts, fetch that commit from the pull request
 (`git fetch origin refs/pull/197/head`), check out `eecce45b`, and run
 `node scripts/refactor/import-graph.mjs report`.
 
+For the product-level walkthrough (flows, locks, privacy, reasoning, supply) see the
+[FlowWalk architecture guide](../flowwalk/knowscroll-codebase-architecture-guide.md).
+
 ## Package graph
 
 ```mermaid

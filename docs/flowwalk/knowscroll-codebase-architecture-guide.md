@@ -2,6 +2,8 @@
 
 > **Source reviewed:** `df8ff2fb4fe1ef66e5283ece3b45b192dc776e97` (`origin/main`) on 2026-09-27.
 >
+> **Code layout updated:** file paths and code-structure statements were brought up to date with the behavior-preserving backend refactor ([#196](https://github.com/KnowScroll/knowscroll/issues/196), merged as `dbcadae7` on 2026-10-05; [ADR-0048](../decisions/0048-backend-module-boundaries.md), [moved paths](../architecture/moved-paths.md), [module map](../architecture/module-map.md)). Product-state statements (tables, journeys, blockers) remain as reviewed at `df8ff2fb`.
+>
 > **Runtime observed:** no listener on `127.0.0.1:4310` or `127.0.0.1:4392`; `pnpm state` could not reach PostgreSQL on `127.0.0.1:55432`. This is only a dated observation, not a guarantee about another machine or a later process.
 >
 > **Owner database:** the last repository receipt still says migrations `0001`–`0009`. Source now contains 37 ordered migration files through `0040`. This review did not connect to, migrate, or modify the owner database.
@@ -121,10 +123,10 @@ flowchart LR
 | Component | What it owns now | Current truth |
 | --- | --- | --- |
 | `packages/contracts` | Wire shapes for bootstrap, semantic branches, Composer explanations, Atlas, away state, inquiries, Rooms, Relics, inventory, reasoning, generation and Cutroom | **Implemented.** Clients still have local parsers, so drift tests remain necessary. |
-| `packages/core` | Pure policies: Composer v2/v3/v4, bridge validator, attention/hypotheses, Cartographer, Chronicle wording, answer/inquiry validation, Room keeper, Relic state, Scroll checks, Quartermaster | **Implemented.** It imports no DB, HTTP, provider, or UI code. |
-| `packages/db` | Transactions, authority, migrations, encounter ledger, privacy, semantic state, reasoning, worlds, Atlas, Rooms, Relics, return and inventory | **Implemented.** It is the largest correctness boundary. |
-| `apps/api` | HTTP admission, authentication, idempotency, same-transaction writes, response shaping, CSRF and media authorization | **Implemented.** It never calls a model or Cutroom. |
-| `apps/worker` | Keep projection, Ask answers, inquiries, correction catch-up, Scroll supply, reasoning maintenance, Cutroom generation/import and publication tools | **Implemented in distinct loops.** Some loops require configured transports. |
+| `packages/core` | Pure policies: Composer v2/v3/v4, bridge validator, attention/hypotheses, Cartographer, Chronicle wording, answer/inquiry validation, Room keeper, Relic state, Scroll checks, Quartermaster, Cutroom request preparation | **Implemented.** It imports no DB, HTTP, provider, or UI code; Biome rejects such an import. |
+| `packages/db` | Transactions, authority, migrations, encounter ledger, privacy, semantic state, reasoning, worlds, Atlas, Rooms, Relics, return, inventory, and the worker's Keep projection, publication and generation storage | **Implemented.** It is the largest correctness boundary and the only place SQL lives: no app runs a query directly (`pnpm lint` runs `scripts/check-architecture.mjs`). |
+| `apps/api` | HTTP admission, authentication, idempotency, same-transaction writes, response shaping, CSRF and media authorization | **Implemented.** A short composition root (`app.ts`) registers route modules (`routes/*`) and shared HTTP helpers (`http/*`); it runs no SQL and never calls a model or Cutroom. |
+| `apps/worker` | Keep projection, Ask answers, inquiries, correction catch-up, Scroll supply, reasoning maintenance, Cutroom generation/import and publication tools | **Implemented in distinct loops.** Some loops require configured transports. The loops call `packages/db` functions for every read and write; the entrypoints share `runtime/` settings, stop-signal and log helpers. |
 | `apps/web` | Cookie sign-in, Scroll reader, Keep, privacy/account deletion, system view and “What led here” | **Implemented but behind Android.** Production hosting and feature parity are unfinished. |
 | `apps/mobile` | Sign-in, private session vault, Cable, Scroll/Reel readers, Ask, branches, Atlas/Places, return, Rooms, Relics, privacy/account controls | **Implemented for the current personal slice.** Release inputs and physical-device acceptance remain. |
 | Cutroom | Separate HTTP video engine | **Real boundary with stand-in upstream providers in recorded proof.** |
@@ -142,37 +144,42 @@ flowchart TD
   Worker --> Contracts
   Worker --> DB
   Worker --> External[MiniMax / Cutroom]
+  DB --> Core
+  DB --> Contracts
+  Core --> Contracts
 ```
+
+The three packages are pnpm workspace packages imported by name (`@knowscroll/db/reasoning/answers`); inside a package, imports are relative. The API and the worker never import each other, and Biome enforces every edge above ([ADR-0048](../decisions/0048-backend-module-boundaries.md)).
 
 The useful boundary is what each area is allowed to know:
 
 - `core` receives facts and returns decisions. It cannot read PostgreSQL or call a provider.
-- `db` loads facts, holds locks, applies decisions, and records history.
+- `db` loads facts, holds locks, applies decisions, and records history. All SQL lives here.
 - `api` authenticates and admits user-facing operations.
 - `worker` owns slow, asynchronous, external, or catch-up work.
 - clients render state and preserve retry identities; they do not own policy or provider keys.
 
 ### API route map
 
-This is the current user-facing HTTP surface, grouped by job rather than file:
+This is the current user-facing HTTP surface, grouped by job rather than file. Route modules are under `apps/api/src/`; db modules under `packages/db/src/`. `app.ts` registers them in a fixed order and maps every error in one place:
 
 | Job | Routes | Implementation |
 | --- | --- | --- |
-| Health and authority | `GET /health`, `GET /v1/session`, `POST /v1/session/revoke`, `GET /v1/session/csrf` | `app.ts`, `identity.ts`, `web-session.ts` |
-| Sign-in | `POST /v1/auth/magic-link`, `GET /v1/auth/confirm`, `POST /v1/auth/session`, `POST /v1/auth/web-session` | `sign-in-routes.ts`, `sign-in.ts` |
-| Encounter | `GET /v1/feed`, `POST /v1/exposures`, `POST /v1/interactions`, `POST /v1/asks`, `GET /v1/events/:eventId` | `app.ts` plus Composer/Ask DB modules |
-| Saved state | `GET /v1/universe`, `GET /v1/traces/:eventId`, `GET /v1/worlds` | `app.ts`, `trace-revisit.ts`, `worlds.ts` |
-| Explanations/corrections | `GET /v1/decisions/:decisionId/why`, `POST /v1/encounters/feedback`, `GET /v1/assets/:assetId/branches`, `POST /v1/branches`, `POST /v1/connections/feedback` | `composer-routes.ts`, `semantic-routes.ts` |
-| Ask answer | `POST/GET /v1/asks/:askId/answer`, `POST /v1/asks/:askId/answer/cancel` | `answer-routes.ts` |
-| Places | `GET /v1/atlas`, `GET /v1/atlas/deltas/:deltaId`, `POST /v1/atlas/places/:placeId/reject` | `atlas-routes.ts` |
-| Background inquiry | `PUT /v1/inquiries/consent`, `GET /v1/inquiries` | `inquiry-routes.ts` |
-| Return/Relics | `GET /v1/away`, `POST /v1/away/acknowledge`, `GET/POST /v1/relics`, `POST /v1/relics/:relicId/release`, `POST /v1/objections`, `GET /v1/scrolls/:assetId/passages` | `return-routes.ts` |
-| Rooms | `GET /v1/rooms/:roomId`, `GET /v1/rooms/deltas/:deltaId`, `POST /v1/rooms/:roomId/set-aside` | `room-routes.ts` |
-| Inventory | `GET /v1/inventory` | `inventory-routes.ts` |
-| Privacy/account | `POST /v1/history/clear`, `POST /v1/privacy/pause`, `resume`, `export`, `reset`, `POST /v1/account/delete` | `app.ts`, `privacy.ts` |
-| Media | `GET/HEAD /v1/media/:sha256` | `app.ts`, `media.ts` |
+| Health and authority | `GET /health`, `GET /v1/session`, `POST /v1/session/revoke`, `GET /v1/session/csrf` | `routes/health.ts`, `routes/session.ts`, `http/web-session.ts`; db `identity.ts` |
+| Sign-in | `POST /v1/auth/magic-link`, `GET /v1/auth/confirm`, `POST /v1/auth/session`, `POST /v1/auth/web-session` | `routes/sign-in.ts`; db `sign-in.ts` |
+| Encounter | `GET /v1/feed`, `POST /v1/exposures`, `POST /v1/interactions`, `POST /v1/asks`, `GET /v1/events/:eventId` | `routes/feed.ts`, `routes/encounters.ts`, `routes/asks.ts`; db `feed.ts`, `encounters.ts` and the Composer/Ask modules |
+| Saved state | `GET /v1/universe`, `GET /v1/traces/:eventId`, `GET /v1/worlds` | `routes/universe.ts`, `routes/encounters.ts` (worlds); db `universe.ts`, `trace-revisit.ts`, `worlds.ts` |
+| Explanations/corrections | `GET /v1/decisions/:decisionId/why`, `POST /v1/encounters/feedback`, `GET /v1/assets/:assetId/branches`, `POST /v1/branches`, `POST /v1/connections/feedback` | `routes/composer.ts`, `routes/semantic.ts` |
+| Ask answer | `POST/GET /v1/asks/:askId/answer`, `POST /v1/asks/:askId/answer/cancel` | `routes/answers.ts` |
+| Places | `GET /v1/atlas`, `GET /v1/atlas/deltas/:deltaId`, `POST /v1/atlas/places/:placeId/reject` | `routes/atlas.ts` |
+| Background inquiry | `PUT /v1/inquiries/consent`, `GET /v1/inquiries` | `routes/inquiries.ts` |
+| Return/Relics | `GET /v1/away`, `POST /v1/away/acknowledge`, `GET/POST /v1/relics`, `POST /v1/relics/:relicId/release`, `POST /v1/objections`, `GET /v1/scrolls/:assetId/passages` | `routes/return.ts` |
+| Rooms | `GET /v1/rooms/:roomId`, `GET /v1/rooms/deltas/:deltaId`, `POST /v1/rooms/:roomId/set-aside` | `routes/rooms.ts` |
+| Inventory | `GET /v1/inventory` | `routes/inventory.ts` |
+| Privacy/account | `POST /v1/history/clear`, `POST /v1/privacy/pause`, `resume`, `export`, `reset`, `POST /v1/account/delete` | `routes/privacy.ts`; db `privacy.ts` |
+| Media | `GET/HEAD /v1/media/:sha256` | `routes/media.ts`, `media/stream.ts`; db `media.ts` |
 
-All private routes converge on the same authenticated transaction helper. Route modules do not create weaker side doors around the universe lock.
+All private routes converge on the same authenticated transaction helper (`http/authenticated.ts`). Route modules do not create weaker side doors around the universe lock.
 
 ---
 
@@ -372,7 +379,7 @@ sequenceDiagram
   A->>DB: authenticateAndLock()
 ```
 
-Real code: [sign-in-routes.ts](../../apps/api/src/sign-in-routes.ts), [sign-in.ts](../../packages/db/src/sign-in.ts), [web-session.ts](../../apps/api/src/web-session.ts), and [Root.tsx](../../apps/web/src/Root.tsx).
+Real code: [routes/sign-in.ts](../../apps/api/src/routes/sign-in.ts), [sign-in.ts](../../packages/db/src/sign-in.ts), [http/web-session.ts](../../apps/api/src/http/web-session.ts), and [Root.tsx](../../apps/web/src/Root.tsx).
 
 The browser never receives the session bearer token. It gets an unreadable cookie and derived CSRF token. Unsafe cookie requests need same-origin evidence and `X-CSRF-Token`. Android uses `/v1/auth/session` and stores its bearer credential in encrypted `SessionVault`.
 
@@ -405,7 +412,7 @@ sequenceDiagram
 
 Selection is not exposure. The client records exposure only after visible draw; for a Reel it is tied to the first media frame. Keep requires that exact exposure and creates a causally linked Ledger event. Replaying the same request ID returns the first result; reusing it with different content is a conflict.
 
-[projectOne](../../apps/worker/src/project.ts) makes no external call. It locks the universe, rechecks job/event/epoch, inserts the Trace once, increments projection revisions, and completes the job. Stale work is discarded.
+[projectOne](../../apps/worker/src/project.ts) calls db's [projectNextJob](../../packages/db/src/projection/keep.ts), which makes no external call. It locks the universe, rechecks job/event/epoch, inserts the Trace once, increments projection revisions, and completes the job. Stale work is discarded.
 
 The exposure transaction also updates the legacy exact-source world projection and the newer semantic personal model, making evidence and immediate deterministic effects atomic.
 
@@ -639,6 +646,7 @@ The earlier CI hole is fixed: reader, owner, and Why journeys now run in CI. The
 | return Atlas, Rooms, Relics, away and inventory | Keep projection, catch-up, Scroll supply |
 | authorize media before streaming | own provider credentials |
 | never call model or Cutroom | never expose provider keys to clients |
+| run SQL only through `packages/db` | run SQL only through `packages/db` |
 
 Generation is a separate worker entry point because its lease/reconciliation/import loop differs. Reasoning retirement is a separate maintenance process so cleanup cannot silently become projection.
 
@@ -946,7 +954,7 @@ If those seams are joined, today's specializations are stepping stones. If they 
 ### Where it will strain
 
 1. **The schema is large for a single-user pre-release product.** 112 product tables increase migration, deletion-order, onboarding, and operations cost.
-2. **`apps/api/src/app.ts` is still a hotspot.** Route modules helped, but key encounter orchestration stays concentrated.
+2. **The weight now sits in `packages/db`.** The former `apps/api/src/app.ts` hotspot was split in #196 into route modules (the largest, `routes/feed.ts`, is about 160 lines), and the worker's SQL moved into db. The largest files are now db modules: generation storage, reasoning contexts and privacy, each over a thousand lines.
 3. **The main worker is a scheduler of schedulers.** Projection, answers, inquiries, catch-up, and supply share one process loop.
 4. **Two world models coexist.** Legacy exact-source worlds and semantic Atlas Places duplicate language and privacy work.
 5. **Client parity is intentionally broken.** Android leads; web catch-up is deferred, while full v1 still requires desktop.
@@ -1014,11 +1022,11 @@ No longer blockers:
 ### Session 1: authority and an encounter
 
 1. [target README](../architecture/target/00-README.md)
-2. [API composition](../../apps/api/src/app.ts)
+2. [API composition](../../apps/api/src/app.ts), then the [feed route](../../apps/api/src/routes/feed.ts)
 3. [identity lock](../../packages/db/src/identity.ts)
 4. [pure Composer](../../packages/core/src/composer/semantic.ts)
 5. [Composer persistence](../../packages/db/src/composer/semantic.ts)
-6. [Keep projection](../../apps/worker/src/project.ts)
+6. [Keep projection](../../packages/db/src/projection/keep.ts), called by the worker's [project.ts](../../apps/worker/src/project.ts)
 
 Explain why selection is not exposure and Keep needs an exposure event.
 
@@ -1036,7 +1044,7 @@ Separate a shared claim, private act, bridge, Place, and decorative geography.
 ### Session 3: bounded model work
 
 1. [answer validator](../../packages/core/src/reasoning/ask-answer.ts)
-2. [answer admission/storage](../../packages/db/src/reasoning-answers.ts)
+2. [answer admission/storage](../../packages/db/src/reasoning/answers.ts)
 3. [answer worker](../../apps/worker/src/reasoning/answer-worker.ts)
 4. [inquiry contract](../../packages/core/src/reasoning/bridge-inquiry.ts)
 5. [inquiry worker](../../apps/worker/src/reasoning/inquiry-worker.ts)
@@ -1059,7 +1067,7 @@ Explain which rows are private/shared and what Pause/Clear/Reset do.
 1. [web Root](../../apps/web/src/Root.tsx), [ApiClient](../../apps/web/src/api/client.ts), then `ReaderStore`
 2. Android `ApiClient.kt`, `SessionVault.kt`, `StateStore.kt`, then [AppViewModel.kt](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/AppViewModel.kt)
 3. [generation worker](../../apps/worker/src/generation/worker.ts)
-4. [verified import](../../apps/worker/src/generation/import.ts)
+4. [verified import](../../apps/worker/src/generation/import.ts) and its [generation storage](../../packages/db/src/generation/storage.ts)
 5. [publication evaluation](../../apps/worker/src/publication/evaluate.ts)
 6. [Reel player](../../apps/mobile/app/src/main/kotlin/com/knowscroll/mobile/ui/reel/ReelPlayer.kt)
 
