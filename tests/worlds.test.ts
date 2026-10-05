@@ -23,43 +23,75 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool, provisionIdentity, transaction } from '../packages/db/src/index.ts';
-import type { ScrollAsset } from '../packages/contracts/src/index.ts';
+import { pool, provisionIdentity, transaction } from '@knowscroll/db';
+import type { ScrollAsset } from '@knowscroll/contracts';
 import {
   SHARED_SOURCE_V1,
   deriveWorlds,
   deriveWorldSystemForUniverse,
   readWorldSystem,
-} from '../packages/db/src/worlds.ts';
+} from '@knowscroll/db/worlds';
 
-if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
-  throw new Error('Worlds tests require an isolated knowscroll_test_* database');
+if (
+  !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
+) {
+  throw new Error(
+    'Worlds tests require an isolated knowscroll_test_* database',
+  );
 }
 
 const developmentToken = randomBytes(32).toString('hex');
 const app = buildApp(developmentToken);
-after(async () => { await app.close(); await pool.end(); });
+after(async () => {
+  await app.close();
+  await pool.end();
+});
 
 const headers = (token: string) => ({ authorization: `Bearer ${token}` });
 
-async function expose(token: string, decisionId: string, assetId: string): Promise<void> {
+async function expose(
+  token: string,
+  decisionId: string,
+  assetId: string,
+): Promise<void> {
   const response = await app.inject({
-    method: 'POST', url: '/v1/exposures', headers: headers(token),
+    method: 'POST',
+    url: '/v1/exposures',
+    headers: headers(token),
     payload: { decisionId, assetId, clientExposureId: randomUUID() },
   });
   assert.equal(response.statusCode, 201, response.body);
 }
 
 async function worlds(token: string) {
-  const response = await app.inject({ url: '/v1/worlds', headers: headers(token) });
+  const response = await app.inject({
+    url: '/v1/worlds',
+    headers: headers(token),
+  });
   assert.equal(response.statusCode, 200, response.body);
-  return response.json() as { derivationMethod: string; system: { systemId: string; worlds: Array<{ worldId: string; sourceTitle: string; sourceUrl: string; scrollCount: number; seenCount: number }> } | null };
+  return response.json() as {
+    derivationMethod: string;
+    system: {
+      systemId: string;
+      worlds: Array<{
+        worldId: string;
+        sourceTitle: string;
+        sourceUrl: string;
+        scrollCount: number;
+        seenCount: number;
+      }>;
+    } | null;
+  };
 }
 
 /** Seeds one Scroll directly into the shared `asset` table (the same construction
  * `tests/composer.test.ts`'s `insertScrollAsset` uses) and returns it in exactly the wire shape
  * `decision.candidates` records, so it can be handed straight to `directDecision` below. */
-async function insertScrollAsset(tag: string, sourceTitle: string, sourceUrl: string): Promise<ScrollAsset> {
+async function insertScrollAsset(
+  tag: string,
+  sourceTitle: string,
+  sourceUrl: string,
+): Promise<ScrollAsset> {
   const assetId = randomUUID();
   const title = `Worlds fixture ${tag}`;
   const summary = `Summary ${tag}`;
@@ -69,14 +101,28 @@ async function insertScrollAsset(tag: string, sourceTitle: string, sourceUrl: st
      VALUES($1,1,'Scroll',$2,$3,$4,$5,$6,'documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
     [assetId, title, summary, body, sourceTitle, sourceUrl],
   );
-  return { assetId, revision: 1, kind: 'Scroll', title, summary, body, sourceTitle, sourceUrl, truthState: 'documented' };
+  return {
+    assetId,
+    revision: 1,
+    kind: 'Scroll',
+    title,
+    summary,
+    body,
+    sourceTitle,
+    sourceUrl,
+    truthState: 'documented',
+  };
 }
 
 /** Constructs a `decision` row directly — never through `/v1/feed` — naming exactly the given
  * candidates, so `POST /v1/exposures`'s own candidate-membership check has a real row to check
  * against. Mirrors `tests/composer.test.ts`'s SQL-oracle fixture and `tests/identity.test.ts`'s
  * direct decision inserts; `policy_version` names no real policy since nothing here was ranked. */
-async function directDecision(universeId: string, privacyEpoch: number, candidates: readonly ScrollAsset[]): Promise<string> {
+async function directDecision(
+  universeId: string,
+  privacyEpoch: number,
+  candidates: readonly ScrollAsset[],
+): Promise<string> {
   const decisionId = randomUUID();
   await pool.query(
     `INSERT INTO decision(id,universe_id,account_revision,policy_version,candidates,privacy_epoch) VALUES($1,$2,0,'worlds-test-fixture',$3::jsonb,$4)`,
@@ -91,44 +137,97 @@ for (const operation of ['clear', 'reset'] as const) {
   test(`${operation} erases only the caller's derived system and preserves shared source evidence`, async () => {
     const owner = await provisionIdentity();
     const neighbor = await provisionIdentity();
-    const asset = await insertScrollAsset(operation, 'Privacy fixture', `https://example.test/privacy-${randomUUID()}`);
+    const asset = await insertScrollAsset(
+      operation,
+      'Privacy fixture',
+      `https://example.test/privacy-${randomUUID()}`,
+    );
     for (const identity of [owner, neighbor]) {
-      await expose(identity.token, await directDecision(identity.scope.universeId, 0, [asset]), asset.assetId);
+      await expose(
+        identity.token,
+        await directDecision(identity.scope.universeId, 0, [asset]),
+        asset.assetId,
+      );
     }
     const before = await worlds(owner.token);
     const neighborBefore = await worlds(neighbor.token);
-    const catalogBefore = (await pool.query(`SELECT
+    const catalogBefore = (
+      await pool.query(`SELECT
       (SELECT count(*) FROM world) AS worlds,
       (SELECT count(*) FROM world_member) AS members,
-      (SELECT count(*) FROM asset) AS assets`)).rows[0];
-    const body = { requestId: randomUUID(), expectedPrivacyEpoch: 0,
-      confirmation: operation === 'clear' ? 'clear-scroll-history' : 'reset-personal-universe' };
-    const request = () => app.inject({ method: 'POST',
-      url: operation === 'clear' ? '/v1/history/clear' : '/v1/privacy/reset',
-      headers: headers(owner.token), payload: body });
+      (SELECT count(*) FROM asset) AS assets`)
+    ).rows[0];
+    const body = {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: 0,
+      confirmation:
+        operation === 'clear'
+          ? 'clear-scroll-history'
+          : 'reset-personal-universe',
+    };
+    const request = () =>
+      app.inject({
+        method: 'POST',
+        url: operation === 'clear' ? '/v1/history/clear' : '/v1/privacy/reset',
+        headers: headers(owner.token),
+        payload: body,
+      });
     const result = await request();
     assert.equal(result.statusCode, 200, result.body);
-    assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_system WHERE universe_id=$1', [owner.scope.universeId])).rows[0].n, 0);
-    assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_system_member WHERE system_id=$1', [before.system!.systemId])).rows[0].n, 0);
+    assert.equal(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS n FROM world_system WHERE universe_id=$1',
+          [owner.scope.universeId],
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS n FROM world_system_member WHERE system_id=$1',
+          [before.system!.systemId],
+        )
+      ).rows[0].n,
+      0,
+    );
     assert.deepEqual(await worlds(neighbor.token), neighborBefore);
-    assert.deepEqual((await pool.query(`SELECT
+    assert.deepEqual(
+      (
+        await pool.query(`SELECT
       (SELECT count(*) FROM world) AS worlds,
       (SELECT count(*) FROM world_member) AS members,
-      (SELECT count(*) FROM asset) AS assets`)).rows[0], catalogBefore);
+      (SELECT count(*) FROM asset) AS assets`)
+      ).rows[0],
+      catalogBefore,
+    );
     if (operation === 'reset') {
-      assert.equal((await app.inject({ url: '/v1/worlds', headers: headers(owner.token) })).statusCode, 401);
+      assert.equal(
+        (await app.inject({ url: '/v1/worlds', headers: headers(owner.token) }))
+          .statusCode,
+        401,
+      );
       return;
     }
     assert.equal((await worlds(owner.token)).system, null);
     // An exact replay after new activity must return the old receipt before any deletion.
-    await expose(owner.token, await directDecision(owner.scope.universeId, 1, [asset]), asset.assetId);
+    await expose(
+      owner.token,
+      await directDecision(owner.scope.universeId, 1, [asset]),
+      asset.assetId,
+    );
     const fresh = await worlds(owner.token);
     assert.ok(fresh.system);
     assert.notEqual(fresh.system.systemId, before.system!.systemId);
     assert.deepEqual((await request()).json(), result.json());
     assert.deepEqual(await worlds(owner.token), fresh);
-    const conflict = await app.inject({ method: 'POST', url: '/v1/history/clear', headers: headers(owner.token),
-      payload: { ...body, expectedPrivacyEpoch: 1 } });
+    const conflict = await app.inject({
+      method: 'POST',
+      url: '/v1/history/clear',
+      headers: headers(owner.token),
+      payload: { ...body, expectedPrivacyEpoch: 1 },
+    });
     assert.equal(conflict.statusCode, 409);
     assert.deepEqual(await worlds(owner.token), fresh);
   });
@@ -136,13 +235,28 @@ for (const operation of ['clear', 'reset'] as const) {
 
 test('system deletion is refused while encounters remain, rolling back member deletion too', async () => {
   const owner = await provisionIdentity();
-  const asset = await insertScrollAsset('guard', 'Guard fixture', `https://example.test/guard-${randomUUID()}`);
-  await expose(owner.token, await directDecision(owner.scope.universeId, 0, [asset]), asset.assetId);
+  const asset = await insertScrollAsset(
+    'guard',
+    'Guard fixture',
+    `https://example.test/guard-${randomUUID()}`,
+  );
+  await expose(
+    owner.token,
+    await directDecision(owner.scope.universeId, 0, [asset]),
+    asset.assetId,
+  );
   const before = await worlds(owner.token);
-  await assert.rejects(transaction(async client => {
-    await client.query('DELETE FROM world_system_member WHERE system_id=$1', [before.system!.systemId]);
-    await client.query('DELETE FROM world_system WHERE id=$1', [before.system!.systemId]);
-  }), /only after its universe exposures are erased/);
+  await assert.rejects(
+    transaction(async (client) => {
+      await client.query('DELETE FROM world_system_member WHERE system_id=$1', [
+        before.system!.systemId,
+      ]);
+      await client.query('DELETE FROM world_system WHERE id=$1', [
+        before.system!.systemId,
+      ]);
+    }),
+    /only after its universe exposures are erased/,
+  );
   assert.deepEqual(await worlds(owner.token), before);
 });
 
@@ -155,7 +269,11 @@ test('a universe with no exposures derives no system, and the API never invents 
   const identity = await provisionIdentity();
   const response = await worlds(identity.token);
   assert.equal(response.derivationMethod, SHARED_SOURCE_V1);
-  assert.equal(response.system, null, 'a universe with nothing must derive nothing, not an empty system object');
+  assert.equal(
+    response.system,
+    null,
+    'a universe with nothing must derive nothing, not an empty system object',
+  );
 });
 
 // -----------------------------------------------------------------------------------------------
@@ -168,27 +286,48 @@ test('exposure to Scrolls from one source derives exactly one world, with databa
   const sourceUrl = 'https://example.test/worlds-one-source';
   const a1 = await insertScrollAsset('one-source-a', 'One Source', sourceUrl);
   const a2 = await insertScrollAsset('one-source-b', 'One Source', sourceUrl);
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [a1, a2]);
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [a1, a2],
+  );
 
   await expose(identity.token, decisionId, a1.assetId);
 
   const response = await worlds(identity.token);
   assert.ok(response.system, 'one exposure must produce a system');
-  assert.equal(response.system!.worlds.length, 1, 'exactly one world for one encountered source');
+  assert.equal(
+    response.system!.worlds.length,
+    1,
+    'exactly one world for one encountered source',
+  );
   const world = response.system!.worlds[0]!;
   assert.equal(world.sourceUrl, sourceUrl);
   assert.equal(world.seenCount, 1);
 
-  const directScrollCount = (await pool.query(
-    `SELECT count(*)::int AS n FROM asset WHERE kind='Scroll' AND source_url=$1`, [sourceUrl],
-  )).rows[0].n;
-  const directSeenCount = (await pool.query(
-    `SELECT count(DISTINCT a.id)::int AS n FROM exposure e JOIN asset a ON a.id=e.asset_id
+  const directScrollCount = (
+    await pool.query(
+      `SELECT count(*)::int AS n FROM asset WHERE kind='Scroll' AND source_url=$1`,
+      [sourceUrl],
+    )
+  ).rows[0].n;
+  const directSeenCount = (
+    await pool.query(
+      `SELECT count(DISTINCT a.id)::int AS n FROM exposure e JOIN asset a ON a.id=e.asset_id
      WHERE e.universe_id=$1 AND a.kind='Scroll' AND a.source_url=$2`,
-    [identity.scope.universeId, sourceUrl],
-  )).rows[0].n;
-  assert.equal(world.scrollCount, directScrollCount, 'scrollCount must match a direct SQL count over asset');
-  assert.equal(world.seenCount, directSeenCount, 'seenCount must match a direct SQL count over exposure/asset');
+      [identity.scope.universeId, sourceUrl],
+    )
+  ).rows[0].n;
+  assert.equal(
+    world.scrollCount,
+    directScrollCount,
+    'scrollCount must match a direct SQL count over asset',
+  );
+  assert.equal(
+    world.seenCount,
+    directSeenCount,
+    'seenCount must match a direct SQL count over exposure/asset',
+  );
   assert.equal(directScrollCount, 2, 'this fixture source carries two Scrolls');
 });
 
@@ -196,18 +335,43 @@ test('exposure to Scrolls from two sources derives two worlds inside one system 
   const identity = await provisionIdentity();
   const sourceAUrl = 'https://example.test/worlds-two-source-a';
   const sourceBUrl = 'https://example.test/worlds-two-source-b';
-  const a1 = await insertScrollAsset('two-source-a-1', 'Two Source A', sourceAUrl);
-  const a2 = await insertScrollAsset('two-source-a-2', 'Two Source A', sourceAUrl);
-  const b1 = await insertScrollAsset('two-source-b-1', 'Two Source B', sourceBUrl);
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [a1, a2, b1]);
+  const a1 = await insertScrollAsset(
+    'two-source-a-1',
+    'Two Source A',
+    sourceAUrl,
+  );
+  const a2 = await insertScrollAsset(
+    'two-source-a-2',
+    'Two Source A',
+    sourceAUrl,
+  );
+  const b1 = await insertScrollAsset(
+    'two-source-b-1',
+    'Two Source B',
+    sourceBUrl,
+  );
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [a1, a2, b1],
+  );
 
   await expose(identity.token, decisionId, a1.assetId);
   await expose(identity.token, decisionId, b1.assetId);
 
   const response = await worlds(identity.token);
-  assert.ok(response.system, 'two exposures across two sources must produce one system');
-  assert.equal(response.system!.worlds.length, 2, 'exactly two worlds -- one solar system, two planets');
-  const bySource = new Map(response.system!.worlds.map(w => [w.sourceUrl, w]));
+  assert.ok(
+    response.system,
+    'two exposures across two sources must produce one system',
+  );
+  assert.equal(
+    response.system!.worlds.length,
+    2,
+    'exactly two worlds -- one solar system, two planets',
+  );
+  const bySource = new Map(
+    response.system!.worlds.map((w) => [w.sourceUrl, w]),
+  );
   assert.equal(bySource.get(sourceAUrl)?.seenCount, 1);
   assert.equal(bySource.get(sourceBUrl)?.seenCount, 1);
   assert.equal(bySource.get(sourceAUrl)?.scrollCount, 2);
@@ -215,10 +379,18 @@ test('exposure to Scrolls from two sources derives two worlds inside one system 
   // Every universe shares the same underlying catalog world for a given source (ADR-0028 section 4:
   // worlds are universe-independent) -- the ids must be stable across universes, not re-minted.
   const other = await provisionIdentity();
-  const otherDecisionId = await directDecision(other.scope.universeId, other.scope.privacyEpoch, [a1]);
+  const otherDecisionId = await directDecision(
+    other.scope.universeId,
+    other.scope.privacyEpoch,
+    [a1],
+  );
   await expose(other.token, otherDecisionId, a1.assetId);
   const otherResponse = await worlds(other.token);
-  assert.equal(otherResponse.system!.worlds[0]!.worldId, bySource.get(sourceAUrl)!.worldId, 'the shared-source world is the same catalog row for every universe');
+  assert.equal(
+    otherResponse.system!.worlds[0]!.worldId,
+    bySource.get(sourceAUrl)!.worldId,
+    'the shared-source world is the same catalog row for every universe',
+  );
 });
 
 // -----------------------------------------------------------------------------------------------
@@ -232,39 +404,53 @@ test('re-running the derivation changes nothing: same ids, same counts, no new r
   const sourceBUrl = 'https://example.test/worlds-rerun-b';
   const a1 = await insertScrollAsset('rerun-a', 'Rerun Source A', sourceAUrl);
   const b1 = await insertScrollAsset('rerun-b', 'Rerun Source B', sourceBUrl);
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [a1, b1]);
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [a1, b1],
+  );
   await expose(identity.token, decisionId, a1.assetId);
   await expose(identity.token, decisionId, b1.assetId);
 
   const before = await worlds(identity.token);
-  const rowCountsBefore = (await pool.query(
-    `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
+  const rowCountsBefore = (
+    await pool.query(
+      `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
             (SELECT count(*) FROM world_system) AS systems, (SELECT count(*) FROM world_system_member) AS system_members`,
-  )).rows[0];
+    )
+  ).rows[0];
 
   // Call the derivation functions directly, twice more, outside any exposure event -- proving the
   // recompute itself is idempotent, not merely that the route happens not to call it twice.
   for (let i = 0; i < 2; i += 1) {
-    await transaction(async client => {
+    await transaction(async (client) => {
       await deriveWorlds(client);
       await deriveWorldSystemForUniverse(client, identity.scope.universeId);
     });
   }
 
   const after = await worlds(identity.token);
-  const rowCountsAfter = (await pool.query(
-    `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
+  const rowCountsAfter = (
+    await pool.query(
+      `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
             (SELECT count(*) FROM world_system) AS systems, (SELECT count(*) FROM world_system_member) AS system_members`,
-  )).rows[0];
+    )
+  ).rows[0];
 
-  assert.deepEqual(rowCountsAfter, rowCountsBefore, 'recomputing twice more must insert no additional rows anywhere');
   assert.deepEqual(
-    new Set(after.system!.worlds.map(w => w.worldId)),
-    new Set(before.system!.worlds.map(w => w.worldId)),
+    rowCountsAfter,
+    rowCountsBefore,
+    'recomputing twice more must insert no additional rows anywhere',
+  );
+  assert.deepEqual(
+    new Set(after.system!.worlds.map((w) => w.worldId)),
+    new Set(before.system!.worlds.map((w) => w.worldId)),
     'world identities must be stable across recomputation',
   );
   for (const world of before.system!.worlds) {
-    const rerun = after.system!.worlds.find(w => w.worldId === world.worldId)!;
+    const rerun = after.system!.worlds.find(
+      (w) => w.worldId === world.worldId,
+    )!;
     assert.equal(rerun.scrollCount, world.scrollCount);
     assert.equal(rerun.seenCount, world.seenCount);
   }
@@ -277,7 +463,7 @@ test('re-running the derivation changes nothing: same ids, same counts, no new r
 
 test('the database refuses a world with no world_member evidence', async () => {
   await assert.rejects(
-    transaction(async client => {
+    transaction(async (client) => {
       await client.query(
         `INSERT INTO world(id,derivation_method,source_title,source_url) VALUES($1,$2,'Evidence-less','https://example.test/no-evidence')`,
         [randomUUID(), SHARED_SOURCE_V1],
@@ -287,33 +473,54 @@ test('the database refuses a world with no world_member evidence', async () => {
   );
 });
 
-test('deleting a world\'s last member is refused, not silently allowed to strand it', async () => {
+test("deleting a world's last member is refused, not silently allowed to strand it", async () => {
   const identity = await provisionIdentity();
   const sourceUrl = 'https://example.test/worlds-delete-last-member';
-  const a1 = await insertScrollAsset('delete-last-member', 'Delete Last Member Source', sourceUrl);
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [a1]);
+  const a1 = await insertScrollAsset(
+    'delete-last-member',
+    'Delete Last Member Source',
+    sourceUrl,
+  );
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [a1],
+  );
   await expose(identity.token, decisionId, a1.assetId);
 
-  const world = (await pool.query(
-    `SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2`, [SHARED_SOURCE_V1, sourceUrl],
-  )).rows[0];
-  assert.ok(world, 'the fixture world must already exist from the exposure above');
+  const world = (
+    await pool.query(
+      `SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2`,
+      [SHARED_SOURCE_V1, sourceUrl],
+    )
+  ).rows[0];
+  assert.ok(
+    world,
+    'the fixture world must already exist from the exposure above',
+  );
 
   await assert.rejects(
-    transaction(async client => {
-      await client.query('DELETE FROM world_member WHERE world_id=$1', [world.id]);
+    transaction(async (client) => {
+      await client.query('DELETE FROM world_member WHERE world_id=$1', [
+        world.id,
+      ]);
     }),
     /must name at least one asset as its evidence/,
   );
   // Unaffected: the world's real member is still the one fixture Scroll.
-  const remaining = (await pool.query('SELECT count(*)::int AS n FROM world_member WHERE world_id=$1', [world.id])).rows[0].n;
+  const remaining = (
+    await pool.query(
+      'SELECT count(*)::int AS n FROM world_member WHERE world_id=$1',
+      [world.id],
+    )
+  ).rows[0].n;
   assert.equal(remaining, 1);
 });
 
 test('the database refuses a world_system with no encountered world', async () => {
   const identity = await provisionIdentity();
   await assert.rejects(
-    transaction(async client => {
+    transaction(async (client) => {
       await client.query(
         `INSERT INTO world_system(id,universe_id,derivation_method) VALUES($1,$2,$3)`,
         [randomUUID(), identity.scope.universeId, SHARED_SOURCE_V1],
@@ -329,7 +536,11 @@ test('a title variant on one source URL does not break the derivation', async ()
   // encounter path throw, so every exposure returned 500 until the data was hand-corrected.
   const identity = await provisionIdentity();
   const sourceUrl = 'https://example.test/worlds-title-variant';
-  const original = await insertScrollAsset('title-variant-original', 'NASA · Title Variant', sourceUrl);
+  const original = await insertScrollAsset(
+    'title-variant-original',
+    'NASA · Title Variant',
+    sourceUrl,
+  );
   const variantAssetId = randomUUID();
   const variantTitle = 'Variant spelling';
   const variantSourceTitle = 'NASA · Title Variant (variant)';
@@ -338,35 +549,73 @@ test('a title variant on one source URL does not break the derivation', async ()
      VALUES($1,1,'Scroll',$2,'s','b',$3,$4,'documented',(SELECT COALESCE(MAX(editorial_order),0)+1 FROM asset))`,
     [variantAssetId, variantTitle, variantSourceTitle, sourceUrl],
   );
-  const variant: ScrollAsset = { assetId: variantAssetId, revision: 1, kind: 'Scroll', title: variantTitle, summary: 's', body: 'b', sourceTitle: variantSourceTitle, sourceUrl, truthState: 'documented' };
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [original, variant]);
+  const variant: ScrollAsset = {
+    assetId: variantAssetId,
+    revision: 1,
+    kind: 'Scroll',
+    title: variantTitle,
+    summary: 's',
+    body: 'b',
+    sourceTitle: variantSourceTitle,
+    sourceUrl,
+    truthState: 'documented',
+  };
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [original, variant],
+  );
   // Expose the variant-titled asset specifically -- this is the one that previously threw.
   await expose(identity.token, decisionId, variant.assetId);
 
-  const worldsCount = (await pool.query(
-    `SELECT count(*)::int AS n FROM world WHERE derivation_method=$1 AND source_url=$2`,
-    [SHARED_SOURCE_V1, sourceUrl],
-  )).rows[0];
-  assert.equal(worldsCount.n, 1, 'one source URL yields exactly one world whatever its title variants');
+  const worldsCount = (
+    await pool.query(
+      `SELECT count(*)::int AS n FROM world WHERE derivation_method=$1 AND source_url=$2`,
+      [SHARED_SOURCE_V1, sourceUrl],
+    )
+  ).rows[0];
+  assert.equal(
+    worldsCount.n,
+    1,
+    'one source URL yields exactly one world whatever its title variants',
+  );
 });
 
 test('a world_member cannot claim a source its own asset does not carry', async () => {
   const identity = await provisionIdentity();
   const sourceAUrl = 'https://example.test/worlds-cross-source-a';
   const sourceBUrl = 'https://example.test/worlds-cross-source-b';
-  const a1 = await insertScrollAsset('cross-source-a', 'Cross Source A', sourceAUrl);
-  const b1 = await insertScrollAsset('cross-source-b', 'Cross Source B', sourceBUrl);
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [a1, b1]);
+  const a1 = await insertScrollAsset(
+    'cross-source-a',
+    'Cross Source A',
+    sourceAUrl,
+  );
+  const b1 = await insertScrollAsset(
+    'cross-source-b',
+    'Cross Source B',
+    sourceBUrl,
+  );
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [a1, b1],
+  );
   await expose(identity.token, decisionId, a1.assetId);
 
-  const worldA = (await pool.query(
-    `SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2`, [SHARED_SOURCE_V1, sourceAUrl],
-  )).rows[0];
+  const worldA = (
+    await pool.query(
+      `SELECT id FROM world WHERE derivation_method=$1 AND source_url=$2`,
+      [SHARED_SOURCE_V1, sourceAUrl],
+    )
+  ).rows[0];
   assert.ok(worldA, 'world A must already exist from the exposure above');
 
   await assert.rejects(
-    transaction(async client => {
-      await client.query('INSERT INTO world_member(world_id,asset_id) VALUES($1,$2)', [worldA.id, b1.assetId]);
+    transaction(async (client) => {
+      await client.query(
+        'INSERT INTO world_member(world_id,asset_id) VALUES($1,$2)',
+        [worldA.id, b1.assetId],
+      );
     }),
     /must carry the same source URL as its world/,
   );
@@ -379,20 +628,38 @@ test('a world_member cannot claim a source its own asset does not carry', async 
 test('readWorldSystem performs no writes', async () => {
   const identity = await provisionIdentity();
   const sourceUrl = 'https://example.test/worlds-read-only';
-  const a1 = await insertScrollAsset('read-only', 'Read Only Source', sourceUrl);
-  const decisionId = await directDecision(identity.scope.universeId, identity.scope.privacyEpoch, [a1]);
+  const a1 = await insertScrollAsset(
+    'read-only',
+    'Read Only Source',
+    sourceUrl,
+  );
+  const decisionId = await directDecision(
+    identity.scope.universeId,
+    identity.scope.privacyEpoch,
+    [a1],
+  );
   await expose(identity.token, decisionId, a1.assetId);
 
-  const before = (await pool.query(
-    `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
+  const before = (
+    await pool.query(
+      `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
             (SELECT count(*) FROM world_system) AS systems, (SELECT count(*) FROM world_system_member) AS system_members`,
-  )).rows[0];
+    )
+  ).rows[0];
   for (let i = 0; i < 5; i += 1) {
-    await transaction(client => readWorldSystem(client, identity.scope.universeId));
+    await transaction((client) =>
+      readWorldSystem(client, identity.scope.universeId),
+    );
   }
-  const after = (await pool.query(
-    `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
+  const after = (
+    await pool.query(
+      `SELECT (SELECT count(*) FROM world) AS worlds, (SELECT count(*) FROM world_member) AS members,
             (SELECT count(*) FROM world_system) AS systems, (SELECT count(*) FROM world_system_member) AS system_members`,
-  )).rows[0];
-  assert.deepEqual(after, before, 'a pure read must never insert or update anything');
+    )
+  ).rows[0];
+  assert.deepEqual(
+    after,
+    before,
+    'a pure read must never insert or update anything',
+  );
 });

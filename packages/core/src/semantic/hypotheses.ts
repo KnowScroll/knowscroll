@@ -1,26 +1,28 @@
 /**
- * #131 — revisable personal hypotheses (`hypothesis-rules-v1`, ADR-0032 §2). Pure.
+ * Revisable personal hypotheses (`hypothesis-rules-v1`, ADR-0032 §2, #131). Pure.
  *
  * A hypothesis is a typed, evidence-linked, decaying proposal with at least one competing
  * alternative and explicit permitted uses. It stages encounters; it never declares who someone is.
  * Rules propose from attention accounts; a model may later propose through `validateHypothesis`
  * (#132). A reader's correction is counterevidence: it contests the hypothesis and suspends its uses.
  */
+
+import { compareCodeUnits } from '../shared/compare.ts';
 import type { AttentionAccount } from './attention.ts';
 
-export const HYPOTHESIS_RULES_V1 = 'hypothesis-rules-v1';
+const HYPOTHESIS_RULES_V1 = 'hypothesis-rules-v1';
 
-export type HypothesisKind = 'direction' | 'open_question';
-export type PermittedUse =
+type HypothesisKind = 'direction' | 'open_question';
+type PermittedUse =
   | 'composer.family_prior'
   | 'composer.continuity'
   | 'steward.context'
   | 'chronicle.wording';
-export type EvidenceRef = {
+type EvidenceRef = {
   kind: 'exposure' | 'mark' | 'ask' | 'feedback';
   ref: string;
 };
-export type HypothesisStatus = 'active' | 'contested' | 'decayed';
+type HypothesisStatus = 'active' | 'contested' | 'decayed';
 
 export interface HypothesisProposal {
   kind: HypothesisKind;
@@ -42,7 +44,7 @@ export interface HypothesisRulePolicy {
   contestWindowDays: number;
   directionHalfLifeDays: number;
 }
-export const HYPOTHESIS_RULES: HypothesisRulePolicy = {
+const HYPOTHESIS_RULES: HypothesisRulePolicy = {
   directionWindowDays: 7,
   directionMinMarks: 2,
   contestWindowDays: 14,
@@ -87,7 +89,7 @@ export function proposeHypotheses(
   const name = (code: string) => input.conceptNames.get(code) ?? code;
 
   for (const [code, account] of [...input.accounts].sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
+    compareCodeUnits(a, b),
   )) {
     const recent = input.marks.filter(
       (m) =>
@@ -169,7 +171,7 @@ export function proposeHypotheses(
     if (ask.concept)
       byConcept.set(ask.concept, [...(byConcept.get(ask.concept) ?? []), ask]);
   for (const [code, asks] of [...byConcept].sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
+    compareCodeUnits(a, b),
   )) {
     const open = asks.filter((a) => !a.resolved);
     const counter = input.feedback.filter(

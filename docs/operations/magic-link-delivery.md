@@ -3,8 +3,8 @@
 [Issue #106](https://github.com/KnowScroll/knowscroll/issues/106) implements the real
 `MagicLinkSender` [ADR-0027](../decisions/0027-agentmail-magic-link-delivery.md) defines on top of
 [ADR-0026](../decisions/0026-magic-link-single-user-identity.md)'s sign-in. Delivery stays a port
-(`apps/api/src/magic-link-sender.ts`): the development sink (a local file, ADR-0026 section 4) and
-`AgentMailSender` (`apps/api/src/agentmail-sender.ts`) are its only two implementations, and
+(`apps/api/src/mail/magic-link-sender.ts`): the development sink (a local file, ADR-0026 section 4) and
+`AgentMailSender` (`apps/api/src/mail/agentmail-sender.ts`) are its only two implementations, and
 `POST /v1/auth/magic-link`'s `202` never varies with which one is configured or whether it succeeded.
 
 ## Choosing a sender: `KS_MAIL_SENDER`
@@ -42,7 +42,8 @@ Set these as ordinary process environment variables — naming them here, never 
   fake HTTP server instead of the real host; leave it unset in every real deployment, where it
   defaults to `https://api.agentmail.to`.
 - `AGENTMAIL_TIMEOUT_MS` — optional. Bounds the one attempt AgentMail gets per send; unset means the
-  documented default of 10 seconds (`AGENTMAIL_TIMEOUT_MS` export in `agentmail-sender.ts`). Exists
+  documented default of 10 seconds (the `AGENTMAIL_TIMEOUT_MS` constant in
+  `apps/api/src/mail/agentmail-sender.ts`). Exists
   so a test can bound a stalled-connection scenario without waiting out the real default; a real
   deployment should not normally need to set this.
 

@@ -8,8 +8,14 @@
  */
 import type pg from 'pg';
 
-export async function backdateOneDay(client: pg.ClientBase, universeId: string): Promise<void> {
+export async function backdateOneDay(
+  client: pg.ClientBase,
+  universeId: string,
+): Promise<void> {
   await client.query('ALTER TABLE ledger DISABLE TRIGGER ask_ledger_no_update');
-  await client.query("UPDATE ledger SET created_at = created_at - interval '1 day' WHERE universe_id=$1", [universeId]);
+  await client.query(
+    "UPDATE ledger SET created_at = created_at - interval '1 day' WHERE universe_id=$1",
+    [universeId],
+  );
   await client.query('ALTER TABLE ledger ENABLE TRIGGER ask_ledger_no_update');
 }

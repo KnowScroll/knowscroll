@@ -1,14 +1,20 @@
-import type pg from 'pg';
+/**
+ * Reads a kept Trace back as a revisit: resolves the ledger lineage (exposure, decision, Scroll
+ * selection), then compares the Scroll the reader saw with the asset as it is now. The asset is
+ * locked FOR SHARE and the scope rechecked after that wait; a changed source is refused
+ * ('source_changed') rather than shown as if it were the original.
+ */
 
-import { exposureInput, interactionInput } from '../../contracts/src/index.ts';
+import { exposureInput, interactionInput } from '@knowscroll/contracts';
 import {
+  type TraceRevisit,
   traceRevisitCandidate,
   traceRevisitEventId,
   traceRevisitReceipt,
   traceRevisitScroll,
-  type TraceRevisit,
-} from '../../contracts/src/trace-revisit.ts';
-import { UnauthorizedSession, type AuthScope } from './identity.ts';
+} from '@knowscroll/contracts/trace-revisit';
+import type pg from 'pg';
+import { type AuthScope, UnauthorizedSession } from './identity.ts';
 
 export class TraceRevisitError extends Error {
   constructor(
@@ -220,7 +226,17 @@ export async function readTraceRevisit(
   const row = rows[0]!,
     selected = selectedSnapshot(row, scope);
   const asset = (
-    await client.query(
+    await client.query<{
+      assetId: string;
+      revision: number;
+      kind: string;
+      title: string;
+      summary: string;
+      body: string;
+      sourceTitle: string;
+      sourceUrl: string;
+      truthState: string;
+    }>(
       `
     SELECT
       id AS "assetId",
@@ -293,4 +309,19 @@ export async function listSavedTraces(
   });
   await currentScope(client, scope);
   return traces;
+}
+
+/**
+ * The stored web artifact of a revisited Scroll, read after `readTraceRevisit` tied its revision and
+ * body to the original Keep (its asset share lock is still held). Undefined when the row has none.
+ */
+export async function readTraceWebArtifact(
+  client: pg.PoolClient,
+  assetId: string,
+): Promise<unknown> {
+  const artifactRow = await client.query<{ web_artifact: unknown }>(
+    'SELECT web_artifact FROM asset WHERE id=$1',
+    [assetId],
+  );
+  return artifactRow.rows[0]?.web_artifact;
 }

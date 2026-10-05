@@ -1,0 +1,15 @@
+{
+  "name": "@knowscroll/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/core": "workspace:*",
+    "@knowscroll/db": "workspace:*",
+    "ai": "7.0.102",
+    "pg": "^8.16.3",
+    "vercel-minimax-ai-provider": "0.0.2",
+    "zod": "^4.1.0"
+  }
+}

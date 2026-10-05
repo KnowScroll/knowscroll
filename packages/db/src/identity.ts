@@ -1,6 +1,13 @@
+/**
+ * Device sessions: provisioning, bearer-token authentication and the post-wait recheck. Tokens are
+ * stored only as SHA-256 hashes; never change a hash input, or every stored session stops matching.
+ * `authenticateAndLock` takes the universe lock before any session or domain row (ADR-0009,
+ * ADR-0026, ADR-0035).
+ */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { OWNER_ID, lockUniverse, transaction } from './index.ts';
+import { lockUniverse, OWNER_ID, transaction } from './connection.ts';
+import { tokenHash } from './shared/token-hash.ts';
 
 /** Also reused by `sign-in.ts` (ADR-0026 section 3) so a magic-link session's expiry stays
  * consistent with every other device session's default. */
@@ -21,10 +28,6 @@ export class UnauthorizedSession extends Error {
     super('Unauthorized');
     this.name = 'UnauthorizedSession';
   }
-}
-
-function tokenHash(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
 function uuidFromHash(hash: string, domain: string): string {
@@ -65,7 +68,11 @@ export async function ensureDevelopmentSession(token: string): Promise<void> {
   await transaction(async (client) => {
     await lockUniverse(client, OWNER_ID);
     const existing = (
-      await client.query(
+      await client.query<{
+        id: string;
+        universe_id: string;
+        device_id: string;
+      }>(
         'SELECT id, universe_id, device_id FROM device_session WHERE token_hash=$1',
         [hash],
       )
@@ -86,17 +93,18 @@ export async function ensureDevelopmentSession(token: string): Promise<void> {
     // tombstone names it, so the session stays ended -- exactly as a Reset's revoked row does --
     // instead of being re-created here on the next start.
     const ended = (
-      await client.query(
+      await client.query<{ '?column?': number }>(
         'SELECT 1 FROM account_deletion_receipt WHERE $1::uuid = ANY(development_session_ids) LIMIT 1',
         [sessionId],
       )
     ).rows[0];
     if (ended) return;
     const universe = (
-      await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [
-        OWNER_ID,
-      ])
-    ).rows[0];
+      await client.query<{ privacy_epoch: number }>(
+        'SELECT privacy_epoch FROM universe WHERE id=$1',
+        [OWNER_ID],
+      )
+    ).rows[0]!;
     await client.query(
       `
     INSERT INTO
@@ -136,7 +144,7 @@ export async function authenticateAndLock(
 ): Promise<AuthScope> {
   const hash = tokenHash(token);
   const candidate = (
-    await client.query(
+    await client.query<{ universe_id: string }>(
       'SELECT universe_id FROM device_session WHERE token_hash=$1',
       [hash],
     )
@@ -144,7 +152,13 @@ export async function authenticateAndLock(
   if (!candidate) throw new UnauthorizedSession();
   await lockUniverse(client, candidate.universe_id);
   const row = (
-    await client.query(
+    await client.query<{
+      id: string;
+      universe_id: string;
+      device_id: string;
+      privacy_epoch: number;
+      expires_at: Date;
+    }>(
       `
    SELECT
      s.*
@@ -214,13 +228,20 @@ export async function provisionIdentity(
     }
     await lockUniverse(client, universeId);
     const universe = (
-      await client.query('SELECT privacy_epoch FROM universe WHERE id=$1', [
-        universeId,
-      ])
-    ).rows[0];
+      await client.query<{ privacy_epoch: number }>(
+        'SELECT privacy_epoch FROM universe WHERE id=$1',
+        [universeId],
+      )
+    ).rows[0]!;
     const sessionId = randomUUID();
     const row = (
-      await client.query(
+      await client.query<{
+        id: string;
+        universe_id: string;
+        device_id: string;
+        privacy_epoch: number;
+        expires_at: Date;
+      }>(
         `
     INSERT INTO
       device_session (
@@ -252,7 +273,7 @@ export async function provisionIdentity(
           expiresInHours,
         ],
       )
-    ).rows[0];
+    ).rows[0]!;
     return scopeFromRow(row);
   });
   return { token, scope };

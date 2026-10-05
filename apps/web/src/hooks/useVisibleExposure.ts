@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 
 /**
- * Fires `onVisible(assetId)` the first time the stage is at least substantially
- * in the viewport (default 60% intersection ratio) while the document itself
- * is visible. Never fires for a hidden tab or an off-screen/prefetched stage;
+ * Fires `onVisible(assetId)` the first time the stage substantially occupies
+ * the viewport (default 60% of the smaller of stage and viewport) while the
+ * document itself is visible. A long article can be much taller than a phone;
+ * comparing against its full height would leave a visibly read Scroll forever
+ * unexposed. Never fires for a hidden tab or an off-screen/prefetched stage;
  * re-checks on `visibilitychange` in case intersection happened while hidden.
  */
 export function useVisibleExposure(
@@ -25,10 +27,18 @@ export function useVisibleExposure(
     };
     const observer = new IntersectionObserver(
       entries => {
-        for (const entry of entries) ratio = entry.intersectionRatio;
+        for (const entry of entries) {
+          const visibleHeight = Math.min(entry.boundingClientRect.height, document.documentElement.clientHeight);
+          const visibleWidth = Math.min(entry.boundingClientRect.width, document.documentElement.clientWidth);
+          ratio = visibleHeight > 0 && visibleWidth > 0
+            ? (entry.intersectionRect.height * entry.intersectionRect.width) / (visibleHeight * visibleWidth)
+            : 0;
+        }
         attempt();
       },
-      { threshold: [0, threshold, 1] },
+      // Long articles may never reach a .6 *element* ratio, so request
+      // intermediate crossings and evaluate viewport occupancy ourselves.
+      { threshold: Array.from({ length: 51 }, (_, index) => index / 50) },
     );
     observer.observe(node);
     document.addEventListener('visibilitychange', attempt);

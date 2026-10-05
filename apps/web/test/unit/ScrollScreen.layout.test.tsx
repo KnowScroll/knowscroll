@@ -37,18 +37,20 @@ function renderReading(overrides: Partial<Extract<ScrollView, { status: 'reading
       onReturn={vi.fn()}
       onRetry={vi.fn()}
       onReadingPosition={vi.fn()}
+      onSwitchRepresentation={vi.fn()}
     />,
   );
 }
 
 describe('ScrollScreen desktop structure (ui-system.md sec.4)', () => {
-  it('renders a head band above the stage with back, origin and a monospace kind label', () => {
+  it('renders a head band above the stage with back, origin and the Reel/Scroll switch', () => {
     const { container } = renderReading();
     const headBand = container.querySelector('.head-band');
     expect(headBand).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Return to Universe' })).toBeInTheDocument();
     expect(headBand?.querySelector('.head-band-origin')?.textContent).toMatch(/Deliberate discovery/);
-    expect(headBand?.querySelector('.head-band-kind')?.textContent).toBe('Scroll');
+    expect(headBand?.querySelector('[aria-label="Reel or Scroll"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Scroll' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('applies the two-column reading grid (context rail + reading column), never a single full-width column', () => {

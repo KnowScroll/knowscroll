@@ -1,5 +1,5 @@
 /**
- * #131 — deciding a bridge proposal. One transaction: take the locks, assemble the read set,
+ * Deciding a bridge proposal (#131). One transaction: take the locks, assemble the read set,
  * run the pure validator, record the proposal with the exact read-set slice it was judged on,
  * and — only when admitted — create the bridge and its evidence rows. The database's own
  * commit-time guard (migration 0026) refuses an admitted bridge without current evidence even if
@@ -10,17 +10,17 @@
  * Provider text never reaches the database except through a payload that parsed and was decided.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
-  bridgeProposalPayload,
   type BridgeDecision,
   type BridgeProposalPayload,
+  bridgeProposalPayload,
   type ProposerKind,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
 import {
   sliceReadSet,
   validateBridgeProposal,
-} from '../../../core/src/semantic/bridge-validator.ts';
+} from '@knowscroll/core/semantic/bridge-validator';
+import type pg from 'pg';
 import {
   canonicalJson,
   loadBridgeReadSet,
@@ -40,7 +40,7 @@ export class SemanticInputError extends Error {
     this.name = 'SemanticInputError';
   }
 }
-export class SemanticStaleEpoch extends Error {
+class SemanticStaleEpoch extends Error {
   readonly statusCode = 409;
   constructor() {
     super('The universe privacy epoch changed; this proposal is discarded');
@@ -99,7 +99,12 @@ export async function submitBridgeProposal(
     input.scope.kind === 'universe' ? input.scope.universeId : null;
   // Replay identity is per scope: another universe's identical proposal is not this one.
   const existing = (
-    await client.query(
+    await client.query<{
+      id: string;
+      status: ProposalResult['status'];
+      decision: ProposalResult['decision'];
+      bridge_id: string | null;
+    }>(
       `
       SELECT
         id,

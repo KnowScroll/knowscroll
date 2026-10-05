@@ -1,0 +1,26 @@
+/**
+ * The reader's content demands (ADR-0046 §6; #164).
+ *
+ *   GET /v1/inventory   {privacyEpoch, demands[]}: state, decision, reason, concept and, once bound, the Scroll
+ *
+ * Read only: demands are written by the reading that observed them (the feed, an opened continuation)
+ * and supply by the worker. No source is ever named.
+ */
+
+import { readInventory } from '@knowscroll/db/inventory/read';
+import type { FastifyInstance } from 'fastify';
+import type { Authenticated } from '../http/authenticated.ts';
+import { noStore } from '../http/input.ts';
+
+export function registerInventoryRoutes(
+  app: FastifyInstance,
+  authenticated: Authenticated,
+): void {
+  app.get('/v1/inventory', async (req, reply) => {
+    const result = await authenticated(
+      req.headers.authorization,
+      (scope, client) => readInventory(client, scope),
+    );
+    return noStore(reply).send(result);
+  });
+}

@@ -1,5 +1,5 @@
 /**
- * #131 — the private personal model (ADR-0032 §1–§2): attention accounts and rule hypotheses,
+ * The private personal model (ADR-0032 §1–§2, #131): attention accounts and rule hypotheses,
  * recomputed from this universe's Ledger in the same transaction that records new evidence.
  *
  * The caller holds the universe lock. Everything here is a projection: Clear/Reset erase it with
@@ -8,20 +8,19 @@
  * history needs incremental episodes with the same arithmetic.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   ATTENTION_V1,
   computeAttentionAccounts,
   type EpisodeEvidence,
   type MarkKind,
   type NegativeEvidence,
-} from '../../../core/src/semantic/attention.ts';
+} from '@knowscroll/core/semantic/attention';
 import {
+  type HypothesisProposal,
   proposeHypotheses,
   validateHypothesis,
-  type HypothesisProposal,
-} from '../../../core/src/semantic/hypotheses.ts';
-import { BRANCH_POLICY_VERSION } from './branches.ts';
+} from '@knowscroll/core/semantic/hypotheses';
+import type pg from 'pg';
 import {
   eraseAtlas,
   exportAtlas,
@@ -29,14 +28,15 @@ import {
   runKeeper,
 } from '../atlas.ts';
 import { withdrawCorrectedBindings } from '../inventory/demand.ts';
-import { postInquiryMail } from '../reasoning-inquiries.ts';
+import { postInquiryMail } from '../reasoning/inquiries.ts';
 import { eraseRooms, exportRooms } from '../rooms.ts';
+import { BRANCH_POLICY_VERSION } from './branches.ts';
 
 type Row = Record<string, unknown>;
 const ms = (v: unknown) =>
   v instanceof Date ? v.getTime() : new Date(String(v)).getTime();
 
-export interface PersonalEvidence {
+interface PersonalEvidence {
   episodes: EpisodeEvidence[];
   negatives: NegativeEvidence[];
   marks: {
@@ -61,7 +61,7 @@ export interface PersonalEvidence {
   conceptIds: Map<string, string>;
 }
 
-export async function loadPersonalEvidence(
+async function loadPersonalEvidence(
   client: pg.PoolClient,
   universeId: string,
 ): Promise<PersonalEvidence> {
@@ -480,8 +480,8 @@ export async function refreshPersonalModel(
     }
   }
 
-  // #134: places follow the accounts just written (ADR-0036), and #163: rooms follow the places and
-  // the reader's Asks (ADR-0045); nothing runs while paused (above).
+  // Places follow the accounts just written (ADR-0036, #134), and rooms follow the places and the
+  // reader's Asks (ADR-0045, #163). Nothing runs while paused.
   const places = await runCartographer(client, universeId, [
     ...accounts.values(),
   ]);

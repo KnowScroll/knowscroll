@@ -32,8 +32,13 @@ export class NotADemoDatabaseError extends Error {
  * otherwise. Never logs or otherwise reproduces `databaseUrl` itself — a Postgres connection string
  * carries a password, and only the database name (never a secret) is safe to put in a message.
  */
-export function assertDemoDatabaseName(databaseUrl: string | undefined): string {
-  if (!databaseUrl) throw new Error('DATABASE_URL must be set (see scripts/demo-populate.ts header for invocation).');
+export function assertDemoDatabaseName(
+  databaseUrl: string | undefined,
+): string {
+  if (!databaseUrl)
+    throw new Error(
+      'DATABASE_URL must be set (see scripts/demo-populate.ts header for invocation).',
+    );
   let parsed: URL;
   try {
     parsed = new URL(databaseUrl);
@@ -41,7 +46,8 @@ export function assertDemoDatabaseName(databaseUrl: string | undefined): string 
     throw new Error('DATABASE_URL is not a valid connection URL.');
   }
   const databaseName = parsed.pathname.replace(/^\//, '');
-  if (!databaseName.startsWith(REQUIRED_PREFIX)) throw new NotADemoDatabaseError(databaseName);
+  if (!databaseName.startsWith(REQUIRED_PREFIX))
+    throw new NotADemoDatabaseError(databaseName);
   // Belt and braces: the name must also be a safe SQL identifier before it is ever interpolated
   // into a CREATE DATABASE statement.
   assertSafeIdentifier(databaseName);
@@ -50,7 +56,9 @@ export function assertDemoDatabaseName(databaseUrl: string | undefined): string 
 
 function assertSafeIdentifier(databaseName: string): void {
   if (!/^[a-z0-9_]+$/i.test(databaseName)) {
-    throw new Error(`Database name "${databaseName}" contains characters this tool will not interpolate into SQL.`);
+    throw new Error(
+      `Database name "${databaseName}" contains characters this tool will not interpolate into SQL.`,
+    );
   }
 }
 
@@ -61,7 +69,9 @@ function assertSafeIdentifier(databaseName: string): void {
  */
 export function assertDisposableDatabaseName(databaseName: string): string {
   if (!/^knowscroll_(test|demo)_./.test(databaseName)) {
-    throw new Error(`Refusing to run: database "${databaseName}" is not a disposable knowscroll_test_* or knowscroll_demo_* database.`);
+    throw new Error(
+      `Refusing to run: database "${databaseName}" is not a disposable knowscroll_test_* or knowscroll_demo_* database.`,
+    );
   }
   assertSafeIdentifier(databaseName);
   return databaseName;
@@ -73,12 +83,18 @@ export function assertDisposableDatabaseName(databaseName: string): string {
  */
 export function localDisposableDatabaseUrl(databaseName: string): string {
   assertDisposableDatabaseName(databaseName);
-  const dotEnv = Object.fromEntries((existsSync('.env') ? readFileSync('.env', 'utf8') : '').split('\n').filter(l => l.includes('=') && !l.startsWith('#'))
-    .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+  const dotEnv = Object.fromEntries(
+    (existsSync('.env') ? readFileSync('.env', 'utf8') : '')
+      .split('\n')
+      .filter((l) => l.includes('=') && !l.startsWith('#'))
+      .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+  );
   const base = process.env.DATABASE_URL ?? dotEnv.DATABASE_URL;
-  if (!base || !URL.canParse(base)) throw new Error('no DATABASE_URL in the environment or .env.');
+  if (!base || !URL.canParse(base))
+    throw new Error('no DATABASE_URL in the environment or .env.');
   const url = new URL(base);
-  if (!['127.0.0.1', 'localhost'].includes(url.hostname)) throw new Error('local PostgreSQL only.');
+  if (!['127.0.0.1', 'localhost'].includes(url.hostname))
+    throw new Error('local PostgreSQL only.');
   url.pathname = `/${databaseName}`;
   return url.toString();
 }

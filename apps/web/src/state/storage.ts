@@ -9,6 +9,7 @@
  * ADR-0009 fence and the issue's "no restore across a changed epoch" clause.
  */
 import type { FeedItem } from '../api/types.ts';
+import type { BranchOpenInput } from '@knowscroll/contracts/semantic';
 
 const NAMESPACE = 'ks_web_v1';
 const key = (name: string) => `${NAMESPACE}:${name}`;
@@ -27,6 +28,12 @@ export interface ScrollSession {
   keepJobId: string;
   keepEventId: string;
   readingPosition: number;
+  branchFrom?: { fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean };
+}
+
+export interface PendingBranch {
+  universeId: string;
+  request: BranchOpenInput;
 }
 
 export interface RevisitSession {
@@ -103,6 +110,25 @@ export class ReaderStorage {
     this.backend.removeItem(key('session'));
   }
 
+  writePendingBranch(value: PendingBranch): void {
+    this.backend.setItem(key('pendingBranch'), JSON.stringify(value));
+  }
+  readPendingBranch(): PendingBranch | null {
+    return safeParse<PendingBranch>(this.backend.getItem(key('pendingBranch')));
+  }
+  clearPendingBranch(): void {
+    this.backend.removeItem(key('pendingBranch'));
+  }
+  writeBranchTrail(value: readonly ScrollSession[]): void {
+    this.backend.setItem(key('branchTrail'), JSON.stringify(value));
+  }
+  readBranchTrail(): ScrollSession[] {
+    return safeParse<ScrollSession[]>(this.backend.getItem(key('branchTrail'))) ?? [];
+  }
+  clearBranchTrail(): void {
+    this.backend.removeItem(key('branchTrail'));
+  }
+
   writeLastKept(value: LastKept): void {
     this.backend.setItem(key('lastKept'), JSON.stringify(value));
   }
@@ -143,6 +169,8 @@ export class ReaderStorage {
     this.backend.removeItem(key('revisit'));
     this.backend.removeItem(key('visited'));
     this.backend.removeItem(key('lastKept'));
+    this.backend.removeItem(key('pendingBranch'));
+    this.backend.removeItem(key('branchTrail'));
     this.backend.setItem(key('screen'), 'universe');
     this.backend.setItem(key('privacyUniverseId'), universeId);
     this.backend.setItem(key('privacyEpoch'), String(observed));

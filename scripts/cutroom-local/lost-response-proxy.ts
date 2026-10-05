@@ -10,28 +10,28 @@
  * Plain Node (erasable TypeScript only): no enum/namespace/parameter-property syntax, so this file
  * can be run directly by `node` as well as by `tsx`.
  */
-import { type AddressInfo, type Socket, connect, createServer } from 'node:net'
+import { type AddressInfo, type Socket, connect, createServer } from 'node:net';
 
-export interface DroppedConnection {
-  id: number
+interface DroppedConnection {
+  id: number;
   /** When this connection was accepted while the proxy was armed. */
-  armedAt: number
+  armedAt: number;
   /** When the client socket was destroyed, just as the target's response began. */
-  droppedAt: number
+  droppedAt: number;
 }
 
 export interface LostResponseProxy {
-  readonly port: number
-  readonly origin: string
+  readonly port: number;
+  readonly origin: string;
   /** Arms exactly the NEXT accepted connection to have its response dropped; single-shot. */
-  arm(): void
-  readonly dropped: readonly DroppedConnection[]
-  close(): Promise<void>
+  arm(): void;
+  readonly dropped: readonly DroppedConnection[];
+  close(): Promise<void>;
 }
 
 export interface ProxyTarget {
-  host: string
-  port: number
+  host: string;
+  port: number;
 }
 
 /** A loopback TCP proxy in front of `target`, listening on `options.port` (0: OS-chosen). */
@@ -40,81 +40,81 @@ export function createLostResponseProxy(
   options: { port?: number } = {},
 ): Promise<LostResponseProxy> {
   return new Promise((resolve, reject) => {
-    let armed = false
-    let nextId = 0
-    const dropped: DroppedConnection[] = []
+    let armed = false;
+    let nextId = 0;
+    const dropped: DroppedConnection[] = [];
 
     const server = createServer((client: Socket) => {
-      const id = nextId
-      nextId += 1
-      const isArmed = armed
-      armed = false // single-shot: arming affects only the next accepted connection
+      const id = nextId;
+      nextId += 1;
+      const isArmed = armed;
+      armed = false; // single-shot: arming affects only the next accepted connection
 
-      const upstream = connect({ host: target.host, port: target.port })
-      let settled = false
+      const upstream = connect({ host: target.host, port: target.port });
+      let settled = false;
 
       const cleanup = () => {
-        client.removeAllListeners()
-        upstream.removeAllListeners()
-      }
+        client.removeAllListeners();
+        upstream.removeAllListeners();
+      };
       client.on('error', () => {
-        if (!upstream.destroyed) upstream.destroy()
-      })
+        if (!upstream.destroyed) upstream.destroy();
+      });
       upstream.on('error', () => {
-        if (!client.destroyed) client.destroy()
-      })
+        if (!client.destroyed) client.destroy();
+      });
 
       // The request bytes are always forwarded in full, armed or not: the target must genuinely
       // receive and process them before any dropping decision is made.
-      client.pipe(upstream)
+      client.pipe(upstream);
 
       if (isArmed) {
-        const armedAt = Date.now()
+        const armedAt = Date.now();
         upstream.once('data', () => {
-          if (settled) return
-          settled = true
-          dropped.push({ id, armedAt, droppedAt: Date.now() })
-          client.destroy()
-          upstream.destroy()
-          cleanup()
-        })
+          if (settled) return;
+          settled = true;
+          dropped.push({ id, armedAt, droppedAt: Date.now() });
+          client.destroy();
+          upstream.destroy();
+          cleanup();
+        });
         upstream.once('close', () => {
-          if (!client.destroyed) client.destroy()
-        })
+          if (!client.destroyed) client.destroy();
+        });
       } else {
-        upstream.pipe(client)
+        upstream.pipe(client);
         client.once('close', () => {
-          if (!upstream.destroyed) upstream.destroy()
-        })
+          if (!upstream.destroyed) upstream.destroy();
+        });
         upstream.once('close', () => {
-          if (!client.destroyed) client.destroy()
-        })
+          if (!client.destroyed) client.destroy();
+        });
       }
-    })
+    });
 
-    server.on('error', reject)
+    server.on('error', reject);
     server.listen(options.port ?? 0, '127.0.0.1', () => {
-      const address = server.address()
+      const address = server.address();
       if (address === null || typeof address === 'string') {
-        reject(new Error('the lost-response proxy did not bind a TCP address'))
-        return
+        reject(new Error('the lost-response proxy did not bind a TCP address'));
+        return;
       }
-      const info = address as AddressInfo
+      const info = address as AddressInfo;
       resolve({
         port: info.port,
         origin: `http://127.0.0.1:${info.port}`,
         arm() {
-          armed = true
+          armed = true;
         },
         get dropped() {
-          return dropped
+          return dropped;
         },
         close() {
           return new Promise<void>((res) => {
-            server.close(() => res())
-          })
+            server.close(() => res());
+          });
         },
-      })
-    })
-  })
+      });
+    });
+  });
 }

@@ -23,7 +23,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     await expect(page.getByRole('button', { name: 'Enter Scroll' })).toBeVisible();
   });
 
-  test('exposure is recorded only once the Scroll is actually visible; reason, truth state and source rail are real returned facts', async ({
+  test('exposure is recorded only once the Scroll is visible; context reveals no source identifiers', async ({
     page,
     apiFetch,
   }) => {
@@ -47,7 +47,7 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     const reasonText = await page.locator('.why-this-appeared dd').first().innerText();
     expect(reasonText.length).toBeGreaterThan(0);
     await expect(page.getByText('DOCUMENTED', { exact: false }).first()).toBeVisible();
-    await expect(page.getByText(/Directly supported by strong cited evidence/).first()).toBeVisible();
+    await expect(page.getByText(/Directly supported by cited evidence/).first()).toBeVisible();
     // #133: "What led here" reads the recorded explanation back from the API. This fixture library
     // carries no substrate (no concepts, no bridges), so the Composer could only serve this Scroll
     // as an unmapped fallback: an honest empty path, and nothing offered to correct. The full path
@@ -57,15 +57,15 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     await expect(whatLedHere.getByText('fallback', { exact: true })).toBeVisible();
     await expect(whatLedHere.getByRole('group', { name: 'Correct this route' })).toHaveCount(0);
 
-    // Source rail: keyboard toggle ('s'), attributes on the outbound link.
+    // Context can explain the Scroll without exposing its private source.
     await stage.focus();
     await page.keyboard.press('s');
-    const sourceLink = page.getByRole('link', { name: /Open source/ });
-    await expect(sourceLink).toBeVisible();
-    await expect(sourceLink).toHaveAttribute('target', '_blank');
-    await expect(sourceLink).toHaveAttribute('rel', 'noopener noreferrer');
-    const href = await sourceLink.getAttribute('href');
-    expect(href).toMatch(/^https:\/\//);
+    const context = page.getByRole('complementary', { name: 'Scroll context' });
+    await expect(context).toBeVisible();
+    await expect(context.getByText('Source details are kept outside the reader view.')).toBeVisible();
+    await expect(context.locator('a')).toHaveCount(0);
+    await expect(context).not.toContainText(/https?:\/\//i);
+    await expect(context).not.toContainText(/publisher|licen[cs]e|source count/i);
 
     // Verify against the real backend: the stored exposure event genuinely exists and is an "exposure".
     // The poll above only proves the request was sent; the receipt is persisted when the response
@@ -171,6 +171,8 @@ test.describe.serial('web reader journey (real disposable API/worker/PostgreSQL)
     });
 
     await traceButton.click();
+    await expect(page.getByRole('region', { name: 'Planet landing' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open saved Scroll', exact: true }).click();
     await expect(page.getByText('Saved Trace · revisiting a kept Scroll')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Kept' })).toBeDisabled();
     await page.waitForTimeout(500);

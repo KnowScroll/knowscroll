@@ -2,7 +2,7 @@
 
 [#45](https://github.com/KnowScroll/knowscroll/issues/45) implements the internal database operations defined by [ADR-0012](../decisions/0012-reasoning-admission-and-reconciliation.md), on top of [#44 storage](reasoning-storage.md). Migration 0005 adds immutable policy/input bindings and cumulative accounting metadata. Migrations 0001–0004 remain unchanged.
 
-These are development primitives. The ordinary worker still processes deterministic keeps only; `reasoningReadiness()` remains false. No provider adapter or public endpoint is connected to these operations. [#46](https://github.com/KnowScroll/knowscroll/issues/46) adds [J004](../journeys/J004.md), which verifies the protocol in a separate-process synthetic runtime harness. This does not enable product calls.
+These are development primitives. The ordinary worker still processes deterministic keeps only. No provider adapter or public endpoint is connected to these operations. [#46](https://github.com/KnowScroll/knowscroll/issues/46) adds [J004](../journeys/J004.md), which verifies the protocol in a separate-process synthetic runtime harness. This does not enable product calls.
 
 The separate [fairness model](reasoning-fairness.md) and [ADR-0013](../decisions/0013-bounded-reasoning-fairness.md) define the scheduling policy before its SQL implementation. [Durable SQL fairness](reasoning-sql-fairness.md) now composes the internal transaction helpers into one atomic fair claim/reservation operation. The split methods below remain the earlier development primitives.
 

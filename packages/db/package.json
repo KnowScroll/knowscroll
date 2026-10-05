@@ -1,0 +1,16 @@
+{
+  "name": "@knowscroll/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/core": "workspace:*",
+    "pg": "^8.16.3",
+    "zod": "^4.1.0"
+  }
+}

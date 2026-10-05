@@ -1,21 +1,23 @@
 /** Runs J002 against one disposable loopback PostgreSQL database and a separate API process. */
-import {type ChildProcess, spawn} from 'node:child_process';
-import {randomBytes} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
-import {createServer} from 'node:net';
-import {dirname, resolve} from 'node:path';
-import {setTimeout} from 'node:timers/promises';
-import {fileURLToPath} from 'node:url';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { dirname, resolve } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const active = new Set<ChildProcess>();
 let interrupted = false;
 function localConfig(text: string) {
-  return Object.fromEntries(text.split('\n').flatMap(line => {
-    const m = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line);
-    return m ? [[m[1], m[2]]] : []
-  }));
+  return Object.fromEntries(
+    text.split('\n').flatMap((line) => {
+      const m = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line);
+      return m ? [[m[1], m[2]]] : [];
+    }),
+  );
 }
 function databaseUrl(base: string, name: string) {
   const url = new URL(base);
@@ -28,39 +30,60 @@ function quoteIdentifier(value: string) {
 function throwIfInterrupted() {
   if (interrupted) throw new Error('isolated J002 runner interrupted');
 }
-function run(command: string, args: string[], env: NodeJS.ProcessEnv, quiet = false) {
+function run(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  quiet = false,
+) {
   return new Promise<void>((done, reject) => {
     const child = spawn(command, args, {
       cwd: root,
       env,
       stdio: quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-      detached: process.platform !== 'win32'
+      detached: process.platform !== 'win32',
     });
     active.add(child);
     let output = '';
-    child.stdout?.on('data', chunk => output += chunk);
-    child.stderr?.on('data', chunk => output += chunk);
-    child.once('error', error => {
+    child.stdout?.on('data', (chunk) => (output += chunk));
+    child.stderr?.on('data', (chunk) => (output += chunk));
+    child.once('error', (error) => {
       active.delete(child);
       reject(error);
     });
-    child.once('exit', code => {
+    child.once('exit', (code) => {
       active.delete(child);
-      code === 0 ? done() : reject(new Error(`${command} ${args.join(' ')} exited ${code}: ${output}`));
+      code === 0
+        ? done()
+        : reject(
+            new Error(`${command} ${args.join(' ')} exited ${code}: ${output}`),
+          );
     });
   });
 }
 type Managed = {
   child: ChildProcess;
-  startupError?: Error
+  startupError?: Error;
 };
-function start(command: string, args: string[], env: NodeJS.ProcessEnv): Managed {
-  const child =
-      spawn(command, args, {cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32'});
-  const managed: Managed = {child};
-  child.once('error', error => managed.startupError = error);
-  child.stdout?.on('data', chunk => process.stdout.write(`[J002 ${command}] ${chunk}`));
-  child.stderr?.on('data', chunk => process.stderr.write(`[J002 ${command}] ${chunk}`));
+function start(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+): Managed {
+  const child = spawn(command, args, {
+    cwd: root,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
+  });
+  const managed: Managed = { child };
+  child.once('error', (error) => (managed.startupError = error));
+  child.stdout?.on('data', (chunk) =>
+    process.stdout.write(`[J002 ${command}] ${chunk}`),
+  );
+  child.stderr?.on('data', (chunk) =>
+    process.stderr.write(`[J002 ${command}] ${chunk}`),
+  );
   return managed;
 }
 async function freePort() {
@@ -69,8 +92,9 @@ async function freePort() {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
-      if (!address || typeof address === 'string') return reject(new Error('No loopback port assigned'));
-      server.close(error => error ? reject(error) : done(address.port));
+      if (!address || typeof address === 'string')
+        return reject(new Error('No loopback port assigned'));
+      server.close((error) => (error ? reject(error) : done(address.port)));
     });
   });
 }
@@ -79,9 +103,12 @@ async function waitForHealth(base: string, api: Managed) {
   for (let i = 0; i < 80; i++) {
     throwIfInterrupted();
     if (api.startupError) throw api.startupError;
-    if (api.child.exitCode !== null) throw new Error(`API exited before health check: ${api.child.exitCode}`);
+    if (api.child.exitCode !== null)
+      throw new Error(`API exited before health check: ${api.child.exitCode}`);
     try {
-      const response = await fetch(`${base}/health`, {signal: AbortSignal.timeout(1000)});
+      const response = await fetch(`${base}/health`, {
+        signal: AbortSignal.timeout(1000),
+      });
       if (response.ok) return;
       last = await response.text();
     } catch (error) {
@@ -91,7 +118,7 @@ async function waitForHealth(base: string, api: Managed) {
   }
   throw new Error(`J002 API never became healthy: ${String(last)}`);
 }
-async function stop(api: Managed|undefined) {
+async function stop(api: Managed | undefined) {
   const child = api?.child;
   if (!child || child.exitCode !== null || !child.pid) return;
   try {
@@ -99,7 +126,10 @@ async function stop(api: Managed|undefined) {
   } catch {
     child.kill('SIGTERM');
   }
-  await Promise.race([new Promise<void>(done => child.once('exit', () => done())), setTimeout(5000)]);
+  await Promise.race([
+    new Promise<void>((done) => child.once('exit', () => done())),
+    setTimeout(5000),
+  ]);
   if (child.exitCode === null) {
     try {
       process.kill(-child.pid, 'SIGKILL');
@@ -108,15 +138,18 @@ async function stop(api: Managed|undefined) {
     }
   }
 }
-const suffix = randomBytes(8).toString('hex'), name = `knowscroll_j002_${suffix}`;
-let admin: pg.Client|undefined, api: Managed|undefined, createdDatabase = false, primaryError: unknown;
+const suffix = randomBytes(8).toString('hex'),
+  name = `knowscroll_j002_${suffix}`;
+let admin: pg.Client | undefined,
+  api: Managed | undefined,
+  createdDatabase = false,
+  primaryError: unknown;
 const onSignal = () => {
   interrupted = true;
-  for (const child of active) try {
-      if (child.pid)
-        process.kill(-child.pid, 'SIGTERM');
-      else
-        child.kill('SIGTERM');
+  for (const child of active)
+    try {
+      if (child.pid) process.kill(-child.pid, 'SIGTERM');
+      else child.kill('SIGTERM');
     } catch {
       child.kill('SIGTERM');
     }
@@ -124,7 +157,7 @@ const onSignal = () => {
 process.once('SIGINT', onSignal);
 process.once('SIGTERM', onSignal);
 try {
-  let config: Record < string, string >= {};
+  let config: Record<string, string> = {};
   try {
     config = localConfig(await readFile(resolve(root, '.env'), 'utf8'));
   } catch (error) {
@@ -132,11 +165,17 @@ try {
   }
   throwIfInterrupted();
   const sourceUrl = process.env.DATABASE_URL ?? config.DATABASE_URL;
-  if (!sourceUrl) throw new Error('DATABASE_URL is required in the environment or local .env');
+  if (!sourceUrl)
+    throw new Error(
+      'DATABASE_URL is required in the environment or local .env',
+    );
   const source = new URL(sourceUrl);
   if (!['127.0.0.1', 'localhost', '::1'].includes(source.hostname))
     throw new Error('isolated J002 runner only permits loopback PostgreSQL');
-  admin = new pg.Client({connectionString: databaseUrl(sourceUrl, 'postgres'), connectionTimeoutMillis: 5000});
+  admin = new pg.Client({
+    connectionString: databaseUrl(sourceUrl, 'postgres'),
+    connectionTimeoutMillis: 5000,
+  });
   await admin.connect();
   throwIfInterrupted();
   await admin.query(`CREATE DATABASE ${quoteIdentifier(name)}`);
@@ -144,17 +183,29 @@ try {
   throwIfInterrupted();
   const port = await freePort();
   throwIfInterrupted();
-  const disposableUrl = databaseUrl(sourceUrl, name), devToken = randomBytes(32).toString('hex');
-  const runtime = Object.fromEntries([
-    'PATH', 'HOME', 'LANG', 'LC_ALL', 'KS_DEV_ROOT', 'npm_config_cache', 'COREPACK_HOME', 'TMPDIR'
-  ].flatMap(key => process.env[key] === undefined ? [] : [[key, process.env[key]]]));
+  const disposableUrl = databaseUrl(sourceUrl, name),
+    devToken = randomBytes(32).toString('hex');
+  const runtime = Object.fromEntries(
+    [
+      'PATH',
+      'HOME',
+      'LANG',
+      'LC_ALL',
+      'KS_DEV_ROOT',
+      'npm_config_cache',
+      'COREPACK_HOME',
+      'TMPDIR',
+    ].flatMap((key) =>
+      process.env[key] === undefined ? [] : [[key, process.env[key]]],
+    ),
+  );
   const environment = {
     ...runtime,
-    ...Object.fromEntries(Object.keys(config).map(key => [key, ''])),
+    ...Object.fromEntries(Object.keys(config).map((key) => [key, ''])),
     DATABASE_URL: disposableUrl,
     KS_DEV_TOKEN: devToken,
     PORT: String(port),
-    NODE_ENV: 'test'
+    NODE_ENV: 'test',
   };
   await run('pnpm', ['exec', 'tsx', 'scripts/migrate.ts'], environment, true);
   throwIfInterrupted();
@@ -169,19 +220,21 @@ try {
     ...environment,
     JOURNEY_API_BASE: base,
     JOURNEY_DATABASE_URL: disposableUrl,
-    JOURNEY_RECEIPT_PATH: `artifacts/j002-isolated-${suffix}.json`
+    JOURNEY_RECEIPT_PATH: `artifacts/j002-isolated-${suffix}.json`,
   });
   throwIfInterrupted();
-  console.log(JSON.stringify({
-    journey: 'J002',
-    result: 'passed',
-    runtime: {
-      apiPort: port,
-      database: 'isolated disposable PostgreSQL',
-      api: 'separate process',
-      worker: 'separate process started only after stale job was arranged'
-    }
-  }));
+  console.log(
+    JSON.stringify({
+      journey: 'J002',
+      result: 'passed',
+      runtime: {
+        apiPort: port,
+        database: 'isolated disposable PostgreSQL',
+        api: 'separate process',
+        worker: 'separate process started only after stale job was arranged',
+      },
+    }),
+  );
 } catch (error) {
   primaryError = error;
   throw error;
@@ -190,12 +243,14 @@ try {
   process.off('SIGTERM', onSignal);
   try {
     await stop(api);
-    if (admin && createdDatabase) await admin.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(name)} WITH (FORCE)`);
+    if (admin && createdDatabase)
+      await admin.query(
+        `DROP DATABASE IF EXISTS ${quoteIdentifier(name)} WITH (FORCE)`,
+      );
     await admin?.end();
   } catch (error) {
     if (primaryError)
       console.error('isolated J002 cleanup failed after primary error', error);
-    else
-      throw error;
+    else throw error;
   }
 }

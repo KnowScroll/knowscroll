@@ -5,26 +5,23 @@
  * (migration 0027) refuse a recorded decision that contradicts itself.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
-import type { FeedAsset } from '../../../contracts/src/inventory.ts';
+import type { FeedAsset } from '@knowscroll/contracts/inventory';
+import {
+  type BridgeRelationType,
+  SYMMETRIC_BRIDGE_TYPES,
+} from '@knowscroll/contracts/semantic';
 import {
   COMPOSER_SEMANTIC_V3,
-  COMPOSER_SEMANTIC_V4,
+  type COMPOSER_SEMANTIC_V4,
   composeSemantic,
-  renderReason,
   type Family,
+  renderReason,
   type V3Asset,
   type V3Policy,
   type V3State,
-} from '../../../core/src/composer/semantic.ts';
-import {
-  SYMMETRIC_BRIDGE_TYPES,
-  type BridgeRelationType,
-} from '../../../contracts/src/semantic.ts';
-import {
-  decayedMass,
-  ATTENTION_V1,
-} from '../../../core/src/semantic/attention.ts';
+} from '@knowscroll/core/composer/semantic';
+import { ATTENTION_V1, decayedMass } from '@knowscroll/core/semantic/attention';
+import type pg from 'pg';
 import type { AuthScope } from '../identity.ts';
 import { loadBoundScrolls } from '../inventory/read.ts';
 import { BRANCH_POLICY_VERSION } from '../semantic/branches.ts';
@@ -49,7 +46,12 @@ export async function loadV3Policy(
   version: SemanticPolicyVersion = COMPOSER_SEMANTIC_V3,
 ): Promise<V3Policy> {
   const row = (
-    await client.query(
+    await client.query<{
+      version: string;
+      weights: unknown;
+      slate_size: number;
+      max_per_source: number;
+    }>(
       'SELECT version, weights, slate_size, max_per_source FROM composer_policy WHERE version=$1',
       [version],
     )
@@ -70,7 +72,7 @@ export async function loadV3Policy(
   };
 }
 
-export async function loadReasonTemplates(
+async function loadReasonTemplates(
   client: pg.PoolClient,
 ): Promise<Map<string, string>> {
   return new Map(
@@ -165,7 +167,7 @@ async function describeAssets(
 }
 
 /** Everything the pure policy reads, for one universe and the requested kinds. */
-export async function loadV3State(
+async function loadV3State(
   client: pg.PoolClient,
   universeId: string,
   eligible: readonly FeedAsset[],
@@ -198,7 +200,7 @@ export async function loadV3State(
 
   const kept = new Set<string>(
     ((
-      await client.query(
+      await client.query<{ kept_asset_ids: string[] }>(
         'SELECT kept_asset_ids FROM accounts WHERE universe_id=$1',
         [universeId],
       )

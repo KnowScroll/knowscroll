@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryStorageBackend, ReaderStorage, type RevisitSession, type ScrollSession } from '../../src/state/storage.ts';
+import type { BranchOpenInput } from '@knowscroll/contracts/semantic';
 import { feedItem } from './fakeApi.ts';
 
 function session(overrides: Partial<ScrollSession> = {}): ScrollSession {
@@ -25,6 +26,26 @@ describe('ReaderStorage epoch-scoped persistence', () => {
     const value = session({ exposureId: 'exp1' });
     storage.writeSession(value);
     expect(storage.readSession()).toEqual(value);
+  });
+
+  it('persists the same branch-open intent and exact return trail across storage instances', () => {
+    const backend = new MemoryStorageBackend();
+    const first = new ReaderStorage(backend);
+    const request: BranchOpenInput = {
+      clientBranchId: '20000000-0000-4000-8000-000000000001',
+      fromExposureId: '20000000-0000-4000-8000-000000000002',
+      bridgeId: '20000000-0000-4000-8000-000000000003',
+      targetAssetId: '20000000-0000-4000-8000-000000000004', expectedPrivacyEpoch: 2,
+    };
+    const prior = session({ universeId: 'u1', privacyEpoch: 2, readingPosition: 0.63, exposureId: 'ex1' });
+    first.writePendingBranch({ universeId: 'u1', request });
+    first.writeBranchTrail([prior]);
+    const afterReload = new ReaderStorage(backend);
+    expect(afterReload.readPendingBranch()).toEqual({ universeId: 'u1', request });
+    expect(afterReload.readBranchTrail()).toEqual([prior]);
+    afterReload.purgePrivateState('u1', 3);
+    expect(afterReload.readPendingBranch()).toBeNull();
+    expect(afterReload.readBranchTrail()).toEqual([]);
   });
 
   it('updates only the reading position for the matching asset', () => {

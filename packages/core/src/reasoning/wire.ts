@@ -3,20 +3,7 @@
  * writing). No I/O.
  */
 
-/** Stable key order, so equal inputs give equal bytes and therefore an equal reserved hash. */
-export function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>)
-      .sort()
-      .map(
-        (k) =>
-          `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`,
-      )
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
+export { canonical } from '../shared/canonical-json.ts';
 
 /** The whole reply, after dropping reasoning blocks, as one JSON object: bare, or as the only content
  * of a single fenced block. Prose around it is not "exactly one JSON object" (ADR-0038 §7). */

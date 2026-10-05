@@ -86,9 +86,12 @@ test.describe('keyboard-only path, accessibility scan, and reference screenshots
       await page.waitForTimeout(300);
       await page.screenshot({ path: join(evidenceDir, 'screenshots', `scroll-${viewport.name}.png`), fullPage: true });
 
-      await page.getByRole('button', { name: /Open sources panel/ }).click();
-      await expect(page.getByRole('link', { name: /Open source/ })).toBeVisible();
-      await page.screenshot({ path: join(evidenceDir, 'screenshots', `scroll-sources-${viewport.name}.png`), fullPage: true });
+      await page.getByRole('button', { name: 'Open context panel' }).click();
+      const context = page.getByRole('complementary', { name: 'Scroll context' });
+      await expect(context).toBeVisible();
+      await expect(context.locator('a')).toHaveCount(0);
+      await expect(context).not.toContainText(/https?:\/\//i);
+      await page.screenshot({ path: join(evidenceDir, 'screenshots', `scroll-context-${viewport.name}.png`), fullPage: true });
     });
   }
 });

@@ -4,10 +4,10 @@
  * Imported directly, like `./worlds.ts`.
  */
 import { z } from 'zod';
-import { roomSummary } from './rooms.ts';
 import { placeDemand } from './inventory.ts';
+import { uuid as id } from './primitives.ts';
+import { roomSummary } from './rooms.ts';
 
-const id = z.string().uuid();
 const relationKind = z.enum([
   'prerequisite_for',
   'explains',
@@ -141,6 +141,58 @@ export const atlasResponseSchema = z
   })
   .strict();
 export type AtlasResponse = z.infer<typeof atlasResponseSchema>;
+
+/** Reader-safe browser view: source names and source-family counts remain internal. */
+const webClaim = support.claim
+  .unwrap()
+  .omit({ sourceTitle: true })
+  .strict()
+  .nullable();
+const webBasis = atlasPlaceSchema.shape.basis
+  .unwrap()
+  .extend({ claim: webClaim })
+  .strict();
+const webAttention = atlasPlaceSchema.shape.attention
+  .unwrap()
+  .omit({ sourceFamilies: true })
+  .strict();
+const webFoundationBase = atlasPlaceSchema.shape.foundation.unwrap();
+const webFoundation = webFoundationBase
+  .extend({
+    relations: z
+      .array(
+        webFoundationBase.shape.relations.element
+          .extend({ claim: webClaim })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+const webAtlasPlaceSchema = z
+  .object({
+    ...atlasPlaceSchema.shape,
+    basis: webBasis.nullable(),
+    attention: webAttention.nullable(),
+    foundation: webFoundation.nullable(),
+  })
+  .strict()
+  .refine(
+    (p) =>
+      p.kind !== 'sighting' ||
+      (p.attention === null && p.foundation === null && p.rooms.length === 0),
+  );
+export const webAtlasResponseSchema = z
+  .object({
+    ...atlasResponseSchema.shape,
+    places: z.array(webAtlasPlaceSchema),
+    relations: z.array(
+      atlasResponseSchema.shape.relations.element
+        .extend({ claim: webClaim })
+        .strict(),
+    ),
+  })
+  .strict();
+export type WebAtlasResponse = z.infer<typeof webAtlasResponseSchema>;
 
 export const atlasDeltaSchema = z
   .object({

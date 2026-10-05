@@ -17,14 +17,23 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
-import { scrollPlanItem, type ScrollPlanItem } from '../../packages/core/src/scrolls/writing.ts';
+import {
+  scrollPlanItem,
+  type ScrollPlanItem,
+} from '@knowscroll/core/scrolls/writing';
 import { localDisposableDatabaseUrl } from '../lib/demo-database-guard.ts';
 
 /** Bench value: the most requests one installed route may hold. */
 const MAX_REQUEST_CAP = 150;
 
-const OPTIONS = { database: { type: 'string' }, plan: { type: 'string' }, transport: { type: 'string' }, 'request-cap': { type: 'string' } } as const;
-const readArgs = (argv: string[]) => parseArgs({ args: argv, strict: true, options: OPTIONS }).values;
+const OPTIONS = {
+  database: { type: 'string' },
+  plan: { type: 'string' },
+  transport: { type: 'string' },
+  'request-cap': { type: 'string' },
+} as const;
+const readArgs = (argv: string[]) =>
+  parseArgs({ args: argv, strict: true, options: OPTIONS }).values;
 
 function refuse(message: string): number {
   console.error(`Refusing: ${message}`);
@@ -33,34 +42,78 @@ function refuse(message: string): number {
 
 async function main(argv: string[]): Promise<number> {
   let args: ReturnType<typeof readArgs>;
-  try { args = readArgs(argv); } catch (error) { return refuse((error as Error).message); }
+  try {
+    args = readArgs(argv);
+  } catch (error) {
+    return refuse((error as Error).message);
+  }
   const { database, plan: planPath, transport, 'request-cap': capText } = args;
   const cap = Number(capText);
-  if (!database || !planPath || (transport !== 'fixture' && transport !== 'minimax') || !Number.isInteger(cap) || cap < 1 || cap > MAX_REQUEST_CAP) {
-    return refuse(`pass --database, --plan, --transport fixture|minimax and --request-cap 1..${MAX_REQUEST_CAP}.`);
+  if (
+    !database ||
+    !planPath ||
+    (transport !== 'fixture' && transport !== 'minimax') ||
+    !Number.isInteger(cap) ||
+    cap < 1 ||
+    cap > MAX_REQUEST_CAP
+  ) {
+    return refuse(
+      `pass --database, --plan, --transport fixture|minimax and --request-cap 1..${MAX_REQUEST_CAP}.`,
+    );
   }
-  try { process.env.DATABASE_URL = localDisposableDatabaseUrl(database); } catch (error) { return refuse((error as Error).message); }
+  try {
+    process.env.DATABASE_URL = localDisposableDatabaseUrl(database);
+  } catch (error) {
+    return refuse((error as Error).message);
+  }
   let plan: ScrollPlanItem[];
-  try { plan = z.array(scrollPlanItem).min(1).parse(JSON.parse(readFileSync(planPath, 'utf8'))); }
-  catch { return refuse('the plan must be a JSON array of {"url", "conceptCodes"} with one to eight distinct concept codes each.'); }
+  try {
+    plan = z
+      .array(scrollPlanItem)
+      .min(1)
+      .parse(JSON.parse(readFileSync(planPath, 'utf8')));
+  } catch {
+    return refuse(
+      'the plan must be a JSON array of {"url", "conceptCodes"} with one to eight distinct concept codes each.',
+    );
+  }
 
   // Loaded only now: the database module connects to DATABASE_URL, which is checked above.
-  const { pool, transaction } = await import('../../packages/db/src/index.ts');
-  const { installMaterialCandidates, installScrollWritingRoute } = await import('../../packages/db/src/inventory/supply.ts');
+  const { pool, transaction } = await import('@knowscroll/db');
+  const { installMaterialCandidates, installScrollWritingRoute } = await import(
+    '@knowscroll/db/inventory/supply'
+  );
   try {
-    const route = { id: `${transport}-route-${Date.now()}`, transport, model: transport === 'minimax' ? 'MiniMax-M3' : 'fixture-model', requestCap: cap } as const;
-    const { installed } = await transaction(async client => {
+    const route = {
+      id: `${transport}-route-${Date.now()}`,
+      transport,
+      model: transport === 'minimax' ? 'MiniMax-M3' : 'fixture-model',
+      requestCap: cap,
+    } as const;
+    const { installed } = await transaction(async (client) => {
       await installScrollWritingRoute(client, route);
       return installMaterialCandidates(client, plan);
     });
-    console.log(JSON.stringify({ route: route.id, transport, requestCap: cap, material: { planned: plan.length, installed } }));
+    console.log(
+      JSON.stringify({
+        route: route.id,
+        transport,
+        requestCap: cap,
+        material: { planned: plan.length, installed },
+      }),
+    );
     return 0;
   } catch (error) {
     return refuse((error as Error).message);
-  } finally { await pool.end(); }
+  } finally {
+    await pool.end();
+  }
 }
 
 // pathToFileURL, not string concatenation: the SSD path contains a space (verify-substrate.ts).
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   process.exitCode = await main(process.argv.slice(2));
 }

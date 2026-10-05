@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
 
 /**
  * Decorative only -- this canvas carries no semantic identity (ui-system.md
@@ -10,7 +10,7 @@ import { useEffect, useRef, type ReactElement } from 'react';
  * `@media (prefers-reduced-motion: no-preference)`, so `reduce` leaves this
  * background completely still.
  */
-export function CosmosBackground(): ReactElement {
+export function CosmosBackground({ camera }: { camera?: { x: number; y: number; zoom: number } } = {}): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -67,5 +67,8 @@ export function CosmosBackground(): ReactElement {
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="cosmos-background" aria-hidden="true" />;
+  const style: CSSProperties | undefined = camera
+    ? { transform: `translate3d(${camera.x * 0.18}px, ${camera.y * 0.18}px, 0) scale(${1 + (camera.zoom - 1) * 0.08})` }
+    : undefined;
+  return <canvas ref={canvasRef} className={`cosmos-background${camera ? ' parallax' : ''}`} style={style} aria-hidden="true" />;
 }

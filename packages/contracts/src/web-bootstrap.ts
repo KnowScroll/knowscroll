@@ -1,27 +1,16 @@
 /**
- * #115 (evidence: #120/#121, ADR-0030): the desktop web client used to re-type the bootstrap
- * response shapes it parses by hand in `apps/web/src/api/types.ts`, disconnected from any shared
- * contract. When ADR-0030 added `recordingPausedAt` to `GET /v1/universe`, nothing forced that
- * hand-written client schema to grow the field too -- the client's `.strict()` schema rejected
- * every universe load against a healthy server, and both `apps/web`'s typecheck and its unit
- * tests stayed green throughout, because its hand-written fixtures agreed with its hand-written
- * schema while both silently disagreed with the server.
- *
- * These are the strict zod shapes for the bootstrap reads the web client parses --
- * `GET /v1/universe`, `GET /v1/feed` and `GET /v1/worlds` (docs/contracts/bootstrap-http.md) --
- * defined exactly once. `apps/web/src/api/types.ts` imports and re-exports them (the same
- * relative-import pattern it already uses for `./trace-revisit.ts` and `./index.ts`) instead of
- * redefining them, and `apps/web/test/unit/fakeApi.ts`'s fixtures (`universeOf`, `worldSystemOf`,
- * the feed-item builder) are typed against the `z.infer` types exported here. A field added to a
- * schema in this file without a matching fixture update now fails `apps/web` typecheck (an object
- * literal missing a required property) and, for the belt-and-suspenders runtime case, a strict
- * `.parse()` in `apps/web/test/unit/contractsDrift.test.ts` -- before it ever reaches production,
- * not after a journey run catches it.
- *
- * This file is new and self-contained (no import from `./index.ts` or `./worlds.ts`) so it never
- * needs to touch either of those existing files, which other work may also be changing.
+ * The strict zod shapes for the bootstrap reads the web client parses: `GET /v1/universe`,
+ * `GET /v1/feed` and `GET /v1/worlds` (docs/contracts/bootstrap-http.md), defined once.
+ * `apps/web/src/api/types.ts` imports them rather than redefining them, and the web test fixtures
+ * are typed against the `z.infer` types, so a field added here without a fixture update fails the
+ * web typecheck (and a strict `.parse()` in `apps/web/test/unit/contractsDrift.test.ts`) instead of
+ * a hand-written client schema silently disagreeing with the server (ADR-0030, #115).
+ * Self-contained: imports nothing from `./index.ts` or `./worlds.ts`.
  */
 import { z } from 'zod';
+import { reelAsset } from './inventory.ts';
+import { uuid } from './primitives.ts';
+import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
 export const capabilitiesSchema = z
   .object({
@@ -58,10 +47,10 @@ export const universeSchema = z
   .strict();
 export type Universe = z.infer<typeof universeSchema>;
 
-/** The feed item extends the documented Scroll shape with a non-authoritative recommendation reason. */
-export const feedItemSchema = z
+/** Both consumption objects carry the Composer's recorded selection reason. */
+const scrollFeedItemSchema = z
   .object({
-    assetId: z.string().uuid(),
+    assetId: uuid,
     revision: z.number().int().positive(),
     kind: z.literal('Scroll'),
     title: z.string(),
@@ -73,6 +62,18 @@ export const feedItemSchema = z
     reason: z.string(),
   })
   .strict();
+export type ScrollFeedItem = z.infer<typeof scrollFeedItemSchema>;
+const reelFeedItemSchema = reelAsset
+  .extend({
+    // The browser may only load the authenticated same-origin media route.
+    mediaUrl: z.string().regex(/^\/v1\/media\/[0-9a-f]{64}$/),
+    reason: z.string(),
+  })
+  .strict();
+export const feedItemSchema = z.discriminatedUnion('kind', [
+  scrollFeedItemSchema,
+  reelFeedItemSchema,
+]);
 export type FeedItem = z.infer<typeof feedItemSchema>;
 
 /** `GET /v1/feed`. */
@@ -86,6 +87,25 @@ export const feedResponseSchema = z
   })
   .strict();
 export type FeedResponse = z.infer<typeof feedResponseSchema>;
+
+/** The browser opts into checked artifacts and a reader-safe feed projection. */
+const webScrollFeedItemSchema = scrollFeedItemSchema
+  .omit({ sourceTitle: true, sourceUrl: true })
+  .extend({ webArtifact: webScrollArtifactV1.nullable() })
+  .strict();
+const webReelFeedItemSchema = reelFeedItemSchema
+  .omit({ sourceTitle: true, sourceUrl: true })
+  .strict();
+export const webFeedItemSchema = z.discriminatedUnion('kind', [
+  webScrollFeedItemSchema,
+  webReelFeedItemSchema,
+]);
+export type WebFeedItem = z.infer<typeof webFeedItemSchema>;
+export type WebScrollFeedItem = z.infer<typeof webScrollFeedItemSchema>;
+export const webFeedResponseSchema = feedResponseSchema
+  .extend({ items: z.array(webFeedItemSchema) })
+  .strict();
+export type WebFeedResponse = z.infer<typeof webFeedResponseSchema>;
 
 export const worldSummarySchema = z
   .object({

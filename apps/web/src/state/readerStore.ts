@@ -24,6 +24,8 @@ import type {
 } from '../api/types.ts';
 import { canRequestDiscovery, selectDiscovery, tripExclude, type DiscoveryState, type KeepState } from './discovery.ts';
 import type { ReaderStorage, RevisitSession, ScrollSession } from './storage.ts';
+import type { WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
+import type { BranchOpenInput, WebEncounterBranch } from '@knowscroll/contracts/semantic';
 
 function randomUuid(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -35,7 +37,13 @@ function randomUuid(): string {
   });
 }
 
-export type ReaderOrigin = { type: 'discovery' } | { type: 'saved-trace'; eventId: string };
+export type ReaderOrigin = { type: 'discovery' } | { type: 'saved-trace'; eventId: string } | { type: 'branch'; fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean };
+
+export type BranchView =
+  | { status: 'idle' }
+  | { status: 'loading'; assetId: string; branches: []; canOpen: false }
+  | { status: 'loaded'; assetId: string; privacyEpoch: number; branches: WebEncounterBranch[]; opening: string | null; canOpen: boolean; recordingPaused: boolean; error: string | null }
+  | { status: 'unavailable'; assetId: string; message: string };
 
 export type UniverseView =
   | { status: 'loading' }
@@ -67,7 +75,13 @@ export type SystemView =
   | { status: 'loaded'; response: WorldSystemResponse }
   | { status: 'unavailable'; message: string };
 
-export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'privacy' | 'keep';
+export type AtlasView =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'loaded'; response: AtlasResponse; settingAside: string | null; error: string | null }
+  | { status: 'unavailable'; message: string };
+
+export type Screen = 'universe' | 'scroll' | 'revisit' | 'system' | 'atlas' | 'privacy' | 'keep';
 
 /** ADR-0030/#119: pause, export and reset. Every mutating action carries the `kind` it is acting
  * on and, once sent, the one `requestId` that intent keeps across any retry (server-side replay
@@ -135,6 +149,8 @@ export interface ReaderState {
   universe: UniverseView;
   scroll: ScrollView;
   system: SystemView;
+  atlas: AtlasView;
+  branches: BranchView;
   privacy: PrivacyView;
   why: WhyView;
   toast: string | null;
@@ -148,12 +164,15 @@ export class ReaderStore {
     universe: { status: 'loading' },
     scroll: { status: 'idle' },
     system: { status: 'idle' },
+    atlas: { status: 'idle' },
+    branches: { status: 'idle' },
     privacy: { status: 'idle' },
     why: WHY_CLOSED,
     toast: null,
   };
   private readonly listeners = new Set<Listener>();
   private session: ScrollSession | null = null;
+  private branchTrail: ScrollSession[];
   private revisit: RevisitSession | null = null;
   private observedPrivacyEpoch: number;
   private observedUniverseId: string;
@@ -163,8 +182,15 @@ export class ReaderStore {
    * means a Keep now owns `busy` and what the reader sees next; `version`/`epoch` stop a Keep from
    * joining an exposure started before the last navigation. */
   private exposing: { clientExposureId: string; version: number; epoch: number; promise: Promise<ScrollSession>; joined: boolean } | null = null;
+  /** A deliberate Next during this encounter's exposure waits for its receipt. */
+  private pendingNext: { assetId: string; version: number } | null = null;
+  private pendingBranchExplore: { assetId: string; version: number } | null = null;
   private reconciling = false;
   private ready = false;
+  /** Explicit disposable preview lanes; ordinary discovery remains unchanged. */
+  private previewLane: 'default' | 'reels' | 'rich-scrolls' = 'default';
+  /** One Scroll can be parked while a Reel is viewed; returning restores its exact reading place. */
+  private parkedScroll: { session: ScrollSession | null; revisit: RevisitSession | null; view: Extract<ScrollView, { status: 'reading' }>; lane: 'default' | 'rich-scrolls' } | null = null;
   private navigationVersion = 0;
   private readonly visited: Set<string>;
   /** #135 review: whether any deletion attempt in this page may have been applied without an answer
@@ -210,6 +236,7 @@ export class ReaderStore {
     this.observedPrivacyEpoch = storage.readObservedPrivacyEpoch();
     this.observedUniverseId = storage.readObservedUniverseId();
     this.visited = storage.readVisited();
+    this.branchTrail = storage.readBranchTrail();
   }
 
   getState(): ReaderState {
@@ -241,6 +268,8 @@ export class ReaderStore {
       this.loadTraceRevisit(pending);
     } else if (this.state.screen === 'revisit') {
       return;
+    } else if (this.previewLane !== 'default') {
+      this.loadNext();
     } else {
       this.enterScroll();
     }
@@ -248,11 +277,82 @@ export class ReaderStore {
 
   enterScroll(): void {
     if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
+    this.previewLane = 'default';
     const current = this.session;
-    if (current && current.keepJobId === '' && current.privacyEpoch === this.observedPrivacyEpoch) {
+    if (current?.item.kind === 'Scroll' && current.keepJobId === '' && current.privacyEpoch === this.observedPrivacyEpoch) {
       this.show(current);
       return;
     }
+    this.loadNext();
+  }
+
+  enterTestReels(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
+    this.previewLane = 'reels';
+    this.loadNext();
+  }
+
+  enterRichScrolls(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
+    this.previewLane = 'rich-scrolls';
+    this.loadNext();
+  }
+
+  currentRepresentation(): 'Reel' | 'Scroll' {
+    if (this.state.scroll.status === 'reading' && this.state.scroll.item.kind === 'Reel') return 'Reel';
+    return this.previewLane === 'reels' ? 'Reel' : 'Scroll';
+  }
+
+  /** Switch the admitted feed kind. The Reel is its own encounter, not a fabricated rendering of
+   * the same Scroll; a parked Scroll returns with its prior position and exposure identity. */
+  switchRepresentation(kind: 'Reel' | 'Scroll'): void {
+    if (this.reconciling || !this.ready || (this.state.screen !== 'scroll' && this.state.screen !== 'revisit')) return;
+    if (kind === this.currentRepresentation()) return;
+    // A visible encounter may still be posting its exposure. Let explicit navigation win;
+    // the same clientExposureId is retained if the parked Scroll is shown again.
+    if (this.busy) {
+      if (!this.exposing || this.exposing.joined) return;
+      this.exposing = null;
+      this.pendingNext = null;
+      this.pendingBranchExplore = null;
+      this.busy = false;
+    }
+    if (kind === 'Reel') {
+      const view = this.state.scroll;
+      if (view.status !== 'reading' || view.item.kind !== 'Scroll') return;
+      this.parkedScroll = {
+        session: view.origin.type === 'saved-trace' ? null : this.session,
+        revisit: view.origin.type === 'saved-trace' ? this.revisit : null,
+        view,
+        lane: this.previewLane === 'rich-scrolls' ? 'rich-scrolls' : 'default',
+      };
+      this.previewLane = 'reels';
+      this.loadNext();
+      return;
+    }
+    const parked = this.parkedScroll;
+    this.parkedScroll = null;
+    if (parked && parked.view.item.kind === 'Scroll' && parked.view.item.assetId &&
+      (parked.session?.privacyEpoch ?? parked.revisit?.privacyEpoch) === this.observedPrivacyEpoch &&
+      (parked.session?.universeId ?? parked.revisit?.universeId) === this.observedUniverseId) {
+      this.navigationVersion++;
+      this.previewLane = parked.lane;
+      if (parked.revisit) {
+        this.revisit = parked.revisit;
+        this.storage.writeRevisit(parked.revisit);
+        this.storage.writeScreen('revisit');
+        this.set({ screen: 'revisit', scroll: parked.view, why: WHY_CLOSED });
+      } else if (parked.session) {
+        this.session = parked.session;
+        this.storage.writeSession(parked.session);
+        this.show(parked.session);
+      }
+      return;
+    }
+    this.previewLane = 'default';
     this.loadNext();
   }
 
@@ -297,6 +397,73 @@ export class ReaderStore {
     this.navigationVersion++; // invalidates any in-flight getWorlds() so a stale response cannot land
     this.busy = false;
     this.set({ screen: 'universe', system: { status: 'idle' } });
+  }
+
+  /** Read the current projected places on entry. The response is never persisted: a revisit
+   * observes corrections and privacy changes rather than replaying an old map. */
+  enterAtlas(): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.busy = true;
+    const version = this.navigationVersion;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ screen: 'atlas', atlas: { status: 'loading' } });
+    this.api.getAtlas()
+      .then(response => {
+        if (version !== this.navigationVersion || epoch !== this.observedPrivacyEpoch || universeId !== this.observedUniverseId) return;
+        this.set({ atlas: { status: 'loaded', response, settingAside: null, error: null } });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else {
+          this.set({ atlas: { status: 'unavailable', message: describeApiError(error) } });
+        }
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
+  }
+
+  retryAtlas(): void {
+    if (this.state.screen === 'atlas') this.enterAtlas();
+  }
+
+  returnFromAtlas(): void {
+    if (this.state.screen !== 'atlas') return;
+    this.navigationVersion++;
+    this.busy = false;
+    this.set({ screen: 'universe', atlas: { status: 'idle' } });
+  }
+
+  setAsideAtlasPlace(placeId: string): void {
+    if (this.busy || this.reconciling || !this.ready || this.state.screen !== 'atlas' || this.state.atlas.status !== 'loaded') return;
+    if (!this.state.atlas.response.places.some(place => place.placeId === placeId && place.kind !== 'sighting')) return;
+    const current = this.state.atlas.response;
+    const version = this.navigationVersion;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.busy = true;
+    this.set({ atlas: { status: 'loaded', response: current, settingAside: placeId, error: null } });
+    this.api.rejectAtlasPlace(placeId, epoch)
+      .then(response => {
+        if (version !== this.navigationVersion || epoch !== this.observedPrivacyEpoch || universeId !== this.observedUniverseId) return;
+        this.set({ atlas: { status: 'loaded', response, settingAside: null, error: null } });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else {
+          this.set({ atlas: { status: 'loaded', response: current, settingAside: null, error: describeApiError(error) } });
+        }
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) this.busy = false;
+      });
   }
 
   // ---------- Privacy lifecycle (#119, ADR-0030): pause, export and reset ----------
@@ -462,6 +629,8 @@ export class ReaderStore {
         // next load. The panel deliberately stays open (not `purgeForScope`, which would also
         // navigate away) so the receipt below is actually seen, not replaced by a navigation.
         this.storage.purgePrivateState(universeId, receipt.epochAfter);
+        this.branchTrail = [];
+        this.pendingBranchExplore = null;
         this.observedUniverseId = this.storage.readObservedUniverseId();
         this.observedPrivacyEpoch = this.storage.readObservedPrivacyEpoch();
         this.session = null;
@@ -469,7 +638,7 @@ export class ReaderStore {
         this.visited.clear();
         this.pendingCorrections.clear();
         this.ready = false; // the calling session is revoked server-side; nothing else may act as it until re-authenticated
-        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' }, why: WHY_CLOSED });
+        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, why: WHY_CLOSED });
         this.setPrivacyAction({ status: 'reset-complete', receipt });
       })
       .catch((error: unknown) => {
@@ -619,6 +788,8 @@ export class ReaderStore {
    * needs updating -- the app unmounts this whole reader tree the moment `onSignedOut` fires. */
   private finishAccountDeletion(universeId: string, epochAfter: number): void {
     this.storage.purgePrivateState(universeId, epochAfter);
+    this.branchTrail = [];
+    this.pendingBranchExplore = null;
     this.onSignedOut?.('Your account and history were deleted.', false);
   }
 
@@ -819,6 +990,10 @@ export class ReaderStore {
   nextScroll(): void {
     const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
     if (!reading) return;
+    if (this.busy && this.exposing?.version === this.navigationVersion && !this.exposing.joined && canRequestDiscovery(reading.keep, reading.discovery)) {
+      this.pendingNext = { assetId: reading.item.assetId, version: this.navigationVersion };
+      return;
+    }
     if (!this.busy && !this.reconciling && this.ready && canRequestDiscovery(reading.keep, reading.discovery)) {
       this.loadNext(true);
     }
@@ -827,6 +1002,11 @@ export class ReaderStore {
   private loadNext(preserveReading = false): void {
     if (this.busy || this.reconciling || !this.ready) return;
     const reading = preserveReading && this.state.scroll.status === 'reading' ? this.state.scroll : null;
+    if (reading?.origin.type === 'branch') {
+      this.branchTrail = [];
+      this.storage.clearBranchTrail();
+      this.storage.clearPendingBranch();
+    }
     this.busy = true;
     const version = ++this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
@@ -841,8 +1021,10 @@ export class ReaderStore {
     // back an old Scroll, never end the trip while unopened ones remain.
     const openedAssetId = reading?.item.assetId ?? this.session?.item.assetId;
     const trip = tripExclude(this.visited, openedAssetId);
+    const kinds = this.previewLane === 'reels' ? 'reelOnly' : this.previewLane === 'rich-scrolls' ? false : true;
+    const preview = this.previewLane === 'rich-scrolls' ? 'authored-web-scrolls' : undefined;
     this.api
-      .getFeed(trip)
+      .getFeed(trip, kinds, preview)
       .then((feed: FeedResponse) => {
         if (!this.operationIsCurrent(version, epoch)) return;
         const selection = selectDiscovery(feed, universeId, epoch, new Set(trip), undefined);
@@ -914,16 +1096,153 @@ export class ReaderStore {
         keep: value.keepJobId === '' ? { status: 'idle' } : { status: 'kept', jobId: value.keepJobId },
         readingPosition: value.readingPosition,
         discovery: 'idle',
-        origin: { type: 'discovery' },
+        origin: value.branchFrom
+          ? { type: 'branch', ...value.branchFrom }
+          : { type: 'discovery' },
       },
+      branches: { status: 'idle' },
     });
+  }
+
+  /** Loads only for the encounter currently on screen. Listing may record an offered-gap demand,
+   * so it is never used for speculative feed prefetch. */
+  refreshBranches(): void {
+    const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
+    const current = this.session;
+    if (!this.ready || this.reconciling || !reading || !current || current.item.assetId !== reading.item.assetId) return;
+    const assetId = current.item.assetId;
+    if (!current.exposureId || current.decisionId === '' || current.branchFrom?.recorded === false) {
+      if (!current.branchFrom?.recorded && current.decisionId === '') return;
+      this.pendingBranchExplore = { assetId, version: this.navigationVersion };
+      this.set({ branches: { status: 'loading', assetId, branches: [], canOpen: false } });
+      return;
+    }
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    const version = this.navigationVersion;
+    this.set({ branches: { status: 'loading', assetId, branches: [], canOpen: false } });
+    this.api.getBranches(assetId)
+      .then(response => {
+        if (!this.operationIsCurrent(version, epoch, current)) return;
+        if (response.assetId !== assetId || response.revision !== current.item.revision || response.privacyEpoch !== epoch) {
+          if (response.privacyEpoch !== epoch) this.reconcilePrivacy(true);
+          else this.set({ branches: { status: 'unavailable', assetId, message: 'Connections changed. Refresh this Scroll to try again.' } });
+          return;
+        }
+        const recordingPaused = this.isRecordingPaused();
+        this.set({ branches: {
+          status: 'loaded', assetId, privacyEpoch: epoch, branches: response.branches, opening: null,
+          canOpen: this.session?.exposureId !== '' && !this.busy, recordingPaused, error: null,
+        } });
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (invalidatesReader(error)) {
+          if (error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 409) this.reconcilePrivacy(true);
+          else {
+            this.purgeForScope(universeId, epoch);
+            this.failClosed(describeApiError(error), isUnauthorized(error));
+          }
+        } else this.set({ branches: { status: 'unavailable', assetId, message: describeApiError(error) } });
+      });
+  }
+
+  /** Opens one server-listed branch from the real exposure currently on screen. Ambiguous retries
+   * reuse the durable request id and payload held by ReaderStorage. */
+  openBranch(branchId: string): void {
+    const current = this.session;
+    const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
+    const view = this.state.branches;
+    if (this.busy || this.reconciling || !this.ready || !reading || !current || view.status !== 'loaded' ||
+      !view.canOpen || view.opening || current.item.assetId !== view.assetId || reading.exposureId === '') return;
+    const branch = view.branches.find(candidate => candidate.branchId === branchId);
+    if (!branch) return;
+    this.busy = true;
+    const version = ++this.navigationVersion;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    this.set({ branches: { ...view, opening: branchId, canOpen: false, error: null } });
+    const pending = this.storage.readPendingBranch();
+    const request: BranchOpenInput = pending?.universeId === universeId &&
+      pending.request.fromExposureId === current.exposureId && pending.request.bridgeId === branch.bridgeId &&
+      pending.request.targetAssetId === branch.target.assetId && pending.request.expectedPrivacyEpoch === epoch
+      ? pending.request
+      : {
+        clientBranchId: randomUuid(), fromExposureId: current.exposureId, bridgeId: branch.bridgeId,
+        targetAssetId: branch.target.assetId, expectedPrivacyEpoch: epoch,
+      };
+    if (request !== pending?.request) this.storage.writePendingBranch({ universeId, request });
+    this.api.postBranch(request)
+      .then(receipt => {
+        if (version !== this.navigationVersion || epoch !== this.observedPrivacyEpoch || universeId !== this.observedUniverseId) return;
+        if (receipt.universeId !== universeId || receipt.privacyEpoch !== epoch || receipt.items[0]?.assetId !== branch.target.assetId) {
+          this.purgeForScope(receipt.universeId, receipt.privacyEpoch);
+          this.failClosed('Your session moved to a different universe or privacy state. Reconnect to continue.');
+          return;
+        }
+        const target = receipt.items[0]!;
+        this.branchTrail.push({ ...current, readingPosition: reading.readingPosition });
+        this.storage.writeBranchTrail(this.branchTrail);
+        this.storage.clearPendingBranch();
+        const next: ScrollSession = {
+          decisionId: receipt.decisionId ?? '', item: target, privacyEpoch: epoch, universeId,
+          clientExposureId: randomUuid(), clientEventId: randomUuid(), exposureId: '', exposureEventId: '',
+          keepJobId: '', keepEventId: '', readingPosition: 0,
+          branchFrom: { fromAssetId: current.item.assetId, fromTitle: current.item.title, relationPhrase: branch.relationPhrase, recorded: receipt.branch.recorded },
+        };
+        this.storage.writeSession(next);
+        this.session = next;
+        this.show(next);
+      })
+      .catch((error: unknown) => {
+        if (version !== this.navigationVersion) return;
+        if (error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 409) {
+          const body = error.error.body.toLowerCase();
+          if (body.includes('privacy epoch')) {
+            this.storage.clearPendingBranch();
+            this.reconcilePrivacy(true);
+          } else {
+            this.storage.clearPendingBranch();
+            this.set({ branches: { ...view, opening: null, canOpen: current.exposureId !== '', error: 'That connection is no longer available.' } });
+            this.refreshBranches();
+          }
+        } else if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else this.set({ branches: { ...view, opening: null, canOpen: current.exposureId !== '', error: describeApiError(error) } });
+      })
+      .finally(() => {
+        if (version === this.navigationVersion) {
+          this.busy = false;
+          const latest = this.state.branches;
+          if (latest.status === 'loaded' && latest.opening === null) this.set({ branches: { ...latest, canOpen: this.session?.exposureId !== '' } });
+        }
+      });
+  }
+
+  /** Restores the exact prior encounter and reading position along the explicit branch trail. */
+  returnAlongBranch(): boolean {
+    const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
+    if (!reading || reading.origin.type !== 'branch' || this.branchTrail.length === 0 || this.busy || this.reconciling) return false;
+    const origin = this.branchTrail.pop()!;
+    if (origin.universeId !== this.observedUniverseId || origin.privacyEpoch !== this.observedPrivacyEpoch) {
+      this.branchTrail = [];
+      this.storage.clearBranchTrail();
+      return false;
+    }
+    this.navigationVersion++;
+    this.storage.writeBranchTrail(this.branchTrail);
+    this.storage.writeSession(origin);
+    this.session = origin;
+    this.show(origin);
+    return true;
   }
 
   /** Called by the visibility/intersection hook after the Scroll is actually rendered on screen. */
   onVisible(assetId: string): void {
     if (this.state.screen === 'revisit') return;
     const current = this.session;
-    if (!current || current.item.assetId !== assetId || current.exposureId !== '' || this.busy || !this.ready) return;
+    if (!current || current.item.assetId !== assetId || current.exposureId !== '' || current.branchFrom?.recorded === false || current.decisionId === '' || this.busy || !this.ready) return;
     const version = this.navigationVersion;
     const epoch = this.observedPrivacyEpoch;
     this.busy = true;
@@ -946,16 +1265,27 @@ export class ReaderStore {
         } else if (!record.joined) {
           // A Keep that joined reports this failure itself.
           this.set({ toast: describeApiError(error) });
+          if (this.state.branches.status === 'loading' && this.state.branches.assetId === current.item.assetId) this.set({ branches: { status: 'idle' } });
         }
       })
       .finally(() => {
         if (this.exposing === record) this.exposing = null;
-        if (version === this.navigationVersion && !record.joined) this.busy = false;
+        const pending = this.pendingNext;
+        this.pendingNext = null;
+        const pendingBranches = this.pendingBranchExplore;
+        this.pendingBranchExplore = null;
+        if (version === this.navigationVersion && !record.joined) {
+          this.busy = false;
+          const branches = this.state.branches;
+          if (branches.status === 'loaded') this.set({ branches: { ...branches, canOpen: this.session?.exposureId !== '' } });
+          if (pendingBranches?.version === version && pendingBranches.assetId === this.session?.item.assetId && this.session.exposureId !== '') this.refreshBranches();
+          if (pending?.version === version && pending.assetId === this.session?.item.assetId && this.session.exposureId !== '') this.nextScroll();
+        }
       });
   }
 
   private async recordExposure(value: ScrollSession, version: number, epoch: number): Promise<ScrollSession> {
-    if (value.exposureId !== '') return value;
+    if (value.exposureId !== '' || value.branchFrom?.recorded === false || value.decisionId === '') return value;
     const receipt = await this.api.postExposure({ decisionId: value.decisionId, assetId: value.item.assetId, clientExposureId: value.clientExposureId });
     if (!this.operationIsCurrent(version, epoch, value)) throw new StaleOperationError();
     const latest =
@@ -975,7 +1305,7 @@ export class ReaderStore {
     const join = record && !record.joined && record.version === this.navigationVersion && record.epoch === this.observedPrivacyEpoch
       && this.session?.clientExposureId === record.clientExposureId ? record : null;
     if ((this.busy && !join) || !this.ready) return;
-    if (this.state.scroll.status === 'reading' && this.state.scroll.origin.type === 'saved-trace') return;
+    if (this.state.scroll.status === 'reading' && (this.state.scroll.origin.type === 'saved-trace' || (this.state.scroll.origin.type === 'branch' && !this.state.scroll.origin.recorded))) return;
     const currentSession = this.session;
     if (!currentSession || currentSession.keepJobId !== '') return;
     const currentState = this.state.scroll;
@@ -1045,6 +1375,15 @@ export class ReaderStore {
   }
 
   updateReadingPosition(assetId: string, position: number): void {
+    if (this.parkedScroll?.view.item.assetId === assetId && position >= 0) {
+      const parked = this.parkedScroll;
+      this.parkedScroll = {
+        ...parked,
+        session: parked.session ? { ...parked.session, readingPosition: position } : null,
+        revisit: parked.revisit ? { ...parked.revisit, readingPosition: position } : null,
+        view: { ...parked.view, readingPosition: position },
+      };
+    }
     const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
     if (reading?.origin.type === 'saved-trace') {
       const current = this.revisit;
@@ -1070,6 +1409,8 @@ export class ReaderStore {
 
   returnToUniverse(destination: 'universe' | 'keep' = 'universe'): void {
     this.navigationVersion++;
+    this.previewLane = 'default';
+    this.parkedScroll = null;
     if (this.state.screen === 'revisit') this.discardRevisit();
     this.visited.clear();
     this.storage.writeVisited(this.visited);
@@ -1133,6 +1474,7 @@ export class ReaderStore {
     const cachedRevisit = restoreStoredScroll && this.storage.readScreen() === 'revisit' ? this.storage.readRevisit() : null;
     if (cached && cached.privacyEpoch === this.observedPrivacyEpoch && cached.universeId === this.observedUniverseId) {
       this.session = cached;
+      this.previewLane = cached.item.kind === 'Reel' ? 'reels' : 'default';
       this.show(cached);
     } else if (cachedRevisit && cachedRevisit.privacyEpoch === this.observedPrivacyEpoch && cachedRevisit.universeId === this.observedUniverseId) {
       this.revisit = cachedRevisit;
@@ -1146,13 +1488,16 @@ export class ReaderStore {
 
   private purgeForScope(universeId: string, epoch: number): void {
     this.storage.purgePrivateState(universeId, epoch);
+    this.branchTrail = [];
+    this.pendingBranchExplore = null;
     this.observedUniverseId = this.storage.readObservedUniverseId();
     this.observedPrivacyEpoch = this.storage.readObservedPrivacyEpoch();
     this.session = null;
     this.revisit = null;
+    this.parkedScroll = null;
     this.visited.clear();
     this.pendingCorrections.clear();
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, branches: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
   }
 
   /** `signedOut` (#135) is additive: every existing caller keeps landing on exactly the same
@@ -1162,16 +1507,26 @@ export class ReaderStore {
   private failClosed(reason: string, signedOut = false): void {
     this.ready = false;
     this.session = null;
+    this.parkedScroll = null;
     this.pendingCorrections.clear();
+    this.branchTrail = [];
+    this.pendingBranchExplore = null;
     if (signedOut) this.onSignedOut?.(null, true);
     this.set({
       screen: 'universe',
       scroll: { status: 'idle' },
       system: { status: 'idle' },
+      atlas: { status: 'idle' },
+      branches: { status: 'idle' },
       privacy: { status: 'idle' },
       why: WHY_CLOSED,
       universe: { status: 'unavailable', message: reason },
     });
+  }
+
+  private isRecordingPaused(): boolean {
+    const universe = this.state.universe;
+    return universe.status === 'loaded' && universe.universe.recordingPausedAt !== null;
   }
 
   private discardRevisit(): void {

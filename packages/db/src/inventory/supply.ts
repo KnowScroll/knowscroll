@@ -1,5 +1,5 @@
 /**
- * #164 — shared supply (ADR-0046 §3): the operator's writing route and material candidates, and the
+ * Shared supply (ADR-0046 §3, #164): the operator's writing route and material candidates, and the
  * shared requests the Quartermaster funds. Nothing here names a universe; no privacy operation
  * erases or exports it.
  *
@@ -11,15 +11,15 @@
  * `settleRequest`; the waiters' demands are then decided again (`inventory/demand.ts`).
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
 import {
   checkMaterialUrl,
   MATERIAL_POLICY_VERSION,
-} from '../../../core/src/scrolls/material.ts';
-import type { ScrollPlanItem } from '../../../core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/material';
+import type { ScrollPlanItem } from '@knowscroll/core/scrolls/writing';
+import type pg from 'pg';
 
 /** Bench value: a request marked `sending` this long ago with no settlement (its worker died) is failed as `outcome_unknown`, never sent again. */
-export const ABANDONED_SEND_MS = 30 * 60_000;
+const ABANDONED_SEND_MS = 30 * 60_000;
 
 export type RequestOutcome =
   | { status: 'fulfilled'; writingId: string | null; assetId: string }
@@ -417,4 +417,17 @@ export async function cancelRequestsForCorrectedMaterial(
       )
     ).rowCount ?? 0
   );
+}
+
+/** The request's current status and reasons, read on the pool after settlement and re-decision. */
+export async function requestStatus(
+  pool: pg.Pool,
+  requestId: string,
+): Promise<{ status: string; reasons: string[] }> {
+  return (
+    await pool.query<{ status: string; reasons: string[] }>(
+      'SELECT status, reasons FROM supply_request WHERE id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
 }

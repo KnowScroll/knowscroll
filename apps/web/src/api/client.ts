@@ -20,6 +20,15 @@
  * `setCsrfToken`/`refreshCsrfToken` below.
  */
 import { z, type ZodType } from 'zod';
+import { webAtlasResponseSchema, type WebAtlasResponse as AtlasResponse } from '@knowscroll/contracts/atlas';
+import {
+  branchOpenInput,
+  webBranchOpenResponseSchema,
+  webEncounterBranchesResponseSchema,
+  type BranchOpenInput,
+  type WebBranchOpenResponse,
+  type WebEncounterBranchesResponse,
+} from '@knowscroll/contracts/semantic';
 import {
   accountDeletionReceiptSchema,
   encounterFeedbackReceiptSchema,
@@ -133,12 +142,16 @@ const DEFAULT_DELAYS: [number, number] = [400, 1200];
 export interface ReaderApi {
   getUniverse(): Promise<Universe>;
   /** `exclude`: what this discovery trip has on screen or already opened (#133). */
-  getFeed(exclude?: Iterable<string>): Promise<FeedResponse>;
+  getFeed(exclude?: Iterable<string>, includeReels?: boolean | 'reelOnly', preview?: 'authored-web-scrolls'): Promise<FeedResponse>;
   postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse>;
   postInteraction(body: { clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }): Promise<InteractionResponse>;
   getEvent(eventId: string): Promise<EventStatus>;
   getTraceRevisit(eventId: string): Promise<TraceRevisit>;
   getWorlds(): Promise<WorldSystemResponse>;
+  getAtlas(): Promise<AtlasResponse>;
+  getBranches(assetId: string): Promise<WebEncounterBranchesResponse>;
+  postBranch(body: BranchOpenInput): Promise<WebBranchOpenResponse>;
+  rejectAtlasPlace(placeId: string, expectedPrivacyEpoch: number): Promise<AtlasResponse>;
   /** ADR-0030/#119: pause/resume/export/reset all require the caller to already know the
    * universe's own current `privacyEpoch` (from a real `GET /v1/universe`) and to reuse one
    * `requestId` per user intent across any retry -- the server is replay-keyed on it, so minting
@@ -190,8 +203,8 @@ export class ApiClient implements ReaderApi {
     return this.request('GET', '/universe', undefined, [200], false, universe);
   }
 
-  async getFeed(exclude: Iterable<string> = []): Promise<FeedResponse> {
-    return this.request('GET', feedPath(exclude), undefined, [200], false, feedResponse);
+  async getFeed(exclude: Iterable<string> = [], includeReels: boolean | 'reelOnly' = false, preview?: 'authored-web-scrolls'): Promise<FeedResponse> {
+    return this.request('GET', feedPath(exclude, includeReels, preview), undefined, [200], false, feedResponse);
   }
 
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {
@@ -212,12 +225,31 @@ export class ApiClient implements ReaderApi {
   }
 
   async getTraceRevisit(eventId: string): Promise<TraceRevisit> {
-    return this.request('GET', `/traces/${encodeURIComponent(eventId)}`, undefined, [200], false, traceRevisit);
+    return this.request('GET', `/traces/${encodeURIComponent(eventId)}?webReader=v1`, undefined, [200], false, traceRevisit);
   }
 
   /** ADR-0028/#113: a pure read of the already-projected worlds/system state, never a recompute-on-read. */
   async getWorlds(): Promise<WorldSystemResponse> {
     return this.request('GET', '/worlds', undefined, [200], false, worldSystemResponseSchema);
+  }
+
+  async getAtlas(): Promise<AtlasResponse> {
+    return this.request('GET', '/atlas?webReader=v1', undefined, [200], false, webAtlasResponseSchema);
+  }
+
+  /** Browser-only source-free continuation list. Native callers keep the legacy contract. */
+  async getBranches(assetId: string): Promise<WebEncounterBranchesResponse> {
+    return this.request('GET', `/assets/${encodeURIComponent(assetId)}/branches?webReader=v1`, undefined, [200], false, webEncounterBranchesResponseSchema);
+  }
+
+  /** Explicit continuation; the server rechecks bridge, origin exposure and privacy epoch. */
+  async postBranch(body: BranchOpenInput): Promise<WebBranchOpenResponse> {
+    const validated = branchOpenInput.parse(body);
+    return this.request('POST', '/branches?webReader=v1', validated, [201], false, webBranchOpenResponseSchema);
+  }
+
+  async rejectAtlasPlace(placeId: string, expectedPrivacyEpoch: number): Promise<AtlasResponse> {
+    return this.request('POST', `/atlas/places/${encodeURIComponent(placeId)}/reject?webReader=v1`, { expectedPrivacyEpoch }, [200], false, webAtlasResponseSchema);
   }
 
   /**
@@ -494,7 +526,13 @@ export function isUnauthorized(error: unknown): boolean {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** `/feed`, with at most the 256 most recent opened ids of this trip (#133). */
-export function feedPath(exclude: Iterable<string>): string {
+export function feedPath(exclude: Iterable<string>, includeReels: boolean | 'reelOnly' = false, preview?: 'authored-web-scrolls'): string {
   const ids = [...new Set([...exclude].filter(id => UUID.test(id)))].slice(-256);
-  return ids.length === 0 ? '/feed' : `/feed?exclude=${ids.join(',')}`;
+  const params = new URLSearchParams();
+  params.set('webArtifact', 'v1');
+  if (includeReels) params.set('kinds', includeReels === 'reelOnly' ? 'Reel' : 'Scroll,Reel');
+  if (preview) params.set('preview', preview);
+  if (ids.length > 0) params.set('exclude', ids.join(','));
+  const query = params.toString().replaceAll('%2C', ',');
+  return query ? `/feed?${query}` : '/feed';
 }

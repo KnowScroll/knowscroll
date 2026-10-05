@@ -1,5 +1,5 @@
 /**
- * #162 — admitting a model-written Scroll (ADR-0041 §2, §6).
+ * Admitting a model-written Scroll (ADR-0041 §2, §6, #162).
  *
  * A checked Scroll enters the library in one transaction under the substrate lock: its family and
  * source (inserted if absent), the snapshot and the private material it was checked against, its
@@ -9,12 +9,13 @@
  * that decision and writes nothing.
  */
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
-import type { MaterialHost } from '../../../core/src/scrolls/material.ts';
+import type { MaterialHost } from '@knowscroll/core/scrolls/material';
+import { createCheckedScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact';
 import type {
   CheckedScroll,
   OfferedConcept,
-} from '../../../core/src/scrolls/writing.ts';
+} from '@knowscroll/core/scrolls/writing';
+import type pg from 'pg';
 import { lockSubstrateExclusive, sha256 } from './read-set.ts';
 import { ensureRow } from './seed.ts';
 
@@ -365,6 +366,7 @@ export async function admitModelScroll(
           title,
           summary,
           body,
+          web_artifact,
           source_title,
           source_url,
           truth_state,
@@ -380,10 +382,11 @@ export async function admitModelScroll(
           $4,
           $5,
           $6,
+          $7,
           'documented',
           (
             SELECT
-              GREATEST(COALESCE(MAX(editorial_order), -1), $7) + 1
+              GREATEST(COALESCE(MAX(editorial_order), -1), $8) + 1
             FROM
               asset
           )
@@ -394,6 +397,15 @@ export async function admitModelScroll(
       scroll.title,
       scroll.summary,
       scroll.body,
+      JSON.stringify(
+        createCheckedScrollWebArtifact({
+          assetId,
+          revision: 1,
+          title: scroll.title,
+          beats: scroll.beats,
+          body: scroll.body,
+        }),
+      ),
       `${source.publisher} · ${source.title}`,
       material.url,
       MODEL_SCROLL_ORDER_FLOOR,

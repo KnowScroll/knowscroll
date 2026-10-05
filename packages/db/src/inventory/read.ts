@@ -1,16 +1,17 @@
 /**
- * #164 — reading a reader's inventory (ADR-0046 §2, §6): their demands (`GET /v1/inventory`), each
+ * Reading a reader's inventory (ADR-0046 §2, §6, #164): their demands (`GET /v1/inventory`), each
  * place's live demand (`GET /v1/atlas`) and the bound Scrolls the Composer serves first. A demand
  * names its concept and, once bound, the Scroll's id and title: never a source or its material.
  */
-import type pg from 'pg';
+
 import {
   INVENTORY_LIST_LIMIT,
   type InventoryDemand,
   type InventoryResponse,
   type PlaceDemand,
-} from '../../../contracts/src/inventory.ts';
-import type { V3Bound } from '../../../core/src/composer/semantic.ts';
+} from '@knowscroll/contracts/inventory';
+import type { V3Bound } from '@knowscroll/core/composer/semantic';
+import type pg from 'pg';
 import type { AuthScope } from '../identity.ts';
 
 type Row = {

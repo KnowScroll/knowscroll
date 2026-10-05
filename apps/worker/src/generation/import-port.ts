@@ -1,4 +1,4 @@
-/** ADR-0023 section 4, issue #94 stage A2: the generation worker's verified-import boundary.
+/** ADR-0023 section 4: the generation worker's verified-import boundary.
  * `./import.ts` owns the real filesystem/database implementation (containment, hashing, probe,
  * content-addressed write, the `media_object`/`generated_reel` insert); this file owns only the
  * narrow port `worker.ts` calls through, plus the factory that fixes `mediaRoot` (KS_MEDIA_ROOT —
@@ -6,11 +6,15 @@
  * `ImportOutcome` is never thrown: `{ok:false, reason}` is a well-typed, expected refusal the
  * worker records honestly. A THROWN error from a port instead means the port itself is missing or
  * broken (a wiring defect, not a data refusal) — see `createUnimplementedImportPort` below. */
-import {importFinishedVideo, type ImportFinishedVideoInput as RealImportInput, type ImportOutcome} from './import.ts';
+import {
+  type ImportOutcome,
+  importFinishedVideo,
+  type ImportFinishedVideoInput as RealImportInput,
+} from './import.ts';
 
-export type {ImportOutcome} from './import.ts';
+export type { ImportOutcome } from './import.ts';
 
-export type ImportFinishedVideoInput = {
+type ImportFinishedVideoInput = {
   /** The `cutroom_attempt.id` the finished result belongs to. */
   attemptId: string;
   /** The Cutroom run id the video was produced by. */
@@ -30,8 +34,10 @@ export interface ImportPort {
  * never a per-attempt value a caller could vary. */
 export function createLocalImportPort(mediaRoot: string): ImportPort {
   return {
-    async importFinishedVideo(input: ImportFinishedVideoInput): Promise<ImportOutcome> {
-      const full: RealImportInput = {...input, mediaRoot};
+    async importFinishedVideo(
+      input: ImportFinishedVideoInput,
+    ): Promise<ImportOutcome> {
+      const full: RealImportInput = { ...input, mediaRoot };
       return importFinishedVideo(full);
     },
   };
@@ -45,7 +51,9 @@ export function createLocalImportPort(mediaRoot: string): ImportPort {
 export function createUnimplementedImportPort(): ImportPort {
   return {
     async importFinishedVideo(): Promise<ImportOutcome> {
-      throw new Error('import_port_not_implemented: the media import lane is not wired into this stage');
+      throw new Error(
+        'import_port_not_implemented: the media import lane is not wired into this stage',
+      );
     },
   };
 }

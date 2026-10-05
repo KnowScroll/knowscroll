@@ -23,33 +23,74 @@ process.env.KS_DEV_ROOT = scratch;
 
 const { buildApp } = await import('../apps/api/src/app.ts');
 const { projectOne } = await import('../apps/worker/src/project.ts');
-const { pool, ensureDevelopmentSession } = await import('../packages/db/src/index.ts');
-const { resolveOwnerEmail, requestMagicLink } = await import('../packages/db/src/sign-in.ts');
+const { pool, ensureDevelopmentSession } = await import('@knowscroll/db');
+const { resolveOwnerEmail, requestMagicLink } = await import(
+  '@knowscroll/db/sign-in'
+);
 const { carryGravityQuestion } = await import('./helpers/rooms.ts');
 const { readScroll } = await import('./helpers/reading.ts');
 const { formPlaces } = await import('./helpers/inquiry-fixture.ts');
 
-if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) throw new Error('Account deletion tests require a disposable knowscroll_test_* database');
+if (
+  !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
+)
+  throw new Error(
+    'Account deletion tests require a disposable knowscroll_test_* database',
+  );
 const app = buildApp(randomBytes(32).toString('hex'), {
-  magicLinkLimits: { accountWindowMinutes: 15, accountMaxPerWindow: 500, fingerprintWindowMinutes: 15, fingerprintMaxPerWindow: 500 },
+  magicLinkLimits: {
+    accountWindowMinutes: 15,
+    accountMaxPerWindow: 500,
+    fingerprintWindowMinutes: 15,
+    fingerprintMaxPerWindow: 500,
+  },
 });
 await app.ready();
-after(async () => { await app.close(); await pool.end(); process.env.KS_DEV_ROOT = realDevRoot; await rm(scratch, { recursive: true, force: true }); });
+after(async () => {
+  await app.close();
+  await pool.end();
+  process.env.KS_DEV_ROOT = realDevRoot;
+  await rm(scratch, { recursive: true, force: true });
+});
 
 const ORIGIN = 'https://knowscroll.test';
 const CONFIRM = 'delete-my-account-and-history';
 async function signInToken(): Promise<string> {
-  const requested = await app.inject({ method: 'POST', url: '/v1/auth/magic-link', payload: { email: resolveOwnerEmail() } });
+  const requested = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/magic-link',
+    payload: { email: resolveOwnerEmail() },
+  });
   assert.equal(requested.statusCode, 202);
-  return new URLSearchParams(new URL((await readFile(join(scratch, 'sign-in', 'magic-link.txt'), 'utf8')).trim()).hash.slice(1)).get('token')!;
+  return new URLSearchParams(
+    new URL(
+      (
+        await readFile(join(scratch, 'sign-in', 'magic-link.txt'), 'utf8')
+      ).trim(),
+    ).hash.slice(1),
+  ).get('token')!;
 }
-async function bearerSession(): Promise<{ authorization: string; universeId: string; accountId: string }> {
-  const response = await app.inject({ method: 'POST', url: '/v1/auth/session', payload: { token: await signInToken() } });
+async function bearerSession(): Promise<{
+  authorization: string;
+  universeId: string;
+  accountId: string;
+}> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { token: await signInToken() },
+  });
   assert.equal(response.statusCode, 200, response.body);
   const body = response.json();
   const authorization = `Bearer ${body.sessionToken}`;
-  const session = (await app.inject({ url: '/v1/session', headers: { authorization } })).json();
-  const account = (await pool.query('SELECT account_id FROM universe WHERE id=$1', [session.universeId])).rows[0].account_id;
+  const session = (
+    await app.inject({ url: '/v1/session', headers: { authorization } })
+  ).json();
+  const account = (
+    await pool.query('SELECT account_id FROM universe WHERE id=$1', [
+      session.universeId,
+    ])
+  ).rows[0].account_id;
   return { authorization, universeId: session.universeId, accountId: account };
 }
 async function epochOf(headers: Record<string, string>): Promise<number> {
@@ -60,20 +101,57 @@ async function createHistory(authorization: string): Promise<void> {
   const headers = { authorization };
   const feed = (await app.inject({ url: '/v1/feed', headers })).json();
   const item = feed.items[0];
-  const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers, payload: { decisionId: feed.decisionId, assetId: item.assetId, clientExposureId: randomUUID() } });
+  const exposure = await app.inject({
+    method: 'POST',
+    url: '/v1/exposures',
+    headers,
+    payload: {
+      decisionId: feed.decisionId,
+      assetId: item.assetId,
+      clientExposureId: randomUUID(),
+    },
+  });
   assert.equal(exposure.statusCode, 201, exposure.body);
-  const keep = await app.inject({ method: 'POST', url: '/v1/interactions', headers, payload: { clientEventId: randomUUID(), exposureId: exposure.json().exposureId, assetId: item.assetId, kind: 'keep' } });
+  const keep = await app.inject({
+    method: 'POST',
+    url: '/v1/interactions',
+    headers,
+    payload: {
+      clientEventId: randomUUID(),
+      exposureId: exposure.json().exposureId,
+      assetId: item.assetId,
+      kind: 'keep',
+    },
+  });
   assert.equal(keep.statusCode, 202, keep.body);
-  await pool.query("UPDATE job SET available_at='1990-01-01T00:00:00Z' WHERE id=$1", [keep.json().jobId]);
+  await pool.query(
+    "UPDATE job SET available_at='1990-01-01T00:00:00Z' WHERE id=$1",
+    [keep.json().jobId],
+  );
   assert.equal((await projectOne())?.status, 'completed');
   const epoch = await epochOf(headers);
-  for (const [url, body] of [['/v1/privacy/pause', {}], ['/v1/privacy/resume', {}], ['/v1/privacy/export', {}]] as const) {
-    const r = await app.inject({ method: 'POST', url, headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, ...body } });
+  for (const [url, body] of [
+    ['/v1/privacy/pause', {}],
+    ['/v1/privacy/resume', {}],
+    ['/v1/privacy/export', {}],
+  ] as const) {
+    const r = await app.inject({
+      method: 'POST',
+      url,
+      headers,
+      payload: {
+        requestId: randomUUID(),
+        expectedPrivacyEpoch: epoch,
+        ...body,
+      },
+    });
     assert.equal(r.statusCode, 200, `${url}: ${r.body}`);
   }
 }
 async function footprint(universeId: string, accountId: string) {
-  return (await pool.query(`SELECT
+  return (
+    await pool.query(
+      `SELECT
     (SELECT count(*)::int FROM account WHERE id=$2) accounts,
     (SELECT count(*)::int FROM sign_in_token WHERE account_id=$2) tokens,
     (SELECT count(*)::int FROM device_session WHERE universe_id=$1) sessions,
@@ -86,71 +164,219 @@ async function footprint(universeId: string, accountId: string) {
      + (SELECT count(*)::int FROM privacy_export_receipt WHERE universe_id=$1)
      + (SELECT count(*)::int FROM privacy_reset_receipt WHERE universe_id=$1) receipts,
     (SELECT count(*)::int FROM correction_catch_up WHERE universe_id=$1) "catchUp",
-    (SELECT account_id FROM universe WHERE id=$1) bound`, [universeId, accountId])).rows[0];
+    (SELECT account_id FROM universe WHERE id=$1) bound`,
+      [universeId, accountId],
+    )
+  ).rows[0];
 }
 
 test('deletion needs its own confirmation and the current epoch, then removes the account and everything personal', async () => {
   const s = await bearerSession();
   await createHistory(s.authorization);
   const before = await footprint(s.universeId, s.accountId);
-  assert.ok(before.accounts === 1 && before.tokens > 0 && before.exposures > 0 && before.receipts >= 3 && before.catchUp === 1, JSON.stringify(before));
+  assert.ok(
+    before.accounts === 1 &&
+      before.tokens > 0 &&
+      before.exposures > 0 &&
+      before.receipts >= 3 &&
+      before.catchUp === 1,
+    JSON.stringify(before),
+  );
   const epoch = await epochOf({ authorization: s.authorization });
-  const post = (payload: Record<string, unknown>) => app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload });
-  assert.equal((await post({ requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: 'reset-personal-universe' })).statusCode, 400, 'Reset\'s literal is not enough');
-  assert.equal((await post({ requestId: randomUUID(), expectedPrivacyEpoch: epoch + 1, confirmation: CONFIRM })).statusCode, 409, 'a stale epoch is refused');
-  assert.equal((await footprint(s.universeId, s.accountId)).accounts, 1, 'refusals change nothing');
+  const post = (payload: Record<string, unknown>) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/account/delete',
+      headers: { authorization: s.authorization },
+      payload,
+    });
+  assert.equal(
+    (
+      await post({
+        requestId: randomUUID(),
+        expectedPrivacyEpoch: epoch,
+        confirmation: 'reset-personal-universe',
+      })
+    ).statusCode,
+    400,
+    "Reset's literal is not enough",
+  );
+  assert.equal(
+    (
+      await post({
+        requestId: randomUUID(),
+        expectedPrivacyEpoch: epoch + 1,
+        confirmation: CONFIRM,
+      })
+    ).statusCode,
+    409,
+    'a stale epoch is refused',
+  );
+  assert.equal(
+    (await footprint(s.universeId, s.accountId)).accounts,
+    1,
+    'refusals change nothing',
+  );
 
-  const deleted = await post({ requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM });
+  const deleted = await post({
+    requestId: randomUUID(),
+    expectedPrivacyEpoch: epoch,
+    confirmation: CONFIRM,
+  });
   assert.equal(deleted.statusCode, 200, deleted.body);
   const receipt = deleted.json();
-  assert.deepEqual(Object.keys(receipt).sort(), ['deletedAt', 'epochAfter', 'epochBefore', 'receiptId', 'sessionsDeleted']);
+  assert.deepEqual(Object.keys(receipt).sort(), [
+    'deletedAt',
+    'epochAfter',
+    'epochBefore',
+    'receiptId',
+    'sessionsDeleted',
+  ]);
   assert.equal(receipt.epochAfter, epoch + 1);
   assert.ok(receipt.sessionsDeleted >= 1);
 
-  assert.equal((await app.inject({ url: '/v1/session', headers: { authorization: s.authorization } })).statusCode, 401, 'the calling session is gone');
-  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, catchUp: 0, bound: null });
-  const tomb = (await pool.query('SELECT * FROM account_deletion_receipt WHERE id=$1', [receipt.receiptId])).rows[0];
+  assert.equal(
+    (
+      await app.inject({
+        url: '/v1/session',
+        headers: { authorization: s.authorization },
+      })
+    ).statusCode,
+    401,
+    'the calling session is gone',
+  );
+  assert.deepEqual(await footprint(s.universeId, s.accountId), {
+    accounts: 0,
+    tokens: 0,
+    sessions: 0,
+    exposures: 0,
+    events: 0,
+    decisions: 0,
+    traces: 0,
+    receipts: 0,
+    catchUp: 0,
+    bound: null,
+  });
+  const tomb = (
+    await pool.query('SELECT * FROM account_deletion_receipt WHERE id=$1', [
+      receipt.receiptId,
+    ])
+  ).rows[0];
   assert.equal(tomb.account_id, s.accountId);
-  assert.ok(!JSON.stringify(tomb).includes(resolveOwnerEmail()), 'the tombstone keeps no address');
-  assert.equal((await pool.query('SELECT count(*)::int n FROM account WHERE email=$1', [resolveOwnerEmail()])).rows[0].n, 0);
+  assert.ok(
+    !JSON.stringify(tomb).includes(resolveOwnerEmail()),
+    'the tombstone keeps no address',
+  );
+  assert.equal(
+    (
+      await pool.query('SELECT count(*)::int n FROM account WHERE email=$1', [
+        resolveOwnerEmail(),
+      ])
+    ).rows[0].n,
+    0,
+  );
 });
 
 test('signing in again after deletion starts a new account on the empty universe', async () => {
   const s = await bearerSession();
-  const deletedAccounts = (await pool.query('SELECT account_id FROM account_deletion_receipt WHERE universe_id=$1', [s.universeId])).rows.map(r => r.account_id);
-  assert.ok(deletedAccounts.length >= 1 && !deletedAccounts.includes(s.accountId), 'a new account id');
+  const deletedAccounts = (
+    await pool.query(
+      'SELECT account_id FROM account_deletion_receipt WHERE universe_id=$1',
+      [s.universeId],
+    )
+  ).rows.map((r) => r.account_id);
+  assert.ok(
+    deletedAccounts.length >= 1 && !deletedAccounts.includes(s.accountId),
+    'a new account id',
+  );
   const epoch = await epochOf({ authorization: s.authorization });
-  const exported = await app.inject({ method: 'POST', url: '/v1/privacy/export', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch } });
+  const exported = await app.inject({
+    method: 'POST',
+    url: '/v1/privacy/export',
+    headers: { authorization: s.authorization },
+    payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch },
+  });
   assert.equal(exported.statusCode, 200, exported.body);
   const counts = exported.json().rowCounts;
-  assert.deepEqual([counts.exposures, counts.ledger, counts.decisions, counts.traces], [0, 0, 0, 0]);
+  assert.deepEqual(
+    [counts.exposures, counts.ledger, counts.decisions, counts.traces],
+    [0, 0, 0, 0],
+  );
   assert.equal(counts.deviceSessions, 1, 'only this new session exists');
 });
 
-test('deletion erases the reader\'s Idea Rooms, their inhabitants and deltas (ADR-0045), from the universe emptied above', async () => {
+test("deletion erases the reader's Idea Rooms, their inhabitants and deltas (ADR-0045), from the universe emptied above", async () => {
   const s = await bearerSession();
-  await carryGravityQuestion(app, { authorization: s.authorization }, s.universeId);
-  const rooms = async () => (await pool.query(`SELECT (SELECT count(*)::int FROM room WHERE universe_id=$1) rooms,
-    (SELECT count(*)::int FROM room_inhabitant WHERE universe_id=$1) inhabitants, (SELECT count(*)::int FROM room_delta WHERE universe_id=$1) deltas`, [s.universeId])).rows[0];
+  await carryGravityQuestion(
+    app,
+    { authorization: s.authorization },
+    s.universeId,
+  );
+  const rooms = async () =>
+    (
+      await pool.query(
+        `SELECT (SELECT count(*)::int FROM room WHERE universe_id=$1) rooms,
+    (SELECT count(*)::int FROM room_inhabitant WHERE universe_id=$1) inhabitants, (SELECT count(*)::int FROM room_delta WHERE universe_id=$1) deltas`,
+        [s.universeId],
+      )
+    ).rows[0];
   assert.deepEqual(await rooms(), { rooms: 1, inhabitants: 1, deltas: 2 });
   const epoch = await epochOf({ authorization: s.authorization });
-  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  const deleted = await app.inject({
+    method: 'POST',
+    url: '/v1/account/delete',
+    headers: { authorization: s.authorization },
+    payload: {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      confirmation: CONFIRM,
+    },
+  });
   assert.equal(deleted.statusCode, 200, deleted.body);
   assert.deepEqual(await rooms(), { rooms: 0, inhabitants: 0, deltas: 0 });
 });
 
 test('a cookie session needs its CSRF token to delete, and the cookie is cleared', async () => {
-  const minted = await app.inject({ method: 'POST', url: '/v1/auth/web-session', payload: { token: await signInToken() } });
+  const minted = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/web-session',
+    payload: { token: await signInToken() },
+  });
   assert.equal(minted.statusCode, 200, minted.body);
   const cookie = String(minted.headers['set-cookie']).split(';')[0]!;
   const csrf = minted.json().csrfToken;
   const epoch = await epochOf({ cookie });
-  const payload = { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM };
-  assert.equal((await app.inject({ method: 'POST', url: '/v1/account/delete', headers: { cookie, origin: ORIGIN }, payload })).statusCode, 403);
-  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers: { cookie, origin: ORIGIN, 'x-csrf-token': csrf }, payload });
+  const payload = {
+    requestId: randomUUID(),
+    expectedPrivacyEpoch: epoch,
+    confirmation: CONFIRM,
+  };
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/account/delete',
+        headers: { cookie, origin: ORIGIN },
+        payload,
+      })
+    ).statusCode,
+    403,
+  );
+  const deleted = await app.inject({
+    method: 'POST',
+    url: '/v1/account/delete',
+    headers: { cookie, origin: ORIGIN, 'x-csrf-token': csrf },
+    payload,
+  });
   assert.equal(deleted.statusCode, 200, deleted.body);
-  assert.match(String(deleted.headers['set-cookie']), /^ks_session=; .*Max-Age=0$/);
-  assert.equal((await app.inject({ url: '/v1/session', headers: { cookie } })).statusCode, 401);
+  assert.match(
+    String(deleted.headers['set-cookie']),
+    /^ks_session=; .*Max-Age=0$/,
+  );
+  assert.equal(
+    (await app.inject({ url: '/v1/session', headers: { cookie } })).statusCode,
+    401,
+  );
 });
 
 test('outside a deletion, the schema refuses every deletion the account transaction performs', async () => {
@@ -161,47 +387,123 @@ test('outside a deletion, the schema refuses every deletion the account transact
     try {
       await client.query('BEGIN');
       await assert.rejects(client.query(sql, params), pattern, sql);
-    } finally { await client.query('ROLLBACK'); client.release(); }
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
   };
-  await refuse('DELETE FROM sign_in_token WHERE account_id=$1', [s.accountId], /never deleted/);
-  await refuse('UPDATE universe SET account_id=NULL WHERE id=$1', [s.universeId], /stays with the account/);
-  await refuse('DELETE FROM privacy_export_receipt WHERE universe_id=$1', [s.universeId], /immutable/);
-  await refuse('DELETE FROM privacy_recording_receipt WHERE universe_id=$1', [s.universeId], /immutable/);
-  await refuse('DELETE FROM account_deletion_receipt WHERE universe_id=$1', [s.universeId], /immutable/);
-  await refuse('UPDATE account_deletion_receipt SET deleted_at=now() WHERE universe_id=$1', [s.universeId], /immutable/);
+  await refuse(
+    'DELETE FROM sign_in_token WHERE account_id=$1',
+    [s.accountId],
+    /never deleted/,
+  );
+  await refuse(
+    'UPDATE universe SET account_id=NULL WHERE id=$1',
+    [s.universeId],
+    /stays with the account/,
+  );
+  await refuse(
+    'DELETE FROM privacy_export_receipt WHERE universe_id=$1',
+    [s.universeId],
+    /immutable/,
+  );
+  await refuse(
+    'DELETE FROM privacy_recording_receipt WHERE universe_id=$1',
+    [s.universeId],
+    /immutable/,
+  );
+  await refuse(
+    'DELETE FROM account_deletion_receipt WHERE universe_id=$1',
+    [s.universeId],
+    /immutable/,
+  );
+  await refuse(
+    'UPDATE account_deletion_receipt SET deleted_at=now() WHERE universe_id=$1',
+    [s.universeId],
+    /immutable/,
+  );
   // An earlier deletion's receipt authorizes nothing now: its time is not this transaction's.
-  const earlier = (await pool.query('SELECT count(*)::int n FROM account_deletion_receipt WHERE universe_id=$1', [s.universeId])).rows[0].n;
+  const earlier = (
+    await pool.query(
+      'SELECT count(*)::int n FROM account_deletion_receipt WHERE universe_id=$1',
+      [s.universeId],
+    )
+  ).rows[0].n;
   assert.ok(earlier >= 2, 'two earlier deletions exist in this file');
-  await refuse('DELETE FROM sign_in_token WHERE account_id=$1', [s.accountId], /never deleted/);
+  await refuse(
+    'DELETE FROM sign_in_token WHERE account_id=$1',
+    [s.accountId],
+    /never deleted/,
+  );
 });
 
 test('a deletion ends the development session for good: an API restart does not revive it, and a later sign-in still starts clean', async () => {
   const developmentToken = randomBytes(32).toString('hex');
   await ensureDevelopmentSession(developmentToken);
   const dev = { authorization: `Bearer ${developmentToken}` };
-  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 200, 'the development session works before');
+  assert.equal(
+    (await app.inject({ url: '/v1/universe', headers: dev })).statusCode,
+    200,
+    'the development session works before',
+  );
 
   const s = await bearerSession();
   const epoch = await epochOf({ authorization: s.authorization });
-  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  const deleted = await app.inject({
+    method: 'POST',
+    url: '/v1/account/delete',
+    headers: { authorization: s.authorization },
+    payload: {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      confirmation: CONFIRM,
+    },
+  });
   assert.equal(deleted.statusCode, 200, deleted.body);
-  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'the deletion ended it');
+  assert.equal(
+    (await app.inject({ url: '/v1/universe', headers: dev })).statusCode,
+    401,
+    'the deletion ended it',
+  );
 
   await ensureDevelopmentSession(developmentToken); // what every API start does (buildApp's onReady)
-  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'a restart must not revive the development session');
+  assert.equal(
+    (await app.inject({ url: '/v1/universe', headers: dev })).statusCode,
+    401,
+    'a restart must not revive the development session',
+  );
 
   const again = await bearerSession();
   const afterEpoch = await epochOf({ authorization: again.authorization });
-  const exported = await app.inject({ method: 'POST', url: '/v1/privacy/export', headers: { authorization: again.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: afterEpoch } });
+  const exported = await app.inject({
+    method: 'POST',
+    url: '/v1/privacy/export',
+    headers: { authorization: again.authorization },
+    payload: { requestId: randomUUID(), expectedPrivacyEpoch: afterEpoch },
+  });
   assert.equal(exported.statusCode, 200, exported.body);
   const counts = exported.json().rowCounts;
-  assert.deepEqual([counts.exposures, counts.ledger, counts.decisions, counts.traces, counts.deviceSessions], [0, 0, 0, 0, 1], 'only the new sign-in exists');
+  assert.deepEqual(
+    [
+      counts.exposures,
+      counts.ledger,
+      counts.decisions,
+      counts.traces,
+      counts.deviceSessions,
+    ],
+    [0, 0, 0, 0, 1],
+    'only the new sign-in exists',
+  );
 
   await ensureDevelopmentSession(developmentToken); // and a restart after the new sign-in
-  assert.equal((await app.inject({ url: '/v1/universe', headers: dev })).statusCode, 401, 'still ended, exactly as after a Reset');
+  assert.equal(
+    (await app.inject({ url: '/v1/universe', headers: dev })).statusCode,
+    401,
+    'still ended, exactly as after a Reset',
+  );
 });
 
-test('a sign-in link requested while the deletion runs never turns it into a 500: both take the account\'s magic-link lock', async () => {
+test("a sign-in link requested while the deletion runs never turns it into a 500: both take the account's magic-link lock", async () => {
   const s = await bearerSession();
   const epoch = await epochOf({ authorization: s.authorization });
   // A magic-link request caught mid-transaction: it holds its lock and has inserted a token for
@@ -209,15 +511,39 @@ test('a sign-in link requested while the deletion runs never turns it into a 500
   const racing = await pool.connect();
   try {
     await racing.query('BEGIN');
-    const issued = await requestMagicLink(racing, { email: resolveOwnerEmail(), requesterFingerprint: 'f'.repeat(64) },
-      { accountWindowMinutes: 15, accountMaxPerWindow: 500, fingerprintWindowMinutes: 15, fingerprintMaxPerWindow: 500 });
+    const issued = await requestMagicLink(
+      racing,
+      { email: resolveOwnerEmail(), requesterFingerprint: 'f'.repeat(64) },
+      {
+        accountWindowMinutes: 15,
+        accountMaxPerWindow: 500,
+        fingerprintWindowMinutes: 15,
+        fingerprintMaxPerWindow: 500,
+      },
+    );
     assert.equal(issued?.accountId, s.accountId);
-    const deletion = app.inject({ method: 'POST', url: '/v1/account/delete', headers: { authorization: s.authorization }, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+    const deletion = app.inject({
+      method: 'POST',
+      url: '/v1/account/delete',
+      headers: { authorization: s.authorization },
+      payload: {
+        requestId: randomUUID(),
+        expectedPrivacyEpoch: epoch,
+        confirmation: CONFIRM,
+      },
+    });
     const deadline = Date.now() + 10_000;
-    while ((await pool.query(`SELECT count(*)::int n FROM pg_stat_activity
-      WHERE datname=current_database() AND wait_event_type='Lock' AND pid<>pg_backend_pid()`)).rows[0].n === 0) {
-      assert.ok(Date.now() < deadline, 'the deletion never waited on the in-flight sign-in request');
-      await new Promise(resolve => setTimeout(resolve, 20));
+    while (
+      (
+        await pool.query(`SELECT count(*)::int n FROM pg_stat_activity
+      WHERE datname=current_database() AND wait_event_type='Lock' AND pid<>pg_backend_pid()`)
+      ).rows[0].n === 0
+    ) {
+      assert.ok(
+        Date.now() < deadline,
+        'the deletion never waited on the in-flight sign-in request',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
     await racing.query('COMMIT');
     const response = await deletion;
@@ -225,49 +551,170 @@ test('a sign-in link requested while the deletion runs never turns it into a 500
   } finally {
     racing.release();
   }
-  assert.deepEqual(await footprint(s.universeId, s.accountId), { accounts: 0, tokens: 0, sessions: 0, exposures: 0, events: 0, decisions: 0, traces: 0, receipts: 0, catchUp: 0, bound: null });
+  assert.deepEqual(await footprint(s.universeId, s.accountId), {
+    accounts: 0,
+    tokens: 0,
+    sessions: 0,
+    exposures: 0,
+    events: 0,
+    decisions: 0,
+    traces: 0,
+    receipts: 0,
+    catchUp: 0,
+    bound: null,
+  });
 });
 
-test('deletion erases the reader\'s Relics and return marker too, even while recording is paused (#134, ADR-0039)', async () => {
+test("deletion erases the reader's Relics and return marker too, even while recording is paused (#134, ADR-0039)", async () => {
   const s = await bearerSession();
   const headers = { authorization: s.authorization };
   const epoch = await epochOf(headers);
-  const bridge = (await pool.query(`SELECT id FROM bridge WHERE scope_kind='shared' AND status='admitted' ORDER BY id LIMIT 1`)).rows[0].id as string;
-  const kept = await app.inject({ method: 'POST', url: '/v1/relics', headers, payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, kind: 'connection', bridgeId: bridge } });
+  const bridge = (
+    await pool.query(
+      `SELECT id FROM bridge WHERE scope_kind='shared' AND status='admitted' ORDER BY id LIMIT 1`,
+    )
+  ).rows[0].id as string;
+  const kept = await app.inject({
+    method: 'POST',
+    url: '/v1/relics',
+    headers,
+    payload: {
+      clientRequestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      kind: 'connection',
+      bridgeId: bridge,
+    },
+  });
   assert.equal(kept.statusCode, 201, kept.body);
-  const marked = await app.inject({ method: 'POST', url: '/v1/away/acknowledge', headers,
-    payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, through: new Date(Date.now() - 1000).toISOString() } });
+  const marked = await app.inject({
+    method: 'POST',
+    url: '/v1/away/acknowledge',
+    headers,
+    payload: {
+      clientRequestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      through: new Date(Date.now() - 1000).toISOString(),
+    },
+  });
   assert.equal(marked.statusCode, 200, marked.body);
-  assert.equal((await app.inject({ method: 'POST', url: '/v1/privacy/pause', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch } })).statusCode, 200);
-  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/privacy/pause',
+        headers,
+        payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch },
+      })
+    ).statusCode,
+    200,
+  );
+  const deleted = await app.inject({
+    method: 'POST',
+    url: '/v1/account/delete',
+    headers,
+    payload: {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      confirmation: CONFIRM,
+    },
+  });
   assert.equal(deleted.statusCode, 200, deleted.body);
   for (const table of ['relic', 'away_acknowledgement']) {
-    assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [s.universeId])).rows[0].count), 0, table);
+    assert.equal(
+      Number(
+        (
+          await pool.query(
+            `SELECT count(*) FROM ${table} WHERE universe_id=$1`,
+            [s.universeId],
+          )
+        ).rows[0].count,
+      ),
+      0,
+      table,
+    );
   }
 });
 
-test('deletion erases typed Relics and the reader\'s objections too (#165, ADR-0044)', async () => {
+test("deletion erases typed Relics and the reader's objections too (#165, ADR-0044)", async () => {
   const s = await bearerSession();
   const headers = { authorization: s.authorization };
   const epoch = await epochOf(headers);
   // A Scroll the editorial substrate annotates: read, one of its claims kept and doubted; its concept a place, kept.
-  const annotated = (await pool.query(`SELECT ac.asset_id, c.key, pc.code FROM asset_claim ac JOIN claim c ON c.id = ac.claim_id
+  const annotated = (
+    await pool.query(`SELECT ac.asset_id, c.key, pc.code FROM asset_claim ac JOIN claim c ON c.id = ac.claim_id
     JOIN asset_concept p ON p.asset_id = ac.asset_id AND p.role = 'primary' JOIN concept pc ON pc.id = p.concept_id
-    WHERE claim_is_supported(c.id) ORDER BY ac.asset_id, c.key LIMIT 1`)).rows[0];
+    WHERE claim_is_supported(c.id) ORDER BY ac.asset_id, c.key LIMIT 1`)
+  ).rows[0];
   await readScroll(app, headers, annotated.asset_id, false);
   await formPlaces(s.universeId, [annotated.code]);
-  const place = (await pool.query(`SELECT id FROM atlas_place WHERE universe_id=$1 AND state='live' LIMIT 1`, [s.universeId])).rows[0].id;
-  const revision = (await pool.query('SELECT revision FROM asset WHERE id=$1', [annotated.asset_id])).rows[0].revision;
-  for (const thing of [{ kind: 'place', placeId: place }, { kind: 'passage', assetId: annotated.asset_id, revision, claimKey: annotated.key }]) {
-    const kept = await app.inject({ method: 'POST', url: '/v1/relics', headers, payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, ...thing } });
+  const place = (
+    await pool.query(
+      `SELECT id FROM atlas_place WHERE universe_id=$1 AND state='live' LIMIT 1`,
+      [s.universeId],
+    )
+  ).rows[0].id;
+  const revision = (
+    await pool.query('SELECT revision FROM asset WHERE id=$1', [
+      annotated.asset_id,
+    ])
+  ).rows[0].revision;
+  for (const thing of [
+    { kind: 'place', placeId: place },
+    {
+      kind: 'passage',
+      assetId: annotated.asset_id,
+      revision,
+      claimKey: annotated.key,
+    },
+  ]) {
+    const kept = await app.inject({
+      method: 'POST',
+      url: '/v1/relics',
+      headers,
+      payload: {
+        clientRequestId: randomUUID(),
+        expectedPrivacyEpoch: epoch,
+        ...thing,
+      },
+    });
     assert.equal(kept.statusCode, 201, kept.body);
   }
-  const objected = await app.inject({ method: 'POST', url: '/v1/objections', headers,
-    payload: { clientRequestId: randomUUID(), expectedPrivacyEpoch: epoch, kind: 'passage', assetId: annotated.asset_id, claimKey: annotated.key } });
+  const objected = await app.inject({
+    method: 'POST',
+    url: '/v1/objections',
+    headers,
+    payload: {
+      clientRequestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      kind: 'passage',
+      assetId: annotated.asset_id,
+      claimKey: annotated.key,
+    },
+  });
   assert.equal(objected.statusCode, 201, objected.body);
-  const deleted = await app.inject({ method: 'POST', url: '/v1/account/delete', headers, payload: { requestId: randomUUID(), expectedPrivacyEpoch: epoch, confirmation: CONFIRM } });
+  const deleted = await app.inject({
+    method: 'POST',
+    url: '/v1/account/delete',
+    headers,
+    payload: {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: epoch,
+      confirmation: CONFIRM,
+    },
+  });
   assert.equal(deleted.statusCode, 200, deleted.body);
   for (const table of ['relic', 'reader_objection']) {
-    assert.equal(Number((await pool.query(`SELECT count(*) FROM ${table} WHERE universe_id=$1`, [s.universeId])).rows[0].count), 0, table);
+    assert.equal(
+      Number(
+        (
+          await pool.query(
+            `SELECT count(*) FROM ${table} WHERE universe_id=$1`,
+            [s.universeId],
+          )
+        ).rows[0].count,
+      ),
+      0,
+      table,
+    );
   }
 });

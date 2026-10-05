@@ -6,12 +6,12 @@
 import {
   AWAY_CURSOR_PATTERN,
   type AWAY_KINDS,
-} from '../../contracts/src/away.ts';
+} from '@knowscroll/contracts/away';
+import { compareCodeUnits } from './shared/compare.ts';
 
 export type AwayCandidate = { kind: string; at: string; key: string };
 
 /** Byte-wise, as SQL compares under `COLLATE "C"`, so a page ends where the queries' order ends. */
-const bytewise = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * The list's one total order (ADR-0044 M7): newest first by the wire's millisecond, then kind, then
@@ -20,8 +20,8 @@ const bytewise = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 export function compareAway(a: AwayCandidate, b: AwayCandidate): number {
   return (
     Date.parse(b.at) - Date.parse(a.at) ||
-    bytewise(a.kind, b.kind) ||
-    bytewise(a.key, b.key)
+    compareCodeUnits(a.kind, b.kind) ||
+    compareCodeUnits(a.key, b.key)
   );
 }
 

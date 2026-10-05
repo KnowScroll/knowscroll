@@ -1,5 +1,5 @@
 /**
- * #132 — the pure background bridge inquiry boundary (ADR-0038 §5 and §7). Three functions, no I/O:
+ * The pure background bridge inquiry boundary (ADR-0038 §5 and §7, #132). Three functions, no I/O:
  *
  * `selectInquiryPairs` decides what a model may be shown: at most three pairs of the reader's live
  * planets/regions that nothing connects yet, each with the currently supported claims about its two
@@ -14,14 +14,17 @@
  * pair that cites only offered claims (still only a proposal — bridge-validator-v1 decides), an honest
  * "none", or a shape rejection naming the rule it broke. Provider text carries no authority of its own.
  */
-import { z } from 'zod';
+
 import {
+  type BridgeProposalPayload,
   bridgeProposalPayload,
   semanticKey,
-  type BridgeProposalPayload,
-} from '../../../contracts/src/semantic.ts';
+} from '@knowscroll/contracts/semantic';
+import { z } from 'zod';
+import { compareCodeUnits } from '../shared/compare.ts';
 import { canonical, wholeObject } from './wire.ts';
 
+/** @public The versions every inquiry step records, named in one place. */
 export const BRIDGE_INQUIRY_VERSIONS = Object.freeze({
   selection: 'inquiry-pairs-v2',
   prompt: 'bridge-inquiry-prompt-v4',
@@ -34,7 +37,7 @@ export const BRIDGE_INQUIRY_LIMITS = Object.freeze({
   claimsBoth: 8,
 });
 
-export interface InquiryPlace {
+interface InquiryPlace {
   placeId: string;
   code: string;
   name: string;
@@ -63,14 +66,14 @@ export interface InquiryCandidateInput {
   asked: readonly (readonly [string, string])[];
 }
 /** `roles` (claims naming both sides only): each side's role in the claim, in the validator's terms. */
-export interface OfferedClaim {
+interface OfferedClaim {
   key: string;
   statement: string;
   sourceTitle: string;
   roles?: Record<string, string>;
 }
 /** A relation, with its direction, that the pair's own claims could carry (bridge-validator-v1). */
-export interface AdmissibleRelation {
+interface AdmissibleRelation {
   relationType: 'explains' | 'compares_mechanism' | 'analogous_in';
   fromConcept: string;
   toConcept: string;
@@ -84,7 +87,6 @@ export interface InquiryPair {
   admissible: AdmissibleRelation[];
 }
 
-const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const pairKey = (x: string, y: string) => (x < y ? `${x}\0${y}` : `${y}\0${x}`);
 
 function ancestors(
@@ -147,7 +149,9 @@ function roleOn(
 export function selectInquiryPairs(
   input: InquiryCandidateInput,
 ): InquiryPair[] {
-  const places = [...input.places].sort((x, y) => byCode(x.code, y.code));
+  const places = [...input.places].sort((x, y) =>
+    compareCodeUnits(x.code, y.code),
+  );
   const claims = input.claims.filter((c) => c.supported);
   const chain = new Map(
     places.map((p) => [p.code, [p.code, ...ancestors(input.parentOf, p.code)]]),
@@ -200,7 +204,8 @@ export function selectInquiryPairs(
         list
           .sort(
             (x, y) =>
-              x.distance - y.distance || byCode(x.claim.key, y.claim.key),
+              x.distance - y.distance ||
+              compareCodeUnits(x.claim.key, y.claim.key),
           )
           .slice(0, BRIDGE_INQUIRY_LIMITS.claimsPerAnchor)
           .map((x) => offered(x.claim));
@@ -208,7 +213,7 @@ export function selectInquiryPairs(
         claimsB = rank(sideB);
       // A claim naming both says which role each side plays in it: "explains" is carried by those roles.
       const named = both
-        .sort((x, y) => byCode(x.key, y.key))
+        .sort((x, y) => compareCodeUnits(x.key, y.key))
         .slice(0, BRIDGE_INQUIRY_LIMITS.claimsBoth)
         .map((c) => ({
           ...offered(c),
@@ -217,7 +222,7 @@ export function selectInquiryPairs(
             [b.code]: roleOn(c, chainB) ?? 'subject',
           },
         }));
-      // Only a pair the validator could admit is worth a paid request (review I1): the connecting claim
+      // Only a pair the validator could admit is worth a paid request: the connecting claim
       // must name both sides, and each side needs a claim the offer gives to that side.
       if (named.length === 0 || claimsA.length === 0 || claimsB.length === 0)
         continue;
@@ -244,7 +249,7 @@ export function selectInquiryPairs(
       }
       const admissible: AdmissibleRelation[] = [
         ...[...explains.values()].sort((x, y) =>
-          byCode(x.fromConcept, y.fromConcept),
+          compareCodeUnits(x.fromConcept, y.fromConcept),
         ),
         {
           relationType: 'compares_mechanism',
@@ -272,8 +277,8 @@ export function selectInquiryPairs(
     .sort(
       (x, y) =>
         Number(y.named) - Number(x.named) ||
-        byCode(x.a.code, y.a.code) ||
-        byCode(x.b.code, y.b.code),
+        compareCodeUnits(x.a.code, y.a.code) ||
+        compareCodeUnits(x.b.code, y.b.code),
     )
     .slice(0, BRIDGE_INQUIRY_LIMITS.maxPairs)
     .map(({ named: _named, ...pair }) => pair);
@@ -364,7 +369,7 @@ export function serializeBridgeInquiryRequest(
   );
 }
 
-export type InquiryShapeReason =
+type InquiryShapeReason =
   | 'not_one_json_object'
   | 'reply_keys'
   | 'payload_invalid'

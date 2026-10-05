@@ -16,27 +16,28 @@
  * gap in #120/#121 is exactly the failure mode this closes).
  */
 import { z } from 'zod';
-import { traceRevisitReceipt, traceRevisitScroll } from '../../../../packages/contracts/src/trace-revisit.ts';
-import { accountDeletionInput, privacyLifecycleInput, privacyResetInput } from '../../../../packages/contracts/src/index.ts';
-import { ENCOUNTER_SUPPRESSION_DAYS, encounterFeedbackInput, encounterFeedbackKind } from '../../../../packages/contracts/src/composer.ts';
+import { webTraceRevisitReceipt, webTraceRevisitScroll } from '@knowscroll/contracts/trace-revisit';
+import { accountDeletionInput, privacyLifecycleInput, privacyResetInput } from '@knowscroll/contracts';
+import { ENCOUNTER_SUPPRESSION_DAYS, encounterFeedbackInput, encounterFeedbackKind } from '@knowscroll/contracts/composer';
 import {
   capabilitiesSchema,
   traceSchema,
   universeSchema,
-  feedItemSchema as sharedFeedItemSchema,
-  feedResponseSchema as sharedFeedResponseSchema,
+  webFeedItemSchema as sharedFeedItemSchema,
+  webFeedResponseSchema as sharedFeedResponseSchema,
   worldSummarySchema as sharedWorldSummarySchema,
   worldSystemResponseSchema as sharedWorldSystemResponseSchema,
   type Capabilities,
   type Trace,
   type Universe,
-  type FeedItem,
-  type FeedResponse,
+  type WebFeedItem as FeedItem,
+  type WebScrollFeedItem as ScrollFeedItem,
+  type WebFeedResponse as FeedResponse,
   type WorldSummary,
   type WorldSystemResponse,
-} from '../../../../packages/contracts/src/web-bootstrap.ts';
+} from '@knowscroll/contracts/web-bootstrap';
 
-export type ScrollAsset = z.infer<typeof traceRevisitScroll>;
+export type ScrollAsset = z.infer<typeof webTraceRevisitScroll>;
 
 export const capabilities = capabilitiesSchema;
 export type { Capabilities };
@@ -50,6 +51,7 @@ export type { Universe };
 /** The feed item extends the documented Scroll shape with a non-authoritative recommendation reason. */
 export const feedItemSchema = sharedFeedItemSchema;
 export type { FeedItem };
+export type { ScrollFeedItem };
 
 export const feedResponse = sharedFeedResponseSchema;
 export type { FeedResponse };
@@ -75,7 +77,7 @@ export const eventStatus = z
   .strict();
 export type EventStatus = z.infer<typeof eventStatus>;
 
-export const traceRevisit = traceRevisitReceipt;
+export const traceRevisit = webTraceRevisitReceipt;
 export type TraceRevisit = z.infer<typeof traceRevisit>;
 
 /**
@@ -386,11 +388,11 @@ export type EncounterFeedbackReceipt = z.infer<typeof encounterFeedbackReceiptSc
 
 /** Documented truth states and their required presentation (definition.md section 12). */
 export const TRUTH_STATE_MEANING: Record<string, string> = {
-  documented: 'Directly supported by strong cited evidence. Source access and date are shown.',
-  synthesis: 'A source-grounded explanation produced by the system. Sources plus a generated label are shown.',
-  interpretation: 'A reasoned perspective rather than settled fact. Perspective and counterview are shown.',
-  disputed: 'Credible sources materially disagree. Disagreement is shown before you act on it.',
-  modelled: 'Produced by an explicit simulation or causal model. Assumptions, model and uncertainty are shown.',
-  counterfactual: 'Explores a world that did not occur. The divergence point and assumptions are shown.',
+  documented: 'Directly supported by cited evidence.',
+  synthesis: 'An explanation produced from source material by the system.',
+  interpretation: 'A reasoned perspective rather than settled fact.',
+  disputed: 'Credible accounts materially disagree.',
+  modelled: 'Produced by an explicit simulation or causal model.',
+  counterfactual: 'Explores a world that did not occur.',
   fictional: 'Invented for narrative or play. Framing is unmistakably fictional.',
 };

@@ -45,3 +45,4 @@
 0038_idea_rooms.sql
 0039_typed_relics.sql
 0040_content_inventory.sql
+0041_web_scroll_artifact.sql

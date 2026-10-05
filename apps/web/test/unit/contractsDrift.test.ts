@@ -4,7 +4,7 @@ import type {
   EncounterFeedbackReceipt as ContractFeedbackReceipt,
   EvidenceStepWire,
   WhyResponseWire,
-} from '../../../../packages/contracts/src/composer.ts';
+} from '@knowscroll/contracts/composer';
 import {
   encounterFeedbackReceiptSchema,
   feedResponse,

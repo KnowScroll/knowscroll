@@ -1,5 +1,12 @@
+/*
+ * Schemas for revisiting a kept Trace: the revisit event id and the Scroll the reader returns to.
+ * Invariant: ids are lower-cased here so the revisit event id is canonical.
+ */
 import { z } from 'zod';
+import { privacyEpoch } from './primitives.ts';
+import { webScrollArtifactV1 } from './web-scroll-artifact.ts';
 
+// Unlike primitives.ts's `uuid`, this lower-cases, so the revisit event id is canonical.
 const uuid = z
   .string()
   .uuid()
@@ -39,10 +46,20 @@ export const traceRevisitReceipt = z
     mode: z.literal('kept_revisit'),
     traceEventId: uuid,
     universeId: uuid,
-    privacyEpoch: z.number().int().min(0).max(2147483647),
+    privacyEpoch,
     exposureId: uuid,
     keptAt: z.string().datetime({ offset: true }),
     scroll: traceRevisitScroll,
   })
   .strict();
 export type TraceRevisit = z.infer<typeof traceRevisitReceipt>;
+
+/** The browser's reader projection retains the verified Trace but omits internal source names. */
+export const webTraceRevisitScroll = traceRevisitScroll
+  .omit({ sourceTitle: true, sourceUrl: true })
+  .extend({ webArtifact: webScrollArtifactV1.nullable() })
+  .strict();
+export const webTraceRevisitReceipt = traceRevisitReceipt
+  .extend({ scroll: webTraceRevisitScroll })
+  .strict();
+export type WebTraceRevisit = z.infer<typeof webTraceRevisitReceipt>;

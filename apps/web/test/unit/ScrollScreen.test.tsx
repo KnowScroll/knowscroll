@@ -19,6 +19,26 @@ function readingState(overrides: Partial<Extract<ScrollView, { status: 'reading'
 }
 
 describe('ScrollScreen', () => {
+  it('offers an immediate branch return and bars Keep for an unrecorded paused continuation', () => {
+    const onReturnBranch = vi.fn();
+    render(
+      <ScrollScreen
+        state={readingState({ origin: { type: 'branch', fromAssetId: 'origin', fromTitle: 'The origin', relationPhrase: 'explains', recorded: false } })}
+        onVisible={vi.fn()}
+        onKeep={vi.fn()}
+        onNext={vi.fn()}
+        onReturn={vi.fn()}
+        onReturnBranch={onReturnBranch}
+        onRetry={vi.fn()}
+        onReadingPosition={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Keep this Scroll' })).toBeDisabled();
+    expect(screen.getByText(/Recording is paused/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Return to origin' }));
+    expect(onReturnBranch).toHaveBeenCalledOnce();
+  });
+
   it('shows the truth state, its meaning, and the blank-reason fallback for the Why panel', () => {
     render(
       <ScrollScreen
@@ -37,13 +57,13 @@ describe('ScrollScreen', () => {
     // own "checked out · N sources" pill) -- so this asserts at least one
     // rather than a single unique match.
     expect(screen.getAllByText(/DOCUMENTED/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Directly supported by strong cited evidence/)).toBeInTheDocument();
+    expect(screen.getByText(/Directly supported by cited evidence/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Why this appeared' }));
     expect(screen.getByText('No explanation recorded.')).toBeInTheDocument();
   });
 
-  it('opens the source rail via the Sources button with an accessible new-tab link', () => {
+  it('explains truth context without exposing private source identifiers', () => {
     render(
       <ScrollScreen
         state={readingState()}
@@ -55,11 +75,10 @@ describe('ScrollScreen', () => {
         onReadingPosition={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /Open sources panel/ }));
-    const link = screen.getByRole('link', { name: /Open source/ });
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(link).toHaveAttribute('href', feedItem().sourceUrl);
+    fireEvent.click(screen.getByRole('button', { name: /Open context panel/ }));
+    expect(screen.getByRole('complementary', { name: 'Scroll context' })).toBeInTheDocument();
+    expect(screen.queryByText('NASA')).not.toBeInTheDocument();
+    expect(screen.queryByText('https://example.com/orbits')).not.toBeInTheDocument();
   });
 
   it('disables Keep while saving and shows Kept once accepted', () => {

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreWorkspaces": ["apps/web"],
+  "ignoreBinaries": ["ffmpeg", "ffprobe", "pg_config"],
+  "includeEntryExports": true,
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.{ts,mjs}",
+        "tests/**/*.test.ts",
+        "ops/**/*.ts"
+      ],
+      "project": ["scripts/**/*.{ts,mjs}", "tests/**/*.ts", "ops/**/*.ts"]
+    },
+    "apps/api": {
+      "entry": ["src/main.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "apps/worker": {
+      "entry": [
+        "src/main.ts",
+        "src/generation/main.ts",
+        "src/reasoning/maintenance-main.ts",
+        "src/publication/cli.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/contracts": {
+      "includeEntryExports": false,
+      "project": ["src/**/*.ts"]
+    },
+    "packages/core": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/db": {
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

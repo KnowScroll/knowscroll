@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { TRUTH_STATE_MEANING, type EncounterFeedbackKind } from '../api/types.ts';
 import { useVisibleExposure } from '../hooks/useVisibleExposure.ts';
 import type { DiscoveryState, KeepState } from '../state/discovery.ts';
 import type { ScrollView, WhyView } from '../state/readerStore.ts';
 import { WhatLedHere } from './WhatLedHere.tsx';
+import { NativeScroll } from './NativeScroll.tsx';
+import { RepresentationSwitch } from './RepresentationSwitch.tsx';
 
 const SCROLL_STEP = 160;
 
@@ -58,6 +60,7 @@ export interface ScrollScreenProps {
   onKeep: () => void;
   onNext: () => void;
   onReturn: () => void;
+  onReturnBranch?: () => void;
   onOpenKeep?: () => void;
   onRetry: () => void;
   onReadingPosition: (assetId: string, position: number) => void;
@@ -68,6 +71,9 @@ export interface ScrollScreenProps {
   onCloseWhy?: () => void;
   onRetryWhy?: () => void;
   onCorrect?: (kind: EncounterFeedbackKind) => void;
+  branchPanel?: ReactNode;
+  representation?: 'Reel' | 'Scroll';
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
 }
 
 /** The "What led here" controls, grouped so ReadingStage's parameters stay readable. */
@@ -96,6 +102,7 @@ export function ScrollScreen({
   onKeep,
   onNext,
   onReturn,
+  onReturnBranch,
   onOpenKeep = onReturn,
   onRetry,
   onReadingPosition,
@@ -104,8 +111,14 @@ export function ScrollScreen({
   onCloseWhy = noop,
   onRetryWhy = noop,
   onCorrect = noop,
+  branchPanel,
+  representation = 'Scroll',
+  onSwitchRepresentation,
 }: ScrollScreenProps) {
   if (state.status === 'reading') {
+    if (state.item.kind === 'Reel') {
+      return <main className="scroll-screen" aria-label="Reel pending player">This Reel is unavailable in the Scroll reader.</main>;
+    }
     return (
       <ReadingStage
         key={state.item.assetId}
@@ -114,30 +127,35 @@ export function ScrollScreen({
         onKeep={onKeep}
         onNext={onNext}
         onReturn={onReturn} onOpenKeep={onOpenKeep}
+        onReturnBranch={onReturnBranch}
         onReadingPosition={onReadingPosition}
         why={{ view: why, onOpen: onOpenWhy, onClose: onCloseWhy, onRetry: onRetryWhy, onCorrect }}
+        branchPanel={branchPanel}
+        onSwitchRepresentation={onSwitchRepresentation}
       />
     );
   }
   if (state.status === 'unavailable') {
-    return <RestScreen title="This Scroll is unavailable" message={state.message} exhausted={false} onReturn={onReturn} onOpenKeep={onOpenKeep} onRetry={onRetry} retryable={state.retryable} />;
+    return <RestScreen title="This Scroll is unavailable" message={state.message} exhausted={false} onReturn={onReturn} onOpenKeep={onOpenKeep} onRetry={onRetry} retryable={state.retryable} representation={representation} onSwitchRepresentation={onSwitchRepresentation} />;
   }
   if (state.status === 'exhausted') {
     return (
       <RestScreen
-        title="You've reached the end of the current library"
-        message="There is no unread sourced Scroll left right now. Check back later, or revisit a saved Trace."
+        title={representation === 'Reel' ? 'No Reels available right now' : "You've reached the end of the current library"}
+        message={representation === 'Reel' ? 'Choose Scroll to keep reading, or return to your Universe.' : 'There is no unread encounter left right now. Check back later, or revisit a saved Trace.'}
         exhausted
         onReturn={onReturn} onOpenKeep={onOpenKeep}
         onRetry={onRetry}
         retryable
+        representation={representation}
+        onSwitchRepresentation={onSwitchRepresentation}
       />
     );
   }
   return (
     <main className="scroll-screen" aria-label="Scroll" aria-busy="true">
       <p role="status" aria-live="polite">
-        Loading a sourced encounter…
+        Preparing your next encounter…
       </p>
     </main>
   );
@@ -177,6 +195,8 @@ function RestScreen({
   onOpenKeep = onReturn,
   onRetry,
   retryable,
+  representation = 'Scroll',
+  onSwitchRepresentation,
 }: {
   title: string;
   message: string;
@@ -185,10 +205,13 @@ function RestScreen({
   onOpenKeep?: () => void;
   onRetry: () => void;
   retryable: boolean;
+  representation?: 'Reel' | 'Scroll';
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
 }) {
   return (
     <main className="scroll-screen rest-screen" aria-label="Scroll">
       <div className="rest-card">
+        {onSwitchRepresentation && <RepresentationSwitch selected={representation} onSelect={onSwitchRepresentation} />}
         <p className="eyebrow">{exhausted ? 'Finite library' : 'Discovery'}</p>
         <h2>{title}</h2>
         <p>{message}</p>
@@ -212,20 +235,27 @@ function ReadingStage({
   onKeep,
   onNext,
   onReturn,
+  onReturnBranch,
   onOpenKeep = onReturn,
   onReadingPosition,
   why,
+  branchPanel,
+  onSwitchRepresentation,
 }: {
   state: Extract<ScrollView, { status: 'reading' }>;
   onVisible: (assetId: string) => void;
   onKeep: () => void;
   onNext: () => void;
   onReturn: () => void;
+  onReturnBranch?: () => void;
   onOpenKeep?: () => void;
   onReadingPosition: (assetId: string, position: number) => void;
   why: WhyControls;
+  branchPanel?: ReactNode;
+  onSwitchRepresentation?: (kind: 'Reel' | 'Scroll') => void;
 }) {
   const { item } = state;
+  if (item.kind !== 'Scroll') throw new Error('ReadingStage requires a Scroll');
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const whyTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -309,9 +339,9 @@ function ReadingStage({
       // no more of this Scroll to read. While text remains below the fold the
       // down arrow reads on, because a key that jumps to a different Scroll
       // mid-paragraph both loses the reader's place and spends a deliberate
-      // discovery by accident. ArrowRight is deliberately never bound -- no
-      // continuation contract exists, and an empty gesture is worse than none
-      // (ui-system.md sec.4).
+      // discovery by accident. Branches have their own explicit controls;
+      // ArrowRight is left to the enclosing encounter gesture only when it
+      // has a currently available continuation.
       if (event.key === 'ArrowDown' && !sourcesOpen && !whyOpen) {
         event.preventDefault();
         if (scrollReadingColumn(scrollOwner(stageRef.current), SCROLL_STEP)) return;
@@ -356,8 +386,14 @@ function ReadingStage({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [sourcesOpen, whyOpen, onNext, onReturn, closeWhy]);
 
-  const originLabel = state.origin.type === 'saved-trace' ? 'Saved Trace · revisiting a kept Scroll' : 'Deliberate discovery · a new sourced encounter';
+  const originLabel = state.origin.type === 'saved-trace'
+    ? 'Saved Trace · revisiting a kept Scroll'
+    : state.origin.type === 'branch'
+      ? `${state.origin.recorded ? 'Connection' : 'Unrecorded connection'} · ${state.origin.relationPhrase} from ${state.origin.fromTitle}`
+      : 'Deliberate discovery · a new encounter';
+  const unrecordedBranch = state.origin.type === 'branch' && !state.origin.recorded;
   const truthMeaning = TRUTH_STATE_MEANING[item.truthState] ?? 'No documented meaning is defined for this truth state.';
+  const contextAfter = import.meta.env.DEV && new URLSearchParams(window.location.search).get('webVariant') === 'context-after';
 
   return (
     <main className="scroll-screen reading" aria-label="Scroll reader">
@@ -365,14 +401,13 @@ function ReadingStage({
         <button type="button" className="pill cream" onClick={onReturn} aria-label="Return to Universe" aria-keyshortcuts="Escape">
           ‹ Universe
         </button>
-        <span className="head-band-origin">{originLabel}</span>
-        <span className="head-band-kind">Scroll</span>
-        {/* Cosmos's own state pill (ui-system.md sec.5b): the real truth state plus the
-            real source count -- our schema carries exactly one source per Scroll, so
-            "1 SOURCE" is the honest count, never a placeholder for more. */}
-        <span className={`${truthPillClassName(item.truthState)} head-band-state`}>{item.truthState.toUpperCase()} · 1 SOURCE</span>
+        {onSwitchRepresentation && <RepresentationSwitch selected="Scroll" onSelect={onSwitchRepresentation} disabled={state.discovery === 'loading' || state.keep.status === 'saving'} />}
+        {state.origin.type === 'branch' && onReturnBranch
+          ? <button type="button" className="head-band-origin head-band-origin--action" onClick={onReturnBranch} aria-label="Return to origin">← {originLabel}</button>
+          : <span className="head-band-origin">{originLabel}</span>}
+        <span className={`${truthPillClassName(item.truthState)} head-band-state`}>{item.truthState.toUpperCase()}</span>
       </header>
-      <div className="scroll-layout">
+      <div className={`scroll-layout${contextAfter ? ' scroll-layout--context-after' : ''}`}>
         <aside className="context-rail" aria-label="Context">
           <button
             type="button"
@@ -382,10 +417,10 @@ function ReadingStage({
               setSourcesOpen(v => !v);
             }}
             aria-expanded={sourcesOpen}
-            aria-label={sourcesOpen ? 'Close sources panel' : 'Open sources panel'}
+            aria-label={sourcesOpen ? 'Close context panel' : 'Open context panel'}
             aria-keyshortcuts="s"
           >
-            Sources
+            Context
           </button>
           <button
             type="button"
@@ -396,6 +431,7 @@ function ReadingStage({
           >
             Why this appeared
           </button>
+          <span className="reading-gesture-hint">Swipe ↑ for next · ← for connections</span>
           {whyOpen && (
             <WhyThisAppeared
               item={item}
@@ -408,6 +444,7 @@ function ReadingStage({
             />
           )}
         </aside>
+        {sourcesOpen && <SourceRail item={item} truthMeaning={truthMeaning} onClose={() => setSourcesOpen(false)} />}
         <article
           className="reading-column"
           ref={stageRefCallback}
@@ -427,8 +464,10 @@ function ReadingStage({
           <h2>{item.title}</h2>
           {item.reason.trim().length > 0 && <p className="reason">{item.reason}</p>}
           <p className="summary">{item.summary}</p>
-          <p className="body">{item.body}</p>
+          <NativeScroll embedded item={item} />
+          {branchPanel}
           <div className="continue">
+            {unrecordedBranch && <p role="status">Recording is paused. This connection is for reading only; it cannot be kept.</p>}
             {(state.keep.status === 'failed' || state.keep.status === 'conflict') && (
               <p role="alert" className="keep-message">
                 {state.keep.message}
@@ -438,7 +477,7 @@ function ReadingStage({
               type="button"
               className="pill yellow"
               onClick={onKeep}
-              disabled={state.keep.status === 'saving' || state.keep.status === 'kept' || state.discovery === 'loading'}
+              disabled={unrecordedBranch || state.keep.status === 'saving' || state.keep.status === 'kept' || state.discovery === 'loading'}
               aria-label={state.keep.status === 'kept' ? 'Kept' : state.keep.status === 'saving' ? 'Keeping…' : 'Keep this Scroll'}
             >
               {/* Cosmos's own label (ui-system.md sec.5b: "Keep this", yellow) -- the
@@ -449,9 +488,8 @@ function ReadingStage({
             <DiscoveryThreshold keep={state.keep} discovery={state.discovery} onNext={onNext} />
           </div>
         </article>
-        {sourcesOpen && <SourceRail item={item} truthMeaning={truthMeaning} onClose={() => setSourcesOpen(false)} />}
       </div>
-      <p className="keyboard-help">Keyboard: ↓ reads on, then takes the next discovery · N next · S sources · Escape or Home returns to Universe.</p>
+      <p className="keyboard-help">Keyboard: ↓ reads on, then takes the next discovery · N next · S context · Escape or Home returns to Universe.</p>
       <ScrollDock onReturn={onReturn} onOpenKeep={onOpenKeep} />
     </main>
   );
@@ -499,11 +537,11 @@ function DiscoveryThreshold({ keep, discovery, onNext }: { keep: KeepState; disc
   const disabled = discovery === 'loading' || keep.status === 'saving' || keep.status === 'failed' || keep.status === 'conflict';
   return (
     <section className="discovery-threshold" aria-label="Next discovery">
-      <h3>{discovery === 'exhausted' ? "You've reached the end of the current library" : 'Ready for another sourced encounter?'}</h3>
+      <h3>{discovery === 'exhausted' ? "You've reached the end of the current library" : 'Ready for another encounter?'}</h3>
       {discovery === 'failed' && <p role="alert">The next Scroll could not be loaded. Try again.</p>}
       {discovery === 'loading' && (
         <p role="status" aria-live="polite">
-          Finding the next sourced encounter…
+          Finding the next encounter…
         </p>
       )}
       <button type="button" className="pill teal" onClick={onNext} disabled={disabled} aria-label="Next discovery" aria-keyshortcuts="n ArrowDown">
@@ -515,19 +553,19 @@ function DiscoveryThreshold({ keep, discovery, onNext }: { keep: KeepState; disc
   );
 }
 
-function SourceRail({ item, truthMeaning, onClose }: { item: { sourceTitle: string; sourceUrl: string; title: string; truthState: string }; truthMeaning: string; onClose: () => void }) {
+function SourceRail({ item, truthMeaning, onClose }: { item: { title: string; truthState: string }; truthMeaning: string; onClose: () => void }) {
   const railRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     railRef.current?.focus();
   }, []);
   return (
-    <aside className="source-sheet" aria-label="Source" ref={railRef} tabIndex={-1}>
+    <aside className="source-sheet" aria-label="Scroll context" ref={railRef} tabIndex={-1}>
       <div className="source-sheet-header">
-        <h3>Source</h3>
+        <h3>About this Scroll</h3>
         {/* Distinct accessible name from the context-rail toggle (which already
             reads "Close sources panel" once open): two controls performing
             the same action must not share one name. */}
-        <button type="button" className="pill ghost" onClick={onClose} aria-label="Close the source panel" aria-keyshortcuts="Escape">
+        <button type="button" className="pill ghost" onClick={onClose} aria-label="Close the context panel" aria-keyshortcuts="Escape">
           Close
         </button>
       </div>
@@ -535,11 +573,8 @@ function SourceRail({ item, truthMeaning, onClose }: { item: { sourceTitle: stri
         <span className={truthPillClassName(item.truthState)}>{item.truthState.toUpperCase()}</span>
         <span className="truth-meaning">{truthMeaning}</span>
       </div>
-      <p className="source-title">{item.sourceTitle}</p>
-      <p className="source-url">{item.sourceUrl}</p>
-      <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="pill teal source-link" aria-label={`Open source: ${item.sourceTitle} (opens in a new tab)`}>
-        Open source
-      </a>
+      <p className="source-title">{item.title}</p>
+      <p className="source-url">Source details are kept outside the reader view.</p>
     </aside>
   );
 }

@@ -12,33 +12,66 @@
  * Refuses anything but a disposable `knowscroll_test_*` database and a loopback API base, before
  * importing `packages/db` (whose pool connects on import).
  */
-if (!new URL(process.env.DATABASE_URL ?? '').pathname.startsWith('/knowscroll_test_')) {
-  throw new Error('seed-held-up-places.ts requires a disposable knowscroll_test_* database');
+if (
+  !new URL(process.env.DATABASE_URL ?? '').pathname.startsWith(
+    '/knowscroll_test_',
+  )
+) {
+  throw new Error(
+    'seed-held-up-places.ts requires a disposable knowscroll_test_* database',
+  );
 }
 const base = process.env.KS_ATLAS_SEED_API_BASE;
 if (!base || new URL(base).hostname !== '127.0.0.1') {
-  throw new Error('seed-held-up-places.ts requires a loopback KS_ATLAS_SEED_API_BASE');
+  throw new Error(
+    'seed-held-up-places.ts requires a loopback KS_ATLAS_SEED_API_BASE',
+  );
 }
 const token = process.env.KS_DEV_TOKEN;
 if (!token) throw new Error('seed-held-up-places.ts requires KS_DEV_TOKEN');
 
 const HELD_UP = ['earth.tides', 'astro.orbit', 'astro.star.birth'];
 
-const response = await fetch(`${base}/v1/universe`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) });
-if (response.status !== 200) throw new Error(`seed-held-up-places: /v1/universe returned ${response.status}`);
+const response = await fetch(`${base}/v1/universe`, {
+  headers: { authorization: `Bearer ${token}` },
+  signal: AbortSignal.timeout(10_000),
+});
+if (response.status !== 200)
+  throw new Error(
+    `seed-held-up-places: /v1/universe returned ${response.status}`,
+  );
 const { universeId } = (await response.json()) as { universeId: string };
 
-const { pool, transaction } = await import('../../packages/db/src/index.ts');
-const { runCartographer } = await import('../../packages/db/src/atlas.ts');
+const { pool, transaction } = await import('@knowscroll/db');
+const { runCartographer } = await import('@knowscroll/db/atlas');
 try {
-  const deltas = await transaction(async client => {
-    await client.query('SELECT 1 FROM universe WHERE id=$1 FOR UPDATE', [universeId]);
-    return runCartographer(client, universeId, HELD_UP.map(concept => ({
-      concept, state: 'anchored' as const, episodes: 0, daysActive: 0, voluntary: 0, sourceFamilies: 0, mass: 0,
-      evidence: { episodeIds: [], markIds: [] },
-    })));
+  const deltas = await transaction(async (client) => {
+    await client.query('SELECT 1 FROM universe WHERE id=$1 FOR UPDATE', [
+      universeId,
+    ]);
+    return runCartographer(
+      client,
+      universeId,
+      HELD_UP.map((concept) => ({
+        concept,
+        state: 'anchored' as const,
+        episodes: 0,
+        daysActive: 0,
+        voluntary: 0,
+        sourceFamilies: 0,
+        mass: 0,
+        evidence: { episodeIds: [], markIds: [] },
+      })),
+    );
   });
-  console.log(JSON.stringify({ seededPlaces: HELD_UP, deltas, universeId, simulated: 'accounts supplied, not read' }));
+  console.log(
+    JSON.stringify({
+      seededPlaces: HELD_UP,
+      deltas,
+      universeId,
+      simulated: 'accounts supplied, not read',
+    }),
+  );
 } finally {
   await pool.end();
 }

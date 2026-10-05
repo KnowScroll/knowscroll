@@ -11,15 +11,26 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { buildApp } from '../apps/api/src/app.ts';
-import { pool, provisionIdentity } from '../packages/db/src/index.ts';
-import { feedResponseSchema, universeSchema, worldSystemResponseSchema } from '../packages/contracts/src/web-bootstrap.ts';
+import { pool, provisionIdentity } from '@knowscroll/db';
+import {
+  feedResponseSchema,
+  universeSchema,
+  worldSystemResponseSchema,
+} from '@knowscroll/contracts/web-bootstrap';
 
-if (!new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')) {
-  throw new Error('Web bootstrap contract tests require an isolated knowscroll_test_* database');
+if (
+  !new URL(process.env.DATABASE_URL!).pathname.startsWith('/knowscroll_test_')
+) {
+  throw new Error(
+    'Web bootstrap contract tests require an isolated knowscroll_test_* database',
+  );
 }
 
 const app = buildApp(randomBytes(32).toString('hex'));
-after(async () => { await app.close(); await pool.end(); });
+after(async () => {
+  await app.close();
+  await pool.end();
+});
 const headers = (token: string) => ({ authorization: `Bearer ${token}` });
 
 async function read(token: string, url: string) {
@@ -34,12 +45,25 @@ test('real bootstrap responses strictly satisfy the shared web contract, before 
   worldSystemResponseSchema.parse(await read(reader.token, '/v1/worlds'));
 
   const feed = feedResponseSchema.parse(await read(reader.token, '/v1/feed'));
-  assert.ok(feed.items.length > 0, 'the seeded editorial library offers at least one Scroll');
-  const exposure = await app.inject({ method: 'POST', url: '/v1/exposures', headers: headers(reader.token),
-    payload: { decisionId: feed.decisionId, assetId: feed.items[0]!.assetId, clientExposureId: randomUUID() } });
+  assert.ok(
+    feed.items.length > 0,
+    'the seeded editorial library offers at least one Scroll',
+  );
+  const exposure = await app.inject({
+    method: 'POST',
+    url: '/v1/exposures',
+    headers: headers(reader.token),
+    payload: {
+      decisionId: feed.decisionId,
+      assetId: feed.items[0]!.assetId,
+      clientExposureId: randomUUID(),
+    },
+  });
   assert.equal(exposure.statusCode, 201, exposure.body);
 
-  const worlds = worldSystemResponseSchema.parse(await read(reader.token, '/v1/worlds'));
+  const worlds = worldSystemResponseSchema.parse(
+    await read(reader.token, '/v1/worlds'),
+  );
   assert.ok(worlds.system !== null, 'an encounter derives a system');
   universeSchema.parse(await read(reader.token, '/v1/universe'));
 });

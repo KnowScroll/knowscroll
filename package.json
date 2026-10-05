@@ -15,10 +15,12 @@
     "db:seed": "tsx scripts/seed.ts",
     "format": "pnpm format:sql && pnpm format:ts",
     "format:sql": "node scripts/format-query-sql.mjs --write",
-    "format:ts": "biome format --write apps/api packages",
-    "format:check": "node scripts/format-query-sql.mjs --check && biome format apps/api packages",
-    "lint": "biome lint apps/api packages",
+    "format:ts": "biome format --write apps/api apps/worker packages tests scripts ops && biome check --formatter-enabled=false --linter-enabled=false --write apps/api apps/worker packages",
+    "format:check": "node scripts/format-query-sql.mjs --check && biome format apps/api apps/worker packages tests scripts ops",
+    "lint": "biome check --formatter-enabled=false apps/api apps/worker packages && biome lint --only=correctness/noUnusedImports --only=correctness/noUnusedVariables --only=correctness/noUnusedFunctionParameters --only=style/useImportType tests scripts ops && node scripts/check-architecture.mjs",
     "typecheck": "tsc --noEmit",
+    "contracts:check": "tsx scripts/export-contracts.ts && git diff --exit-code -- packages/contracts/http-v1.schema.json",
+    "knip": "knip",
     "typecheck:web": "pnpm --filter web typecheck",
     "test": "./scripts/test.sh",
     "test:web": "pnpm --filter web test",
@@ -26,16 +28,18 @@
     "state": "tsx scripts/state.ts"
   },
   "dependencies": {
-    "ai": "7.0.102",
+    "@knowscroll/contracts": "workspace:*",
+    "@knowscroll/core": "workspace:*",
+    "@knowscroll/db": "workspace:*",
     "fastify": "^5.6.0",
     "pg": "^8.16.3",
-    "vercel-minimax-ai-provider": "0.0.2",
     "zod": "^4.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
     "@types/node": "^22.18.0",
     "@types/pg": "^8.15.5",
+    "knip": "6.39.0",
     "sql-formatter": "15.9.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"

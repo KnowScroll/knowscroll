@@ -35,7 +35,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import pg from 'pg';
 
-import { runMigrations } from '../packages/db/src/migrations.ts';
+import { runMigrations } from '@knowscroll/db/migrations';
 
 const execFileAsync = promisify(execFile);
 const OWNER_ID = '00000000-0000-4000-8000-000000000001';
@@ -45,7 +45,10 @@ const TSX_BIN = join(REPO_ROOT, 'node_modules/.bin/tsx');
 const API_MAIN = join(REPO_ROOT, 'apps/api/src/main.ts');
 
 const KS_DEV_ROOT = process.env.KS_DEV_ROOT;
-if (!KS_DEV_ROOT) throw new Error('KS_DEV_ROOT is not set; source scripts/env.sh before running this script');
+if (!KS_DEV_ROOT)
+  throw new Error(
+    'KS_DEV_ROOT is not set; source scripts/env.sh before running this script',
+  );
 const DEV_ROOT: string = KS_DEV_ROOT;
 
 const RUN_STAMP = new Date().toISOString().replace(/[:.]/g, '-');
@@ -68,7 +71,9 @@ function loadBaseDatabaseUrl(): URL {
       if (match?.[1]) return new URL(match[1]);
     }
   }
-  throw new Error('DATABASE_URL is required, in the environment or the lane .env');
+  throw new Error(
+    'DATABASE_URL is required, in the environment or the lane .env',
+  );
 }
 function withDatabaseName(url: URL, name: string): string {
   const clone = new URL(url.toString());
@@ -80,9 +85,16 @@ if (BASE_DB_URL.pathname.replace(/^\//, '') === 'knowscroll') {
   throw new Error('refusing to run against the owner database "knowscroll"');
 }
 
-async function createDisposableDatabase(): Promise<{ name: string; url: string; pool: pg.Pool }> {
+async function createDisposableDatabase(): Promise<{
+  name: string;
+  url: string;
+  pool: pg.Pool;
+}> {
   const name = `knowscroll_test_signin_journey_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
-  const admin = new pg.Pool({ connectionString: withDatabaseName(BASE_DB_URL, 'postgres'), max: 1 });
+  const admin = new pg.Pool({
+    connectionString: withDatabaseName(BASE_DB_URL, 'postgres'),
+    max: 1,
+  });
   try {
     await admin.query(`CREATE DATABASE "${name}"`);
   } finally {
@@ -92,9 +104,15 @@ async function createDisposableDatabase(): Promise<{ name: string; url: string; 
   const pool = new pg.Pool({ connectionString: url, max: 4 });
   return { name, url, pool };
 }
-async function dropDisposableDatabase(db: { name: string; pool: pg.Pool }): Promise<void> {
+async function dropDisposableDatabase(db: {
+  name: string;
+  pool: pg.Pool;
+}): Promise<void> {
   await db.pool.end();
-  const admin = new pg.Pool({ connectionString: withDatabaseName(BASE_DB_URL, 'postgres'), max: 1 });
+  const admin = new pg.Pool({
+    connectionString: withDatabaseName(BASE_DB_URL, 'postgres'),
+    max: 1,
+  });
   try {
     await admin.query(`DROP DATABASE IF EXISTS "${db.name}"`);
   } finally {
@@ -113,24 +131,51 @@ function childEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
   const allow = ['PATH', 'HOME', 'TMPDIR', 'LANG'] as const; // deliberately NOT KS_DEV_ROOT: the
   // child gets its own scratch value below, never this process's real one.
   const env: NodeJS.ProcessEnv = {};
-  for (const key of allow) if (process.env[key] !== undefined) env[key] = process.env[key]!;
+  for (const key of allow)
+    if (process.env[key] !== undefined) env[key] = process.env[key]!;
   return { ...env, ...extra };
 }
 async function stopProcess(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null) return;
   child.kill('SIGTERM');
-  await Promise.race([new Promise<void>((resolvePromise) => child.once('exit', () => resolvePromise())), sleep(5000)]);
+  await Promise.race([
+    new Promise<void>((resolvePromise) =>
+      child.once('exit', () => resolvePromise()),
+    ),
+    sleep(5000),
+  ]);
   if (child.exitCode === null) child.kill('SIGKILL');
 }
 
 // -------------------------------------------------------------------------------------------
 
-type Check = { name: string; expected: string; observed: string; pass: boolean };
+type Check = {
+  name: string;
+  expected: string;
+  observed: string;
+  pass: boolean;
+};
 const checks: Check[] = [];
-function record(name: string, expected: string, observed: string, pass: boolean): void {
+function record(
+  name: string,
+  expected: string,
+  observed: string,
+  pass: boolean,
+): void {
   checks.push({ name, expected, observed, pass });
-  console.log(JSON.stringify({ service: 'signin-journey', event: pass ? 'check_pass' : 'check_fail', name, expected, observed }));
-  if (!pass) throw new Error(`J008 check failed: ${name}: expected ${expected}, observed ${observed}`);
+  console.log(
+    JSON.stringify({
+      service: 'signin-journey',
+      event: pass ? 'check_pass' : 'check_fail',
+      name,
+      expected,
+      observed,
+    }),
+  );
+  if (!pass)
+    throw new Error(
+      `J008 check failed: ${name}: expected ${expected}, observed ${observed}`,
+    );
 }
 
 async function readSinkLink(): Promise<string> {
@@ -148,16 +193,26 @@ async function main(): Promise<void> {
   await mkdir(SCRATCH_DEV_ROOT, { recursive: true });
 
   const [gitRev, nodeVersion] = await Promise.all([
-    execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: REPO_ROOT }).then((r) => r.stdout.trim()),
+    execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: REPO_ROOT }).then((r) =>
+      r.stdout.trim(),
+    ),
     Promise.resolve(process.version),
   ]);
 
   const db = await createDisposableDatabase();
   let apiChild: ChildProcess | undefined;
   try {
-    await runMigrations(db.pool, { directory: join(REPO_ROOT, 'packages/db/migrations') });
-    await db.pool.query('INSERT INTO universe(id) VALUES($1) ON CONFLICT DO NOTHING', [OWNER_ID]);
-    await db.pool.query('INSERT INTO accounts(universe_id) VALUES($1) ON CONFLICT DO NOTHING', [OWNER_ID]);
+    await runMigrations(db.pool, {
+      directory: join(REPO_ROOT, 'packages/db/migrations'),
+    });
+    await db.pool.query(
+      'INSERT INTO universe(id) VALUES($1) ON CONFLICT DO NOTHING',
+      [OWNER_ID],
+    );
+    await db.pool.query(
+      'INSERT INTO accounts(universe_id) VALUES($1) ON CONFLICT DO NOTHING',
+      [OWNER_ID],
+    );
 
     // Chosen fresh for this single run; never written to the receipt or console.
     const ownerEmail = `j008-owner-${randomUUID()}@example.test`;
@@ -166,107 +221,264 @@ async function main(): Promise<void> {
     const devToken = randomBytes(32).toString('hex');
     const apiPort = 20000 + Math.floor(Math.random() * 10000);
     const apiEnv = childEnv({
-      DATABASE_URL: db.url, KS_DEV_TOKEN: devToken, PORT: String(apiPort),
-      KS_DEV_ROOT: SCRATCH_DEV_ROOT, KS_OWNER_EMAIL: ownerEmail, NODE_ENV: 'test',
+      DATABASE_URL: db.url,
+      KS_DEV_TOKEN: devToken,
+      PORT: String(apiPort),
+      KS_DEV_ROOT: SCRATCH_DEV_ROOT,
+      KS_OWNER_EMAIL: ownerEmail,
+      NODE_ENV: 'test',
     });
-    apiChild = spawn(TSX_BIN, [API_MAIN], { env: apiEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+    apiChild = spawn(TSX_BIN, [API_MAIN], {
+      env: apiEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let apiStartupError: Error | undefined;
     let apiOutput = '';
-    apiChild.stdout?.on('data', (chunk: Buffer) => { apiOutput += chunk.toString('utf8'); });
-    apiChild.stderr?.on('data', (chunk: Buffer) => { apiOutput += chunk.toString('utf8'); });
-    apiChild.once('error', (error) => { apiStartupError = error; });
+    apiChild.stdout?.on('data', (chunk: Buffer) => {
+      apiOutput += chunk.toString('utf8');
+    });
+    apiChild.stderr?.on('data', (chunk: Buffer) => {
+      apiOutput += chunk.toString('utf8');
+    });
+    apiChild.once('error', (error) => {
+      apiStartupError = error;
+    });
     const apiBase = `http://127.0.0.1:${apiPort}`;
     for (let i = 0; ; i += 1) {
       if (apiStartupError) throw apiStartupError;
-      if (apiChild.exitCode !== null) throw new Error(`API process exited before health check (code ${apiChild.exitCode}): ${apiOutput}`);
+      if (apiChild.exitCode !== null)
+        throw new Error(
+          `API process exited before health check (code ${apiChild.exitCode}): ${apiOutput}`,
+        );
       try {
-        const response = await fetch(`${apiBase}/health`, { signal: AbortSignal.timeout(1000) });
+        const response = await fetch(`${apiBase}/health`, {
+          signal: AbortSignal.timeout(1000),
+        });
         if (response.ok) break;
-      } catch { /* not up yet */ }
+      } catch {
+        /* not up yet */
+      }
       if (i > 100) throw new Error('J008: API process never became healthy');
       await sleep(100);
     }
-    console.log(JSON.stringify({ service: 'signin-journey', event: 'api_started', port: apiPort }));
+    console.log(
+      JSON.stringify({
+        service: 'signin-journey',
+        event: 'api_started',
+        port: apiPort,
+      }),
+    );
 
     // 1. Unknown and owner addresses answer an identical 202.
     const unknownResponse = await fetch(`${apiBase}/v1/auth/magic-link`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: unknownEmail }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: unknownEmail }),
     });
-    record('unknown address status', '202', String(unknownResponse.status), unknownResponse.status === 202);
+    record(
+      'unknown address status',
+      '202',
+      String(unknownResponse.status),
+      unknownResponse.status === 202,
+    );
     const unknownBody = await unknownResponse.text();
 
     const ownerResponse = await fetch(`${apiBase}/v1/auth/magic-link`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: ownerEmail }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: ownerEmail }),
     });
-    record('owner address status', '202', String(ownerResponse.status), ownerResponse.status === 202);
+    record(
+      'owner address status',
+      '202',
+      String(ownerResponse.status),
+      ownerResponse.status === 202,
+    );
     const ownerBody = await ownerResponse.text();
-    record('unknown and owner response bodies are byte-identical', 'true', String(unknownBody === ownerBody), unknownBody === ownerBody);
+    record(
+      'unknown and owner response bodies are byte-identical',
+      'true',
+      String(unknownBody === ownerBody),
+      unknownBody === ownerBody,
+    );
 
     // 2. Read the link from the development sink (never logged).
     const link = await readSinkLink();
-    record('development sink produced a link', 'true', String(link.length > 0), link.length > 0);
-    record('sink content carries no @ character (no address written)', 'false', String(link.includes('@')), !link.includes('@'));
+    record(
+      'development sink produced a link',
+      'true',
+      String(link.length > 0),
+      link.length > 0,
+    );
+    record(
+      'sink content carries no @ character (no address written)',
+      'false',
+      String(link.includes('@')),
+      !link.includes('@'),
+    );
     const token = tokenFromLink(link);
-    record('extracted a token from the confirmation link', 'true', String(token.length > 0), token.length > 0);
+    record(
+      'extracted a token from the confirmation link',
+      'true',
+      String(token.length > 0),
+      token.length > 0,
+    );
 
     // 3. GET confirm never consumes and is repeatable.
-    const confirm1 = await fetch(`${apiBase}/v1/auth/confirm?token=${encodeURIComponent(token)}`);
-    const confirm1Json = await confirm1.json() as { valid: boolean };
-    record('first confirm status', '200', String(confirm1.status), confirm1.status === 200);
-    record('first confirm reports valid:true', 'true', String(confirm1Json.valid), confirm1Json.valid === true);
-    const confirm2 = await fetch(`${apiBase}/v1/auth/confirm?token=${encodeURIComponent(token)}`);
-    const confirm2Json = await confirm2.json() as { valid: boolean };
-    record('repeated confirm still reports valid:true (GET never consumes)', 'true', String(confirm2Json.valid), confirm2Json.valid === true);
+    const confirm1 = await fetch(
+      `${apiBase}/v1/auth/confirm?token=${encodeURIComponent(token)}`,
+    );
+    const confirm1Json = (await confirm1.json()) as { valid: boolean };
+    record(
+      'first confirm status',
+      '200',
+      String(confirm1.status),
+      confirm1.status === 200,
+    );
+    record(
+      'first confirm reports valid:true',
+      'true',
+      String(confirm1Json.valid),
+      confirm1Json.valid === true,
+    );
+    const confirm2 = await fetch(
+      `${apiBase}/v1/auth/confirm?token=${encodeURIComponent(token)}`,
+    );
+    const confirm2Json = (await confirm2.json()) as { valid: boolean };
+    record(
+      'repeated confirm still reports valid:true (GET never consumes)',
+      'true',
+      String(confirm2Json.valid),
+      confirm2Json.valid === true,
+    );
 
     // 4. POST session consumes once and mints a working session.
     const sessionResponse = await fetch(`${apiBase}/v1/auth/session`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
     });
-    record('session consumption status', '200', String(sessionResponse.status), sessionResponse.status === 200);
-    const session = await sessionResponse.json() as { sessionToken: string; origin: string; accountId: string };
-    record('minted session origin', 'magic_link', session.origin, session.origin === 'magic_link');
-    record('minted session names an account', 'true', String(typeof session.accountId === 'string' && session.accountId.length > 0), typeof session.accountId === 'string' && session.accountId.length > 0);
+    record(
+      'session consumption status',
+      '200',
+      String(sessionResponse.status),
+      sessionResponse.status === 200,
+    );
+    const session = (await sessionResponse.json()) as {
+      sessionToken: string;
+      origin: string;
+      accountId: string;
+    };
+    record(
+      'minted session origin',
+      'magic_link',
+      session.origin,
+      session.origin === 'magic_link',
+    );
+    record(
+      'minted session names an account',
+      'true',
+      String(
+        typeof session.accountId === 'string' && session.accountId.length > 0,
+      ),
+      typeof session.accountId === 'string' && session.accountId.length > 0,
+    );
 
-    const authedCall = await fetch(`${apiBase}/v1/session`, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
-    record('authenticated call using the minted session', '200', String(authedCall.status), authedCall.status === 200);
+    const authedCall = await fetch(`${apiBase}/v1/session`, {
+      headers: { Authorization: `Bearer ${session.sessionToken}` },
+    });
+    record(
+      'authenticated call using the minted session',
+      '200',
+      String(authedCall.status),
+      authedCall.status === 200,
+    );
 
     // 5. Sign out; the same session then fails.
     const revoke = await fetch(`${apiBase}/v1/session/revoke`, {
-      method: 'POST', headers: { Authorization: `Bearer ${session.sessionToken}`, 'Content-Type': 'application/json' }, body: '{}',
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
     });
-    record('sign-out status', '204', String(revoke.status), revoke.status === 204);
-    const afterRevoke = await fetch(`${apiBase}/v1/session`, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
-    record('revoked session is refused', '401', String(afterRevoke.status), afterRevoke.status === 401);
+    record(
+      'sign-out status',
+      '204',
+      String(revoke.status),
+      revoke.status === 204,
+    );
+    const afterRevoke = await fetch(`${apiBase}/v1/session`, {
+      headers: { Authorization: `Bearer ${session.sessionToken}` },
+    });
+    record(
+      'revoked session is refused',
+      '401',
+      String(afterRevoke.status),
+      afterRevoke.status === 401,
+    );
 
     // 6. Replay of the already-consumed token is refused with the generic shape.
     const replay = await fetch(`${apiBase}/v1/auth/session`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
     });
     const replayJson = await replay.json();
-    record('replayed token status', '401', String(replay.status), replay.status === 401);
-    record('replayed token error shape', '{"error":"Unauthorized"}', JSON.stringify(replayJson), JSON.stringify(replayJson) === '{"error":"Unauthorized"}');
+    record(
+      'replayed token status',
+      '401',
+      String(replay.status),
+      replay.status === 401,
+    );
+    record(
+      'replayed token error shape',
+      '{"error":"Unauthorized"}',
+      JSON.stringify(replayJson),
+      JSON.stringify(replayJson) === '{"error":"Unauthorized"}',
+    );
 
     // 7. A separately fabricated, already-expired token is refused the same way. `expires_at` is
     // immutable once inserted (sign_in_token_guard), so this inserts an already-expired row
     // directly rather than aging a real one out from underneath — a valid shape, just entirely in
     // the past, and never derived from any token this journey actually requested.
-    const { rows: [{ id: accountId }] } = await db.pool.query('SELECT id FROM account LIMIT 1');
+    const {
+      rows: [{ id: accountId }],
+    } = await db.pool.query('SELECT id FROM account LIMIT 1');
     const expiredRawToken = randomBytes(32).toString('base64url');
     await db.pool.query(
       `INSERT INTO sign_in_token(id,account_id,token_hash,purpose,expires_at,created_at)
        VALUES($1,$2,$3,'sign_in',clock_timestamp() - interval '5 minutes',clock_timestamp() - interval '10 minutes')`,
-      [randomUUID(), accountId, createHash('sha256').update(expiredRawToken, 'utf8').digest('hex')],
+      [
+        randomUUID(),
+        accountId,
+        createHash('sha256').update(expiredRawToken, 'utf8').digest('hex'),
+      ],
     );
     const expired = await fetch(`${apiBase}/v1/auth/session`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: expiredRawToken }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: expiredRawToken }),
     });
     const expiredJson = await expired.json();
-    record('expired token status', '401', String(expired.status), expired.status === 401);
-    record('expired token error shape matches the replay refusal exactly', JSON.stringify(replayJson), JSON.stringify(expiredJson), JSON.stringify(expiredJson) === JSON.stringify(replayJson));
+    record(
+      'expired token status',
+      '401',
+      String(expired.status),
+      expired.status === 401,
+    );
+    record(
+      'expired token error shape matches the replay refusal exactly',
+      JSON.stringify(replayJson),
+      JSON.stringify(expiredJson),
+      JSON.stringify(expiredJson) === JSON.stringify(replayJson),
+    );
 
     const receipt = {
       journey: 'J008',
-      evidenceLevel: 'disposable database and scratch development sink — never the owner universe, never a real mail provider',
+      evidenceLevel:
+        'disposable database and scratch development sink — never the owner universe, never a real mail provider',
       runStamp: RUN_STAMP,
       knowscrollHead: gitRev,
       node: nodeVersion,
@@ -276,7 +488,14 @@ async function main(): Promise<void> {
     };
     const receiptPath = join(LOGS_ROOT, `signin-journey-${RUN_STAMP}.json`);
     writeFileSync(receiptPath, JSON.stringify(receipt, null, 2));
-    console.log(JSON.stringify({ service: 'signin-journey', event: 'passed', receiptPath, checks: checks.length }));
+    console.log(
+      JSON.stringify({
+        service: 'signin-journey',
+        event: 'passed',
+        receiptPath,
+        checks: checks.length,
+      }),
+    );
   } finally {
     if (apiChild) await stopProcess(apiChild);
     await dropDisposableDatabase(db);

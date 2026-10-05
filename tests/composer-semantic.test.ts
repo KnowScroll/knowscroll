@@ -18,35 +18,82 @@ import {
   type V3Candidate,
   type V3Policy,
   type V3State,
-} from '../packages/core/src/composer/semantic.ts';
+} from '@knowscroll/core/composer/semantic';
 
 const concepts = new Map([
   ['physics', { code: 'physics', name: 'Physics', parentCode: null }],
-  ['physics.gravity', { code: 'physics.gravity', name: 'Gravity', parentCode: 'physics' }],
+  [
+    'physics.gravity',
+    { code: 'physics.gravity', name: 'Gravity', parentCode: 'physics' },
+  ],
   ['earth', { code: 'earth', name: 'Earth science', parentCode: null }],
   ['earth.tides', { code: 'earth.tides', name: 'Tides', parentCode: 'earth' }],
-  ['earth.seasons', { code: 'earth.seasons', name: 'Seasons', parentCode: 'earth' }],
-  ['earth.seasons.tilt', { code: 'earth.seasons.tilt', name: 'Axial tilt', parentCode: 'earth.seasons' }],
+  [
+    'earth.seasons',
+    { code: 'earth.seasons', name: 'Seasons', parentCode: 'earth' },
+  ],
+  [
+    'earth.seasons.tilt',
+    {
+      code: 'earth.seasons.tilt',
+      name: 'Axial tilt',
+      parentCode: 'earth.seasons',
+    },
+  ],
   ['astro', { code: 'astro', name: 'Astronomy', parentCode: null }],
   ['astro.orbit', { code: 'astro.orbit', name: 'Orbit', parentCode: 'astro' }],
-  ['astro.orbit.ellipse', { code: 'astro.orbit.ellipse', name: 'Elliptical orbit', parentCode: 'astro.orbit' }],
+  [
+    'astro.orbit.ellipse',
+    {
+      code: 'astro.orbit.ellipse',
+      name: 'Elliptical orbit',
+      parentCode: 'astro.orbit',
+    },
+  ],
   ['bio', { code: 'bio', name: 'Biology', parentCode: null }],
-  ['bio.homeostasis', { code: 'bio.homeostasis', name: 'Homeostasis', parentCode: 'bio' }],
+  [
+    'bio.homeostasis',
+    { code: 'bio.homeostasis', name: 'Homeostasis', parentCode: 'bio' },
+  ],
 ]);
 
-const asset = (id: string, primary: string | null, source: string, claims: string[] = [], order = 0): V3Asset => ({
-  assetId: id, title: `Scroll ${id}`, kind: 'Scroll', sourceKey: source, editorialOrder: order,
-  primary, concepts: primary ? [{ code: primary, role: 'primary' }] : [], claimKeys: claims,
+const asset = (
+  id: string,
+  primary: string | null,
+  source: string,
+  claims: string[] = [],
+  order = 0,
+): V3Asset => ({
+  assetId: id,
+  title: `Scroll ${id}`,
+  kind: 'Scroll',
+  sourceKey: source,
+  editorialOrder: order,
+  primary,
+  concepts: primary ? [{ code: primary, role: 'primary' }] : [],
+  claimKeys: claims,
 });
 
 const library: V3Asset[] = [
   asset('gravity-1', 'physics.gravity', 'nasa.gravity', ['c.gravity.pull'], 1),
-  asset('gravity-2', 'physics.gravity', 'nasa.gravity', ['c.gravity.orbits'], 2),
+  asset(
+    'gravity-2',
+    'physics.gravity',
+    'nasa.gravity',
+    ['c.gravity.orbits'],
+    2,
+  ),
   asset('tides-1', 'earth.tides', 'noaa.tides', ['c.tides.cause'], 3),
   asset('seasons-1', 'earth.seasons', 'nasa.seasons', ['c.seasons.tilt'], 4),
   asset('tilt-1', 'earth.seasons.tilt', 'nasa.seasons', ['c.tilt.angle'], 5),
   asset('orbit-1', 'astro.orbit', 'nasa.orbits', ['c.orbit.path'], 6),
-  asset('ellipse-1', 'astro.orbit.ellipse', 'nasa.orbits', ['c.orbit.ellipse'], 7),
+  asset(
+    'ellipse-1',
+    'astro.orbit.ellipse',
+    'nasa.orbits',
+    ['c.orbit.ellipse'],
+    7,
+  ),
   asset('body-1', 'bio.homeostasis', 'openstax.homeo', ['c.body.stable'], 8),
   asset('unmapped-1', null, 'demo.unmapped', [], 9),
 ];
@@ -56,114 +103,334 @@ const HOUR = 3_600_000;
 
 function state(over: Partial<V3State> = {}): V3State {
   return {
-    nowMs: NOW, seed: 'u1:0', concepts, assets: library, history: [], kept: new Set(), exposures: new Map(), sourceExposures: new Map(),
-    marks: [], served: [], accounts: new Map(),
-    bridges: [{ id: 'b.gravity.tides', from: 'physics.gravity', to: 'earth.tides', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Tides' }],
-    contradictions: [{ from: 'astro.orbit.ellipse', to: 'earth.seasons', claimKey: 'c.seasons.tilt' }],
-    openQuestionConcepts: [], directionPriors: [], suppressedRoutes: [], excluded: new Set(), bound: [],
+    nowMs: NOW,
+    seed: 'u1:0',
+    concepts,
+    assets: library,
+    history: [],
+    kept: new Set(),
+    exposures: new Map(),
+    sourceExposures: new Map(),
+    marks: [],
+    served: [],
+    accounts: new Map(),
+    bridges: [
+      {
+        id: 'b.gravity.tides',
+        from: 'physics.gravity',
+        to: 'earth.tides',
+        symmetric: false,
+        phraseForward: 'explains',
+        phraseReverse: 'is explained by',
+        fromName: 'Gravity',
+        toName: 'Tides',
+      },
+    ],
+    contradictions: [
+      {
+        from: 'astro.orbit.ellipse',
+        to: 'earth.seasons',
+        claimKey: 'c.seasons.tilt',
+      },
+    ],
+    openQuestionConcepts: [],
+    directionPriors: [],
+    suppressedRoutes: [],
+    excluded: new Set(),
+    bound: [],
     ...over,
   };
 }
 
-const exposed = (...ids: string[]) => new Map(ids.map((id, i) => [id, { count: 1, lastAtMs: NOW - (ids.length - i) * HOUR }]));
-const served = (...pairs: [string, V3State['served'][number]['family']][]) => pairs.map(([assetId, family], i) => ({ assetId, family, atMs: NOW - (i + 1) * HOUR }));
+const exposed = (...ids: string[]) =>
+  new Map(
+    ids.map((id, i) => [
+      id,
+      { count: 1, lastAtMs: NOW - (ids.length - i) * HOUR },
+    ]),
+  );
+const served = (...pairs: [string, V3State['served'][number]['family']][]) =>
+  pairs.map(([assetId, family], i) => ({
+    assetId,
+    family,
+    atMs: NOW - (i + 1) * HOUR,
+  }));
 
 test('cold start offers one door per domain and nothing already seen', () => {
   const result = composeSemantic(state(), COMPOSER_V3_POLICY);
   assert.equal(result.selected[0]!.family, 'seed');
-  const domains = new Set(result.selected.map(c => c.facts.domainName));
-  assert.equal(domains.size, result.selected.length, 'each slot opens a different domain');
-  assert.ok(result.candidates.some(c => c.family === 'fallback' && c.assetId === 'unmapped-1'), 'unmapped inventory is still recorded as a candidate');
+  const domains = new Set(result.selected.map((c) => c.facts.domainName));
+  assert.equal(
+    domains.size,
+    result.selected.length,
+    'each slot opens a different domain',
+  );
+  assert.ok(
+    result.candidates.some(
+      (c) => c.family === 'fallback' && c.assetId === 'unmapped-1',
+    ),
+    'unmapped inventory is still recorded as a candidate',
+  );
 });
 
 test('after keeping a gravity Scroll, the next encounter continues or crosses a sourced bridge — and says which act led there', () => {
   const s = state({
-    exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']),
-    marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }],
+    exposures: exposed('gravity-1'),
+    served: served(['gravity-1', 'seed']),
+    marks: [
+      { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR },
+    ],
   });
   const result = composeSemantic(s, COMPOSER_V3_POLICY);
   const head = result.selected[0]!;
   assert.ok(['continue', 'bridge'].includes(head.family), head.family);
-  const bridge = result.candidates.find(c => c.family === 'bridge' && c.assetId === 'tides-1')!;
+  const bridge = result.candidates.find(
+    (c) => c.family === 'bridge' && c.assetId === 'tides-1',
+  )!;
   assert.equal(bridge.gate, null);
-  assert.equal(renderReason('A sourced connection from “{{markTitle}}”: {{fromName}} {{relationPhrase}} {{toName}}.', bridge.facts),
-    'A sourced connection from “Scroll gravity-1”: Gravity explains Tides.');
-  assert.deepEqual(bridge.evidence.map(e => e.kind), ['mark', 'bridge']);
+  assert.equal(
+    renderReason(
+      'A sourced connection from “{{markTitle}}”: {{fromName}} {{relationPhrase}} {{toName}}.',
+      bridge.facts,
+    ),
+    'A sourced connection from “Scroll gravity-1”: Gravity explains Tides.',
+  );
+  assert.deepEqual(
+    bridge.evidence.map((e) => e.kind),
+    ['mark', 'bridge'],
+  );
 });
 
 test('a reader who marked the elliptical-orbit idea is offered the source that says seasons come from tilt', () => {
-  const s = state({ exposures: exposed('ellipse-1'), served: served(['ellipse-1', 'seed']), marks: [{ eventId: 'k2', assetId: 'ellipse-1', kind: 'keep', atMs: NOW - HOUR }] });
-  const challenge = composeSemantic(s, COMPOSER_V3_POLICY).candidates.find(c => c.family === 'challenge');
+  const s = state({
+    exposures: exposed('ellipse-1'),
+    served: served(['ellipse-1', 'seed']),
+    marks: [
+      { eventId: 'k2', assetId: 'ellipse-1', kind: 'keep', atMs: NOW - HOUR },
+    ],
+  });
+  const challenge = composeSemantic(s, COMPOSER_V3_POLICY).candidates.find(
+    (c) => c.family === 'challenge',
+  );
   assert.equal(challenge?.assetId, 'seasons-1');
   assert.equal(challenge?.gate, null);
 });
 
 test('deepen offers a narrower idea of something the reader acted on', () => {
-  const s = state({ exposures: exposed('seasons-1'), served: served(['seasons-1', 'seed']), marks: [{ eventId: 'b1', assetId: 'seasons-1', kind: 'branch', atMs: NOW - HOUR }] });
-  const deepen = composeSemantic(s, COMPOSER_V3_POLICY).candidates.filter(c => c.family === 'deepen' && c.gate === null).map(c => c.assetId);
+  const s = state({
+    exposures: exposed('seasons-1'),
+    served: served(['seasons-1', 'seed']),
+    marks: [
+      { eventId: 'b1', assetId: 'seasons-1', kind: 'branch', atMs: NOW - HOUR },
+    ],
+  });
+  const deepen = composeSemantic(s, COMPOSER_V3_POLICY)
+    .candidates.filter((c) => c.family === 'deepen' && c.gate === null)
+    .map((c) => c.assetId);
   assert.deepEqual(deepen, ['tilt-1']);
 });
 
 test('the exploration floor holds over the served sequence, not inside one slate', () => {
-  const marks = [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep' as const, atMs: NOW - HOUR }];
-  const notDue = composeSemantic(state({ exposures: exposed('gravity-1'), marks, served: served(['gravity-1', 'continue']) }), COMPOSER_V3_POLICY);
+  const marks = [
+    {
+      eventId: 'k1',
+      assetId: 'gravity-1',
+      kind: 'keep' as const,
+      atMs: NOW - HOUR,
+    },
+  ];
+  const notDue = composeSemantic(
+    state({
+      exposures: exposed('gravity-1'),
+      marks,
+      served: served(['gravity-1', 'continue']),
+    }),
+    COMPOSER_V3_POLICY,
+  );
   assert.equal(notDue.window.explorationDue, false);
-  const due = composeSemantic(state({ exposures: exposed('gravity-1', 'orbit-1'), marks, served: served(['gravity-1', 'continue'], ['orbit-1', 'continue']) }), COMPOSER_V3_POLICY);
+  const due = composeSemantic(
+    state({
+      exposures: exposed('gravity-1', 'orbit-1'),
+      marks,
+      served: served(['gravity-1', 'continue'], ['orbit-1', 'continue']),
+    }),
+    COMPOSER_V3_POLICY,
+  );
   assert.equal(due.window.explorationDue, true);
-  assert.ok(['bridge', 'frontier', 'challenge', 'revisit', 'fallback'].includes(due.selected[0]!.family));
+  assert.ok(
+    ['bridge', 'frontier', 'challenge', 'revisit', 'fallback'].includes(
+      due.selected[0]!.family,
+    ),
+  );
   assert.match(due.quotas[0]!, /^exploration_floor:/);
 });
 
 test('the same idea is not served twice in a row unless the reader acted on it', () => {
-  const noAct = composeSemantic(state({ exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']), marks: [{ eventId: 'k9', assetId: 'orbit-1', kind: 'keep', atMs: NOW - 90 * HOUR }] }), COMPOSER_V3_POLICY);
-  const primaryOf = (id: string) => library.find(a => a.assetId === id)!.primary;
-  assert.notEqual(primaryOf(noAct.selected[0]!.assetId), 'physics.gravity', 'no act on gravity: the next encounter changes idea');
-  const acted = composeSemantic(state({ exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']), marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }] }), COMPOSER_V3_POLICY);
-  assert.ok(acted.candidates.some(c => c.family === 'continue' && c.assetId === 'gravity-2' && c.gate === null));
+  const noAct = composeSemantic(
+    state({
+      exposures: exposed('gravity-1'),
+      served: served(['gravity-1', 'seed']),
+      marks: [
+        {
+          eventId: 'k9',
+          assetId: 'orbit-1',
+          kind: 'keep',
+          atMs: NOW - 90 * HOUR,
+        },
+      ],
+    }),
+    COMPOSER_V3_POLICY,
+  );
+  const primaryOf = (id: string) =>
+    library.find((a) => a.assetId === id)!.primary;
+  assert.notEqual(
+    primaryOf(noAct.selected[0]!.assetId),
+    'physics.gravity',
+    'no act on gravity: the next encounter changes idea',
+  );
+  const acted = composeSemantic(
+    state({
+      exposures: exposed('gravity-1'),
+      served: served(['gravity-1', 'seed']),
+      marks: [
+        { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR },
+      ],
+    }),
+    COMPOSER_V3_POLICY,
+  );
+  assert.ok(
+    acted.candidates.some(
+      (c) =>
+        c.family === 'continue' && c.assetId === 'gravity-2' && c.gate === null,
+    ),
+  );
 });
 
-test('a Scroll bound to the reader\'s own need is served first, as a continuation, with the binding as its evidence', () => {
-  const marks = [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep' as const, atMs: NOW - HOUR }];
-  const bound = [{ assetId: 'tilt-1', demandId: 'd1', bindingId: 'b1', concept: 'earth.seasons', placeId: 'p1', origin: null }];
+test("a Scroll bound to the reader's own need is served first, as a continuation, with the binding as its evidence", () => {
+  const marks = [
+    {
+      eventId: 'k1',
+      assetId: 'gravity-1',
+      kind: 'keep' as const,
+      atMs: NOW - HOUR,
+    },
+  ];
+  const bound = [
+    {
+      assetId: 'tilt-1',
+      demandId: 'd1',
+      bindingId: 'b1',
+      concept: 'earth.seasons',
+      placeId: 'p1',
+      origin: null,
+    },
+  ];
   // Due for exploration, and with better-scoring candidates: the reader's own need still comes first.
-  const s = state({ exposures: exposed('gravity-1', 'orbit-1'), marks, served: served(['gravity-1', 'continue'], ['orbit-1', 'continue']), bound });
+  const s = state({
+    exposures: exposed('gravity-1', 'orbit-1'),
+    marks,
+    served: served(['gravity-1', 'continue'], ['orbit-1', 'continue']),
+    bound,
+  });
   const result = composeSemantic(s, COMPOSER_V3_POLICY);
   const head = result.selected[0]!;
-  assert.deepEqual([head.assetId, head.family, head.explanationKey, head.facts], ['tilt-1', 'continue', 'v3_demand_bound', { conceptName: 'Seasons' }]);
-  assert.deepEqual(head.evidence, [{ kind: 'demand', demandId: 'd1', bindingId: 'b1', concept: 'earth.seasons', placeId: 'p1', origin: null }]);
-  assert.deepEqual(result.quotas, ['demand_bound'], 'the head records the rule that chose it');
-  assert.ok(result.candidates.filter(c => c.rank !== null).length === result.selected.length);
-  assert.notEqual(composeSemantic({ ...s, bound: [] }, COMPOSER_V3_POLICY).selected[0]!.assetId, 'tilt-1');
+  assert.deepEqual(
+    [head.assetId, head.family, head.explanationKey, head.facts],
+    ['tilt-1', 'continue', 'v3_demand_bound', { conceptName: 'Seasons' }],
+  );
+  assert.deepEqual(head.evidence, [
+    {
+      kind: 'demand',
+      demandId: 'd1',
+      bindingId: 'b1',
+      concept: 'earth.seasons',
+      placeId: 'p1',
+      origin: null,
+    },
+  ]);
+  assert.deepEqual(
+    result.quotas,
+    ['demand_bound'],
+    'the head records the rule that chose it',
+  );
+  assert.ok(
+    result.candidates.filter((c) => c.rank !== null).length ===
+      result.selected.length,
+  );
+  assert.notEqual(
+    composeSemantic({ ...s, bound: [] }, COMPOSER_V3_POLICY).selected[0]!
+      .assetId,
+    'tilt-1',
+  );
   // Kept, on screen or suppressed by the reader, it is gated like any other encounter.
-  for (const over of [{ kept: new Set(['tilt-1']) }, { excluded: new Set(['tilt-1']) }, { suppressedRoutes: [{ family: 'continue' as const, concept: 'earth.seasons' }] }]) {
+  for (const over of [
+    { kept: new Set(['tilt-1']) },
+    { excluded: new Set(['tilt-1']) },
+    {
+      suppressedRoutes: [
+        { family: 'continue' as const, concept: 'earth.seasons' },
+      ],
+    },
+  ]) {
     const gated = composeSemantic({ ...s, ...over }, COMPOSER_V3_POLICY);
-    assert.ok(!gated.quotas.includes('demand_bound') && gated.selected[0]!.assetId !== 'tilt-1', JSON.stringify(Object.keys(over)));
+    assert.ok(
+      !gated.quotas.includes('demand_bound') &&
+        gated.selected[0]!.assetId !== 'tilt-1',
+      JSON.stringify(Object.keys(over)),
+    );
   }
 });
 
 test('"less like this" suppresses exactly that route for this reader, and the record says so', () => {
   const s = state({
-    exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']),
-    marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }],
+    exposures: exposed('gravity-1'),
+    served: served(['gravity-1', 'seed']),
+    marks: [
+      { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR },
+    ],
     suppressedRoutes: [{ family: 'bridge', concept: 'earth.tides' }],
   });
   const result = composeSemantic(s, COMPOSER_V3_POLICY);
-  assert.equal(result.candidates.find(c => c.family === 'bridge' && c.assetId === 'tides-1')!.gate, 'suppressed_by_person');
-  assert.ok(!result.selected.some(c => c.family === 'bridge' && c.assetId === 'tides-1'));
+  assert.equal(
+    result.candidates.find(
+      (c) => c.family === 'bridge' && c.assetId === 'tides-1',
+    )!.gate,
+    'suppressed_by_person',
+  );
+  assert.ok(
+    !result.selected.some(
+      (c) => c.family === 'bridge' && c.assetId === 'tides-1',
+    ),
+  );
 });
 
 test('kept and on-screen encounters are gated with named reasons; a seen one is ranked lower, never silently dropped', () => {
-  const s = state({ kept: new Set(['tides-1']), exposures: exposed('orbit-1'), excluded: new Set(['body-1']), served: served(['orbit-1', 'seed']) });
-  const fallback = new Map(composeSemantic(s, COMPOSER_V3_POLICY).candidates.filter(c => c.family === 'fallback').map(c => [c.assetId, c]));
+  const s = state({
+    kept: new Set(['tides-1']),
+    exposures: exposed('orbit-1'),
+    excluded: new Set(['body-1']),
+    served: served(['orbit-1', 'seed']),
+  });
+  const fallback = new Map(
+    composeSemantic(s, COMPOSER_V3_POLICY)
+      .candidates.filter((c) => c.family === 'fallback')
+      .map((c) => [c.assetId, c]),
+  );
   assert.equal(fallback.get('tides-1')!.gate, 'kept');
   assert.equal(fallback.get('body-1')!.gate, 'current_encounter');
   // Exposure-aware reranking: seen is a recorded penalty, not a gate.
   assert.equal(fallback.get('orbit-1')!.gate, null);
-  assert.ok(fallback.get('orbit-1')!.terms.seen! > 0 && fallback.get('ellipse-1')!.terms.seen === 0);
+  assert.ok(
+    fallback.get('orbit-1')!.terms.seen! > 0 &&
+      fallback.get('ellipse-1')!.terms.seen === 0,
+  );
   assert.ok(fallback.get('orbit-1')!.score < fallback.get('ellipse-1')!.score);
 });
 
-function serveHeads(start: V3State, steps: number): { order: string[]; state: V3State } {
+function serveHeads(
+  start: V3State,
+  steps: number,
+): { order: string[]; state: V3State } {
   let s = start;
   const order: string[] = [];
   for (let i = 0; i < steps; i += 1) {
@@ -171,19 +438,40 @@ function serveHeads(start: V3State, steps: number): { order: string[]; state: V3
     if (!head) break;
     order.push(head.assetId);
     const prior = s.exposures.get(head.assetId);
-    s = { ...s, seed: `u1:${i + 1}`, nowMs: s.nowMs + HOUR,
-      exposures: new Map([...s.exposures, [head.assetId, { count: (prior?.count ?? 0) + 1, lastAtMs: s.nowMs }]]),
-      sourceExposures: new Map([...s.sourceExposures, [head.sourceKey, (s.sourceExposures.get(head.sourceKey) ?? 0) + 1]]),
-      served: [{ assetId: head.assetId, family: head.family, atMs: s.nowMs }, ...s.served] };
+    s = {
+      ...s,
+      seed: `u1:${i + 1}`,
+      nowMs: s.nowMs + HOUR,
+      exposures: new Map([
+        ...s.exposures,
+        [head.assetId, { count: (prior?.count ?? 0) + 1, lastAtMs: s.nowMs }],
+      ]),
+      sourceExposures: new Map([
+        ...s.sourceExposures,
+        [head.sourceKey, (s.sourceExposures.get(head.sourceKey) ?? 0) + 1],
+      ]),
+      served: [
+        { assetId: head.assetId, family: head.family, atMs: s.nowMs },
+        ...s.served,
+      ],
+    };
   }
   return { order, state: s };
 }
 
 test('no encounter starves: the whole library is reached before anything returns, then the least-seen return first', () => {
   const first = serveHeads(state(), library.length);
-  assert.deepEqual([...first.order].sort(), library.map(a => a.assetId).sort(), 'every Scroll once before any repeat');
+  assert.deepEqual(
+    [...first.order].sort(),
+    library.map((a) => a.assetId).sort(),
+    'every Scroll once before any repeat',
+  );
   const second = serveHeads(first.state, library.length);
-  assert.deepEqual([...second.order].sort(), library.map(a => a.assetId).sort(), 'a second pass also reaches every Scroll before a third showing');
+  assert.deepEqual(
+    [...second.order].sort(),
+    library.map((a) => a.assetId).sort(),
+    'a second pass also reaches every Scroll before a third showing',
+  );
 });
 
 test('no seen encounter outranks a less-seen one, however relevant — a revisit included', () => {
@@ -193,19 +481,45 @@ test('no seen encounter outranks a less-seen one, however relevant — a revisit
   const long = NOW - 4 * 24 * HOUR;
   const s = state({
     kept: new Set(['gravity-2']),
-    exposures: new Map([['gravity-1', { count: 1, lastAtMs: long }], ['tides-1', { count: 1, lastAtMs: long }], ['gravity-2', { count: 1, lastAtMs: NOW - 2 * HOUR }]]),
-    marks: [{ eventId: 'e1', assetId: 'gravity-2', kind: 'keep', atMs: NOW - HOUR }],
-    served: served(['gravity-2', null], ['tides-1', 'seed'], ['gravity-1', 'seed']),
+    exposures: new Map([
+      ['gravity-1', { count: 1, lastAtMs: long }],
+      ['tides-1', { count: 1, lastAtMs: long }],
+      ['gravity-2', { count: 1, lastAtMs: NOW - 2 * HOUR }],
+    ]),
+    marks: [
+      { eventId: 'e1', assetId: 'gravity-2', kind: 'keep', atMs: NOW - HOUR },
+    ],
+    served: served(
+      ['gravity-2', null],
+      ['tides-1', 'seed'],
+      ['gravity-1', 'seed'],
+    ),
   });
   const result = composeSemantic(s, COMPOSER_V3_POLICY);
-  assert.ok(result.candidates.some(c => c.assetId === 'gravity-1' && c.family === 'revisit'), 'the revisit exists');
-  assert.ok(result.candidates.some(c => c.assetId === 'tides-1' && c.family === 'bridge'), 'the bridge exists');
+  assert.ok(
+    result.candidates.some(
+      (c) => c.assetId === 'gravity-1' && c.family === 'revisit',
+    ),
+    'the revisit exists',
+  );
+  assert.ok(
+    result.candidates.some(
+      (c) => c.assetId === 'tides-1' && c.family === 'bridge',
+    ),
+    'the bridge exists',
+  );
   const seenCount = (id: string) => s.exposures.get(id)?.count ?? 0;
   const ranked = result.selected;
   for (let i = 1; i < ranked.length; i += 1) {
-    assert.ok(seenCount(ranked[i - 1]!.assetId) <= seenCount(ranked[i]!.assetId), ranked.map(c => `${c.assetId}:${c.family}`).join(', '));
+    assert.ok(
+      seenCount(ranked[i - 1]!.assetId) <= seenCount(ranked[i]!.assetId),
+      ranked.map((c) => `${c.assetId}:${c.family}`).join(', '),
+    );
   }
-  assert.ok(ranked.every(c => seenCount(c.assetId) === 0), 'unseen Scrolls fill the slate while any remain');
+  assert.ok(
+    ranked.every((c) => seenCount(c.assetId) === 0),
+    'unseen Scrolls fill the slate while any remain',
+  );
 });
 
 test('a reader skipping what they opened this session never meets a false end while less-seen Scrolls remain', () => {
@@ -213,95 +527,256 @@ test('a reader skipping what they opened this session never meets a false end wh
   // skips whatever it already opened, as the Android client does (the review's second-pass case).
   const dayAgo = NOW - 24 * HOUR;
   // Several sourced connections lead on from the kept idea, so relevant Scrolls could fill a slate.
-  const bridges = [...state().bridges,
-    { id: 'b.gravity.orbit', from: 'physics.gravity', to: 'astro.orbit', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Orbit' },
-    { id: 'b.gravity.seasons', from: 'physics.gravity', to: 'earth.seasons', symmetric: false, phraseForward: 'shapes', phraseReverse: 'is shaped by', fromName: 'Gravity', toName: 'Seasons' }];
+  const bridges = [
+    ...state().bridges,
+    {
+      id: 'b.gravity.orbit',
+      from: 'physics.gravity',
+      to: 'astro.orbit',
+      symmetric: false,
+      phraseForward: 'explains',
+      phraseReverse: 'is explained by',
+      fromName: 'Gravity',
+      toName: 'Orbit',
+    },
+    {
+      id: 'b.gravity.seasons',
+      from: 'physics.gravity',
+      to: 'earth.seasons',
+      symmetric: false,
+      phraseForward: 'shapes',
+      phraseReverse: 'is shaped by',
+      fromName: 'Gravity',
+      toName: 'Seasons',
+    },
+  ];
   let s = state({
     bridges,
     kept: new Set(['gravity-1']),
-    exposures: new Map(library.map(a => [a.assetId, { count: 1, lastAtMs: dayAgo }])),
-    marks: [{ eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: dayAgo }],
-    served: library.map((a, i) => ({ assetId: a.assetId, family: null, atMs: dayAgo - i * 1000 })),
+    exposures: new Map(
+      library.map((a) => [a.assetId, { count: 1, lastAtMs: dayAgo }]),
+    ),
+    marks: [
+      { eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: dayAgo },
+    ],
+    served: library.map((a, i) => ({
+      assetId: a.assetId,
+      family: null,
+      atMs: dayAgo - i * 1000,
+    })),
   });
   const visited = new Set<string>();
-  const unkept = library.filter(a => a.assetId !== 'gravity-1').length;
+  const unkept = library.filter((a) => a.assetId !== 'gravity-1').length;
   for (let step = 0; step < unkept; step += 1) {
     const slate = composeSemantic(s, COMPOSER_V3_POLICY).selected;
-    const next = slate.find(c => !visited.has(c.assetId));
-    assert.ok(next, `step ${step}: slate [${slate.map(c => c.assetId).join(', ')}] is all visited while ${unkept - visited.size} unkept remain`);
+    const next = slate.find((c) => !visited.has(c.assetId));
+    assert.ok(
+      next,
+      `step ${step}: slate [${slate.map((c) => c.assetId).join(', ')}] is all visited while ${unkept - visited.size} unkept remain`,
+    );
     visited.add(next.assetId);
     const prior = s.exposures.get(next.assetId)!;
-    s = { ...s, seed: `u1:${step + 10}`, nowMs: s.nowMs + HOUR,
-      exposures: new Map([...s.exposures, [next.assetId, { count: prior.count + 1, lastAtMs: s.nowMs }]]),
-      served: [{ assetId: next.assetId, family: next.family, atMs: s.nowMs }, ...s.served] };
+    s = {
+      ...s,
+      seed: `u1:${step + 10}`,
+      nowMs: s.nowMs + HOUR,
+      exposures: new Map([
+        ...s.exposures,
+        [next.assetId, { count: prior.count + 1, lastAtMs: s.nowMs }],
+      ]),
+      served: [
+        { assetId: next.assetId, family: next.family, atMs: s.nowMs },
+        ...s.served,
+      ],
+    };
   }
-  assert.equal(visited.size, unkept, 'every unkept Scroll was reached in the second pass');
+  assert.equal(
+    visited.size,
+    unkept,
+    'every unkept Scroll was reached in the second pass',
+  );
 });
 
 test('a trip that sends what it opened never ends while an unkept Scroll it has not opened remains', () => {
   // The review's cases: relevance inside one seen tier would refill the slate with Scrolls this trip
   // already opened, which a client skips. The trip now tells the server what it opened.
-  const bridges = [...state().bridges,
-    { id: 'b.gravity.orbit', from: 'physics.gravity', to: 'astro.orbit', symmetric: false, phraseForward: 'explains', phraseReverse: 'is explained by', fromName: 'Gravity', toName: 'Orbit' },
-    { id: 'b.gravity.seasons', from: 'physics.gravity', to: 'earth.seasons', symmetric: false, phraseForward: 'shapes', phraseReverse: 'is shaped by', fromName: 'Gravity', toName: 'Seasons' }];
+  const bridges = [
+    ...state().bridges,
+    {
+      id: 'b.gravity.orbit',
+      from: 'physics.gravity',
+      to: 'astro.orbit',
+      symmetric: false,
+      phraseForward: 'explains',
+      phraseReverse: 'is explained by',
+      fromName: 'Gravity',
+      toName: 'Orbit',
+    },
+    {
+      id: 'b.gravity.seasons',
+      from: 'physics.gravity',
+      to: 'earth.seasons',
+      symmetric: false,
+      phraseForward: 'shapes',
+      phraseReverse: 'is shaped by',
+      fromName: 'Gravity',
+      toName: 'Seasons',
+    },
+  ];
   const dayAgo = NOW - 24 * HOUR;
   const histories: Record<string, V3State['exposures']> = {
-    uniform: new Map(library.map(a => [a.assetId, { count: 1, lastAtMs: dayAgo }])),
-    uneven: new Map(library.map(a => [a.assetId, { count: a.assetId === 'tides-1' ? 3 : 1, lastAtMs: dayAgo }])),
-    partial: new Map(library.filter((_, i) => i % 2 === 0).map(a => [a.assetId, { count: 1, lastAtMs: dayAgo }])),
+    uniform: new Map(
+      library.map((a) => [a.assetId, { count: 1, lastAtMs: dayAgo }]),
+    ),
+    uneven: new Map(
+      library.map((a) => [
+        a.assetId,
+        { count: a.assetId === 'tides-1' ? 3 : 1, lastAtMs: dayAgo },
+      ]),
+    ),
+    partial: new Map(
+      library
+        .filter((_, i) => i % 2 === 0)
+        .map((a) => [a.assetId, { count: 1, lastAtMs: dayAgo }]),
+    ),
   };
   for (const [name, exposures] of Object.entries(histories)) {
-    let s = state({ bridges, kept: new Set(['gravity-1']), exposures,
-      marks: [{ eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: dayAgo }],
-      served: [...exposures.keys()].map((assetId, i) => ({ assetId, family: null, atMs: dayAgo - i * 1000 })) });
-    const unkept = library.filter(a => !s.kept.has(a.assetId)).map(a => a.assetId);
+    let s = state({
+      bridges,
+      kept: new Set(['gravity-1']),
+      exposures,
+      marks: [
+        { eventId: 'e1', assetId: 'gravity-1', kind: 'keep', atMs: dayAgo },
+      ],
+      served: [...exposures.keys()].map((assetId, i) => ({
+        assetId,
+        family: null,
+        atMs: dayAgo - i * 1000,
+      })),
+    });
+    const unkept = library
+      .filter((a) => !s.kept.has(a.assetId))
+      .map((a) => a.assetId);
     const opened = new Set<string>();
     for (let step = 0; opened.size < unkept.length; step += 1) {
-      const slate = composeSemantic({ ...s, excluded: opened }, COMPOSER_V3_POLICY).selected;
-      const next = slate.find(c => !opened.has(c.assetId));
-      assert.ok(next, `${name}, step ${step}: no unopened Scroll offered while ${unkept.filter(id => !opened.has(id)).join(', ')} remain`);
-      assert.ok(slate.every(c => !opened.has(c.assetId)), `${name}: an opened Scroll was offered again`);
+      const slate = composeSemantic(
+        { ...s, excluded: opened },
+        COMPOSER_V3_POLICY,
+      ).selected;
+      const next = slate.find((c) => !opened.has(c.assetId));
+      assert.ok(
+        next,
+        `${name}, step ${step}: no unopened Scroll offered while ${unkept.filter((id) => !opened.has(id)).join(', ')} remain`,
+      );
+      assert.ok(
+        slate.every((c) => !opened.has(c.assetId)),
+        `${name}: an opened Scroll was offered again`,
+      );
       opened.add(next.assetId);
       const prior = s.exposures.get(next.assetId);
-      s = { ...s, seed: `u1:${step + 20}`, nowMs: s.nowMs + HOUR,
-        exposures: new Map([...s.exposures, [next.assetId, { count: (prior?.count ?? 0) + 1, lastAtMs: s.nowMs }]]),
-        served: [{ assetId: next.assetId, family: next.family, atMs: s.nowMs }, ...s.served] };
+      s = {
+        ...s,
+        seed: `u1:${step + 20}`,
+        nowMs: s.nowMs + HOUR,
+        exposures: new Map([
+          ...s.exposures,
+          [next.assetId, { count: (prior?.count ?? 0) + 1, lastAtMs: s.nowMs }],
+        ]),
+        served: [
+          { assetId: next.assetId, family: next.family, atMs: s.nowMs },
+          ...s.served,
+        ],
+      };
     }
   }
 });
 
 test('only keeping everything exhausts the library, as the established contract says', () => {
   const seenAll = serveHeads(state(), library.length).state;
-  assert.ok(composeSemantic(seenAll, COMPOSER_V3_POLICY).selected.length > 0, 'having seen everything is not the end');
-  const keptAll = { ...seenAll, kept: new Set(library.map(a => a.assetId)) };
-  assert.equal(composeSemantic(keptAll, COMPOSER_V3_POLICY).selected.length, 0, 'an exhausted library returns nothing, not a repeat');
+  assert.ok(
+    composeSemantic(seenAll, COMPOSER_V3_POLICY).selected.length > 0,
+    'having seen everything is not the end',
+  );
+  const keptAll = { ...seenAll, kept: new Set(library.map((a) => a.assetId)) };
+  assert.equal(
+    composeSemantic(keptAll, COMPOSER_V3_POLICY).selected.length,
+    0,
+    'an exhausted library returns nothing, not a repeat',
+  );
 });
 
 test('fatigue and redundant arguments lower a candidate, and the terms are recorded', () => {
   const s = state({
     exposures: exposed('gravity-1'),
     served: [{ assetId: 'gravity-1', family: 'continue', atMs: NOW - HOUR }],
-    assets: [...library, { ...asset('gravity-3', 'physics.gravity', 'nasa.gravity', ['c.gravity.pull'], 10) }],
-    marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }],
+    assets: [
+      ...library,
+      {
+        ...asset(
+          'gravity-3',
+          'physics.gravity',
+          'nasa.gravity',
+          ['c.gravity.pull'],
+          10,
+        ),
+      },
+    ],
+    marks: [
+      { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR },
+    ],
   });
-  const c = composeSemantic(s, COMPOSER_V3_POLICY).candidates.find(x => x.assetId === 'gravity-3' && x.family === 'continue')!;
-  assert.equal(c.terms.redundancy, 0.6, 'same claim already served in the window');
+  const c = composeSemantic(s, COMPOSER_V3_POLICY).candidates.find(
+    (x) => x.assetId === 'gravity-3' && x.family === 'continue',
+  )!;
+  assert.equal(
+    c.terms.redundancy,
+    0.6,
+    'same claim already served in the window',
+  );
   assert.equal(c.terms.fatigue, 0.15);
 });
 
 test('a concept the feed mostly offered cannot earn more than the saturated useful term', () => {
-  const s = state({ accounts: new Map([['physics.gravity', { mass: 50, exposureShare: 0.95 }]]) });
-  const c = composeSemantic(s, COMPOSER_V3_POLICY).candidates.find(x => x.assetId === 'gravity-2')!;
+  const s = state({
+    accounts: new Map([['physics.gravity', { mass: 50, exposureShare: 0.95 }]]),
+  });
+  const c = composeSemantic(s, COMPOSER_V3_POLICY).candidates.find(
+    (x) => x.assetId === 'gravity-2',
+  )!;
   assert.ok(c.terms.useful! <= 0.5);
 });
 
 test('the same recorded state always yields the same slate and records (replay)', () => {
-  const s = state({ exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']), marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }] });
+  const s = state({
+    exposures: exposed('gravity-1'),
+    served: served(['gravity-1', 'seed']),
+    marks: [
+      { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR },
+    ],
+  });
   const a = composeSemantic(s, COMPOSER_V3_POLICY);
   // Round-trip through JSON exactly as a recorded snapshot would be stored, restoring only the
   // top-level collections.
-  const wire = JSON.parse(JSON.stringify({ ...s, concepts: [...s.concepts], kept: [...s.kept], excluded: [...s.excluded], exposures: [...s.exposures], sourceExposures: [...s.sourceExposures], accounts: [...s.accounts] }));
-  const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), excluded: new Set(wire.excluded), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
+  const wire = JSON.parse(
+    JSON.stringify({
+      ...s,
+      concepts: [...s.concepts],
+      kept: [...s.kept],
+      excluded: [...s.excluded],
+      exposures: [...s.exposures],
+      sourceExposures: [...s.sourceExposures],
+      accounts: [...s.accounts],
+    }),
+  );
+  const restored: V3State = {
+    ...wire,
+    concepts: new Map(wire.concepts),
+    kept: new Set(wire.kept),
+    excluded: new Set(wire.excluded),
+    exposures: new Map(wire.exposures),
+    sourceExposures: new Map(wire.sourceExposures),
+    accounts: new Map(wire.accounts),
+  };
   const b = composeSemantic(restored, COMPOSER_V3_POLICY);
   assert.deepEqual(b, a);
 });
@@ -310,90 +785,245 @@ test('the same recorded state always yields the same slate and records (replay)'
 
 /** A Reel minted over a library Scroll: the same concepts and source key, none of its claims. */
 const reelOver = (scrollId: string): V3Asset => {
-  const scroll = library.find(a => a.assetId === scrollId)!;
-  return { ...scroll, assetId: `reel-${scrollId}`, title: `Reel ${scrollId}`, kind: 'Reel', claimKeys: [] };
+  const scroll = library.find((a) => a.assetId === scrollId)!;
+  return {
+    ...scroll,
+    assetId: `reel-${scrollId}`,
+    title: `Reel ${scrollId}`,
+    kind: 'Reel',
+    claimKeys: [],
+  };
 };
-const reels = ['gravity-1', 'tides-1', 'seasons-1', 'orbit-1', 'body-1'].map(reelOver);
-const cites = (c: V3Candidate, assetId: string) => c.evidence.some(e => e.kind === 'mark' && e.assetId === assetId);
+const reels = ['gravity-1', 'tides-1', 'seasons-1', 'orbit-1', 'body-1'].map(
+  reelOver,
+);
+const cites = (c: V3Candidate, assetId: string) =>
+  c.evidence.some((e) => e.kind === 'mark' && e.assetId === assetId);
 
 test('a kept Reel grounds a Scroll-only composition from its primary concept, and is never itself offered there', () => {
   const reel = reelOver('tides-1');
-  const s = state({ history: [reel], exposures: exposed(reel.assetId), served: served([reel.assetId, 'seed']),
-    marks: [{ eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR }] });
+  const s = state({
+    history: [reel],
+    exposures: exposed(reel.assetId),
+    served: served([reel.assetId, 'seed']),
+    marks: [
+      { eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR },
+    ],
+  });
   const result = composeSemantic(s, COMPOSER_V3_POLICY);
-  assert.ok(result.candidates.some(c => c.family === 'continue' && c.assetId === 'tides-1' && cites(c, reel.assetId)), 'continues the Reel\'s primary idea');
-  assert.ok(result.candidates.some(c => c.family === 'bridge' && c.assetId === 'gravity-1' && cites(c, reel.assetId)), 'crosses the connection from it');
-  assert.ok(cites(result.selected[0]!, reel.assetId), 'the head names the kept Reel');
+  assert.ok(
+    result.candidates.some(
+      (c) =>
+        c.family === 'continue' &&
+        c.assetId === 'tides-1' &&
+        cites(c, reel.assetId),
+    ),
+    "continues the Reel's primary idea",
+  );
+  assert.ok(
+    result.candidates.some(
+      (c) =>
+        c.family === 'bridge' &&
+        c.assetId === 'gravity-1' &&
+        cites(c, reel.assetId),
+    ),
+    'crosses the connection from it',
+  );
+  assert.ok(
+    cites(result.selected[0]!, reel.assetId),
+    'the head names the kept Reel',
+  );
   assert.equal(result.selected[0]!.facts.markTitle, 'Reel tides-1');
-  assert.ok(!result.candidates.some(c => c.assetId === reel.assetId), 'a kind the client did not ask for is never a candidate');
+  assert.ok(
+    !result.candidates.some((c) => c.assetId === reel.assetId),
+    'a kind the client did not ask for is never a candidate',
+  );
 });
 
 test('a Scroll kept in Scroll mode grounds Reel mode: the next Reel crosses the connection from it', () => {
-  const s = state({ assets: reels, history: library, exposures: exposed('gravity-1'), served: served(['gravity-1', 'seed']),
-    marks: [{ eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR }] });
+  const s = state({
+    assets: reels,
+    history: library,
+    exposures: exposed('gravity-1'),
+    served: served(['gravity-1', 'seed']),
+    marks: [
+      { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - HOUR },
+    ],
+  });
   const head = composeSemantic(s, COMPOSER_V3_POLICY).selected[0]!;
-  assert.deepEqual([head.assetId, head.family, head.facts.toName], ['reel-tides-1', 'bridge', 'Tides']);
+  assert.deepEqual(
+    [head.assetId, head.family, head.facts.toName],
+    ['reel-tides-1', 'bridge', 'Tides'],
+  );
   assert.ok(cites(head, 'gravity-1'));
 });
 
 test('with Reels in the pool: one door per domain at cold start, a Reel never shares a slate with its own Scroll, and nothing starves', () => {
   const s = state({ assets: [...library, ...reels] });
   const cold = composeSemantic(s, COMPOSER_V3_POLICY).selected;
-  assert.equal(new Set(cold.map(c => c.facts.domainName)).size, cold.length);
+  assert.equal(new Set(cold.map((c) => c.facts.domainName)).size, cold.length);
   const walk = serveHeads(s, library.length + reels.length);
-  assert.deepEqual([...walk.order].sort(), [...library, ...reels].map(a => a.assetId).sort(), 'every Scroll and Reel once before any repeat');
+  assert.deepEqual(
+    [...walk.order].sort(),
+    [...library, ...reels].map((a) => a.assetId).sort(),
+    'every Scroll and Reel once before any repeat',
+  );
   let seen = walk.state;
   for (let i = 0; i < 6; i += 1) {
     const slate = composeSemantic(seen, COMPOSER_V3_POLICY).selected;
-    const primaries = slate.map(c => [...library, ...reels].find(a => a.assetId === c.assetId)!.primary).filter(p => p !== null);
-    assert.equal(new Set(primaries).size, primaries.length, `slate ${i} repeats an idea: ${slate.map(c => c.assetId)}`);
+    const primaries = slate
+      .map(
+        (c) =>
+          [...library, ...reels].find((a) => a.assetId === c.assetId)!.primary,
+      )
+      .filter((p) => p !== null);
+    assert.equal(
+      new Set(primaries).size,
+      primaries.length,
+      `slate ${i} repeats an idea: ${slate.map((c) => c.assetId)}`,
+    );
     seen = { ...seen, seed: `u1:slate-${i}` };
   }
 });
 
 test('a reader who only skips is never served a Reel right after its own Scroll, or the reverse', () => {
   const pool = [...library, ...reels];
-  const primaryOf = (id: string) => pool.find(a => a.assetId === id)!.primary;
+  const primaryOf = (id: string) => pool.find((a) => a.assetId === id)!.primary;
   for (const seed of ['u1:0', 'u2:0', 'u3:0']) {
-    const { order } = serveHeads(state({ seed, assets: pool }), pool.length * 2);
+    const { order } = serveHeads(
+      state({ seed, assets: pool }),
+      pool.length * 2,
+    );
     for (let i = 1; i < order.length; i += 1) {
       const [before, now] = [order[i - 1]!, order[i]!];
-      assert.ok(primaryOf(before) === null || primaryOf(before) !== primaryOf(now), `${seed}: ${before} then ${now}`);
+      assert.ok(
+        primaryOf(before) === null || primaryOf(before) !== primaryOf(now),
+        `${seed}: ${before} then ${now}`,
+      );
     }
   }
 });
 
 test('replay with Reels, under v3 and v4: the same recorded state and seed give the same slate, records and explanation facts', () => {
   const reel = reelOver('tides-1');
-  const s = state({ assets: [...library, ...reels.filter(r => r.assetId !== reel.assetId)], history: [reel],
-    exposures: exposed('gravity-1', reel.assetId), served: served([reel.assetId, 'bridge'], ['gravity-1', 'seed']),
-    marks: [{ eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR }, { eventId: 'k1', assetId: 'gravity-1', kind: 'keep', atMs: NOW - 2 * HOUR }] });
-  const wire = JSON.parse(JSON.stringify({ ...s, concepts: [...s.concepts], kept: [...s.kept], excluded: [...s.excluded], exposures: [...s.exposures], sourceExposures: [...s.sourceExposures], accounts: [...s.accounts] }));
-  const restored: V3State = { ...wire, concepts: new Map(wire.concepts), kept: new Set(wire.kept), excluded: new Set(wire.excluded), exposures: new Map(wire.exposures), sourceExposures: new Map(wire.sourceExposures), accounts: new Map(wire.accounts) };
-  const template = '{{fromName}} {{relationPhrase}} {{toName}} / {{conceptName}} / {{markVerb}} {{markTitle}} / {{domainName}}';
+  const s = state({
+    assets: [...library, ...reels.filter((r) => r.assetId !== reel.assetId)],
+    history: [reel],
+    exposures: exposed('gravity-1', reel.assetId),
+    served: served([reel.assetId, 'bridge'], ['gravity-1', 'seed']),
+    marks: [
+      { eventId: 'kr', assetId: reel.assetId, kind: 'keep', atMs: NOW - HOUR },
+      {
+        eventId: 'k1',
+        assetId: 'gravity-1',
+        kind: 'keep',
+        atMs: NOW - 2 * HOUR,
+      },
+    ],
+  });
+  const wire = JSON.parse(
+    JSON.stringify({
+      ...s,
+      concepts: [...s.concepts],
+      kept: [...s.kept],
+      excluded: [...s.excluded],
+      exposures: [...s.exposures],
+      sourceExposures: [...s.sourceExposures],
+      accounts: [...s.accounts],
+    }),
+  );
+  const restored: V3State = {
+    ...wire,
+    concepts: new Map(wire.concepts),
+    kept: new Set(wire.kept),
+    excluded: new Set(wire.excluded),
+    exposures: new Map(wire.exposures),
+    sourceExposures: new Map(wire.sourceExposures),
+    accounts: new Map(wire.accounts),
+  };
+  const template =
+    '{{fromName}} {{relationPhrase}} {{toName}} / {{conceptName}} / {{markVerb}} {{markTitle}} / {{domainName}}';
   for (const policy of [COMPOSER_V3_POLICY, COMPOSER_V4_POLICY]) {
     const a = composeSemantic(s, policy);
     const b = composeSemantic(restored, policy);
     assert.deepEqual(b, a, policy.version);
-    assert.deepEqual(b.selected.map(c => renderReason(template, c.facts)), a.selected.map(c => renderReason(template, c.facts)));
-    assert.ok(a.selected.some(c => cites(c, reel.assetId)), `${policy.version}: the replayed slate still names the kept Reel`);
+    assert.deepEqual(
+      b.selected.map((c) => renderReason(template, c.facts)),
+      a.selected.map((c) => renderReason(template, c.facts)),
+    );
+    assert.ok(
+      a.selected.some((c) => cites(c, reel.assetId)),
+      `${policy.version}: the replayed slate still names the kept Reel`,
+    );
   }
 });
 
 test('composer-semantic-v4 (ADR-0043 §7): a tie never favours one kind because of how its ids are spelled', () => {
   // The editorial Scrolls' ids are sequential; a Reel's is random. Everything here ties at cold
   // start (one door per unshown domain, equal terms), so only the tie-break orders the slate.
-  const uuid = (text: string) => { const h = createHash('sha256').update(text).digest('hex'); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`; };
-  const scrolls: V3Asset[] = Array.from({ length: 23 }, (_, i) => ({ assetId: `20000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, title: `S${i}`, kind: 'Scroll',
-    sourceKey: `src${i}`, editorialOrder: i, primary: `k${i}`, concepts: [{ code: `k${i}`, role: 'primary' }], claimKeys: [] }));
+  const uuid = (text: string) => {
+    const h = createHash('sha256').update(text).digest('hex');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+  };
+  const scrolls: V3Asset[] = Array.from({ length: 23 }, (_, i) => ({
+    assetId: `20000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+    title: `S${i}`,
+    kind: 'Scroll',
+    sourceKey: `src${i}`,
+    editorialOrder: i,
+    primary: `k${i}`,
+    concepts: [{ code: `k${i}`, role: 'primary' }],
+    claimKeys: [],
+  }));
   const reelIds = new Set<string>();
-  const minted = scrolls.slice(0, 12).map((s, i) => { const r: V3Asset = { ...s, assetId: uuid(`reel-${i}`), title: `R${i}`, kind: 'Reel' }; reelIds.add(r.assetId); return r; });
-  const flat = state({ concepts: new Map(scrolls.map(s => [s.primary!, { code: s.primary!, name: s.primary!, parentCode: null }])), assets: [...scrolls, ...minted], bridges: [], contradictions: [] });
-  const seeds = Array.from({ length: 400 }, (_, i) => `${uuid(`universe-${i}`)}:0`);
-  const reelHeads = (policy: V3Policy) => seeds.filter(seed => reelIds.has(composeSemantic({ ...flat, seed }, policy).selected[0]!.assetId)).length / seeds.length;
+  const minted = scrolls.slice(0, 12).map((s, i) => {
+    const r: V3Asset = {
+      ...s,
+      assetId: uuid(`reel-${i}`),
+      title: `R${i}`,
+      kind: 'Reel',
+    };
+    reelIds.add(r.assetId);
+    return r;
+  });
+  const flat = state({
+    concepts: new Map(
+      scrolls.map((s) => [
+        s.primary!,
+        { code: s.primary!, name: s.primary!, parentCode: null },
+      ]),
+    ),
+    assets: [...scrolls, ...minted],
+    bridges: [],
+    contradictions: [],
+  });
+  const seeds = Array.from(
+    { length: 400 },
+    (_, i) => `${uuid(`universe-${i}`)}:0`,
+  );
+  const reelHeads = (policy: V3Policy) =>
+    seeds.filter((seed) =>
+      reelIds.has(
+        composeSemantic({ ...flat, seed }, policy).selected[0]!.assetId,
+      ),
+    ).length / seeds.length;
   const fair = minted.length / (scrolls.length + minted.length);
   const v4 = reelHeads(COMPOSER_V4_POLICY);
-  assert.ok(Math.abs(v4 - fair) < 0.07, `v4 heads a cold start with a Reel ${v4} of the time; fair is ${fair.toFixed(3)}`);
-  assert.ok(reelHeads(COMPOSER_V3_POLICY) > 0.6, 'the defect v4 exists to fix: v3 heads most cold starts with a Reel');
-  assert.deepEqual({ ...COMPOSER_V4_POLICY, version: COMPOSER_V3_POLICY.version, tieBreak: COMPOSER_V3_POLICY.tieBreak }, COMPOSER_V3_POLICY, 'v4 changes the tie-break and nothing else');
+  assert.ok(
+    Math.abs(v4 - fair) < 0.07,
+    `v4 heads a cold start with a Reel ${v4} of the time; fair is ${fair.toFixed(3)}`,
+  );
+  assert.ok(
+    reelHeads(COMPOSER_V3_POLICY) > 0.6,
+    'the defect v4 exists to fix: v3 heads most cold starts with a Reel',
+  );
+  assert.deepEqual(
+    {
+      ...COMPOSER_V4_POLICY,
+      version: COMPOSER_V3_POLICY.version,
+      tieBreak: COMPOSER_V3_POLICY.tieBreak,
+    },
+    COMPOSER_V3_POLICY,
+    'v4 changes the tie-break and nothing else',
+  );
 });

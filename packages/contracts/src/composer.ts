@@ -4,6 +4,7 @@
  * fields and a rendered `reason`; the recorded family, terms and evidence path are read on demand.
  */
 import { z } from 'zod';
+import { privacyEpoch, uuid } from './primitives.ts';
 
 export const encounterFeedbackKind = z.enum([
   'less_like_this',
@@ -13,11 +14,11 @@ export type EncounterFeedbackKind = z.infer<typeof encounterFeedbackKind>;
 
 export const encounterFeedbackInput = z
   .object({
-    clientFeedbackId: z.string().uuid(),
-    decisionId: z.string().uuid(),
-    assetId: z.string().uuid(),
+    clientFeedbackId: uuid,
+    decisionId: uuid,
+    assetId: uuid,
     kind: encounterFeedbackKind,
-    expectedPrivacyEpoch: z.number().int().min(0).max(2147483647),
+    expectedPrivacyEpoch: privacyEpoch,
   })
   .strict();
 export type EncounterFeedbackInput = z.infer<typeof encounterFeedbackInput>;

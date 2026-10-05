@@ -27,18 +27,43 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { createMiniMaxAnswerTransport } from '../../apps/worker/src/providers/minimax-answer.ts';
-import { createFixtureScrollTransport, SCROLL_FIXTURE_MODES, type ScrollFixtureMode } from '../../apps/worker/src/providers/scroll-fixture.ts';
-import type { ScrollItemResult, ScrollTransport, WriteScrollDeps } from '../../apps/worker/src/scrolls/write-scroll.ts';
-import { MATERIAL_POLICY_VERSION } from '../../packages/core/src/scrolls/material.ts';
-import { SCROLL_WRITING_VERSIONS, scrollPlanItem, type ScrollPlanItem } from '../../packages/core/src/scrolls/writing.ts';
-import { assertDisposableDatabaseName, localDisposableDatabaseUrl } from '../lib/demo-database-guard.ts';
-import { countLedgerRequest, sessionLedgerPath } from '../lib/session-ledger.ts';
+import {
+  createFixtureScrollTransport,
+  SCROLL_FIXTURE_MODES,
+  type ScrollFixtureMode,
+} from '../../apps/worker/src/providers/fixtures/scroll.ts';
+import type {
+  ScrollItemResult,
+  WriteScrollDeps,
+} from '../../apps/worker/src/scrolls/write-scroll.ts';
+import type { ScrollTransport } from '../../apps/worker/src/providers/transports.ts';
+import { MATERIAL_POLICY_VERSION } from '@knowscroll/core/scrolls/material';
+import {
+  SCROLL_WRITING_VERSIONS,
+  scrollPlanItem,
+  type ScrollPlanItem,
+} from '@knowscroll/core/scrolls/writing';
+import {
+  assertDisposableDatabaseName,
+  localDisposableDatabaseUrl,
+} from '../lib/demo-database-guard.ts';
+import {
+  countLedgerRequest,
+  sessionLedgerPath,
+} from '../lib/session-ledger.ts';
 
 type Gate = WriteScrollDeps['beforeSend'];
 
 /** Before each live request: the transport's quota preflight, then one count in the session ledger. */
-export function liveRequestGate(transport: { ready(signal: AbortSignal): Promise<{ ok: true } | { ok: false; reason: string }> }, ledgerPath: string,
-  run: { at: string; database: string; kind: string }): { beforeSend: Gate; ledger: () => { used: number; cap: number } | null } {
+export function liveRequestGate(
+  transport: {
+    ready(
+      signal: AbortSignal,
+    ): Promise<{ ok: true } | { ok: false; reason: string }>;
+  },
+  ledgerPath: string,
+  run: { at: string; database: string; kind: string },
+): { beforeSend: Gate; ledger: () => { used: number; cap: number } | null } {
   let last: { used: number; cap: number } | null = null;
   return {
     async beforeSend(signal) {
@@ -54,9 +79,23 @@ export function liveRequestGate(transport: { ready(signal: AbortSignal): Promise
 }
 
 export interface WriteScrollsReceipt {
-  at: string; database: string; transport: 'fixture' | 'minimax'; model: string; apply: boolean;
-  versions: Record<string, string>; planSha256: string;
-  counts: { planned: number; admitted: number; refused: number; alreadyDecided: number; ready: number; notSent: number; failed: number; notAttempted: number };
+  at: string;
+  database: string;
+  transport: 'fixture' | 'minimax';
+  model: string;
+  apply: boolean;
+  versions: Record<string, string>;
+  planSha256: string;
+  counts: {
+    planned: number;
+    admitted: number;
+    refused: number;
+    alreadyDecided: number;
+    ready: number;
+    notSent: number;
+    failed: number;
+    notAttempted: number;
+  };
   /** The item at which a refusal of the route ended the run. */
   stopped: { index: number; reason: string } | null;
   ledger: { used: number; cap: number } | null;
@@ -64,11 +103,26 @@ export interface WriteScrollsReceipt {
 }
 
 export async function runWriteScrolls(
-  options: { database: string; plan: readonly ScrollPlanItem[]; apply: boolean; at: string; signal?: AbortSignal },
-  deps: { transport: ScrollTransport; model: string; beforeSend: Gate; ledger?: () => { used: number; cap: number } | null; fetchImpl?: typeof fetch; receiptDir: string },
+  options: {
+    database: string;
+    plan: readonly ScrollPlanItem[];
+    apply: boolean;
+    at: string;
+    signal?: AbortSignal;
+  },
+  deps: {
+    transport: ScrollTransport;
+    model: string;
+    beforeSend: Gate;
+    ledger?: () => { used: number; cap: number } | null;
+    fetchImpl?: typeof fetch;
+    receiptDir: string;
+  },
 ): Promise<{ receipt: WriteScrollsReceipt; path: string }> {
   // Loaded only now: the database module connects to DATABASE_URL, which the caller has checked.
-  const { writeScroll } = await import('../../apps/worker/src/scrolls/write-scroll.ts');
+  const { writeScroll } = await import(
+    '../../apps/worker/src/scrolls/write-scroll.ts'
+  );
   const items: WriteScrollsReceipt['items'] = [];
   let stopped: WriteScrollsReceipt['stopped'] = null;
   // Anything unexpected (a database or ledger failure) still leaves a receipt of what was done.
@@ -76,27 +130,59 @@ export async function runWriteScrolls(
   for (const [index, item] of options.plan.entries()) {
     let result: ScrollItemResult;
     try {
-      result = await writeScroll({
-        transport: deps.transport, model: deps.model, apply: options.apply, beforeSend: deps.beforeSend,
-        signal: options.signal ?? new AbortController().signal, fetchImpl: deps.fetchImpl,
-      }, item);
-    } catch (error) { failure = error; stopped = { index, reason: 'unexpected_error' }; break; }
+      result = await writeScroll(
+        {
+          transport: deps.transport,
+          model: deps.model,
+          apply: options.apply,
+          beforeSend: deps.beforeSend,
+          signal: options.signal ?? new AbortController().signal,
+          fetchImpl: deps.fetchImpl,
+        },
+        item,
+      );
+    } catch (error) {
+      failure = error;
+      stopped = { index, reason: 'unexpected_error' };
+      break;
+    }
     items.push({ index, ...result });
-    if (result.status === 'not_sent' || result.status === 'failed') { stopped = { index, reason: result.reasons[0]! }; break; }
+    if (result.status === 'not_sent' || result.status === 'failed') {
+      stopped = { index, reason: result.reasons[0]! };
+      break;
+    }
   }
-  const count = (status: ScrollItemResult['status']) => items.filter(i => i.status === status).length;
+  const count = (status: ScrollItemResult['status']) =>
+    items.filter((i) => i.status === status).length;
   const receipt: WriteScrollsReceipt = {
-    at: options.at, database: options.database, transport: deps.transport.kind, model: deps.model, apply: options.apply,
+    at: options.at,
+    database: options.database,
+    transport: deps.transport.kind,
+    model: deps.model,
+    apply: options.apply,
     versions: { ...SCROLL_WRITING_VERSIONS, hosts: MATERIAL_POLICY_VERSION },
-    planSha256: createHash('sha256').update(JSON.stringify(options.plan)).digest('hex'),
+    planSha256: createHash('sha256')
+      .update(JSON.stringify(options.plan))
+      .digest('hex'),
     counts: {
-      planned: options.plan.length, admitted: count('admitted'), refused: count('refused'), alreadyDecided: count('already_decided'),
-      ready: count('ready'), notSent: count('not_sent'), failed: count('failed'), notAttempted: options.plan.length - items.length,
+      planned: options.plan.length,
+      admitted: count('admitted'),
+      refused: count('refused'),
+      alreadyDecided: count('already_decided'),
+      ready: count('ready'),
+      notSent: count('not_sent'),
+      failed: count('failed'),
+      notAttempted: options.plan.length - items.length,
     },
-    stopped, ledger: deps.ledger?.() ?? null, items,
+    stopped,
+    ledger: deps.ledger?.() ?? null,
+    items,
   };
   mkdirSync(deps.receiptDir, { recursive: true });
-  const path = resolve(deps.receiptDir, `${options.at.replace(/[:.]/g, '-')}-${options.database}.receipt.json`);
+  const path = resolve(
+    deps.receiptDir,
+    `${options.at.replace(/[:.]/g, '-')}-${options.database}.receipt.json`,
+  );
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
   if (failure) throw failure;
   return { receipt, path };
@@ -108,50 +194,121 @@ function refuse(message: string): number {
 }
 
 const OPTIONS = {
-  database: { type: 'string' }, plan: { type: 'string' }, transport: { type: 'string' }, 'fixture-mode': { type: 'string' }, apply: { type: 'boolean' },
+  database: { type: 'string' },
+  plan: { type: 'string' },
+  transport: { type: 'string' },
+  'fixture-mode': { type: 'string' },
+  apply: { type: 'boolean' },
 } as const;
-const readArgs = (argv: string[]) => parseArgs({ args: argv, strict: true, options: OPTIONS }).values;
+const readArgs = (argv: string[]) =>
+  parseArgs({ args: argv, strict: true, options: OPTIONS }).values;
 
 async function main(argv: string[]): Promise<number> {
   let args: ReturnType<typeof readArgs>;
-  try { args = readArgs(argv); } catch (error) { return refuse((error as Error).message); }
-  const { database, plan: planPath, transport: kind, 'fixture-mode': fixtureMode = 'scroll', apply = false } = args;
-  if (!database || !planPath || (kind !== 'fixture' && kind !== 'minimax')) return refuse('pass --database, --plan and --transport fixture|minimax.');
-  try { assertDisposableDatabaseName(database); } catch (error) { return refuse((error as Error).message); }
+  try {
+    args = readArgs(argv);
+  } catch (error) {
+    return refuse((error as Error).message);
+  }
+  const {
+    database,
+    plan: planPath,
+    transport: kind,
+    'fixture-mode': fixtureMode = 'scroll',
+    apply = false,
+  } = args;
+  if (!database || !planPath || (kind !== 'fixture' && kind !== 'minimax'))
+    return refuse('pass --database, --plan and --transport fixture|minimax.');
+  try {
+    assertDisposableDatabaseName(database);
+  } catch (error) {
+    return refuse((error as Error).message);
+  }
   let plan: ScrollPlanItem[];
-  try { plan = z.array(scrollPlanItem).min(1).parse(JSON.parse(readFileSync(planPath, 'utf8'))); }
-  catch { return refuse('the plan must be a JSON array of {"url", "conceptCodes"} with one to eight distinct concept codes each.'); }
-  if (!SCROLL_FIXTURE_MODES.includes(fixtureMode as ScrollFixtureMode)) return refuse(`--fixture-mode is one of ${SCROLL_FIXTURE_MODES.join(', ')}.`);
+  try {
+    plan = z
+      .array(scrollPlanItem)
+      .min(1)
+      .parse(JSON.parse(readFileSync(planPath, 'utf8')));
+  } catch {
+    return refuse(
+      'the plan must be a JSON array of {"url", "conceptCodes"} with one to eight distinct concept codes each.',
+    );
+  }
+  if (!SCROLL_FIXTURE_MODES.includes(fixtureMode as ScrollFixtureMode))
+    return refuse(
+      `--fixture-mode is one of ${SCROLL_FIXTURE_MODES.join(', ')}.`,
+    );
 
   const at = new Date().toISOString();
   let transport: ScrollTransport;
   let gate: ReturnType<typeof liveRequestGate>;
   if (kind === 'minimax') {
     const apiKey = process.env.MINIMAX_API_KEY ?? '';
-    if (!apiKey.startsWith('sk-cp-')) return refuse('--transport minimax needs a MiniMax subscription (sk-cp-) key in MINIMAX_API_KEY.');
-    if (!process.env.KS_DEV_ROOT) return refuse('source scripts/env.sh first: the session ledger lives under KS_DEV_ROOT.');
+    if (!apiKey.startsWith('sk-cp-'))
+      return refuse(
+        '--transport minimax needs a MiniMax subscription (sk-cp-) key in MINIMAX_API_KEY.',
+      );
+    if (!process.env.KS_DEV_ROOT)
+      return refuse(
+        'source scripts/env.sh first: the session ledger lives under KS_DEV_ROOT.',
+      );
     const live = createMiniMaxAnswerTransport({ apiKey });
     transport = live;
-    gate = liveRequestGate(live, sessionLedgerPath(process.env.KS_DEV_ROOT), { at, database, kind: 'scroll' });
+    gate = liveRequestGate(live, sessionLedgerPath(process.env.KS_DEV_ROOT), {
+      at,
+      database,
+      kind: 'scroll',
+    });
   } else {
-    transport = createFixtureScrollTransport(() => fixtureMode as ScrollFixtureMode);
+    transport = createFixtureScrollTransport(
+      () => fixtureMode as ScrollFixtureMode,
+    );
     gate = { beforeSend: async () => ({ ok: true }), ledger: () => null };
   }
 
-  try { process.env.DATABASE_URL = localDisposableDatabaseUrl(database); } catch (error) { return refuse((error as Error).message); }
+  try {
+    process.env.DATABASE_URL = localDisposableDatabaseUrl(database);
+  } catch (error) {
+    return refuse((error as Error).message);
+  }
 
   const stop = new AbortController();
   process.once('SIGINT', () => stop.abort());
-  const { pool } = await import('../../packages/db/src/index.ts');
+  const { pool } = await import('@knowscroll/db');
   try {
-    const { receipt, path } = await runWriteScrolls({ database, plan, apply, at, signal: stop.signal },
-      { transport, model: kind === 'minimax' ? 'MiniMax-M3' : 'fixture-model', beforeSend: gate.beforeSend, ledger: gate.ledger, receiptDir: resolve('artifacts/scroll-writing') });
-    console.log(JSON.stringify({ receipt: path, counts: receipt.counts, stopped: receipt.stopped, ledger: receipt.ledger }, null, 2));
+    const { receipt, path } = await runWriteScrolls(
+      { database, plan, apply, at, signal: stop.signal },
+      {
+        transport,
+        model: kind === 'minimax' ? 'MiniMax-M3' : 'fixture-model',
+        beforeSend: gate.beforeSend,
+        ledger: gate.ledger,
+        receiptDir: resolve('artifacts/scroll-writing'),
+      },
+    );
+    console.log(
+      JSON.stringify(
+        {
+          receipt: path,
+          counts: receipt.counts,
+          stopped: receipt.stopped,
+          ledger: receipt.ledger,
+        },
+        null,
+        2,
+      ),
+    );
     return receipt.stopped ? 1 : 0;
-  } finally { await pool.end(); }
+  } finally {
+    await pool.end();
+  }
 }
 
 // pathToFileURL, not string concatenation: the SSD path contains a space (verify-substrate.ts).
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   process.exitCode = await main(process.argv.slice(2));
 }

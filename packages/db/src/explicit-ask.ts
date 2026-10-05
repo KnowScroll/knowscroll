@@ -1,14 +1,20 @@
+/**
+ * Records an explicit Ask: a reader's question about an exposed Scroll. The ledger key and the
+ * stored payload are what make a retry replay the same receipt; the same client ask id with
+ * different content is refused as a conflict. The source exposure and its asset are re-read and the
+ * authenticated scope rechecked after the asset lock wait, so a correction or Reset that landed
+ * meanwhile refuses the Ask instead of recording against stale ground.
+ */
 import { createHash, randomUUID } from 'node:crypto';
-import type pg from 'pg';
-
 import {
-  explicitAskInput,
-  exposureInput,
   type ExplicitAskInput,
   type ExplicitAskReceipt,
+  explicitAskInput,
+  exposureInput,
   type ScrollAsset,
-} from '../../contracts/src/index.ts';
-import { UnauthorizedSession, type AuthScope } from './identity.ts';
+} from '@knowscroll/contracts';
+import type pg from 'pg';
+import { type AuthScope, UnauthorizedSession } from './identity.ts';
 
 export class ExplicitAskError extends Error {
   constructor(
@@ -47,6 +53,8 @@ type SourceRow = {
 
 const ASK_LEDGER_KEY_DOMAIN = 'knowscroll:explicit-ask:ledger-key:v1';
 
+// Throws on non-JSON values (undefined, functions), unlike core's `canonical`, so the two are not
+// interchangeable; the Ask ledger key and replay comparison depend on that refusal.
 function canonical(value: unknown): string {
   if (
     value === null ||

@@ -17,7 +17,7 @@ function loaded(traceCount: number) {
 }
 
 describe('UniverseScreen', () => {
-  it('offers a real way into the system level once the universe has bodies to group', () => {
+  it('offers a real way into the Atlas once the universe has bodies to group', () => {
     const onEnterSystem = vi.fn();
     render(
       <UniverseScreen
@@ -34,13 +34,13 @@ describe('UniverseScreen', () => {
     // A control, not a decorative label. The label read "SYSTEM VIEW" on one surface while
     // doing nothing at all, which claimed a depth that surface could not reach; the level is
     // real now (#116), so the label has to actually go there.
-    const control = screen.getByRole('button', { name: 'Open the system view' });
+    const control = screen.getByRole('button', { name: 'Atlas — open your places' });
     expect(control).toBeInTheDocument();
     fireEvent.click(control);
     expect(onEnterSystem).toHaveBeenCalledTimes(1);
   });
 
-  it('offers system inspection even when no Traces have been kept', () => {
+  it('offers Atlas inspection even when no Traces have been kept', () => {
     render(
       <UniverseScreen
         state={loaded(0)}
@@ -54,7 +54,7 @@ describe('UniverseScreen', () => {
     );
 
     // No Keep does not imply no encounters. The API, not this collection count, owns the empty system.
-    expect(screen.getByRole('button', { name: 'Open the system view' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atlas — open your places' })).toBeInTheDocument();
   });
 
   it('offers a real way into the privacy panel regardless of whether anything has been kept (#119)', () => {
