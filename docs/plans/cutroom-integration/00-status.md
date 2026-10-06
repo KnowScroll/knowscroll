@@ -30,6 +30,15 @@ now runs there:
 
 Decision 3 below (a new test database) is answered by stage's own database.
 
+**Shared Reel pool (owner, 2026-10-06, #201 Gate 3 review).** Stage and dev share one Cutroom
+service, `cutroom-pool`, and one pool of Reels; live has its own `cutroom-live`. Only stage orders
+paid runs. Dev has no paid grant: it receives the pool's Reels and tests for free with a temporary
+stand-in Cutroom. This plan's Gate 2 must design:
+
+- how one pooled run is imported into both databases;
+- a request identity that both worlds can reconcile (so a replay never pays twice);
+- counting spend once against the $2 cap.
+
 ## Notes for a fresh session
 
 Decisions the owner made in chat on 2026-10-05. They are recorded here so none lives only in chat:
