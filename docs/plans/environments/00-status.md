@@ -8,14 +8,21 @@ stops for the owner's explicit approval. No implementation code, server change o
 change before the Gate 4 slice plan is approved. Read-only inspection of the VPS is allowed once
 the owner has added the agent's SSH key.
 
-- Gate 1 — Product: in progress
-- Gate 2 — Architecture: pending (needs read-only VPS access first)
+- Gate 1 — Product: APPROVED 2026-10-06 (answers recorded in 01-product.md)
+- Gate 2 — Architecture: in progress (read-only VPS inspection first)
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
 
 ## Slices
 
 Written at Gate 4.
+
+## Owner-requested exception before Gate 4
+
+On 2026-10-06 the owner asked for the server to be SSH-protected as soon as the agent has key
+access. That one change, **password login off and key-only root**, is made before Gate 4 because
+the box is otherwise open to password guessing. Everything else (users, firewall, services) waits
+for the slice plan. The Hostinger web console stays a way in that does not depend on SSH.
 
 ## Relationship to the Cutroom plan
 

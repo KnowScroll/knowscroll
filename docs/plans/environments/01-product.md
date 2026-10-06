@@ -1,6 +1,7 @@
 # Product: three places KnowScroll runs — dev, stage and live
 
-Gate 1 — no technical language. Status: in progress.
+Gate 1 — no technical language. Status: **APPROVED 2026-10-06**. The owner answered all four questions
+and asked to proceed with this feature first.
 
 ## Problem
 
@@ -73,30 +74,33 @@ clear line between "being built", "ready to try" and "live", so there is also no
   This is the only new UI.
 - Everything else is the existing app at a new address.
 
-## What only you can do (needed before Gate 2)
+## Addresses (owner decision, 2026-10-06)
 
-1. **Add the agent's SSH key** in hPanel (VPS → Settings → SSH keys), or paste one line in hPanel's
-   browser terminal. The public key (`ssh-ed25519 …4oFY knowscroll-agent@comreton-mac`) was given in chat on 2026-10-06. Don't send the
-   password anywhere.
-2. **Tell me the server's IP address and operating system.** If it isn't installed yet, Ubuntu
-   24.04 LTS is my recommendation.
-3. **Later, not now:** add the DNS records in hPanel (I'll give the exact list at Gate 2). Before
-   Play: the Google Play developer account ($25, once), the release keystore, and the prod mail
-   credentials (release inputs 2–3).
+No environment word in the address means live.
 
-## Questions for you at this gate
+| World | Web app | Backend |
+|---|---|---|
+| Live | `app.knowscroll.space` | `backend.knowscroll.space` |
+| Stage | `app.stage.knowscroll.space` | `backend.stage.knowscroll.space` |
+| Dev | `app.dev.knowscroll.space` | `backend.dev.knowscroll.space` |
 
-1. **Live's addresses.** Keep `app.prod.knowscroll.space` and `backend.prod.knowscroll.space`, or
-   use the shorter `app.knowscroll.space` and `backend.knowscroll.space`? The shorter form reads
-   better in sign-in emails and on the phone. Stage and Dev keep `.stage.` and `.dev.` either way.
-2. **Getting Stage and Dev onto your phone.** My suggestion:
-   - Dev: a download page on the dev site. It updates often, so it should be quick.
-   - Stage: Google Play's internal testing. It installs and updates like a real app, and needs the
-     Play account that live needs anyway.
+The bare `knowscroll.space` sends you to live. Stage and Dev each have a download page for their
+phone app at `/download`, behind sign-in.
 
-   The alternative is a download page for both. Which?
-3. **The other two admins (`XZNON`, `Asrani-Aman`).** May they move changes to stage? To live? Or
-   is live yours alone?
-4. **Order of work.** I suggest this feature goes first, as far as a working dev world. Then the
-   Cutroom work runs on dev (free) and stage (real reels), as its plan now says. Or do you want
-   Cutroom to continue locally in parallel?
+## Answers at this gate (2026-10-06)
+
+1. **Live's addresses:** the shorter form, as in the table above.
+2. **Phone installs:** a download page for **both** Stage and Dev. Live comes from Google Play.
+3. **Other admins:** `XZNON` may move changes too. `Asrani-Aman` was not named and does not.
+   Whether XZNON's right reaches live or stops at stage is confirmed at Gate 2.
+4. **Order:** this feature goes first, as far as a working dev world. Then Cutroom runs on dev
+   (free) and stage (real reels).
+
+## What only you can do
+
+1. Add the agent's SSH key from hPanel's browser terminal. The one-line command was given in chat
+   on 2026-10-06. The password is never sent anywhere.
+2. Server facts given: `srv2036699.hstgr.cloud`, KVM 2, **Ubuntu 26.04 LTS**, root login.
+3. Add DNS records in hPanel. The list was given in chat on 2026-10-06 and is repeated at Gate 2.
+4. Before Play: the Google Play developer account ($25, once), the release keystore and the prod
+   mail credentials (release inputs 2–3).
