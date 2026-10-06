@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreWorkspaces": ["apps/web"],
-  "ignoreBinaries": ["ffmpeg", "ffprobe", "pg_config"],
+  "ignoreBinaries": ["ffmpeg", "ffprobe", "pg_config", "psql", "journalctl"],
   "includeEntryExports": true,
   "workspaces": {
     ".": {

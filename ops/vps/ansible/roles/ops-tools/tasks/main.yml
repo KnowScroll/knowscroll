@@ -1,0 +1,102 @@
+# The `ks` server tool, the deploy user's SSH gate, and the cleanup and disk-guard timers
+# (#201 Gate 3, "Cleanup and stability"). The tool runs with Node's own type stripping.
+
+- name: Runtime folder for the deploy lock and the disk-critical flag (recreated at boot)
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/knowscroll.conf
+    mode: "0644"
+    content: |
+      d /run/knowscroll 0755 root root -
+  register: ks_tmpfiles
+
+- name: Create the runtime folder now
+  ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/knowscroll.conf
+  when: ks_tmpfiles.changed
+  changed_when: true
+
+- name: Tool folder
+  ansible.builtin.file:
+    path: /usr/local/lib/knowscroll-ops
+    state: directory
+    mode: "0755"
+
+- name: The ks tool
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../tool/{{ item }}"
+    dest: /usr/local/lib/knowscroll-ops/{{ item }}
+    mode: "0644"
+  loop: [ks.ts, plan.ts, system.ts]
+
+- name: ks on the path
+  ansible.builtin.copy:
+    dest: /usr/local/bin/ks
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      # KnowScroll server tool (#201) — managed by ops/vps/ansible.
+      exec /usr/bin/node --disable-warning=ExperimentalWarning /usr/local/lib/knowscroll-ops/ks.ts "$@"
+
+- name: The deploy keys' SSH gate
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../gate.sh"
+    dest: /usr/local/bin/ks-gate
+    mode: "0755"
+
+- name: Deploy user (keys only; it can run nothing but the gate)
+  ansible.builtin.user:
+    name: deploy
+    shell: /bin/sh
+    password: "*"
+    create_home: true
+
+- name: Deploy user's .ssh folder is private
+  ansible.builtin.file:
+    path: /home/deploy/.ssh
+    state: directory
+    owner: deploy
+    group: deploy
+    mode: "0700"
+
+- name: Deploy keys, each pinned to its own world
+  ansible.builtin.copy:
+    dest: /home/deploy/.ssh/authorized_keys
+    owner: deploy
+    group: deploy
+    mode: "0600"
+    content: |
+      # Managed by ops/vps/ansible (#201). One key per world; the gate refuses any other world.
+      {% for world, key in ks_deploy_keys.items() %}
+      restrict,command="/usr/local/bin/ks-gate {{ world }}" {{ key }}
+      {% endfor %}
+
+- name: The deploy user may run exactly the gated ks commands as root
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/knowscroll-deploy
+    mode: "0440"
+    validate: visudo -cf %s
+    content: |
+      # Managed by ops/vps/ansible (#201). The gate (ks-gate) has already validated the arguments.
+      deploy ALL=(root) NOPASSWD: /usr/local/bin/ks has-release *, /usr/bin/flock --timeout 1800 /run/knowscroll/deploy.lock /usr/local/bin/ks *
+
+- name: Cleanup and disk-guard units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - ks-cleanup.service
+    - ks-cleanup.timer
+    - ks-disk-guard.service
+    - ks-disk-guard.timer
+  notify: Reload systemd for ops timers
+
+- name: Flush so the timer units are known before they are enabled
+  ansible.builtin.meta: flush_handlers
+
+- name: Timers run
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: [ks-cleanup.timer, ks-disk-guard.timer]
+  ignore_errors: "{{ ansible_check_mode }}"

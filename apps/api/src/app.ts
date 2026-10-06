@@ -24,7 +24,7 @@ import {
   registerEventRoutes,
 } from './routes/encounters.ts';
 import { registerFeedRoutes } from './routes/feed.ts';
-import { registerHealthRoute } from './routes/health.ts';
+import { type HealthInfo, registerHealthRoute } from './routes/health.ts';
 import { registerInquiryRoutes } from './routes/inquiries.ts';
 import { registerInventoryRoutes } from './routes/inventory.ts';
 import { registerMediaRoutes } from './routes/media.ts';
@@ -37,9 +37,13 @@ import { registerSignInRoutes } from './routes/sign-in.ts';
 import { registerUniverseRoutes } from './routes/universe.ts';
 
 export function buildApp(
-  developmentToken: string,
+  // null in server mode (#201): no development session is ever enrolled.
+  developmentToken: string | null,
   options: {
     mediaRoot?: string;
+    // The one proxy hop to trust (Caddy on 127.0.0.1), so req.ip is the real client (#201).
+    trustProxy?: false | string;
+    health?: HealthInfo;
     magicLinkLimits?: MagicLinkRateLimits;
     composerPolicy?:
       | typeof COMPOSER_SIGNALS_V2
@@ -48,14 +52,18 @@ export function buildApp(
   } = {},
 ) {
   const composerPolicy = options.composerPolicy ?? COMPOSER_SEMANTIC_V3;
-  if (developmentToken.length < 24)
+  if (developmentToken !== null && developmentToken.length < 24)
     throw new Error('KS_DEV_TOKEN must contain at least 24 characters');
   // Resolved once at build time (deployment configuration, never per-request data), but only
   // actually required the first time the media route is hit: a caller that never touches
   // /v1/media/:sha256 (most existing tests) never needs KS_MEDIA_ROOT/KS_DEV_ROOT set.
   let mediaRoot: string | undefined = options.mediaRoot;
   const resolvedMediaRoot = () => mediaRoot ?? (mediaRoot = resolveMediaRoot());
-  const app = Fastify({ logger: false, bodyLimit: 16384 });
+  const app = Fastify({
+    logger: false,
+    bodyLimit: 16384,
+    trustProxy: options.trustProxy ?? false,
+  });
 
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof UnauthorizedSession)
@@ -77,9 +85,10 @@ export function buildApp(
     });
   });
 
-  app.addHook('onReady', async () => {
-    await ensureDevelopmentSession(developmentToken);
-  });
+  if (developmentToken !== null)
+    app.addHook('onReady', async () => {
+      await ensureDevelopmentSession(developmentToken);
+    });
 
   // The desktop session cookie's hook runs before every authenticated route and hands a checked
   // cookie to the same authentication path as a bearer token (ADR-0034). A session minted by
@@ -104,7 +113,7 @@ export function buildApp(
   // The reader's content demands and what met them; nothing is written here (ADR-0046).
   registerInventoryRoutes(app, authenticated);
 
-  registerHealthRoute(app);
+  registerHealthRoute(app, options.health);
   registerSessionRoutes(app, authenticated, webSession);
   registerPrivacyRoutes(app, authenticated);
   registerUniverseRoutes(app, authenticated);

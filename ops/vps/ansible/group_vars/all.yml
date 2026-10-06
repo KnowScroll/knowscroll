@@ -30,3 +30,9 @@ ks_apex_hosts: [knowscroll.space, www.knowscroll.space]
 
 # Services each world runs. generation joins with Cutroom (#199).
 ks_world_services: [api, worker, maintenance]
+
+# Deploy keys (public halves only; the private halves live in GitHub environment secrets). Each is
+# pinned to one world by the SSH gate (ops/vps/gate.sh).
+ks_deploy_keys:
+  dev: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEIZnU09yIlTFQWY5mu+wxLw5GKJrROMPbPQaaApcD+f knowscroll-deploy-dev@github-actions
+  stage: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFnSPv58u3Jljkh26pK/cV8Q3mbF36t3Fd5JKogii8Um knowscroll-deploy-stage@github-actions
