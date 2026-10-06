@@ -10,12 +10,18 @@ the owner has added the agent's SSH key.
 
 - Gate 1 — Product: APPROVED 2026-10-06 (answers recorded in 01-product.md)
 - Gate 2 — Architecture: APPROVED 2026-10-06 (recommended answers adopted; see 03-program-design.md "Defaults")
-- Gate 3 — Program Design: written 2026-10-06, awaiting owner approval
-- Gate 4 — Slice plan: pending
+- Gate 3 — Program Design: APPROVED 2026-10-07 (rewritten with the owner's changes)
+- Gate 4 — Slice plan: APPROVED 2026-10-07 (owner: finish setup, deploy dev and stage overnight)
 
 ## Slices
 
-Written at Gate 4.
+- [x] Slice 0 — key-only SSH, DNS, GitHub branches + ruleset + default `dev` (2026-10-06)
+- [ ] Slice 1 — server baseline via Ansible
+- [ ] Slice 2 — server mode + build once (API runtime config, web prod build + label, full bundle)
+- [ ] Slice 3 — deploy tool + pipeline, dev deploys itself
+- [ ] Slice 4 — stage + fast-forward promotion, promoters team, agent hook
+- [ ] Slice 5 — cleanup and crash safety, proven with the 91 % filler test
+- [ ] Slice 6 — docs and handoff with running links
 
 ## Owner-requested exception before Gate 4
 

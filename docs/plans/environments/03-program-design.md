@@ -1,333 +1,329 @@
 # Program design: dev, stage and live on one VPS
 
-Gate 3. Status: in progress. It builds on the approved Gates 1 and 2.
+Gate 3. Status: **APPROVED 2026-10-07**. The owner approved it with the research changes and two
+of their own (below). This file was rewritten that day so it reads as one design. The research
+behind it is in `research/2026-10-06-gate3-options.md`.
 
-## Defaults recorded at Gate 2 approval (2026-10-06)
+## Owner decisions that shaped this design
 
-The owner approved Gate 2 without answering its questions one by one. The recommendations stand,
-and the two questions that had no recommendation take these defaults, which the owner can still
-override at this gate:
-
-1. **Native systemd services**, not Docker Compose.
-2. **Docker is stopped and disabled** (reversible).
-3. **Mail (default):** one AgentMail inbox per world. Production mode already refuses any other
-   sender (`apps/api/src/mail/magic-link-sender.ts`), and all three worlds run in production
-   mode. No inbox is created without asking the owner first.
-4. **Backups (default):** Hostinger's weekly snapshot, plus a nightly copy of live's backup pulled
-   to the Mac SSD whenever the Mac is on. No new account or cost.
-5. **A `promoters` org team** (`Legend101Zz`, `XZNON`) is the only bypass actor allowed to update
-   `main` and `stage`.
-
-## Owner changes at this review (2026-10-06)
-
-1. **Build, don't run TypeScript in production.** CI bundles each program with esbuild; the server
-   runs plain `node`. This replaces "tsx in production", which is no longer a least-confident
-   decision.
-2. **One PostgreSQL, a separate database per world**, confirmed as the owner's decision. It is no
-   longer listed as a least-confident decision.
-3. **Stage and dev share one pool of Cutroom Reels; live has its own.** That means two Cutroom
-   services (`cutroom-live` and `cutroom-pool`), not three. Gates 1 and 2 are amended to match.
-4. **The agent has full control of dev**: its database, secrets, services and resets, and
-   deploying any commit there, not only `dev`'s tip.
-
-Why bundling is safe here (verified): every runtime path is relative to the working directory, not
-to the source file. That covers `resolve('packages/db/migrations')` in `scripts/migrate.ts`,
-`resolve('.env')` and `content/`, and nothing uses `import.meta.url` or `__dirname`. A release
-therefore keeps `packages/db/migrations/` and `content/` beside its bundles. Plain `tsc` output
-would not work, because the workspace packages export their `.ts` sources. Node's built-in type
-stripping would not work either, because three classes use constructor parameter properties
-(`http-client.ts:86`, `runtime-policy.ts:79`, `generation/storage.ts:34`).
+| Date | Decision |
+|---|---|
+| 2026-10-06 | Gate 2 approved with the recommended answers: native systemd, Docker off, an AgentMail inbox per world (ask before creating), backups = Hostinger weekly snapshot + nightly pull to the Mac SSD, a `promoters` team |
+| 2026-10-06 | **Build releases instead of running TypeScript through tsx in production** |
+| 2026-10-06 | One PostgreSQL, a database per world |
+| 2026-10-06 | Stage and dev share one Cutroom Reel pool (`cutroom-pool`); live has `cutroom-live` |
+| 2026-10-06 | The agent has full control of dev |
+| 2026-10-07 | **Android builds happen on the owner's Mac when the owner asks.** No CI Android builds. Prod Android (Google Play) is set up later, after the first Play release |
+| 2026-10-07 | **Proper cleanup is part of the design**, so storage never piles up and crashes the server |
+| 2026-10-07 | Research adopted: Android product flavours, full bundling, Ansible for setup, a TypeScript deploy tool, and improvements 1–7. Improvement 8 (in-app update prompt) is dropped because builds are local |
 
 ## What the code already does (verified 2026-10-06)
 
 - `NODE_ENV=production` already requires a fixed `KS_CSRF_SECRET` (32+ bytes), `KS_WEB_ORIGIN`
-  and the `agentmail` sender (`http/web-session.ts`, `mail/magic-link-sender.ts`).
+  and the `agentmail` sender (`apps/api/src/http/web-session.ts`,
+  `apps/api/src/mail/magic-link-sender.ts`).
 - What blocks a server today:
-  - `main.ts` refuses production outright;
-  - `buildApp(developmentToken)` throws unless the token has 24+ characters
-    (`apps/api/src/app.ts:51`);
-  - Fastify is built without `trustProxy`.
-- `/health` exists, needs no sign-in, and answers only when the database does
-  (`routes/health.ts`).
+  - `apps/api/src/main.ts` refuses production;
+  - `buildApp(developmentToken)` throws unless the token has 24+ characters (`app.ts:51`);
+  - Fastify has no `trustProxy`.
+- `/health` needs no sign-in and answers only when the database does.
+- Every runtime path is relative to the working directory: migrations, `.env` and `content/`.
+  Nothing uses `import.meta.url` or `__dirname`. A full esbuild bundle was measured working
+  (research note, item 3).
 
 ## Files
 
-### Product code (the only code changes outside `ops/`)
+### Product code
 
 | File | Change | Why |
 |---|---|---|
-| `apps/api/src/main.ts` | Read the runtime config; in production, start without a dev token and refuse if one is set | Server mode (Gate 2, change 1) |
-| `apps/api/src/http/runtime-config.ts` | **New.** One function that reads and validates the runtime settings, reporting every problem at once | Keeps `main.ts` a composition root |
-| `apps/api/src/app.ts` | `developmentToken: string \| null`; `null` skips development-session enrolment; new `trustProxy` option passed to Fastify | No dev identity on a server; correct client IP behind Caddy |
-| `apps/api/src/routes/health.ts` | Add `world` and `commit` to the response | Deploys and `ks-status` verify they're talking to the right build |
-| `apps/web/vite.config.ts` | Replace `refuseProductionBuild()` with a check that `KS_WORLD` is `live`, `stage` or `dev`; define `import.meta.env.VITE_KS_WORLD` | Production build per world (change 2) |
-| `apps/web/src/components/EnvironmentLabel.tsx` (+ css) | **New.** The Stage/Dev ribbon from the Gate 1 mockup; renders nothing for live | Environment label (change 4) |
-| `apps/web/src/App.tsx` (or the shell component) | Mount `EnvironmentLabel` once | Label on every screen |
-| `apps/mobile/app/build.gradle.kts` | Add two **build types**, `dev` and `stage` (initWith `release`, `applicationIdSuffix` `.dev`/`.stage`, test signing key, own `KS_API_BASE`, App Links host and app name), plus `KS_WORLD` in BuildConfig. `debug` and `release` stay as they are | Side-by-side installs (change 3) without renaming any existing Gradle task |
-| `apps/mobile/app/src/main/kotlin/…/ui/theme/EnvironmentLabel.kt` | **New.** The same ribbon in Compose, drawn from `BuildConfig.KS_WORLD` | Label on Android |
-| `apps/mobile/app/src/main/kotlin/…/ui/…` (root scaffold) | Mount the label once | Label on every screen |
+| `apps/api/src/main.ts` | Read the runtime config; in production, start without a dev token and refuse if one is set | Server mode |
+| `apps/api/src/http/runtime-config.ts` | **New.** Reads and validates runtime settings, reporting every problem at once | Keeps `main.ts` a composition root |
+| `apps/api/src/app.ts` | `developmentToken: string \| null` (`null` enrols no development session); `trustProxy` and `health` options | No dev identity on a server; real client IP behind Caddy |
+| `apps/api/src/routes/health.ts` | Add `world` and `commit` | Deploys verify they reached the right build |
+| `apps/web/vite.config.ts` | Replace `refuseProductionBuild()`: production builds are allowed. **No world is baked into the bundle** | Build once, promote the same bits |
+| `apps/web/src/world.ts` | **New.** Works out the world from `location.hostname` (`app.dev.` → dev, `app.stage.` → stage, `app.` → live, anything else → local) | One web bundle serves every world |
+| `apps/web/src/components/EnvironmentLabel.tsx` (+ css) | **New.** The Stage/Dev ribbon from the Gate 1 mockup; nothing for live or local | Environment label |
+| `apps/web/src/App.tsx` (shell) | Mount `EnvironmentLabel` once | On every screen |
+| `apps/mobile/app/build.gradle.kts` | One flavour dimension `world`: `local`, `dev`, `stage`, `live`. Only `localDebug`, `devDebug`, `stageRelease` and `liveRelease` are enabled (`androidComponents.beforeVariants`). Per flavour: `applicationIdSuffix` (`.dev`, `.stage`), app name, `KS_API_BASE`, App Links host, `KS_WORLD` | Side-by-side apps, debuggable dev build (research item 1) |
+| `apps/mobile/app/src/main/kotlin/…/ui/theme/EnvironmentLabel.kt` + root scaffold | **New.** The ribbon in Compose, from `BuildConfig.KS_WORLD` | Label on Android |
+| 11 × `scripts/android-*.py`, `.github/workflows/checks.yml` | Task names and APK paths move to the `local` flavour (`assembleLocalDebug`, `outputs/apk/local/debug/app-local-debug.apk`, …) | Flavours rename tasks; one mechanical update |
+| `scripts/android-world-build.sh` | **New.** On the Mac, when the owner asks: builds `devDebug` or `stageRelease` on the SSD, then installs it over `adb` or uploads it to that world's `/download` | Local builds |
 
 ### Build
 
 | File | Purpose |
 |---|---|
-| `scripts/build-release.mjs` | **New.** esbuild bundles of `api`, `worker`, `generation`, `maintenance`, `migrate` and `seed` into `dist/*.mjs` (ESM, Node 22, source maps). `@knowscroll/*` are folded in and every npm dependency stays external. Writes `release.json`, then one tarball holding `dist/`, `packages/db/migrations/`, `content/`, `web/`, the phone build (dev/stage), `package.json` and `pnpm-lock.yaml` |
-| `package.json` | Add `build:release` and an explicit `esbuild` dev dependency (already present through `tsx` and allowed in `onlyBuiltDependencies`) |
+| `scripts/build-release.mjs` | **New.** esbuild bundles of `api`, `worker`, `generation`, `maintenance`, `migrate` and `seed`, **with every dependency inside** (ESM, Node 22, source maps). Then the web build, then `release.json`, then one tarball holding `dist/`, `packages/db/migrations/`, `content/` and `web/` |
+| `package.json` | `build:release` script; explicit `esbuild` dev dependency (already allowed in `onlyBuiltDependencies`) |
 
-### Operations (new folder `ops/vps/`, never imported by the product)
+### Server setup (`ops/vps/ansible/`, run from the Mac)
 
 | File | Purpose |
 |---|---|
-| `ops/vps/README.md` | Runbook: what runs where, how to deploy, promote, back up, restore and reset dev |
-| `ops/vps/bootstrap.sh` | Idempotent server baseline as root (detailed below) |
-| `ops/vps/world.sh` | `world.sh create <world>`: creates a world's user, database, role, folders, env file skeleton and units. Idempotent |
-| `ops/vps/Caddyfile` | 8 hosts: redirects, static web, `/v1` and `/health` proxy, `/download`, `assetlinks.json` |
-| `ops/vps/systemd/ks-@.slice`, `ks-api@.service`, `ks-worker@.service`, `ks-generation@.service`, `ks-world@.target` | Templated units; the instance is the world (`ks-api@live`). `ExecStart=node --enable-source-maps current/dist/api.mjs`, `WorkingDirectory=current` |
-| `ops/vps/systemd/ks-cutroom@.service` | Instance `live` or `pool`. Runs upstream's own `apps/service/src/main.ts` from that Cutroom checkout, as upstream ships it |
-| `ops/vps/bin/ks-deploy` | The only command the deploy key can run. Deploys one commit to one world (call stack below) |
-| `ops/vps/bin/ks-backup` | Verified `pg_dump` of live (the `deployment.md` procedure as a script); used before migrations and nightly |
-| `ops/vps/bin/ks-status` | Every world's version, health, last deploy, migrations and service state, on one screen |
-| `ops/vps/bin/ks-reset` | Rebuild dev (or stage, only with `--confirm-stage`): drop, migrate, seed, scripted reader, re-import the pool's Reels. **Refuses `live`** |
-| `ops/vps/bin/ks-standin-cutroom` | Starts or stops a temporary stand-in Cutroom for dev's free tests. It never touches `cutroom-pool` |
-| `ops/vps/bin/ks-move-universe` | One-time move of the owner's universe into live, with the count comparison |
-| `ops/vps/sudoers.d/knowscroll` | Exactly which commands `deploy` and `agent` may run as which user |
-| `ops/vps/timers/ks-backup.timer` (+ service) | Nightly live backup |
+| `ops/vps/ansible/site.yml`, `inventory.yml` | One playbook for the one server. Always previewed with `--check --diff` before it is applied |
+| `roles/base` | 4 GiB swap; Docker disabled; ufw (22/80/443); unattended upgrades that also remove old kernels and unused packages; journald limits; time and locale |
+| `roles/postgres` | PGDG PostgreSQL 16 on 127.0.0.1; `shared_buffers=1GB`; a role and database per world; `statement_timeout` and connection limits for dev and stage; `OOMScoreAdjust=-900` |
+| `roles/node` | NodeSource 22 (`>=22.23`) |
+| `roles/caddy` | Caddy from its official repo, plus the Caddyfile (8 hosts, `lb_try_duration` retries, `/download`, `assetlinks.json`) |
+| `roles/worlds` | Users, folders, env-file skeletons (no values), systemd slices and templated units, sandboxing, the `pool-media` group |
+| `roles/ops-tools` | Installs the bundled ops tool, the SSH gate, sudoers rules and the cleanup and backup timers |
+| `roles/cutroom` | The `cutroom-pool` and `cutroom-live` checkouts at pinned revisions, plus `build-essential` for their SQLite driver |
+
+### Deploy and operations tool (`ops/vps/tool/`, TypeScript, bundled to one file)
+
+| File | Purpose |
+|---|---|
+| `ops/vps/tool/src/main.ts` | `ks <command>`: `deploy`, `rollback`, `status`, `backup`, `restore-test`, `reset`, `cleanup`, `disk-guard`, `move-universe`, `standin-cutroom` |
+| `ops/vps/tool/src/*.ts` | One module per command, with pure decision functions and their unit tests (`node:test`) |
+| `ops/vps/gate.sh` | About 10 lines. The deploy key's forced command: parses `SSH_ORIGINAL_COMMAND`, allows only `deploy <world> <sha>` and `promote-artifact`, then calls `ks` |
 
 ### Repo workflow and docs
 
 | File | Change |
 |---|---|
-| `.github/workflows/deploy.yml` | **New.** Builds the release and deploys after `checks` succeeds on a push to `dev`, `stage` or `main`. Also `workflow_dispatch` with any ref, **target dev only**, so the agent can try a feature branch in dev |
-| `scripts/promote.sh` | **New.** Fast-forward promotion `dev → stage` or `stage → main`, with its checks |
-| `scripts/seed-reader.ts` | **New.** A scripted reader that reads and keeps through the real API with an operator-issued session, so the real Cartographer forms places |
-| `.claude/hooks/refuse-main-update.sh` + `.claude/settings.json` | **New.** Refuses agent Bash commands that would update `main` (decision 6) |
-| `docs/decisions/0049-environments-on-one-vps.md` | **New ADR** recording Gates 1–2 |
-| `docs/operations/environments.md` | **New.** Operator guide; links the runbook |
-| `docs/operations/deployment.md`, `CONTRIBUTING.md`, `AGENTS.md`, `README.md` | Move from "PR to main, run on the Mac" to the new flow |
+| `.github/workflows/deploy.yml` | **New.** After `checks` succeeds on a push to `dev`, build the release once and upload it to the server. Deploy it to the pushed world. `workflow_dispatch` with any ref, **dev only** |
+| `scripts/promote.sh` | **New.** Fast-forward `dev → stage` or `stage → main`, then tells the server to reuse the release already there (no rebuild) |
+| `scripts/seed-reader.ts` | **New.** A scripted reader through the real API with an operator-issued session, so the real Cartographer forms places in dev and stage |
+| `.claude/hooks/refuse-main-update.sh` + `.claude/settings.json` | **New.** Refuses agent Bash commands that would update `main` |
+| `docs/decisions/0049-environments-on-one-vps.md` | **New ADR** |
+| `docs/operations/environments.md` | **New.** The operator guide |
+| `docs/operations/deployment.md`, `CONTRIBUTING.md`, `AGENTS.md`, `README.md` | Move to the new flow |
 
 ## Types and signatures
 
 ```ts
 // apps/api/src/http/runtime-config.ts
 export type World = 'live' | 'stage' | 'dev';
-
 export type RuntimeConfig =
   | { mode: 'development'; port: number; developmentToken: string; trustProxy: false }
   | { mode: 'server'; port: number; developmentToken: null; trustProxy: '127.0.0.1';
       world: World; commit: string };
-
-/** Throws RuntimeConfigError naming every problem, never only the first. Server mode
- *  (NODE_ENV=production) requires KS_WORLD and KS_COMMIT and refuses KS_DEV_TOKEN.
- *  Mail, CSRF and web-origin checks stay where they already are. */
+/** Server mode = NODE_ENV=production: requires KS_WORLD and KS_COMMIT, refuses KS_DEV_TOKEN.
+ *  Throws RuntimeConfigError naming every problem. Mail/CSRF/origin checks stay where they are. */
 export function readRuntimeConfig(env: NodeJS.ProcessEnv): RuntimeConfig;
 export class RuntimeConfigError extends Error { readonly problems: readonly string[] }
 
 // apps/api/src/app.ts
 export function buildApp(
-  developmentToken: string | null,         // null: no development session is enrolled
-  options?: { /* existing */ trustProxy?: false | string; health?: { world: World | 'local'; commit: string } },
+  developmentToken: string | null,
+  options?: { /* existing */ trustProxy?: false | string;
+              health?: { world: World | 'local'; commit: string } },
 ): FastifyInstance;
-
-// GET /health — unchanged meaning, two added fields
 type Health = { status: 'ok'; database: true; world: World | 'local'; commit: string };
+
+// apps/web/src/world.ts
+export type WebWorld = 'live' | 'stage' | 'dev' | 'local';
+export function worldFromHostname(hostname: string): WebWorld;
+
+// ops/vps/tool — release manifest, written by build-release, checked by `ks deploy`
+type ReleaseManifest = { commit: string; builtAt: string; node: string;
+  bundles: string[]; migrations: string[]; sha256: string };
 ```
 
 ```kotlin
-// apps/mobile — BuildConfig, per build type
-const val KS_WORLD: String          // "local" for debug, "live" for release, "dev" or "stage"
+// BuildConfig per flavour
+const val KS_WORLD: String          // "local" | "dev" | "stage" | "live"
 const val KS_API_BASE: String       // e.g. "https://backend.dev.knowscroll.space"
 const val KS_APP_LINKS_HOST: String // e.g. "app.dev.knowscroll.space"
-
-@Composable fun EnvironmentLabel(world: String = BuildConfig.KS_WORLD) // draws nothing for live/local
+@Composable fun EnvironmentLabel(world: String = BuildConfig.KS_WORLD)
 ```
 
 ```sh
-# ops/vps/bin — command contracts (exit 0 = done; nonzero = nothing half-applied, reason on stderr)
-ks-deploy <dev|stage|live> <40-hex commit>   # reads the release tarball on stdin; dev accepts any commit
-#   release.json: { commit, world, builtAt, node, bundles: string[], migrations: string[], web: true, apk?: string }
-ks-backup live [--reason pre-deploy|nightly] # prints the verified backup path
-ks-status [--json]
-ks-reset <dev|stage> [--confirm-stage]       # refuses live
-ks-move-universe --dump <file> --media <dir> --expect-counts <file>
-
-# scripts/promote.sh — run by the agent (stage) or the owner/XZNON (live)
-scripts/promote.sh stage   # dev's deployed, healthy commit → stage
-scripts/promote.sh live    # stage's deployed, healthy commit → main
+# ks — one tool on the server (exit 0 = done; nonzero = nothing half-applied, reason on stderr)
+ks deploy <dev|stage|live> <sha>     # release tarball on stdin, or the release already on the server
+ks rollback <world>                  # back to the previous release (code only)
+ks status [--json]
+ks backup live --reason pre-deploy|nightly
+ks restore-test live                 # restore the latest backup into a scratch DB, compare counts, drop it
+ks reset <dev|stage> [--confirm-stage]   # refuses live
+ks cleanup [--emergency]             # see "Cleanup and stability"
+ks disk-guard                        # run by a timer every 10 minutes
+ks move-universe --dump <f> --media <d> --expect-counts <f>
+ks standin-cutroom start|stop        # dev only
 ```
 
 ## Call stacks
 
-### A deploy (push to `dev`, `stage` or `main`)
+### A deploy to dev (push to `dev`)
 
-1. GitHub `checks` finishes on the pushed commit.
-2. `deploy.yml` runs on `workflow_run` and continues only if **all** of these hold:
+1. `checks` succeeds on the pushed commit.
+2. `deploy.yml` runs on `workflow_run` **only if** all of these hold:
    - `conclusion == 'success'`;
    - `event == 'push'`;
    - `head_repository.full_name == github.repository`;
    - `head_branch` is in `{dev, stage, main}`.
 
-   Without the repository check, a fork PR whose branch happens to be named `dev` could reach the
-   deploy secrets. This is the known `workflow_run` trap.
-3. It selects the GitHub Environment `dev`, `stage` or `production` (production waits for a
-   reviewer).
-4. It runs `pnpm build:release`: the esbuild bundles, plus `apps/web` built with
-   `KS_WORLD=<world>`. For dev and stage it also runs `./gradlew :app:assembleDev` or
-   `:app:assembleStage` with the test keystore secret.
-5. `ssh deploy@187.126.119.96 ks-deploy <world> <sha> < release.tar`. The key's line in
-   `authorized_keys` is `restrict,command="/usr/local/bin/ks-deploy-gate"`, and the gate reads
-   `SSH_ORIGINAL_COMMAND`.
-6. `ks-deploy`, as `deploy` with narrow sudo:
-   1. Validates the world and commit. For stage and live, the commit must be the current tip of
-      the world's branch (`git ls-remote`). Dev accepts any commit, because the agent may try
-      branches there.
-   2. Takes a lock, so only one deploy runs at a time on the whole box.
-   3. Unpacks the tarball from stdin into `/srv/knowscroll/<world>/releases/<sha>`, checks that
-      `release.json` names the same commit and world, and runs
-      `pnpm install --prod --frozen-lockfile` there. Nothing is compiled on the server.
-   5. **For live, if a migration is pending:** stops live's worker and generation, runs
-      `ks-backup live --reason pre-deploy` and stops if verification fails.
-   6. Runs `pnpm db:migrate` as the world's role.
-   7. Points the `current` symlink at the release, restarts `ks-world@<world>.target` and polls
-      `https://backend.<world>/health` until `commit` equals the deployed commit (90 s).
-   8. If health fails, repoints `current` at the previous release and restarts. A migrated live
-      database is never auto-restored; the job fails loudly and the owner decides, per
-      `deployment.md`.
-   9. Appends to `releases.log` and prunes all but the last 3 releases.
+   Without the repository check, a fork PR whose branch is named `dev` could reach the deploy
+   secrets.
+3. A concurrency group per world: a newer dev deploy cancels an older one still in flight.
+4. `pnpm build:release` (pnpm store cached) produces `release-<sha>.tar` and its `sha256`.
+5. `ssh deploy@187.126.119.96 deploy dev <sha> < release.tar`. The key is
+   `restrict,command="/usr/local/bin/ks-gate"`; the gate validates the command and calls `ks`.
+6. `ks deploy dev <sha>`:
+   1. **Disk check:** refuse if the disk-critical flag is set.
+   2. Take the box-wide deploy lock.
+   3. Unpack to `/srv/knowscroll/releases/<sha>/`, shared by all worlds (one copy per commit).
+      Verify `release.json` and the tarball hash.
+   4. Run migrations as `ks_dev`.
+   5. Point `/srv/knowscroll/dev/current` at the release and restart `ks-world@dev.target`.
+      Caddy holds requests for up to 5 s, so nobody sees an error.
+   6. Poll `https://backend.dev…/health` until `commit` matches (90 s). On failure, point
+      `current` back at the previous release and restart.
+   7. Append to `releases.log`, then run release cleanup.
 
-### A promotion
+### Promotion (no rebuild)
 
 `scripts/promote.sh stage`:
-1. Reads dev's deployed commit from `https://backend.dev…/health`.
-2. Checks it is a descendant of `stage` (fast-forward only) and that `checks` is green on it.
+1. Reads dev's healthy commit from `/health`.
+2. Checks it fast-forwards `stage` and that `checks` is green on it.
 3. `git push origin <sha>:stage`.
-4. The push to `stage` triggers the deploy above.
+4. The push triggers `deploy.yml`, which finds the release already on the server (`ks deploy
+   stage <sha>` without a tarball) and only links and restarts it.
 
-`promote.sh live` does the same from stage to `main`. The ruleset admits that push only from the
-`promoters` team, and the agent's hook refuses it in Claude sessions.
+Stage now runs **the same bytes** that passed in dev. `promote.sh live` does the same into
+`main`. The ruleset admits that push only from the `promoters` team, the agent's hook refuses it in
+Claude sessions, and the `production` environment waits for a reviewer. Live also runs `ks backup
+live --reason pre-deploy` before any migration and stops if the backup can't be verified.
 
 ### A web request
 
 1. Browser → `https://app.dev.knowscroll.space/v1/feed`.
-2. Caddy terminates TLS and reverse-proxies to `127.0.0.1:4330`, adding `X-Forwarded-For`.
-3. Fastify (trusting `127.0.0.1`) sees the real client IP, so the sign-in rate limits work per
-   person.
-4. The cookie session is read as on the Mac today.
+2. Caddy terminates TLS and proxies to `127.0.0.1:4330` (`X-Forwarded-For`, retries during a
+   restart).
+3. Fastify trusts `127.0.0.1` and sees the real client IP, so sign-in rate limits work per person.
+4. `worldFromHostname` shows the DEV ribbon.
 
-### Moving the owner's universe (one time, live slice)
+### Moving the owner's universe (one time, in the live slice)
 
-1. On the Mac: stop the API and worker, `pg_dump` with verification (`deployment.md` steps 1–3),
-   and write per-table row counts to a file.
-2. `scp` the dump, the counts file and `$KS_MEDIA_ROOT` to the server.
-3. `ks-move-universe`:
+1. On the Mac: stop the API and worker, take a verified `pg_dump` (`deployment.md` steps 1–3),
+   and write per-table counts.
+2. `scp` the dump, the counts and the media to the server.
+3. `ks move-universe`:
    1. Restores into a scratch database and migrates it.
-   2. Compares row counts. **Every table must match**, except rows that newer migrations add,
-      which are listed explicitly.
-   3. Renames the scratch database to `knowscroll` (live is empty before this) and copies media
-      into live's folder, checking hashes.
-4. The owner opens `app.knowscroll.space` and checks their universe.
+   2. **Every table's count must match**, except rows that later migrations add, which are listed
+      explicitly.
+   3. Renames the scratch database to `knowscroll` and copies media with hash checks.
+4. The owner checks their universe at `app.knowscroll.space`.
 
-## The server baseline (`bootstrap.sh`, as root, idempotent)
+## Cleanup and stability
 
-1. **Swap:** a 4 GiB swap file with `vm.swappiness=10`.
-2. **Docker:** `systemctl disable --now docker.socket docker containerd` (left installed).
-3. **Packages:**
-   - PGDG repo, then `postgresql-16`;
-   - NodeSource `node_22.x`, then `nodejs`, then corepack-enabled `pnpm@10.30.3`;
-   - Caddy's official repo, then `caddy`;
-   - `ffmpeg` (Ubuntu's 8.0.1), `build-essential`, `ufw`, `jq`.
-4. **Firewall:** ufw denies incoming and allows 22, 80 and 443, enabled last. The SSH rule is
-   checked before enabling.
-5. **Postgres:** listens on `127.0.0.1` only, `shared_buffers=1GB`. Roles `ks_live`, `ks_stage`
-   and `ks_dev` each own their own database and no other. `ks_stage` and `ks_dev` get
-   `statement_timeout=30s` and `CONNECTION LIMIT 20`, so dev can't starve live.
-6. **Users:** `deploy` (deploys only) and `agent` (operations); `ks-live`, `ks-stage` and `ks-dev`
-   as no-login service users.
-7. **Templates and folders:** systemd slices and units, `/srv/knowscroll`, `/etc/knowscroll`,
-   `/var/backups/knowscroll`.
-8. **Caddy:** with the Caddyfile. Certificates are issued on first request to each name.
+**The rule: nothing on the server grows without a limit.** Every growing thing has an owner, a
+cap and a cleanup.
 
-## Test plan (each is a named check, written to fail before the code exists)
+| What grows | Cap and cleanup | Run by |
+|---|---|---|
+| Releases (`/srv/knowscroll/releases/`) | Keep any release a world currently uses or used last, plus the 3 newest; delete the rest | `ks deploy` after each deploy; `ks cleanup` nightly |
+| systemd journal (all service logs, including Caddy's) | `SystemMaxUse=1G`, `MaxRetentionSec=30day` | journald itself |
+| PostgreSQL server logs | Logrotate weekly, keep 4, compressed | logrotate (Ubuntu default, checked) |
+| Cutroom working files (`cutroom-<pool\|live>/data/` artifacts) | A run's working files are deleted **7 days after it finished**. KnowScroll copies the final MP4 at import, and Cutroom's contract promises no retention. The 7 days leave room for Cutroom's resume of failed runs | `ks cleanup` nightly |
+| KnowScroll media in **live** | **Never deleted automatically** (personal data, paid Reels). Only interrupted-import temp files older than 1 day | `ks cleanup` nightly |
+| Pool media (stage and dev) | Files no `media_object` row in **either** stage or dev references, older than 7 days; temp files older than 1 day | `ks cleanup` nightly |
+| Live backups (`/var/backups/knowscroll/`) | Pre-deploy: keep the last 3. Nightly: keep 7. The weekly restore-test's scratch database is dropped after the check | `ks backup` and `ks cleanup` |
+| apt cache, old kernels, unused packages | Unattended upgrades with `Remove-Unused-Kernel-Packages` and `Remove-Unused-Dependencies`; weekly `apt-get autoclean` | apt timers |
+| `/tmp` | Each service has its own `PrivateTmp`, cleared on restart; systemd-tmpfiles for the rest | systemd |
+| Dev | `ks reset dev` also clears dev-only temp files | on demand |
 
-### Product code (CI, on every push)
+**Disk guard** (`ks disk-guard`, a timer every 10 minutes, measuring `/`):
+
+| Disk use | What happens |
+|---|---|
+| **≥ 80 %** | Warning in the journal, plus an alert once alerts exist |
+| **≥ 90 %** | Writes `/run/knowscroll/disk-critical`. **Deploys are refused**, Cutroom and the generation workers are paused (`systemctl stop`), and `ks cleanup --emergency` runs: keep only the 2 newest unused releases, vacuum the journal to 500 MB, delete Cutroom working files older than 1 day. The flag clears itself when use falls below 85 % |
+| **Never** | Live's database, live's media and live's newest verified backup are never touched by any cleanup |
+
+**Memory and crash safety:**
+
+- Per-world `MemoryHigh` and `MemoryMax`: live 3 GiB, stage 1.5 GiB, dev 1.5 GiB.
+- The 4 GiB swap absorbs ffmpeg spikes.
+- OOM priority: Postgres `OOMScoreAdjust=-900`, live `-500`, stage `+200`, dev `+500`. Under
+  memory pressure the kernel kills dev first and Postgres last.
+- `Restart=on-failure` with backoff (`RestartSec=5`, `StartLimitBurst=5`/10 min) on every
+  service.
+- Sandboxing: `ProtectSystem=strict`, `NoNewPrivileges`, `PrivateTmp`, and write access only to
+  that world's folders.
+
+**Proven backups:** `ks restore-test live` runs weekly. A failure is an alert, not a log line.
+
+**Uptime alert:** a free external check calls the three `/health` addresses every 5 minutes and
+emails the owner. Hooking it into the Hermes WhatsApp butler is an optional later step.
+
+## Test plan (named checks, written to fail before the code exists)
+
+### Product code (CI)
 
 - `runtime-config.test.ts`:
   - `server mode refuses KS_DEV_TOKEN`;
   - `server mode requires KS_WORLD and KS_COMMIT and names every missing setting at once`;
-  - `server mode rejects a world other than live/stage/dev`;
-  - `development mode is unchanged: it requires a 24-character token`.
-- `app.test.ts` (extended):
-  - `buildApp(null) enrols no development session and a bearer of the old token is 401`;
+  - `server mode rejects an unknown world`;
+  - `development mode is unchanged`.
+- `app.test.ts`:
+  - `buildApp(null) enrols no development session and the old bearer is 401`;
   - `with trustProxy 127.0.0.1, X-Forwarded-For is the rate-limit key`;
   - `without trustProxy, X-Forwarded-For is ignored`.
 - `health.test.ts`: `/health reports world and commit`.
-- Web vitest:
-  - `EnvironmentLabel renders STAGE and DEV and renders nothing for live`;
-  - `vite build refuses a missing or unknown KS_WORLD`.
-- Android unit: `EnvironmentLabel draws for dev and stage only`.
-- Android build (CI):
-  - `assembleDev and assembleStage produce com.knowscroll.mobile.dev and .stage`;
-  - `assembleDebug still produces the existing debug APK`, which guards every existing script;
-  - read via `aapt2 dump badging`.
-- `ops/vps` scripts pass `shellcheck` in CI.
-- Release build (CI):
-  - `build-release bundles start`: the bundled `migrate` and `api` run against CI's Postgres and
-    `/health` answers;
-  - `no bundle imports @knowscroll/* at runtime`;
-  - `release.json names the built commit`.
-- The existing suites keep running against source, unchanged.
+- Web:
+  - `worldFromHostname maps app., app.stage., app.dev. and anything else`;
+  - `EnvironmentLabel renders STAGE and DEV and nothing for live or local`;
+  - `vite build succeeds without a world`.
+- Android:
+  - `EnvironmentLabel draws for dev and stage only` (unit);
+  - `assembleLocalDebug, assembleDevDebug and assembleStageRelease produce com.knowscroll.mobile,
+    .dev and .stage` (`aapt2 dump badging`, run locally when the Android slice lands, not in CI);
+  - the existing Android CI job, renamed to `local`, still passes.
+- Release build:
+  - `build-release bundles start`: bundled `migrate` and `api` against CI Postgres, `/health`
+    200;
+  - `no bundle loads node_modules at runtime`: the release runs from a folder with no
+    `node_modules`;
+  - `release.json names the built commit and hash`.
+- Ops tool unit tests:
+  - `deploy refuses when disk-critical is set`;
+  - `deploy refuses a stage or live commit that is not the branch tip`;
+  - `live deploy with a pending migration requires a verified backup first`;
+  - `cleanup never selects a world's current or previous release`;
+  - `cleanup never selects live media or live's newest backup`;
+  - `pool media cleanup keeps any file referenced by stage or dev`;
+  - `disk-guard thresholds 80/90/85 (hysteresis)`.
+- `ops/vps/gate.sh` passes `shellcheck`. The Ansible playbook passes `ansible-lint` and a
+  `--check` run against the server.
 
-### On the server (joined checks, run and recorded per slice)
+### On the server (joined, recorded per slice)
 
-- **Reachability and TLS:** all 8 names answer over HTTPS with a valid certificate; `knowscroll.space`
-  and `www` redirect to `app.knowscroll.space`.
-- **Correct build:** `/health` on each `app.` and `backend.` host reports the right world and the
-  deployed commit.
-- **Ports closed** (checked from the Mac): 4310–4330, 5432 and 8787–8807 refuse connections from
-  outside.
-- **Deploy key is fenced:** `ssh deploy@… 'ls'` is refused; `ks-deploy dev <sha not at dev's tip>`
-  is refused.
-- **Live backup gate:** a live deploy with a pending migration produces a verified backup before
-  migrating. A deliberately corrupted backup stops the deploy before any migration.
-- **Rollback:** a deploy whose health check fails returns the world to the previous commit,
-  automatically.
-- **Access separation:** the `agent` user cannot read `/etc/knowscroll/live.env` and cannot
-  connect to database `knowscroll`. It can do anything in dev: read dev's env, use `psql` as
-  `ks_dev`, restart, reset, and deploy any commit.
-- **Shared pool:** a Reel in `pool-media` is readable by both stage and dev; dev's grant table
-  holds no paid grant; `cutroom-live` is reachable only by live's user.
-- **Promotion rules:**
-  - a promotion that isn't a fast-forward is refused;
-  - `promote.sh live` from a Claude session is refused by the hook;
-  - a push to `main` by a non-`promoters` account is refused by the ruleset. This needs a test by
-    Asrani-Aman or XZNON; otherwise it is recorded as unproved.
-- **Phone:** the dev and stage APKs download from `/download` after sign-in, install beside each
-  other, show their label and sign in by email to their own world.
-- **Owner's universe:** after the move, per-table counts match the Mac's, the owner signs in at
-  `app.knowscroll.space` and sees their places and Traces.
+- **TLS:** all 8 names over HTTPS with valid certificates; the apex and `www` redirect.
+- **Correct build:** each world's `/health` shows the right world and commit.
+- **Ports closed** (from the Mac): 4310–4330, 5432, 8787 and 8797 refuse outside connections.
+- **Deploy key fenced:** `ssh deploy@… ls` is refused.
+- **Restart with no errors:** a deploy while a loop of requests runs shows zero 5xx responses.
+- **Rollback:** a release that fails health puts the previous one back by itself.
+- **Promotion:** a promotion reuses the release (no rebuild) and stage's files hash the same as
+  dev's.
+- **Disk guard, for real, before live exists.** `fallocate` a dev-only filler file until the disk
+  reaches 91 %:
+  - deploys are refused;
+  - Cutroom and generation stop;
+  - emergency cleanup runs.
+
+  Then delete the filler: the flag clears below 85 % and services return.
+- **Live backup gate:** a corrupted backup stops a live deploy before migrating. The weekly
+  restore-test passes on a real backup.
+- **Access:** the `agent` user cannot read live's env file or database, and can do anything in
+  dev.
+- **Pool:** stage and dev both read pool media; dev holds no paid grant; `cutroom-live` is
+  reachable only by live's user.
+- **Owner's universe:** per-table counts match after the move, and the owner signs in at
+  `app.knowscroll.space`.
 
 ## Least confident decisions
 
-1. **Android build types instead of product flavours.** Flavours are the textbook answer, but
-   they rename every Gradle task (`assembleDebug` → `assembleLocalDebug`), which breaks
-   `scripts/android-hands-on.py`, the journeys and CI. Build types add `assembleDev` and
-   `assembleStage` and leave everything else alone. The cost: a world can't be combined with
-   debug, so dev and stage builds are release-shaped, minified and signed with the test key.
-2. **Bash for `ops/vps/bin/*`.** These are short, linear system steps where bash is most readable
-   to an operator. TypeScript (like `ops/cutroom-host/host.ts`) would give tests and types but
-   needs Node before Node is installed. Mitigated by `shellcheck`, `set -euo pipefail` and joined
-   checks.
-3. **esbuild bundles with npm packages left external.** Bundling everything would remove `pnpm
-   install` from the server, but some npm packages misbehave when bundled. Keeping them external
-   costs an install per deploy. The CI smoke test is the guard.
-4. **A shared Reel pool across two databases.** Stage and dev each keep their own
-   `generated_reel` rows over the same media files. If the two worlds' migrations diverge (dev
-   ahead of stage), a pooled Reel must still import into both. The import rules live in #199.
-5. **Naming stage and dev `knowscroll_test_*`** to reuse migration 0014's stand-in fence. It's
-   precise, but it means those names must never be used for disposable test databases on this
-   server (no test suite runs here).
-6. **Auto-rollback restores code only.** A live migration plus a failed health check leaves the
-   new schema with the old code. Forward-only migrations (ADR-0047) usually keep old code working
-   on a newer schema, but not always. The deploy fails loudly and the owner restores from the
-   verified backup if needed.
-7. **The `promoters` team does nothing against the agent.** The agent uses `Legend101Zz` (decision
-   6), so only the hook stops it, and only in Claude sessions on this Mac.
+1. **Ansible adds a tool on the Mac.** Mitigated by installing it in a virtualenv on the SSD and
+   keeping the playbook small. The bash fallback stays documented.
+2. **Shared pool across two databases.** If dev's schema runs ahead of stage's, a pooled Reel must
+   still import into both. The import rules are designed in #199.
+3. **`knowscroll_test_*` names for stage and dev**, to reuse migration 0014's stand-in fence. No
+   test suite may ever run on this server.
+4. **Auto-rollback restores code only.** A migrated live database is the owner's restore decision.
+5. **The `promoters` team does not stop the agent**, which uses `Legend101Zz`. Only the hook does,
+   in Claude sessions on this Mac.
+6. **Cutroom working files kept 7 days.** That's long enough for Cutroom's resume of failed runs,
+   and short enough that a busy week can't fill the disk. Revisit once real Reel sizes are known.
