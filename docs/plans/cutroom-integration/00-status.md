@@ -7,7 +7,9 @@ Process: the four-gate workflow (Product → Architecture → Program Design →
 stops for the owner's explicit approval. No implementation code before the Gate 4 slice plan is
 approved.
 
-- Gate 1 — Product: in progress
+- Gate 1 — Product: in progress. On 2026-10-06 the owner said the content "looks great", then
+  moved where it runs (see "Depends on #201" below). It is re-presented for approval with that
+  change.
 - Gate 2 — Architecture: pending
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
@@ -15,6 +17,18 @@ approved.
 ## Slices
 
 Written at Gate 4.
+
+## Depends on #201 (environments)
+
+On 2026-10-06 the owner bought a Hostinger VPS and the domain `knowscroll.space`, and asked for
+dev, stage and prod environments (#201, draft PR #202, `docs/plans/environments/`). This feature
+now runs there:
+
+- the "test universe" in Gate 1 becomes **stage**: seeded, with real reels within the $2 cap;
+- **dev** is the free proving ground, with stand-in reels only;
+- each environment has its own Cutroom.
+
+Decision 3 below (a new test database) is answered by stage's own database.
 
 ## Notes for a fresh session
 
