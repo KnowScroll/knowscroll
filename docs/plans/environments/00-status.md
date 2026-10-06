@@ -16,7 +16,7 @@ the owner has added the agent's SSH key.
 ## Slices
 
 - [x] Slice 0 — key-only SSH, DNS, GitHub branches + ruleset + default `dev` (2026-10-06)
-- [ ] Slice 1 — server baseline via Ansible
+- [x] Slice 1 — server baseline via Ansible (2026-10-07: applied, idempotent, 8 names on Let's Encrypt, internal ports closed)
 - [ ] Slice 2 — server mode + build once (API runtime config, web prod build + label, full bundle)
 - [ ] Slice 3 — deploy tool + pipeline, dev deploys itself
 - [ ] Slice 4 — stage + fast-forward promotion, promoters team, agent hook

@@ -1,0 +1,130 @@
+# PostgreSQL 16 from PGDG (Ubuntu 26.04 ships 18; KnowScroll and its CI use 16). One cluster,
+# loopback only, a role and database per world with no cross-access (#201 Gate 2).
+
+- name: PGDG signing key
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /etc/apt/keyrings/pgdg.asc
+    mode: "0644"
+
+- name: PGDG repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/pgdg.sources
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: https://apt.postgresql.org/pub/repos/apt
+      Suites: {{ ansible_facts.distribution_release }}-pgdg
+      Components: main
+      Signed-By: /etc/apt/keyrings/pgdg.asc
+
+- name: PostgreSQL 16
+  ignore_errors: "{{ ansible_check_mode }}"  # a preview never adds the repository, so the package is unknown
+  ansible.builtin.apt:
+    name: [postgresql-16, postgresql-client-16]
+    state: present
+    update_cache: true
+
+- name: PostgreSQL settings for this box
+  ignore_errors: "{{ ansible_check_mode }}"  # the conf.d folder appears only once 16 is installed
+  ansible.builtin.copy:
+    dest: /etc/postgresql/16/main/conf.d/knowscroll.conf
+    mode: "0644"
+    content: |
+      # KnowScroll #201: loopback only; 1 GiB buffers on an 8 GiB box; slow queries logged.
+      listen_addresses = 'localhost'
+      shared_buffers = 1GB
+      max_connections = 100
+      log_min_duration_statement = 2000
+  notify: Restart postgres
+
+- name: Drop-in folder for the PostgreSQL unit
+  ansible.builtin.file:
+    path: /etc/systemd/system/postgresql@16-main.service.d
+    state: directory
+    mode: "0755"
+
+- name: Postgres is the last thing the kernel kills
+  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/postgresql@16-main.service.d/knowscroll.conf
+    mode: "0644"
+    content: |
+      [Service]
+      OOMScoreAdjust=-900
+  notify: Restart postgres
+
+- name: Secrets directory
+  ansible.builtin.file:
+    path: /etc/knowscroll/secrets
+    state: directory
+    mode: "0700"
+
+# Generated on the server and never sent anywhere; Ansible reads them only with no_log.
+- name: Per-world secrets exist
+  ansible.builtin.shell: |
+    set -eu
+    umask 077
+    d=/etc/knowscroll/secrets/{{ item.name }}
+    mkdir -p "$d"
+    [ -s "$d/db_password" ] || { openssl rand -hex 24 > "$d/db_password"; echo created; }
+    [ -s "$d/csrf_secret" ] || { openssl rand -hex 32 > "$d/csrf_secret"; echo created; }
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: ks_secrets
+  changed_when: "'created' in ks_secrets.stdout"
+
+- name: Read database passwords
+  ansible.builtin.slurp:
+    src: /etc/knowscroll/secrets/{{ item.name }}/db_password
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: ks_db_passwords
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Flush handlers so PostgreSQL runs with its settings before roles are made
+  ansible.builtin.meta: flush_handlers
+
+- name: World roles
+  community.postgresql.postgresql_user:
+    name: "{{ item.0.db_role }}"
+    password: "{{ item.1.content | b64decode | trim }}"
+    role_attr_flags: LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE
+    conn_limit: 20
+  loop: "{{ ks_worlds | zip(ks_db_passwords.results) | list }}"
+  loop_control:
+    label: "{{ item.0.db_role }}"
+  become: true
+  become_user: postgres
+  no_log: true
+  when: not ansible_check_mode
+
+- name: World databases
+  community.postgresql.postgresql_db:
+    name: "{{ item.database }}"
+    owner: "{{ item.db_role }}"
+    encoding: UTF8
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.database }}"
+  become: true
+  become_user: postgres
+  when: not ansible_check_mode
+
+- name: Only a world's own role may connect to its database; dev and stage queries are bounded
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      REVOKE CONNECT ON DATABASE {{ item.database }} FROM PUBLIC;
+      GRANT CONNECT ON DATABASE {{ item.database }} TO {{ item.db_role }};
+      ALTER ROLE {{ item.db_role }} SET statement_timeout = '30s';
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.database }}"
+  become: true
+  become_user: postgres
+  changed_when: false
+  when: not ansible_check_mode

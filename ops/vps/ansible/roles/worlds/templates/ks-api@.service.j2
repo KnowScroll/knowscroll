@@ -1,0 +1,40 @@
+# KnowScroll API for world %i — managed by ops/vps/ansible (#201). Runs a built release, never source.
+[Unit]
+Description=KnowScroll API (%i)
+After=network-online.target postgresql@16-main.service
+Wants=network-online.target
+PartOf=ks-world@%i.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ks-%i
+Group=ks-%i
+Slice=ks-%i.slice
+WorkingDirectory=/srv/knowscroll/%i/current
+EnvironmentFile=/etc/knowscroll/%i.env
+EnvironmentFile=/srv/knowscroll/%i/current/release.env
+Environment=NODE_ENV=production
+Environment=KS_WORLD=%i
+ExecStart=/usr/bin/node --enable-source-maps dist/api.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Sandbox: read-only system, private /tmp, writes only to this world's media.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ReadWritePaths=/srv/knowscroll/%i/media
+
+[Install]
+WantedBy=ks-world@%i.target

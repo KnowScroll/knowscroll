@@ -1,0 +1,9 @@
+# KnowScroll world {{ item.name }} — managed by ops/vps/ansible (#201).
+[Unit]
+Description=KnowScroll world {{ item.name }}
+
+[Slice]
+CPUWeight={{ item.cpu_weight }}
+CPUQuota={{ item.cpu_quota }}
+MemoryHigh={{ item.memory_high }}
+MemoryMax={{ item.memory_max }}

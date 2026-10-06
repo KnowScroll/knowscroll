@@ -1,0 +1,151 @@
+# Each world: its own user, folders, env file (assembled on the server from generated secrets),
+# a systemd slice with its CPU/memory budget, and sandboxed templated units (#201 Gate 3).
+# Services are not started here: the first `ks deploy` of a world enables its target.
+
+- name: World service users
+  ansible.builtin.user:
+    name: ks-{{ item.name }}
+    system: true
+    shell: /usr/sbin/nologin
+    home: /srv/knowscroll/{{ item.name }}
+    create_home: false
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: ks-{{ item.name }}
+
+- name: Shared release folder (one copy per commit, used by every world)
+  ansible.builtin.file:
+    path: /srv/knowscroll/releases
+    state: directory
+    mode: "0755"
+
+- name: World folders
+  ansible.builtin.file:
+    path: /srv/knowscroll/{{ item.name }}
+    state: directory
+    mode: "0755"
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: World media folders (KS_MEDIA_ROOT), private to the world
+  ansible.builtin.file:
+    path: /srv/knowscroll/{{ item.name }}/media
+    state: directory
+    owner: ks-{{ item.name }}
+    group: ks-{{ item.name }}
+    mode: "0750"
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Is a release linked for each world?
+  ansible.builtin.stat:
+    path: /srv/knowscroll/{{ item.name }}/current
+    follow: false
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: ks_current
+
+- name: Until its first deploy, a world shows the placeholder
+  ignore_errors: "{{ ansible_check_mode }}"  # the placeholder folder exists only after a real run
+  ansible.builtin.file:
+    src: /srv/knowscroll/placeholder
+    dest: /srv/knowscroll/{{ item.item.name }}/current
+    state: link
+  loop: "{{ ks_current.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+
+- name: Shared mail settings are on the server (copied once from the owner's Mac, never in Git)
+  ansible.builtin.stat:
+    path: /etc/knowscroll/secrets/shared/agentmail.env
+  register: ks_mail
+
+- name: Refuse to continue without mail settings (production sign-in needs AgentMail)
+  ansible.builtin.fail:
+    msg: >-
+      /etc/knowscroll/secrets/shared/agentmail.env is missing. It holds AGENTMAIL_API_KEY,
+      AGENTMAIL_INBOX_ID and KS_OWNER_EMAIL; see docs/operations/environments.md.
+  when: not ks_mail.stat.exists and not ansible_check_mode
+
+- name: World env files, assembled on the server from its secrets (values never reach Ansible output)
+  ansible.builtin.shell: |
+    set -eu
+    umask 027
+    s=/etc/knowscroll/secrets
+    f=/etc/knowscroll/{{ item.name }}.env
+    tmp=$(mktemp /etc/knowscroll/.{{ item.name }}.env.XXXXXX)
+    {
+      echo "PORT={{ item.port }}"
+      echo "DATABASE_URL=postgresql://{{ item.db_role }}:$(cat $s/{{ item.name }}/db_password)@127.0.0.1:5432/{{ item.database }}"
+      echo "KS_CSRF_SECRET=$(cat $s/{{ item.name }}/csrf_secret)"
+      echo "KS_WEB_ORIGIN=https://{{ item.app_host }}"
+      echo "KS_MEDIA_ROOT=/srv/knowscroll/{{ item.name }}/media"
+      echo "KS_MAIL_SENDER=agentmail"
+      cat $s/shared/agentmail.env
+    } > "$tmp"
+    chgrp ks-{{ item.name }} "$tmp"
+    chmod 0640 "$tmp"
+    if cmp -s "$tmp" "$f"; then rm -f "$tmp"; echo KS_SAME; else mv "$tmp" "$f"; echo KS_UPDATED; fi
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: ks_envs
+  changed_when: "'KS_UPDATED' in ks_envs.stdout"
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Parent slice for every world
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ks.slice
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=KnowScroll worlds
+  notify: Reload systemd
+
+- name: Per-world slice with its CPU and memory budget
+  ansible.builtin.template:
+    src: world.slice.j2
+    dest: /etc/systemd/system/ks-{{ item.name }}.slice
+    mode: "0644"
+  loop: "{{ ks_worlds }}"
+  loop_control:
+    label: ks-{{ item.name }}.slice
+  notify: Reload systemd
+
+- name: Templated units (the instance name is the world)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - ks-api@.service
+    - ks-worker@.service
+    - ks-maintenance@.service
+    - ks-world@.target
+  notify: Reload systemd
+
+- name: Drop-in folders for each world's services
+  ansible.builtin.file:
+    path: /etc/systemd/system/ks-{{ item.1 }}@{{ item.0.name }}.service.d
+    state: directory
+    mode: "0755"
+  loop: "{{ ks_worlds | product(ks_world_services) | list }}"
+  loop_control:
+    label: ks-{{ item.1 }}@{{ item.0.name }}
+
+- name: Under memory pressure the kernel kills dev first, then stage, never Postgres
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ks-{{ item.1 }}@{{ item.0.name }}.service.d/oom.conf
+    mode: "0644"
+    content: |
+      [Service]
+      OOMScoreAdjust={{ item.0.oom_score_adjust }}
+  loop: "{{ ks_worlds | product(ks_world_services) | list }}"
+  loop_control:
+    label: ks-{{ item.1 }}@{{ item.0.name }}
+  notify: Reload systemd
