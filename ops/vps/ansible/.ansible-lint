@@ -1,0 +1,6 @@
+# KnowScroll server playbook (#201).
+skip_list:
+  # Registered variables use one project-wide ks_ prefix on purpose, not per-role prefixes.
+  - var-naming[no-role-prefix]
+  # mkswap must run right after the swap file is created, inside the same ordered block.
+  - no-handler

@@ -50,6 +50,7 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0029 — A real Composer contract](0029-composer-signal-ranking.md): versioned SQL-primitive ranking policy, per-candidate signals recorded with the decision, diversity and rank/score consistency enforced at commit, and explanations built only from a registered template and the same recorded signals.
 - [ADR-0030 — Privacy lifecycle: pause, export and reset](0030-privacy-lifecycle-pause-export-reset.md): contract only; extends ADR-0009/0010 with a database-enforced recording pause, a live non-destructive export, and a reset that erases like Clear plus ends every session; no route or client yet.
 - [ADR-0031 — Semantic substrate and validated bridges](0031-semantic-substrate-and-validated-bridges.md): source-backed immutable claims, bridges admitted only by a deterministic validator with replayable read sets, correction by revalidation, private branch/feedback history.
+- [ADR-0049 — Three worlds on one VPS](0049-environments-on-one-vps.md): dev, stage and live on one VPS with native services, one release built once and promoted by fast-forward, server mode, world-pinned deploy keys, and bounded storage with a disk guard.
 
 ## Process
 

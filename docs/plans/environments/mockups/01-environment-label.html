@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Environment label</title>
+<!-- Gate 1 mockup: throwaway, no framework. Colours follow the existing Hybrid Set register
+     (cream/ink/cobalt/yellow/teal/rust). Only the label and the icon badges are new. -->
+<style>
+  :root { --cream:#fffbf0; --ink:#111214; --muted:#35383b; --cobalt:#2c46e8; --yellow:#ffe44d;
+          --teal:#14c79b; --rust:#8d2d18; --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 48px; background:#e9e4d6; color:var(--ink);
+         font:15px/1.5 system-ui, -apple-system, sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .intro { max-width:72ch; color:var(--muted); margin:0 0 24px; }
+  .row { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+  figcaption { font:700 11px var(--mono); text-transform:uppercase; letter-spacing:.08em;
+               color:var(--muted); margin-bottom:8px; }
+  figure { margin:0; }
+  .phone { width:300px; max-width:100%; background:var(--cream); border:2px solid var(--ink);
+           border-radius:22px; overflow:hidden; box-shadow:6px 6px 0 var(--ink); }
+  .ribbon { display:flex; justify-content:space-between; align-items:center; padding:6px 12px;
+            font:700 11px var(--mono); letter-spacing:.08em; border-bottom:2px solid var(--ink); }
+  .ribbon.stage { background:var(--yellow); }
+  .ribbon.dev { background:var(--rust); color:var(--cream); }
+  .ribbon small { font-weight:400; letter-spacing:0; }
+  .screen { padding:14px; }
+  .eyebrow { color:var(--cobalt); font:700 11px var(--mono); letter-spacing:.12em; margin:0; }
+  h2 { font-size:19px; line-height:1.2; margin:4px 0 8px; }
+  .body { color:var(--muted); font-size:13px; }
+  .card { border:1.5px solid var(--ink); border-radius:12px; background:#fff; padding:10px;
+          margin-top:10px; font-size:13px; }
+  .addr { font:12px var(--mono); color:var(--muted); margin-top:12px; }
+  .icons { display:flex; gap:28px; padding:20px; background:#1d2733; border-radius:22px;
+           border:2px solid var(--ink); box-shadow:6px 6px 0 var(--ink); width:max-content; max-width:100%; flex-wrap:wrap; }
+  .icon { text-align:center; color:#fff; font-size:12px; }
+  .tile { width:64px; height:64px; border-radius:16px; background:var(--cream); border:2px solid var(--ink);
+          display:grid; place-items:center; font:800 30px system-ui; color:var(--cobalt); position:relative;
+          margin:0 auto 6px; }
+  .badge { position:absolute; right:-6px; bottom:-6px; font:800 9px var(--mono); padding:2px 5px;
+           border-radius:6px; border:1.5px solid var(--ink); }
+  .badge.stage { background:var(--yellow); color:var(--ink); }
+  .badge.dev { background:var(--rust); color:var(--cream); }
+  .note { max-width:72ch; margin-top:28px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+  <h1>Which world am I in? Gate 1 mockup</h1>
+  <p class="intro">Live looks exactly like today. Stage and Dev carry a label on every screen,
+    on the phone and on the web, so a test can't be mistaken for your universe.</p>
+
+  <div class="row">
+    <figure>
+      <figcaption>Live: no label</figcaption>
+      <div class="phone">
+        <div class="screen">
+          <p class="eyebrow">SCROLL</p>
+          <h2>Why the tides follow the Moon</h2>
+          <p class="body">Your universe, your history, your places.</p>
+          <div class="card">Kept 3 days ago · Tides, Gravity</div>
+          <p class="addr">app.knowscroll.space</p>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>Stage: yellow label</figcaption>
+      <div class="phone">
+        <div class="ribbon stage">STAGE <small>test universe · not yours</small></div>
+        <div class="screen">
+          <p class="eyebrow">SCROLL</p>
+          <h2>Why the tides follow the Moon</h2>
+          <p class="body">Full test universe: about 100 Scrolls, Reels, a busy map.</p>
+          <div class="card">Next release · v2026.10.06</div>
+          <p class="addr">app.stage.knowscroll.space</p>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>Dev: rust label</figcaption>
+      <div class="phone">
+        <div class="ribbon dev">DEV <small>can be reset at any time</small></div>
+        <div class="screen">
+          <p class="eyebrow">SCROLL</p>
+          <h2>Why the tides follow the Moon</h2>
+          <p class="body">Where the AI builds and tests. Simulated videos only.</p>
+          <div class="card">Building · dev @ 831e094</div>
+          <p class="addr">app.dev.knowscroll.space</p>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <figure style="margin-top:32px">
+    <figcaption>On your phone: three apps side by side</figcaption>
+    <div class="icons">
+      <div class="icon"><div class="tile">K</div>KnowScroll</div>
+      <div class="icon"><div class="tile">K<span class="badge stage">STG</span></div>KS Stage</div>
+      <div class="icon"><div class="tile">K<span class="badge dev">DEV</span></div>KS Dev</div>
+    </div>
+  </figure>
+
+  <p class="note">Addresses shown use the shorter live form (<b>app.knowscroll.space</b>). Which
+    form to use is question 1 in the Gate 1 doc.</p>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# KnowScroll server: one machine, worlds dev/stage/live (#201, docs/plans/environments).
+- name: KnowScroll server
+  hosts: knowscroll-vps
+  become: false
+  roles:
+    - base
+    - postgres
+    - node
+    - caddy
+    - worlds
+    - ops-tools

@@ -1,0 +1,103 @@
+# Base: swap, Docker off, firewall, update hygiene, journal limits (#201 Gate 3, "Cleanup and stability").
+
+- name: Base packages
+  ansible.builtin.apt:
+    name: [acl, ca-certificates, curl, gnupg, jq, openssl, ufw, python3-psycopg2]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Keyring directory for third-party apt repositories
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+# 4 GiB swap absorbs ffmpeg spikes; swappiness 10 keeps it a safety net, not a habit.
+- name: Swap file exists
+  ansible.builtin.command: fallocate -l 4G /swapfile
+  args:
+    creates: /swapfile
+  register: ks_swapfile
+
+- name: Swap file is private
+  ansible.builtin.file:
+    path: /swapfile
+    mode: "0600"
+  when: not ansible_check_mode or not ks_swapfile.changed
+
+- name: Swap file is formatted
+  ansible.builtin.command: mkswap /swapfile
+  when: ks_swapfile.changed
+  changed_when: true
+
+- name: Swap is on
+  ansible.builtin.command: swapon /swapfile
+  when: ansible_facts.swaptotal_mb | int < 1
+  changed_when: true
+
+- name: Swap survives reboot
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: /swapfile none swap sw 0 0
+
+- name: Swap is a safety net
+  ansible.posix.sysctl:
+    name: vm.swappiness
+    value: "10"
+    sysctl_file: /etc/sysctl.d/90-knowscroll.conf
+
+# Docker came with the image and is unused; anything it publishes would bypass ufw (Gate 2 Q2).
+- name: Docker and containerd are stopped and disabled
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: [docker.socket, docker.service, containerd.service]
+  failed_when: false
+
+- name: Firewall allows SSH, HTTP and HTTPS (incl. HTTP/3)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: "22", proto: tcp }
+    - { port: "80", proto: tcp }
+    - { port: "443", proto: tcp }
+    - { port: "443", proto: udp }
+
+- name: Firewall denies everything else incoming, and is on
+  community.general.ufw:
+    state: enabled
+    default: deny
+    direction: incoming
+
+- name: Unattended upgrades also remove old kernels and unused packages, and clean the cache
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/52knowscroll-unattended
+    mode: "0644"
+    content: |
+      // KnowScroll #201: disk hygiene. Security updates stay automatic; reboots stay manual.
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "false";
+      APT::Periodic::AutocleanInterval "7";
+
+- name: Journal drop-in folder
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Journal size and age are capped
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/knowscroll.conf
+    mode: "0644"
+    content: |
+      # KnowScroll #201: every service logs to the journal; it never grows past this.
+      [Journal]
+      SystemMaxUse=1G
+      MaxRetentionSec=30day
+  notify: Restart journald

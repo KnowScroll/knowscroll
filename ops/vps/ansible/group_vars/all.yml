@@ -1,0 +1,38 @@
+# Worlds that run the app on this server. Live is added when the live slice lands; until then
+# its two names serve placeholders (roles/caddy).
+ks_worlds:
+  - name: dev
+    port: 4330
+    database: knowscroll_test_dev
+    db_role: ks_dev
+    app_host: app.dev.knowscroll.space
+    backend_host: backend.dev.knowscroll.space
+    memory_high: 1200M
+    memory_max: 1536M
+    cpu_weight: 50
+    cpu_quota: 100%
+    oom_score_adjust: 500
+  - name: stage
+    port: 4320
+    database: knowscroll_test_stage
+    db_role: ks_stage
+    app_host: app.stage.knowscroll.space
+    backend_host: backend.stage.knowscroll.space
+    memory_high: 1200M
+    memory_max: 1536M
+    cpu_weight: 100
+    cpu_quota: 100%
+    oom_score_adjust: 200
+
+ks_live_app_host: app.knowscroll.space
+ks_live_backend_host: backend.knowscroll.space
+ks_apex_hosts: [knowscroll.space, www.knowscroll.space]
+
+# Services each world runs. generation joins with Cutroom (#199).
+ks_world_services: [api, worker, maintenance]
+
+# Deploy keys (public halves only; the private halves live in GitHub environment secrets). Each is
+# pinned to one world by the SSH gate (ops/vps/gate.sh).
+ks_deploy_keys:
+  dev: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEIZnU09yIlTFQWY5mu+wxLw5GKJrROMPbPQaaApcD+f knowscroll-deploy-dev@github-actions
+  stage: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFnSPv58u3Jljkh26pK/cV8Q3mbF36t3Fd5JKogii8Um knowscroll-deploy-stage@github-actions

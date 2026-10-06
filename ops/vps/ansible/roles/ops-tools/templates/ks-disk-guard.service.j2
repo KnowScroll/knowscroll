@@ -1,0 +1,7 @@
+# Disk guard (#201): warn at 80 %, pause deploys and optional work at 90 %, recover below 85 %.
+[Unit]
+Description=KnowScroll disk guard
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ks disk-guard

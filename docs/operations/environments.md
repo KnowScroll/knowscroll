@@ -1,0 +1,154 @@
+# Environments: running dev, stage and live on the VPS
+
+How to operate KnowScroll's worlds on the Hostinger VPS ([ADR-0049](../decisions/0049-environments-on-one-vps.md),
+[#201](https://github.com/KnowScroll/knowscroll/issues/201)). The design and its reasons are in
+`docs/plans/environments/`. Never paste a secret, password or key value into an issue, PR, log or chat.
+
+## The worlds
+
+| World | Branch | Web app | Backend | Data | Who changes it |
+|---|---|---|---|---|---|
+| dev | `dev` | https://app.dev.knowscroll.space | https://backend.dev.knowscroll.space | preseeded; can be reset at any time | anyone's PR merge, the agent, a manual deploy of any commit |
+| stage | `stage` | https://app.stage.knowscroll.space | https://backend.stage.knowscroll.space | preseeded; changes only on promotion | promotion from dev (agent, owner, XZNON) |
+| live | `main` | https://app.knowscroll.space | https://backend.knowscroll.space | the owner's universe | promotion from stage (**owner or XZNON only**) — *not deployed yet* |
+
+`/health` on any host answers `{status, database, world, commit}`, so you can see which build a world runs.
+
+## Server
+
+- **Host:** `187.126.119.96` (`srv2036699.hstgr.cloud`), Ubuntu 26.04, 2 vCPU, 8 GB, 100 GB.
+- **Access:** SSH keys only. Password and keyboard-interactive login are off
+  (`/etc/ssh/sshd_config.d/00-knowscroll.conf`). Hostinger's browser terminal still works; it logs in
+  with a key it injects. The agent's key is `~/.ssh/knowscroll_vps_agent` on the owner's Mac
+  (`ssh knowscroll-vps`).
+- **Firewall:** ufw allows only 22, 80 and 443. Postgres (5432), the APIs (4310/4320/4330) and Caddy's
+  admin port listen on 127.0.0.1 only.
+- **Layout:**
+
+  ```
+  /srv/knowscroll/releases/<commit>/   one built release, shared by every world that runs it
+  /srv/knowscroll/<world>/current      → the release this world runs; previous → the one before
+  /srv/knowscroll/<world>/media/       the world's KS_MEDIA_ROOT (private to its user)
+  /srv/knowscroll/<world>/releases.log one JSON line per deploy
+  /etc/knowscroll/<world>.env          the world's settings and secrets (root:ks-<world>, 0640)
+  /etc/knowscroll/secrets/             generated per-world secrets and shared mail settings (root, 0700)
+  ```
+
+- **Services per world:** `ks-api@<world>`, `ks-worker@<world>` and `ks-maintenance@<world>`, all under
+  `ks-world@<world>.target` and the `ks-<world>.slice` (CPU and memory budget).
+
+## Setting up or changing the server
+
+Everything on the server comes from `ops/vps/ansible/`, run from the owner's Mac. Ansible lives in a
+virtualenv on the SSD at `$KS_DEV_ROOT/tools/ansible-venv`.
+
+```sh
+ops/vps/ansible/run.sh --check --diff   # preview exactly what would change
+ops/vps/ansible/run.sh                  # apply
+```
+
+A second run should report `changed=0`. Secrets are generated on the server and read by Ansible only
+with `no_log`. One file is copied by hand, once:
+
+- `/etc/knowscroll/secrets/shared/agentmail.env` holds `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` and
+  `KS_OWNER_EMAIL`.
+- It was copied from the owner's `.env` on 2026-10-07 without printing. Dev and stage share that
+  inbox for now.
+
+## Deploying
+
+- **Automatically:** merge a PR into `dev`, or promote into `stage`. `.github/workflows/deploy.yml`
+  waits for `checks` to pass on that commit, then:
+  1. builds the release (or reuses the one already on the server);
+  2. runs `ks deploy|promote <world> <commit>` through the world's deploy key;
+  3. checks `/health` from outside.
+- **A branch on dev:** Actions → deploy → Run workflow → `ref` = the branch or commit. Dev only.
+- **By hand from the Mac** (the agent, dev only):
+
+  ```sh
+  pnpm build:release --out "$KS_DEV_ROOT/releases-local" --commit $(git rev-parse HEAD)
+  ssh knowscroll-vps "flock /run/knowscroll/deploy.lock ks deploy dev <commit>" \
+    < "$KS_DEV_ROOT/releases-local/release-<commit>.tar"
+  ```
+
+What `ks deploy` does:
+
+1. Refuses if the disk is critical.
+2. For stage and live, refuses any commit that is not the branch tip.
+3. Verifies the release's hashes.
+4. Runs `migrate` (and, for dev and stage, `seed`) as the world's own user.
+5. Links the release, restarts the world, and waits up to 90 s for `/health` to report the commit.
+6. If health fails, links the previous release back and restarts.
+
+A migrated database is never rolled back automatically.
+
+## Promoting
+
+```sh
+scripts/promote.sh stage   # dev's healthy commit → stage (agent, owner, XZNON)
+scripts/promote.sh live    # stage's healthy commit → main (owner or XZNON only)
+```
+
+The script:
+- reads the lower world's commit from its `/health`;
+- refuses anything that is not a fast-forward, not on the lower branch, or without passing `checks`;
+- pushes that commit to the next branch, which triggers the deploy.
+
+The next world runs the same bytes. GitHub rulesets let only the `promoters` team (the owner and XZNON)
+update `main` and `stage`. The agent's Claude Code hook refuses `promote.sh live` and any push to
+`main`.
+
+## Day to day on the server
+
+```sh
+ssh knowscroll-vps ks status                       # every world: commit, health, services, last deploy, disk
+ssh knowscroll-vps ks rollback dev                 # back to the previous release (code only)
+ssh knowscroll-vps journalctl -u 'ks-*@dev' -f     # follow a world's logs
+ssh knowscroll-vps journalctl -u ks-disk-guard -n 20
+```
+
+## Cleanup and the disk guard
+
+| What | Rule | When |
+|---|---|---|
+| Releases | Keep any release a world uses now or used last, plus the 3 newest others | after every deploy, and nightly (`ks-cleanup.timer`, about 03:30 UTC) |
+| Temp files | Interrupted uploads and media imports older than 1 day | nightly |
+| Journal | Capped at 1 GB and 30 days | journald |
+| apt | Old kernels, unused packages and the cache cleaned by unattended upgrades | apt timers |
+| Live media and backups | **Never deleted automatically** | — |
+
+`ks-disk-guard.timer` runs every 10 minutes:
+
+| Disk use | What happens |
+|---|---|
+| ≥ 80 % | Warning |
+| ≥ 90 % | Writes `/run/knowscroll/disk-critical`: deploys are refused, Cutroom and generation (when present) are paused, and emergency cleanup runs (2 newest unused releases kept, journal vacuumed to 500 MB) |
+| < 85 % (after critical) | Clears the flag and restarts what it paused |
+
+The critical and recovery path was proven on 2026-10-07 by filling the disk to 93 % and removing the
+filler. Pausing services is unproven, because no pausable service existed yet.
+
+## Adding the live world (later slice)
+
+1. Add `live` to `ks_worlds` in `ops/vps/ansible/group_vars/all.yml`: port 4310, database `knowscroll`,
+   role `ks_live`, the largest budget.
+2. Create the `production` deploy key and secret.
+3. Add `main` to `deploy.yml`.
+4. Add backups:
+   - a verified pre-deploy backup before any live migration (ADR-0047);
+   - a nightly dump;
+   - a weekly restore test;
+   - a copy pulled to the Mac.
+5. Move the owner's universe once, with a per-table count comparison (`docs/plans/environments/03-program-design.md`).
+
+## Going private later
+
+Rulesets, protected environments and environment secrets on a private repository need GitHub Team. In
+this order:
+
+1. Upgrade the org.
+2. Make the repository private.
+3. Confirm that rulesets `24594426` and `24608344`, the `dev`, `stage` and `production` environments,
+   and the `promoters` team are still enforced.
+4. Give the server a read-only way to run `git ls-remote` (a deploy key or token), because `ks deploy`
+   checks branch tips over public HTTPS today.

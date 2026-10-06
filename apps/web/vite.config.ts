@@ -16,15 +16,11 @@
  * `import.meta.env`, so no token or cookie value can reach client
  * JavaScript, the built bundle, or browser storage.
  *
- * `vite build` (production bundling) refuses by default: production
- * identity (#2) does not exist, so there is no authenticated way to serve a
- * built bundle in a non-development context. The only supported way to run
- * this app is `vite dev` or `vite preview`, both of which are Node
- * processes that apply the same loopback + injected-token rule. A single
- * internal escape hatch (`KS_WEB_ALLOW_BUILD_FOR_TEST_EVIDENCE=1`) exists
- * solely so a test can build the client bundle and grep its own output for
- * a leaked token/Authorization header (see test/unit/build-no-secrets.test.ts);
- * it is never set by `pnpm build`, `pnpm --filter web build`, or CI.
+ * `vite build` produces the production bundle (#201). ADR-0022 refused it while no production
+ * identity existed; magic-link and cookie sign-in (#2, ADR-0026/0034) now do, and each world on
+ * the server serves the same built bundle behind Caddy, which proxies `/v1` to that world's API.
+ * The bundle never carries a token: none is passed through `define`, `envPrefix` or
+ * `import.meta.env` (test/unit/build-no-secrets.test.ts builds one and greps it).
  */
 import react from '@vitejs/plugin-react';
 import type { IncomingMessage } from 'node:http';
@@ -34,21 +30,6 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
 function isLoopbackHost(hostname: string): boolean {
   return LOOPBACK_HOSTS.has(hostname);
-}
-
-function refuseProductionBuild(): Plugin {
-  return {
-    name: 'ks-refuse-production-build',
-    apply: 'build',
-    buildStart() {
-      if (process.env.KS_WEB_ALLOW_BUILD_FOR_TEST_EVIDENCE === '1') return;
-      throw new Error(
-        'apps/web has no production identity yet (#2, see docs/decisions/0022-desktop-web-surface.md). ' +
-          '`vite build` refuses to produce a bundle; run `pnpm --filter web dev` or `pnpm --filter web preview` ' +
-          'against a loopback API instead.',
-      );
-    },
-  };
 }
 
 /** Both `vite dev` and `vite preview` must stay bound to loopback even if a CLI --host flag is added later. */
@@ -125,7 +106,7 @@ function devAuthProxy(): Record<string, string | ProxyOptions> {
 export default defineConfig(() => {
   const proxy = devAuthProxy();
   return {
-    plugins: [react(), refuseProductionBuild(), enforceLoopbackBinding()],
+    plugins: [react(), enforceLoopbackBinding()],
     server: {
       host: '127.0.0.1',
       port: Number(process.env.PORT) || 4392,
