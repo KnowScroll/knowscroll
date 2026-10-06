@@ -1,5 +1,43 @@
 # Shared delivery checkpoint
 
+## 2026-10-07 #201 dev and stage on the VPS
+
+KnowScroll now runs outside the Mac. The Hostinger VPS (`187.126.119.96`, Ubuntu 26.04) hosts:
+- **dev** at https://app.dev.knowscroll.space;
+- **stage** at https://app.stage.knowscroll.space, which follows by fast-forward promotion;
+- **live** (`app.knowscroll.space`) is reserved and serves a placeholder.
+
+The full record is [ADR-0049](decisions/0049-environments-on-one-vps.md) and the
+[operating guide](operations/environments.md). Plan and gates: `docs/plans/environments/`.
+
+**What changed**
+- **Server setup** is Ansible from the Mac (`ops/vps/ansible/`): key-only SSH, ufw,
+  PostgreSQL 16 with a database and role per world, Node 22, Caddy with HTTPS for eight names,
+  per-world slices and sandboxed units.
+- **The API has a server mode:** no development identity in production, one trusted proxy, and
+  `/health` reports world and commit.
+- **One bundled release** runs everywhere with no `node_modules`; CI smoke-tests it.
+- **Deploys** come from `deploy.yml` through world-pinned deploy keys. Promotion is a fast-forward.
+- **Cleanup and a disk guard** are in place.
+- **GitHub:**
+  - `dev` is the default branch;
+  - rulesets block deletion and force-pushes, and let only the `promoters` team (owner, XZNON)
+    update `main` and `stage`;
+  - the environments `dev`, `stage` and `production` (reviewers) exist;
+  - a Claude hook refuses agent updates of `main`.
+
+**Proven:** backend 1117/1117 and web 264/264; release smoke; an idempotent Ansible run; valid
+certificates and internal ports closed from outside; deploy-gate refusals; a deploy to dev in 11 s;
+AgentMail sign-in accepted; the disk guard taken to 93 % and back.
+
+**Not done:**
+- live, with backups and the universe move;
+- the `agent` user replacing the root key;
+- Cutroom services (#199 is next);
+- Android flavours (local builds on request).
+
+Pausing services under disk pressure is unproven, because none existed to pause.
+
 ## 2026-10-05 #196 behavior-preserving backend refactor
 
 The backend now has the module boundaries in ADR-0048. `packages/contracts`, `packages/core` and

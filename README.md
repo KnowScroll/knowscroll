@@ -63,7 +63,7 @@ pnpm dev:worker    # terminal 2
 
 `pnpm typecheck` and `pnpm test` check implementation. `pnpm verify:journey` exercises real HTTP, worker and database; Android evidence is a separate check. `pnpm state` reads current migrations, worker heartbeat and API availability.
 
-Upgrading the owner's installation (a verified backup before every migrate, rollback by restoring it, restart and health checks) is [deployment](docs/operations/deployment.md); the three inputs only the owner supplies for a release are [release inputs](docs/operations/release-inputs.md).
+Dev and stage run on the VPS at https://app.dev.knowscroll.space and https://app.stage.knowscroll.space (live, https://app.knowscroll.space, comes later); how they deploy, promote and clean up is [environments](docs/operations/environments.md) and [ADR-0049](docs/decisions/0049-environments-on-one-vps.md). Upgrading the owner's Mac installation (a verified backup before every migrate, rollback by restoring it, restart and health checks) is [deployment](docs/operations/deployment.md); the three inputs only the owner supplies for a release are [release inputs](docs/operations/release-inputs.md).
 
 For repeatable acceptance without consuming the owner's remaining library, use `pnpm exec tsx scripts/run-isolated-journey.ts` (J001) and `pnpm exec tsx scripts/run-isolated-session-journey.ts` (J002), plus `pnpm exec tsx scripts/run-isolated-history-journey.ts` (J003). [J004](docs/journeys/J004.md) adds reasoning fault cases and independent interruption cleanup checks. These launch disposable PostgreSQL/API/worker runtimes. See [development operations](docs/operations/development.md) for session provisioning, Android checks and evidence limits.
 
