@@ -19,9 +19,9 @@ the owner has added the agent's SSH key.
 - [x] Slice 1 — server baseline via Ansible (2026-10-07: applied, idempotent, 8 names on Let's Encrypt, internal ports closed)
 - [x] Slice 2 — server mode + build once (2026-10-07: tests first; suite 1117/1117, web 264/264, release smoke in CI)
 - [x] Slice 3 — deploy tool + pipeline (2026-10-07: `ks` + gate + timers installed; manual dev deploy 11 s; deploy.yml + environments + world-pinned keys)
-- [ ] Slice 4 — stage + fast-forward promotion, promoters team, agent hook (promote.sh, hook, team and ruleset done; first stage promotion pending the PR merge)
+- [x] Slice 4 — stage + fast-forward promotion, promoters team, agent hook (2026-10-07: dev → stage promoted `f6e0eb86` by fast-forward; the ruleset admitted it as a `promoters` bypass; stage deployed in 22 s by reusing the release, no rebuild)
 - [x] Slice 5 — cleanup and crash safety (2026-10-07: filled to 93 %, deploys refused, emergency cleanup, recovered; pausing services unproven, none existed)
-- [ ] Slice 6 — docs (ADR-0049, operations/environments.md, CONTRIBUTING/AGENTS/README/deployment, CHECKPOINT) written; links shared after stage is live
+- [x] Slice 6 — docs and handoff (2026-10-07: ADR-0049, operations/environments.md, CONTRIBUTING/AGENTS/README/deployment, CHECKPOINT; links in #201)
 
 ## Owner-requested exception before Gate 4
 
@@ -64,6 +64,18 @@ steps are low-risk and easy to undo, and every architecture option needs them:
   - Undo: delete `00-knowscroll.conf`, then `sshd -t && systemctl reload ssh`.
   - On the Mac, `ssh knowscroll-vps` is an alias in `~/.ssh/config`, and the host key was added
     to `~/.ssh/known_hosts`.
+
+## Running now (2026-10-07)
+
+| World | Web app | Backend | Commit |
+|---|---|---|---|
+| dev | https://app.dev.knowscroll.space | https://backend.dev.knowscroll.space | `f6e0eb86` (deployed by CI from the #202 merge) |
+| stage | https://app.stage.knowscroll.space | https://backend.stage.knowscroll.space | `f6e0eb86` (promoted; the same release folder as dev) |
+| live | https://app.knowscroll.space | — | placeholder; live slice not started |
+
+Both worlds hold the 23 editorial Scrolls and the substrate (seed). No reading history has been seeded
+yet; the scripted reader and the larger library belong to #199. Only `KS_OWNER_EMAIL` can sign in
+(single owner).
 
 ## Relationship to the Cutroom plan
 

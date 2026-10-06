@@ -30,6 +30,10 @@ The full record is [ADR-0049](decisions/0049-environments-on-one-vps.md) and the
 certificates and internal ports closed from outside; deploy-gate refusals; a deploy to dev in 11 s;
 AgentMail sign-in accepted; the disk guard taken to 93 % and back.
 
+**Running (2026-10-07):** dev and stage both run `f6e0eb86`. The first automatic deploy came
+from the #202 merge, and the first fast-forward promotion to stage took 22 s and reused the same
+release. The `promoters` ruleset admitted the promotion.
+
 **Not done:**
 - live, with backups and the universe move;
 - the `agent` user replacing the root key;
