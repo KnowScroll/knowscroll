@@ -56,7 +56,9 @@ if (!/^[0-9a-f]{40}$/.test(commit)) {
 }
 
 const root = resolve(out, commit);
-mkdirSync(root, { recursive: false });
+mkdirSync(resolve(out), { recursive: true });
+// Not recursive: a release folder that already exists is never overwritten.
+mkdirSync(root);
 
 const result = await build({
   entryPoints: PROGRAMS,
