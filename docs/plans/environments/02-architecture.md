@@ -35,8 +35,9 @@ One machine, three worlds, one database server, one web front door.
   ├ API :4310         ├ API :4320            ├ API :4330      (127.0.0.1 only)
   ├ worker            ├ worker               ├ worker
   ├ generation        ├ generation           ├ generation
-  └ Cutroom :8787     └ Cutroom :8797        └ Cutroom :8807  (127.0.0.1 only)
-     real providers      real, capped           stand-ins only, $0
+  └ Cutroom-live      └──────┬───────────────┘
+     :8787, real              Cutroom-pool :8797, real, capped; shared Reel pool
+                              (only stage orders; dev receives; 127.0.0.1 only)
                            │
             PostgreSQL 16 (127.0.0.1:5432, one cluster)
       knowscroll · knowscroll_test_stage · knowscroll_test_dev
@@ -59,19 +60,33 @@ One machine, three worlds, one database server, one web front door.
   the same API for the Android app.
 - **The bare `knowscroll.space` and `www` redirect to `app.knowscroll.space`.** Each `app.` host
   serves `/.well-known/assetlinks.json` for its flavour's App Links.
-- **Each world has its own Cutroom checkout and data**, pinned to its own Cutroom revision, so dev
-  can try a newer pin before stage does. Cutroom stays loopback-only (its v1 contract) and talks
-  only to its own world.
+- **Two Cutroom services, not three** (*owner amendment at the Gate 3 review, 2026-10-06*):
+  - `cutroom-live` serves live only.
+  - `cutroom-pool` serves stage and dev, which share one pool of Reels: a Reel paid for once is
+    imported into both.
+  - Only stage orders paid runs from the pool. Dev has no paid grant and receives the pool's
+    Reels.
+  - For free tests, the agent starts a temporary stand-in Cutroom in dev, the way journey J005
+    does today.
+  - Both services stay loopback-only (Cutroom's v1 contract).
+  - How a pooled Reel is shared between the two databases (request identity, import, spend
+    counted once) is designed in the Cutroom plan (#199).
+- **The server runs built releases, not source** (*owner amendment*). CI bundles each program
+  with esbuild (the KnowScroll packages are folded in, npm packages stay external). The server
+  runs plain `node --enable-source-maps` on the bundles. There is no TypeScript at runtime and no
+  git checkout on the server.
 
 ### Layout on disk
 
 ```
 /srv/knowscroll/<world>/
-  app/            git checkout of the deployed commit (read-only to the service user)
-  web/            the built web bundle for that commit
-  cutroom/        Cutroom checkout at the world's pinned revision
-  cutroom-data/   Cutroom SQLite, artifacts, questions/budget files
-  media/          KnowScroll's content-addressed media (KS_MEDIA_ROOT)
+  releases/<commit>/  one built release: dist/*.mjs, migrations, content/, web/, (dev/stage) phone build
+  current -> releases/<commit>
+  media/          KnowScroll's content-addressed media (KS_MEDIA_ROOT); stage and dev use the pool's
+/srv/knowscroll/cutroom-<live|pool>/
+  checkout/       Cutroom at its pinned revision (run as upstream ships it)
+  data/           Cutroom SQLite, artifacts, questions/budget files
+/srv/knowscroll/pool-media/       content-addressed Reel media shared by stage and dev (group ks-pool)
   releases.log    one line per deploy: time, commit, migrations applied, result
 /etc/knowscroll/<world>.env        secrets and settings, mode 0640, root:ks-<world>
 /etc/knowscroll/<world>.cutroom.env  Cutroom's provider keys, readable only by that world's Cutroom
@@ -185,10 +200,11 @@ feature branch ──PR──▶ dev ──fast-forward──▶ stage ──fas
 
 ## Access
 
-- **The agent's day-to-day account is `agent`, not root.** It can:
-  - read every world's logs and status;
-  - restart and redeploy dev and stage, and reset dev;
-  - call live's `/health` and read live's service status.
+- **The agent's day-to-day account is `agent`, not root.**
+  - **In dev it has full control** (*owner amendment*): its database, secrets, services and
+    resets, and deploying any commit, not only `dev`'s tip.
+  - In stage it can read logs, restart, and deploy through the normal flow.
+  - For live it can call `/health` and read service status.
 
   It cannot read live's secrets, database or media. Gate 1 promised exactly this.
 - **Setup runs as root.** The final setup slice moves the agent to `agent` and removes its key
@@ -208,8 +224,8 @@ feature branch ──PR──▶ dev ──fast-forward──▶ stage ──fas
 | MiniMax, fal | live and stage Cutroom; KnowScroll worker reasoning where enabled | `MINIMAX_API_KEY`, `FAL_KEY` in each world's own env file |
 | Google Play | live's Android release | release keystore (owner input) |
 
-**Spend.** Dev's Cutroom runs stand-ins only, $0, and refuses real provider settings. Stage's
-real-reel spend counts against the owner's $2 Cutroom cap (#199). Live's limits are set when live
+**Spend.** Dev never orders a paid Reel: it has no paid grant, and its free tests use a temporary
+stand-in Cutroom. Stage's orders on `cutroom-pool` count against the owner's $2 Cutroom cap (#199). Live's limits are set when live
 first generates.
 
 **Going private later** (Gate 1 decision 5): rulesets, required reviewers and environment secrets

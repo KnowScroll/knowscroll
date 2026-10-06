@@ -18,6 +18,26 @@ override at this gate:
 5. **A `promoters` org team** (`Legend101Zz`, `XZNON`) is the only bypass actor allowed to update
    `main` and `stage`.
 
+## Owner changes at this review (2026-10-06)
+
+1. **Build, don't run TypeScript in production.** CI bundles each program with esbuild; the server
+   runs plain `node`. This replaces "tsx in production", which is no longer a least-confident
+   decision.
+2. **One PostgreSQL, a separate database per world**, confirmed as the owner's decision. It is no
+   longer listed as a least-confident decision.
+3. **Stage and dev share one pool of Cutroom Reels; live has its own.** That means two Cutroom
+   services (`cutroom-live` and `cutroom-pool`), not three. Gates 1 and 2 are amended to match.
+4. **The agent has full control of dev**: its database, secrets, services and resets, and
+   deploying any commit there, not only `dev`'s tip.
+
+Why bundling is safe here (verified): every runtime path is relative to the working directory, not
+to the source file. That covers `resolve('packages/db/migrations')` in `scripts/migrate.ts`,
+`resolve('.env')` and `content/`, and nothing uses `import.meta.url` or `__dirname`. A release
+therefore keeps `packages/db/migrations/` and `content/` beside its bundles. Plain `tsc` output
+would not work, because the workspace packages export their `.ts` sources. Node's built-in type
+stripping would not work either, because three classes use constructor parameter properties
+(`http-client.ts:86`, `runtime-policy.ts:79`, `generation/storage.ts:34`).
+
 ## What the code already does (verified 2026-10-06)
 
 - `NODE_ENV=production` already requires a fixed `KS_CSRF_SECRET` (32+ bytes), `KS_WEB_ORIGIN`
@@ -47,6 +67,13 @@ override at this gate:
 | `apps/mobile/app/src/main/kotlin/…/ui/theme/EnvironmentLabel.kt` | **New.** The same ribbon in Compose, drawn from `BuildConfig.KS_WORLD` | Label on Android |
 | `apps/mobile/app/src/main/kotlin/…/ui/…` (root scaffold) | Mount the label once | Label on every screen |
 
+### Build
+
+| File | Purpose |
+|---|---|
+| `scripts/build-release.mjs` | **New.** esbuild bundles of `api`, `worker`, `generation`, `maintenance`, `migrate` and `seed` into `dist/*.mjs` (ESM, Node 22, source maps). `@knowscroll/*` are folded in and every npm dependency stays external. Writes `release.json`, then one tarball holding `dist/`, `packages/db/migrations/`, `content/`, `web/`, the phone build (dev/stage), `package.json` and `pnpm-lock.yaml` |
+| `package.json` | Add `build:release` and an explicit `esbuild` dev dependency (already present through `tsx` and allowed in `onlyBuiltDependencies`) |
+
 ### Operations (new folder `ops/vps/`, never imported by the product)
 
 | File | Purpose |
@@ -55,11 +82,13 @@ override at this gate:
 | `ops/vps/bootstrap.sh` | Idempotent server baseline as root (detailed below) |
 | `ops/vps/world.sh` | `world.sh create <world>`: creates a world's user, database, role, folders, env file skeleton and units. Idempotent |
 | `ops/vps/Caddyfile` | 8 hosts: redirects, static web, `/v1` and `/health` proxy, `/download`, `assetlinks.json` |
-| `ops/vps/systemd/ks-@.slice`, `ks-api@.service`, `ks-worker@.service`, `ks-generation@.service`, `ks-cutroom@.service`, `ks-world@.target` | Templated units; the instance name is the world (`ks-api@live`) |
+| `ops/vps/systemd/ks-@.slice`, `ks-api@.service`, `ks-worker@.service`, `ks-generation@.service`, `ks-world@.target` | Templated units; the instance is the world (`ks-api@live`). `ExecStart=node --enable-source-maps current/dist/api.mjs`, `WorkingDirectory=current` |
+| `ops/vps/systemd/ks-cutroom@.service` | Instance `live` or `pool`. Runs upstream's own `apps/service/src/main.ts` from that Cutroom checkout, as upstream ships it |
 | `ops/vps/bin/ks-deploy` | The only command the deploy key can run. Deploys one commit to one world (call stack below) |
 | `ops/vps/bin/ks-backup` | Verified `pg_dump` of live (the `deployment.md` procedure as a script); used before migrations and nightly |
 | `ops/vps/bin/ks-status` | Every world's version, health, last deploy, migrations and service state, on one screen |
-| `ops/vps/bin/ks-reset` | Rebuild dev (or stage, only with `--confirm-stage`): drop, migrate, seed, scripted reader. **Refuses `live`** |
+| `ops/vps/bin/ks-reset` | Rebuild dev (or stage, only with `--confirm-stage`): drop, migrate, seed, scripted reader, re-import the pool's Reels. **Refuses `live`** |
+| `ops/vps/bin/ks-standin-cutroom` | Starts or stops a temporary stand-in Cutroom for dev's free tests. It never touches `cutroom-pool` |
 | `ops/vps/bin/ks-move-universe` | One-time move of the owner's universe into live, with the count comparison |
 | `ops/vps/sudoers.d/knowscroll` | Exactly which commands `deploy` and `agent` may run as which user |
 | `ops/vps/timers/ks-backup.timer` (+ service) | Nightly live backup |
@@ -68,7 +97,7 @@ override at this gate:
 
 | File | Change |
 |---|---|
-| `.github/workflows/deploy.yml` | **New.** Deploys after `checks` succeeds on a push to `dev`, `stage` or `main` |
+| `.github/workflows/deploy.yml` | **New.** Builds the release and deploys after `checks` succeeds on a push to `dev`, `stage` or `main`. Also `workflow_dispatch` with any ref, **target dev only**, so the agent can try a feature branch in dev |
 | `scripts/promote.sh` | **New.** Fast-forward promotion `dev → stage` or `stage → main`, with its checks |
 | `scripts/seed-reader.ts` | **New.** A scripted reader that reads and keeps through the real API with an operator-issued session, so the real Cartographer forms places |
 | `.claude/hooks/refuse-main-update.sh` + `.claude/settings.json` | **New.** Refuses agent Bash commands that would update `main` (decision 6) |
@@ -114,7 +143,8 @@ const val KS_APP_LINKS_HOST: String // e.g. "app.dev.knowscroll.space"
 
 ```sh
 # ops/vps/bin — command contracts (exit 0 = done; nonzero = nothing half-applied, reason on stderr)
-ks-deploy <dev|stage|live> <40-hex commit>   # reads a web bundle (and an APK for dev/stage) as a tar on stdin
+ks-deploy <dev|stage|live> <40-hex commit>   # reads the release tarball on stdin; dev accepts any commit
+#   release.json: { commit, world, builtAt, node, bundles: string[], migrations: string[], web: true, apk?: string }
 ks-backup live [--reason pre-deploy|nightly] # prints the verified backup path
 ks-status [--json]
 ks-reset <dev|stage> [--confirm-stage]       # refuses live
@@ -140,18 +170,20 @@ scripts/promote.sh live    # stage's deployed, healthy commit → main
    deploy secrets. This is the known `workflow_run` trap.
 3. It selects the GitHub Environment `dev`, `stage` or `production` (production waits for a
    reviewer).
-4. It builds `apps/web` with `KS_WORLD=<world>`. For dev and stage it also runs
-   `./gradlew :app:assembleDev` or `:app:assembleStage` with the test keystore secret.
-5. `ssh deploy@187.126.119.96 ks-deploy <world> <sha> < bundle.tar`. The key's line in
+4. It runs `pnpm build:release`: the esbuild bundles, plus `apps/web` built with
+   `KS_WORLD=<world>`. For dev and stage it also runs `./gradlew :app:assembleDev` or
+   `:app:assembleStage` with the test keystore secret.
+5. `ssh deploy@187.126.119.96 ks-deploy <world> <sha> < release.tar`. The key's line in
    `authorized_keys` is `restrict,command="/usr/local/bin/ks-deploy-gate"`, and the gate reads
    `SSH_ORIGINAL_COMMAND`.
 6. `ks-deploy`, as `deploy` with narrow sudo:
-   1. Validates the world and commit, and that the commit is the current tip of the world's
-      branch (`git ls-remote`).
+   1. Validates the world and commit. For stage and live, the commit must be the current tip of
+      the world's branch (`git ls-remote`). Dev accepts any commit, because the agent may try
+      branches there.
    2. Takes a lock, so only one deploy runs at a time on the whole box.
-   3. Fetches the commit into `/srv/knowscroll/<world>/releases/<sha>` and runs
-      `pnpm install --frozen-lockfile`.
-   4. Unpacks the web bundle (and APK) from stdin into that release.
+   3. Unpacks the tarball from stdin into `/srv/knowscroll/<world>/releases/<sha>`, checks that
+      `release.json` names the same commit and world, and runs
+      `pnpm install --prod --frozen-lockfile` there. Nothing is compiled on the server.
    5. **For live, if a migration is pending:** stops live's worker and generation, runs
       `ks-backup live --reason pre-deploy` and stops if verification fails.
    6. Runs `pnpm db:migrate` as the world's role.
@@ -237,6 +269,12 @@ scripts/promote.sh live    # stage's deployed, healthy commit → main
   - `assembleDebug still produces the existing debug APK`, which guards every existing script;
   - read via `aapt2 dump badging`.
 - `ops/vps` scripts pass `shellcheck` in CI.
+- Release build (CI):
+  - `build-release bundles start`: the bundled `migrate` and `api` run against CI's Postgres and
+    `/health` answers;
+  - `no bundle imports @knowscroll/* at runtime`;
+  - `release.json names the built commit`.
+- The existing suites keep running against source, unchanged.
 
 ### On the server (joined checks, run and recorded per slice)
 
@@ -252,8 +290,11 @@ scripts/promote.sh live    # stage's deployed, healthy commit → main
   migrating. A deliberately corrupted backup stops the deploy before any migration.
 - **Rollback:** a deploy whose health check fails returns the world to the previous commit,
   automatically.
-- **Access separation:** the `agent` user cannot read `/etc/knowscroll/live.env`, cannot connect
-  to database `knowscroll`, and can restart `ks-world@dev.target`.
+- **Access separation:** the `agent` user cannot read `/etc/knowscroll/live.env` and cannot
+  connect to database `knowscroll`. It can do anything in dev: read dev's env, use `psql` as
+  `ks_dev`, restart, reset, and deploy any commit.
+- **Shared pool:** a Reel in `pool-media` is readable by both stage and dev; dev's grant table
+  holds no paid grant; `cutroom-live` is reachable only by live's user.
 - **Promotion rules:**
   - a promotion that isn't a fast-forward is refused;
   - `promote.sh live` from a Claude session is refused by the hook;
@@ -275,11 +316,12 @@ scripts/promote.sh live    # stage's deployed, healthy commit → main
    to an operator. TypeScript (like `ops/cutroom-host/host.ts`) would give tests and types but
    needs Node before Node is installed. Mitigated by `shellcheck`, `set -euo pipefail` and joined
    checks.
-3. **Running TypeScript through `tsx` in production**, as the repo does today, instead of
-   compiling. Costs a few seconds of CPU per restart. A compile step is a later optimisation.
-4. **One Postgres cluster for three worlds.** A heavy dev query could slow live. Mitigated by the
-   per-role statement timeout and connection limit, and by the systemd CPU weights. A second
-   cluster costs about 300 MB of RAM if this proves wrong.
+3. **esbuild bundles with npm packages left external.** Bundling everything would remove `pnpm
+   install` from the server, but some npm packages misbehave when bundled. Keeping them external
+   costs an install per deploy. The CI smoke test is the guard.
+4. **A shared Reel pool across two databases.** Stage and dev each keep their own
+   `generated_reel` rows over the same media files. If the two worlds' migrations diverge (dev
+   ahead of stage), a pooled Reel must still import into both. The import rules live in #199.
 5. **Naming stage and dev `knowscroll_test_*`** to reuse migration 0014's stand-in fence. It's
    precise, but it means those names must never be used for disposable test databases on this
    server (no test suite runs here).

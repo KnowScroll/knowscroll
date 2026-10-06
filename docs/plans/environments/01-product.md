@@ -30,11 +30,13 @@ clear line between "being built", "ready to try" and "live", so there is also no
   every screen. Each place can tell you which version it is running.
 - **Let the AI keep watch.** It can watch dev and stage run at any time (what they are doing,
   errors, health) and fix them. It can see whether live is healthy, but not read your private data.
-- **Keep the worlds separate.** Each world has its own settings, keys, spending limits and video
-  engine:
-  - Dev makes only free simulated videos.
-  - Stage can make real ones within a limit.
-  - Live makes real ones.
+- **Keep the worlds separate.** Each world has its own settings, keys and spending limits.
+  *Amended by the owner at the Gate 3 review, 2026-10-06:*
+  - Live has its own video engine and its own Reels.
+  - **Stage and dev share one pool of Reels**, made by one shared video engine. A real Reel paid
+    for once appears in both.
+  - Only stage orders real Reels, within a limit.
+  - Dev orders nothing paid; it sees the pool and can run free simulated videos for testing.
 
 ## What it is not
 
@@ -55,7 +57,7 @@ clear line between "being built", "ready to try" and "live", so there is also no
 | Releases to live that had a checked backup first | **100%** |
 | Ways into the server without a key | **0** (password and root login switched off) |
 | Apps on your phone | 3, side by side, each signed in to its own world |
-| Money spent by dev's video engine | **$0** |
+| Money spent on dev's behalf | **$0** (dev receives the shared pool; it never orders a paid Reel) |
 
 ## Announcement — the blog post before the feature
 

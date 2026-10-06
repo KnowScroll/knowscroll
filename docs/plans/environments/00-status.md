@@ -83,6 +83,11 @@ Owner decisions in chat on 2026-10-06:
    - stage = a preseeded database for the owner to try things.
    - dev = a preseeded database where the AI builds and tests.
    - Invariant: **main ⊆ stage ⊆ dev**.
+   - *Gate 3 review (owner):*
+     - one Postgres with a database per world;
+     - stage and dev share one Cutroom Reel pool (`cutroom-pool`), while live has `cutroom-live`;
+     - releases are built in CI (esbuild) and the server runs plain `node`;
+     - the agent has full control of dev.
    - XZNON may also promote, including to live (owner, 2026-10-06).
 4. **Promotion rights.** The AI may merge into dev and promote dev → stage once a change works.
    **Only the owner promotes to main.**
