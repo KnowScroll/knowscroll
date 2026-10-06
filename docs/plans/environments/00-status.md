@@ -24,6 +24,30 @@ access. That one change, **password login off and key-only root**, is made befor
 the box is otherwise open to password guessing. Everything else (users, firewall, services) waits
 for the slice plan. The Hostinger web console stays a way in that does not depend on SSH.
 
+## Done ahead of Gate 2, at the owner's request (2026-10-06)
+
+The owner asked for the server to be accessed and secured, and for GitHub to be set up. These
+steps are low-risk and easy to undo, and every architecture option needs them:
+
+- **DNS verified.** At Hostinger's servers and at 1.1.1.1, `knowscroll.space`, `www`, `app`,
+  `backend`, `app.stage`, `backend.stage`, `app.dev` and `backend.dev` all resolve to
+  `187.126.119.96`.
+- **GitHub branches.** `stage` and `dev` were created at `main`'s commit `e5fdc319`, so
+  `main ⊆ stage ⊆ dev` holds trivially.
+- **GitHub ruleset `24594426`** ("environment branches: no deletion, no force-push") is active
+  on `main`, `stage` and `dev` with no bypass actors. Squash merges into `dev` and fast-forward
+  promotions are still allowed. Undo:
+  `gh api -X DELETE repos/KnowScroll/knowscroll/rulesets/24594426`.
+- **The default branch is `dev`** (was `main`), so new PRs target it. Draft PRs #200 and #202 were
+  retargeted to `dev`. Undo: `gh api -X PATCH repos/KnowScroll/knowscroll -f default_branch=main`.
+  CONTRIBUTING and AGENTS still say "PR to main". Updating them is a Gate 4 slice.
+- **Promotion rights (owner, 2026-10-06):** the owner and **`XZNON`** may promote to stage **and
+  to live**. `Asrani-Aman` may not. All three are repo admins, so GitHub can only enforce this
+  through an org team used as a ruleset bypass actor. That is a Gate 2 decision.
+- **SSH:** host key `SHA256:YDrqOgWcpt62KObaOMuTDcc8URSm87kG/aD6qeqpcBM` (ed25519, OpenSSH
+  10.2p1 on Ubuntu). The agent's key login is pending: the owner's first paste did not register,
+  and a quote-free command was given.
+
 ## Relationship to the Cutroom plan
 
 `docs/plans/cutroom-integration/` (#199, branch `claude/9-cutroom-integration`) depends on this
@@ -48,6 +72,7 @@ Owner decisions in chat on 2026-10-06:
    - stage = a preseeded database for the owner to try things.
    - dev = a preseeded database where the AI builds and tests.
    - Invariant: **main ⊆ stage ⊆ dev**.
+   - XZNON may also promote, including to live (owner, 2026-10-06).
 4. **Promotion rights.** The AI may merge into dev and promote dev → stage once a change works.
    **Only the owner promotes to main.**
 5. **The repo stays PUBLIC for now** to avoid GitHub cost. It goes private later, when the owner
