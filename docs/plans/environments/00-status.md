@@ -9,7 +9,7 @@ change before the Gate 4 slice plan is approved. Read-only inspection of the VPS
 the owner has added the agent's SSH key.
 
 - Gate 1 — Product: APPROVED 2026-10-06 (answers recorded in 01-product.md)
-- Gate 2 — Architecture: in progress (read-only VPS inspection first)
+- Gate 2 — Architecture: written 2026-10-06, awaiting owner approval (02-architecture.md)
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
 
@@ -44,9 +44,20 @@ steps are low-risk and easy to undo, and every architecture option needs them:
 - **Promotion rights (owner, 2026-10-06):** the owner and **`XZNON`** may promote to stage **and
   to live**. `Asrani-Aman` may not. All three are repo admins, so GitHub can only enforce this
   through an org team used as a ruleset bypass actor. That is a Gate 2 decision.
-- **SSH:** host key `SHA256:YDrqOgWcpt62KObaOMuTDcc8URSm87kG/aD6qeqpcBM` (ed25519, OpenSSH
-  10.2p1 on Ubuntu). The agent's key login is pending: the owner's first paste did not register,
-  and a quote-free command was given.
+- **SSH is key-only** (done 2026-10-06, verified from outside). Host key
+  `SHA256:YDrqOgWcpt62KObaOMuTDcc8URSm87kG/aD6qeqpcBM`.
+  - `/etc/ssh/sshd_config.d/00-knowscroll.conf` sets `PasswordAuthentication no`,
+    `KbdInteractiveAuthentication no` and `PermitRootLogin prohibit-password`. It sorts before
+    Hostinger's `50-cloud-init.conf`, which had allowed passwords; sshd keeps the first value it
+    reads.
+  - `AuthorizedKeysFile` also reads `/etc/ssh/authorized_keys.d/%u`, which holds the agent key, so
+    Hostinger's console key-injection into `/root/.ssh/authorized_keys` cannot remove it. The
+    console's RSA line (`expiry-time=…`) had no trailing newline, and that is why the first
+    pastes failed.
+  - Verified: a new key login works, and a password attempt gets `Permission denied (publickey)`.
+  - Undo: delete `00-knowscroll.conf`, then `sshd -t && systemctl reload ssh`.
+  - On the Mac, `ssh knowscroll-vps` is an alias in `~/.ssh/config`, and the host key was added
+    to `~/.ssh/known_hosts`.
 
 ## Relationship to the Cutroom plan
 
