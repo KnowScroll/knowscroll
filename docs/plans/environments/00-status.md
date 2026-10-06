@@ -9,8 +9,8 @@ change before the Gate 4 slice plan is approved. Read-only inspection of the VPS
 the owner has added the agent's SSH key.
 
 - Gate 1 — Product: APPROVED 2026-10-06 (answers recorded in 01-product.md)
-- Gate 2 — Architecture: written 2026-10-06, awaiting owner approval (02-architecture.md)
-- Gate 3 — Program Design: pending
+- Gate 2 — Architecture: APPROVED 2026-10-06 (recommended answers adopted; see 03-program-design.md "Defaults")
+- Gate 3 — Program Design: written 2026-10-06, awaiting owner approval
 - Gate 4 — Slice plan: pending
 
 ## Slices

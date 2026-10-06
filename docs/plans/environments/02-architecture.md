@@ -1,6 +1,6 @@
 # Architecture: dev, stage and live on one VPS
 
-Gate 2. Status: in progress. It builds on the approved Gate 1 (`01-product.md`) and on the server
+Gate 2. Status: **APPROVED 2026-10-06**. The owner said "approve"; the recommended answers to its questions are adopted (see 03-program-design.md). It builds on the approved Gate 1 (`01-product.md`) and on the server
 as inspected read-only on 2026-10-06.
 
 ## The server as it is (observed 2026-10-06)
