@@ -6,6 +6,21 @@ separate test universe to the stage and dev worlds that now run on the server. T
 without answering the four questions below, so the defaults recorded under each are adopted. Any of
 them can still be changed, and none is hard to change later.
 
+**Owner amendments at the Gate 2 review, 2026-10-07** (in chat: "in Pool, dev can also use for
+testing and both dev and stage should use common reels as it would help the world grow more we can
+raise cost to total of 5$, and we only give cutroom the brief dont change any cutroom code"; then
+three choices):
+
+- Dev and stage **both** order real Reels, and every Reel is **common to both**, paid for once.
+- The money limit is **$5 total**, shared by both worlds.
+- **You approve each script; after that, ordering it needs no further go-ahead.** The $5 limit
+  stops ordering.
+- **Real Reels only.** No simulated Reels in the dev or stage feeds.
+- KnowScroll only hands Cutroom the script and takes the finished Reel back. Nothing in Cutroom
+  changes.
+
+The text below already includes these changes.
+
 ## Problem
 
 KnowScroll promises two things to read and watch: Scrolls and Reels. A Reel is a short narrated
@@ -24,15 +39,15 @@ few places. That doesn't feel like using KnowScroll, so trying anything there pr
   topics and a map with many planets, regions, unexplored sightings and Foundation Stars. A test
   reader formed the map by actually reading, so it grew the way yours would. Your real universe is
   never touched.
-- **Scroll a feed that mixes Scrolls and Reels.** Most Reels there are simulated (plain test
-  footage, always marked "Simulated media"), so the feed has plenty to swipe through.
-- **Watch real Reels on stage.** Up to three were made by Cutroom from three Scrolls you chose. For
-  each, you read and approved its script before any money was spent: the sentences it says and
-  what each shot must and must never show.
-- **See the same real Reels on dev, paid for once.** Stage and dev share one pool of Reels. A Reel
-  made for stage also appears on dev without being made or paid for again. Dev never orders a paid
-  Reel. It is where every change is tried first, for free, with simulated Reels, and it can be
-  reset at any time.
+- **Scroll a feed that mixes Scrolls and real Reels.** Every Reel in it was made by Cutroom. None
+  is simulated.
+- **Watch real Reels in both worlds.** Cutroom made each one from a Scroll you chose. For each, you
+  read and approved its script before any money was spent: the sentences it says and what each shot
+  must and must never show.
+- **Every Reel is shared, and paid for once.** Dev and stage draw on one pool of Reels. A Reel
+  ordered from either world appears in both, and is never made or paid for twice. Dev is where a
+  new script is usually tried first. Resetting dev costs nothing, because its Reels come back from
+  the pool.
 - **See exactly what you are looking at.** Every real Reel says it is generated and that the video
   engine checked it. "Why this Reel appeared" explains how it was checked, including that the check
   was done by the engine that made it, not by an independent reviewer.
@@ -54,18 +69,20 @@ few places. That doesn't feel like using KnowScroll, so trying anything there pr
 | Measure | Target |
 |---|---|
 | Real Reels that play in the stage feed, on the web and on a stage Android build (made on your Mac when you ask) | 3 (at least 1, or the feature is not done) |
-| The same real Reels playing on dev | all of them, at no extra cost |
-| Total real money spent, including any automatic re-tries | **≤ $2.00** |
+| The same real Reels playing on dev | all of them |
+| Total real money spent by both worlds, including any automatic re-tries | **≤ $5.00** |
 | Money spent that KnowScroll's own spending record doesn't know about | **0¢** |
-| Paid Reels ordered from dev | **none** |
+| A Reel paid for twice | **never** |
 | Changes to your real universe | **none** |
 | Sourced Scrolls on stage and dev | about 100+ (from 23 today) |
 | Map on stage | at least 12 planets across at least 6 topics, with regions, sightings and at least 2 Foundation Stars (these figures are targets and may move once the reading run shows what is realistic) |
-| Simulated Reels in the feed | about 15–20, every one marked |
+| Simulated Reels in the dev and stage feeds | **none** |
 
-**Order is part of the promise.** The whole journey runs end to end on dev with simulated Reels
-first, for free. Then the same version moves to stage. Only then is money spent, one real Reel at a
-time, each waiting for your go-ahead.
+**Order is part of the promise.**
+1. The whole journey is first proven for free, by an automated test on your Mac that uses
+   Cutroom's own free test mode.
+2. Then the first real Reel is ordered, usually from dev.
+3. Each script is ordered only after you approve it.
 
 ## Announcement — the blog post before the feature
 
@@ -93,7 +110,8 @@ time, each waiting for your go-ahead.
    *Adopted: "Engine-checked", as in the mockup.*
 2. **Finding the real Reels.** With about 15–20 simulated Reels around them, should the three real
    ones come first in the stage feed, or sit mixed in like any other Reel?
-   *Adopted: first, so they are easy to find while testing.*
+   *Adopted: first, so they are easy to find while testing.* **No longer applies** (2026-10-07):
+   there are no simulated Reels, so every Reel in the feed is real.
 3. **Choosing the three Scrolls.** I propose a shortlist after the library grows (more choice), or
    you pick now from the existing 23. Which?
    *Adopted: a shortlist after the library grows; the owner picks from it.*
@@ -102,3 +120,7 @@ time, each waiting for your go-ahead.
    would have to be repeated after each reset?
    *Adopted: a smaller map on dev. The library and the shared Reels are the same; the long reading
    run happens on stage only.*
+5. **Money and ordering** (Gate 2 review, 2026-10-07). *Adopted:*
+   - $5 total, in one shared record that both worlds draw from;
+   - an approved script may be ordered from either world without a further go-ahead;
+   - real Reels only.

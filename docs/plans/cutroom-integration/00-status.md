@@ -11,10 +11,10 @@ approved.
   stage and dev with the shared Reel pool. The four questions were not answered, so the defaults
   recorded in `01-product.md` are adopted: label "Engine-checked"; real Reels first in the stage
   feed; a Scroll shortlist after the library grows; a smaller map on dev.
-- Gate 2 — Architecture: **awaiting approval** (2026-10-07). `02-architecture.md`, with the facts in
-  `research/2026-10-07-cutroom-upstream-and-knowscroll.md`. Five questions: the odds against $2,
-  a fal prepaid backstop, a read-only deploy key on the Cutroom repo, real-days reading on stage,
-  and the narration voice.
+- Gate 2 — Architecture: **awaiting approval**. The first draft (2026-10-07, 673be8c5) was reviewed
+  by the owner and revised the same day (see "Owner amendments, 2026-10-07" below).
+  `02-architecture.md` has the design; `research/2026-10-07-cutroom-upstream-and-knowscroll.md` has
+  the facts.
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
 
@@ -43,6 +43,24 @@ stand-in Cutroom. This plan's Gate 2 must design:
 - a request identity that both worlds can reconcile (so a replay never pays twice);
 - counting spend once against the $2 cap.
 
+## Owner amendments, 2026-10-07 (Gate 2 review)
+
+In chat: "in Pool, dev can also use for testing and both dev and stage should use common reels as
+it would help the world grow more we can raise cost to total of 5$, and we only give cutroom the
+brief dont change any cutroom code or anything let cutroom work and give us back reel". Then three
+choices, each the recommended option:
+
+- **Both worlds order from the pool; every Reel is common.** This replaces the "Shared Reel pool"
+  paragraph above. Dev is no longer receive-only.
+- **$5 total in one shared spend record.** This replaces decision 5's $2.00 for this feature.
+  Live's own $2 rule (ADR-0021 §6) is untouched.
+- **You approve scripts, not orders.** An approved script may be ordered from either world without a
+  further go-ahead.
+- **Real Reels only.** There is no stand-in Cutroom on the server. Cutroom's free test mode is used
+  only by an automated test on the Mac.
+- **Nothing in Cutroom changes, its repository included.** There is no deploy key; the pinned
+  version is copied from the Mac's clone.
+
 ## Notes for a fresh session
 
 Decisions the owner made in chat on 2026-10-05. They are recorded here so none lives only in chat:
@@ -61,6 +79,8 @@ Decisions the owner made in chat on 2026-10-05. They are recorded here so none l
    Reels (free simulated ones, labelled), and 3–4 real Cutroom reels requested. The owner will
    supply any missing API key on request.
 5. **Live spend: $2.00 total, unchanged** (ADR-0021 §6; the database caps live grants at 200¢).
+   *Superseded for this feature on 2026-10-07: $5 total across dev and stage, in one shared record.
+   See the owner amendments above.*
    Recent real reels cost 49–58¢, so plan for **3 real reels at most**, with a stop rule if a failure
    or automatic re-run uses up the margin. Each paid run waits for the owner's go-ahead.
 6. **Gate docs: in the repo on this branch, with a draft PR** and a child issue under #9.
