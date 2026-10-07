@@ -51,6 +51,7 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0030 — Privacy lifecycle: pause, export and reset](0030-privacy-lifecycle-pause-export-reset.md): contract only; extends ADR-0009/0010 with a database-enforced recording pause, a live non-destructive export, and a reset that erases like Clear plus ends every session; no route or client yet.
 - [ADR-0031 — Semantic substrate and validated bridges](0031-semantic-substrate-and-validated-bridges.md): source-backed immutable claims, bridges admitted only by a deterministic validator with replayable read sets, correction by revalidation, private branch/feedback history.
 - [ADR-0049 — Three worlds on one VPS](0049-environments-on-one-vps.md): dev, stage and live on one VPS with native services, one release built once and promoted by fast-forward, server mode, world-pinned deploy keys, and bounded storage with a disk guard.
+- [ADR-0050 — One shared Reel pool for dev and stage](0050-shared-reel-pool.md): a script's identity is its wire content; one `knowscroll_pool` record claims each order once and holds the shared $5; other worlds receive the Reel at 0¢; Cutroom's own re-run is followed and summed; Cutroom re-pinned to `94ee04a`.
 
 ## Process
 

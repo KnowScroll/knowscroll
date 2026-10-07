@@ -20,19 +20,19 @@ approved.
 
 ## Build checklist (in place of Gates 3–4)
 
-Money is spent only in item 10, and only on scripts the owner has approved.
+Money is spent only in item 10, and only on scripts the owner has approved. Items 1–4: PR "#199 shared Reel pool" (ADR-0050); proven by `tests/shared-reel-pool.test.ts` and the publication-v2 case in `tests/publication-gates.test.ts`.
 
-- [ ] 1. Re-pin the Cutroom client to `94ee04a`: vendored schemas (`resumes`, `resumedBy`,
+- [x] 1. Re-pin the Cutroom client to `94ee04a`: vendored schemas (`resumes`, `resumedBy`,
   `keptFrom`) and the pin.
-- [ ] 2. The shared `knowscroll_pool` record: its own migrations, claim/settle/release, the 500¢
+- [x] 2. The shared `knowscroll_pool` record: its own migrations, claim/settle/release, the 500¢
   rule, a limited role.
-- [ ] 3. Generation:
+- [x] 3. Generation:
   - content-derived request ids;
   - look-up-first jobs and claimed orders;
   - run chains settled as a sum;
   - live dispatch in test databases;
   - a 500¢ test-database cap.
-- [ ] 4. `publication-v2` and the engine-attested witness.
+- [x] 4. `publication-v2` and the engine-attested witness.
 - [ ] 5. Engine-checked on screen: the contract, `readWhy`, web `ReelPlayer`, Android `ReelScreen`.
 - [ ] 6. Content: a reel-script loader with review state; a content pack for model-written Scrolls.
 - [ ] 7. The server:

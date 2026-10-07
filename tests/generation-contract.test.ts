@@ -22,7 +22,7 @@ if (!databaseName.startsWith('knowscroll_test_'))
     `Generation contract tests require a disposable knowscroll_test_* database, received ${databaseName}`,
   );
 
-const REVISION = '86d6e2c8b74228db4a5a953e53c53a7b77cef46e';
+const REVISION = '94ee04a1c48069c293203de326d4801360ca6158';
 const claim = (id: string, role: 'main' | 'supporting') => ({ id, role });
 const sentence = (text: string, claimIds: string[]) => ({ text, claimIds });
 

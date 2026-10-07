@@ -57,9 +57,9 @@ import { createLostResponseProxy } from './cutroom-local/lost-response-proxy.ts'
 // =================================================================================================
 
 const CUTROOM_RUNTIME =
-  '/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742';
+  '/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-94ee04a1c480';
 const CUTROOM_CANONICAL_CLONE = '/Volumes/Mrigesh SSD/cutroom';
-const CUTROOM_REVISION = '86d6e2c8b74228db4a5a953e53c53a7b77cef46e';
+const CUTROOM_REVISION = '94ee04a1c48069c293203de326d4801360ca6158';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..');
