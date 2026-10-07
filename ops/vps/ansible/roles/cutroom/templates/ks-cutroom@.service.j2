@@ -19,7 +19,9 @@ Slice=ks-cutroom.slice
 WorkingDirectory=/srv/knowscroll/cutroom/current
 EnvironmentFile=/etc/knowscroll/cutroom-%i.env
 Environment=PATH=/usr/bin:/bin
-Environment=CUTROOM_ENV_FILE=/etc/knowscroll/cutroom-%i.env
+# systemd already loads the settings above; Cutroom's own env-file read must find nothing (it
+# can't open /etc/knowscroll, and an exported value wins over the file anyway).
+Environment=CUTROOM_ENV_FILE=/dev/null
 RuntimeDirectory=knowscroll-cutroom-%i
 RuntimeDirectoryMode=0700
 ExecStart=/usr/local/lib/knowscroll/cutroom-run
