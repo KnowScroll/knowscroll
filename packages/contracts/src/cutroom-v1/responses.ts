@@ -28,6 +28,13 @@ export const RunStatus = z.strictObject({
   requestId: z.string().min(1),
   state: z.enum(['running', 'finished']),
   lastSeq: z.number().int().nonnegative(),
+  /** On a run that resumes another: that run (S-162). Absent on every other. */
+  resumes: z.string().min(1).optional(),
+  /**
+   * On a run that was resumed: the run that resumed it, read from the rows each time — never stored
+   * in its row, its result or its events, which do not change (S-162). Absent on every other.
+   */
+  resumedBy: z.string().min(1).optional(),
 })
 
 export const EventsPage = z

@@ -10,6 +10,7 @@ import {
   type GenerationBrief,
   generationBrief,
 } from '@knowscroll/contracts/generation';
+import { isPoolRequestId } from '@knowscroll/core/cutroom/pool-identity';
 import { prepareCutroomRequest } from '@knowscroll/core/cutroom/prepare-request';
 import type pg from 'pg';
 import {
@@ -18,11 +19,11 @@ import {
   recordImportedReel,
 } from './import.ts';
 
-/** The Cutroom revision this worker is pinned to (ADR-0020/0021). An engine declaring a
- * different revision is refused at job creation: this worker only ever prepares bytes for the
- * revision its own client understands. */
+/** The Cutroom revision this worker is pinned to (ADR-0020/0021; re-pinned for #199). An engine
+ * declaring a different revision is refused at job creation: this worker only ever prepares bytes
+ * for the revision its own client understands. */
 export const CUTROOM_CONTRACT_REVISION =
-  '86d6e2c8b74228db4a5a953e53c53a7b77cef46e';
+  '94ee04a1c48069c293203de326d4801360ca6158';
 
 export const GENERATION_LIMITS = Object.freeze({
   minLeaseMs: 1,
@@ -279,6 +280,9 @@ export type CreateJobInput = {
   until: 'plan' | 'stills' | 'video';
   budgetCents: number;
   deadlineAt: string;
+  /** #199: a request id already claimed in the shared pool (`packages/db/src/pool/ledger.ts`).
+   * Required for a live engine; the job then settles into the pool as well as its own grant. */
+  poolRequestId?: string;
 };
 export type CreatedJob = {
   jobId: string;
@@ -305,6 +309,11 @@ export async function createJob(
   }
   if (!validBoundedInteger(input.budgetCents, 1)) deny('invalid_budget_cents');
   if (!Number.isFinite(Date.parse(input.deadlineAt))) deny('invalid_deadline');
+  if (
+    input.poolRequestId !== undefined &&
+    !isPoolRequestId(input.poolRequestId)
+  )
+    deny('invalid_pool_request_id');
 
   return transaction(db, async (client) => {
     const engine = (
@@ -321,8 +330,11 @@ export async function createJob(
     if (engine.retired_at !== null) deny('engine_retired');
     if (engine.contract_revision !== CUTROOM_CONTRACT_REVISION)
       deny('engine_contract_revision_mismatch');
-    // No live spend is authorized by this runtime slice (ADR-0023 owner decision 2026-09-20).
-    if (engine.provider_mode === 'live') deny('live_dispatch_not_authorized');
+    // Live spend happens only through the shared pool, whose claim was made (and whose $5 rule was
+    // checked) before this call (#199; owner decision 2026-10-07). Without a claim it stays refused,
+    // as ADR-0023's owner decision of 2026-09-20 had it.
+    if (engine.provider_mode === 'live' && input.poolRequestId === undefined)
+      deny('live_dispatch_not_authorized');
 
     const briefRow = (
       await client.query<{ brief: GenerationBrief; review_state: string }>(
@@ -361,7 +373,7 @@ export async function createJob(
 
     const jobId = input.id ?? randomUUID();
     const attemptId = randomUUID();
-    const requestId = `ks-gen-${randomUUID()}`;
+    const requestId = input.poolRequestId ?? `ks-gen-${randomUUID()}`;
     const compiled = compileSubmitRequest({
       brief,
       requestId,
@@ -382,10 +394,11 @@ export async function createJob(
             grant_id,
             until,
             budget_cents,
-            deadline_at
+            deadline_at,
+            shared_pool
           )
         VALUES
-          ($1, $2, $3, $4, $5, $6, $7)
+          ($1, $2, $3, $4, $5, $6, $7, $8)
       `,
       [
         jobId,
@@ -395,6 +408,7 @@ export async function createJob(
         input.until,
         input.budgetCents,
         input.deadlineAt,
+        input.poolRequestId !== undefined,
       ],
     );
     await client.query(
@@ -430,6 +444,119 @@ export async function createJob(
   });
 }
 
+export type CreateReceiveJobInput = {
+  id?: string;
+  briefId: string;
+  engineId: string;
+  /** The pool request id another world ordered. */
+  requestId: string;
+  /** The ceiling that world sent, so this world's copy of the request is byte-identical. */
+  requestBudgetCents: number;
+  until: 'plan' | 'stills' | 'video';
+  deadlineAt: string;
+};
+
+/** #199: a job that receives a Reel another world already ordered from the shared pool. It never
+ * sends a request: it looks the run up by request id, follows it, and imports the result. It
+ * holds no grant and reserves nothing, because this world pays nothing for it. The stored request
+ * bytes are compiled exactly as the ordering world compiled them, so the caller can check them
+ * against the pool's `body_sha256` before trusting the run. */
+export async function createReceiveJob(
+  db: pg.Pool,
+  input: CreateReceiveJobInput,
+): Promise<CreatedJob> {
+  validateUuid(input.briefId, 'invalid_brief_id');
+  validateUuid(input.engineId, 'invalid_engine_id');
+  if (!isPoolRequestId(input.requestId)) deny('invalid_pool_request_id');
+  if (!validBoundedInteger(input.requestBudgetCents, 1))
+    deny('invalid_budget_cents');
+  if (!Number.isFinite(Date.parse(input.deadlineAt))) deny('invalid_deadline');
+
+  return transaction(db, async (client) => {
+    const engine = (
+      await client.query<{
+        contract_revision: string;
+        retired_at: Date | null;
+      }>(
+        'SELECT contract_revision,retired_at FROM cutroom_engine WHERE id=$1 FOR UPDATE',
+        [input.engineId],
+      )
+    ).rows[0];
+    if (!engine) deny('unknown_engine');
+    if (engine.retired_at !== null) deny('engine_retired');
+    if (engine.contract_revision !== CUTROOM_CONTRACT_REVISION)
+      deny('engine_contract_revision_mismatch');
+    const briefRow = (
+      await client.query<{ brief: GenerationBrief; review_state: string }>(
+        'SELECT brief,review_state FROM generation_brief WHERE id=$1',
+        [input.briefId],
+      )
+    ).rows[0];
+    if (!briefRow) deny('unknown_brief');
+    if (briefRow.review_state !== 'approved') deny('brief_not_approved');
+    const prepared = prepareCutroomRequest(
+      compileSubmitRequest({
+        brief: generationBrief.parse(briefRow.brief),
+        requestId: input.requestId,
+        until: input.until,
+        budgetCents: input.requestBudgetCents,
+      }),
+    );
+    const jobId = input.id ?? randomUUID();
+    const attemptId = randomUUID();
+    await client.query(
+      `
+        INSERT INTO
+          generation_job (
+            id,
+            brief_id,
+            engine_id,
+            grant_id,
+            until,
+            budget_cents,
+            deadline_at,
+            kind,
+            shared_pool
+          )
+        VALUES
+          ($1, $2, $3, NULL, $4, 0, $5, 'receive', TRUE)
+      `,
+      [jobId, input.briefId, input.engineId, input.until, input.deadlineAt],
+    );
+    await client.query(
+      `
+        INSERT INTO
+          cutroom_attempt (
+            id,
+            job_id,
+            ordinal,
+            role,
+            request_id,
+            request_body,
+            body_sha256,
+            contract_revision
+          )
+        VALUES
+          ($1, $2, 1, 'receive', $3, $4, $5, $6)
+      `,
+      [
+        attemptId,
+        jobId,
+        prepared.requestId,
+        prepared.body,
+        prepared.bodySha256,
+        CUTROOM_CONTRACT_REVISION,
+      ],
+    );
+    return {
+      jobId,
+      attemptId,
+      requestId: prepared.requestId,
+      bodySha256: prepared.bodySha256,
+    };
+  });
+}
+
 // --- Claim / lease / fence -------------------------------------------------------------------
 
 const RECLAIMABLE_STATUSES = ['dispatching', 'following', 'importing'] as const;
@@ -438,7 +565,10 @@ export type ClaimedGenerationJob = {
   jobId: string;
   briefId: string;
   engineId: string;
-  grantId: string;
+  grantId: string | null;
+  /** #199: an order sends its request; a receive only looks up a run another world ordered. */
+  kind: 'order' | 'receive';
+  sharedPool: boolean;
   until: 'plan' | 'stills' | 'video';
   budgetCents: number;
   status: string;
@@ -465,7 +595,9 @@ export async function claimJob(
     id: string;
     brief_id: string;
     engine_id: string;
-    grant_id: string;
+    grant_id: string | null;
+    kind: 'order' | 'receive';
+    shared_pool: boolean;
     until: 'plan' | 'stills' | 'video';
     budget_cents: number;
     status: string;
@@ -518,6 +650,8 @@ export async function claimJob(
         j.brief_id,
         j.engine_id,
         j.grant_id,
+        j.kind,
+        j.shared_pool,
         j.until,
         j.budget_cents,
         j.status,
@@ -535,6 +669,8 @@ export async function claimJob(
     briefId: row.brief_id,
     engineId: row.engine_id,
     grantId: row.grant_id,
+    kind: row.kind,
+    sharedPool: row.shared_pool,
     until: row.until,
     budgetCents: row.budget_cents,
     status: row.status,
@@ -557,7 +693,8 @@ async function requireLeasedJob(client: pg.PoolClient, holder: LeaseHolder) {
   const row = (
     await client.query<{
       engine_id: string;
-      grant_id: string;
+      grant_id: string | null;
+      kind: 'order' | 'receive';
       budget_cents: number;
       until: 'plan' | 'stills' | 'video';
       status: string;
@@ -571,6 +708,7 @@ async function requireLeasedJob(client: pg.PoolClient, holder: LeaseHolder) {
         SELECT
           engine_id,
           grant_id,
+          kind,
           budget_cents,
           until,
           status,
@@ -617,6 +755,7 @@ export async function authorizeDispatch(
 ): Promise<DispatchGrant> {
   return transaction(db, async (client) => {
     const job = await requireLeasedJob(client, holder);
+    if (job.kind !== 'order') deny('receive_never_dispatches');
     if (job.cancel_requested_at !== null) deny('cancel_requested');
     if (job.status !== 'dispatching') deny('job_not_dispatching');
     if (job.deadline_at.getTime() <= Date.now()) deny('deadline_passed');
@@ -710,18 +849,20 @@ export async function closeNotSent(
       `UPDATE cutroom_attempt SET state='not_sent',settlement='released' WHERE id=$1`,
       [attempt.id],
     );
-    const released = await client.query(
-      `
-        UPDATE generation_budget_grant
-        SET
-          reserved_cents = reserved_cents - $2
-        WHERE
-          id = $1
-          AND reserved_cents >= $2
-      `,
-      [job.grant_id, job.budget_cents],
-    );
-    if (released.rowCount !== 1) deny('grant_reservation_missing');
+    if (job.grant_id !== null) {
+      const released = await client.query(
+        `
+          UPDATE generation_budget_grant
+          SET
+            reserved_cents = reserved_cents - $2
+          WHERE
+            id = $1
+            AND reserved_cents >= $2
+        `,
+        [job.grant_id, job.budget_cents],
+      );
+      if (released.rowCount !== 1) deny('grant_reservation_missing');
+    }
     const status = reason === 'cancelled' ? 'cancelled' : 'failed';
     const detail =
       reason === 'cancelled'
@@ -908,7 +1049,21 @@ export async function appendEvents(
     await requireLeasedJob(client, holder);
     const attempt = (
       await client.query<{ id: string; state: string; next_since: number }>(
-        'SELECT id,state,next_since FROM cutroom_attempt WHERE job_id=$1 AND ordinal=1 FOR UPDATE',
+        `
+          SELECT
+            id,
+            state,
+            next_since
+          FROM
+            cutroom_attempt
+          WHERE
+            job_id = $1
+          ORDER BY
+            ordinal DESC
+          LIMIT
+            1
+          FOR UPDATE
+        `,
         [holder.jobId],
       )
     ).rows[0];
@@ -946,17 +1101,51 @@ export type ResultOutcome = {
   status: 'completed' | 'refused' | 'stopped' | 'failed' | 'cancelled';
   costCents: number;
   body: unknown;
+  /** #199: Cutroom has already re-run this failed run on its own (the request id's newest run is
+   * `resumeRunId`). The failed run is recorded as finished, the re-run becomes the job's second
+   * attempt, and the job keeps following it; nothing is settled until the chain ends. */
+  resumeRunId?: string;
+  /** The run's record, stored with its result in the same transaction when it was fetched. */
+  recordSummary?: unknown;
 };
 export async function recordResult(
   db: pg.Pool,
   holder: LeaseHolder,
   outcome: ResultOutcome,
-): Promise<{ jobStatus: string }> {
+): Promise<{ jobStatus: string; resumed: boolean }> {
   return transaction(db, async (client) => {
     const job = await requireLeasedJob(client, holder);
     const attempt = (
-      await client.query<{ id: string; state: string }>(
-        'SELECT id,state FROM cutroom_attempt WHERE job_id=$1 AND ordinal=1 FOR UPDATE',
+      await client.query<{
+        id: string;
+        state: string;
+        ordinal: number;
+        role: string;
+        request_id: string;
+        request_body: string;
+        body_sha256: string;
+        contract_revision: string;
+      }>(
+        `
+          SELECT
+            id,
+            state,
+            ordinal,
+            role,
+            request_id,
+            request_body,
+            body_sha256,
+            contract_revision
+          FROM
+            cutroom_attempt
+          WHERE
+            job_id = $1
+          ORDER BY
+            ordinal DESC
+          LIMIT
+            1
+          FOR UPDATE
+        `,
         [holder.jobId],
       )
     ).rows[0];
@@ -968,12 +1157,79 @@ export async function recordResult(
           state = 'finished',
           result = $2,
           reported_cost_cents = $3,
+          record_summary = coalesce($4::jsonb, record_summary),
           finished_at = clock_timestamp()
         WHERE
           id = $1
       `,
-      [attempt.id, JSON.stringify(outcome.body), outcome.costCents],
+      [
+        attempt.id,
+        JSON.stringify(outcome.body),
+        outcome.costCents,
+        outcome.recordSummary === undefined
+          ? null
+          : JSON.stringify(outcome.recordSummary),
+      ],
     );
+    if (outcome.resumeRunId !== undefined) {
+      // Only an order's own first run is ever re-run by Cutroom, once (upstream resume rules).
+      if (
+        outcome.status !== 'failed' ||
+        job.kind !== 'order' ||
+        attempt.role !== 'order' ||
+        attempt.ordinal !== 1
+      )
+        deny('resume_not_applicable');
+      await client.query(
+        `
+          INSERT INTO
+            cutroom_attempt (
+              id,
+              job_id,
+              ordinal,
+              role,
+              resumes_attempt_id,
+              request_id,
+              request_body,
+              body_sha256,
+              contract_revision,
+              state,
+              run_id,
+              accepted_at
+            )
+          VALUES
+            (
+              $1,
+              $2,
+              2,
+              'resume',
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              'accepted',
+              $8,
+              clock_timestamp()
+            )
+        `,
+        [
+          randomUUID(),
+          holder.jobId,
+          attempt.id,
+          attempt.request_id,
+          attempt.request_body,
+          attempt.body_sha256,
+          attempt.contract_revision,
+          outcome.resumeRunId,
+        ],
+      );
+      await client.query(
+        `UPDATE generation_job SET status='following',status_detail=$2 WHERE id=$1`,
+        [holder.jobId, `cutroom_resumed:${outcome.resumeRunId}`],
+      );
+      return { jobStatus: 'following', resumed: true };
+    }
     const jobStatus =
       outcome.status === 'completed' && job.until === 'video'
         ? 'importing'
@@ -982,28 +1238,7 @@ export async function recordResult(
       `UPDATE generation_job SET status=$2,status_detail=NULL WHERE id=$1`,
       [holder.jobId, jobStatus],
     );
-    return { jobStatus };
-  });
-}
-
-export async function recordRecordSummary(
-  db: pg.Pool,
-  holder: LeaseHolder,
-  record: unknown,
-): Promise<void> {
-  await transaction(db, async (client) => {
-    await requireLeasedJob(client, holder);
-    const attempt = (
-      await client.query<{ id: string; state: string }>(
-        'SELECT id,state FROM cutroom_attempt WHERE job_id=$1 AND ordinal=1 FOR UPDATE',
-        [holder.jobId],
-      )
-    ).rows[0];
-    if (!attempt || attempt.state !== 'finished') deny('attempt_not_finished');
-    await client.query(
-      `UPDATE cutroom_attempt SET record_summary=$2 WHERE id=$1`,
-      [attempt.id, JSON.stringify(record)],
-    );
+    return { jobStatus, resumed: false };
   });
 }
 
@@ -1015,14 +1250,18 @@ export type SettleResult = {
 };
 /** A terminal result's reported cost moves from reserved to spent; the rest of the reservation
  * is released. Never called for a job that never reached a recorded result: an unresolved
- * attempt keeps its whole reservation held, by simply never calling this function. */
+ * attempt keeps its whole reservation held, by simply never calling this function. When Cutroom
+ * re-ran the job's first run (#199), the spend is the sum of both runs, settled together once the
+ * re-run has finished. A receive job spends nothing here; see `releaseReceived`. */
 export async function settle(
   db: pg.Pool,
   holder: LeaseHolder,
 ): Promise<SettleResult> {
   return transaction(db, async (client) => {
     const job = await requireLeasedJob(client, holder);
-    const attempt = (
+    if (job.kind !== 'order' || job.grant_id === null)
+      deny('receive_has_no_settlement');
+    const attempts = (
       await client.query<{
         id: string;
         state: string;
@@ -1039,21 +1278,28 @@ export async function settle(
             cutroom_attempt
           WHERE
             job_id = $1
-            AND ordinal = 1
+          ORDER BY
+            ordinal
           FOR UPDATE
         `,
         [holder.jobId],
       )
-    ).rows[0];
+    ).rows;
     if (
-      !attempt ||
-      attempt.state !== 'finished' ||
-      attempt.settlement !== 'held' ||
-      attempt.reported_cost_cents === null
+      attempts.length === 0 ||
+      attempts.some(
+        (attempt) =>
+          attempt.state !== 'finished' ||
+          attempt.settlement !== 'held' ||
+          attempt.reported_cost_cents === null,
+      )
     ) {
       deny('attempt_not_settleable');
     }
-    const reportedCostCents = attempt.reported_cost_cents as number;
+    const reportedCostCents = attempts.reduce(
+      (sum, attempt) => sum + (attempt.reported_cost_cents as number),
+      0,
+    );
     // ADR-0012: never clamp real usage to what was reserved. A cost above this job's own ceiling is
     // recorded as an overage on the grant, which pauses further admission on it (migration 0013's
     // CHECKs and admission guard), and the caller parks the job for an operator. Settlement still
@@ -1078,25 +1324,292 @@ export async function settle(
       [job.grant_id, job.budget_cents, reportedCostCents, overageCents],
     );
     if (updatedGrant.rowCount !== 1) deny('grant_reservation_missing');
-    const updatedAttempt = await client.query(
+    const updatedAttempts = await client.query(
       `
         UPDATE cutroom_attempt
         SET
           settlement = 'settled'
         WHERE
-          id = $1
+          job_id = $1
           AND state = 'finished'
           AND settlement = 'held'
       `,
-      [attempt.id],
+      [holder.jobId],
     );
-    if (updatedAttempt.rowCount !== 1) deny('settlement_race_lost');
+    if (updatedAttempts.rowCount !== attempts.length)
+      deny('settlement_race_lost');
     return {
       releasedCents: Math.max(0, job.budget_cents - reportedCostCents),
       spentCents: reportedCostCents,
       overageCents,
     };
   });
+}
+
+/** #199: a receive job's finished attempt holds no money in this world (the ordering world paid);
+ * its settlement is simply released once its result is recorded and, for a video, imported. */
+export async function releaseReceived(
+  db: pg.Pool,
+  holder: LeaseHolder,
+): Promise<void> {
+  await transaction(db, async (client) => {
+    const job = await requireLeasedJob(client, holder);
+    if (job.kind !== 'receive') deny('not_a_receive_job');
+    const updated = await client.query(
+      `
+        UPDATE cutroom_attempt
+        SET
+          settlement = 'released'
+        WHERE
+          job_id = $1
+          AND role = 'receive'
+          AND state = 'finished'
+          AND settlement = 'held'
+      `,
+      [holder.jobId],
+    );
+    if (updated.rowCount !== 1) deny('attempt_not_releasable');
+  });
+}
+
+/** #199: a receive job found its run in the pool by request id: the attempt is accepted with that
+ * run, exactly as an order is after its send, without anything having been sent. */
+export async function recordReceived(
+  db: pg.Pool,
+  holder: LeaseHolder,
+  outcome: { runId: string },
+): Promise<void> {
+  await transaction(db, async (client) => {
+    const job = await requireLeasedJob(client, holder);
+    if (job.kind !== 'receive') deny('not_a_receive_job');
+    const updated = await client.query(
+      `
+        UPDATE cutroom_attempt
+        SET
+          state = 'accepted',
+          run_id = $2,
+          accepted_at = clock_timestamp()
+        WHERE
+          job_id = $1
+          AND role = 'receive'
+          AND state = 'prepared'
+      `,
+      [holder.jobId, outcome.runId],
+    );
+    if (updated.rowCount !== 1) deny('attempt_not_receivable');
+    await client.query(
+      `UPDATE generation_job SET status='following',status_detail=NULL WHERE id=$1`,
+      [holder.jobId],
+    );
+  });
+}
+
+/** Extends the caller's own lease while it follows a long run (a paid run takes 13–41 min). */
+export async function renewLease(
+  db: pg.Pool,
+  holder: LeaseHolder,
+  leaseMs: number,
+): Promise<void> {
+  if (
+    !validBoundedInteger(
+      leaseMs,
+      GENERATION_LIMITS.minLeaseMs,
+      GENERATION_LIMITS.maxLeaseMs,
+    )
+  )
+    deny('invalid_lease_duration');
+  await transaction(db, async (client) => {
+    await requireLeasedJob(client, holder);
+    await client.query(
+      `
+        UPDATE generation_job
+        SET
+          lease_expires_at = clock_timestamp() + ($2::bigint * interval '1 millisecond')
+        WHERE
+          id = $1
+      `,
+      [holder.jobId, leaseMs],
+    );
+  });
+}
+
+// --- The shared pool (#199) ------------------------------------------------------------------
+
+/** This world's own live cap (migration 0042): 200 cents until raised, never above 500. */
+export async function setLiveCap(
+  db: pg.Pool,
+  input: { capCents: number; setBy: string },
+): Promise<void> {
+  if (!validBoundedInteger(input.capCents, 0, 500)) deny('invalid_cap_cents');
+  if (input.setBy.trim().length === 0) deny('invalid_set_by');
+  await db.query(
+    `UPDATE generation_live_cap SET cap_cents=$1,set_by=$2,set_at=clock_timestamp()`,
+    [input.capCents, input.setBy],
+  );
+}
+
+export type PendingPoolSettlement = {
+  jobId: string;
+  requestId: string;
+  outcome: 'completed' | 'refused' | 'stopped' | 'failed' | 'cancelled';
+  spentCents: number;
+  finalRunId: string | null;
+};
+
+/** Shared-pool orders whose money in this world is final (every attempt settled or released) but
+ * which the pool has not yet been told about. Reported cost is summed over Cutroom's re-run. */
+export async function pendingPoolSettlements(
+  db: pg.Pool,
+): Promise<PendingPoolSettlement[]> {
+  const rows = (
+    await db.query<{
+      job_id: string;
+      request_id: string;
+      last_state: string;
+      last_status: string | null;
+      last_run_id: string | null;
+      spent_cents: number;
+    }>(
+      `
+        SELECT
+          j.id AS job_id,
+          first.request_id,
+          last.state AS last_state,
+          last.result ->> 'status' AS last_status,
+          last.run_id AS last_run_id,
+          coalesce(
+            (
+              SELECT
+                sum(a.reported_cost_cents)
+              FROM
+                cutroom_attempt a
+              WHERE
+                a.job_id = j.id
+                AND a.settlement = 'settled'
+            ),
+            0
+          )::INTEGER AS spent_cents
+        FROM
+          generation_job j
+          JOIN cutroom_attempt first ON first.job_id = j.id
+          AND first.ordinal = 1
+          JOIN LATERAL (
+            SELECT
+              *
+            FROM
+              cutroom_attempt a
+            WHERE
+              a.job_id = j.id
+            ORDER BY
+              a.ordinal DESC
+            LIMIT
+              1
+          ) last ON TRUE
+        WHERE
+          j.kind = 'order'
+          AND j.shared_pool
+          AND j.pool_settled_at IS NULL
+          AND NOT EXISTS (
+            SELECT
+              1
+            FROM
+              cutroom_attempt a
+            WHERE
+              a.job_id = j.id
+              AND a.settlement = 'held'
+          )
+        ORDER BY
+          j.created_at,
+          j.id
+      `,
+    )
+  ).rows;
+  return rows.map((row) => {
+    const outcome =
+      row.last_state === 'refused'
+        ? 'refused'
+        : row.last_state === 'not_sent'
+          ? 'cancelled'
+          : row.last_status === 'completed' ||
+              row.last_status === 'stopped' ||
+              row.last_status === 'failed' ||
+              row.last_status === 'cancelled' ||
+              row.last_status === 'refused'
+            ? row.last_status
+            : 'failed';
+    return {
+      jobId: row.job_id,
+      requestId: row.request_id,
+      outcome,
+      spentCents: row.spent_cents,
+      finalRunId: outcome === 'completed' ? row.last_run_id : null,
+    };
+  });
+}
+
+/** Marks that the pool now knows this order's outcome. Set once; never changed afterwards. */
+export async function markPoolSettled(
+  db: pg.Pool,
+  jobId: string,
+): Promise<void> {
+  validateUuid(jobId, 'invalid_job_id');
+  await db.query(
+    `UPDATE generation_job SET pool_settled_at=clock_timestamp() WHERE id=$1 AND pool_settled_at IS NULL`,
+    [jobId],
+  );
+}
+
+/** Approved briefs, for matching this world's scripts against the pool's orders. */
+export async function approvedBriefs(
+  db: pg.Pool,
+): Promise<{ id: string; brief: GenerationBrief }[]> {
+  const rows = (
+    await db.query<{ id: string; brief: unknown }>(
+      `SELECT id,brief FROM generation_brief WHERE review_state='approved' ORDER BY created_at,id`,
+    )
+  ).rows;
+  return rows.map((row) => ({
+    id: row.id,
+    brief: generationBrief.parse(row.brief),
+  }));
+}
+
+/** Whether this world already holds a job for this request id (ordered or received). */
+export async function hasRequest(
+  db: pg.Pool,
+  requestId: string,
+): Promise<boolean> {
+  const row = (
+    await db.query<{ found: boolean }>(
+      'SELECT EXISTS (SELECT 1 FROM cutroom_attempt WHERE request_id=$1 AND ordinal=1) AS found',
+      [requestId],
+    )
+  ).rows[0];
+  return row?.found === true;
+}
+
+/** The world's one active live engine (the shared pool), or null. More than one is a setup error. */
+export async function activeLiveEngine(
+  db: pg.Pool,
+): Promise<{ id: string } | null> {
+  const rows = (
+    await db.query<{ id: string }>(
+      `
+        SELECT
+          id
+        FROM
+          cutroom_engine
+        WHERE
+          provider_mode = 'live'
+          AND retired_at IS NULL
+        ORDER BY
+          declared_at,
+          id
+      `,
+    )
+  ).rows;
+  if (rows.length > 1) deny('more_than_one_live_engine');
+  return rows[0] ?? null;
 }
 
 // --- Operator: cancellation --------------------------------------------------------------------
@@ -1136,7 +1649,7 @@ export async function closeQueuedCancelled(
   await transaction(db, async (client) => {
     const job = (
       await client.query<{
-        grant_id: string;
+        grant_id: string | null;
         budget_cents: number;
         status: string;
         cancel_requested_at: Date | null;
@@ -1159,18 +1672,20 @@ export async function closeQueuedCancelled(
       `UPDATE cutroom_attempt SET state='not_sent',settlement='released' WHERE id=$1`,
       [attempt.id],
     );
-    const released = await client.query(
-      `
-        UPDATE generation_budget_grant
-        SET
-          reserved_cents = reserved_cents - $2
-        WHERE
-          id = $1
-          AND reserved_cents >= $2
-      `,
-      [job.grant_id, job.budget_cents],
-    );
-    if (released.rowCount !== 1) deny('grant_reservation_missing');
+    if (job.grant_id !== null) {
+      const released = await client.query(
+        `
+          UPDATE generation_budget_grant
+          SET
+            reserved_cents = reserved_cents - $2
+          WHERE
+            id = $1
+            AND reserved_cents >= $2
+        `,
+        [job.grant_id, job.budget_cents],
+      );
+      if (released.rowCount !== 1) deny('grant_reservation_missing');
+    }
     await client.query(
       `
         UPDATE generation_job
@@ -1189,6 +1704,9 @@ export async function closeQueuedCancelled(
 
 export type AttemptSnapshot = {
   id: string;
+  /** 1 for the job's own send or receive; 2 for Cutroom's re-run of a failed first run (#199). */
+  ordinal: number;
+  role: 'order' | 'resume' | 'receive';
   state: string;
   requestId: string;
   body: string;
@@ -1210,6 +1728,8 @@ export async function loadAttempt(
   const row = (
     await db.query<{
       id: string;
+      ordinal: number;
+      role: 'order' | 'resume' | 'receive';
       state: string;
       request_id: string;
       request_body: string;
@@ -1227,6 +1747,8 @@ export async function loadAttempt(
       `
         SELECT
           id,
+          ordinal,
+          role,
           state,
           request_id,
           request_body,
@@ -1244,7 +1766,10 @@ export async function loadAttempt(
           cutroom_attempt
         WHERE
           job_id = $1
-          AND ordinal = 1
+        ORDER BY
+          ordinal DESC
+        LIMIT
+          1
       `,
       [jobId],
     )
@@ -1252,6 +1777,8 @@ export async function loadAttempt(
   if (!row) return null;
   return {
     id: row.id,
+    ordinal: row.ordinal,
+    role: row.role,
     state: row.state,
     requestId: row.request_id,
     body: row.request_body,
@@ -1272,7 +1799,10 @@ export type JobSnapshot = {
   id: string;
   briefId: string;
   engineId: string;
-  grantId: string;
+  grantId: string | null;
+  kind: 'order' | 'receive';
+  sharedPool: boolean;
+  poolSettledAt: Date | null;
   until: 'plan' | 'stills' | 'video';
   budgetCents: number;
   status: string;
@@ -1291,7 +1821,10 @@ export async function loadJob(
       id: string;
       brief_id: string;
       engine_id: string;
-      grant_id: string;
+      grant_id: string | null;
+      kind: 'order' | 'receive';
+      shared_pool: boolean;
+      pool_settled_at: Date | null;
       until: 'plan' | 'stills' | 'video';
       budget_cents: number;
       status: string;
@@ -1307,6 +1840,9 @@ export async function loadJob(
           brief_id,
           engine_id,
           grant_id,
+          kind,
+          shared_pool,
+          pool_settled_at,
           until,
           budget_cents,
           status,
@@ -1329,6 +1865,9 @@ export async function loadJob(
     briefId: row.brief_id,
     engineId: row.engine_id,
     grantId: row.grant_id,
+    kind: row.kind,
+    sharedPool: row.shared_pool,
+    poolSettledAt: row.pool_settled_at,
     until: row.until,
     budgetCents: row.budget_cents,
     status: row.status,

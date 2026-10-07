@@ -46,3 +46,4 @@
 0039_typed_relics.sql
 0040_content_inventory.sql
 0041_web_scroll_artifact.sql
+0042_shared_reel_pool.sql

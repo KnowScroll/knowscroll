@@ -103,11 +103,11 @@ async function fixture(
   }
 }
 
-test('Cutroom schemas match all seven pinned upstream source hashes', async () => {
+test('Cutroom schemas match all nine pinned upstream source hashes', async () => {
   const root = 'packages/contracts/src/cutroom-v1/';
   const manifest = JSON.parse(await readFile(root + 'source.json', 'utf8'));
-  assert.equal(manifest.revision, '86d6e2c8b74228db4a5a953e53c53a7b77cef46e');
-  assert.equal(manifest.files.length, 7);
+  assert.equal(manifest.revision, '94ee04a1c48069c293203de326d4801360ca6158');
+  assert.equal(manifest.files.length, 9);
   for (const file of manifest.files)
     assert.equal(
       createHash('sha256')
