@@ -8,6 +8,9 @@ data class ReelMedia(
     val durationSeconds: Double,
     val aspect: String,
     val simulated: Boolean,
+    /** #199: the engine that made this Reel checked its own work (publication-v2). Shown as
+     * "Engine-checked", never as an independent review. */
+    val engineChecked: Boolean = false,
 ) {
     init {
         require(path.matches(Regex("/v1/media/[0-9a-f]{64}")))
@@ -22,8 +25,12 @@ data class ReelMedia(
             .put("aspect", aspect)
             .put("simulated", simulated)
             .put("generatedLabel", true)
+            .apply { if (engineChecked) put("check", JSONObject().put("by", "engine")) }
 
     companion object {
+        /** #199: only a check by the engine itself is recognised; anything else is no check. */
+        fun engineChecked(by: String?): Boolean = by == "engine"
+
         fun parse(value: JSONObject): ReelMedia {
             require(value.getBoolean("generatedLabel"))
             return ReelMedia(
@@ -31,6 +38,7 @@ data class ReelMedia(
                 value.getDouble("durationSeconds"),
                 value.getString("aspect"),
                 value.getBoolean("simulated"),
+                engineChecked(value.optJSONObject("check")?.optString("by")),
             )
         }
     }

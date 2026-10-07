@@ -5,6 +5,15 @@ import org.junit.Test
 
 class ReelMediaTest {
     @Test
+    fun onlyTheEngineItselfCountsAsAnEngineCheck() {
+        assertTrue(ReelMedia.engineChecked("engine"))
+        assertFalse(ReelMedia.engineChecked(null))
+        assertFalse(ReelMedia.engineChecked(""))
+        assertFalse(ReelMedia.engineChecked("independent"))
+        assertFalse(ReelMedia("/v1/media/" + "a".repeat(64), 40.0, "768:1366", false).engineChecked)
+    }
+
+    @Test
     fun rejectsRemoteAndPathTraversalMedia() {
         for (path in
             listOf(

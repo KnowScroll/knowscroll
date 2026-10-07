@@ -65,6 +65,19 @@ export const reelAsset = z
     /** The single Scroll this Reel's brief drew its claims from — the "sources sheet" entry. */
     sourceTitle: z.string(),
     sourceUrl: z.string(),
+    /** #199: how this Reel was checked before it could be shown. `by: 'engine'` means the engine
+     * that made it checked its own work (publication-v2's witness): shown as "Engine-checked", never
+     * as an independent review. Null or absent when no such check is recorded (a simulated Reel, or
+     * one judged before #199). */
+    check: z
+      .object({
+        by: z.literal('engine'),
+        policyVersion: z.string(),
+        shotsChecked: z.number().int().nonnegative(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
   })
   .strict();
 export type ReelAssetDisplay = z.infer<typeof reelAsset>;

@@ -32,6 +32,8 @@
 .reel-provenance { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 9px; }
 .reel-label { font: 700 11px var(--font-mono); }
 .reel-simulated { color: #8d2d18; font: 700 11px var(--font-mono); }
+/* #199: the engine checked its own work — teal, distinct from the simulated-media red. */
+.reel-engine-checked { color: #0b6e69; font: 700 11px var(--font-mono); }
 .reel-summary { max-width: 58ch; color: #35383b; font-size: 14px; line-height: 1.55; }
 .reel-wayfinding { display: flex; gap: 7px; }
 .reel-wayfinding button {
@@ -129,3 +131,8 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* #199: "How it was checked" inside "Why this Reel appeared". */
+.reel-how-checked h2 { margin: .9rem 0 .35rem; font: 700 12px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: #0b6e69; }
+.reel-how-checked ul { margin: 0 0 .5rem; padding-left: 1.1rem; }
+.reel-how-checked li { margin: .2rem 0; }

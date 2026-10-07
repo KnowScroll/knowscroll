@@ -102,6 +102,7 @@ fun ReelScreen(
                 }
                 Text(
                     if (media.simulated) "TEST MEDIA · NOT GENERATED EVIDENCE"
+                    else if (media.engineChecked) "GENERATED SYNTHESIS · ENGINE-CHECKED"
                     else "GENERATED SYNTHESIS",
                     color = Poster.Cobalt,
                     style = MaterialTheme.typography.labelSmall,

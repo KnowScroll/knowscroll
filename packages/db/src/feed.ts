@@ -22,6 +22,8 @@ interface ReelRow {
   sourceTitle: string;
   sourceUrl: string;
   probe: unknown;
+  checkPolicy: string | null;
+  shotsChecked: number | null;
 }
 
 /** ADR-0025 section 2: only ever built from a stored ffprobe `probe` and the KnowScroll-owned
@@ -50,6 +52,14 @@ function toReelAsset(row: ReelRow): ReelAssetDisplay {
     aspect: `${width}:${height}`,
     sourceTitle: row.sourceTitle,
     sourceUrl: row.sourceUrl,
+    check:
+      row.checkPolicy === null
+        ? null
+        : {
+            by: 'engine',
+            policyVersion: row.checkPolicy,
+            shotsChecked: row.shotsChecked ?? 0,
+          },
   };
 }
 
@@ -104,11 +114,28 @@ export async function feedCandidates(
         a.media_sha256 AS "mediaSha256",
         a.source_title AS "sourceTitle",
         a.source_url AS "sourceUrl",
-        m.probe AS probe
+        m.probe AS probe,
+        w.policy_version AS "checkPolicy",
+        w.shots_checked AS "shotsChecked"
       FROM
         asset a
         JOIN generated_reel g ON g.id = a.generated_reel_id
         JOIN media_object m ON m.sha256 = a.media_sha256
+        LEFT JOIN LATERAL (
+          SELECT
+            r.policy_version,
+            jsonb_array_length(coalesce(r.evidence -> 'shots', '[]'::jsonb)) AS shots_checked
+          FROM
+            publication_gate_result r
+          WHERE
+            r.generated_reel_id = g.id
+            AND r.gate = 'witness_alignment'
+            AND r.verdict = 'pass_with_label'
+            AND r.policy_version = g.availability_policy_version
+            AND r.evidence ->> 'attestation' = 'engine-attested, not independent'
+          LIMIT
+            1
+        ) w ON TRUE
       WHERE
         a.kind = 'Reel'
         AND a.withdrawn_at IS NULL

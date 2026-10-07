@@ -481,6 +481,10 @@ internal fun ExplainSheet(item: ScrollItem, origin: ReaderOrigin, why: WhyPanel?
                 Text(item.truthState.uppercase(), style = MaterialTheme.typography.titleMedium)
                 truthStateMeaning(item.truthState)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
             }
+            if (item.media?.engineChecked == true) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.reel_how_checked_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
+                Text(stringResource(R.string.reel_how_checked_body), style = MaterialTheme.typography.bodyMedium)
+            }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.reader_explain_origin_heading), style = MaterialTheme.typography.labelMedium, color = Cosmos.MutedOnCream)
                 Text(explainOriginText(origin, item.kind), style = MaterialTheme.typography.bodyMedium)

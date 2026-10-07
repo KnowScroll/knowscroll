@@ -191,6 +191,7 @@ export function ReelPlayer({
         <div className="reel-provenance">
           {item.generatedLabel && <span className="reel-label">Generated Reel</span>}
           {item.simulated && <span className="reel-simulated" role="status">Simulated media</span>}
+          {item.check?.by === 'engine' && <span className="reel-engine-checked">Engine-checked</span>}
         </div>
       </header>
 
@@ -272,6 +273,15 @@ export function ReelPlayer({
       {openWhy && <aside className="reel-why" aria-label="Why this Reel appeared">
         <p>{item.reason.trim() || 'No explanation recorded.'}</p>
         <p>Truth state: synthesis. This Reel is generated media.</p>
+        {item.check?.by === 'engine' && <section className="reel-how-checked" aria-label="How it was checked">
+          <h2>How it was checked</h2>
+          <ul>
+            <li>Every sentence it says is backed by the Scroll it was made from.</li>
+            <li>The video engine looked at each shot it shows and checked it against what that shot had to show and must never show.</li>
+            <li>KnowScroll checked the video file, its labels, and that it doesn't repeat another Reel.</li>
+          </ul>
+          <p>The shot check was done by the engine that made the Reel, not by an independent reviewer. That's what “Engine-checked” means.</p>
+        </section>}
         {onCorrect && onRetryWhy && <WhatLedHere view={openWhy} onCorrect={onCorrect} onRetry={onRetryWhy} />}
       </aside>}
     </main>
