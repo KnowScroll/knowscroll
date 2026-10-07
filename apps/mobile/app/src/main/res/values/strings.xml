@@ -114,7 +114,7 @@
     <string name="reader_explain_description">Why this Scroll appeared</string>
     <string name="reel_explain_description">Why this Reel appeared</string>
     <string name="reel_how_checked_heading">HOW IT WAS CHECKED</string>
-    <string name="reel_how_checked_body">Every sentence it says is tied to the sources of the Scroll it was made from. The video engine looked at each shot it shows and checked it against what that shot had to show and must never show. KnowScroll checked the video file, its labels, and that it doesn\'t repeat another Reel. The shot check was done by the engine that made the Reel, not by an independent reviewer. That\'s what \"Engine-checked\" means.</string>
+    <string name="reel_how_checked_body">Every sentence it says is backed by the Scroll it was made from. The video engine looked at each shot it shows and checked it against what that shot had to show and must never show. KnowScroll checked the video file, its labels, and that it doesn\'t repeat another Reel. The shot check was done by the engine that made the Reel, not by an independent reviewer. That\'s what \"Engine-checked\" means.</string>
     <string name="reader_explain_sheet_title">Why this appeared</string>
     <string name="reader_explain_reason_heading">REASON</string>
     <string name="reader_explain_truth_heading">TRUTH STATE</string>

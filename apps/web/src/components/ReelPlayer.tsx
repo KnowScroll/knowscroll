@@ -276,7 +276,7 @@ export function ReelPlayer({
         {item.check?.by === 'engine' && <section className="reel-how-checked" aria-label="How it was checked">
           <h2>How it was checked</h2>
           <ul>
-            <li>Every sentence it says is tied to the sources of the Scroll it was made from.</li>
+            <li>Every sentence it says is backed by the Scroll it was made from.</li>
             <li>The video engine looked at each shot it shows and checked it against what that shot had to show and must never show.</li>
             <li>KnowScroll checked the video file, its labels, and that it doesn't repeat another Reel.</li>
           </ul>
