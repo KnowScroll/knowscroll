@@ -31,6 +31,7 @@ import {
   type PoolLedger,
   runPoolMigrations,
 } from '@knowscroll/db/pool/ledger';
+import { feedCandidates } from '@knowscroll/db/feed';
 import { createLocalImportPort } from '../apps/worker/src/generation/import-port.ts';
 import * as operator from '../apps/worker/src/generation/operator.ts';
 import * as storage from '../apps/worker/src/generation/storage.ts';
@@ -39,6 +40,8 @@ import {
   processClaimedJob,
   syncSharedPool,
 } from '../apps/worker/src/generation/worker.ts';
+import { evaluatePublicationGates } from '../apps/worker/src/publication/evaluate.ts';
+import { mintReelAsset } from '../apps/worker/src/publication/mint.ts';
 import { drainStrayJobs } from './helpers/generation-fixture.ts';
 
 const execFileAsync = promisify(execFile);
@@ -128,6 +131,8 @@ function makeBrief(tag: string): GenerationBrief {
       depictionPolicyVersion: 'depiction-v1',
     },
     style: { id: 'calm', version: 1, text: 'Calm and documentary.' },
+    title: `The ${tag}`,
+    summary: `A short Reel about the ${tag}.`,
   });
 }
 async function approve(db: pg.Pool, brief: GenerationBrief): Promise<string> {
@@ -284,11 +289,37 @@ function createPoolCutroom() {
       requestId: run.requestId,
       ...result,
     };
+    // What Cutroom's own checks record for a Reel it made: Gate 1 on the chosen picture, Gates
+    // 2-5 on the used take.
+    const accept = (gate: string) => ({ gate, outcome: 'accept' });
     run.record = {
       contractVersion: 1,
       runId: run.runId,
-      pictures: [],
-      takes: [],
+      pictures:
+        result.status === 'completed'
+          ? [
+              {
+                pictureId: 'p1',
+                shotId: 's1',
+                chosen: true,
+                observationId: 'o-p1',
+                checks: [accept('1')],
+              },
+            ]
+          : [],
+      takes:
+        result.status === 'completed'
+          ? [
+              {
+                takeId: 't1',
+                shotId: 's1',
+                number: 1,
+                used: true,
+                observationId: 'o-t1',
+                checks: ['2', '3', '4', '5'].map(accept),
+              },
+            ]
+          : [],
       degradations: [],
     };
   }
@@ -637,6 +668,41 @@ test('#199 shared Reel pool across two worlds', async (t) => {
           received: 0,
         });
         assert.ok(jobId);
+
+        // On dev, the received Reel clears publication-v2 and reaches the feed, marked Engine-checked.
+        const devReelId = (
+          await devDb.query(
+            `SELECT r.id FROM generated_reel r JOIN cutroom_attempt a ON a.id = r.attempt_id
+             WHERE a.request_id = $1`,
+            [requestId],
+          )
+        ).rows[0].id as string;
+        const evaluated = await evaluatePublicationGates(devDb, {
+          generatedReelId: devReelId,
+          policyVersion: 'publication-v2',
+          mediaRoot: worlds.dev.media,
+          decide: 'auto',
+        });
+        assert.deepEqual(evaluated.availability, {
+          decided: true,
+          availability: 'eligible',
+        });
+        const minted = await mintReelAsset(devDb, devReelId);
+        const client = await devDb.connect();
+        try {
+          const shown = (await feedCandidates(client, ['Reel'])).find(
+            (candidate) => candidate.assetId === minted.assetId,
+          );
+          assert.ok(shown && shown.kind === 'Reel');
+          assert.equal(shown.simulated, false);
+          assert.deepEqual(shown.check, {
+            by: 'engine',
+            policyVersion: 'publication-v2',
+            shotsChecked: 2,
+          });
+        } finally {
+          client.release();
+        }
       },
     );
 
