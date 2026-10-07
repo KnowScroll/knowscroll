@@ -1,7 +1,7 @@
 # Everything one KnowScroll world runs — managed by ops/vps/ansible (#201).
 [Unit]
 Description=KnowScroll world %i
-Wants=ks-api@%i.service ks-worker@%i.service ks-maintenance@%i.service
+Wants=ks-api@%i.service ks-worker@%i.service ks-maintenance@%i.service ks-generation@%i.service
 
 [Install]
 WantedBy=multi-user.target

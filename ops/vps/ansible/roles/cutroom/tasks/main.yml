@@ -1,0 +1,124 @@
+# The shared Cutroom (#199, ADR-0050): upstream's own service, run as it ships, for the worlds that
+# share the Reel pool. Its code arrives by `ks cutroom-install` (a pinned source tree from the owner's
+# Mac; nothing in the Cutroom repository changes). Its provider keys are copied once, by hand, into
+# /etc/knowscroll/secrets/cutroom/providers.env (MINIMAX_API_KEY, FAL_KEY) and never reach Git or
+# Ansible's output. Without that file the service is set up but has no settings, so it cannot start.
+
+- name: Cutroom service user
+  ignore_errors: "{{ ansible_check_mode }}"  # a preview never creates the ks-pool group
+  ansible.builtin.user:
+    name: ks-cutroom
+    system: true
+    shell: /usr/sbin/nologin
+    home: /srv/knowscroll/cutroom
+    create_home: false
+    groups: [ks-pool]
+    append: true
+
+- name: Cutroom code folders (root-owned; one folder per pinned revision)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /srv/knowscroll/cutroom
+    - /srv/knowscroll/cutroom/releases
+
+- name: The shared Cutroom's data, readable by the worlds that share it
+  ansible.builtin.file:
+    path: /srv/knowscroll/cutroom-{{ ks_cutroom_instance }}
+    state: directory
+    owner: ks-cutroom
+    group: ks-pool
+    mode: "2750"
+
+- name: Its database stays private; its finished files are group-readable
+  ansible.builtin.file:
+    path: /srv/knowscroll/cutroom-{{ ks_cutroom_instance }}/{{ item.name }}
+    state: directory
+    owner: ks-cutroom
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { name: data, group: ks-cutroom, mode: "0700" }
+    - { name: artifacts, group: ks-pool, mode: "2750" }
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: KnowScroll's per-reel cap for Cutroom (a second lock behind the shared $5)
+  ansible.builtin.copy:
+    dest: /etc/knowscroll/cutroom-{{ ks_cutroom_instance }}.budget.md
+    mode: "0644"
+    content: |
+      # Managed by ops/vps/ansible (#199). Read by Cutroom's CUTROOM_BUDGET_PATH.
+
+      | Item | Cap |
+      |---|---|
+      | Per reel, all-in | {{ ks_cutroom_reel_cap }} |
+
+- name: Folder for KnowScroll's own helper programs
+  ansible.builtin.file:
+    path: /usr/local/lib/knowscroll
+    state: directory
+    mode: "0755"
+
+- name: Cutroom's start wrapper
+  ansible.builtin.template:
+    src: cutroom-run.j2
+    dest: /usr/local/lib/knowscroll/cutroom-run
+    mode: "0755"
+
+- name: Provider keys are on the server (copied once from the owner's Mac, never in Git)
+  ansible.builtin.stat:
+    path: /etc/knowscroll/secrets/cutroom/providers.env
+  register: ks_cutroom_keys
+
+- name: Cutroom settings, assembled on the server from its keys (values never reach Ansible output)
+  ansible.builtin.shell: |
+    set -eu
+    umask 027
+    f=/etc/knowscroll/cutroom-{{ ks_cutroom_instance }}.env
+    d=/srv/knowscroll/cutroom-{{ ks_cutroom_instance }}
+    tmp=$(mktemp /etc/knowscroll/.cutroom.env.XXXXXX)
+    {
+      echo "CUTROOM_API_PORT={{ ks_cutroom_port }}"
+      echo "CUTROOM_DB_PATH=$d/data/cutroom.sqlite"
+      echo "CUTROOM_ARTIFACT_ROOT=$d/artifacts"
+      echo "CUTROOM_QUESTIONS_PATH=$d/QUESTIONS.md"
+      echo "CUTROOM_BUDGET_PATH=/etc/knowscroll/cutroom-{{ ks_cutroom_instance }}.budget.md"
+      echo "CUTROOM_PROVIDER_MODEL=minimax"
+      echo "CUTROOM_PROVIDER_IMAGE=fal"
+      echo "CUTROOM_PROVIDER_SENSOR=local"
+      echo "CUTROOM_PROVIDER_VIDEO=fal"
+      echo "CUTROOM_PROVIDER_NARRATION=minimax"
+      echo "CUTROOM_NARRATION_VOICE={{ ks_cutroom_voice }}"
+      cat /etc/knowscroll/secrets/cutroom/providers.env
+    } > "$tmp"
+    chgrp ks-cutroom "$tmp"
+    chmod 0640 "$tmp"
+    if cmp -s "$tmp" "$f"; then rm -f "$tmp"; echo KS_SAME; else mv "$tmp" "$f"; echo KS_UPDATED; fi
+  register: ks_cutroom_env
+  changed_when: "'KS_UPDATED' in ks_cutroom_env.stdout"
+  no_log: true
+  when: ks_cutroom_keys.stat.exists and not ansible_check_mode
+
+- name: Cutroom slice (low CPU weight so the worlds stay responsive while a video encodes)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ks-cutroom.slice
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=KnowScroll shared Cutroom
+
+      [Slice]
+      CPUWeight=20
+      MemoryHigh=1536M
+      MemoryMax=2G
+  notify: Reload systemd for cutroom
+
+- name: Cutroom unit (started only by ks, never by Ansible)
+  ansible.builtin.template:
+    src: ks-cutroom@.service.j2
+    dest: /etc/systemd/system/ks-cutroom@.service
+    mode: "0644"
+  notify: Reload systemd for cutroom

@@ -9,15 +9,21 @@
  *   ks status
  *   ks cleanup [--emergency]
  *   ks disk-guard
+ *   ks run <world> <program> [args...]   generation-cli or publication, as the world (#199)
+ *   ks cutroom-install <commit>          Cutroom's source tree on stdin (#199)
+ *   ks cutroom-restart                   refused while a paid order is open (#199)
  */
 
 import {
   cleanup,
+  cutroomInstall,
+  cutroomRestart,
   deploy,
   diskGuard,
   hasRelease,
   Refusal,
   rollback,
+  runProgram,
   status,
 } from './system.ts';
 
@@ -46,9 +52,22 @@ try {
     case 'disk-guard':
       diskGuard();
       break;
+    case 'run':
+      process.exitCode = runProgram(
+        args[0] ?? '',
+        args[1] ?? '',
+        args.slice(2),
+      );
+      break;
+    case 'cutroom-install':
+      cutroomInstall(args[0] ?? '');
+      break;
+    case 'cutroom-restart':
+      cutroomRestart();
+      break;
     default:
       process.stderr.write(
-        'usage: ks deploy|promote <world> <commit> | has-release <commit> | rollback <world> | status | cleanup [--emergency] | disk-guard\n',
+        'usage: ks deploy|promote <world> <commit> | has-release <commit> | rollback <world> | status | cleanup [--emergency] | disk-guard | run <world> <program> [args] | cutroom-install <commit> | cutroom-restart\n',
       );
       process.exitCode = 2;
   }

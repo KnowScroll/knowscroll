@@ -87,3 +87,40 @@ export function parseEnvFile(text: string): Record<string, string> {
   }
   return env;
 }
+
+/** #199: the programs `ks run <world> <program>` may start, as the world's own user. */
+const RUNNABLE_PROGRAMS: readonly string[] = ['generation-cli', 'publication'];
+
+export type RunRequest =
+  | { ok: true; world: World; program: string }
+  | { ok: false; reason: string };
+
+export function validateRunRequest(world: string, program: string): RunRequest {
+  if (!WORLDS.includes(world as World))
+    return { ok: false, reason: `unknown world ${JSON.stringify(world)}` };
+  if (!RUNNABLE_PROGRAMS.includes(program))
+    return {
+      ok: false,
+      reason: `ks run starts only ${RUNNABLE_PROGRAMS.join(', ')}; not ${JSON.stringify(program)}`,
+    };
+  return { ok: true, world: world as World, program };
+}
+
+/** #199: the shared Cutroom is never restarted or switched while a paid order is open: a crash or
+ * stop mid-run makes it re-run that job after a 4 h lease, which can pay twice for work in flight. */
+export function cutroomSwitchDecision(openOrders: number | null): {
+  ok: boolean;
+  reason: string;
+} {
+  if (openOrders === null)
+    return {
+      ok: false,
+      reason: 'the shared pool could not be read, so open orders are unknown',
+    };
+  if (openOrders > 0)
+    return {
+      ok: false,
+      reason: `${openOrders} paid order(s) are still open in the shared pool; try again once they settle`,
+    };
+  return { ok: true, reason: 'no open orders' };
+}

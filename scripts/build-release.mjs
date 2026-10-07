@@ -29,6 +29,10 @@ const PROGRAMS = {
   maintenance: 'apps/worker/src/reasoning/maintenance-main.ts',
   migrate: 'scripts/migrate.ts',
   seed: 'scripts/seed.ts',
+  // #199: the shared Reel pool's own migrations, and the operator commands `ks run` offers.
+  'migrate-pool': 'scripts/migrate-pool.ts',
+  'generation-cli': 'scripts/generation.ts',
+  publication: 'apps/worker/src/publication/cli.ts',
 };
 
 function argument(name) {
@@ -118,6 +122,11 @@ mkdirSync(join(root, 'packages', 'db'), { recursive: true });
 cpSync('packages/db/migrations', join(root, 'packages', 'db', 'migrations'), {
   recursive: true,
 });
+cpSync(
+  'packages/db/pool-migrations',
+  join(root, 'packages', 'db', 'pool-migrations'),
+  { recursive: true },
+);
 cpSync('content', join(root, 'content'), { recursive: true });
 
 const bundles = Object.fromEntries(
