@@ -11,7 +11,10 @@ approved.
   stage and dev with the shared Reel pool. The four questions were not answered, so the defaults
   recorded in `01-product.md` are adopted: label "Engine-checked"; real Reels first in the stage
   feed; a Scroll shortlist after the library grows; a smaller map on dev.
-- Gate 2 — Architecture: in progress
+- Gate 2 — Architecture: **awaiting approval** (2026-10-07). `02-architecture.md`, with the facts in
+  `research/2026-10-07-cutroom-upstream-and-knowscroll.md`. Five questions: the odds against $2,
+  a fal prepaid backstop, a read-only deploy key on the Cutroom repo, real-days reading on stage,
+  and the narration voice.
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
 
