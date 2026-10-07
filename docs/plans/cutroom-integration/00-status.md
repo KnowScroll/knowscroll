@@ -33,16 +33,22 @@ Money is spent only in item 10, and only on scripts the owner has approved. Item
   - live dispatch in test databases;
   - a 500¢ test-database cap.
 - [x] 4. `publication-v2` and the engine-attested witness.
-- [ ] 5. Engine-checked on screen: the contract, `readWhy`, web `ReelPlayer`, Android `ReelScreen`.
-- [ ] 6. Content: a reel-script loader with review state; a content pack for model-written Scrolls.
-- [ ] 7. The server:
+- [x] 5. Engine-checked on screen (PR #205): the contract, `readWhy`, web `ReelPlayer`, Android `ReelScreen`.
+- [x] 6. Content: a reel-script loader with review state (PR #205); a content pack for model-written Scrolls (PR #207).
+- [x] 7. The server (PR #206; applied to the server when it merges):
   - operator commands in the release and `ks run`;
   - ffmpeg and fonts;
   - `ks-cutroom@pool` (stdin FIFO, SIGINT) and `ks cutroom-install`;
   - the pool database and `ks-generation@`;
   - artifact group, keys, budget file, voice;
   - `QUESTIONS.md` in `ks status`; no restart while an order is open.
-- [ ] 8. The free journey on the Mac, using Cutroom's test mode.
+- [ ] 8. The free proof before any money. **Changed 2026-10-08:** re-pinning the 6,900-line J005 harness to the
+  new Cutroom would prove less than running the real service. The free proof is now:
+  - the wire-fixture tests in CI (`tests/shared-reel-pool.test.ts`: order, receive, re-run, import,
+    publication-v2, the feed);
+  - on the server, the real `ks-cutroom@pool` starting and answering `/v1/ready`;
+  - a plan-stage rehearsal through the whole order path. It costs 0¢ by Cutroom's own contract
+    ("planning is not generation, so a plan-only run costs 0"); MiniMax runs on the token plan.
 - [ ] 9. Library growth (23 → 100+) as a content-pack PR.
 - [ ] 10. Shortlist → owner-approved scripts → plan rehearsal → paid orders → Reels in both worlds.
 - [ ] 11. The scripted reader: real days on stage, a small backdated map on dev.
