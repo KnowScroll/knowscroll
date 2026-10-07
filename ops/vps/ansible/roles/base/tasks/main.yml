@@ -4,7 +4,9 @@
   ansible.builtin.apt:
     # ffmpeg and fonts-liberation are for Cutroom (#199): it refuses to start without ffmpeg's
     # filters, and its burned-in captions ask for "Arial", which Liberation Sans stands in for.
-    name: [acl, ca-certificates, curl, gnupg, jq, openssl, ufw, python3-psycopg2, ffmpeg, fonts-liberation]
+    # build-essential: Cutroom's SQLite driver (better-sqlite3) ships no prebuilt binary for this
+    # Node on Linux, so its install compiles it.
+    name: [acl, ca-certificates, curl, gnupg, jq, openssl, ufw, python3-psycopg2, ffmpeg, fonts-liberation, build-essential]
     state: present
     update_cache: true
     cache_valid_time: 3600
