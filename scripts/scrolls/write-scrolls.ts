@@ -19,6 +19,11 @@
  * lost transport. A refused reply is not one; the run goes on. An unexpected error ends the run
  * after its receipt is written. The receipt (`artifacts/scroll-writing/`, ignored) holds counts,
  * statuses, reason codes, hashes, input bytes and token usage: never a prompt, a reply or a key.
+ *
+ * #199: with `--pack-dir content/model-scrolls`, each newly admitted Scroll is also written there as
+ * a pack file (the public page's text, the model's reply and the run's record) that every world's
+ * seed replays through the same checks, so the library is the same everywhere. Review a pack before
+ * committing it: it is public in Git.
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -117,6 +122,7 @@ export async function runWriteScrolls(
     ledger?: () => { used: number; cap: number } | null;
     fetchImpl?: typeof fetch;
     receiptDir: string;
+    packDir?: string;
   },
 ): Promise<{ receipt: WriteScrollsReceipt; path: string }> {
   // Loaded only now: the database module connects to DATABASE_URL, which the caller has checked.
@@ -138,6 +144,20 @@ export async function runWriteScrolls(
           beforeSend: deps.beforeSend,
           signal: options.signal ?? new AbortController().signal,
           fetchImpl: deps.fetchImpl,
+          ...(deps.packDir === undefined
+            ? {}
+            : {
+                onAdmitted: (pack) => {
+                  mkdirSync(deps.packDir as string, { recursive: true });
+                  writeFileSync(
+                    resolve(
+                      deps.packDir as string,
+                      `${pack.identity.materialSha256.slice(0, 12)}-${pack.identity.requestSha256.slice(0, 12)}.json`,
+                    ),
+                    `${JSON.stringify(pack, null, 2)}\n`,
+                  );
+                },
+              }),
         },
         item,
       );
@@ -199,6 +219,7 @@ const OPTIONS = {
   transport: { type: 'string' },
   'fixture-mode': { type: 'string' },
   apply: { type: 'boolean' },
+  'pack-dir': { type: 'string' },
 } as const;
 const readArgs = (argv: string[]) =>
   parseArgs({ args: argv, strict: true, options: OPTIONS }).values;
@@ -216,6 +237,7 @@ async function main(argv: string[]): Promise<number> {
     transport: kind,
     'fixture-mode': fixtureMode = 'scroll',
     apply = false,
+    'pack-dir': packDir,
   } = args;
   if (!database || !planPath || (kind !== 'fixture' && kind !== 'minimax'))
     return refuse('pass --database, --plan and --transport fixture|minimax.');
@@ -285,6 +307,7 @@ async function main(argv: string[]): Promise<number> {
         beforeSend: gate.beforeSend,
         ledger: gate.ledger,
         receiptDir: resolve('artifacts/scroll-writing'),
+        ...(packDir === undefined ? {} : { packDir: resolve(packDir) }),
       },
     );
     console.log(

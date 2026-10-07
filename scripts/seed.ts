@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pool, transaction, OWNER_ID } from '@knowscroll/db';
 import { loadReelScripts } from '@knowscroll/db/generation/reel-scripts';
+import { loadScrollPackFile } from '@knowscroll/db/semantic/scroll-pack';
 import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 // A journey that exercises reader mechanics over a small, finite library can seed its own fixture
 // (KS_SEED_SCROLLS) and skip the substrate (KS_SEED_SUBSTRATE=none), so the product library can grow
@@ -20,6 +21,22 @@ const substrate =
   substratePath !== 'none' && existsSync(substratePath)
     ? await readFile(substratePath, 'utf8')
     : null;
+// #199: model-written Scrolls in Git (ADR-0041 writings, replayed through the same checks), the same
+// in every world. Loaded after the substrate their concepts come from, and before the reel scripts
+// that may be made from them.
+const scrollPackPath =
+  process.env.KS_SEED_MODEL_SCROLLS || 'content/model-scrolls';
+const scrollPacks =
+  scrollPackPath !== 'none' && existsSync(scrollPackPath)
+    ? await Promise.all(
+        (await readdir(scrollPackPath))
+          .filter((name) => name.endsWith('.json'))
+          .sort()
+          .map(async (name) =>
+            JSON.parse(await readFile(join(scrollPackPath, name), 'utf8')),
+          ),
+      )
+    : [];
 // #199: reel scripts in Git, the same in every world. Approved ones may be ordered from the shared
 // Reel pool; a world receives a Reel another world ordered once it holds the approved script.
 const reelScriptsPath =
@@ -63,6 +80,14 @@ try {
     console.log(
       `Editorial substrate ${result.version}: ${result.status}${result.status === 'loaded' ? `; ${admitted}/${result.proposals.length} editorial bridges admitted` : ''}.`,
     );
+  }
+  if (scrollPacks.length > 0) {
+    const outcomes: Record<string, number> = {};
+    for (const file of scrollPacks) {
+      const loaded = await transaction((c) => loadScrollPackFile(c, file));
+      outcomes[loaded.outcome] = (outcomes[loaded.outcome] ?? 0) + 1;
+    }
+    console.log(`Model-written Scrolls: ${JSON.stringify(outcomes)}.`);
   }
   if (reelScripts.length > 0) {
     const loaded = await loadReelScripts(pool, reelScripts);
