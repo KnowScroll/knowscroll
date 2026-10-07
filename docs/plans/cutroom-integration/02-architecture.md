@@ -1,6 +1,6 @@
 # Architecture: real generated Reels shared by stage and dev
 
-Gate 2. Status: **awaiting approval** (revised 2026-10-07 after the owner's review of the first draft).
+Gate 2. Status: **APPROVED 2026-10-08** (revised 2026-10-07 after the owner's review of the first draft). Gates 3–4 skipped by the owner; see 00-status.md.
 
 - **Builds on:** the approved Gate 1 (`01-product.md`, with the 2026-10-07 amendments) and the
   running dev and stage worlds (ADR-0049, `docs/operations/environments.md`).

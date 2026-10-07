@@ -11,16 +11,42 @@ approved.
   stage and dev with the shared Reel pool. The four questions were not answered, so the defaults
   recorded in `01-product.md` are adopted: label "Engine-checked"; real Reels first in the stage
   feed; a Scroll shortlist after the library grows; a smaller map on dev.
-- Gate 2 — Architecture: **awaiting approval**. The first draft (2026-10-07, 673be8c5) was reviewed
-  by the owner and revised the same day (see "Owner amendments, 2026-10-07" below).
-  `02-architecture.md` has the design; `research/2026-10-07-cutroom-upstream-and-knowscroll.md` has
-  the facts.
-- Gate 3 — Program Design: pending
-- Gate 4 — Slice plan: pending
+- Gate 2 — Architecture: **APPROVED 2026-10-08** ("approved"), as revised on 2026-10-07. This also
+  adopts its three listed recommendations: a fal balance near $6, real-days reading on stage, and
+  the voice `English_Graceful_Lady`.
+- Gates 3 and 4: **skipped by the owner** ("skip program design and stage 4 and implement direct",
+  2026-10-08). The build checklist below stands in for them. Each item lands as its own PR into
+  `dev`, so dev shows the progress.
 
-## Slices
+## Build checklist (in place of Gates 3–4)
 
-Written at Gate 4.
+Money is spent only in item 10, and only on scripts the owner has approved.
+
+- [ ] 1. Re-pin the Cutroom client to `94ee04a`: vendored schemas (`resumes`, `resumedBy`,
+  `keptFrom`) and the pin.
+- [ ] 2. The shared `knowscroll_pool` record: its own migrations, claim/settle/release, the 500¢
+  rule, a limited role.
+- [ ] 3. Generation:
+  - content-derived request ids;
+  - look-up-first jobs and claimed orders;
+  - run chains settled as a sum;
+  - live dispatch in test databases;
+  - a 500¢ test-database cap.
+- [ ] 4. `publication-v2` and the engine-attested witness.
+- [ ] 5. Engine-checked on screen: the contract, `readWhy`, web `ReelPlayer`, Android `ReelScreen`.
+- [ ] 6. Content: a reel-script loader with review state; a content pack for model-written Scrolls.
+- [ ] 7. The server:
+  - operator commands in the release and `ks run`;
+  - ffmpeg and fonts;
+  - `ks-cutroom@pool` (stdin FIFO, SIGINT) and `ks cutroom-install`;
+  - the pool database and `ks-generation@`;
+  - artifact group, keys, budget file, voice;
+  - `QUESTIONS.md` in `ks status`; no restart while an order is open.
+- [ ] 8. The free journey on the Mac, using Cutroom's test mode.
+- [ ] 9. Library growth (23 → 100+) as a content-pack PR.
+- [ ] 10. Shortlist → owner-approved scripts → plan rehearsal → paid orders → Reels in both worlds.
+- [ ] 11. The scripted reader: real days on stage, a small backdated map on dev.
+- [ ] 12. A stage Android build (#201's Android slice), made locally on request.
 
 ## Depends on #201 (environments)
 
