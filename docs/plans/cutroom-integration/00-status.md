@@ -1,15 +1,15 @@
 # Status: Cutroom integration — real generated Reels in a seeded test universe
 
 Issue: #199 (child of #9, owner-led Cutroom integration) · Branch: `claude/9-cutroom-integration` ·
-Worktree: `/Volumes/Mrigesh SSD/knowscroll-worktrees/9-cutroom-integration` · Base: `e5fdc319`
+Worktree: `/Volumes/Mrigesh SSD/knowscroll-worktrees/9-cutroom-integration` · Base: `dev` at `3a993b89`
 
 Process: the four-gate workflow (Product → Architecture → Program Design → Slices). Each gate
 stops for the owner's explicit approval. No implementation code before the Gate 4 slice plan is
 approved.
 
-- Gate 1 — Product: in progress. On 2026-10-06 the owner said the content "looks great", then
-  moved where it runs (see "Depends on #201" below). It is re-presented for approval with that
-  change.
+- Gate 1 — Product: re-presented for approval on 2026-10-07. On 2026-10-06 the owner said the
+  content "looks great", then moved where it runs (see "Depends on #201" below). `01-product.md`
+  now targets stage and dev, adds the shared Reel pool, and asks a fourth question (dev's map).
 - Gate 2 — Architecture: pending
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
@@ -86,3 +86,9 @@ Facts verified on 2026-10-05 that the later gates build on:
   fresh clone on the SSD is needed.
 - The product `.env` names the fal key `FAL_AI_KEY`; Cutroom reads `FAL_KEY`. The existing key is
   never renamed or overwritten.
+
+API keys (checked 2026-10-07, names only, no values printed): the product `.env` on the owner's Mac
+already holds `MINIMAX_API_KEY` and `FAL_AI_KEY`, the only two provider keys Cutroom needs. No new
+key is needed. They go to the server only for the Cutroom that stage orders from, copied without
+printing (as `agentmail.env` was for #201). Dev's world never holds a paid provider key. Before the
+first paid run the owner confirms the fal account has at least $2 of credit.
