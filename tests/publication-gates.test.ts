@@ -196,6 +196,8 @@ interface FixtureOptions {
   /** A real file already written under `mediaRoot` at the correct content-addressed key. Omitted
    * means a fabricated sha/storageKey with no file on disk (media_conformance fails closed). */
   media?: { sha256: string; byteSize: number; storageKey: string };
+  /** #199: a real (live-provider) Reel from the shared pool rather than a stand-in. */
+  providerMode?: 'standin' | 'live';
 }
 interface SeededFixture {
   generatedReelId: string;
@@ -230,27 +232,35 @@ async function seedFixture(
   );
 
   const engineId = randomUUID();
+  const providerMode = options.providerMode ?? 'standin';
   await insertFakeEngine(pool, {
     id: engineId,
     artifactRoot: '/tmp/publication-gate-fixtures',
-    providerMode: 'standin',
+    providerMode,
   });
 
   const grantId = randomUUID();
+  const budget = providerMode === 'live' ? 5 : 500;
   await pool.query(
-    `INSERT INTO generation_budget_grant(id,mode,cap_cents,expires_at) VALUES($1,'standin',100000,now()+interval '30 days')`,
-    [grantId],
+    `INSERT INTO generation_budget_grant(id,mode,cap_cents,authorization_ref,expires_at)
+     VALUES($1,$2,$3,$4,now()+interval '30 days')`,
+    [
+      grantId,
+      providerMode,
+      providerMode === 'live' ? 5 : 100000,
+      providerMode === 'live' ? 'publication-gates test' : null,
+    ],
   );
   await pool.query(
-    'UPDATE generation_budget_grant SET reserved_cents=reserved_cents+500 WHERE id=$1',
-    [grantId],
+    'UPDATE generation_budget_grant SET reserved_cents=reserved_cents+$2 WHERE id=$1',
+    [grantId, budget],
   );
 
   const jobId = randomUUID();
   await pool.query(
     `INSERT INTO generation_job(id,brief_id,engine_id,grant_id,until,budget_cents,deadline_at)
-     VALUES($1,$2,$3,$4,'video',500,now()+interval '1 hour')`,
-    [jobId, briefId, engineId, grantId],
+     VALUES($1,$2,$3,$4,'video',$5,now()+interval '1 hour')`,
+    [jobId, briefId, engineId, grantId, budget],
   );
 
   const attemptId = randomUUID();
@@ -330,7 +340,7 @@ async function seedFixture(
   const generatedReelId = randomUUID();
   await pool.query(
     `INSERT INTO generated_reel(id,attempt_id,brief_id,engine_id,cutroom_run_id,media_sha256,engine_path,provider_mode,truth_state,generated_label,lineage)
-     VALUES($1,$2,$3,$4,$5,$6,$7,'standin','synthesis',true,$8)`,
+     VALUES($1,$2,$3,$4,$5,$6,$7,$9,'synthesis',true,$8)`,
     [
       generatedReelId,
       attemptId,
@@ -340,6 +350,7 @@ async function seedFixture(
       media.sha256,
       enginePath,
       JSON.stringify(lineage),
+      providerMode,
     ],
   );
 
@@ -498,6 +509,110 @@ test('ADR-0024 publication gates, evaluated against real rows', async (t) => {
           const result = gateVerdict(outcome, 'lineage_complete');
           assert.equal(result.verdict, 'fail');
           assert.equal(result.evidence.contractRevisionMatches, false);
+        },
+      );
+
+      await t.test(
+        "publication-v2: Cutroom's own checks make a real Reel eligible, always labelled; a take without its witness check fails",
+        async () => {
+          // Its own disposable database: earlier subtests share the default brief shape, which would
+          // make this Reel's repetition corpus non-empty by construction.
+          await withDisposableDatabase(async (v2Pool) => {
+            const checked = (gate: string) => ({ gate, outcome: 'accept' });
+            const record = (takeGates: string[]) => ({
+              contractVersion: 1,
+              runId: 'set-by-fixture',
+              pictures: [
+                {
+                  pictureId: 'p1',
+                  shotId: 's1',
+                  chosen: true,
+                  observationId: 'obs-p1',
+                  checks: [checked('1')],
+                },
+                {
+                  pictureId: 'p2',
+                  shotId: 's1',
+                  chosen: false,
+                  checks: [{ gate: '1', outcome: 'fail' }],
+                },
+              ],
+              takes: [
+                {
+                  takeId: 't1',
+                  shotId: 's1',
+                  number: 1,
+                  used: true,
+                  observationId: 'obs-t1',
+                  checks: takeGates.map(checked),
+                },
+              ],
+              degradations: [],
+            });
+            const realReel = async (takeGates: string[], seconds: number) => {
+              const assetId = await seedAsset(v2Pool);
+              const validPath = join(scratch, `${randomUUID()}.mp4`);
+              await makeValidMp4(validPath, seconds);
+              const bytes = await readFile(validPath);
+              const sha256 = createHash('sha256').update(bytes).digest('hex');
+              const storageKey = computeStorageKey(sha256);
+              await mkdir(
+                join(mediaRoot, storageKey.split('/').slice(0, -1).join('/')),
+                { recursive: true },
+              );
+              await writeFile(join(mediaRoot, storageKey), bytes);
+              return seedFixture(v2Pool, {
+                brief: makeBrief({ assetId, worldId: `v2-${randomUUID()}` }),
+                media: { sha256, byteSize: bytes.length, storageKey },
+                attemptRecordSummary: record(takeGates),
+                providerMode: 'live',
+              });
+            };
+
+            const good = await realReel(['2', '3', '4', '5'], 8);
+            const v1 = await evaluatePublicationGates(v2Pool, {
+              generatedReelId: good.generatedReelId,
+              policyVersion: 'publication-v1',
+              mediaRoot,
+            });
+            assert.equal(
+              gateVerdict(v1, 'witness_alignment').verdict,
+              'unavailable',
+              'publication-v1 is unchanged',
+            );
+            const v2 = await evaluatePublicationGates(v2Pool, {
+              generatedReelId: good.generatedReelId,
+              policyVersion: 'publication-v2',
+              mediaRoot,
+              decide: 'auto',
+            });
+            for (const row of v2.gates)
+              assert.notEqual(row.verdict, 'fail', `${row.gate} passes`);
+            const witness = gateVerdict(v2, 'witness_alignment');
+            assert.equal(witness.verdict, 'pass_with_label');
+            assert.equal(
+              witness.evidence.attestation,
+              'engine-attested, not independent',
+            );
+            assert.deepEqual(v2.availability, {
+              decided: true,
+              availability: 'eligible',
+            });
+
+            const missingWitness = await realReel(['2', '3', '5'], 9);
+            const refused = await evaluatePublicationGates(v2Pool, {
+              generatedReelId: missingWitness.generatedReelId,
+              policyVersion: 'publication-v2',
+              mediaRoot,
+              decide: 'auto',
+            });
+            const failed = gateVerdict(refused, 'witness_alignment');
+            assert.equal(failed.verdict, 'fail');
+            assert.deepEqual(failed.evidence.problems, [
+              { takeId: 't1', missing: 'gate 4' },
+            ]);
+            assert.equal(refused.availability.decided, false);
+          });
         },
       );
 

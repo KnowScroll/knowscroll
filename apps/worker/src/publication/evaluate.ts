@@ -194,6 +194,7 @@ async function computeGate(
   gateName: string,
   ctx: LoadedContext,
   mediaRoot: string,
+  policyVersion: string,
 ): Promise<GateOutcome> {
   switch (gateName) {
     case 'lineage_complete':
@@ -251,7 +252,12 @@ async function computeGate(
       });
     }
     case 'witness_alignment':
-      return gates.evaluateWitnessAlignment();
+      // #199: only publication-v2 takes Cutroom's own checks as the witness, always with a label.
+      return policyVersion === gates.ENGINE_ATTESTED_POLICY
+        ? gates.evaluateEngineAttestedWitness({
+            recordSummary: ctx.attempt.recordSummary,
+          })
+        : gates.evaluateWitnessAlignment();
     default:
       throw new PublicationEvaluationError(
         'unknown_gate',
@@ -293,7 +299,13 @@ export async function evaluatePublicationGates(
       });
       continue;
     }
-    const outcome = await computeGate(pool, gateName, ctx, input.mediaRoot);
+    const outcome = await computeGate(
+      pool,
+      gateName,
+      ctx,
+      input.mediaRoot,
+      input.policyVersion,
+    );
     const inserted = await insertGateResult(pool, {
       id: randomUUID(),
       generatedReelId: input.generatedReelId,
