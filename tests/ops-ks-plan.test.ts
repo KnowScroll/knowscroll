@@ -6,10 +6,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  cutroomSwitchDecision,
   diskGuardDecision,
   parseEnvFile,
   releasesToDelete,
   validateDeployRequest,
+  validateRunRequest,
 } from '../ops/vps/tool/plan.ts';
 
 const A = 'a'.repeat(40);
@@ -79,4 +81,23 @@ test('env files: KEY=VALUE lines, values may contain =, comments and blanks igno
     ),
     { PORT: '4330', DATABASE_URL: 'postgresql://u:p@h/db?x=1' },
   );
+});
+
+test('#199 ks run starts only the operator programs, for a known world', () => {
+  assert.deepEqual(validateRunRequest('stage', 'generation-cli'), {
+    ok: true,
+    world: 'stage',
+    program: 'generation-cli',
+  });
+  assert.equal(validateRunRequest('dev', 'publication').ok, true);
+  assert.equal(validateRunRequest('dev', 'migrate').ok, false);
+  assert.equal(validateRunRequest('dev', '../../bin/sh').ok, false);
+  assert.equal(validateRunRequest('prod', 'publication').ok, false);
+});
+
+test('#199 the shared Cutroom never switches or restarts while a paid order is open', () => {
+  assert.equal(cutroomSwitchDecision(0).ok, true);
+  assert.equal(cutroomSwitchDecision(1).ok, false);
+  assert.match(cutroomSwitchDecision(2).reason, /2 paid order/);
+  assert.equal(cutroomSwitchDecision(null).ok, false, 'unknown is refused');
 });

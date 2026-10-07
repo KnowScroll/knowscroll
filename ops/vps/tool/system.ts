@@ -26,10 +26,12 @@ import {
 import { join } from 'node:path';
 import {
   BRANCH_OF,
+  cutroomSwitchDecision,
   diskGuardDecision,
   parseEnvFile,
   releasesToDelete,
   validateDeployRequest,
+  validateRunRequest,
   type World,
 } from './plan.ts';
 
@@ -39,6 +41,12 @@ const RUN = '/run/knowscroll';
 const DISK_FLAG = `${RUN}/disk-critical`;
 const REPOSITORY = 'https://github.com/KnowScroll/knowscroll';
 const KEEP_UNUSED_RELEASES = 3;
+// #199: the shared Reel pool (its own database) and the shared Cutroom (`ks-cutroom@pool`).
+const POOL_ENV = '/etc/knowscroll/pool.env';
+const CUTROOM_CODE = `${ROOT}/cutroom`;
+const CUTROOM_DATA = `${ROOT}/cutroom-pool`;
+const CUTROOM_UNIT = 'ks-cutroom@pool.service';
+const CUTROOM_PNPM = 'pnpm@10.15.1';
 const HEALTH_TIMEOUT_MS = 90_000;
 // Services the disk guard may pause under pressure; absent ones are skipped.
 const PAUSABLE = [
@@ -145,6 +153,68 @@ function receiveRelease(commit: string): void {
   }
 }
 
+function systemUser(name: string): { uid: number; gid: number } {
+  const line = readFileSync('/etc/passwd', 'utf8')
+    .split('\n')
+    .find((l) => l.startsWith(`${name}:`));
+  if (!line) throw new Refusal(`no system user ${name}`);
+  const [, , uid, gid] = line.split(':');
+  return { uid: Number(uid), gid: Number(gid) };
+}
+
+/** #199: applies the shared pool's own migrations, as Postgres acting for the pool's owner role.
+ * Runs before every world's migrations; a pool migration must work with older world code too. */
+function migratePool(release: string): void {
+  // A release from before #199 has no pool migrations; it deploys exactly as it did then.
+  if (
+    !existsSync(POOL_ENV) ||
+    !existsSync(join(release, 'dist/migrate-pool.mjs'))
+  )
+    return;
+  const url = parseEnvFile(readFileSync(POOL_ENV, 'utf8')).KS_POOL_MIGRATE_URL;
+  if (!url) throw new Refusal(`${POOL_ENV} names no KS_POOL_MIGRATE_URL`);
+  const result = spawnSync(
+    'node',
+    ['--enable-source-maps', 'dist/migrate-pool.mjs'],
+    {
+      cwd: release,
+      env: { PATH: '/usr/bin:/bin', KS_POOL_DATABASE_URL: url },
+      ...systemUser('postgres'),
+      stdio: ['ignore', 'inherit', 'inherit'],
+      timeout: 5 * 60_000,
+    },
+  );
+  if (result.status !== 0)
+    throw new Refusal(
+      `the shared pool's migrations failed (exit ${result.status})`,
+    );
+}
+
+/** Open (claimed, not yet settled) paid orders in the shared pool, or null if it can't be read. */
+function openPoolOrders(): number | null {
+  if (!existsSync(POOL_ENV)) return 0;
+  const result = spawnSync(
+    'psql',
+    [
+      '-X',
+      '-A',
+      '-t',
+      '-d',
+      'knowscroll_pool',
+      '-c',
+      "SELECT count(*) FROM pool_order WHERE state = 'claimed'",
+    ],
+    {
+      env: { PATH: '/usr/bin:/bin' },
+      ...systemUser('postgres'),
+      encoding: 'utf8',
+      timeout: 15_000,
+    },
+  );
+  const count = Number(String(result.stdout).trim());
+  return result.status === 0 && Number.isInteger(count) ? count : null;
+}
+
 function runAsWorld(world: World, release: string, program: string): void {
   const result = spawnSync(
     'node',
@@ -219,6 +289,7 @@ export async function deploy(
   const before = linkTarget(join(worldRoot, 'current'));
   say({ event: 'deploy-start', world: w, commit, from: commitOf(before) });
 
+  migratePool(release);
   runAsWorld(w, release, 'migrate');
   if (w !== 'live') runAsWorld(w, release, 'seed');
 
@@ -370,6 +441,137 @@ export function diskGuard(): void {
   say({ event: 'disk-recovered', usedPercent: percent, resumed: paused });
 }
 
+/** #199: starts one operator program from a world's current release, as the world's own user
+ * with the world's settings; arguments go straight to the program, never through a shell. */
+export function runProgram(
+  world: string,
+  program: string,
+  args: readonly string[],
+): number {
+  const request = validateRunRequest(world, program);
+  if (!request.ok) throw new Refusal(request.reason);
+  const w = request.world;
+  if (!provisioned(w)) throw new Refusal(`${w} is not set up on this server`);
+  const release = commitOf(linkTarget(join(ROOT, w, 'current')));
+  if (!release) throw new Refusal(`${w} has no deployed release to run`);
+  const result = spawnSync(
+    'node',
+    ['--enable-source-maps', `dist/${request.program}.mjs`, ...args],
+    {
+      cwd: join(RELEASES, release),
+      env: {
+        PATH: '/usr/bin:/bin',
+        ...worldEnv(w),
+        NODE_ENV: 'production',
+        KS_WORLD: w,
+      },
+      ...serviceUser(w),
+      stdio: ['ignore', 'inherit', 'inherit'],
+      timeout: 30 * 60_000,
+    },
+  );
+  return result.status ?? 1;
+}
+
+function cutroomCurrent(): string | null {
+  const target = linkTarget(join(CUTROOM_CODE, 'current'));
+  const match = target ? /\/releases\/([0-9a-f]{40})$/.exec(target) : null;
+  return match ? (match[1] as string) : null;
+}
+
+/** #199: restarts the shared Cutroom, but never while a paid order is open in the pool. */
+export function cutroomRestart(): void {
+  const decision = cutroomSwitchDecision(openPoolOrders());
+  if (!decision.ok) throw new Refusal(decision.reason);
+  if (!cutroomCurrent()) throw new Refusal('no Cutroom version is installed');
+  systemctl('enable', CUTROOM_UNIT);
+  systemctl('restart', CUTROOM_UNIT);
+  say({ event: 'cutroom-restarted', revision: cutroomCurrent() });
+}
+
+/** #199: installs Cutroom exactly as upstream ships it, at one pinned commit: its source tree on
+ * stdin (`git archive`, copied from the owner's Mac; nothing in the Cutroom repository changes),
+ * then its own production dependencies. Switches to it only when no paid order is open. */
+export function cutroomInstall(commit: string): void {
+  if (!/^[0-9a-f]{40}$/.test(commit))
+    throw new Refusal('the commit must be 40 lowercase hex characters');
+  const releases = join(CUTROOM_CODE, 'releases');
+  const dest = join(releases, commit);
+  mkdirSync(releases, { recursive: true });
+  if (existsSync(join(dest, 'CUTROOM_REVISION'))) {
+    spawnSync('cat', [], { stdio: ['inherit', 'ignore', 'inherit'] });
+    say({ event: 'cutroom-already-installed', commit });
+  } else {
+    const incoming = join(releases, `.incoming-${commit}-${process.pid}`);
+    mkdirSync(incoming, { recursive: true });
+    try {
+      const tar = spawnSync('tar', ['-x', '-C', incoming], {
+        stdio: ['inherit', 'inherit', 'inherit'],
+      });
+      if (tar.status !== 0)
+        throw new Refusal('the Cutroom tarball did not unpack');
+      if (!existsSync(join(incoming, 'apps/service/src/main.ts')))
+        throw new Refusal('the tarball is not a Cutroom source tree');
+      const install = spawnSync(
+        'corepack',
+        [CUTROOM_PNPM, 'install', '--frozen-lockfile', '--prod'],
+        {
+          cwd: incoming,
+          env: {
+            PATH: '/usr/bin:/bin',
+            HOME: CUTROOM_CODE,
+            COREPACK_HOME: join(CUTROOM_CODE, 'corepack'),
+            COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+            npm_config_store_dir: join(CUTROOM_CODE, 'pnpm-store'),
+          },
+          stdio: ['ignore', 'inherit', 'inherit'],
+          timeout: 20 * 60_000,
+        },
+      );
+      if (install.status !== 0)
+        throw new Refusal(
+          `Cutroom's dependencies did not install (exit ${install.status})`,
+        );
+      writeFileSync(join(incoming, 'CUTROOM_REVISION'), `${commit}\n`);
+      execFileSync('chmod', ['-R', 'a+rX,go-w', incoming]);
+      renameSync(incoming, dest);
+      say({ event: 'cutroom-installed', commit });
+    } finally {
+      rmSync(incoming, { recursive: true, force: true });
+    }
+  }
+  if (cutroomCurrent() === commit) return;
+  const decision = cutroomSwitchDecision(openPoolOrders());
+  if (!decision.ok)
+    throw new Refusal(`installed, but not switched: ${decision.reason}`);
+  relink(join(CUTROOM_CODE, 'current'), dest);
+  say({ event: 'cutroom-switched', commit });
+  if (existsSync('/etc/knowscroll/cutroom-pool.env')) cutroomRestart();
+}
+
+async function cutroomStatus(): Promise<Record<string, unknown>> {
+  let ready: unknown = 'down';
+  try {
+    const res = await fetch('http://127.0.0.1:8797/v1/ready', {
+      signal: AbortSignal.timeout(3000),
+    });
+    ready = res.status === 200 ? 'ready' : `http ${res.status}`;
+  } catch {
+    // stays 'down'
+  }
+  const questions = join(CUTROOM_DATA, 'QUESTIONS.md');
+  return {
+    revision: cutroomCurrent(),
+    active: active(CUTROOM_UNIT),
+    ready,
+    openPoolOrders: openPoolOrders(),
+    // Cutroom reports cap refusals and failed re-runs only here; nobody else reads it.
+    questions: existsSync(questions)
+      ? readFileSync(questions, 'utf8').trim().split('\n').slice(-5)
+      : [],
+  };
+}
+
 export async function status(): Promise<Record<string, unknown>> {
   const worlds: Record<string, unknown> = {};
   for (const world of ['live', 'stage', 'dev'] as const) {
@@ -395,7 +597,7 @@ export async function status(): Promise<Record<string, unknown>> {
       previous: commitOf(linkTarget(join(ROOT, world, 'previous'))),
       health,
       services: Object.fromEntries(
-        ['api', 'worker', 'maintenance'].map((s) => [
+        ['api', 'worker', 'maintenance', 'generation'].map((s) => [
           s,
           active(`ks-${s}@${world}.service`),
         ]),
@@ -413,5 +615,6 @@ export async function status(): Promise<Record<string, unknown>> {
     releases: readdirSync(RELEASES).filter((n) => /^[0-9a-f]{40}$/.test(n))
       .length,
     worlds,
+    cutroom: await cutroomStatus(),
   };
 }

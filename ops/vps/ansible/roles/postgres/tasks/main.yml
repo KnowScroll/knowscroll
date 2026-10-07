@@ -128,3 +128,51 @@
   become_user: postgres
   changed_when: false
   when: not ansible_check_mode
+
+# #199: the shared Reel pool's own database. It is owned by a role nobody logs in as; the worlds
+# that share the pool reach it only through its functions, granted to ks_pool_client. Its
+# migrations run inside `ks deploy`, as postgres acting for ks_pool (/etc/knowscroll/pool.env).
+- name: Shared pool roles
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ks_pool') THEN CREATE ROLE ks_pool NOLOGIN; END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ks_pool_client') THEN CREATE ROLE ks_pool_client NOLOGIN; END IF;
+      END $$;
+  become: true
+  become_user: postgres
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Shared pool database
+  community.postgresql.postgresql_db:
+    name: knowscroll_pool
+    owner: ks_pool
+    encoding: UTF8
+  become: true
+  become_user: postgres
+  when: not ansible_check_mode
+
+- name: Only worlds that share the pool may connect to it
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      REVOKE CONNECT ON DATABASE knowscroll_pool FROM PUBLIC;
+      GRANT CONNECT ON DATABASE knowscroll_pool TO ks_pool_client;
+      {% for world in ks_worlds if world.shared_pool | default(false) %}
+      GRANT ks_pool_client TO {{ world.db_role }};
+      {% endfor %}
+  become: true
+  become_user: postgres
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: How ks deploy migrates the pool (no secret here; Postgres peer auth on the local socket)
+  ansible.builtin.copy:
+    dest: /etc/knowscroll/pool.env
+    mode: "0644"
+    content: |
+      # Managed by ops/vps/ansible (#199). Read by `ks deploy` before each world's migrations.
+      KS_POOL_MIGRATE_URL=postgresql:///knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool

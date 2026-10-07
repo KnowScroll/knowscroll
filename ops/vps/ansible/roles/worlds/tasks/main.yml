@@ -2,13 +2,21 @@
 # a systemd slice with its CPU/memory budget, and sandboxed templated units (#201 Gate 3).
 # Services are not started here: the first `ks deploy` of a world enables its target.
 
+- name: Group that may read the shared Cutroom's finished files (#199)
+  ansible.builtin.group:
+    name: ks-pool
+    system: true
+
 - name: World service users
+  ignore_errors: "{{ ansible_check_mode }}"  # a preview never creates the ks-pool group
   ansible.builtin.user:
     name: ks-{{ item.name }}
     system: true
     shell: /usr/sbin/nologin
     home: /srv/knowscroll/{{ item.name }}
     create_home: false
+    groups: "{{ ['ks-pool'] if item.shared_pool | default(false) else [] }}"
+    append: true
   loop: "{{ ks_worlds }}"
   loop_control:
     label: ks-{{ item.name }}
@@ -85,6 +93,9 @@
       echo "KS_WEB_ORIGIN=https://{{ item.app_host }}"
       echo "KS_MEDIA_ROOT=/srv/knowscroll/{{ item.name }}/media"
       echo "KS_MAIL_SENDER=agentmail"
+      {% if item.shared_pool | default(false) %}
+      echo "KS_POOL_DATABASE_URL=postgresql://{{ item.db_role }}:$(cat $s/{{ item.name }}/db_password)@127.0.0.1:5432/knowscroll_pool"
+      {% endif %}
       cat $s/shared/agentmail.env
     } > "$tmp"
     chgrp ks-{{ item.name }} "$tmp"
@@ -126,6 +137,7 @@
     - ks-api@.service
     - ks-worker@.service
     - ks-maintenance@.service
+    - ks-generation@.service
     - ks-world@.target
   notify: Reload systemd
 

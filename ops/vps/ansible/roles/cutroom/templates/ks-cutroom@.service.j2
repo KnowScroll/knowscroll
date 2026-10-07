@@ -1,0 +1,47 @@
+# The shared Cutroom (%i) — managed by ops/vps/ansible (#199, ADR-0050). Upstream's own service at
+# the pinned revision in /srv/knowscroll/cutroom/current, never modified. Started and restarted only
+# by `ks cutroom-install` / `ks cutroom-restart`, which refuse while a paid order is open.
+[Unit]
+Description=KnowScroll shared Cutroom (%i)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ks-cutroom
+Group=ks-cutroom
+# Its finished files are read by the worlds that share the pool (group ks-pool, setgid folders).
+SupplementaryGroups=ks-pool
+UMask=0027
+Slice=ks-cutroom.slice
+WorkingDirectory=/srv/knowscroll/cutroom/current
+EnvironmentFile=/etc/knowscroll/cutroom-%i.env
+Environment=PATH=/usr/bin:/bin
+Environment=CUTROOM_ENV_FILE=/etc/knowscroll/cutroom-%i.env
+RuntimeDirectory=knowscroll-cutroom-%i
+RuntimeDirectoryMode=0700
+ExecStart=/usr/local/lib/knowscroll/cutroom-run
+# Upstream handles SIGINT (and stdin's end), not SIGTERM.
+KillSignal=SIGINT
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=30
+OOMScoreAdjust=300
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=no
+RestrictNamespaces=yes
+LockPersonality=yes
+ReadWritePaths=/srv/knowscroll/cutroom-%i
+
+[Install]
+WantedBy=multi-user.target

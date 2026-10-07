@@ -128,6 +128,73 @@ ssh knowscroll-vps journalctl -u ks-disk-guard -n 20
 The critical and recovery path was proven on 2026-10-07 by filling the disk to 93 % and removing the
 filler. Pausing services is unproven, because no pausable service existed yet.
 
+## The shared Reel pool and Cutroom (#199, ADR-0050)
+
+Dev and stage share **one Cutroom** (`ks-cutroom@pool`, 127.0.0.1:8797, the real MiniMax and fal
+providers) and **one spend record**: the `knowscroll_pool` database, which holds their shared $5.
+Live gets its own Cutroom later.
+
+- **Who orders.** Either world may order a Reel from an approved script, and every Reel appears in
+  both.
+- **Paid once.** The order claims the script's request id in `knowscroll_pool` first. The other
+  world only receives it, at 0¢.
+
+**Upstream Cutroom runs exactly as it ships, at a pinned commit.** Nothing in the Cutroom repository
+changes; its code is copied from the owner's Mac.
+
+```sh
+git -C "/Volumes/Mrigesh SSD/Cutroom" archive --format=tar <commit> \
+  | ssh knowscroll-vps ks cutroom-install <commit>
+ssh knowscroll-vps ks cutroom-restart        # refused while a paid order is open
+```
+
+`ks cutroom-install` unpacks the tree under `/srv/knowscroll/cutroom/releases/<commit>`, then runs
+upstream's own `pnpm install --frozen-lockfile --prod`. It switches `current` and restarts only when
+no paid order is open: a restart mid-run would make Cutroom run that job again after its 4 h lease,
+and pay again for work in flight.
+
+| Path | What |
+|---|---|
+| `/srv/knowscroll/cutroom/current` | the pinned Cutroom source tree it runs |
+| `/srv/knowscroll/cutroom-pool/data/` | Cutroom's SQLite (private to `ks-cutroom`) |
+| `/srv/knowscroll/cutroom-pool/artifacts/` | finished files, readable by the `ks-pool` group (`ks-dev`, `ks-stage`); paid, so never cleaned automatically |
+| `/srv/knowscroll/cutroom-pool/QUESTIONS.md` | where Cutroom reports cap refusals; `ks status` shows its last lines |
+| `/etc/knowscroll/cutroom-pool.env` | its settings plus the provider keys (root:ks-cutroom, 0640) |
+| `/etc/knowscroll/cutroom-pool.budget.md` | KnowScroll's per-reel cap for it ($0.75), a second lock behind the $5 |
+| `/etc/knowscroll/secrets/cutroom/providers.env` | `MINIMAX_API_KEY` and `FAL_KEY`, copied once by hand from the owner's Mac (`FAL_KEY` takes the value of `FAL_AI_KEY`, which is never renamed); never in Git or logs |
+
+How the service is started:
+- The start wrapper holds stdin open with a FIFO, because upstream stops when stdin ends.
+- systemd stops it with `SIGINT`, the signal upstream handles.
+- It refuses to start a real narration port without a real voice (`English_Graceful_Lady`).
+
+**Each world's generation worker** (`ks-generation@<world>`) does two jobs:
+- it follows that world's orders;
+- every minute it syncs with the pool: it settles finished orders, and creates a receive job for each
+  Reel the pool has made whose approved script the world holds.
+
+**Operator commands** run inside a world, as that world's user, through `ks run`:
+
+```sh
+ssh knowscroll-vps ks run <world> generation-cli pool-status
+ssh knowscroll-vps ks run <world> generation-cli order --brief-id <id> --grant-id <id> \
+  --approval-ref "PR #N" [--until plan|video] [--ceiling-cents 75]
+ssh knowscroll-vps ks run <world> publication evaluate --reel-id <id> --policy publication-v2 --decide auto
+ssh knowscroll-vps ks run <world> publication mint --reel-id <id>
+```
+
+One-time setup, per world:
+1. `generation-cli register-engine --origin http://127.0.0.1:8797 --contract-revision <pin>
+   --artifact-root /srv/knowscroll/cutroom-pool/artifacts --provider-mode live --declared-by <you>`
+2. `generation-cli set-live-cap --cap-cents 500 --set-by "owner 2026-10-07: $5 for dev and stage"`
+3. `generation-cli create-grant --mode live --cap-cents 500 --authorization-ref <ref> --expires-at <date>`
+
+Each world also keeps its own cap: at most 500¢, as a second lock.
+
+`ks deploy` applies the pool's own migrations, as Postgres acting for its owner role `ks_pool`,
+before each world's migrations (`/etc/knowscroll/pool.env`). A pool migration must therefore keep
+working with the older world code still running on the other world.
+
 ## Adding the live world (later slice)
 
 1. Add `live` to `ks_worlds` in `ops/vps/ansible/group_vars/all.yml`: port 4310, database `knowscroll`,

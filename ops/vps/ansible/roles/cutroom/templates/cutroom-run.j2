@@ -1,0 +1,20 @@
+#!/bin/bash
+# Starts upstream Cutroom's own service exactly as it ships (#199, ADR-0050). Managed by
+# ops/vps/ansible. Two facts about upstream decide this wrapper, and neither changes Cutroom:
+#   - it stops when its standard input ends, so stdin is a FIFO opened read-write here, which
+#     never reaches end-of-file; systemd stops it with SIGINT, which it handles;
+#   - nothing checks the narration voice at startup, so a real narration port with the stand-in
+#     voice would fail only after the pictures were paid for. That is refused here, up front.
+set -euo pipefail
+if [ "${CUTROOM_PROVIDER_NARRATION:-fake}" != "fake" ]; then
+  case "${CUTROOM_NARRATION_VOICE:-}" in
+    "" | stand-in)
+      echo "cutroom-run: refusing to start: a real narration port needs a real CUTROOM_NARRATION_VOICE" >&2
+      exit 1
+      ;;
+  esac
+fi
+fifo="${RUNTIME_DIRECTORY:?}/stdin"
+rm -f "$fifo"
+mkfifo -m 600 "$fifo"
+exec /usr/bin/node --experimental-strip-types --no-warnings apps/service/src/main.ts 0<>"$fifo"

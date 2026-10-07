@@ -27,7 +27,7 @@
     mode: "0644"
   loop: [ks.ts, plan.ts, system.ts]
 
-- name: ks on the path
+- name: The ks command on the path
   ansible.builtin.copy:
     dest: /usr/local/bin/ks
     mode: "0755"
