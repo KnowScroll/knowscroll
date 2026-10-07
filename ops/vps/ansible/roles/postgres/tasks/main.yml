@@ -175,4 +175,4 @@
     mode: "0644"
     content: |
       # Managed by ops/vps/ansible (#199). Read by `ks deploy` before each world's migrations.
-      KS_POOL_MIGRATE_URL=postgresql:///knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool
+      KS_POOL_MIGRATE_URL=postgresql://postgres@/knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool
