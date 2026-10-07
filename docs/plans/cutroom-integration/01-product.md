@@ -1,8 +1,10 @@
 # Product: real generated Reels on stage and dev
 
-Gate 1 — no technical language. Status: re-presented for approval on 2026-10-07. The content was
-approved in substance on 2026-10-06 ("looks great"). This version moves it from a separate test
-universe to the stage and dev worlds that now run on the server.
+Gate 1 — no technical language. Status: **APPROVED 2026-10-07** ("looks good approved"). The
+content was first approved in substance on 2026-10-06 ("looks great"); this version moves it from a
+separate test universe to the stage and dev worlds that now run on the server. The owner approved
+without answering the four questions below, so the defaults recorded under each are adopted. Any of
+them can still be changed, and none is hard to change later.
 
 ## Problem
 
@@ -88,10 +90,15 @@ time, each waiting for your go-ahead.
 
 1. **Label wording.** The mockup uses "Engine-checked" on the Reel and spells it out in the sheet.
    Alternatives: "Checked by Cutroom", or "Self-checked by the video engine". Which do you want?
+   *Adopted: "Engine-checked", as in the mockup.*
 2. **Finding the real Reels.** With about 15–20 simulated Reels around them, should the three real
    ones come first in the stage feed, or sit mixed in like any other Reel?
+   *Adopted: first, so they are easy to find while testing.*
 3. **Choosing the three Scrolls.** I propose a shortlist after the library grows (more choice), or
    you pick now from the existing 23. Which?
+   *Adopted: a shortlist after the library grows; the owner picks from it.*
 4. **Dev's map.** Stage gets the full reading run that grows the map. Should dev get the same run,
    so the two look alike, or keep a smaller map, because dev can be reset at any time and the run
    would have to be repeated after each reset?
+   *Adopted: a smaller map on dev. The library and the shared Reels are the same; the long reading
+   run happens on stage only.*

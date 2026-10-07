@@ -7,10 +7,11 @@ Process: the four-gate workflow (Product → Architecture → Program Design →
 stops for the owner's explicit approval. No implementation code before the Gate 4 slice plan is
 approved.
 
-- Gate 1 — Product: re-presented for approval on 2026-10-07. On 2026-10-06 the owner said the
-  content "looks great", then moved where it runs (see "Depends on #201" below). `01-product.md`
-  now targets stage and dev, adds the shared Reel pool, and asks a fourth question (dev's map).
-- Gate 2 — Architecture: pending
+- Gate 1 — Product: **APPROVED 2026-10-07** ("looks good approved"), after being re-presented for
+  stage and dev with the shared Reel pool. The four questions were not answered, so the defaults
+  recorded in `01-product.md` are adopted: label "Engine-checked"; real Reels first in the stage
+  feed; a Scroll shortlist after the library grows; a smaller map on dev.
+- Gate 2 — Architecture: in progress
 - Gate 3 — Program Design: pending
 - Gate 4 — Slice plan: pending
 
