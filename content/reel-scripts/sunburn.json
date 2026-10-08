@@ -1,7 +1,11 @@
 {
   "id": "11be6dd5-1361-41d5-a8b1-074924893cca",
   "authoredBy": "claude (drafted for the owner, #199)",
-  "approval": null,
+  "approval": {
+    "ref": "https://github.com/KnowScroll/knowscroll/pull/210 (merged by the owner: merging is the approval)",
+    "approvedBy": "owner",
+    "approvedAt": "2026-10-08"
+  },
   "brief": {
     "version": 1,
     "worldId": "knowscroll-sunburn",
