@@ -1440,7 +1440,8 @@ export async function setLiveCap(
   db: pg.Pool,
   input: { capCents: number; setBy: string },
 ): Promise<void> {
-  if (!validBoundedInteger(input.capCents, 0, 500)) deny('invalid_cap_cents');
+  // At most the owner's $7 for dev and stage together (2026-10-09; migration 0044's CHECK).
+  if (!validBoundedInteger(input.capCents, 0, 700)) deny('invalid_cap_cents');
   if (input.setBy.trim().length === 0) deny('invalid_set_by');
   await db.query(
     `UPDATE generation_live_cap SET cap_cents=$1,set_by=$2,set_at=clock_timestamp()`,

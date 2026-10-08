@@ -522,22 +522,43 @@ test('#199 shared Reel pool across two worlds', async (t) => {
         );
         assert.equal((await order(1, 10)).status, 'take_taken');
         assert.equal(await ledger.nextTake(digest), 2);
+        // The shared cap is the owner's $7 (pool migration 0002); one order still reserves at most 500.
+        assert.equal((await order(2, 500)).status, 'claimed');
+        // Another script's order (one open order per script) meets the cap.
+        const other = createHash('sha256')
+          .update('ledger-only-2')
+          .digest('hex');
+        const orderOther = (ceilingCents: number) =>
+          ledger.claim({
+            requestId: poolRequestId(other, 1),
+            scriptDigest: other,
+            take: 1,
+            until: 'video',
+            bodySha256: 'b'.repeat(64),
+            world: 'stage',
+            ceilingCents,
+            approvalRef: 'test',
+          });
         assert.equal(
-          (await order(2, 461)).status,
+          (await orderOther(161)).status,
           'cap_exceeded',
-          '40 spent + 461 would pass the shared 500',
+          '40 spent + 500 open + 161 would pass the shared 700',
         );
-        assert.equal((await order(2, 460)).status, 'claimed');
+        assert.equal((await orderOther(160)).status, 'claimed');
         assert.deepEqual(await ledger.budget(), {
-          capCents: 500,
-          committedCents: 500,
+          capCents: 700,
+          committedCents: 700,
           leftCents: 0,
         });
+        assert.equal(
+          await ledger.release(poolRequestId(other, 1), 'stage'),
+          'released',
+        );
         assert.equal(
           await ledger.release(poolRequestId(digest, 2), 'stage'),
           'released',
         );
-        assert.equal((await ledger.budget()).leftCents, 460);
+        assert.equal((await ledger.budget()).leftCents, 660);
         await assert.rejects(
           poolDb.query('DELETE FROM pool_order'),
           /never deleted/,
@@ -728,10 +749,10 @@ test('#199 shared Reel pool across two worlds', async (t) => {
       async () => {
         const brief = makeBrief('volcano');
         const briefId = await approve(stageDb, brief);
-        // A world's own live cap is 200 cents until an operator raises it, and never above 500.
+        // A world's own live cap is 200 cents until an operator raises it, and never above 700.
         await assert.rejects(liveGrant(stageDb), /owner cap of 200 cents/);
         const refused = await operator.setLiveCap(stageDb, {
-          capCents: 501,
+          capCents: 701,
           setBy: 'shared-pool-test',
         });
         assert.equal(refused.ok, false);
