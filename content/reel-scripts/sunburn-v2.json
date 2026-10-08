@@ -1,55 +1,55 @@
 {
-  "id": "0801093d-5dbd-47c4-9c4f-ee5910c42670",
+  "id": "d39d877f-6fc3-4c13-a71b-a7efb6353fad",
   "authoredBy": "claude (drafted for the owner, #199)",
   "approval": null,
   "brief": {
     "version": 1,
-    "worldId": "knowscroll-tides-v2",
+    "worldId": "knowscroll-sunburn-v2",
     "narration": [
       {
-        "text": "The Moon looks small and far away in the sky.",
+        "text": "The Sun bathes the beach in heat, light and invisible ultraviolet light.",
         "claimIds": [
           "c1"
         ]
       },
       {
-        "text": "It floats pale above a calm blue sea.",
+        "text": "Only the ultraviolet light can burn your skin.",
         "claimIds": [
           "c1"
         ]
       },
       {
-        "text": "Yet its pull draws the sea toward it.",
+        "text": "Ultraviolet light carries more energy than the light you can see.",
         "claimIds": [
           "c2"
         ]
       },
       {
-        "text": "The water climbs high up the sandy beach, and that rise is the tide.",
+        "text": "Too much of it injures skin cells, and the skin turns red and sore.",
         "claimIds": [
           "c2"
         ]
       },
       {
-        "text": "The same invisible pull keeps a stone resting on the grass.",
+        "text": "Ultraviolet light bounces off bright, fresh snow.",
         "claimIds": [
           "c3"
         ]
       },
       {
-        "text": "It is the force that holds you to the ground.",
+        "text": "So on a snowy day, it can still reach your skin.",
         "claimIds": [
           "c3"
         ]
       },
       {
-        "text": "Its pull still tugs at the water along the rocky shore.",
+        "text": "A hat and clothing block the rays before they reach you.",
         "claimIds": [
           "c4"
         ]
       },
       {
-        "text": "As the tide rises, the sea flows into the rock pool.",
+        "text": "Then you keep the warm, bright day and lose only the burn.",
         "claimIds": [
           "c4"
         ]
@@ -76,48 +76,48 @@
     "claimSources": [
       {
         "claimId": "c1",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
         "assetRevision": 1
       },
       {
         "claimId": "c2",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
         "assetRevision": 1
       },
       {
         "claimId": "c3",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
         "assetRevision": 1
       },
       {
         "claimId": "c4",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
         "assetRevision": 1
       }
     ],
     "criteria": {
       "mustShow": [
         {
-          "id": "show-moon",
-          "text": "a pale Moon in a blue daytime sky above a calm sea",
+          "id": "show-beach",
+          "text": "a bright Sun shining over a sandy beach",
           "type": "presence",
           "claimId": "c1"
         },
         {
-          "id": "show-beach",
-          "text": "sea water covering most of a sandy beach",
+          "id": "show-shoulder",
+          "text": "a bare shoulder with pink sunburnt skin",
           "type": "presence",
           "claimId": "c2"
         },
         {
-          "id": "show-stone",
-          "text": "a smooth grey stone resting on green grass",
+          "id": "show-snow",
+          "text": "fresh white snow glittering in bright sunlight",
           "type": "presence",
           "claimId": "c3"
         },
         {
-          "id": "show-rockpool",
-          "text": "sea water flowing into a rock pool on a rocky shore",
+          "id": "show-hat",
+          "text": "a wide-brimmed straw hat resting on the sand",
           "type": "presence",
           "claimId": "c4"
         }
@@ -141,7 +141,7 @@
       "version": 1,
       "text": "realistic nature documentary footage, vivid natural light, steady camera"
     },
-    "title": "The Moon moves the sea",
-    "summary": "How the Moon's pull, the same pull that holds you down, lifts the ocean into tides."
+    "title": "Why sunlight can burn",
+    "summary": "Only the Sun's invisible ultraviolet light burns skin, and a hat and clothing stop it."
   }
 }

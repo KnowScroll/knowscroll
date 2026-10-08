@@ -1,55 +1,55 @@
 {
-  "id": "0801093d-5dbd-47c4-9c4f-ee5910c42670",
+  "id": "ed4c92a4-a72d-489e-a0ab-5507bd135caa",
   "authoredBy": "claude (drafted for the owner, #199)",
   "approval": null,
   "brief": {
     "version": 1,
-    "worldId": "knowscroll-tides-v2",
+    "worldId": "knowscroll-seasons-v2",
     "narration": [
       {
-        "text": "The Moon looks small and far away in the sky.",
+        "text": "The planet travels around the Sun, spinning on a tilted axis.",
         "claimIds": [
           "c1"
         ]
       },
       {
-        "text": "It floats pale above a calm blue sea.",
+        "text": "That tilt, not its distance from the Sun, is what makes the seasons.",
         "claimIds": [
           "c1"
         ]
       },
       {
-        "text": "Yet its pull draws the sea toward it.",
+        "text": "In summer, your side leans toward the Sun, and its light strikes the field directly.",
         "claimIds": [
           "c2"
         ]
       },
       {
-        "text": "The water climbs high up the sandy beach, and that rise is the tide.",
+        "text": "The light falls on less ground, so the field warms more.",
         "claimIds": [
           "c2"
         ]
       },
       {
-        "text": "The same invisible pull keeps a stone resting on the grass.",
+        "text": "Months later, the same side leans away, and sunlight arrives at a slant.",
         "claimIds": [
           "c3"
         ]
       },
       {
-        "text": "It is the force that holds you to the ground.",
+        "text": "The same light spreads thinner, so the ground stays cold, and that is winter.",
         "claimIds": [
           "c3"
         ]
       },
       {
-        "text": "Its pull still tugs at the water along the rocky shore.",
+        "text": "In spring, the tilt leans neither toward the Sun nor away from it.",
         "claimIds": [
           "c4"
         ]
       },
       {
-        "text": "As the tide rises, the sea flows into the rock pool.",
+        "text": "Then daylight lasts about half the day, at the equinox.",
         "claimIds": [
           "c4"
         ]
@@ -76,48 +76,48 @@
     "claimSources": [
       {
         "claimId": "c1",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
         "assetRevision": 1
       },
       {
         "claimId": "c2",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
         "assetRevision": 1
       },
       {
         "claimId": "c3",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
         "assetRevision": 1
       },
       {
         "claimId": "c4",
-        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
         "assetRevision": 1
       }
     ],
     "criteria": {
       "mustShow": [
         {
-          "id": "show-moon",
-          "text": "a pale Moon in a blue daytime sky above a calm sea",
+          "id": "show-planet",
+          "text": "a blue planet with white clouds, lit on one side by the Sun",
           "type": "presence",
           "claimId": "c1"
         },
         {
-          "id": "show-beach",
-          "text": "sea water covering most of a sandy beach",
+          "id": "show-summer",
+          "text": "a sunflower field under a high midday Sun",
           "type": "presence",
           "claimId": "c2"
         },
         {
-          "id": "show-stone",
-          "text": "a smooth grey stone resting on green grass",
+          "id": "show-winter",
+          "text": "a snowy field with long shadows under a low Sun",
           "type": "presence",
           "claimId": "c3"
         },
         {
-          "id": "show-rockpool",
-          "text": "sea water flowing into a rock pool on a rocky shore",
+          "id": "show-meadow",
+          "text": "a spring meadow with blossoming trees in soft daylight",
           "type": "presence",
           "claimId": "c4"
         }
@@ -141,7 +141,7 @@
       "version": 1,
       "text": "realistic nature documentary footage, vivid natural light, steady camera"
     },
-    "title": "The Moon moves the sea",
-    "summary": "How the Moon's pull, the same pull that holds you down, lifts the ocean into tides."
+    "title": "Tilt, not distance, makes the seasons",
+    "summary": "Why summer and winter come from the planet's tilted axis, not from how near it is to the Sun."
   }
 }
