@@ -23,39 +23,27 @@
         ]
       },
       {
-        "text": "In autumn, the field leans neither toward the Sun nor away from it.",
-        "claimIds": [
-          "c2"
-        ]
-      },
-      {
-        "text": "Daylight lasts about half the day, and the oak tree turns golden.",
-        "claimIds": [
-          "c2"
-        ]
-      },
-      {
         "text": "In winter, the same field leans away from the Sun.",
         "claimIds": [
-          "c3"
+          "c2"
         ]
       },
       {
         "text": "Sunlight arrives at a slant and spreads thin, and the bare oak tree stands in snow.",
         "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "In spring, the field leans neither way, and the oak tree buds again.",
+        "claimIds": [
           "c3"
         ]
       },
       {
-        "text": "The tilt, not the distance from the Sun, makes these seasons.",
+        "text": "The tilt, not the distance from the Sun, makes the seasons.",
         "claimIds": [
-          "c4"
-        ]
-      },
-      {
-        "text": "In spring, the same oak tree buds again.",
-        "claimIds": [
-          "c4"
+          "c3"
         ]
       }
     ],
@@ -70,10 +58,6 @@
       },
       {
         "id": "c3",
-        "role": "supporting"
-      },
-      {
-        "id": "c4",
         "role": "supporting"
       }
     ],
@@ -92,11 +76,6 @@
         "claimId": "c3",
         "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
         "assetRevision": 1
-      },
-      {
-        "claimId": "c4",
-        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
-        "assetRevision": 1
       }
     ],
     "criteria": {
@@ -108,22 +87,16 @@
           "claimId": "c1"
         },
         {
-          "id": "show-autumn-oak",
-          "text": "a lone oak tree with golden autumn leaves, seen from a distance across a field in soft daylight",
-          "type": "presence",
-          "claimId": "c2"
-        },
-        {
           "id": "show-winter-oak",
           "text": "a lone bare oak tree, seen from a distance across a snowy field under a low winter Sun",
           "type": "presence",
-          "claimId": "c3"
+          "claimId": "c2"
         },
         {
           "id": "show-spring-oak",
           "text": "a lone oak tree with small spring buds, seen from a distance across a green field",
           "type": "presence",
-          "claimId": "c4"
+          "claimId": "c3"
         }
       ],
       "mustNotShow": [
