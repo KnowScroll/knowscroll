@@ -178,7 +178,12 @@ function migratePool(release: string): void {
     ['--enable-source-maps', 'dist/migrate-pool.mjs'],
     {
       cwd: release,
-      env: { PATH: '/usr/bin:/bin', KS_POOL_DATABASE_URL: url },
+      // node-postgres takes the user from the URL or PGUSER, never from the OS account.
+      env: {
+        PATH: '/usr/bin:/bin',
+        PGUSER: 'postgres',
+        KS_POOL_DATABASE_URL: url,
+      },
       ...systemUser('postgres'),
       stdio: ['ignore', 'inherit', 'inherit'],
       timeout: 5 * 60_000,
