@@ -23,7 +23,8 @@
  * #199: with `--pack-dir content/model-scrolls`, each newly admitted Scroll is also written there as
  * a pack file (the public page's text, the model's reply and the run's record) that every world's
  * seed replays through the same checks, so the library is the same everywhere. Review a pack before
- * committing it: it is public in Git.
+ * committing it: it is public in Git. `--model` picks the MiniMax model for a live run (default
+ * MiniMax-M3); each Scroll's writing record keeps the model that wrote it.
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -220,6 +221,7 @@ const OPTIONS = {
   'fixture-mode': { type: 'string' },
   apply: { type: 'boolean' },
   'pack-dir': { type: 'string' },
+  model: { type: 'string' },
 } as const;
 const readArgs = (argv: string[]) =>
   parseArgs({ args: argv, strict: true, options: OPTIONS }).values;
@@ -238,7 +240,11 @@ async function main(argv: string[]): Promise<number> {
     'fixture-mode': fixtureMode = 'scroll',
     apply = false,
     'pack-dir': packDir,
+    model: modelArg,
   } = args;
+  // #199: the owner's newer MiniMax model may be chosen per run (2026-10-08); the default is unchanged.
+  if (modelArg !== undefined && !/^MiniMax-[A-Za-z0-9.-]{1,60}$/.test(modelArg))
+    return refuse('--model names a MiniMax model, such as MiniMax-M3.');
   if (!database || !planPath || (kind !== 'fixture' && kind !== 'minimax'))
     return refuse('pass --database, --plan and --transport fixture|minimax.');
   try {
@@ -303,7 +309,8 @@ async function main(argv: string[]): Promise<number> {
       { database, plan, apply, at, signal: stop.signal },
       {
         transport,
-        model: kind === 'minimax' ? 'MiniMax-M3' : 'fixture-model',
+        model:
+          kind === 'minimax' ? (modelArg ?? 'MiniMax-M3') : 'fixture-model',
         beforeSend: gate.beforeSend,
         ledger: gate.ledger,
         receiptDir: resolve('artifacts/scroll-writing'),
