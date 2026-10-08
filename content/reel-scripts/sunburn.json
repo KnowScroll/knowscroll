@@ -1,0 +1,147 @@
+{
+  "id": "11be6dd5-1361-41d5-a8b1-074924893cca",
+  "authoredBy": "claude (drafted for the owner, #199)",
+  "approval": null,
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-sunburn",
+    "narration": [
+      {
+        "text": "The Sun bathes the beach in heat, light and invisible ultraviolet light.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Only the ultraviolet light can burn your skin.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Ultraviolet light carries more energy than the light you can see.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Too much of it injures skin cells, and the skin turns red and sore.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Ultraviolet light bounces off bright snow and water.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "It even slips through clouds.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "A hat and clothing block the rays before they reach you.",
+        "claimIds": [
+          "c4"
+        ]
+      },
+      {
+        "text": "Then you keep the warm, bright day and lose only the burn.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "5b2f385a-2ad4-8ab5-a003-6d0cbec352a8",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-beach",
+          "text": "a bright Sun shining over a sandy beach",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-shoulder",
+          "text": "a bare shoulder with pink sunburnt skin",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-snow",
+          "text": "fresh white snow glittering in bright sunlight",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-hat",
+          "text": "a wide-brimmed straw hat resting on the sand",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 1,
+      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+    },
+    "title": "Why sunlight can burn",
+    "summary": "Only the Sun's invisible ultraviolet light burns skin, and a hat and clothing stop it."
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "id": "4902bddb-8603-4762-9b08-e826808c5e78",
+  "authoredBy": "claude (drafted for the owner, #199)",
+  "approval": null,
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-seasons",
+    "narration": [
+      {
+        "text": "The planet travels around the Sun, spinning on a tilted axis.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "That tilt, not its distance from the Sun, is what makes the seasons.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "In summer, your side of the planet leans toward the Sun, so its light strikes more directly.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "The light falls on less ground, so each patch warms more.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Months later, the same side leans away, and sunlight arrives at a slant.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "The same light spreads thinner, so the ground stays cold, and that is winter.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "Twice a year the axis sits sideways to the Sun.",
+        "claimIds": [
+          "c4"
+        ]
+      },
+      {
+        "text": "Then daylight lasts about half the day everywhere, at the equinox.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-planet",
+          "text": "a blue planet with white clouds, lit on one side by the Sun",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-summer",
+          "text": "a sunflower field under a high midday Sun",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-winter",
+          "text": "a snowy field with long shadows under a low Sun",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-meadow",
+          "text": "a spring meadow with blossoming trees in soft daylight",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 1,
+      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+    },
+    "title": "Tilt, not distance, makes the seasons",
+    "summary": "Why summer and winter come from the planet's tilted axis, not from how near it is to the Sun."
+  }
+}

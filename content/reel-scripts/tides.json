@@ -1,0 +1,147 @@
+{
+  "id": "ce698b74-474f-40f1-8380-dece62af6a35",
+  "authoredBy": "claude (drafted for the owner, #199)",
+  "approval": null,
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-tides",
+    "narration": [
+      {
+        "text": "The Moon looks small and far away in the sky.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "It floats pale above a calm blue sea.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Yet its pull draws the sea toward it.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "The water climbs high up the sandy beach, and that rise is the tide.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "The same invisible pull keeps a stone resting on the grass.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "It is the force that holds you to the ground.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "Far across space, it still tugs at the harbour water.",
+        "claimIds": [
+          "c4"
+        ]
+      },
+      {
+        "text": "The small boats float high on the rising tide.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-moon",
+          "text": "a pale Moon in a blue daytime sky above a calm sea",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-beach",
+          "text": "sea water covering most of a sandy beach",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-stone",
+          "text": "a smooth grey stone resting on green grass",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-harbour",
+          "text": "small wooden boats floating in a calm harbour",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 1,
+      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+    },
+    "title": "The Moon moves the sea",
+    "summary": "How the Moon's pull, the same pull that holds you down, lifts the ocean into tides."
+  }
+}

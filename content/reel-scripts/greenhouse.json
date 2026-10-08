@@ -1,0 +1,147 @@
+{
+  "id": "2074e431-76a4-45be-b78f-3d65914277ff",
+  "authoredBy": "claude (drafted for the owner, #199)",
+  "approval": null,
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-greenhouse",
+    "narration": [
+      {
+        "text": "Space around our planet is bitterly cold.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Yet the planet stays far warmer than the space around it.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Certain gases in the air, called greenhouse gases, trap heat near the ground.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Sunlight warms the field, and those gases hold much of that warmth close.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Without carbon dioxide, this greenhouse effect would collapse.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "The ground and the water would grow far colder, by about thirty three degrees.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "It works like a blanket.",
+        "claimIds": [
+          "c4"
+        ]
+      },
+      {
+        "text": "A blanket keeps warmth in, but it does not make the warmth itself.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "20000000-0000-4000-8000-000000000017",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "20000000-0000-4000-8000-000000000017",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "20000000-0000-4000-8000-000000000017",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "20000000-0000-4000-8000-000000000017",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-planet",
+          "text": "a blue planet with a thin glowing layer of air, seen from space",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-field",
+          "text": "warm air shimmering above a sunlit green field",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-ice",
+          "text": "a frozen lake with frost on the reeds at its edge",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-blanket",
+          "text": "a folded wool blanket on a wooden chair",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 1,
+      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+    },
+    "title": "A blanket made of gas",
+    "summary": "How greenhouse gases keep heat near the ground, like a blanket keeps warmth in."
+  }
+}
