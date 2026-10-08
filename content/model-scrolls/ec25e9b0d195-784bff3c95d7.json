@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "plan": {
+    "url": "https://spaceplace.nasa.gov/sunburn/en/",
+    "conceptCodes": [
+      "astro.sun.energy_output"
+    ]
+  },
+  "identity": {
+    "materialSha256": "ec25e9b0d1956a4aed84907817873896fe66d0d5cdb05c9347a3302dd20b2ea3",
+    "requestSha256": "784bff3c95d7f87bb8976608c4ea267aee2924896526dcd1cec1b0e827b6ec11"
+  },
+  "material": {
+    "url": "https://spaceplace.nasa.gov/sunburn/en/",
+    "title": "Why Does the Sun Burn Us? | NASA Space Place – NASA Science for Kids",
+    "text": "sunburn Vea en Español Earth Sun Solar System Universe Science and Tech Educators Why Does the Sun Burn Us? The Short Answer: The Sun sends a few different kinds of energy to Earth. There is infrared radiation , which is heat. There is visible light , which is what our eyes can see. There is also ultraviolet light . We can’t see ultraviolet with our eyes, but it can burn our skin. The Sun keeps our planet warm enough for living things to thrive. It gives us light so we can see. But it can also burn us. What causes these burns? All About Energy The Sun sends lots of energy toward us all the time. There are a few different kinds of energy. There is infrared radiation , which is heat. There is visible light , which is what our eyes can see. There is also ultraviolet light . We can’t see ultraviolet with our eyes, but it’s there. And it can burn our skin. Waves, Waves, Waves Infrared radiation, visible light, and ultraviolet light are all types of waves in the electromagnetic spectrum . They’re all energy. But these energy waves aren’t all the same. Some have more energy than others. Infrared waves have less energy than visible light waves . Infrared waves are longer with more space between each high and low. Ultraviolet waves have more energy than visible light does. It’s this energy that can hurt us. Feel the Burn If too much ultraviolet light hits our skin, over time it can hurt our skin cells. The cells can die, and our bodies react. The skin gets red, and it can hurt a lot. Ultraviolet light comes from the Sun, but it can also bounce off of other surfaces like water, snow, and concrete. That means that even if you’re under an umbrella, you can still get a sunburn. Ultraviolet light can also go through clouds, so you can get burned on an overcast day. No fair! You can protect your skin by doing things that keep ultraviolet waves from reaching you. Clothing and hats are a great way to keep away those waves. Sunblock contains chemicals that can reflect or absorb the ultraviolet light, leaving your skin sunburn free. That way you can enjoy the other energy from the Sun, visible light and infrared warmth. Did you know? A tiny space microbe helped scientists think of new ways to protect our skin! Scientists at NASA’s Jet Propulsion Laboratory discovered a tiny microbe (a very small living thing) that was tough enough to survive extreme conditions. The scientists studied how the microbe protects itself from ultraviolet (UV) rays, the same kind of sunlight that can damage our skin. What they learned helped inspire new ideas for sunscreen ingredients on Earth! article last updated July 31, 2026 More Fun in the Sun How old is the Sun? Why does it shine? If you liked this, you may like: Glossary What Is Space Weather? Make Handprint Art Using Ultraviolet Light! Games Crafts Activities Videos Glossary Mystery About Us Privacy Policy Image Use Accessibility Contact NASA Space Place Last Updated: July 31st, 2026 More Less By Subject Space Sun Earth Solar System People & Technology Parents & Educators By Type Explore Do Play More Less More Fun in the Sun How old is the Sun? Why does it shine?",
+    "retrievedAt": "2026-10-07T22:16:41.556Z"
+  },
+  "reply": "{\"title\": \"Why Sunlight Can Burn Your Skin\", \"summary\": \"Ultraviolet waves from the Sun carry more energy than visible light, and that extra energy is what damages skin cells and causes sunburn.\", \"beats\": [\"The Sun bathes Earth in several kinds of energy: infrared heat, visible light, and invisible ultraviolet light. Only the ultraviolet part can actually burn our skin.\", \"All three are waves riding the electromagnetic spectrum, but they are not equal. Ultraviolet waves carry more energy than visible light, and it is that surplus energy that harms living cells.\", \"When too much ultraviolet light reaches the skin, cells get injured and die, and the body reacts with the familiar redness and pain of a sunburn. UV also bounces off water, snow, and concrete, slips through clouds, and even reaches you beneath an umbrella.\", \"Hats, clothing, and sunblock help by blocking or absorbing the rays before they hit you, leaving the pleasant warmth and light from the Sun untouched.\", \"Inspired by a tough microbe that thrives in extreme UV, scientists at NASA's Jet Propulsion Laboratory are exploring new sunscreen ingredients to keep our skin safer.\"], \"concepts\": [{\"code\": \"astro.sun.energy_output\", \"role\": \"primary\"}], \"claims\": [{\"statement\": \"The Sun sends Earth several forms of energy, including invisible ultraviolet light that can burn the skin.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun.energy_output\", \"role\": \"subject\"}], \"quote\": \"The Sun sends a few different kinds of energy to Earth. There is infrared radiation , which is heat. There is visible light , which is what our eyes can see. There is also ultraviolet light . We can’t see ultraviolet with our eyes, but it can burn our skin.\", \"supportKind\": \"supports\"}, {\"statement\": \"Among solar rays, ultraviolet waves carry more energy than visible light, and that extra energy is what injures skin cells.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun.energy_output\", \"role\": \"mechanism\"}], \"quote\": \"Ultraviolet waves have more energy than visible light does. It’s this energy that can hurt us.\", \"supportKind\": \"supports\"}, {\"statement\": \"Ultraviolet light can still reach skin by reflecting off water, snow, and concrete, passing through clouds, and sneaking under an umbrella.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun.energy_output\", \"role\": \"context\"}], \"quote\": \"Ultraviolet light comes from the Sun, but it can also bounce off of other surfaces like water, snow, and concrete. That means that even if you’re under an umbrella, you can still get a sunburn. Ultraviolet light can also go through clouds, so you can get burned on an overcast day.\", \"supportKind\": \"qualifies\"}, {\"statement\": \"A UV-resistant microbe studied at NASA's Jet Propulsion Laboratory has inspired new ideas for sunscreen ingredients on Earth.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun.energy_output\", \"role\": \"context\"}], \"quote\": \"Scientists at NASA’s Jet Propulsion Laboratory discovered a tiny microbe (a very small living thing) that was tough enough to survive extreme conditions. The scientists studied how the microbe protects itself from ultraviolet (UV) rays, the same kind of sunlight that can damage our skin. What they learned helped inspire new ideas for sunscreen ingredients on Earth!\", \"supportKind\": \"supports\"}]}",
+  "record": {
+    "transport": "minimax",
+    "model": "MiniMax-M3",
+    "inputBytes": 4885,
+    "usage": {
+      "inputTokens": 1061,
+      "outputTokens": 738,
+      "cacheReadTokens": 133,
+      "cacheWriteTokens": 0,
+      "costMicroUsd": null
+    },
+    "versions": {
+      "prompt": "scroll-writing-prompt-v1",
+      "reply": "scroll-reply-v1",
+      "checks": "scroll-checks-v2",
+      "quoteDiagnosis": "quote-diagnosis-v1",
+      "hosts": "material-hosts-v1"
+    }
+  }
+}
