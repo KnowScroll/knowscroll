@@ -72,6 +72,14 @@ Upstream Cutroom at `94ee04a` shapes the design (research:
    - Claude does not merge reel-script PRs.
    - GitHub cannot tell the owner and the agent apart, so this is a recorded rule, not a lock.
 
+## Amendment, 2026-10-09: $7
+
+The owner raised the shared budget from $5 to **$7** for dev and stage together. They chose it in chat,
+with 444¢ spent and $2.78 left on fal. `pool-migrations/0002` moves both the cap row and its CHECK to
+700, and migration 0044 lets a world's own live cap reach 700. One order still reserves at most 500¢
+and Cutroom's own cap is still 75¢ a reel. The owner also kept ADR-0024's repetition rule as it is
+("B: keep the rule"), so every new script needs a structure no fingerprinted Reel has.
+
 ## Alternatives and why
 
 - **A per-world split of the $5** (for example $2.50 each, enforced by each world's own cap). This
