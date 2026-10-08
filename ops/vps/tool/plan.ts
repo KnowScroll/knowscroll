@@ -89,7 +89,11 @@ export function parseEnvFile(text: string): Record<string, string> {
 }
 
 /** #199: the programs `ks run <world> <program>` may start, as the world's own user. */
-const RUNNABLE_PROGRAMS: readonly string[] = ['generation-cli', 'publication'];
+const RUNNABLE_PROGRAMS: readonly string[] = [
+  'generation-cli',
+  'publication',
+  'install-supply',
+];
 
 export type RunRequest =
   | { ok: true; world: World; program: string }

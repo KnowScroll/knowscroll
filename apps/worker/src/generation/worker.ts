@@ -11,12 +11,15 @@ import {
 } from '@knowscroll/contracts/generation';
 import { scriptDigest } from '@knowscroll/core/cutroom/pool-identity';
 import type { PoolLedger } from '@knowscroll/db/pool/ledger';
+import { selectReelsToPublish } from '@knowscroll/db/publication/evaluate';
 import type pg from 'pg';
 import {
   type CutroomRunRef,
   createCutroomHttpClient,
   prepareCutroomRequest,
 } from '../cutroom/http-client.ts';
+import { evaluatePublicationGates } from '../publication/evaluate.ts';
+import { mintReelAsset } from '../publication/mint.ts';
 import {
   createUnimplementedImportPort,
   type ImportOutcome,
@@ -37,6 +40,9 @@ export type GenerationWorkerOptions = {
    * shared orders finally cost, and creates a receive job for every Reel the pool has that this
    * world holds the approved script for but not the Reel. */
   pool?: SharedPoolOptions;
+  /** #199: publish each real Reel once it is imported — judge it under `policyVersion` and, when
+   * every required gate passes, mint it into the feed. Unset: Reels wait for the operator CLI. */
+  publish?: { policyVersion: string; mediaRoot: string };
   /** Test-only crash-injection hook (issue #94): called once, right after dispatch
    * authorization commits and before the first submit is ever sent. `main.ts` wires this from
    * `GENERATION_HOLD_BEFORE_SUBMIT=1` so a harness can SIGKILL the process at a reproducible point
@@ -902,6 +908,56 @@ export async function syncSharedPool(
   return { settled, received };
 }
 
+/** #199: one publishing pass. Every real Reel imported but not yet judged under the policy is
+ * judged (`decide: 'auto'`, which moves it to `eligible` only when every required gate passes), and
+ * every eligible Reel not yet in the inventory is minted. A refused Reel stays imported and is not
+ * judged again; its gate results say why. */
+export async function publishImportedReels(
+  options: GenerationWorkerOptions,
+): Promise<{ published: number; refused: number }> {
+  const resolved = resolveOptions(options);
+  const publish = options.publish;
+  if (!publish) return { published: 0, refused: 0 };
+  let published = 0;
+  let refused = 0;
+  for (const reel of await selectReelsToPublish(
+    resolved.db,
+    publish.policyVersion,
+  )) {
+    if (reel.availability === 'imported') {
+      const judged = await evaluatePublicationGates(resolved.db, {
+        generatedReelId: reel.id,
+        policyVersion: publish.policyVersion,
+        mediaRoot: publish.mediaRoot,
+        decide: 'auto',
+      });
+      if (!judged.availability.decided) {
+        refused += 1;
+        resolved.log({
+          service: 'generation-worker',
+          event: 'publish_refused',
+          generatedReelId: reel.id,
+          failing: judged.gates
+            .filter(
+              (gate) => !['pass', 'pass_with_label'].includes(gate.verdict),
+            )
+            .map((gate) => `${gate.gate}:${gate.verdict}`),
+        });
+        continue;
+      }
+    }
+    const minted = await mintReelAsset(resolved.db, reel.id);
+    published += 1;
+    resolved.log({
+      service: 'generation-worker',
+      event: 'published',
+      generatedReelId: reel.id,
+      assetId: minted.assetId,
+    });
+  }
+  return { published, refused };
+}
+
 /** The worker loop's own body, used by `main.ts` and directly by tests that want a bounded run
  * rather than a full process. Runs until `signal` aborts; an empty poll sleeps `idlePollMs`
  * (abortable) before the next claim. With a shared pool it also syncs with the pool every
@@ -914,14 +970,23 @@ export async function runLoop(
   const resolved = resolveOptions(options);
   let nextSyncAt = 0;
   while (!signal.aborted) {
-    if (options.pool && Date.now() >= nextSyncAt) {
-      nextSyncAt = Date.now() + (options.pool.syncMs ?? 60_000);
+    if ((options.pool || options.publish) && Date.now() >= nextSyncAt) {
+      nextSyncAt = Date.now() + (options.pool?.syncMs ?? 60_000);
       try {
         await syncSharedPool(options);
       } catch (error) {
         resolved.log({
           service: 'generation-worker',
           event: 'pool_sync_error',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+      try {
+        await publishImportedReels(options);
+      } catch (error) {
+        resolved.log({
+          service: 'generation-worker',
+          event: 'publish_error',
           detail: error instanceof Error ? error.message : String(error),
         });
       }

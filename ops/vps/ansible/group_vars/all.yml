@@ -13,6 +13,10 @@ ks_worlds:
     cpu_quota: 100%
     oom_score_adjust: 500
     shared_pool: true
+    # #199: publish real Reels as soon as they are imported, and write Scrolls from reading demand
+    # (ADR-0046's Quartermaster) with MiniMax on the token plan.
+    auto_publish_policy: publication-v2
+    scroll_supply: true
   - name: stage
     port: 4320
     database: knowscroll_test_stage
@@ -25,6 +29,8 @@ ks_worlds:
     cpu_quota: 100%
     oom_score_adjust: 200
     shared_pool: true
+    auto_publish_policy: publication-v2
+    scroll_supply: true
 
 ks_live_app_host: app.knowscroll.space
 ks_live_backend_host: backend.knowscroll.space

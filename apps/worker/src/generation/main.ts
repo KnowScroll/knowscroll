@@ -34,6 +34,8 @@ async function main(): Promise<void> {
   // #199: the shared Reel pool, when this world takes part in one (KS_POOL_DATABASE_URL + KS_WORLD).
   let poolDb: pg.Pool | null = null;
   let shared: SharedPoolOptions | undefined;
+  // #199: publish imported Reels under this policy (KS_AUTO_PUBLISH_POLICY, e.g. publication-v2).
+  let publish: { policyVersion: string; mediaRoot: string } | undefined;
   try {
     leaseMs = strictIntSetting('GENERATION_LEASE_MS', 30_000, 1_000, 300_000);
     pollMs = strictIntSetting('GENERATION_POLL_MS', 500, 50, 60_000);
@@ -44,6 +46,11 @@ async function main(): Promise<void> {
       60_000,
     );
     mediaRoot = mediaRootSetting();
+    const policy = process.env.KS_AUTO_PUBLISH_POLICY;
+    if (policy !== undefined && policy !== '') {
+      if (!/^[a-z0-9.-]{1,64}$/.test(policy)) throw new Error('invalid_config');
+      publish = { policyVersion: policy, mediaRoot };
+    }
     const poolUrl = process.env.KS_POOL_DATABASE_URL;
     if (poolUrl !== undefined && poolUrl !== '') {
       const world = process.env.KS_WORLD;
@@ -102,6 +109,7 @@ async function main(): Promise<void> {
     pollMs,
     mediaRoot,
     sharedPool: shared?.world ?? null,
+    autoPublish: publish?.policyVersion ?? null,
   });
   try {
     await runLoop(
@@ -113,6 +121,7 @@ async function main(): Promise<void> {
         importPort: createLocalImportPort(mediaRoot),
         holdBeforeSubmit,
         ...(shared === undefined ? {} : { pool: shared }),
+        ...(publish === undefined ? {} : { publish }),
       },
       stop.signal,
       idlePollMs,
