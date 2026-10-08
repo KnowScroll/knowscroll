@@ -160,7 +160,7 @@ and pay again for work in flight.
 | `/srv/knowscroll/cutroom-pool/artifacts/` | finished files, readable by the `ks-pool` group (`ks-dev`, `ks-stage`); paid, so never cleaned automatically |
 | `/srv/knowscroll/cutroom-pool/QUESTIONS.md` | where Cutroom reports cap refusals; `ks status` shows its last lines |
 | `/etc/knowscroll/cutroom-pool.env` | its settings plus the provider keys (root:ks-cutroom, 0640) |
-| `/etc/knowscroll/cutroom-pool.budget.md` | KnowScroll's per-reel cap for it ($0.75), a second lock behind the $5 |
+| `/etc/knowscroll-cutroom/pool.budget.md` | KnowScroll's per-reel cap for it ($0.75), a second lock behind the $5 |
 | `/etc/knowscroll/secrets/cutroom/providers.env` | `MINIMAX_API_KEY` and `FAL_KEY`, copied once by hand from the owner's Mac (`FAL_KEY` takes the value of `FAL_AI_KEY`, which is never renamed); never in Git or logs |
 
 How the service is started:
