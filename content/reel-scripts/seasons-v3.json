@@ -1,0 +1,151 @@
+{
+  "id": "71c9228e-9426-46a0-b936-0168c9bfa3ba",
+  "authoredBy": "claude (drafted for the owner, #199)",
+  "approval": {
+    "ref": "owner in chat 2026-10-08 (\"fix what cutroom reported generate 3-4 more reels and merge\"): seasons-v2 stopped at Gate 7",
+    "approvedBy": "owner",
+    "approvedAt": "2026-10-08"
+  },
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-seasons-v3",
+    "narration": [
+      {
+        "text": "In summer, this field leans toward the Sun.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Sunlight strikes it steeply, and the oak tree stands in full leaf.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "In autumn, the field leans neither toward the Sun nor away from it.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "Daylight lasts about half the day, and the oak tree turns golden.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "In winter, the same field leans away from the Sun.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "Sunlight arrives at a slant and spreads thin, and the bare oak tree stands in snow.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "The tilt, not the distance from the Sun, makes these seasons.",
+        "claimIds": [
+          "c4"
+        ]
+      },
+      {
+        "text": "In spring, the same oak tree buds again.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "f2636bf9-cecc-8bb6-af0e-eab42b9d590f",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-summer-oak",
+          "text": "a lone oak tree in full green leaf, seen from a distance across a field under a high summer Sun",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-autumn-oak",
+          "text": "a lone oak tree with golden autumn leaves, seen from a distance across a field in soft daylight",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-winter-oak",
+          "text": "a lone bare oak tree, seen from a distance across a snowy field under a low winter Sun",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-spring-oak",
+          "text": "a lone oak tree with small spring buds, seen from a distance across a green field",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 1,
+      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+    },
+    "title": "Tilt, not distance, makes the seasons",
+    "summary": "Why summer and winter come from the tilt of the ground toward or away from the Sun, not from the distance to it, shown by one oak tree through a year."
+  }
+}
