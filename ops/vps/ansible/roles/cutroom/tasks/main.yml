@@ -45,9 +45,17 @@
   loop_control:
     label: "{{ item.name }}"
 
+# /etc/knowscroll is root-only (it holds every world's secrets), so Cutroom's own readable settings
+# live in a folder of their own.
+- name: Folder for Cutroom's readable settings
+  ansible.builtin.file:
+    path: /etc/knowscroll-cutroom
+    state: directory
+    mode: "0755"
+
 - name: KnowScroll's per-reel cap for Cutroom (a second lock behind the shared $5)
   ansible.builtin.copy:
-    dest: /etc/knowscroll/cutroom-{{ ks_cutroom_instance }}.budget.md
+    dest: /etc/knowscroll-cutroom/{{ ks_cutroom_instance }}.budget.md
     mode: "0644"
     content: |
       # Managed by ops/vps/ansible (#199). Read by Cutroom's CUTROOM_BUDGET_PATH.
@@ -85,7 +93,7 @@
       echo "CUTROOM_DB_PATH=$d/data/cutroom.sqlite"
       echo "CUTROOM_ARTIFACT_ROOT=$d/artifacts"
       echo "CUTROOM_QUESTIONS_PATH=$d/QUESTIONS.md"
-      echo "CUTROOM_BUDGET_PATH=/etc/knowscroll/cutroom-{{ ks_cutroom_instance }}.budget.md"
+      echo "CUTROOM_BUDGET_PATH=/etc/knowscroll-cutroom/{{ ks_cutroom_instance }}.budget.md"
       echo "CUTROOM_PROVIDER_MODEL=minimax"
       echo "CUTROOM_PROVIDER_IMAGE=fal"
       echo "CUTROOM_PROVIDER_SENSOR=local"
