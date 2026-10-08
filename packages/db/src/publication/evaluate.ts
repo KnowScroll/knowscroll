@@ -324,3 +324,57 @@ export async function markEligible(
   );
   return updated.rowCount;
 }
+
+/** #199: real (Cutroom-made) Reels the worker still has to publish under `policyVersion`: imported
+ * ones not yet judged under it, and ones already decided eligible but not yet minted. A Reel judged
+ * and refused stays imported and is not offered again, so a refusal is never retried in a loop. */
+export async function selectReelsToPublish(
+  pool: pg.Pool,
+  policyVersion: string,
+  limit = 20,
+): Promise<{ id: string; availability: string }[]> {
+  return (
+    await pool.query<{ id: string; availability: string }>(
+      `
+        SELECT
+          g.id,
+          g.availability
+        FROM
+          generated_reel g
+        WHERE
+          g.provider_mode = 'live'
+          AND (
+            (
+              g.availability = 'imported'
+              AND NOT EXISTS (
+                SELECT
+                  1
+                FROM
+                  publication_gate_result r
+                WHERE
+                  r.generated_reel_id = g.id
+                  AND r.policy_version = $1
+              )
+            )
+            OR (
+              g.availability IN ('eligible', 'test_eligible')
+              AND NOT EXISTS (
+                SELECT
+                  1
+                FROM
+                  asset a
+                WHERE
+                  a.generated_reel_id = g.id
+              )
+            )
+          )
+        ORDER BY
+          g.created_at,
+          g.id
+        LIMIT
+          $2
+      `,
+      [policyVersion, limit],
+    )
+  ).rows;
+}

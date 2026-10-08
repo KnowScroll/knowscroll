@@ -90,6 +90,7 @@ test('#199 ks run starts only the operator programs, for a known world', () => {
     program: 'generation-cli',
   });
   assert.equal(validateRunRequest('dev', 'publication').ok, true);
+  assert.equal(validateRunRequest('stage', 'install-supply').ok, true);
   assert.equal(validateRunRequest('dev', 'migrate').ok, false);
   assert.equal(validateRunRequest('dev', '../../bin/sh').ok, false);
   assert.equal(validateRunRequest('prod', 'publication').ok, false);

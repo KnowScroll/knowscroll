@@ -195,6 +195,31 @@ Each world also keeps its own cap: at most 500¢, as a second lock.
 before each world's migrations (`/etc/knowscroll/pool.env`). A pool migration must therefore keep
 working with the older world code still running on the other world.
 
+### Publishing and Scroll writing on their own (#199)
+
+- **Publishing.** With `KS_AUTO_PUBLISH_POLICY=publication-v2` set in a world's settings
+  (`auto_publish_policy` in `group_vars`), its generation worker publishes each real Reel on its
+  own, once a minute:
+  - it judges each newly imported Reel under the policy;
+  - if every gate passes, it mints the Reel into the feed;
+  - a refused Reel stays imported, and its gate results say why.
+
+  The `publication` commands above are then only needed by hand.
+- **Scroll writing** (ADR-0046's Quartermaster). With `scroll_supply: true`, a world's projection
+  worker gets `KS_SCROLL_TRANSPORT=minimax` and the token-plan `MINIMAX_API_KEY`. The key comes from
+  `/etc/knowscroll/secrets/shared/minimax.env`, copied once by hand from the owner's Mac. The worker
+  then writes Scrolls from reading demand, through the same checks.
+- **One-time route setup.** Each world needs its writing route and the pages it may write from,
+  installed once:
+
+  ```sh
+  ssh knowscroll-vps ks run <world> install-supply --database knowscroll_test_<world> \
+    --plan content/scroll-supply-plan.json --transport minimax --request-cap 150
+  ```
+
+  The request cap is that world's bucket of writing requests (at most 150). The token plan's quota
+  check runs before every send.
+
 ## Adding the live world (later slice)
 
 1. Add `live` to `ks_worlds` in `ops/vps/ansible/group_vars/all.yml`: port 4310, database `knowscroll`,

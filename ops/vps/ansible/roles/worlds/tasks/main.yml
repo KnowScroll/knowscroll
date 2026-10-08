@@ -79,6 +79,20 @@
       AGENTMAIL_INBOX_ID and KS_OWNER_EMAIL; see docs/operations/environments.md.
   when: not ks_mail.stat.exists and not ansible_check_mode
 
+- name: MiniMax settings are on the server for worlds that write Scrolls (copied once from the owner's Mac)
+  ansible.builtin.stat:
+    path: /etc/knowscroll/secrets/shared/minimax.env
+  register: ks_minimax
+
+- name: Refuse to continue without them (KS_SCROLL_TRANSPORT=minimax needs MINIMAX_API_KEY)
+  ansible.builtin.fail:
+    msg: >-
+      /etc/knowscroll/secrets/shared/minimax.env is missing. It holds the token-plan MINIMAX_API_KEY
+      the Scroll writer uses; see docs/operations/environments.md.
+  when: >-
+    (ks_worlds | selectattr('scroll_supply', 'defined') | selectattr('scroll_supply') | list | length > 0)
+    and not ks_minimax.stat.exists and not ansible_check_mode
+
 - name: World env files, assembled on the server from its secrets (values never reach Ansible output)
   ansible.builtin.shell: |
     set -eu
@@ -95,6 +109,13 @@
       echo "KS_MAIL_SENDER=agentmail"
       {% if item.shared_pool | default(false) %}
       echo "KS_POOL_DATABASE_URL=postgresql://{{ item.db_role }}:$(cat $s/{{ item.name }}/db_password)@127.0.0.1:5432/knowscroll_pool"
+      {% endif %}
+      {% if item.auto_publish_policy is defined %}
+      echo "KS_AUTO_PUBLISH_POLICY={{ item.auto_publish_policy }}"
+      {% endif %}
+      {% if item.scroll_supply | default(false) %}
+      echo "KS_SCROLL_TRANSPORT=minimax"
+      cat $s/shared/minimax.env
       {% endif %}
       cat $s/shared/agentmail.env
     } > "$tmp"

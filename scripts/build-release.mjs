@@ -33,6 +33,7 @@ const PROGRAMS = {
   'migrate-pool': 'scripts/migrate-pool.ts',
   'generation-cli': 'scripts/generation.ts',
   publication: 'apps/worker/src/publication/cli.ts',
+  'install-supply': 'scripts/scrolls/install-supply.ts',
 };
 
 function argument(name) {

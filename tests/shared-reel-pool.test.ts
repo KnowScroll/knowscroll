@@ -38,10 +38,9 @@ import * as storage from '../apps/worker/src/generation/storage.ts';
 import {
   type GenerationWorkerOptions,
   processClaimedJob,
+  publishImportedReels,
   syncSharedPool,
 } from '../apps/worker/src/generation/worker.ts';
-import { evaluatePublicationGates } from '../apps/worker/src/publication/evaluate.ts';
-import { mintReelAsset } from '../apps/worker/src/publication/mint.ts';
 import { drainStrayJobs } from './helpers/generation-fixture.ts';
 
 const execFileAsync = promisify(execFile);
@@ -669,7 +668,7 @@ test('#199 shared Reel pool across two worlds', async (t) => {
         });
         assert.ok(jobId);
 
-        // On dev, the received Reel clears publication-v2 and reaches the feed, marked Engine-checked.
+        // On dev the worker publishes the received Reel by itself: publication-v2, then the feed.
         const devReelId = (
           await devDb.query(
             `SELECT r.id FROM generated_reel r JOIN cutroom_attempt a ON a.id = r.attempt_id
@@ -677,17 +676,35 @@ test('#199 shared Reel pool across two worlds', async (t) => {
             [requestId],
           )
         ).rows[0].id as string;
-        const evaluated = await evaluatePublicationGates(devDb, {
-          generatedReelId: devReelId,
-          policyVersion: 'publication-v2',
-          mediaRoot: worlds.dev.media,
-          decide: 'auto',
+        const publishing = {
+          ...options('dev'),
+          publish: {
+            policyVersion: 'publication-v2',
+            mediaRoot: worlds.dev.media,
+          },
+        };
+        assert.deepEqual(await publishImportedReels(publishing), {
+          published: 1,
+          refused: 0,
         });
-        assert.deepEqual(evaluated.availability, {
-          decided: true,
-          availability: 'eligible',
-        });
-        const minted = await mintReelAsset(devDb, devReelId);
+        assert.deepEqual(
+          await publishImportedReels(publishing),
+          { published: 0, refused: 0 },
+          'a published Reel is not offered again',
+        );
+        const availability = (
+          await devDb.query(
+            'SELECT availability FROM generated_reel WHERE id=$1',
+            [devReelId],
+          )
+        ).rows[0].availability;
+        assert.equal(availability, 'eligible');
+        const minted = (
+          await devDb.query(
+            'SELECT id AS "assetId" FROM asset WHERE generated_reel_id=$1',
+            [devReelId],
+          )
+        ).rows[0] as { assetId: string };
         const client = await devDb.connect();
         try {
           const shown = (await feedCandidates(client, ['Reel'])).find(

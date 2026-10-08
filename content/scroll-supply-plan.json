@@ -1,0 +1,951 @@
+[
+ {
+  "url": "https://science.nasa.gov/universe/overview/forces/",
+  "conceptCodes": [
+   "physics.gravity",
+   "physics.gravity.mass_dependence"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/planets-weight/en/",
+  "conceptCodes": [
+   "physics.gravity.mass_dependence",
+   "physics.gravity",
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/planets-round/en/",
+  "conceptCodes": [
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/gravitational-waves/en/",
+  "conceptCodes": [
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-microgravity-grades-5-8/",
+  "conceptCodes": [
+   "physics.gravity.weight",
+   "physics.gravity",
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/centers-and-facilities/glenn/what-is-microgravity/",
+  "conceptCodes": [
+   "physics.gravity.weight",
+   "physics.gravity.mass_dependence",
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/biological-physical/stories/how-and-why-do-nasa-researchers-simulate-microgravity-on-earth/",
+  "conceptCodes": [
+   "physics.gravity.weight",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter3-2/",
+  "conceptCodes": [
+   "physics.gravity.mass_dependence",
+   "physics.gravity",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/taking-a-measure-of-sea-level-rise-gravimetry-147437/",
+  "conceptCodes": [
+   "physics.gravity.mass_dependence",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/universe-uncovered/hubbles-gravitational-lenses/",
+  "conceptCodes": [
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-a-black-hole-grades-5-8/",
+  "conceptCodes": [
+   "physics.gravity",
+   "astro.star.death"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/orbits/en/",
+  "conceptCodes": [
+   "astro.orbit",
+   "physics.gravity",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-an-orbit-grades-5-8/",
+  "conceptCodes": [
+   "astro.orbit",
+   "astro.orbit.ellipse",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/planetary-motion/",
+  "conceptCodes": [
+   "astro.orbit.ellipse",
+   "astro.orbit.equal_area",
+   "astro.orbit.period_distance"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter3-3/",
+  "conceptCodes": [
+   "astro.orbit.equal_area",
+   "astro.orbit.period_distance",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/years-on-other-planets/en/",
+  "conceptCodes": [
+   "astro.orbit.period_distance",
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/barycenter/en/",
+  "conceptCodes": [
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter3-4/",
+  "conceptCodes": [
+   "astro.orbit",
+   "physics.gravity",
+   "physics.gravity.weight"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter5-1/",
+  "conceptCodes": [
+   "astro.orbit",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter4-1/",
+  "conceptCodes": [
+   "astro.orbit",
+   "physics.gravity",
+   "astro.orbit.distance"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/catalog-of-earth-satellite-orbits/",
+  "conceptCodes": [
+   "astro.orbit",
+   "astro.orbit.ellipse",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/comets/en/",
+  "conceptCodes": [
+   "astro.orbit",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/milutin-milankovitch/",
+  "conceptCodes": [
+   "astro.orbit.ellipse",
+   "earth.seasons.axial_tilt",
+   "astro.orbit.distance"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/primer/",
+  "conceptCodes": [
+   "astro.orbit",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/stars/types/",
+  "conceptCodes": [
+   "astro.star",
+   "astro.star.death",
+   "astro.star.fusion"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/exoplanets/stars/",
+  "conceptCodes": [
+   "astro.star",
+   "astro.star.lifetime_mass",
+   "astro.star.equilibrium"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/supernova/en/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star.equilibrium"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/hubble-stellar-explosions/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star.fusion",
+   "astro.star.equilibrium"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/webb/science-overview/science-explainers/webbs-star-formation-discoveries/",
+  "conceptCodes": [
+   "astro.star.birth"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/nebula/en/",
+  "conceptCodes": [
+   "astro.star.birth",
+   "astro.star.death"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/universe-uncovered/hubble-nebulae/",
+  "conceptCodes": [
+   "astro.star.birth",
+   "astro.star.death"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/universe-uncovered/hubble-star-clusters/",
+  "conceptCodes": [
+   "astro.star.birth",
+   "astro.star.equilibrium"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/webb/science-overview/science-explainers/what-were-the-first-stars-like/",
+  "conceptCodes": [
+   "astro.star.mass",
+   "astro.star.birth",
+   "astro.star.fusion"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/webb/science-overview/science-explainers/what-makes-brown-dwarfs-unique/",
+  "conceptCodes": [
+   "astro.star.mass",
+   "astro.star.fusion"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/hubble-pulsars/",
+  "conceptCodes": [
+   "astro.star.death"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/whats-a-nova-inside-the-chaos-of-erupting-and-exploding-stars/",
+  "conceptCodes": [
+   "astro.star.death"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/stars/multiple-star-systems/",
+  "conceptCodes": [
+   "astro.star",
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/all-about-the-sun/en/",
+  "conceptCodes": [
+   "astro.sun",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/how-does-the-sun-behave-grades-5-8/",
+  "conceptCodes": [
+   "astro.sun",
+   "astro.sun.energy_output",
+   "astro.star.fusion"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/heliophysics/focus-areas/solar-science/",
+  "conceptCodes": [
+   "astro.sun",
+   "astro.sun.energy_output"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/helio-and-you-a-fresh-perspective-on-the-sun/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learning-resources/science-activation/helio-and-you-the-sun-and-our-lives/",
+  "conceptCodes": [
+   "astro.sun.energy_output",
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/sun/sunspots/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/sun/solar-storms-and-flares/",
+  "conceptCodes": [
+   "astro.sun",
+   "astro.sun.energy_output"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/solar-cycles/en/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/sun-corona/en/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/heliophysics/focus-areas/space-weather/",
+  "conceptCodes": [
+   "astro.sun",
+   "astro.sun.energy_output"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/starstruck-nasa-research-shows-how-suns-ancient-history-shaped-earth/",
+  "conceptCodes": [
+   "astro.sun",
+   "astro.sun.energy_output",
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/sunburn/en/",
+  "conceptCodes": [
+   "astro.sun.energy_output"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/tides/",
+  "conceptCodes": [
+   "earth.tides",
+   "astro.moon",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides02_cause.html",
+  "conceptCodes": [
+   "earth.tides",
+   "physics.gravity.mass_dependence",
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides06_variations.html",
+  "conceptCodes": [
+   "earth.tides",
+   "astro.orbit.distance",
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://oceanservice.noaa.gov/facts/perigean-spring-tide.html",
+  "conceptCodes": [
+   "earth.tides",
+   "astro.moon",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://oceanservice.noaa.gov/facts/moon-tide.html",
+  "conceptCodes": [
+   "earth.tides",
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/tidal-locking/",
+  "conceptCodes": [
+   "astro.moon",
+   "earth.tides",
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/facts/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/formation/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/moon-phases/",
+  "conceptCodes": [
+   "astro.moon",
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/supermoons/",
+  "conceptCodes": [
+   "astro.moon",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/all-about-the-moon/en/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://www.weather.gov/cle/seasons",
+  "conceptCodes": [
+   "earth.seasons.axial_tilt",
+   "earth.seasons",
+   "astro.orbit.distance"
+  ]
+ },
+ {
+  "url": "https://www.weather.gov/fsd/season",
+  "conceptCodes": [
+   "earth.seasons",
+   "earth.seasons.axial_tilt",
+   "astro.orbit.distance"
+  ]
+ },
+ {
+  "url": "https://www.weather.gov/lmk/seasons",
+  "conceptCodes": [
+   "earth.seasons.axial_tilt",
+   "earth.seasons",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/helio-and-you-seasons-on-earth-mars-and-beyond/",
+  "conceptCodes": [
+   "earth.seasons",
+   "earth.seasons.axial_tilt",
+   "astro.orbit.ellipse"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/skywatching/night-sky-network/embracing-the-equinox/",
+  "conceptCodes": [
+   "earth.seasons.axial_tilt",
+   "earth.seasons"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/skywatching/night-sky-network/tropical-solstice-shadows/",
+  "conceptCodes": [
+   "earth.seasons.axial_tilt",
+   "earth.seasons"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/an-epic-view-of-the-seasons/",
+  "conceptCodes": [
+   "earth.seasons.axial_tilt",
+   "earth.seasons"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/blogs/watch-the-skies/2021/12/20/december-solstice-brings-winter-summer-seasons/",
+  "conceptCodes": [
+   "earth.seasons",
+   "earth.seasons.axial_tilt"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/blogs/watch-the-skies/2022/09/20/september-equinox-marks-the-start-of-fall-2022/",
+  "conceptCodes": [
+   "earth.seasons",
+   "earth.seasons.axial_tilt"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/science-research/earth-science/milankovitch-orbital-cycles-and-their-role-in-earths-climate/",
+  "conceptCodes": [
+   "earth.seasons.axial_tilt",
+   "astro.orbit.ellipse",
+   "earth.seasons"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/clouds-and-radiation/",
+  "conceptCodes": [
+   "earth.climate.energy_budget",
+   "earth.climate.greenhouse_effect",
+   "earth.climate.energy_budget.equilibrium"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/centers-and-facilities/langley/what-is-earths-energy-budget-five-questions-with-a-guy-who-knows/",
+  "conceptCodes": [
+   "earth.climate.energy_budget",
+   "earth.climate.energy_budget.equilibrium",
+   "astro.sun.energy_output"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/missions/aqua/direct-observations-confirm-that-humans-are-throwing-earths-energy-budget-off-balance/",
+  "conceptCodes": [
+   "earth.climate.energy_budget.equilibrium",
+   "earth.climate.energy_budget",
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/global-warming/",
+  "conceptCodes": [
+   "earth.climate.greenhouse_effect",
+   "earth.climate.surface_temperature",
+   "earth.climate.energy_budget.equilibrium"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/greenhouse/en/",
+  "conceptCodes": [
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/kids/earth/what-is-the-greenhouse-effect/",
+  "conceptCodes": [
+   "earth.climate.greenhouse_effect",
+   "astro.sun.energy_output"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/climate-change/causes/",
+  "conceptCodes": [
+   "earth.climate.greenhouse_effect",
+   "astro.sun.energy_output",
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/measuring_global_temperature/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/climate-change/what-is-climate-change/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature",
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-are-climate-and-climate-change-grades-5-8/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature",
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/explore/earth-indicators/carbon-dioxide/",
+  "conceptCodes": [
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/earth-observatory/the-carbon-cycle/",
+  "conceptCodes": [
+   "earth.climate.greenhouse_effect",
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/climate-change/evidence/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature",
+   "earth.climate.greenhouse_effect"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/eclipses/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/top-moon-questions/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/moonlight/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/moon/weather-on-the-moon/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/sun/auroras/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/stars/planetary-system/",
+  "conceptCodes": [
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/black-holes/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/black-holes/anatomy/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/universe/black-holes/types/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/solar-system-facts/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/planets/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/temperatures-across-our-solar-system/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/climate-change/effects/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/climate-change/scientific-consensus/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/climate-change/faq/how-might-earths-atmosphere-land-and-ocean-systems-respond-to-changes-in-carbon-dioxide-over-time/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/explore/earth-indicators/ocean-warming/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/explore/the-ocean-and-climate-change/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/kids/earth/what-is-climate-change/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/kids/earth/a-guide-to-climate-change/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/kids/earth/how-are-earths-ocean-and-climate-connected/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/science-research/earth-science/climate-science/why-milankovitch-orbital-cycles-cant-explain-earths-current-warming/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter1-1/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/solar-activity/en/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/total-solar-eclipse/en/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/moon-phases/en/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/full-moons/en/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/eclipses/en/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/satellite/en/",
+  "conceptCodes": [
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/spacecraft-graveyard/en/",
+  "conceptCodes": [
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/other-solar-systems/en/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://spaceplace.nasa.gov/craters/en/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-microgravity-grades-k-4/",
+  "conceptCodes": [
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/how-does-the-sun-behave-grades-k-4/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-a-black-hole-grades-k-4/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-a-satellite-grades-5-8/",
+  "conceptCodes": [
+   "astro.orbit"
+  ]
+ },
+ {
+  "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides09_monitor.html",
+  "conceptCodes": [
+   "earth.tides",
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://www.noaa.gov/jetstream/global/climate-vs-weather",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://www.noaa.gov/jetstream/global/climate-zones",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://www.noaa.gov/education/resource-collections/climate/carbon-cycle",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://www.noaa.gov/education/resource-collections/climate/climate-change-impacts",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/webb/science-overview/science-explainers/how-do-we-know-there-are-black-holes/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/webb/science-overview/science-explainers/can-rocky-worlds-orbiting-red-dwarf-stars-maintain-atmospheres/",
+  "conceptCodes": [
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/hubble-black-holes/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/hubble-gravitational-lenses/",
+  "conceptCodes": [
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/hubble-gravity-waves/",
+  "conceptCodes": [
+   "physics.gravity"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/mission/hubble/science/universe-uncovered/hubble-black-holes/",
+  "conceptCodes": [
+   "astro.star.death",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/solar-system/skywatching/night-sky-network/betelgeuse-and-the-crab-nebula/",
+  "conceptCodes": [
+   "astro.star.birth",
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learn/basics-of-space-flight/chapter1-2/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/earth/climate-change/sea-level-101-what-determines-the-level-of-the-sea/",
+  "conceptCodes": [
+   "earth.climate.surface_temperature"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/helio-and-you-the-sun-solar-wind-and-earth-as-a-connected-system/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learning-resources/science-activation/helio-and-you-two-stars-in-solar-science/",
+  "conceptCodes": [
+   "astro.star"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/science-research/heliophysics/helio-and-you-lightshow-the-sun-and-the-light-shows-it-creates/",
+  "conceptCodes": [
+   "astro.sun"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/learning-resources/science-activation/helio-and-you-the-moon-as-a-laboratory/",
+  "conceptCodes": [
+   "astro.moon"
+  ]
+ },
+ {
+  "url": "https://science.nasa.gov/blogs/the-sun-spot/2023/05/05/nasa-spacecraft-reveal-how-earths-tilt-causes-seasons-in-space-weather/",
+  "conceptCodes": [
+   "earth.seasons",
+   "earth.seasons.axial_tilt"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/blogs/watch-the-skies/2021/06/17/june-solstice-brings-summer-winter-seasons/",
+  "conceptCodes": [
+   "earth.seasons",
+   "earth.seasons.axial_tilt"
+  ]
+ },
+ {
+  "url": "https://www.nasa.gov/learning-resources/for-kids-and-students/what-is-orbital-debris-grades-5-8/",
+  "conceptCodes": [
+   "astro.orbit"
+  ]
+ }
+]
