@@ -4,7 +4,7 @@
  * same `t` draws the same picture, which is what lets the reduced-motion stills, the preview
  * scrubber and the live playback share one renderer.
  */
-import { BILLBOARD_FS, BILLBOARD_VS, COMPOSITE_FS, FULLSCREEN_VS, GAS_FS, PARTICLE_FS, PARTICLE_VS, POINTS_FS, POINTS_VS } from './shaders.ts';
+import { BILLBOARD_FS, BILLBOARD_VS, BRIGHT_FS, COMPOSITE_FS, DOWN_FS, FULLSCREEN_VS, GAS_FS, PARTICLE_FS, PARTICLE_VS, POINTS_FS, POINTS_VS, STREAK_FS, UP_FS } from './shaders.ts';
 import { createKit, lookAt, multiply, perspective, project, seeded, uniforms, type GLKit, type RenderTarget, type Vec3 } from './glkit.ts';
 import { CORES, DISK, frameAt, ORIGIN_DURATION, type Billboard, type OriginFrame } from '../timeline.ts';
 import { farStarField } from '../farStars.ts';
@@ -20,14 +20,17 @@ export interface RendererQuality {
   webParticles: number;
   materialParticles: number;
   maxDpr: number;
+  /** Bloom levels (0 turns the lens treatment off) and whether streaks and light shafts are drawn. */
+  bloomLevels: number;
+  lensExtras: boolean;
 }
 
 export function chooseQuality(width: number, height: number): RendererQuality {
   const small = Math.min(width, height) < 620;
   const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency ?? 4 : 4;
   const modest = cores <= 4;
-  if (small || modest) return { webParticles: 15000, materialParticles: 5200, maxDpr: 1.5 };
-  return { webParticles: 30000, materialParticles: 9000, maxDpr: 1.75 };
+  if (small || modest) return { webParticles: 15000, materialParticles: 5200, maxDpr: 1.5, bloomLevels: 4, lensExtras: false };
+  return { webParticles: 30000, materialParticles: 9000, maxDpr: 1.75, bloomLevels: 5, lensExtras: true };
 }
 
 const GAS_KIND: Record<string, number> = { cloud: 0, bang: 1, shell: 2, disk: 3, seed: 4 };
@@ -40,6 +43,14 @@ export class OriginRenderer {
   private readonly gasProgram: WebGLProgram;
   private readonly compositeProgram: WebGLProgram;
   private readonly pointsProgram: WebGLProgram;
+  private readonly brightProgram: WebGLProgram;
+  private readonly downProgram: WebGLProgram;
+  private readonly upProgram: WebGLProgram;
+  private readonly streakProgram: WebGLProgram;
+  private down: RenderTarget[] = [];
+  private up: RenderTarget[] = [];
+  private streakA!: RenderTarget;
+  private streakB!: RenderTarget;
   private readonly particleVao: WebGLVertexArrayObject;
   private readonly billboardVao: WebGLVertexArrayObject;
   private readonly fullscreenVao: WebGLVertexArrayObject;
@@ -54,7 +65,7 @@ export class OriginRenderer {
   private height = 1;
   private dpr = 1;
   private disposed = false;
-  private readonly u: Record<'particle' | 'billboard' | 'gas' | 'composite' | 'points', (name: string) => WebGLUniformLocation | null>;
+  private readonly u: Record<'particle' | 'billboard' | 'gas' | 'composite' | 'points' | 'bright' | 'down' | 'up' | 'streak', (name: string) => WebGLUniformLocation | null>;
   seedTarget: SeedTarget | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly quality: RendererQuality) {
@@ -67,7 +78,15 @@ export class OriginRenderer {
       this.gasProgram = this.kit.program(FULLSCREEN_VS, GAS_FS);
       this.compositeProgram = this.kit.program(FULLSCREEN_VS, COMPOSITE_FS);
       this.pointsProgram = this.kit.program(POINTS_VS, POINTS_FS);
+      this.brightProgram = this.kit.program(FULLSCREEN_VS, BRIGHT_FS);
+      this.downProgram = this.kit.program(FULLSCREEN_VS, DOWN_FS);
+      this.upProgram = this.kit.program(FULLSCREEN_VS, UP_FS);
+      this.streakProgram = this.kit.program(FULLSCREEN_VS, STREAK_FS);
       this.u = {
+        bright: uniforms(gl, this.brightProgram),
+        down: uniforms(gl, this.downProgram),
+        up: uniforms(gl, this.upProgram),
+        streak: uniforms(gl, this.streakProgram),
         particle: uniforms(gl, this.particleProgram),
         billboard: uniforms(gl, this.billboardProgram),
         gas: uniforms(gl, this.gasProgram),
@@ -126,6 +145,11 @@ export class OriginRenderer {
 
       this.scene = this.kit.target(4, 4);
       this.gasTarget = this.kit.target(2, 2);
+      // Bloom pyramid: level 0 is half resolution, each next level half again.
+      for (let i = 0; i < Math.max(1, quality.bloomLevels); i++) this.down.push(this.kit.target(2, 2));
+      for (let i = 0; i < Math.max(1, quality.bloomLevels) - 1; i++) this.up.push(this.kit.target(2, 2));
+      this.streakA = this.kit.target(2, 2);
+      this.streakB = this.kit.target(2, 2);
     } catch (error) {
       // A shader that fails after the context exists must not leave the context behind.
       this.kit.dispose();
@@ -146,6 +170,10 @@ export class OriginRenderer {
     this.canvas.height = Math.round(this.height * this.dpr);
     this.scene.resize(this.canvas.width, this.canvas.height);
     this.gasTarget.resize(this.canvas.width / 2, this.canvas.height / 2);
+    this.down.forEach((target, i) => target.resize(this.canvas.width / 2 ** (i + 1), this.canvas.height / 2 ** (i + 1)));
+    this.up.forEach((target, i) => target.resize(this.canvas.width / 2 ** (i + 1), this.canvas.height / 2 ** (i + 1)));
+    this.streakA.resize(this.canvas.width / 4, this.canvas.height / 8);
+    this.streakB.resize(this.canvas.width / 4, this.canvas.height / 8);
     const stars = farStarField(this.width, this.height);
     const data = new Float32Array(stars.length * 6);
     stars.forEach((star, i) => {
@@ -205,6 +233,8 @@ export class OriginRenderer {
     gl.uniform1f(pu('u_diskSpin'), m.diskSpin);
     gl.uniform1f(pu('u_diskFade'), m.diskFade);
     gl.uniform1f(pu('u_fragments'), m.fragments);
+    gl.uniform1f(pu('u_focus'), frame.dof.focus);
+    gl.uniform1f(pu('u_aperture'), frame.dof.aperture);
     gl.uniform1f(pu('u_gain'), frame.gain * (this.kit.hdr ? 1 : 0.6) * (this.quality.webParticles < 20000 ? 1.45 : 1));
     gl.bindVertexArray(this.particleVao);
     gl.drawArrays(gl.POINTS, 0, this.particleCount);
@@ -259,25 +289,52 @@ export class OriginRenderer {
     gl.bindVertexArray(this.fullscreenVao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-    // 3. Composite to the screen, then the far sky on top.
+    // 3. Lens: a bright pass, a bloom pyramid and an anamorphic streak.
+    const lens = this.quality.bloomLevels > 0;
+    if (lens) this.drawLens(frame);
+
+    // 4. Composite to the screen with the film treatment, then the far sky inside the picture.
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, W, H);
     const cu = this.u.composite;
     gl.useProgram(this.compositeProgram);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.scene.texture);
-    gl.uniform1i(cu('u_scene'), 0);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, this.gasTarget.texture);
-    gl.uniform1i(cu('u_gas'), 1);
+    const bind = (unit: number, texture: WebGLTexture, name: string) => {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(cu(name), unit);
+    };
+    bind(0, this.scene.texture, 'u_scene');
+    bind(1, this.gasTarget.texture, 'u_gas');
+    bind(2, (this.up[0] ?? this.down[0]!).texture, 'u_bloom');
+    bind(3, this.streakA.texture, 'u_streak');
+    const pf = frame.post;
+    const rayScreen = pf.rayFrom ? project(viewProj, pf.rayFrom, this.width, this.height) : null;
+    const letterbox = this.letterboxFraction() * pf.letterbox;
     gl.uniform3fv(cu('u_ground'), frame.ground);
     gl.uniform1f(cu('u_exposure'), frame.exposure);
-    gl.uniform1f(cu('u_vignette'), 0.55 * (1 - frame.ambient));
+    gl.uniform1f(cu('u_vignette'), pf.vignette * (1 - frame.ambient * 0.6));
     gl.uniform1f(cu('u_time'), wall % 100);
     gl.uniform1f(cu('u_black'), frame.black);
+    gl.uniform1i(cu('u_effects'), lens ? 1 : 0);
+    gl.uniform1f(cu('u_bloomStrength'), pf.bloom);
+    gl.uniform1f(cu('u_streakStrength'), this.quality.lensExtras ? pf.streak : 0);
+    gl.uniform2f(cu('u_rayPos'), rayScreen && rayScreen.w > 0 ? rayScreen.x / this.width : 0.5, rayScreen && rayScreen.w > 0 ? 1 - rayScreen.y / this.height : 0.5);
+    gl.uniform1f(cu('u_rayStrength'), this.quality.lensExtras && rayScreen && rayScreen.w > 0 ? pf.rays : 0);
+    const shockAt = project(viewProj, [0, 0, 0], this.width, this.height);
+    gl.uniform4f(cu('u_shock'), shockAt.w > 0 ? shockAt.x / this.width : 0.5, shockAt.w > 0 ? 1 - shockAt.y / this.height : 0.5, pf.shockRadius, pf.shock);
+    gl.uniform1f(cu('u_aspect'), aspect);
+    gl.uniform1f(cu('u_chroma'), pf.chroma);
+    gl.uniform1f(cu('u_grain'), pf.grain);
+    gl.uniform1f(cu('u_letterbox'), letterbox);
+    gl.uniform1f(cu('u_grade'), pf.grade);
+    gl.bindVertexArray(this.fullscreenVao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    this.letterboxNow = letterbox;
 
     if (frame.farStars > 0.001 && this.pointsCount > 0) {
+      const bar = Math.round(letterbox * H);
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(0, bar, W, Math.max(0, H - 2 * bar));
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
       const qu = this.u.points;
@@ -290,9 +347,88 @@ export class OriginRenderer {
       gl.bindVertexArray(this.pointsVao);
       gl.drawArrays(gl.POINTS, 0, this.pointsCount);
       gl.disable(gl.BLEND);
+      gl.disable(gl.SCISSOR_TEST);
     }
     gl.bindVertexArray(null);
     return frame;
+  }
+
+  /** The fraction of the height each cinema bar takes at full strength: 2.39:1 framing on wide
+   * screens, nothing on tall ones (a phone keeps its whole picture). */
+  letterboxFraction(): number {
+    const aspect = this.width / this.height;
+    if (aspect < 1.15) return 0;
+    const picture = this.width / 2.39;
+    return Math.min(0.14, Math.max(0, (this.height - picture) / 2 / this.height));
+  }
+
+  /** How much of the height each bar covered in the last frame (for the live captions). */
+  letterboxNow = 0;
+
+  private drawLens(frame: OriginFrame): void {
+    const gl = this.gl;
+    const full = (target: RenderTarget) => {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
+      gl.viewport(0, 0, target.width, target.height);
+    };
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(this.fullscreenVao);
+    const bu = this.u.bright;
+    full(this.down[0]!);
+    gl.useProgram(this.brightProgram);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.scene.texture);
+    gl.uniform1i(bu('u_scene'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.gasTarget.texture);
+    gl.uniform1i(bu('u_gas'), 1);
+    gl.uniform2f(bu('u_texel'), 1 / this.scene.width, 1 / this.scene.height);
+    gl.uniform1f(bu('u_threshold'), this.kit.hdr ? 0.85 : 0.6);
+    gl.uniform1f(bu('u_knee'), 0.45);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const du = this.u.down;
+    gl.useProgram(this.downProgram);
+    gl.uniform1i(du('u_src'), 0);
+    for (let i = 1; i < this.down.length; i++) {
+      const source = this.down[i - 1]!;
+      full(this.down[i]!);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, source.texture);
+      gl.uniform2f(du('u_texel'), 1 / source.width, 1 / source.height);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    const uu = this.u.up;
+    gl.useProgram(this.upProgram);
+    gl.uniform1i(uu('u_low'), 0);
+    gl.uniform1i(uu('u_high'), 1);
+    for (let i = this.down.length - 2; i >= 0; i--) {
+      const low = i === this.down.length - 2 ? this.down[i + 1]! : this.up[i + 1]!;
+      full(this.up[i]!);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, low.texture);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.down[i]!.texture);
+      gl.uniform2f(uu('u_texel'), 1 / low.width, 1 / low.height);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    if (!this.quality.lensExtras || frame.post.streak <= 0.001) return;
+    const su = this.u.streak;
+    gl.useProgram(this.streakProgram);
+    gl.uniform1i(su('u_src'), 0);
+    const passes: [RenderTarget, RenderTarget, number][] = [
+      [this.down[1] ?? this.down[0]!, this.streakA, 1.5],
+      [this.streakA, this.streakB, 5],
+      [this.streakB, this.streakA, 10],
+    ];
+    passes.forEach(([source, target, step], i) => {
+      full(target);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, source.texture);
+      gl.uniform2f(su('u_texel'), 1 / target.width, 1 / target.height);
+      gl.uniform1f(su('u_step'), step);
+      gl.uniform1f(su('u_gain'), i === 0 ? 1.4 : 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    });
   }
 
   private drawBillboards(list: Billboard[], viewProj: Float32Array, proj11: number, aspect: number, wall: number): void {

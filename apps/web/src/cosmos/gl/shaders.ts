@@ -110,9 +110,12 @@ uniform float u_diskForm;
 uniform float u_diskSpin;
 uniform float u_diskFade;
 uniform float u_fragments;
+uniform float u_focus;
+uniform float u_aperture;
 out vec3 v_color;
 out float v_alpha;
 out float v_glyph;
+out float v_bokeh;
 
 const vec3 COBALT = vec3(0.17, 0.27, 0.91);
 const vec3 TEAL = vec3(0.08, 0.78, 0.61);
@@ -185,7 +188,9 @@ void main() {
     vec3 dust = mix(GOLD, CREAM, a_seed.x * 0.6);
     color = mix(enriched, mix(dust, TEAL, step(0.82, a_seed.y) * 0.7), u_diskForm * streamer);
     float stayFade = mix(1.0 - smoothstep(0.55, 1.0, u_stream), 1.0, streamer);
-    alpha = u_matFade * stayFade * mix(1.0, 0.55, ring) * mix(1.0, u_diskFade, streamer) * (0.4 + 0.6 * a_seed.z);
+    // Material brightens as it leaves the star: no white wall of overlapping envelope at the start.
+    float leaving = mix(0.1, 1.0, smoothstep(0.0, 0.36, u_eject));
+    alpha = u_matFade * leaving * stayFade * mix(1.0, 0.36, ring) * mix(1.0, u_diskFade, streamer) * (0.4 + 0.6 * a_seed.z);
     size = mix(0.012, 0.022, a_seed.x) * (1.0 + (1.0 - u_diskForm) * 0.4);
     // A few disk motes carry KnowScroll's own marks: a Reel frame, a Scroll sheet, a question.
     float glyph = step(0.9955, fract(a_seed.y * 97.13 + a_seed.w * 31.7)) * streamer * u_fragments;
@@ -199,9 +204,13 @@ void main() {
   vec4 clip = u_viewProj * vec4(p, 1.0);
   gl_Position = clip;
   float px = size * u_proj11 / max(clip.w, 0.02) * u_viewportH * 0.5;
-  gl_PointSize = clamp(px * u_px, 1.0, 64.0);
+  // Depth of field: a circle of confusion from the distance to the focal plane; out-of-focus
+  // matter grows into soft, dimmer bokeh discs, so the subject reads sharp against depth.
+  float coc = v_glyph > 0.5 ? 0.0 : min(u_aperture * abs(1.0 / max(clip.w, 0.05) - 1.0 / u_focus) * u_viewportH * 0.5, 28.0);
+  gl_PointSize = clamp((px + coc) * u_px, 1.0, 96.0);
   float tiny = smoothstep(0.0, 1.5, px * u_px);
-  v_alpha = alpha * tiny * smoothstep(0.02, 0.4, clip.w);
+  v_bokeh = coc / (px + coc + 0.001);
+  v_alpha = alpha * tiny * smoothstep(0.02, 0.4, clip.w) * mix(1.0, (px * px) / ((px + coc) * (px + coc)) * 2.2 + 0.08, v_bokeh);
   v_color = color;
 }
 `;
@@ -211,6 +220,7 @@ precision highp float;
 in vec3 v_color;
 in float v_alpha;
 in float v_glyph;
+in float v_bokeh;
 uniform float u_gain;
 out vec4 outColor;
 float box(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -232,7 +242,10 @@ void main() {
     }
     a = smoothstep(0.08, -0.04, d) + exp(-dot(q, q) * 3.0) * 0.25;
   } else {
-    a = exp(-dot(q, q) * 4.0);
+    float r = length(q);
+    float soft = exp(-r * r * 4.0);
+    float disc = smoothstep(1.0, 0.82, r) * (0.75 + 0.25 * smoothstep(0.55, 0.95, r));
+    a = mix(soft, disc, smoothstep(0.15, 0.6, v_bokeh));
   }
   outColor = vec4(v_color * a * v_alpha * u_gain, a * v_alpha);
 }
@@ -424,29 +437,160 @@ void main() {
 }
 `;
 
-/** Tone-maps the HDR scene and the gas into the final frame with a little grain against banding. */
+/** Bright pass for bloom: a soft knee keeps faint matter out and lets highlights glow. */
+export const BRIGHT_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_scene;
+uniform sampler2D u_gas;
+uniform vec2 u_texel;
+uniform float u_threshold;
+uniform float u_knee;
+out vec4 outColor;
+vec3 tap(vec2 uv) { return texture(u_scene, uv).rgb + texture(u_gas, uv).rgb; }
+void main() {
+  vec3 c = 0.25 * (tap(v_uv + u_texel * vec2(-0.5, -0.5)) + tap(v_uv + u_texel * vec2(0.5, -0.5)) + tap(v_uv + u_texel * vec2(-0.5, 0.5)) + tap(v_uv + u_texel * vec2(0.5, 0.5)));
+  float br = max(c.r, max(c.g, c.b));
+  float soft = clamp(br - u_threshold + u_knee, 0.0, 2.0 * u_knee);
+  soft = soft * soft / (4.0 * u_knee + 1e-4);
+  float contribution = max(soft, br - u_threshold) / max(br, 1e-4);
+  outColor = vec4(min(c * contribution, vec3(6.0)), 1.0);
+}
+`;
+
+/** 13-tap downsample (Jimenez, "Next generation post processing in Call of Duty: AW"). */
+export const DOWN_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_src;
+uniform vec2 u_texel;
+out vec4 outColor;
+vec3 t(vec2 o) { return texture(u_src, v_uv + u_texel * o).rgb; }
+void main() {
+  vec3 e = t(vec2(0.0));
+  vec3 corners = t(vec2(-2.0, 2.0)) + t(vec2(2.0, 2.0)) + t(vec2(-2.0, -2.0)) + t(vec2(2.0, -2.0));
+  vec3 edges = t(vec2(0.0, 2.0)) + t(vec2(-2.0, 0.0)) + t(vec2(2.0, 0.0)) + t(vec2(0.0, -2.0));
+  vec3 inner = t(vec2(-1.0, 1.0)) + t(vec2(1.0, 1.0)) + t(vec2(-1.0, -1.0)) + t(vec2(1.0, -1.0));
+  outColor = vec4(e * 0.125 + corners * 0.03125 + edges * 0.0625 + inner * 0.125, 1.0);
+}
+`;
+
+/** Tent upsample of the lower level, added to the level above. */
+export const UP_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_low;
+uniform sampler2D u_high;
+uniform vec2 u_texel;
+out vec4 outColor;
+vec3 t(vec2 o) { return texture(u_low, v_uv + u_texel * o).rgb; }
+void main() {
+  vec3 tent = t(vec2(0.0)) * 4.0
+    + (t(vec2(-1.0, 0.0)) + t(vec2(1.0, 0.0)) + t(vec2(0.0, -1.0)) + t(vec2(0.0, 1.0))) * 2.0
+    + t(vec2(-1.0, -1.0)) + t(vec2(1.0, -1.0)) + t(vec2(-1.0, 1.0)) + t(vec2(1.0, 1.0));
+  outColor = vec4(texture(u_high, v_uv).rgb + tent / 16.0, 1.0);
+}
+`;
+
+/** A horizontal smear of the brightest light: the anamorphic streak of a cinema lens. */
+export const STREAK_FS = /* glsl */ `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_src;
+uniform vec2 u_texel;
+uniform float u_step;
+uniform float u_gain;
+out vec4 outColor;
+void main() {
+  vec3 sum = vec3(0.0);
+  float total = 0.0;
+  for (int i = -7; i <= 7; i++) {
+    float f = float(i);
+    float w = exp(-f * f / 24.0);
+    sum += texture(u_src, v_uv + vec2(f * u_step * u_texel.x, 0.0)).rgb * w;
+    total += w;
+  }
+  outColor = vec4(sum / total * u_gain, 1.0);
+}
+`;
+
+/**
+ * The final frame: scene and gas with lens and film treatment — bloom, anamorphic streaks, light
+ * shafts from a bright source, the expansion's shockwave bending the image, slight chromatic
+ * aberration, a split-tone grade, luma-aware grain, a vignette and the letterbox.
+ */
 export const COMPOSITE_FS = /* glsl */ `#version 300 es
 precision highp float;
 in vec2 v_uv;
 uniform sampler2D u_scene;
 uniform sampler2D u_gas;
+uniform sampler2D u_bloom;
+uniform sampler2D u_streak;
 uniform vec3 u_ground;
 uniform float u_exposure;
 uniform float u_vignette;
 uniform float u_time;
 uniform float u_black;
+uniform float u_bloomStrength;
+uniform float u_streakStrength;
+uniform vec2 u_rayPos;
+uniform float u_rayStrength;
+uniform vec4 u_shock;
+uniform float u_aspect;
+uniform float u_chroma;
+uniform float u_grain;
+uniform float u_letterbox;
+uniform float u_grade;
+uniform int u_effects;
 out vec4 outColor;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
-  vec3 scene = texture(u_scene, v_uv).rgb + texture(u_gas, v_uv).rgb;
-  vec3 col = aces(scene * u_exposure);
-  vec2 c = v_uv - 0.5;
-  float vig = 1.0 - u_vignette * dot(c, c) * 1.6;
-  col = u_ground + col * vig;
-  float grain = fract(sin(dot(v_uv * 1000.0 + u_time, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-  col += grain * 0.012;
-  col = mix(col, vec3(0.0), u_black);
-  outColor = vec4(col, 1.0);
+  vec2 uv = v_uv;
+  // The expansion's shockwave: a travelling ring that bends the image like a lens.
+  vec2 sd = uv - u_shock.xy;
+  sd.x *= u_aspect;
+  float sr = length(sd);
+  float ring = u_shock.w > 0.001 ? exp(-pow((sr - u_shock.z) / 0.045, 2.0)) * u_shock.w : 0.0;
+  uv -= (sd / max(sr, 1e-4)) * ring * 0.03 * vec2(1.0 / u_aspect, 1.0);
+  vec2 c = uv - 0.5;
+  float ca = u_chroma * (0.25 + dot(c, c) * 2.2) + ring * 0.012;
+  vec2 off = c * ca;
+  vec3 col;
+  col.r = texture(u_scene, uv + off).r + texture(u_gas, uv + off).r;
+  col.g = texture(u_scene, uv).g + texture(u_gas, uv).g;
+  col.b = texture(u_scene, uv - off).b + texture(u_gas, uv - off).b;
+  if (u_effects > 0) {
+    col += texture(u_bloom, uv).rgb * u_bloomStrength;
+    col += texture(u_streak, uv).rgb * u_streakStrength * vec3(0.55, 0.78, 1.0);
+    if (u_rayStrength > 0.001) {
+      vec2 stepv = (u_rayPos - uv) / 36.0;
+      vec2 p = uv;
+      float decay = 1.0;
+      vec3 rays = vec3(0.0);
+      for (int i = 0; i < 36; i++) {
+        p += stepv;
+        rays += texture(u_bloom, p).rgb * decay;
+        decay *= 0.955;
+      }
+      col += rays / 36.0 * u_rayStrength * 3.2;
+    }
+  }
+  col *= u_exposure;
+  col += ring * vec3(1.0, 0.92, 0.78) * 0.22;
+  vec3 mapped = aces(col);
+  float l = dot(mapped, vec3(0.2126, 0.7152, 0.0722));
+  vec3 graded = mapped * mix(vec3(0.84, 0.97, 1.12), vec3(1.07, 1.0, 0.9), smoothstep(0.08, 0.65, l));
+  graded = mix(vec3(l), graded, 1.1);
+  mapped = mix(mapped, max(graded, 0.0), u_grade);
+  float vig = 1.0 - u_vignette * pow(length(c * vec2(1.0, 0.9)) * 1.3, 2.4);
+  vec3 outc = u_ground + mapped * max(vig, 0.0);
+  float g = hash(gl_FragCoord.xy + fract(u_time * 7.13) * 91.7) - 0.5;
+  outc += g * u_grain * (1.0 - 0.65 * l);
+  outc = mix(outc, vec3(0.0), u_black);
+  float bars = step(v_uv.y, u_letterbox) + step(1.0 - u_letterbox, v_uv.y);
+  outc = mix(outc, vec3(0.0), clamp(bars, 0.0, 1.0));
+  outColor = vec4(outc, 1.0);
 }
 `;
 

@@ -87,12 +87,15 @@ export function App({ apiClient, onSignedOut }: AppProps) {
   }, [origin, originDismiss, state.universe, state.sky, state.screen]);
 
   const endOrigin = useCallback((reason: OriginEnd) => {
+    // Called while the overlay is still mounted: was the reader using the keyboard in it?
+    const keyboard = !!document.querySelector('.origin--keyboard');
     if (reason !== 'failed' || originDismiss !== 'unavailable') markOriginSeen();
     setOrigin('off');
     setOriginDismiss(null);
     setSealed(false);
-    // Focus continues in the Universe: the first thing to explore, else its main action.
-    requestAnimationFrame(() => {
+    // A keyboard reader's focus continues in the Universe: the first thing to explore, else its main
+    // action. Pointer viewers are left as they were, with no focus ring drawn onto the scene.
+    if (keyboard) requestAnimationFrame(() => {
       const target = document.querySelector<HTMLElement>('[data-origin-target], .universe-bodies-nav button, .universe-cta');
       target?.focus({ preventScroll: true });
     });

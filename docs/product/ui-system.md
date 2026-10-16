@@ -315,10 +315,13 @@ pieces of real structure this product keeps as literal contracts, covered in sec
 The opening and the everyday Universe are one surface. Values below are the web build's; they
 extend §1–§5c and change none of them.
 
-- **Opening.** Full-screen WebGL scene over the mounted Universe; captions in Bricolage 700,
-  `clamp(24px, 3.4vw, 44px)`, centred above the lower third; Skip (cream pill) and Sound (dark pill,
-  `aria-pressed`) top-right, ≥ 44 px. Reduced motion: still frames with Next. No WebGL: a CSS cloud
-  with the same captions. First visit only; "↺ Opening" on the Universe replays it.
+- **Opening.** Full-screen WebGL scene over the mounted Universe, framed in 2.39:1 cinema bars on
+  wide screens (none in portrait) that open into the Universe at the end. Captions are subtitles in
+  the lower bar (Bricolage 600, up to 38px) or, without bars, Bricolage 700 `clamp(24px, 3.4vw,
+  44px)` above the lower third; they sharpen in. Skip (cream pill) and Sound (dark pill with a
+  speaker glyph, `aria-pressed`) top-right in the upper bar, ≥ 44 px, focus rings for keyboard use
+  only; "Tap anywhere for sound" for the first seconds. Reduced motion: still frames with Next. No
+  WebGL: a CSS cloud with the same captions. First visit only; "↺ Opening" on the Universe replays it.
 - **Stars** are the reader's top-level places, drawn by condition (quiet, taking shape, under
   tension, lights others) with a name label and a mono caption of real counts. **Worlds** are small
   planets on their star's orbits; **possibilities** are faint dashed motes; **constellation lines**

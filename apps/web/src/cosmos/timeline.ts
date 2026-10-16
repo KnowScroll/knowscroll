@@ -157,6 +157,24 @@ export interface OriginFrame {
   billboards: Billboard[];
   gas: GasBlob[];
   ambient: number;
+  /** Lens and film treatment for this moment (the cinematic grade). */
+  post: {
+    bloom: number;
+    streak: number;
+    rays: number;
+    /** World point the light shafts come from, when there are any. */
+    rayFrom: Vec3 | null;
+    shock: number;
+    shockRadius: number;
+    chroma: number;
+    grain: number;
+    vignette: number;
+    /** 1 while the story is framed in cinema bars; 0 once it opens into the Universe. */
+    letterbox: number;
+    grade: number;
+  };
+  /** Depth of field: focal distance (world units) and aperture (0 = everything sharp). */
+  dof: { focus: number; aperture: number };
   farStars: number;
   caption: string | null;
   captionOpacity: number;
@@ -199,9 +217,30 @@ function diskSpinAt(t: number): number {
   return Math.max(0, t - 20.6) * 1.0;
 }
 
+/** A slow, gentle sway, as if the camera were held, plus a short decaying shake at the expansion.
+ * Built from fixed sines, so it is part of the deterministic timeline. */
+function cameraLife(time: number, eye: Vec3, target: Vec3): { eye: Vec3; target: Vec3 } {
+  const distance = Math.hypot(eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]);
+  const sway = distance * (0.0045 + 0.004 * smooth(13.6, 15.4, time) * (1 - smooth(19.6, 21.6, time))) * (1 - smooth(25.6, 27.6, time));
+  const hand: Vec3 = [
+    Math.sin(time * 0.71) * 0.6 + Math.sin(time * 1.37 + 1.3) * 0.4,
+    Math.sin(time * 0.53 + 2.1) * 0.6 + Math.sin(time * 1.11) * 0.4,
+    Math.sin(time * 0.37 + 0.7),
+  ];
+  const kick = time >= 3.6 ? Math.exp(-(time - 3.6) / 0.32) * distance * 0.022 : 0;
+  const shake: Vec3 = [Math.sin(time * 37.0) * kick, Math.sin(time * 41.0 + 1.0) * kick, 0];
+  return {
+    eye: [eye[0] + hand[0] * sway + shake[0], eye[1] + hand[1] * sway + shake[1], eye[2] + hand[2] * sway],
+    target: [target[0] + hand[0] * sway * 0.4 + shake[0] * 0.6, target[1] + hand[1] * sway * 0.4 + shake[1] * 0.6, target[2]],
+  };
+}
+
+const bump = (centre: number, width: number, x: number) => Math.exp(-(((x - centre) / width) ** 2));
+
 export function frameAt(t: number): OriginFrame {
   const time = Math.max(0, Math.min(ORIGIN_DURATION, t));
-  const camera = { ...cameraAt(time), fovY: (58 * Math.PI) / 180 };
+  const path = cameraAt(time);
+  const camera = { ...cameraLife(time, path.eye, path.target), fovY: (58 * Math.PI) / 180 };
   const bang = 3.6;
 
   const scale = time < bang ? 0.0015 : mix(0.0015, 1, 1 - Math.exp(-(time - bang) / 1.3)) * (1 + 0.05 * smooth(8.6, ORIGIN_DURATION, time));
@@ -238,7 +277,7 @@ export function frameAt(t: number): OriginFrame {
       pos: STAR,
       radius: starRadius,
       color: starColor,
-      intensity: (centralOn + flash(0)) * mix(1.1, 0.62, swell) * mix(1, 3.2, shed) * remnantFade,
+      intensity: (centralOn + flash(0)) * mix(1.1, 0.62, swell) * mix(1, 1.6, shed) * remnantFade,
       granulation: mix(0.55, 1, swell) * (1 - shed),
       tension: pulse * 0.85,
       mode: 0,
@@ -265,7 +304,7 @@ export function frameAt(t: number): OriginFrame {
   const gas: GasBlob[] = [];
   const bangGlow = smooth(bang - 0.1, bang + 0.15, time) * (1 - smooth(bang + 0.4, bang + 3.2, time));
   if (presence > 0.001) gas.push({ kind: 'bang', pos: ORIGIN, radius: 0.13 + 0.05 * smooth(2.4, 3.5, time), color: [0.42, 0.36, 0.3], density: presence * (0.3 + 0.35 * smooth(2.4, 3.5, time)), a: 0, b: 0 });
-  if (bangGlow > 0.001) gas.push({ kind: 'bang', pos: ORIGIN, radius: mix(0.15, 2.6, smooth(bang, bang + 3.0, time)), color: [1.0, 0.8, 0.55], density: bangGlow * 0.9, a: 0, b: 0 });
+  if (bangGlow > 0.001) gas.push({ kind: 'bang', pos: ORIGIN, radius: mix(0.15, 2.1, smooth(bang, bang + 3.0, time)), color: [1.0, 0.78, 0.52], density: bangGlow * 0.5, a: 0, b: 0 });
   const cloudOn = smooth(8.4, 11.0, time) * (1 - 0.6 * smooth(12.0, 14.5, time)) * (1 - smooth(19.0, 21.5, time));
   if (cloudOn > 0.001) {
     CORES.forEach((core, i) => {
@@ -286,12 +325,34 @@ export function frameAt(t: number): OriginFrame {
   }
 
   const { text, opacity } = captionAt(time);
+  const subject = Math.hypot(path.eye[0] - path.target[0], path.eye[1] - path.target[1], path.eye[2] - path.target[2]);
+  const release = smooth(17.1, 17.6, time) * (1 - smooth(18.6, 21.0, time));
+  const ignitionGlow = smooth(11.4, 12.0, time) * (1 - smooth(13.2, 14.6, time));
+  const post: OriginFrame['post'] = {
+    bloom: 0.38 + 0.32 * bump(bang + 0.35, 0.7, time) + 0.3 * ignitionGlow + 0.25 * smooth(15.4, 17.2, time) * (1 - smooth(19.6, 21.0, time)) + 0.12 * release + 0.15 * smooth(21.5, 23.5, time) * (1 - smooth(25.4, 27.4, time)),
+    streak: 0.08 + 0.1 * bump(bang + 0.3, 0.5, time) + 0.13 * ignitionGlow + 0.06 * release,
+    rays: 0.32 * bump(bang + 0.45, 0.6, time) + 0.36 * smooth(15.6, 16.9, time) * (1 - smooth(17.1, 17.8, time)) + 0.12 * smooth(18.2, 19.0, time) * (1 - smooth(19.6, 21.0, time)),
+    rayFrom: time < 9 ? ORIGIN : time < 21.5 ? STAR : DISK,
+    shock: time >= bang ? Math.exp(-(time - bang) / 0.55) * smooth(bang, bang + 0.05, time) : 0,
+    shockRadius: Math.max(0, time - bang) * 0.85,
+    chroma: 0.0016 + 0.006 * bump(bang + 0.15, 0.45, time) + 0.0018 * release,
+    grain: 0.034 * (1 - 0.6 * smooth(25.4, 27.8, time)),
+    vignette: 0.62 * (1 - smooth(25.2, 27.8, time)) + 0.08,
+    letterbox: 1 - smooth(25.2, 27.4, time),
+    grade: 1 - 0.85 * smooth(25.6, 28.0, time),
+  };
+  // Focus follows the subject; the aperture opens for close, intimate shots and as matter streams
+  // past, and closes as the scene settles into the (sharp) Universe.
+  const aperture = 0.014 + 0.03 * smooth(bang + 0.4, 5.0, time) * (1 - smooth(7.6, 9.4, time))
+    + 0.03 * smooth(13.6, 15.2, time) * (1 - smooth(19.4, 21.0, time))
+    + 0.022 * smooth(21.0, 22.6, time) * (1 - smooth(24.8, 26.4, time));
+  const exposure = 1 + 0.32 * bump(bang + 0.1, 0.18, time) - 0.3 * bump(bang + 0.75, 0.55, time) - 0.18 * release;
   return {
     t: time,
     act: actAt(time),
     camera,
     black: 1 - smooth(0, 0.9, time),
-    exposure: 1.0,
+    exposure,
     gain: mix(0.18, 1, smooth(bang + 0.2, bang + 2.4, time)),
     ground: mix3([0.004, 0.008, 0.016], [0.0118, 0.0627, 0.102], smooth(8.0, ORIGIN_DURATION, time)),
     matter: {
@@ -313,6 +374,8 @@ export function frameAt(t: number): OriginFrame {
     billboards,
     gas,
     ambient: smooth(24.8, 27.6, time),
+    post,
+    dof: { focus: Math.max(0.4, subject), aperture: aperture * (1 - smooth(25.4, 27.2, time)) },
     farStars: 0.32 * smooth(9.0, 12.5, time) * (1 - 0.6 * smooth(14, 16, time)) + smooth(24.2, 27.4, time),
     caption: text,
     captionOpacity: opacity,

@@ -23,6 +23,20 @@ export interface OriginExperienceProps {
 type Phase = 'playing' | 'stills' | 'fallback' | 'leaving';
 
 const STILL_HOLD_MS = 3400;
+
+/** Captions sit inside the lower cinema bar while there is one, like film subtitles. */
+function frameCaption(root: HTMLElement | null, caption: HTMLElement | null, barFraction: number, opacity: number): void {
+  if (caption) caption.style.setProperty('--o', String(opacity));
+  if (!root) return;
+  const bar = barFraction * window.innerHeight;
+  if (bar > 56) {
+    root.style.setProperty('--bar', `${bar}px`);
+    root.classList.add('origin--bars');
+  } else {
+    root.style.removeProperty('--bar');
+    root.classList.remove('origin--bars');
+  }
+}
 const FALLBACK_MS = 7600;
 
 /**
@@ -46,6 +60,8 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
   const [caption, setCaption] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [stillIndex, setStillIndex] = useState(0);
+  // An invitation to sound for the first seconds of the story; tapping the scene accepts it.
+  const [soundHint, setSoundHint] = useState(true);
 
   const finish = useCallback((reason: OriginEnd) => {
     if (endedRef.current) return;
@@ -147,7 +163,7 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
         lastCaption = text;
         setCaption(text);
       }
-      if (captionRef.current) captionRef.current.style.opacity = String(opacity);
+      frameCaption(rootRef.current, captionRef.current, renderer.letterboxNow, opacity);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -181,7 +197,7 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
       renderer.render(still.t, still.t);
     }
     setCaption(still.caption);
-    if (captionRef.current) captionRef.current.style.opacity = still.caption ? '1' : '0';
+    frameCaption(rootRef.current, captionRef.current, renderer?.letterboxNow ?? 0, still.caption ? 1 : 0);
     const timer = setTimeout(() => setStillIndex(index => index + 1), STILL_HOLD_MS);
     return () => clearTimeout(timer);
   }, [phase, hold, stillIndex, finish, findSeedTarget, handOff]);
@@ -199,7 +215,7 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
       rootRef.current?.classList.add('origin--dissolve');
     }, FALLBACK_MS - 900);
     const done = setTimeout(() => finish('failed'), FALLBACK_MS);
-    if (captionRef.current) captionRef.current.style.opacity = '1';
+    captionRef.current?.style.setProperty('--o', '1');
     return () => {
       clearTimeout(first);
       clearTimeout(second);
@@ -226,6 +242,8 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
     if (hold) return undefined;
     skipRef.current?.focus({ preventScroll: true });
     const key = (event: KeyboardEvent) => {
+      // Focus rings appear only for someone using the keyboard; pointer viewers see a clean frame.
+      rootRef.current?.classList.add('origin--keyboard');
       if (event.key === 'Escape') {
         event.preventDefault();
         finish('skipped');
@@ -240,7 +258,14 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
     soundRef.current = null;
   }, []);
 
+  useEffect(() => {
+    if (hold || !soundHint) return undefined;
+    const timer = setTimeout(() => setSoundHint(false), 7500);
+    return () => clearTimeout(timer);
+  }, [hold, soundHint]);
+
   const toggleSound = () => {
+    setSoundHint(false);
     if (soundOn) {
       soundRef.current?.stop();
       soundRef.current = null;
@@ -257,19 +282,28 @@ export function OriginExperience({ reducedMotion, findSeedTarget, dismiss = null
 
   return (
     <div ref={rootRef} className={`origin origin--${phase}${hold ? ' origin--holding' : ''}`} data-testid="origin" aria-busy={hold || undefined}>
-      <div ref={hostRef} className="origin-stage" aria-hidden="true">
+      <div ref={hostRef} className="origin-stage" aria-hidden="true" onClick={() => { if (!soundOn && !hold && phase !== 'fallback') toggleSound(); }}>
         {phase === 'fallback' && <div className="origin-fallback-cloud" />}
       </div>
       <section className="origin-copy" aria-label="Opening">
         <p className="visually-hidden">
           A short opening: an empty space, an expansion, the first stars, one star releasing material that gathers into new worlds,
-          and then your own universe. Use Skip to go straight in.
+          and then your own universe. Use Skip, or press Escape, to go straight in.
         </p>
         <p ref={captionRef} className="origin-caption" aria-live="polite">{caption}</p>
       </section>
+      {!hold && soundHint && !soundOn && phase === 'playing' && (
+        <p className="origin-sound-hint" aria-hidden="true">Tap anywhere for sound</p>
+      )}
       {!hold && <div className="origin-controls">
         {phase !== 'fallback' && (
-          <button type="button" className="origin-control" aria-pressed={soundOn} onClick={toggleSound}>
+          <button type="button" className="origin-control origin-sound" aria-pressed={soundOn} onClick={toggleSound}>
+            <svg viewBox="0 0 20 20" aria-hidden="true" className="origin-sound__icon">
+              <path d="M3 8h3l4-3.5v11L6 12H3z" fill="currentColor" />
+              {soundOn
+                ? <path d="M13 7.2a4 4 0 0 1 0 5.6M15.2 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                : <path d="M13.5 7.5l4 5M17.5 7.5l-4 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
+            </svg>
             {soundOn ? 'Sound on' : 'Sound off'}
           </button>
         )}

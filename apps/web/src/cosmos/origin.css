@@ -50,7 +50,23 @@
   text-wrap: balance;
   color: #fffbf0;
   text-shadow: 0 2px 24px rgb(1 3 6 / 85%), 0 0 2px rgb(1 3 6 / 60%);
-  opacity: 0;
+  /* A film-title reveal: the line sharpens and settles its tracking as it fades in. */
+  opacity: var(--o, 0);
+  filter: blur(calc((1 - var(--o, 0)) * 7px));
+  letter-spacing: calc(-0.02em + (1 - var(--o, 0)) * 0.09em);
+}
+/* With cinema bars, the caption is a subtitle in the lower bar and the controls sit in the upper. */
+.origin--bars .origin-copy {
+  bottom: calc(var(--bar) / 2);
+  transform: translate(-50%, 50%);
+}
+.origin--bars .origin-caption {
+  font-size: min(clamp(22px, 2.6vw, 38px), calc(var(--bar) * 0.42));
+  font-weight: 600;
+  letter-spacing: calc(0.005em + (1 - var(--o, 0)) * 0.09em);
+}
+.origin--bars .origin-controls {
+  top: max(12px, calc(var(--bar) / 2 - 22px));
 }
 .origin-controls {
   position: absolute;
@@ -74,13 +90,14 @@
   backdrop-filter: blur(8px);
 }
 .origin-control:hover { background: rgb(255 251 240 / 14%); }
-.origin-control:focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; }
+.origin-control:focus-visible { outline: none; }
+.origin--keyboard .origin-control:focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; }
 .origin-control[aria-pressed="true"] { border-color: rgb(20 199 155 / 70%); }
 .origin-skip { background: var(--cream); color: var(--ink); border-color: transparent; }
 .origin-skip:hover { background: #fff; }
 
 .origin--stills .origin-copy { bottom: clamp(110px, 20vh, 190px); }
-.origin--stills .origin-caption { transition: opacity .3s ease; }
+.origin--stills .origin-caption { transition: opacity .3s ease, filter .3s ease; }
 
 /* The CSS version for browsers without WebGL2: a cloud gathering around a warm core. */
 .origin-fallback-cloud {
@@ -100,7 +117,7 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .origin-fallback-cloud { animation: origin-gather 7.6s cubic-bezier(.3, .1, .2, 1) both; }
-  .origin--fallback .origin-caption { transition: opacity .6s ease; }
+  .origin--fallback .origin-caption { transition: opacity .6s ease, filter .6s ease; }
 }
 @keyframes origin-gather {
   from { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
@@ -112,3 +129,29 @@
   .origin-copy { bottom: clamp(120px, 22vh, 200px); }
   .origin-control { padding: 0 14px; }
 }
+
+.origin-sound { display: inline-flex; align-items: center; gap: 7px; }
+.origin-sound__icon { width: 16px; height: 16px; flex: none; }
+.origin-sound[aria-pressed="true"] .origin-sound__icon { color: var(--teal); }
+.origin-sound-hint {
+  position: absolute;
+  z-index: 2;
+  top: calc(max(18px, env(safe-area-inset-top)) + 52px);
+  right: max(16px, env(safe-area-inset-right));
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: rgb(255 251 240 / 72%);
+  pointer-events: none;
+}
+.origin--bars .origin-sound-hint { top: calc(var(--bar) + 12px); }
+@media (prefers-reduced-motion: no-preference) {
+  .origin-sound-hint { animation: origin-hint 7.5s ease both; }
+}
+@keyframes origin-hint {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.origin-stage { cursor: default; }

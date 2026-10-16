@@ -64,7 +64,7 @@ describe('OriginExperience without WebGL (CSS fallback)', () => {
 
   it('describes itself to assistive technology and puts focus on Skip', () => {
     renderOrigin();
-    expect(screen.getByRole('region', { name: 'Opening' })).toHaveTextContent(/Use Skip to go straight in/);
+    expect(screen.getByRole('region', { name: 'Opening' })).toHaveTextContent(/Use Skip, or press Escape, to go straight in/);
     expect(screen.getByRole('button', { name: 'Skip' })).toHaveFocus();
   });
 

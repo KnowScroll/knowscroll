@@ -28,6 +28,10 @@ only from typed deltas. Perspective worlds released by a transformation are prop
   Chromium and WebKit; web owner and why 1/1; new cosmos journeys 13/13 Chromium, 12 + 1 skipped
   WebKit. An independent review's 12 findings were fixed (migration order remains a merge-order
   constraint, below).
+- **Second pass (owner request, same day)**: cinematic treatment (cinema bars, bloom, streaks,
+  light shafts, shockwave, depth of field, camera life, grade) and a synthesised score (−18 LUFS,
+  synced to the timeline, "Tap anywhere for sound"); walkthrough re-recorded with sound. Web unit
+  379/379; cosmos journeys 13/13 Chromium, 12 + 1 skipped WebKit.
 - **Not proved**: physical phones; Android parity (still draws places as planets); luminous/tense
   stars on real data (the editorial library cannot reach a foundation or an argued room).
 - **Next**: owner reviews ADR-0049 and the six questions in the design record. **Do not merge or

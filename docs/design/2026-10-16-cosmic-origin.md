@@ -84,10 +84,29 @@ one sees the story begin. If the Universe is unavailable the opening steps aside
 retry are visible. A story started in a hidden tab waits until the tab is visible. A
 "↺ Opening" control on the Universe replays it.
 
-**Controls and failure.** Skip (also Escape) ends it at once. Sound is off by default; turning it
-on starts a synthesised Web Audio score (drone, a soft breath at the expansion, five bells at
-ignition, a swell and release, a chord as the worlds form) — nothing to download, nothing to fail.
-Under `prefers-reduced-motion: reduce` there is no frame loop: six still frames from the same
+**Cinematic treatment** (2026-10-16, second pass at the owner's request). The story is framed in
+2.39:1 cinema bars on wide screens (none in portrait), which open into the Universe as it ends; the
+two lines are subtitles in the lower bar and sharpen as they appear. Lens and film: a five-level
+bloom, restrained anamorphic streaks on the brightest light, light shafts from the swelling star,
+a refractive shockwave at the expansion, slight chromatic aberration, a split-tone grade and
+luma-aware grain. Depth of field: out-of-focus matter turns into bokeh discs and focus follows the
+subject. The camera drifts as if held, with a short decaying shake at the expansion, and exposure
+adapts after the flash. All of it is part of `frameAt(t)`, so stills and replays match.
+
+**Sound.** Synthesised with Web Audio (`originSound.ts`), so there is nothing to download or fail:
+a riser into a sub boom exactly at the expansion, a D minor pad opening with the light, five glass
+bells as the first stars ignite, a heartbeat as the star swells, a whoosh and a choir-like F major
+swell at the release, a warm progression with one plucked note for each world as it forms, and a
+soft chord that fades with the bars. A generated stereo reverb, a compressor and per-voice panning;
+it measures −18 LUFS with a −3.1 dBTP peak, and every hit is tested against the picture's own
+timeline. Turning sound on mid-story joins the score where the picture is. Browsers require a
+gesture before audio, so sound starts off; "Tap anywhere for sound" invites it in the first
+seconds, and tapping the scene or the Sound control starts it. `apps/web/scripts/render-origin-score.mjs`
+renders it offline for measurement.
+
+**Controls and failure.** Skip (also Escape) ends it at once; focus rings appear only for keyboard
+use, and only a keyboard reader's focus is moved into the Universe afterwards. Under
+`prefers-reduced-motion: reduce` there is no frame loop: six still frames from the same
 timeline, advanced by Next or every 3.4 s. Without WebGL2, or if the context is lost, a short CSS
 version shows the same two lines over a gathering cloud and enters the Universe; nothing blocks
 entry. The clock pauses while the tab is hidden. On exit the frame loop stops, every GPU object is
