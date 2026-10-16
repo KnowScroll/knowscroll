@@ -1,6 +1,6 @@
 # Shared delivery checkpoint
 
-## 2026-10-16 #220 cosmic-origin opening and the star sky (branch `claude/220-cosmic-origin`, unmerged)
+## 2026-10-16 #220 cosmic-origin opening and the star sky (draft PR #221, branch `claude/220-cosmic-origin`, unmerged)
 
 Owner direction: a cinematic origin story (emptiness → expansion → first stars → one star's
 transformation → a disk where worlds form) that ends inside the real web Universe, and the same
