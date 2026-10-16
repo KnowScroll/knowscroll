@@ -185,3 +185,24 @@ and evidence path; `POST /v1/encounters/feedback` corrects its route; `GET /v1/a
 lists continuations from its concepts, whose targets are Scrolls, and `POST /v1/branches` accepts a
 Reel exposure as `fromExposureId`. The feed composes from the reader's whole history whatever `kinds`
 asks for: a Reel kept in Reel mode grounds the next Scroll, and the reverse.
+
+### Feed scope: asking from a star or a world (ADR-0049)
+
+`GET /v1/feed?place=<placeId>` (optional, combinable with `kinds`, `exclude` and `webArtifact`) asks
+from one of the reader's places: a live `planet` (a star) or `region` (a world) of the caller's own
+universe, as `GET /v1/atlas` lists it. The candidates are the encounters that belong to that place or
+to any live region beneath it, at any depth, by the Atlas's own membership rule (the same function
+the Atlas's `scrolls` counts use): an encounter belongs to the live sighting its primary concept is,
+else to the nearest live planet or region on that concept's ancestor chain. So a star's candidates are
+exactly what its own and its worlds' `scrolls.total` count, a Scroll about one of its sightings is not
+among them (it belongs to the sighting) and neither is one about a separate star deeper in the
+substrate. A Reel belongs where its Scroll does (it carries its Scroll's concepts, ADR-0043) and is a
+candidate only when `kinds` asks for Reels; an unannotated encounter belongs to no place. The same
+Composer then decides over that list, so exposure, Keep, `…/why` and corrections work unchanged.
+The response shape is unchanged; a place with nothing to offer answers `items: []`, never filler.
+The decision records the place in `decision.scope_place_id` (migration 0045; `null` for the
+whole-universe feed). Malformed, empty or repeated `place`: 400 `Invalid place parameter`. A
+sighting, a place set aside, another universe's place or an unknown id: 404 `Place not found`.
+A scoped decision observes exhaustion (ADR-0046 §1) only for the place asked from and the regions
+beneath it. Clear, Reset and account deletion erase the column with its decision; export carries it
+in `decisions`.

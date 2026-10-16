@@ -38,6 +38,22 @@ export function parseFeedKinds(raw: string | undefined): FeedKindName[] | null {
 }
 
 /**
+ * Parses `GET /v1/feed`'s optional `place` query parameter (ADR-0049). Absent means the whole
+ * universe (`{ placeId: null }`), so a client that never sends it sees exactly what it sees today.
+ * One place UUID scopes the feed to that place and the regions beneath it (lower-cased, as `exclude`
+ * ids are). An empty value, a malformed id or a repeated parameter (which arrives as an array) is
+ * malformed and returns `null`, which the route turns into a 400. Whether the id names one of the
+ * caller's live places is the route's question, not the parser's.
+ */
+export function parseFeedPlace(
+  raw: unknown,
+): { placeId: string | null } | null {
+  if (raw === undefined) return { placeId: null };
+  const parsed = id.safeParse(raw);
+  return parsed.success ? { placeId: parsed.data.toLowerCase() } : null;
+}
+
+/**
  * The wire shape of one minted Reel inventory item. Mirrors `ScrollAsset`'s identity/title/summary/
  * truthState fields, adds nothing from the generation engine's own artifact path, and never carries
  * an engine-reported path anywhere — only the KnowScroll-owned, content-addressed `mediaUrl`.

@@ -1,11 +1,19 @@
-/** `GET /v1/feed`: one composed decision over the candidate assets (ADR-0025, ADR-0032). */
+/**
+ * `GET /v1/feed`: one composed decision over the candidate assets (ADR-0025, ADR-0032). `place`
+ * (ADR-0049) narrows the candidates to one of the reader's live places and its regions, by the
+ * Atlas's own membership rule, before the same Composer decides; the decision records that place.
+ */
 
-import { parseFeedKinds } from '@knowscroll/contracts/inventory';
+import {
+  parseFeedKinds,
+  parseFeedPlace,
+} from '@knowscroll/contracts/inventory';
 import type {
   COMPOSER_SEMANTIC_V3,
   COMPOSER_SEMANTIC_V4,
 } from '@knowscroll/core/composer/semantic';
 import { COMPOSER_SIGNALS_V2 } from '@knowscroll/core/composer/signals';
+import { scopeToPlace } from '@knowscroll/db/atlas';
 import { composeAndRecordV3 } from '@knowscroll/db/composer/semantic';
 import { composeAndRecordV2 } from '@knowscroll/db/composer/signals';
 import {
@@ -52,6 +60,7 @@ export function registerFeedRoutes(
       exclude?: string | string[];
       webArtifact?: string;
       preview?: string;
+      place?: string | string[];
     };
   }>('/v1/feed', async (req) =>
     authenticated(req.headers.authorization, async (scope, client) => {
@@ -85,8 +94,17 @@ export function registerFeedRoutes(
       const exclude = parseFeedExclude(req.query.exclude);
       if (exclude === null)
         throw new HttpError(400, 'Invalid exclude parameter');
+      const place = parseFeedPlace(req.query.place);
+      if (place === null) throw new HttpError(400, 'Invalid place parameter');
       const account = await readFeedAccount(client, scope.universeId);
-      const candidates = await feedCandidates(client, kinds);
+      const library = await feedCandidates(client, kinds);
+      // ADR-0049: asked from a star or world, only what the Atlas counts there is a candidate, and an
+      // empty place composes an empty slate, never filler. Anything but a live planet or region of
+      // this universe is a 404.
+      const scoped = place.placeId
+        ? await scopeToPlace(client, scope.universeId, place.placeId, library)
+        : null;
+      const candidates = scoped?.assets ?? library;
       // Disposable preview only: authored examples go through the same composer, decision,
       // exposure and Keep path as any encounter; the ordinary feed is untouched.
       const assets = req.query.preview
@@ -105,7 +123,13 @@ export function registerFeedRoutes(
       // fair tie-break, ADR-0043 §7) remain selectable and immutable.
       const { decisionId, items } =
         composerPolicy === COMPOSER_SIGNALS_V2
-          ? await composeAndRecordV2(client, scope, assets, account)
+          ? await composeAndRecordV2(
+              client,
+              scope,
+              assets,
+              account,
+              place.placeId,
+            )
           : // v3 gates kept encounters itself and records them, so "why not that" has an answer.
             await composeAndRecordV3(
               client,
@@ -114,10 +138,17 @@ export function registerFeedRoutes(
               account.revision,
               exclude,
               composerPolicy,
+              place.placeId,
             );
-      // ADR-0046 §1: a place this reader has now seen in full is a need, recorded with the semantic decision that saw it.
+      // ADR-0046 §1: a place this reader has now seen in full is a need, recorded with the semantic
+      // decision that saw it; a scoped decision saw only its own place and the regions beneath it.
       if (composerPolicy !== COMPOSER_SIGNALS_V2)
-        await observeExhaustion(client, scope, decisionId);
+        await observeExhaustion(
+          client,
+          scope,
+          decisionId,
+          scoped?.placeIds ?? null,
+        );
       // Web-only representation: legacy and Android callers see the feed shape they already parse.
       // Re-read only the selected Scrolls after composition, so an invalid or stale artifact falls
       // back to the body without changing selection or exposure.

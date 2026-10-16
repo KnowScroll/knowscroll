@@ -7,7 +7,6 @@ import type { PlaceDemand } from '@knowscroll/contracts/inventory';
 import type { RoomSummary } from '@knowscroll/contracts/rooms';
 import {
   CARTOGRAPHER_POLICY,
-  homeAnchor,
   type PlaceView,
   type RelationKind,
   relationKey,
@@ -20,6 +19,7 @@ import { toIsoString } from '../shared/time.ts';
 import { DELTA_PLACES, type DeltaNaming, deltaLine } from './chronicle.ts';
 import { AtlasNotFound } from './errors.ts';
 import { loadPlaces, loadSubstrate, type PlaceRow } from './inputs.ts';
+import { placeMembership } from './membership.ts';
 
 export interface AtlasView {
   policyVersion: string;
@@ -150,14 +150,8 @@ export async function readAtlas(
   );
   const liveAnchor = new Map(places.map((p) => [p.anchor, p]));
   const parentOf = new Map(substrate.concepts.map((c) => [c.code, c.parent]));
-  // A Scroll belongs to the nearest planet/region on its primary concept's ancestor chain; a sighting counts its own anchor.
-  const home = (code: string): string | null => {
-    const anchor = homeAnchor(code, parentOf, (c) => {
-      const p = liveAnchor.get(c);
-      return !!p && p.kind !== 'sighting';
-    });
-    return anchor === null ? null : liveAnchor.get(anchor)!.placeId;
-  };
+  // The place a Scroll belongs to; the place-scoped feed draws its candidates by the same rule.
+  const memberOf = placeMembership(places, parentOf);
   // Scrolls only: a Reel carries its Scroll's concepts (ADR-0043) but is not one of its Scrolls.
   const primaries = (
     await client.query<{ asset_id: string; code: string; seen: boolean }>(
@@ -194,13 +188,8 @@ export async function readAtlas(
   };
   // A Scroll counts once: toward the sighting its primary concept is, or else toward its home place.
   for (const r of primaries) {
-    const sighting = liveAnchor.get(r.code);
-    if (sighting?.kind === 'sighting') {
-      add(sighting.placeId, r.seen);
-      continue;
-    }
-    const h = home(r.code);
-    if (h) add(h, r.seen);
+    const placeId = memberOf(r.code);
+    if (placeId) add(placeId, r.seen);
   }
   const accounts = new Map(
     (

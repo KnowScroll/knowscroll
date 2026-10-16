@@ -151,13 +151,15 @@ async function loadComposerSignalCandidates(
 /**
  * ADR-0028/0029 — rank with `composer-signals-v2` and record its decision and `decision_signal`
  * rows. Still available as a configured policy and for offline comparison with
- * `composer-semantic-v3` (ADR-0032).
+ * `composer-semantic-v3` (ADR-0032). `placeId` is the place the reader asked from (ADR-0049),
+ * recorded on the decision; the caller has already scoped `assets` to it.
  */
 export async function composeAndRecordV2(
   client: pg.PoolClient,
   scope: { universeId: string; privacyEpoch: number },
   assets: readonly FeedAsset[],
   account: { revision: number; kept_asset_ids: string[] },
+  placeId: string | null = null,
 ): Promise<{ decisionId: string; items: (FeedAsset & { reason: string })[] }> {
   const policy = await loadComposerPolicy(client, COMPOSER_SIGNALS_V2);
   const templates = await loadComposerExplanationTemplates(client);
@@ -185,10 +187,11 @@ export async function composeAndRecordV2(
           policy_version,
           candidates,
           privacy_epoch,
-          ranking_version
+          ranking_version,
+          scope_place_id
         )
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7)
+        ($1, $2, $3, $4, $5, $6, $7, $8)
     `,
     [
       decisionId,
@@ -198,6 +201,7 @@ export async function composeAndRecordV2(
       JSON.stringify(items),
       scope.privacyEpoch,
       policy.version,
+      placeId,
     ],
   );
   for (const r of ranked) {

@@ -718,3 +718,55 @@ test("deletion erases typed Relics and the reader's objections too (#165, ADR-00
     );
   }
 });
+
+test('deletion erases a decision asked from a place, with the place it names (ADR-0049)', async () => {
+  const s = await bearerSession();
+  const headers = { authorization: s.authorization };
+  const annotated = (
+    await pool.query(`SELECT ac.asset_id, c.code FROM asset_concept ac JOIN concept c ON c.id = ac.concept_id
+    JOIN asset a ON a.id = ac.asset_id WHERE ac.role = 'primary' AND a.kind = 'Scroll' ORDER BY ac.asset_id LIMIT 1`)
+  ).rows[0];
+  await readScroll(app, headers, annotated.asset_id, false);
+  await formPlaces(s.universeId, [annotated.code]);
+  const place = (
+    await pool.query(
+      `SELECT id FROM atlas_place WHERE universe_id=$1 AND state='live' AND kind='planet' LIMIT 1`,
+      [s.universeId],
+    )
+  ).rows[0].id;
+  const scoped = await app.inject({ url: `/v1/feed?place=${place}`, headers });
+  assert.equal(scoped.statusCode, 200, scoped.body);
+  assert.equal(
+    (
+      await pool.query('SELECT scope_place_id FROM decision WHERE id=$1', [
+        scoped.json().decisionId,
+      ])
+    ).rows[0].scope_place_id,
+    place,
+  );
+  const deleted = await app.inject({
+    method: 'POST',
+    url: '/v1/account/delete',
+    headers,
+    payload: {
+      requestId: randomUUID(),
+      expectedPrivacyEpoch: await epochOf(headers),
+      confirmation: CONFIRM,
+    },
+  });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  for (const table of ['decision', 'atlas_place']) {
+    assert.equal(
+      Number(
+        (
+          await pool.query(
+            `SELECT count(*) FROM ${table} WHERE universe_id=$1`,
+            [s.universeId],
+          )
+        ).rows[0].count,
+      ),
+      0,
+      table,
+    );
+  }
+});

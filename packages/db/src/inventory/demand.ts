@@ -131,11 +131,16 @@ async function eligibleScrolls(
   }));
 }
 
-/** Called in the feed's transaction after a v3 decision is recorded. */
+/**
+ * Called in the feed's transaction after a v3 decision is recorded. A decision asked from a place
+ * (ADR-0049) considered only that place's encounters, so it observes only `onlyPlaces`, that place
+ * and the regions beneath it: it is never cited as having seen another place in full.
+ */
 export async function observeExhaustion(
   client: pg.PoolClient,
   scope: AuthScope,
   decisionId: string,
+  onlyPlaces: readonly string[] | null = null,
 ): Promise<void> {
   if (await isRecordingPaused(client, scope.universeId)) return;
   const places = (
@@ -158,7 +163,7 @@ export async function observeExhaustion(
     `,
       [scope.universeId],
     )
-  ).rows;
+  ).rows.filter((p) => onlyPlaces === null || onlyPlaces.includes(p.id));
   if (places.length === 0) return;
   const parents = await conceptParents(client);
   const scrolls = await eligibleScrolls(client, scope.universeId, null);
