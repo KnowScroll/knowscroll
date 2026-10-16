@@ -310,7 +310,7 @@ sec.6 already requires. The map-key legend, and Living Observatory's own real-co
 (a kept Trace's title standing in for a node's label, its date for its sub-label), are the two
 pieces of real structure this product keeps as literal contracts, covered in sec.5b's table.
 
-## 5d. The cosmic origin and the star sky (ADR-0049, 2026-10-16)
+## 5d. The cosmic origin and the star sky (ADR-0051, 2026-10-16)
 
 The opening and the everyday Universe are one surface. Values below are the web build's; they
 extend §1–§5c and change none of them.

@@ -6,6 +6,7 @@ This is the new private product repository. Previous research lives separately; 
 
 ## Working rules
 - Work on a named issue and one branch/worktree on the external SSD. No hidden chat decisions.
+- PRs target `dev`. Never update `main`: only the owner and XZNON promote to live (`scripts/promote.sh live`); `.claude/hooks/refuse-main-update.mjs` enforces this for agents. Dev, stage and live run on the VPS ([environments](docs/operations/environments.md)); the agent may deploy any commit to dev and promote dev → stage.
 - Preserve others' work. Do not reset, force-push, or change shared contracts without coordinating their owner.
 - Models propose; deterministic code validates/applies. Behavior is evidence, not proof of belief or learning. Only Reel and Scroll are consumption objects.
 - Events retain exposure/causation lineage. Never fabricate model responses, world evolution, sources, success, or runtime evidence. Fakes belong only in tests.

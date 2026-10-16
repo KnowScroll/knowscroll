@@ -12,7 +12,7 @@ The coordinator selects the next useful outcome, clarifies acceptance and depend
 
 ## Review and integration
 
-Use `codex/<issue>-<name>` or the chosen harness prefix; PRs target main. Keep main runnable. No force pushes or resets of another session's work. Keep Cutroom changes in Cutroom with an explicit versioned contract proposal. Agent advice is untrusted until reviewed.
+Use `codex/<issue>-<name>` or the chosen harness prefix; PRs target `dev` (the default branch), which deploys to the dev world. `stage` and `main` change only by fast-forward promotion (`scripts/promote.sh`); only the owner and XZNON promote to `main` (live). See [environments](docs/operations/environments.md). Keep every branch runnable. No force pushes or resets of another session's work. Keep Cutroom changes in Cutroom with an explicit versioned contract proposal. Agent advice is untrusted until reviewed.
 
 A PR explains the user-visible change, relevant issue/ADR, changed boundaries, implementation checks, observed journey and exact limitations. Put routine session handoffs in the issue or PR, not permanent chat transcripts. If work pauses before a PR exists, leave the same short handoff in its issue.
 
@@ -24,7 +24,7 @@ Do not mark a journey proven because typecheck passed. Do not mark target compon
 
 ## GitHub enforcement limitation
 
-GitHub returned HTTP403 when enabling branch protection for this private repository on the current plan. The repository remains private. CI and PR templates are active, but required checks/reviews and force-push protection are not server-enforced. Use the documented review workflow; enabling enforcement later requires an eligible GitHub plan. No subscription was changed.
+The repository is public for now (owner decision, 2026-10-06), so GitHub rulesets are enforced at no cost. `main`, `stage` and `dev` refuse deletion and force-pushes; only the `promoters` team updates `main` and `stage`; and the `production` environment waits for a reviewer. Going private later needs GitHub Team to keep that enforcement ([environments](docs/operations/environments.md#going-private-later)). The agent uses the owner's account, so a Claude Code hook in `.claude/` refuses agent updates of `main`.
 
 ## Shared checkpoint
 

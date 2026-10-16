@@ -1,5 +1,5 @@
 /**
- * ADR-0049 — `GET /v1/feed?place=` over the real Fastify app and database. A reader who asks from a
+ * ADR-0051 — `GET /v1/feed?place=` over the real Fastify app and database. A reader who asks from a
  * star is offered only what the Atlas counts as that star's or its worlds' (a region's sub-regions
  * included); the same Composer decides, the decision records the place the reader asked from, and
  * exposure, Keep, why, export, Clear and Reset treat it as any other decision. Only a live planet or

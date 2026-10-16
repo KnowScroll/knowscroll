@@ -1,4 +1,4 @@
--- ADR-0049 (feed scope): a feed decision records the place the reader asked from when they asked from
+-- ADR-0051 (feed scope): a feed decision records the place the reader asked from when they asked from
 -- one (`GET /v1/feed?place=`), so the system remembers that it composed from that place (law 5).
 -- NULL is the whole-universe feed: every decision recorded before this migration and every unscoped
 -- one after it. Private history like the decision itself: Clear, Reset and account deletion delete it

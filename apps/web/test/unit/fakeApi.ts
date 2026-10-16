@@ -78,7 +78,7 @@ export class FakeApi implements ReaderApi {
     return this.take(this.universeQueue, 'getUniverse');
   }
   feedExcludes: string[][] = [];
-  /** The `place` each `getFeed` call scoped to (ADR-0049); `undefined` for the whole universe. */
+  /** The `place` each `getFeed` call scoped to (ADR-0051); `undefined` for the whole universe. */
   feedPlaces: Array<string | undefined> = [];
   async getFeed(
     exclude: Iterable<string> = [],
@@ -112,7 +112,7 @@ export class FakeApi implements ReaderApi {
     this.worldsCalls++;
     return this.take(this.worldsQueue, 'getWorlds');
   }
-  /** Every Atlas read, including the Universe sky's own (ADR-0049). */
+  /** Every Atlas read, including the Universe sky's own (ADR-0051). */
   atlasCalls = 0;
   async getAtlas(): Promise<AtlasResponse> {
     this.atlasCalls++;

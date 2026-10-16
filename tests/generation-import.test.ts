@@ -33,7 +33,7 @@ import { computeStorageKey } from '../apps/worker/src/generation/media-store.ts'
 const execFileAsync = promisify(execFile);
 
 // Reused from ADR-0021/0023 fixtures (tests/generation-contract.test.ts uses the same constant).
-const REVISION = '86d6e2c8b74228db4a5a953e53c53a7b77cef46e';
+const REVISION = '94ee04a1c48069c293203de326d4801360ca6158';
 
 // -------------------------------------------------------------------------------------------
 // Disposable-database plumbing. This file always makes and drops its OWN knowscroll_test_*

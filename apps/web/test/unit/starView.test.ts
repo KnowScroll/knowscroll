@@ -19,7 +19,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('deriveSky: stars and their worlds (ADR-0049 §1)', () => {
+describe('deriveSky: stars and their worlds (ADR-0051 §1)', () => {
   it('draws one star per live top-level place, with facet worlds, question worlds and possibilities in its system', () => {
     const sky = deriveSky(twoStarSky());
     expect(sky.stars.map(item => item.name)).toEqual(['Gravity', 'Light']);
@@ -87,7 +87,7 @@ describe('deriveSky: stars and their worlds (ADR-0049 §1)', () => {
   });
 });
 
-describe('deriveSky: conditions, their precedence and their reasons (ADR-0049 §2)', () => {
+describe('deriveSky: conditions, their precedence and their reasons (ADR-0051 §2)', () => {
   it('quiet: no world, no question, no connection; its possibilities are listed and it never claims more', () => {
     const music = star(deriveSky(atlasOf([
       planet(ids.music, 'Music'),
@@ -197,7 +197,7 @@ describe('deriveSky: conditions, their precedence and their reasons (ADR-0049 §
   });
 });
 
-describe('deriveSky: quiet is not dormant (ADR-0049 §3)', () => {
+describe('deriveSky: quiet is not dormant (ADR-0051 §3)', () => {
   it('a dormant star with no worlds is quiet, exactly like one with fresh attention', () => {
     const dormant = star(deriveSky(atlasOf([planet(ids.music, 'Music', { attention: { state: 'dormant', episodes: 9, daysActive: 5 } })])), ids.music);
     expect(dormant.condition).toBe('quiet');
@@ -288,7 +288,7 @@ describe('deriveSky: connections and constellations', () => {
   });
 });
 
-describe('deriveSky: transformations come only from recorded changes (ADR-0049 §4)', () => {
+describe('deriveSky: transformations come only from recorded changes (ADR-0051 §4)', () => {
   it('maps each recorded kind to its drawing, adds one question world per room, newest first', () => {
     const sky = deriveSky(atlasOf(
       [

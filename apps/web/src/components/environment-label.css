@@ -1,0 +1,17 @@
+/* #201: the Stage/Dev ribbon. Fixed, thin, never interactive, above every screen. */
+.environment-label {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 2px 8px;
+  font: 700 11px/1.4 var(--font-mono, ui-monospace, Menlo, monospace);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  border-bottom: 2px solid #111214;
+}
+.environment-label span { font-weight: 400; letter-spacing: 0; }
+.environment-label-stage { background: #ffe44d; color: #111214; }
+.environment-label-dev { background: #8d2d18; color: #fffbf0; }

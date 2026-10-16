@@ -13,11 +13,11 @@ import './preview.css';
 type Tab = 'opening' | 'conditions' | 'perspective';
 
 /**
- * The isolated cosmos preview (ADR-0049). Not the reader's universe: it runs without the API, on
+ * The isolated cosmos preview (ADR-0051). Not the reader's universe: it runs without the API, on
  * illustrative fixtures, and labels itself on every view. It holds what review needs and the
  * product does not yet do: a scrubber over the opening, every star condition side by side (real
  * data cannot yet reach "tense" or "lights others"), and the proposed perspective-world release
- * of ADR-0049 §6, which is not implemented.
+ * of ADR-0051 §6, which is not implemented.
  */
 export function OriginPreview() {
   const initial = (new URLSearchParams(window.location.search).get('view') as Tab | null) ?? 'opening';
@@ -186,7 +186,7 @@ const STEPS = [
   { at: 10400, title: 'A perspective world forms beside the first', body: '“Curved spacetime” — another way of understanding Gravity. It sits beside your original reading; neither is marked correct.' },
 ] as const;
 
-/** ADR-0049 §6, proposed and not implemented: drawn so it can be judged before anything is built. */
+/** ADR-0051 §6, proposed and not implemented: drawn so it can be judged before anything is built. */
 function PerspectiveProposal() {
   const reducedMotion = usePrefersReducedMotion();
   const fieldRef = useRef<HTMLDivElement | null>(null);
@@ -226,7 +226,7 @@ function PerspectiveProposal() {
         )}
       </div>
       <aside className="cosmos-preview__steps" aria-live="polite">
-        <p className="cosmos-preview__label">Proposed · ADR-0049 §6 · not implemented</p>
+        <p className="cosmos-preview__label">Proposed · ADR-0051 §6 · not implemented</p>
         <ol>
           {STEPS.map((item, i) => (
             <li key={item.title} aria-current={i === step ? 'step' : undefined} className={i <= step ? 'is-on' : undefined}>

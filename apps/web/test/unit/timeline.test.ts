@@ -11,7 +11,7 @@ const SAMPLES = [
 
 const inside = (t: number, window: { start: number; end: number }) => t >= window.start && t < window.end;
 
-describe('origin timeline (ADR-0049 §5)', () => {
+describe('origin timeline (ADR-0051 §5)', () => {
   it('is a pure function of time: the same t always gives the same frame, and seeking is clamped', () => {
     for (const t of [0, 1.7, 3.6, 11.75, 17.2, 22.6, HANDOFF_START, ORIGIN_DURATION]) {
       expect(frameAt(t)).toEqual(frameAt(t));

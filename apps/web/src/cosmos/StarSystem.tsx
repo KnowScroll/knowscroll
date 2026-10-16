@@ -22,7 +22,7 @@ const ORBIT_SCALE = 17; // % of the orrery's square field per orbit unit
 const ORBIT_TILT = 0.58; // how open the orbits look from the reader's viewpoint
 
 /**
- * Approaching one star (ADR-0049): the star at the centre, its worlds on their orbits, its
+ * Approaching one star (ADR-0051): the star at the centre, its worlds on their orbits, its
  * possibilities as faint motes, and a cream sheet that says why it looks the way it does, in
  * recorded facts. Worlds are doors: landing on one leads to real Scrolls from it.
  */

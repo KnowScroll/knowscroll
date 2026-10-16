@@ -1,6 +1,6 @@
 {
   "repository": "KnowScroll/Cutroom",
-  "revision": "86d6e2c8b74228db4a5a953e53c53a7b77cef46e",
+  "revision": "94ee04a1c48069c293203de326d4801360ca6158",
   "wireVersion": 1,
   "files": [
     {
@@ -16,7 +16,7 @@
     {
       "path": "responses.ts",
       "upstreamPath": "packages/reel-contract/src/responses.ts",
-      "sha256": "f10820f9992aadf3392ef83a36a77897869049442ac2a9e0276d27ff3a6128a7"
+      "sha256": "42625b7455828975ecb2272ac0feaa7ea7cdb9fb9ca689dcd9a305812d06aa30"
     },
     {
       "path": "events.ts",
@@ -26,17 +26,27 @@
     {
       "path": "record.ts",
       "upstreamPath": "packages/reel-contract/src/record.ts",
-      "sha256": "057d30f0681c47fe227124c1e4c3f41b71f2756350b99103dfa450536b08a410"
+      "sha256": "bf3828c8c0ce3430df0d43f157c577a8fc123ea85907ebd1c1adb7006a0bee89"
     },
     {
       "path": "routes.ts",
       "upstreamPath": "packages/reel-contract/src/routes.ts",
-      "sha256": "db007324ae56a1bc951654dc621d1e17e28813b17a4943c1122371fd5465e21f"
+      "sha256": "da071669ba9796efde31022c67c18ce13d7c2113c1f5b54f941df63cc4cad3bc"
     },
     {
       "path": "errors.ts",
       "upstreamPath": "packages/reel-contract/src/errors.ts",
       "sha256": "de1f24a800c02a1166e05976dfa89023326d413bb6c771c448566940d26873ea"
+    },
+    {
+      "path": "ready.ts",
+      "upstreamPath": "packages/reel-contract/src/ready.ts",
+      "sha256": "a086dd92e01c49a4229d8c9a5c5e18b64280f40ab81382ad2d162d3b889044aa"
+    },
+    {
+      "path": "resume.ts",
+      "upstreamPath": "packages/reel-contract/src/resume.ts",
+      "sha256": "3ac71951d7094fd7d6366fa685ba149337e47fc471fd39df872b2da550b921a4"
     }
   ]
 }

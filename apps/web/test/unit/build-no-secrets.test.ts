@@ -1,5 +1,5 @@
 /**
- * Proves the ADR-0022 build-refusal and no-token-in-bundle rules directly
+ * Proves the ADR-0022 no-token-in-bundle rule directly
  * against a real `vite build` invocation (not a mock of the plugin), per
  * the #92 brief: "add a test that greps the built client output for the
  * token and for 'Authorization'".
@@ -31,24 +31,11 @@ function textFiles(dir: string): string[] {
   return out;
 }
 
-describe('production build refusal and secret-free bundle (ADR-0022)', () => {
-  it('refuses to build without the internal test-evidence override', () => {
-    const outDir = join(tmpdir(), `ks-web-refused-${Date.now()}`);
-    let threw = false;
-    try {
-      execFileSync('node', [viteBin, 'build', '--outDir', outDir], {
-        cwd: webRoot,
-        env: { ...process.env, KS_WEB_ALLOW_BUILD_FOR_TEST_EVIDENCE: '' },
-        stdio: 'pipe',
-      });
-    } catch {
-      threw = true;
-    }
-    expect(threw).toBe(true);
-    expect(() => statSync(outDir)).toThrow();
-  }, 30_000);
-
-  it('a build made only for this test never contains the dev token or an Authorization reference', () => {
+describe('production build and secret-free bundle (ADR-0022, #201)', () => {
+  // ADR-0022 refused production builds while no production identity existed. Magic-link and
+  // cookie sign-in (#2, ADR-0026/0034) now exist, and #201 serves the built bundle per world, so a
+  // plain `vite build` must succeed. What never changes: no token reaches the bundle.
+  it('a plain production build succeeds and never contains a dev token or an Authorization reference', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'ks-web-build-'));
     const secretToken = 'unit-test-secret-token-must-never-leak-into-the-client-bundle';
     try {
@@ -56,7 +43,6 @@ describe('production build refusal and secret-free bundle (ADR-0022)', () => {
         cwd: webRoot,
         env: {
           ...process.env,
-          KS_WEB_ALLOW_BUILD_FOR_TEST_EVIDENCE: '1',
           KS_DEV_TOKEN: secretToken,
           KS_WEB_API_URL: 'http://127.0.0.1:1',
         },

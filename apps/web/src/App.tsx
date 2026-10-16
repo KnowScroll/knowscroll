@@ -29,7 +29,7 @@ export interface AppProps {
 }
 
 /**
- * ADR-0049 §5: the opening plays for a first visit only. A browser that finished or skipped it, a
+ * ADR-0051 §5: the opening plays for a first visit only. A browser that finished or skipped it, a
  * reader restored into a Scroll, or one this browser already knows (an observed universe) goes
  * straight to their Universe; the opening stays available to replay from there.
  */

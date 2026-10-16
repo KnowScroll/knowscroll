@@ -1,0 +1,7 @@
+# Nightly cleanup (#201): old releases, stale temp files. Never live data. Managed by ops/vps/ansible.
+[Unit]
+Description=KnowScroll nightly cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ks cleanup

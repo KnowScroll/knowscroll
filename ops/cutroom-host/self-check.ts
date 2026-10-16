@@ -39,10 +39,10 @@ const DEV_ROOT: string = devRootEnv;
 /** The pinned, read-only runtime this proof runs against (ADR-0021). Overridable for local reruns. */
 const RUNTIME =
   process.env.CUTROOM_RUNTIME_DIR ??
-  '/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742';
+  '/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-94ee04a1c480';
 const REVISION =
   process.env.CUTROOM_EXPECT_REVISION ??
-  '86d6e2c8b74228db4a5a953e53c53a7b77cef46e';
+  '94ee04a1c48069c293203de326d4801360ca6158';
 
 function utcStamp(): string {
   return new Date()

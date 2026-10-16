@@ -14,7 +14,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe('origin display memory (ADR-0049 §4–§5)', () => {
+describe('origin display memory (ADR-0051 §4–§5)', () => {
   it('remembers that this browser finished or skipped the opening', () => {
     expect(hasSeenOrigin()).toBe(false);
     markOriginSeen();

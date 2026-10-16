@@ -23,6 +23,17 @@ import { ensureRow } from './seed.ts';
  * Scrolls by their index in content/editorial-scrolls.json (a seed with one more Scroll must not collide). */
 const MODEL_SCROLL_ORDER_FLOOR = 99_999;
 
+/** #199: a model-written Scroll's id follows from what was written from what (its material and its
+ * request), so every world that admits the same writing gives it the same id. That lets a reel script
+ * carried in Git name the Scroll in every world. (A UUID with version 8, the "custom" version.) */
+function scrollAssetId(identity: WritingIdentity): string {
+  const h = sha256(
+    `ks-model-scroll:${identity.materialSha256}:${identity.requestSha256}`,
+  );
+  const variant = (8 + (Number.parseInt(h.charAt(16), 16) & 3)).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-8${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 export interface WritingIdentity {
   materialSha256: string;
   requestSha256: string;
@@ -355,7 +366,7 @@ export async function admitModelScroll(
   }
 
   // The source title and URL stay internal: readers never see a source (owner decision, 2026-09-24).
-  const assetId = randomUUID();
+  const assetId = scrollAssetId(identity);
   await client.query(
     `
       INSERT INTO

@@ -30,6 +30,7 @@ import {
   recordRefusedScroll,
   sourceStanding,
 } from '@knowscroll/db/semantic/model-scrolls';
+import type { ScrollPackFile } from '@knowscroll/db/semantic/scroll-pack';
 import type {
   AnswerObservation,
   ScrollTransport,
@@ -48,6 +49,9 @@ export interface WriteScrollDeps {
   signal: AbortSignal;
   fetchImpl?: typeof fetch;
   now?: () => Date;
+  /** #199: told about each newly admitted Scroll with exactly what produced it, so the operator CLI
+   * can write it to a pack that every world replays (`packages/db/src/semantic/scroll-pack.ts`). */
+  onAdmitted?: (pack: ScrollPackFile) => void;
 }
 
 export interface ScrollItemResult {
@@ -201,6 +205,20 @@ export async function writeScroll(
           record,
         }),
   );
+  if (decided.status === 'admitted')
+    deps.onAdmitted?.({
+      version: 1,
+      plan: { url: item.url, conceptCodes: [...item.conceptCodes] },
+      identity,
+      material: {
+        url: material.url,
+        title: material.title,
+        text: material.text,
+        retrievedAt: material.retrievedAt,
+      },
+      reply: observed.text ?? '',
+      record,
+    });
   return {
     ...sent,
     status: decided.status,

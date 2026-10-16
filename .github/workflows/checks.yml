@@ -44,6 +44,12 @@ jobs:
         run: pnpm typecheck:web
       - name: Web (apps/web) unit/component tests
         run: pnpm test:web
+      # #201: the server runs a bundled release with no node_modules. Build one and run it the
+      # way the server does (server mode, fresh database) before anything can deploy it.
+      - name: Build and smoke-test the server release
+        run: |
+          pnpm build:release --out "$RUNNER_TEMP/release" --commit "$GITHUB_SHA"
+          node scripts/smoke-release.mjs "$RUNNER_TEMP/release/release-$GITHUB_SHA.tar"
       - name: Verify deterministic fairness policy traces
         run: pnpm exec tsx scripts/capture-fairness-evidence.ts artifacts/fairness-ci.json
       - name: Verify durable fairness across disposable PostgreSQL restart

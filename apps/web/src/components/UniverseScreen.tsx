@@ -30,7 +30,7 @@ export interface UniverseScreenProps {
   onReplayOrigin?: () => void;
 }
 
-/** The Universe: the reader's stars (ADR-0049) on the far sky, their kept lights, and — before any
+/** The Universe: the reader's stars (ADR-0051) on the far sky, their kept lights, and — before any
  * star has formed — the unformed cloud the opening ends on, with the first discovery in reach. */
 export function UniverseScreen({ state, storage, sky = { status: 'idle' }, reducedMotion = false, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetry, onRetrySky, onReadFrom, onSetAside, onReplayOrigin }: UniverseScreenProps) {
   return (
@@ -152,7 +152,7 @@ function LoadedUniverse({ universe, storage, sky, reducedMotion, onEnterScroll, 
     };
   }, [travel]);
 
-  // ADR-0049 §4: the newest recorded change this browser has not drawn yet plays once on its star.
+  // ADR-0051 §4: the newest recorded change this browser has not drawn yet plays once on its star.
   // Which ids were drawn is local display memory in the reader's own (purged) storage, never
   // evidence. A browser's first sight of this sky draws nothing: it cannot know what is recent.
   const [event, setEvent] = useState<{ transformation: Transformation; startedAt: number } | null>(null);

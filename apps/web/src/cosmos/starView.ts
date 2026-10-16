@@ -1,11 +1,11 @@
 /**
- * ADR-0049: how the reader's recorded places are drawn as a sky of stars.
+ * ADR-0051: how the reader's recorded places are drawn as a sky of stars.
  *
  * A star is a live top-level place (stored kind `planet`). Its worlds are the live regions under it
  * (facet worlds) and the Idea Rooms on it or on those regions (question worlds). Its possibilities
  * are the live sightings at its edge. Every condition and every reason below is derived from the
  * Atlas response alone, so the same response always draws the same sky. Nothing here reads time
- * away, attention decay, watch time or a count of views (ADR-0049 §3–§4).
+ * away, attention decay, watch time or a count of views (ADR-0051 §3–§4).
  *
  * The contract for other clients is docs/contracts/universe-star-view.md.
  */
@@ -118,7 +118,7 @@ export interface Constellation {
 
 export type TransformationKind = 'star_ignited' | 'world_formed' | 'question_world' | 'luminous' | 'possibility' | 'quiet_change';
 
-/** One recorded change the sky may draw once (ADR-0049 §4). `starId` is null when the change
+/** One recorded change the sky may draw once (ADR-0051 §4). `starId` is null when the change
  * belongs to a place that is no longer live, so it cannot be placed on a star. */
 export interface Transformation {
   id: string;

@@ -1,7 +1,7 @@
 /**
  * GLSL shared by the origin opening and the live Universe sky. The star shader is deliberately the
  * same program in both places, so the star the opening ends on and the stars the reader taps are
- * one visual object (ADR-0049 §5, continuity between cinematic and live objects).
+ * one visual object (ADR-0051 §5, continuity between cinematic and live objects).
  *
  * Noise: 2D simplex noise after Ian McEwan / Ashima Arts (MIT), and a cellular (Worley) noise for
  * stellar granulation.
@@ -354,7 +354,7 @@ void main() {
   col += glow * (corona * 0.95 + halo) * (1.0 - disc * 0.55);
   alpha = max(disc, corona * 0.8);
   if (mode > 1.5) {
-    // A released shell of enriched material, the drawing of a luminous star (ADR-0049 §2).
+    // A released shell of enriched material, the drawing of a luminous star (ADR-0051 §2).
     float rr = d / 1.9;
     float shellN = fbm(v_q * 1.3 + v_seed * 5.0 + u_time * 0.03);
     float ringD = abs(rr - (1.25 + 0.1 * shellN)) ;

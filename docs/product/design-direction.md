@@ -1,6 +1,6 @@
 # Product behavior and visual direction
 
-## 2026-10-16 cosmic origin (ADR-0049, accepted for web)
+## 2026-10-16 cosmic origin (ADR-0051, accepted for web)
 
 The owner asked for a cinematic opening told as the formation of the physical universe, ending in
 the real Universe, and for the same language in everyday use: stars are topics, worlds form from

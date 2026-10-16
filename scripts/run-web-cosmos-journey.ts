@@ -1,5 +1,5 @@
 /**
- * The cosmic-origin and star-Universe journeys (ADR-0049; apps/web/e2e-cosmos/,
+ * The cosmic-origin and star-Universe journeys (ADR-0051; apps/web/e2e-cosmos/,
  * apps/web/playwright.cosmos.config.ts) against two disposable stacks, each started by
  * scripts/run-web-cosmos-preview.ts in its own `knowscroll_preview_*` database with a real API,
  * worker and Vite dev server:

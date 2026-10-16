@@ -186,7 +186,7 @@ lists continuations from its concepts, whose targets are Scrolls, and `POST /v1/
 Reel exposure as `fromExposureId`. The feed composes from the reader's whole history whatever `kinds`
 asks for: a Reel kept in Reel mode grounds the next Scroll, and the reverse.
 
-### Feed scope: asking from a star or a world (ADR-0049)
+### Feed scope: asking from a star or a world (ADR-0051)
 
 `GET /v1/feed?place=<placeId>` (optional, combinable with `kinds`, `exclude` and `webArtifact`) asks
 from one of the reader's places: a live `planet` (a star) or `region` (a world) of the caller's own

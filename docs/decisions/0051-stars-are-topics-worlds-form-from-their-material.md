@@ -1,4 +1,4 @@
-# ADR-0049 — Stars are topics; worlds form from their material
+# ADR-0051 — Stars are topics; worlds form from their material
 
 Date: 2026-10-16. Status: **accepted for the web build** — the owner approved merging the
 implementation (#221) on 2026-10-16 under the cosmic-origin direction

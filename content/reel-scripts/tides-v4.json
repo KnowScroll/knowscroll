@@ -1,0 +1,139 @@
+{
+  "id": "e41b2917-97e7-4846-84fd-3cc8fd03e398",
+  "authoredBy": "claude (drafted for the owner, #199)",
+  "approval": {
+    "ref": "owner in chat 2026-10-09 (\"you can increase the limit and have reels generated\"; $7 total, kept the repetition rule): v3 stopped because Cutroom needs six units",
+    "approvedBy": "owner",
+    "approvedAt": "2026-10-09"
+  },
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-tides-v4",
+    "narration": [
+      {
+        "text": "The Moon floats pale above a calm blue sea.",
+        "claimIds": [
+          "c1"
+        ]
+      },
+      {
+        "text": "Yet its pull draws the sea toward it.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "The water climbs high up the sandy beach, and that rise is the tide.",
+        "claimIds": [
+          "c2"
+        ]
+      },
+      {
+        "text": "The same invisible pull keeps a stone resting on the grass.",
+        "claimIds": [
+          "c3"
+        ]
+      },
+      {
+        "text": "Its pull still tugs at the water along the rocky shore.",
+        "claimIds": [
+          "c4"
+        ]
+      },
+      {
+        "text": "As the tide rises, the sea flows into the rock pool.",
+        "claimIds": [
+          "c4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "20000000-0000-4000-8000-000000000005",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-moon",
+          "text": "a pale Moon in a blue daytime sky above a calm sea",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-beach",
+          "text": "sea water covering most of a sandy beach",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-stone",
+          "text": "a smooth grey stone resting on green grass",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-rockpool",
+          "text": "sea water flowing into a rock pool on a rocky shore",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 1,
+      "text": "realistic nature documentary footage, vivid natural light, steady camera"
+    },
+    "title": "The Moon moves the sea",
+    "summary": "How the Moon's pull, the same pull that holds you down, lifts the ocean into tides."
+  }
+}

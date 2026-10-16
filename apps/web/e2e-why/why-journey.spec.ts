@@ -17,7 +17,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
-// The cosmic-origin opening (ADR-0049 §5) plays for a browser that has never seen it; this journey
+// The cosmic-origin opening (ADR-0051 §5) plays for a browser that has never seen it; this journey
 // is about what comes after sign-in, so its fresh context records the opening as already seen.
 import { expect, test } from '../e2e/support/origin.ts';
 

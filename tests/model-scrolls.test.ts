@@ -29,6 +29,13 @@ import { validateScrollWebArtifact } from '@knowscroll/core/scrolls/web-artifact
 import { pool, provisionIdentity, transaction } from '@knowscroll/db';
 import { readInquiryInputs } from '@knowscroll/db/reasoning/inquiry-context';
 import { admitModelScroll } from '@knowscroll/db/semantic/model-scrolls';
+import {
+  loadScrollPackFile,
+  type ScrollPackFile,
+} from '@knowscroll/db/semantic/scroll-pack';
+import { runMigrations } from '@knowscroll/db/migrations';
+import pg from 'pg';
+import { resolve } from 'node:path';
 import { loadSubstrateSeed } from '@knowscroll/db/semantic/seed';
 import { formPlaces, loadInquiryFixture } from './helpers/inquiry-fixture.ts';
 import {
@@ -809,4 +816,84 @@ test("a model-written Scroll's claims are never offered to a background inquiry 
       .filter((key) => key.startsWith('clm.model.')),
     [],
   );
+});
+
+test('#199 a written Scroll packed for Git is replayed in another world with the same id', async () => {
+  const f = await setup();
+  const url = f.url('tides-pack');
+  const packs: ScrollPackFile[] = [];
+  const { deps: d } = deps({ [url]: pageHtml() });
+  const result = await writeScroll(
+    { ...d, onAdmitted: (pack) => packs.push(pack) },
+    { url, conceptCodes: [f.codes.tides, f.codes.gravity] },
+  );
+  assert.equal(result.status, 'admitted', JSON.stringify(result));
+  assert.equal(packs.length, 1, 'the writer reports the admitted writing');
+  const pack = JSON.parse(JSON.stringify(packs[0])) as ScrollPackFile;
+  assert.equal(pack.record.transport, 'fixture');
+  assert.ok(!JSON.stringify(pack).includes('apiKey'));
+
+  // Another world: its own database, the same substrate, then the pack.
+  const base = new URL(process.env.DATABASE_URL!);
+  const otherName = `${base.pathname.slice(1)}_otherworld`;
+  const admin = new pg.Client({
+    connectionString: Object.assign(new URL(base), {
+      pathname: '/postgres',
+    }).toString(),
+  });
+  await admin.connect();
+  await admin.query(`DROP DATABASE IF EXISTS ${otherName} WITH (FORCE)`);
+  await admin.query(`CREATE DATABASE ${otherName}`);
+  const otherUrl = Object.assign(new URL(base), {
+    pathname: `/${otherName}`,
+  }).toString();
+  const other = new pg.Pool({ connectionString: otherUrl, max: 2 });
+  try {
+    await runMigrations(other, {
+      directory: resolve('packages/db/migrations'),
+    });
+    const client = await other.connect();
+    try {
+      await client.query('BEGIN');
+      // The substrate annotates the fixture's own Scrolls, so the other world holds them too.
+      const annotated = (
+        await pool.query(
+          `SELECT id,title,summary,body,source_title,source_url,editorial_order FROM asset
+           WHERE id = ANY($1::uuid[])`,
+          [Object.values(f.assets)],
+        )
+      ).rows;
+      for (const row of annotated)
+        await client.query(
+          `INSERT INTO asset(id,revision,kind,title,summary,body,source_title,source_url,truth_state,editorial_order)
+           VALUES($1,1,'Scroll',$2,$3,$4,$5,$6,'documented',$7)`,
+          [
+            row.id,
+            row.title,
+            row.summary,
+            row.body,
+            row.source_title,
+            row.source_url,
+            row.editorial_order,
+          ],
+        );
+      assert.equal((await loadSubstrateSeed(client, f.raw)).status, 'loaded');
+      const replayed = await loadScrollPackFile(client, pack);
+      assert.deepEqual(replayed, {
+        url,
+        outcome: 'admitted',
+        assetId: result.assetId,
+      });
+      const again = await loadScrollPackFile(client, pack);
+      assert.equal(again.outcome, 'already_decided');
+      assert.equal(again.assetId, result.assetId);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+  } finally {
+    await other.end();
+    await admin.query(`DROP DATABASE IF EXISTS ${otherName} WITH (FORCE)`);
+    await admin.end();
+  }
 });

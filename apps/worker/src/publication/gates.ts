@@ -5,10 +5,14 @@
  * that touches the filesystem (re-hashing and re-probing the stored file); it still makes no
  * database call.
  *
- * `witness_alignment` always returns `unavailable`: there is no Visual Witness model, so this gate
- * can never be computed, and this function is the ONLY place in the whole publication slice that
- * decides its verdict. It must never be changed to return `pass` as a stub — see ADR-0024 section 2
- * and section 5 ("what this ADR does not do").
+ * Under `publication-v1`, `witness_alignment` always returns `unavailable`: there is no Visual
+ * Witness model, so this gate can never be computed. It must never be changed to return `pass` as a
+ * stub — see ADR-0024 section 2 and section 5 ("what this ADR does not do").
+ *
+ * Under `publication-v2` (#199, the owner's decision of 2026-10-05, chosen knowingly over Claude's
+ * objection), the gate is computed from Cutroom's own checks of every shot it used, and its verdict is
+ * never better than `pass_with_label`: the evidence says "engine-attested, not independent". An
+ * independent witness can replace this later through a new policy version, without remaking a Reel.
  */
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -517,5 +521,107 @@ export function evaluateWitnessAlignment(): GateOutcome {
       reason:
         'No Visual Witness model exists in this deployment; ADR-0024 section 2 keeps this gate unavailable, and therefore eligibility structurally blocked, until one is implemented and authorized.',
     },
+  };
+}
+
+// -------------------------------------------------------------------------------------------
+// witness_alignment under publication-v2: engine-attested
+// -------------------------------------------------------------------------------------------
+
+/** The policy version whose witness is Cutroom's own per-shot checks (#199). */
+export const ENGINE_ATTESTED_POLICY = 'publication-v2';
+
+type CheckLike = { gate?: unknown; step?: unknown; outcome?: unknown };
+type PictureLike = {
+  pictureId?: unknown;
+  shotId?: unknown;
+  chosen?: unknown;
+  observationId?: unknown;
+  checks?: unknown;
+};
+
+const ACCEPTED = new Set(['accept', 'accept_with_label']);
+
+function checksOf(value: unknown): CheckLike[] {
+  return Array.isArray(value) ? (value as CheckLike[]) : [];
+}
+function passedGates(checks: CheckLike[]): string[] {
+  return [
+    ...new Set(
+      checks
+        .filter((check) => ACCEPTED.has(String(check.outcome)))
+        .map((check) => String(check.gate)),
+    ),
+  ];
+}
+
+/**
+ * Every picture Cutroom chose must have passed its Gate 1 (the picture shows every `mustShow` and
+ * no `mustNotShow` criterion), and every take it used must have passed Gate 4 (the witness: the take
+ * shows what its picture was meant to show) and Gate 5 (the take matches the narration and the
+ * criteria). None of them may carry a failed check, and the Reel must use at least one take. Gate 7
+ * (the cut) is implied: a run that fails it stops and is never imported. What the witness *saw* is
+ * not on the wire, so the evidence names the checks and their observation ids, not the sight.
+ */
+export function evaluateEngineAttestedWitness(input: {
+  recordSummary: unknown;
+}): GateOutcome {
+  const record = asRecord(input.recordSummary);
+  const pictures = (
+    record && Array.isArray(record.pictures) ? record.pictures : []
+  ) as PictureLike[];
+  const takes = (
+    record && Array.isArray(record.takes) ? record.takes : []
+  ) as RunRecordTakeLike[];
+  const chosen = pictures.filter((picture) => picture.chosen === true);
+  const used = takes.filter((take) => take.used === true);
+  const problems: Record<string, unknown>[] = [];
+  const shots = [
+    ...chosen.map((picture) => {
+      const checks = checksOf(picture.checks);
+      const gates = passedGates(checks);
+      if (!gates.includes('1'))
+        problems.push({ pictureId: picture.pictureId, missing: 'gate 1' });
+      if (checks.some((check) => check.outcome === 'fail'))
+        problems.push({ pictureId: picture.pictureId, failed: true });
+      return {
+        kind: 'picture',
+        id: picture.pictureId,
+        shotId: picture.shotId,
+        gates,
+        observationId: picture.observationId ?? null,
+      };
+    }),
+    ...used.map((take) => {
+      const checks = checksOf(take.checks);
+      const gates = passedGates(checks);
+      for (const gate of ['4', '5'])
+        if (!gates.includes(gate))
+          problems.push({ takeId: take.takeId, missing: `gate ${gate}` });
+      if (checks.some((check) => check.outcome === 'fail'))
+        problems.push({ takeId: take.takeId, failed: true });
+      return {
+        kind: 'take',
+        id: take.takeId,
+        shotId: take.shotId,
+        gates,
+        observationId:
+          (take as { observationId?: unknown }).observationId ?? null,
+      };
+    }),
+  ];
+  if (!record) problems.push({ recordSummaryPresent: false });
+  else if (used.length === 0) problems.push({ usedTakeCount: 0 });
+  const evidence = {
+    attestation: 'engine-attested, not independent',
+    policy: ENGINE_ATTESTED_POLICY,
+    checkedBy: 'Cutroom (the engine that made this Reel)',
+    shots,
+    problems,
+  };
+  return {
+    gate: 'witness_alignment',
+    verdict: problems.length === 0 ? 'pass_with_label' : 'fail',
+    evidence,
   };
 }

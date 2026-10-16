@@ -1,0 +1,7 @@
+# The one server (#201). Access is key-only; the key never leaves the operator's Mac.
+all:
+  hosts:
+    knowscroll-vps:
+      ansible_host: 187.126.119.96
+      ansible_user: root
+      ansible_ssh_private_key_file: ~/.ssh/knowscroll_vps_agent

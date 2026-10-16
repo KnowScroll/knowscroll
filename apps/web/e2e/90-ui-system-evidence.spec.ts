@@ -35,7 +35,7 @@ const viewports = [
   { name: '1024x768', width: 1024, height: 768 },
 ] as const;
 
-/** ADR-0049: a kept Trace is a kept light that opens its saved Scroll directly (no landing step). */
+/** ADR-0051: a kept Trace is a kept light that opens its saved Scroll directly (no landing step). */
 async function openSavedTrace(page: Page): Promise<void> {
   await expect(page.getByRole('navigation', { name: 'Saved Traces' })).toBeVisible();
   await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
@@ -366,7 +366,7 @@ test.describe('ui-system.md fidelity evidence (#107)', () => {
     }
     await page.screenshot({ path: join(screenshotsDir, 'universe-keyboard-focus-1440x900.png'), fullPage: true });
 
-    // A kept Trace opens its saved Scroll directly from the keyboard too (ADR-0049: no landing step).
+    // A kept Trace opens its saved Scroll directly from the keyboard too (ADR-0051: no landing step).
     await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('article')).toBeVisible();

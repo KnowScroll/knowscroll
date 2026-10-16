@@ -3,7 +3,7 @@
  * for one frame, so the sequence is deterministic, seekable and testable, and a still for reduced
  * motion is just a frame at a chosen time. Timescales are compressed artistically: about 28 s for
  * emptiness → expansion → clouds → first stars → one star's lifecycle → released material → a disk
- * where new worlds condense → the reader's own Universe (ADR-0049 §5).
+ * where new worlds condense → the reader's own Universe (ADR-0051 §5).
  *
  * Physical notes the drawing respects: the central star is sun-like, so it swells and sheds its
  * envelope as a shell (a planetary nebula) and leaves a small hot remnant — it does not explode;

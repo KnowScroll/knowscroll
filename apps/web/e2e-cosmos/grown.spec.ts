@@ -12,7 +12,7 @@ import {
 } from './support.ts';
 
 /**
- * ADR-0049 §1–§5, against a GROWN disposable stack (scripts/run-web-cosmos-preview.ts --grow): the
+ * ADR-0051 §1–§5, against a GROWN disposable stack (scripts/run-web-cosmos-preview.ts --grow): the
  * universe was read into shape through the real HTTP API, so Gravity and Tides are live top-level
  * places (stars), Gravity explains Tides (a sourced relation, drawn as a constellation line), and a
  * question the reader carried on two days opened a room (a question world) on each. Its Traces make

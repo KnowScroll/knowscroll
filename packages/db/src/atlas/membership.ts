@@ -1,5 +1,5 @@
 /**
- * Which of the reader's places an encounter belongs to (ADR-0036 §5, ADR-0049). One rule, read by
+ * Which of the reader's places an encounter belongs to (ADR-0036 §5, ADR-0051). One rule, read by
  * the Atlas's Scroll counts and by the place-scoped feed, so the two never disagree: the live
  * sighting its primary concept is, else the nearest live planet or region on that concept's ancestor
  * chain. Read-only; runs in the caller's authenticated transaction, under its universe lock.

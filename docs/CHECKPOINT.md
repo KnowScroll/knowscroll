@@ -1,10 +1,10 @@
 # Shared delivery checkpoint
 
-## 2026-10-16 #220 cosmic-origin opening and the star sky (PR #221, merged by the owner's decision)
+## 2026-10-16 #220 cosmic-origin opening and the star sky (PR #221 into `dev`)
 
 Owner direction: a cinematic origin story (emptiness → expansion → first stars → one star's
 transformation → a disk where worlds form) that ends inside the real web Universe, and the same
-language in everyday use. [ADR-0049](decisions/0049-stars-are-topics-worlds-form-from-their-material.md)
+language in everyday use. [ADR-0051](decisions/0051-stars-are-topics-worlds-form-from-their-material.md)
 (**accepted for the web build** on merge; §6 proposed) reconciles it with the existing semantics before anything durable uses it: stars
 are topics (top-level places), worlds are regions and Idea Rooms, sightings are possibilities,
 ADR-0037 foundations are luminous stars, "quiet" never means absence, and transformations are drawn
@@ -18,8 +18,8 @@ only from typed deltas. Perspective worlds released by a transformation are prop
   open directly; one-time playback of the newest recorded change; Atlas list vocabulary updated.
   Isolated preview: `apps/web/origin-preview.html` (illustrative fixtures, labelled).
 - **API/db**: `GET /v1/feed?place=` scopes composition to a live star or world and its regions by
-  the Atlas's own membership rule; migration **0045** records `decision.scope_place_id`. **0045
-  follows 0042–0044 that exist only on dev/stage (#199); they must reach main first or together.**
+  the Atlas's own membership rule; migration **0045** records `decision.scope_place_id`, after
+  #199's 0042–0044 on `dev`.
 - **Evidence**: [cosmic-origin evidence](journeys/evidence/cosmic-origin-2026-10-16/README.md);
   walkthrough video kept outside Git. Design record:
   [cosmic origin](design/2026-10-16-cosmic-origin.md).
@@ -34,17 +34,53 @@ only from typed deltas. Perspective worlds released by a transformation are prop
   379/379; cosmos journeys 13/13 Chromium, 12 + 1 skipped WebKit.
 - **Not proved**: physical phones; Android parity (still draws places as planets); luminous/tense
   stars on real data (the editorial library cannot reach a foundation or an argued room).
-- **Migration order (read before migrating anything).** The owner chose to merge this before #199.
-  Main now has 0041 then 0045; #199's 0042–0044 live only on `dev`/`stage` (deployed from those
-  branches, whose databases already ran them). Nothing migrates on start. Until #199 reaches main:
-  **do not run `pnpm db:migrate` from main against any lasting database** (the owner's local dev
-  database, a future production one): it would apply 0045 without 0042–0044 and could not migrate
-  forward afterwards. Disposable test and preview databases are fine. When #199 lands on main, list
-  0042, 0043, 0044 before 0045 in `packages/db/migrations/RELEASED.txt` (valid because no lasting
-  database has applied 0045 from main); merging main into `dev`/`stage` applies 0045 after them.
+- **Merged into `dev`** (the integration branch; every PR lands there and a push deploys the dev
+  world). The ADR was renumbered 0049 → 0051 because `dev` already has ADR-0049 (environments) and
+  0050 (shared reel pool). Stage and main follow by the promoters' fast-forward promotion.
 - **Next**: the six questions in the design record; Android adopts `docs/contracts/universe-star-view.md`;
   a physical-phone pass (frame time with the lens treatment, how the score sounds).
 
+## 2026-10-07 #201 dev and stage on the VPS
+
+KnowScroll now runs outside the Mac. The Hostinger VPS (`187.126.119.96`, Ubuntu 26.04) hosts:
+- **dev** at https://app.dev.knowscroll.space;
+- **stage** at https://app.stage.knowscroll.space, which follows by fast-forward promotion;
+- **live** (`app.knowscroll.space`) is reserved and serves a placeholder.
+
+The full record is [ADR-0049](decisions/0049-environments-on-one-vps.md) and the
+[operating guide](operations/environments.md). Plan and gates: `docs/plans/environments/`.
+
+**What changed**
+- **Server setup** is Ansible from the Mac (`ops/vps/ansible/`): key-only SSH, ufw,
+  PostgreSQL 16 with a database and role per world, Node 22, Caddy with HTTPS for eight names,
+  per-world slices and sandboxed units.
+- **The API has a server mode:** no development identity in production, one trusted proxy, and
+  `/health` reports world and commit.
+- **One bundled release** runs everywhere with no `node_modules`; CI smoke-tests it.
+- **Deploys** come from `deploy.yml` through world-pinned deploy keys. Promotion is a fast-forward.
+- **Cleanup and a disk guard** are in place.
+- **GitHub:**
+  - `dev` is the default branch;
+  - rulesets block deletion and force-pushes, and let only the `promoters` team (owner, XZNON)
+    update `main` and `stage`;
+  - the environments `dev`, `stage` and `production` (reviewers) exist;
+  - a Claude hook refuses agent updates of `main`.
+
+**Proven:** backend 1117/1117 and web 264/264; release smoke; an idempotent Ansible run; valid
+certificates and internal ports closed from outside; deploy-gate refusals; a deploy to dev in 11 s;
+AgentMail sign-in accepted; the disk guard taken to 93 % and back.
+
+**Running (2026-10-07):** dev and stage both run `f6e0eb86`. The first automatic deploy came
+from the #202 merge, and the first fast-forward promotion to stage took 22 s and reused the same
+release. The `promoters` ruleset admitted the promotion.
+
+**Not done:**
+- live, with backups and the universe move;
+- the `agent` user replacing the root key;
+- Cutroom services (#199 is next);
+- Android flavours (local builds on request).
+
+Pausing services under disk pressure is unproven, because none existed to pause.
 
 ## 2026-10-05 #196 behavior-preserving backend refactor
 

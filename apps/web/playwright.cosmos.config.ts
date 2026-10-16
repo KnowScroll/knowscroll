@@ -1,7 +1,7 @@
 import { defineConfig, devices, type Project } from '@playwright/test';
 
 /**
- * ADR-0049: the cosmic-origin opening and the star Universe, against two disposable stacks started
+ * ADR-0051: the cosmic-origin opening and the star Universe, against two disposable stacks started
  * by scripts/run-web-cosmos-journey.ts (each one scripts/run-web-cosmos-preview.ts: its own
  * `knowscroll_preview_*` database, real API, worker and Vite dev server, dropped afterwards):
  *

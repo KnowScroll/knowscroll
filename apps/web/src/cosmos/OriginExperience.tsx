@@ -40,7 +40,7 @@ function frameCaption(root: HTMLElement | null, caption: HTMLElement | null, bar
 const FALLBACK_MS = 7600;
 
 /**
- * The cosmic-origin opening (ADR-0049 §5). A WebGL scene drawn from the deterministic timeline,
+ * The cosmic-origin opening (ADR-0051 §5). A WebGL scene drawn from the deterministic timeline,
  * with all text and controls in the live interface: captions, Skip, optional sound and, under
  * reduced motion, a sequence of still frames the reader advances or lets advance. If WebGL is
  * unavailable or the context is lost, a short CSS version plays instead; nothing ever blocks the

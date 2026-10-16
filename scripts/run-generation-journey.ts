@@ -52,9 +52,9 @@ const execFileAsync = promisify(execFile);
 // =================================================================================================
 
 const CUTROOM_RUNTIME =
-  '/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-86d6e2c8b742';
+  '/Volumes/Mrigesh SSD/cutroom-worktrees/runtime-94ee04a1c480';
 const CUTROOM_REVISION = storage.CUTROOM_CONTRACT_REVISION;
-if (CUTROOM_REVISION !== '86d6e2c8b74228db4a5a953e53c53a7b77cef46e') {
+if (CUTROOM_REVISION !== '94ee04a1c48069c293203de326d4801360ca6158') {
   throw new Error(
     'J005 assumes the pinned Cutroom revision matches storage.CUTROOM_CONTRACT_REVISION',
   );

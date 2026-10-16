@@ -1,5 +1,5 @@
 /**
- * Per-browser display memory for the opening (ADR-0049 §5): whether this browser has finished or
+ * Per-browser display memory for the opening (ADR-0051 §5): whether this browser has finished or
  * skipped it. A viewer convenience, never evidence: it is not sent anywhere and nothing is inferred
  * from it. (Which recorded changes the sky drew lives in the reader's own purged storage.)
  * Every access is guarded, so a private window or blocked storage simply behaves like a first visit.

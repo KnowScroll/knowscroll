@@ -90,7 +90,7 @@ describe('UniverseScreen', () => {
   });
 });
 
-describe('UniverseScreen: the sky of stars (ADR-0049)', () => {
+describe('UniverseScreen: the sky of stars (ADR-0051)', () => {
   const skyOf = (response = twoStarSky()) => ({ status: 'loaded' as const, response, settingAside: null, error: null });
 
   function renderSky(overrides: Partial<Parameters<typeof UniverseScreen>[0]> = {}) {

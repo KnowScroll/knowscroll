@@ -526,7 +526,7 @@ export type ComposedFeed = {
 };
 
 /** Compose and record one semantic decision (v3, or v4 when configured). The caller holds the
- * universe lock (authenticateAndLock). `placeId` is the place the reader asked from (ADR-0049),
+ * universe lock (authenticateAndLock). `placeId` is the place the reader asked from (ADR-0051),
  * recorded on the decision; the caller has already scoped `eligible` to it. */
 export async function composeAndRecordV3(
   client: pg.PoolClient,

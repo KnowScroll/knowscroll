@@ -1,7 +1,7 @@
 import { test as base } from '@playwright/test';
 
 /**
- * ADR-0049 §5: a browser that has never finished or skipped the cosmic-origin opening, and has not
+ * ADR-0051 §5: a browser that has never finished or skipped the cosmic-origin opening, and has not
  * yet observed a universe, sees a ~28 s overlay before its Universe (`data-testid="origin"`, the
  * app shell `inert` until handoff). Every Playwright test gets a fresh browser context, so without
  * this every journey written before the opening existed would start under that overlay.

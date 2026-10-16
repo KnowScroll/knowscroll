@@ -1,0 +1,6 @@
+- name: Restart postgres
+  ignore_errors: "{{ ansible_check_mode }}"  # the service may not exist yet in a preview
+  ansible.builtin.systemd_service:
+    name: postgresql@16-main
+    state: restarted
+    daemon_reload: true

@@ -8,7 +8,7 @@ import { createBrowserStorage } from '../../src/state/storage.ts';
 import { FakeApi, universeOf } from './fakeApi.ts';
 import { atlasOf, ids, planet } from './skyFixture.ts';
 
-/** ADR-0049 §5: who sees the opening, and that the Universe beneath it is sealed until the handoff. */
+/** ADR-0051 §5: who sees the opening, and that the Universe beneath it is sealed until the handoff. */
 function renderApp(api: FakeApi) {
   return render(<App apiClient={api as unknown as ApiClient} onSignedOut={vi.fn()} />);
 }

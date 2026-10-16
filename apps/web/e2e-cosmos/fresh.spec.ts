@@ -18,7 +18,7 @@ import {
 } from './support.ts';
 
 /**
- * ADR-0049 §5, against a FRESH disposable stack (scripts/run-web-cosmos-preview.ts without --grow):
+ * ADR-0051 §5, against a FRESH disposable stack (scripts/run-web-cosmos-preview.ts without --grow):
  * nothing is recorded, so a new browser is a first visit and the cosmic-origin opening plays over
  * the Universe. Every test gets its own browser context, so each one really is a first visit unless
  * it says otherwise. Nothing here Keeps a Scroll: one Keep would make every later test a returning

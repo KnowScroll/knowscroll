@@ -1,0 +1,53 @@
+# Worlds that run the app on this server. Live is added when the live slice lands; until then
+# its two names serve placeholders (roles/caddy).
+ks_worlds:
+  - name: dev
+    port: 4330
+    database: knowscroll_test_dev
+    db_role: ks_dev
+    app_host: app.dev.knowscroll.space
+    backend_host: backend.dev.knowscroll.space
+    memory_high: 1200M
+    memory_max: 1536M
+    cpu_weight: 50
+    cpu_quota: 100%
+    oom_score_adjust: 500
+    shared_pool: true
+    # #199: publish real Reels as soon as they are imported, and write Scrolls from reading demand
+    # (ADR-0046's Quartermaster) with MiniMax on the token plan.
+    auto_publish_policy: publication-v2
+    scroll_supply: true
+  - name: stage
+    port: 4320
+    database: knowscroll_test_stage
+    db_role: ks_stage
+    app_host: app.stage.knowscroll.space
+    backend_host: backend.stage.knowscroll.space
+    memory_high: 1200M
+    memory_max: 1536M
+    cpu_weight: 100
+    cpu_quota: 100%
+    oom_score_adjust: 200
+    shared_pool: true
+    auto_publish_policy: publication-v2
+    scroll_supply: true
+
+ks_live_app_host: app.knowscroll.space
+ks_live_backend_host: backend.knowscroll.space
+ks_apex_hosts: [knowscroll.space, www.knowscroll.space]
+
+# Services each world runs. generation follows the shared Cutroom's runs for the world (#199).
+ks_world_services: [api, worker, maintenance, generation]
+
+# The shared Reel pool (#199, ADR-0050): one Cutroom with the real providers, used by every world
+# marked shared_pool, and one spend record (the knowscroll_pool database) holding their $5.
+ks_cutroom_instance: pool
+ks_cutroom_port: 8797
+ks_cutroom_voice: English_Graceful_Lady
+ks_cutroom_reel_cap: "$0.75"
+
+# Deploy keys (public halves only; the private halves live in GitHub environment secrets). Each is
+# pinned to one world by the SSH gate (ops/vps/gate.sh).
+ks_deploy_keys:
+  dev: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEIZnU09yIlTFQWY5mu+wxLw5GKJrROMPbPQaaApcD+f knowscroll-deploy-dev@github-actions
+  stage: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFnSPv58u3Jljkh26pK/cV8Q3mbF36t3Fd5JKogii8Um knowscroll-deploy-stage@github-actions

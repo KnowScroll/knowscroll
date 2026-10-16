@@ -398,7 +398,7 @@ test('a session expiring while the selected asset lock is held is unauthorized a
   };
   await pool.query(
     `UPDATE device_session SET created_at=clock_timestamp()-interval '1 second',
-    expires_at=clock_timestamp()+interval '500 milliseconds' WHERE id=$1`,
+    expires_at=clock_timestamp()+interval '2 seconds' WHERE id=$1`,
     [identity.scope.sessionId],
   );
   const blocker = await pool.connect();

@@ -1,6 +1,6 @@
 /**
  * `GET /v1/feed`: one composed decision over the candidate assets (ADR-0025, ADR-0032). `place`
- * (ADR-0049) narrows the candidates to one of the reader's live places and its regions, by the
+ * (ADR-0051) narrows the candidates to one of the reader's live places and its regions, by the
  * Atlas's own membership rule, before the same Composer decides; the decision records that place.
  */
 
@@ -98,7 +98,7 @@ export function registerFeedRoutes(
       if (place === null) throw new HttpError(400, 'Invalid place parameter');
       const account = await readFeedAccount(client, scope.universeId);
       const library = await feedCandidates(client, kinds);
-      // ADR-0049: asked from a star or world, only what the Atlas counts there is a candidate, and an
+      // ADR-0051: asked from a star or world, only what the Atlas counts there is a candidate, and an
       // empty place composes an empty slate, never filler. Anything but a live planet or region of
       // this universe is a 404.
       const scoped = place.placeId

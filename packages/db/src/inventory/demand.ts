@@ -133,7 +133,7 @@ async function eligibleScrolls(
 
 /**
  * Called in the feed's transaction after a v3 decision is recorded. A decision asked from a place
- * (ADR-0049) considered only that place's encounters, so it observes only `onlyPlaces`, that place
+ * (ADR-0051) considered only that place's encounters, so it observes only `onlyPlaces`, that place
  * and the regions beneath it: it is never cited as having seen another place in full.
  */
 export async function observeExhaustion(

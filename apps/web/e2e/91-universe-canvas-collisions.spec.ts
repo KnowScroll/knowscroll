@@ -48,7 +48,7 @@ test.describe('the universe canvas keeps clear of the frame drawn over it', () =
   test('the keyboard help line is not hidden behind the centred dock', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto('/');
-    // ADR-0049: a kept Trace opens its saved Scroll directly (no landing step).
+    // ADR-0051: a kept Trace opens its saved Scroll directly (no landing step).
     await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
     await expect(page.getByRole('article')).toBeVisible();
 
@@ -67,7 +67,7 @@ test.describe('the universe canvas keeps clear of the frame drawn over it', () =
 
 /*
  * "A landed planet turns and changes light" used to run here, on the landing a saved Trace opened.
- * ADR-0049 retired that step: a Trace is now a kept light that opens its saved Scroll directly, and
+ * ADR-0051 retired that step: a Trace is now a kept light that opens its saved Scroll directly, and
  * a planet landing exists only for a world inside a star -- which this fixture (a three-Scroll
  * library with no substrate, so no places) can never form. The landing globe (drag turns it; a tap
  * on it or the moon steps Daylight -> Evening glow -> Moonlit; the action stays in view) is covered

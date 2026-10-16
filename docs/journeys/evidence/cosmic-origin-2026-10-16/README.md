@@ -1,4 +1,4 @@
-# Cosmic origin — browser evidence, 2026-10-16 (#220, ADR-0049)
+# Cosmic origin — browser evidence, 2026-10-16 (#220, ADR-0051)
 
 Observed on branch `claude/220-cosmic-origin` in headless Chromium (ANGLE/Metal) on the owner's
 Mac against **disposable** stacks started by `scripts/run-web-cosmos-preview.ts` (fresh, and

@@ -81,7 +81,8 @@ test('real HTTP handlers admit Keep, project it and read the strict original sna
     revision: selected.revision,
     title: selected.title,
     body: selected.body,
-    blocks: [{ type: 'text', paragraphs: [selected.body] }],
+    // The feed's first Scroll may be a model-written one (#199), whose body is several paragraphs.
+    blocks: [{ type: 'text', paragraphs: selected.body.split('\n\n') }],
   });
   await pool.query('UPDATE asset SET web_artifact=$1 WHERE id=$2', [
     authored,

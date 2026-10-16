@@ -241,7 +241,7 @@ hold attention violates the product even when its subject appears intellectual.
 
 ## 4. The cosmic grammar
 
-> **Amendment, 2026-10-16 (owner's cosmic-origin direction, [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md), accepted for the web build).**
+> **Amendment, 2026-10-16 (owner's cosmic-origin direction, [ADR-0051](../decisions/0051-stars-are-topics-worlds-form-from-their-material.md), accepted for the web build).**
 > A **Star** is a topic with personal relevance (a reader's top-level place); a quiet star holds
 > possibilities that have not unfolded, and quiet never means absence. **Worlds** form inside a
 > star's system: facets (regions), questions (Idea Rooms) and, once accepted, perspectives released
@@ -249,7 +249,7 @@ hold attention violates the product even when its subject appears intellectual.
 > below — a foundation that illuminates other regions — continues as the **luminous** property of a
 > star (ADR-0037). A **transformation** is drawn only for recorded, typed changes; it is not always
 > an explosion and never produces finished worlds instantly. The table below is kept as written;
-> where it differs, ADR-0049 states the mapping.
+> where it differs, ADR-0051 states the mapping.
 
 Cosmic objects are a compact language for the personal world model.
 
@@ -1152,8 +1152,8 @@ Use these words consistently:
 
 - **World Engine**: the persistent observe–infer–research–create loop.
 - **Universe**: one person's emergent intellectual possibility space.
-- **Star** (ADR-0049): a topic with personal relevance; *quiet* when nothing inside it has unfolded yet, *luminous* when it holds other places up.
-- **World**: a domain instance inside that universe. Under ADR-0049, a world forms inside a star's system: a facet, a question or a perspective.
+- **Star** (ADR-0051): a topic with personal relevance; *quiet* when nothing inside it has unfolded yet, *luminous* when it holds other places up.
+- **World**: a domain instance inside that universe. Under ADR-0051, a world forms inside a star's system: a facet, a question or a perspective.
 - **Epistemic substrate**: shared sources, claims, concepts, and relationships beneath personal geography.
 - **Reel**: short branchable audiovisual encounter.
 - **Scroll**: interactive explorable document.

@@ -1,0 +1,64 @@
+# Caddy from its official repository (Ubuntu's 2.6.2 is old): automatic HTTPS for every name,
+# static web per world, /v1 and /health proxied to that world's loopback API (#201 Gate 2).
+
+- name: Caddy signing key
+  ansible.builtin.get_url:
+    url: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+    dest: /etc/apt/keyrings/caddy-stable.asc
+    mode: "0644"
+
+- name: Caddy repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/caddy-stable.sources
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: https://dl.cloudsmith.io/public/caddy/stable/deb/debian
+      Suites: any-version
+      Components: main
+      Signed-By: /etc/apt/keyrings/caddy-stable.asc
+
+- name: Prefer the official Caddy over Ubuntu's
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/caddy
+    mode: "0644"
+    content: |
+      Package: caddy
+      Pin: origin dl.cloudsmith.io
+      Pin-Priority: 600
+
+- name: Caddy
+  ignore_errors: "{{ ansible_check_mode }}"  # a preview never adds the repository, so the package is unknown
+  ansible.builtin.apt:
+    name: caddy
+    state: present
+    update_cache: true
+
+- name: Server folders
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: [/srv/knowscroll, /srv/knowscroll/placeholder, /srv/knowscroll/placeholder/web]
+
+- name: Placeholder pages for names that have nothing deployed yet
+  ansible.builtin.copy:
+    src: placeholder.html
+    dest: /srv/knowscroll/placeholder/web/index.html
+    mode: "0644"
+
+- name: Caddyfile
+  ignore_errors: "{{ ansible_check_mode }}"  # validation needs the caddy binary, absent in a preview
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    mode: "0644"
+    validate: caddy validate --adapter caddyfile --config %s
+  notify: Reload caddy
+
+- name: Caddy runs
+  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.systemd_service:
+    name: caddy
+    state: started
+    enabled: true

@@ -5,12 +5,21 @@
  * port is a wiring defect, not a fabricated outcome either way. Holds no provider credentials;
  * talks to Cutroom only through the pinned, unwired HTTP client. Never holds a database
  * transaction across an HTTP call. */
+import {
+  compileSubmitRequest,
+  type GenerationBrief,
+} from '@knowscroll/contracts/generation';
+import { scriptDigest } from '@knowscroll/core/cutroom/pool-identity';
+import type { PoolLedger } from '@knowscroll/db/pool/ledger';
+import { selectReelsToPublish } from '@knowscroll/db/publication/evaluate';
 import type pg from 'pg';
 import {
   type CutroomRunRef,
   createCutroomHttpClient,
   prepareCutroomRequest,
 } from '../cutroom/http-client.ts';
+import { evaluatePublicationGates } from '../publication/evaluate.ts';
+import { mintReelAsset } from '../publication/mint.ts';
 import {
   createUnimplementedImportPort,
   type ImportOutcome,
@@ -27,12 +36,29 @@ export type GenerationWorkerOptions = {
   maxLookupRetries?: number;
   importPort?: ImportPort;
   log?: (line: Record<string, unknown>) => void;
+  /** #199: the shared Reel pool. When set, the loop tells the pool what each of this world's
+   * shared orders finally cost, and creates a receive job for every Reel the pool has that this
+   * world holds the approved script for but not the Reel. */
+  pool?: SharedPoolOptions;
+  /** #199: publish each real Reel once it is imported — judge it under `policyVersion` and, when
+   * every required gate passes, mint it into the feed. Unset: Reels wait for the operator CLI. */
+  publish?: { policyVersion: string; mediaRoot: string };
   /** Test-only crash-injection hook (issue #94): called once, right after dispatch
    * authorization commits and before the first submit is ever sent. `main.ts` wires this from
    * `GENERATION_HOLD_BEFORE_SUBMIT=1` so a harness can SIGKILL the process at a reproducible point
    * between "dispatch committed" and "any outcome recorded" — mirroring Cutroom's own
    * `holdAtCall` design. Defaults to a no-op; never used by ordinary operation. */
   holdBeforeSubmit?: (context: { jobId: string }) => Promise<void>;
+};
+
+export type SharedPoolOptions = {
+  ledger: PoolLedger;
+  /** This world's name in the pool's records (`KS_WORLD`). */
+  world: string;
+  /** How often the loop syncs with the pool. Default one minute. */
+  syncMs?: number;
+  /** How long a receive job may wait for its run before it closes. Default 30 days. */
+  receiveDeadlineMs?: number;
 };
 
 export type ProcessOutcome = {
@@ -243,6 +269,9 @@ async function followToTerminal(
     iteration += 1
   ) {
     if (signal?.aborted) return 'aborted';
+    // A paid run takes 13-41 min (#199): keep this worker's lease while it follows, so a long run
+    // is never reclaimed and followed twice.
+    await storage.renewLease(resolved.db, holder, resolved.leaseMs);
     if (!cancelSent && (await cancelRequested())) {
       await client.cancel(ref); // Idempotent per ADR-0023/ops evidence; safe to call once we learn of a request.
       cancelSent = true;
@@ -281,6 +310,13 @@ async function followToTerminal(
     });
     if (page.value.events.some((event) => event.type === 'run.finished'))
       return 'finished';
+    if (page.value.events.length === 0) {
+      // Nothing new: the run may have finished before an earlier worker recorded its result (a
+      // crash between storing `run.finished` and the result). Its status says so either way.
+      const status = await client.status(ref);
+      if (status.kind === 'ok' && status.value.state === 'finished')
+        return 'finished';
+    }
     if (!(await sleepUnlessAborted(resolved.pollMs, signal))) return 'aborted';
   }
   return 'aborted';
@@ -294,15 +330,22 @@ async function followToTerminal(
  * held (and its `cutroom_attempt.settlement` stays `held`) until import either succeeds (settled)
  * or the job is honestly abandoned. Every other terminal outcome needs no import and settles here,
  * immediately, exactly as before this stage.
+ *
+ * #199: when an order's first run failed and Cutroom has already re-run it on its own (the run's
+ * status names `resumedBy`), the failed run is recorded and the job goes on following the re-run;
+ * nothing settles until the chain ends. A receive job's attempt is released rather than settled,
+ * because this world paid nothing for it.
  */
 async function fetchResultAndRecord(
   resolved: Resolved,
   holder: Holder,
+  claim: { kind: 'order' | 'receive' },
+  attempt: storage.AttemptSnapshot,
   ref: CutroomRunRef,
   client: ReturnType<typeof createCutroomHttpClient>,
-): Promise<{ jobStatus: string }> {
+): Promise<{ jobStatus: string; resumed: boolean }> {
   let resultValue: Awaited<ReturnType<typeof client.result>> | null = null;
-  for (let attempt = 0; attempt <= resolved.maxLookupRetries; attempt += 1) {
+  for (let tries = 0; tries <= resolved.maxLookupRetries; tries += 1) {
     const outcome = await client.result(ref);
     if (outcome.kind === 'ok') {
       resultValue = outcome;
@@ -321,25 +364,60 @@ async function fetchResultAndRecord(
       'generation_worker_defect: result never resolved after run.finished',
     );
   const value = resultValue.value;
-  const { jobStatus } = await storage.recordResult(resolved.db, holder, {
-    status: value.status,
-    costCents: value.costCents,
-    body: value,
-  });
+
+  let resumeRunId: string | undefined;
+  if (
+    value.status === 'failed' &&
+    claim.kind === 'order' &&
+    attempt.role === 'order'
+  ) {
+    const status = await client.status(ref);
+    if (status.kind === 'ok' && status.value.resumedBy !== undefined)
+      resumeRunId = status.value.resumedBy;
+    else if (status.kind !== 'ok')
+      // Without the run's status this worker cannot tell whether Cutroom re-ran it, and settling
+      // early could miss that re-run's spend. Leave the attempt accepted; a later claim retries.
+      throw new Error(
+        `generation_worker_defect: status unavailable after a failed run: ${JSON.stringify(status)}`,
+      );
+  }
 
   const record = await client.record(ref);
-  if (record.kind === 'ok')
-    await storage.recordRecordSummary(resolved.db, holder, record.value);
-  else
+  const { jobStatus, resumed } = await storage.recordResult(
+    resolved.db,
+    holder,
+    {
+      status: value.status,
+      costCents: value.costCents,
+      body: value,
+      ...(resumeRunId === undefined ? {} : { resumeRunId }),
+      ...(record.kind === 'ok' ? { recordSummary: record.value } : {}),
+    },
+  );
+  if (record.kind !== 'ok')
     resolved.log({
       service: 'generation-worker',
       event: 'record_unavailable',
       jobId: holder.jobId,
       record,
     });
+  if (resumed) {
+    resolved.log({
+      service: 'generation-worker',
+      event: 'cutroom_resumed',
+      jobId: holder.jobId,
+      failedRunId: ref.runId,
+      resumeRunId,
+    });
+    return { jobStatus, resumed };
+  }
 
-  if (jobStatus !== 'importing') await storage.settle(resolved.db, holder);
-  return { jobStatus };
+  if (jobStatus !== 'importing') {
+    if (claim.kind === 'receive')
+      await storage.releaseReceived(resolved.db, holder);
+    else await storage.settle(resolved.db, holder);
+  }
+  return { jobStatus, resumed };
 }
 
 type EngineInfo = {
@@ -359,7 +437,12 @@ type EngineInfo = {
 async function handleImport(
   resolved: Resolved,
   holder: Holder,
-  claim: { jobId: string; briefId: string; engineId: string },
+  claim: {
+    jobId: string;
+    briefId: string;
+    engineId: string;
+    kind: 'order' | 'receive';
+  },
   engine: EngineInfo,
   attempt: storage.AttemptSnapshot,
 ): Promise<ProcessOutcome> {
@@ -470,8 +553,12 @@ async function handleImport(
   // real overage: it is recorded (never clamped), it pauses admission on the grant, and the job is
   // parked for an operator instead of quietly completing as if the budget had held.
   let overageCents = 0;
-  if (attempt.settlement === 'held')
-    ({ overageCents } = await storage.settle(resolved.db, holder));
+  if (attempt.settlement === 'held') {
+    // A received Reel cost this world nothing; its ordering world settled the money (#199).
+    if (claim.kind === 'receive')
+      await storage.releaseReceived(resolved.db, holder);
+    else ({ overageCents } = await storage.settle(resolved.db, holder));
+  }
   if (overageCents > 0) {
     const detail = `settled_over_budget:${overageCents}c_above_ceiling`;
     await storage.parkNeedsOperator(resolved.db, holder, detail);
@@ -520,7 +607,39 @@ export async function processClaimedJob(
   if (!attempt)
     throw new Error('generation_worker_defect: claimed job has no attempt row');
 
-  if (attempt.state === 'prepared') {
+  if (claim.kind === 'receive' && attempt.state === 'prepared') {
+    // #199: a receive never sends. It finds the run another world ordered by its request id.
+    const cancelled = claim.cancelRequestedAt !== null;
+    if (cancelled || claim.deadlineAt.getTime() <= Date.now()) {
+      await storage.closeNotSent(
+        resolved.db,
+        holder,
+        cancelled ? 'cancelled' : 'deadline',
+      );
+      return {
+        jobId: claim.jobId,
+        outcome: cancelled ? 'cancelled_before_receive' : 'receive_expired',
+      };
+    }
+    const found = await client.lookup(attempt.requestId);
+    if (found.kind !== 'ok') {
+      resolved.log({
+        service: 'generation-worker',
+        event: 'receive_waiting',
+        jobId: claim.jobId,
+        lookup: found,
+      });
+      return { jobId: claim.jobId, outcome: 'receive_waiting' };
+    }
+    await storage.recordReceived(resolved.db, holder, {
+      runId: found.value.runId,
+    });
+    attempt = await storage.loadAttempt(resolved.db, claim.jobId);
+    if (!attempt)
+      throw new Error(
+        'generation_worker_defect: attempt vanished after receive',
+      );
+  } else if (attempt.state === 'prepared') {
     const cancelled = claim.cancelRequestedAt !== null;
     const overdue = claim.deadlineAt.getTime() <= Date.now();
     if (cancelled || overdue) {
@@ -609,7 +728,8 @@ export async function processClaimedJob(
       );
   }
 
-  if (attempt.state === 'accepted') {
+  // An order's first run, then (#199) at most one re-run Cutroom made of it on its own.
+  while (attempt.state === 'accepted') {
     if (!attempt.runId)
       throw new Error(
         'generation_worker_defect: accepted attempt has no run id',
@@ -632,12 +752,23 @@ export async function processClaimedJob(
     );
     if (followed === 'aborted')
       return { jobId: claim.jobId, outcome: 'following_paused' };
-    const { jobStatus } = await fetchResultAndRecord(
+    const { jobStatus, resumed } = await fetchResultAndRecord(
       resolved,
       holder,
+      claim,
+      attempt,
       ref,
       client,
     );
+    if (resumed) {
+      const next = await storage.loadAttempt(resolved.db, claim.jobId);
+      if (!next || next.role !== 'resume')
+        throw new Error(
+          'generation_worker_defect: resume attempt missing after recordResult',
+        );
+      attempt = next;
+      continue;
+    }
     if (jobStatus === 'importing') {
       const finished = await storage.loadAttempt(resolved.db, claim.jobId);
       if (!finished)
@@ -656,8 +787,11 @@ export async function processClaimedJob(
       const fresh = await storage.loadAttempt(resolved.db, claim.jobId);
       return handleImport(resolved, holder, claim, engine, fresh ?? attempt);
     }
-    if (attempt.settlement === 'held')
-      await storage.settle(resolved.db, holder);
+    if (attempt.settlement === 'held') {
+      if (claim.kind === 'receive')
+        await storage.releaseReceived(resolved.db, holder);
+      else await storage.settle(resolved.db, holder);
+    }
     return { jobId: claim.jobId, outcome: 'settled_after_resume' };
   }
 
@@ -678,16 +812,185 @@ async function runOnce(
   return processClaimedJob(options, claim, signal);
 }
 
+/** #199: one pass of the shared-pool sync. First, tell the pool what each of this world's shared
+ * orders finally cost (once its money here is final). Then, for every Reel the pool has made whose
+ * approved script this world holds but whose request this world has never seen (another world
+ * ordered it, or this world was reset since), create a receive job. A receive only ever looks up
+ * the run; it never orders. */
+export async function syncSharedPool(
+  options: GenerationWorkerOptions,
+): Promise<{ settled: number; received: number }> {
+  const resolved = resolveOptions(options);
+  const pool = options.pool;
+  if (!pool) return { settled: 0, received: 0 };
+  let settled = 0;
+  for (const pending of await storage.pendingPoolSettlements(resolved.db)) {
+    await pool.ledger.settle({
+      requestId: pending.requestId,
+      world: pool.world,
+      outcome: pending.outcome,
+      spentCents: pending.spentCents,
+      finalRunId: pending.finalRunId,
+    });
+    await storage.markPoolSettled(resolved.db, pending.jobId);
+    settled += 1;
+    resolved.log({
+      service: 'generation-worker',
+      event: 'pool_settled',
+      jobId: pending.jobId,
+      requestId: pending.requestId,
+      outcome: pending.outcome,
+      spentCents: pending.spentCents,
+    });
+  }
+
+  const made = (await pool.ledger.orders()).filter(
+    (order) =>
+      order.state === 'settled' &&
+      order.outcome === 'completed' &&
+      order.until === 'video',
+  );
+  if (made.length === 0) return { settled, received: 0 };
+  const engine = await storage.activeLiveEngine(resolved.db);
+  if (!engine) {
+    resolved.log({
+      service: 'generation-worker',
+      event: 'pool_receive_skipped',
+      reason: 'no_active_live_engine',
+    });
+    return { settled, received: 0 };
+  }
+  const scripts = new Map<string, { id: string; brief: GenerationBrief }>();
+  for (const approved of await storage.approvedBriefs(resolved.db))
+    scripts.set(scriptDigest(approved.brief, 'video'), approved);
+  let received = 0;
+  for (const order of made) {
+    const script = scripts.get(order.scriptDigest);
+    if (!script || (await storage.hasRequest(resolved.db, order.requestId)))
+      continue;
+    // The ordering world's exact bytes, or nothing: a different body would be a different request.
+    const bodySha256 = prepareCutroomRequest(
+      compileSubmitRequest({
+        brief: script.brief,
+        requestId: order.requestId,
+        until: 'video',
+        budgetCents: order.ceilingCents,
+      }),
+    ).bodySha256;
+    if (bodySha256 !== order.bodySha256) {
+      resolved.log({
+        service: 'generation-worker',
+        event: 'pool_receive_skipped',
+        reason: 'request_bytes_differ',
+        requestId: order.requestId,
+      });
+      continue;
+    }
+    const created = await storage.createReceiveJob(resolved.db, {
+      briefId: script.id,
+      engineId: engine.id,
+      requestId: order.requestId,
+      requestBudgetCents: order.ceilingCents,
+      until: 'video',
+      deadlineAt: new Date(
+        Date.now() + (pool.receiveDeadlineMs ?? 30 * 24 * 60 * 60 * 1000),
+      ).toISOString(),
+    });
+    received += 1;
+    resolved.log({
+      service: 'generation-worker',
+      event: 'pool_receive_created',
+      jobId: created.jobId,
+      requestId: order.requestId,
+      orderedBy: order.orderedBy,
+    });
+  }
+  return { settled, received };
+}
+
+/** #199: one publishing pass. Every real Reel imported but not yet judged under the policy is
+ * judged (`decide: 'auto'`, which moves it to `eligible` only when every required gate passes), and
+ * every eligible Reel not yet in the inventory is minted. A refused Reel stays imported and is not
+ * judged again; its gate results say why. */
+export async function publishImportedReels(
+  options: GenerationWorkerOptions,
+): Promise<{ published: number; refused: number }> {
+  const resolved = resolveOptions(options);
+  const publish = options.publish;
+  if (!publish) return { published: 0, refused: 0 };
+  let published = 0;
+  let refused = 0;
+  for (const reel of await selectReelsToPublish(
+    resolved.db,
+    publish.policyVersion,
+  )) {
+    if (reel.availability === 'imported') {
+      const judged = await evaluatePublicationGates(resolved.db, {
+        generatedReelId: reel.id,
+        policyVersion: publish.policyVersion,
+        mediaRoot: publish.mediaRoot,
+        decide: 'auto',
+      });
+      if (!judged.availability.decided) {
+        refused += 1;
+        resolved.log({
+          service: 'generation-worker',
+          event: 'publish_refused',
+          generatedReelId: reel.id,
+          failing: judged.gates
+            .filter(
+              (gate) => !['pass', 'pass_with_label'].includes(gate.verdict),
+            )
+            .map((gate) => `${gate.gate}:${gate.verdict}`),
+        });
+        continue;
+      }
+    }
+    const minted = await mintReelAsset(resolved.db, reel.id);
+    published += 1;
+    resolved.log({
+      service: 'generation-worker',
+      event: 'published',
+      generatedReelId: reel.id,
+      assetId: minted.assetId,
+    });
+  }
+  return { published, refused };
+}
+
 /** The worker loop's own body, used by `main.ts` and directly by tests that want a bounded run
  * rather than a full process. Runs until `signal` aborts; an empty poll sleeps `idlePollMs`
- * (abortable) before the next claim. */
+ * (abortable) before the next claim. With a shared pool it also syncs with the pool every
+ * `pool.syncMs` (#199). */
 export async function runLoop(
   options: GenerationWorkerOptions,
   signal: AbortSignal,
   idlePollMs = 500,
 ): Promise<void> {
   const resolved = resolveOptions(options);
+  let nextSyncAt = 0;
   while (!signal.aborted) {
+    if ((options.pool || options.publish) && Date.now() >= nextSyncAt) {
+      nextSyncAt = Date.now() + (options.pool?.syncMs ?? 60_000);
+      try {
+        await syncSharedPool(options);
+      } catch (error) {
+        resolved.log({
+          service: 'generation-worker',
+          event: 'pool_sync_error',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+      try {
+        await publishImportedReels(options);
+      } catch (error) {
+        resolved.log({
+          service: 'generation-worker',
+          event: 'publish_error',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     let outcome: ProcessOutcome | null;
     try {
       outcome = await runOnce(options, signal);

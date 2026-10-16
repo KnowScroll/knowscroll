@@ -29,7 +29,7 @@ export interface ScrollSession {
   keepEventId: string;
   readingPosition: number;
   branchFrom?: { fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean };
-  /** ADR-0049: the star or world this encounter was read from (the place-scoped feed). */
+  /** ADR-0051: the star or world this encounter was read from (the place-scoped feed). */
   placeFrom?: { placeId: string; name: string };
 }
 
@@ -165,7 +165,7 @@ export class ReaderStorage {
   }
 
   /** Fail-closed purge: drop every private encounter/navigation artifact, keep the epoch fence monotonic. */
-  /** ADR-0049 §4: which recorded changes this browser's sky already drew, for one universe. Display
+  /** ADR-0051 §4: which recorded changes this browser's sky already drew, for one universe. Display
    * memory only, never evidence; `null` means this browser has never seen this universe's sky. */
   readSkyPlayed(universeId: string): Set<string> | null {
     const stored = safeParse<{ universeId?: unknown; ids?: unknown }>(this.backend.getItem(key('skyPlayed')));

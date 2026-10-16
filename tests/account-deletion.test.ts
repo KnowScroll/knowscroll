@@ -719,7 +719,7 @@ test("deletion erases typed Relics and the reader's objections too (#165, ADR-00
   }
 });
 
-test('deletion erases a decision asked from a place, with the place it names (ADR-0049)', async () => {
+test('deletion erases a decision asked from a place, with the place it names (ADR-0051)', async () => {
   const s = await bearerSession();
   const headers = { authorization: s.authorization };
   const annotated = (

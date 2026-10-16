@@ -1,6 +1,6 @@
 import { webAtlasResponseSchema, type WebAtlasResponse } from '@knowscroll/contracts/atlas';
 
-/** Hand-written Atlas responses for the star sky (ADR-0049). Test data only, never runtime evidence;
+/** Hand-written Atlas responses for the star sky (ADR-0051). Test data only, never runtime evidence;
  * `atlasOf` validates every fixture against the real web contract, so no test reasons about a
  * response the server could not send. */
 type Place = WebAtlasResponse['places'][number];

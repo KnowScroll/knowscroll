@@ -38,7 +38,7 @@ export function parseFeedKinds(raw: string | undefined): FeedKindName[] | null {
 }
 
 /**
- * Parses `GET /v1/feed`'s optional `place` query parameter (ADR-0049). Absent means the whole
+ * Parses `GET /v1/feed`'s optional `place` query parameter (ADR-0051). Absent means the whole
  * universe (`{ placeId: null }`), so a client that never sends it sees exactly what it sees today.
  * One place UUID scopes the feed to that place and the regions beneath it (lower-cased, as `exclude`
  * ids are). An empty value, a malformed id or a repeated parameter (which arrives as an array) is
@@ -81,6 +81,19 @@ export const reelAsset = z
     /** The single Scroll this Reel's brief drew its claims from — the "sources sheet" entry. */
     sourceTitle: z.string(),
     sourceUrl: z.string(),
+    /** #199: how this Reel was checked before it could be shown. `by: 'engine'` means the engine
+     * that made it checked its own work (publication-v2's witness): shown as "Engine-checked", never
+     * as an independent review. Null or absent when no such check is recorded (a simulated Reel, or
+     * one judged before #199). */
+    check: z
+      .object({
+        by: z.literal('engine'),
+        policyVersion: z.string(),
+        shotsChecked: z.number().int().nonnegative(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
   })
   .strict();
 export type ReelAssetDisplay = z.infer<typeof reelAsset>;

@@ -39,7 +39,7 @@ describe('ScrollScreen', () => {
     expect(onReturnBranch).toHaveBeenCalledOnce();
   });
 
-  it('says which star an encounter was read from (ADR-0049)', () => {
+  it('says which star an encounter was read from (ADR-0051)', () => {
     render(
       <ScrollScreen
         state={readingState({ origin: { type: 'place', placeId: '00000000-0000-4000-8000-0000000000a1', name: 'Gravity' } })}

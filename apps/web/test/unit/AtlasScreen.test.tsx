@@ -142,7 +142,7 @@ describe('AtlasScreen', () => {
     expect(within(places).getByRole('heading', { name: 'Gravity' })).toBeInTheDocument();
     expect(within(places).getByRole('heading', { name: 'Orbits' })).toBeInTheDocument();
     expect(within(places).getByRole('heading', { name: 'At the edge, not met yet' })).toBeInTheDocument();
-    // ADR-0049 vocabulary: a top-level place is a star, a region a world, a sighting a possibility.
+    // ADR-0051 vocabulary: a top-level place is a star, a region a world, a sighting a possibility.
     expect(screen.getByText('These stars, worlds and connections come from your reading.')).toBeInTheDocument();
     for (const [name, kind] of [['Gravity', 'Star'], ['Orbits', 'World'], ['Star formation', 'Possibility']] as const) {
       const article = within(places).getByRole('heading', { name }).closest('article') as HTMLElement;
@@ -159,7 +159,7 @@ describe('AtlasScreen', () => {
     expect(screen.queryByText(/sourceFamilies|Scrolls? read|3 of 8/)).not.toBeInTheDocument();
   });
 
-  it('marks a foundation as a star that lights others (ADR-0049 luminous), never as a score', () => {
+  it('marks a foundation as a star that lights others (ADR-0051 luminous), never as a score', () => {
     const response = atlasResponse();
     const places = response.places.map((place) => place.placeId === planetId
       ? {

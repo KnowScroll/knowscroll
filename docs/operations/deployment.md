@@ -1,6 +1,6 @@
 # Deploying, backing up and rolling back
 
-Owner-run, on this Mac, from the main checkout. [ADR-0047](../decisions/0047-release-readiness-before-owner-inputs.md)
+Owner-run, on this Mac, from the main checkout. This is the owner's installation until the live world on the VPS replaces it ([ADR-0049](../decisions/0049-environments-on-one-vps.md)); dev and stage already run there ([environments](environments.md)). [ADR-0047](../decisions/0047-release-readiness-before-owner-inputs.md)
 decides the rules: migrations are forward-only, every migrate is preceded by a verified backup, and
 rollback means restoring that backup. The owner inputs a release needs are in
 [release-inputs.md](release-inputs.md).

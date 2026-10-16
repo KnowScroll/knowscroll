@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "plan": {
+    "url": "https://spaceplace.nasa.gov/total-solar-eclipse/en/",
+    "conceptCodes": [
+      "astro.sun"
+    ]
+  },
+  "identity": {
+    "materialSha256": "a9468e7571b6b16e23bc71c7b6ab4cb016f6aff95a45812eb7542845ebb8c0ef",
+    "requestSha256": "7ed74cc119e3a1bb735ef6221b6cc3a28a64eeb55d8d730beec893cffa0b9e2d"
+  },
+  "material": {
+    "url": "https://spaceplace.nasa.gov/total-solar-eclipse/en/",
+    "title": "How Is the Sun Completely Blocked in an Eclipse? | NASA Space Place – NASA Science for Kids",
+    "text": "total-solar-eclipse Vea en Español Earth Sun Solar System Universe Science and Tech Educators How Is the Sun Completely Blocked in an Eclipse? The Short Answer: The Sun is completely blocked in a solar eclipse because the Moon passes between Earth and the Sun. Even though the Moon is much smaller than the Sun, because it is just the right distance away from Earth, the Moon can fully blocks the Sun’s light from Earth’s perspective. This illustration shows the rare alignment of the Sun and Moon that casts a shadow on our planet. Credit: NASA/GSFC/CI Lab During a total solar eclipse , the Moon passes between Earth and the Sun. This completely blocks out the Sun's light. However, the Moon is about 400 times smaller than the Sun. How can it block all of that light? It all has to do with the distance between Earth and the Sun and Earth and the Moon. An illustration showing the Earth, Moon, and Sun during the August 21, 2017 eclipse. Image credit: NASA's Scientific Visualization Studio When objects are closer to us, they appear to be bigger than objects that are far away. For example, most stars in the night sky look like tiny white dots of light. In reality, many of those stars are larger than our Sun—they are just much farther away from Earth! Even though the Moon is 400 times smaller than the Sun, it's also about 400 times closer to Earth than the Sun is. This means that from Earth, the Moon and the Sun appear to be roughly the same size in the sky. Credit: NASA/JPL-Caltech So, when the Moon comes between Earth and the Sun during a total solar eclipse, the Moon appears to completely cover up the light from the Sun. However, it won't always be this way. Total solar eclipses won't be around forever! The Moon's orbit is changing. In fact, the Moon's orbit grows about 1.5 inches (3.8 cm) larger every year. As the Moon's orbit takes it farther and farther away from Earth, the Moon will appear smaller and smaller in our sky. This occasionally happens now. The Moon's orbit isn't perfectly round. That means that sometimes the Moon is slightly farther away from Earth than it is at other times. Sometimes the Moon is far enough away that it doesn't create a total solar eclipse. In this case, the Moon obscures most of the Sun, but a thin ring of the Sun remains visible around the Moon. However, once the Moon's growing orbit takes it approximately 14,600 miles (23,500 km) farther away from Earth, it will always be too far away to completely cover the Sun. That won't happen for a long time though. If the Moon's orbit grows only 1.5 inches every year, it will take more than 600 million years for total solar eclipses to completely disappear! Related Resources for Educators Solar Eclipses article last updated March 29, 2024 More about the Sun and Moon! Lunar Eclipses and Solar Eclipses What is the Sun's corona? How far away is the Moon? If you liked this, you may like: What Is a Solar Eclipse? Lunar Eclipses and Solar Eclipses Make Oreo Moon Phases! Games Crafts Activities Videos Glossary Mystery About Us Privacy Policy Image Use Accessibility Contact NASA Space Place Last Updated: July 31st, 2026 More Less By Subject Space Sun Earth Solar System People & Technology Parents & Educators By Type Explore Do Play More Less More about the Sun and Moon! Lunar Eclipses and Solar Eclipses What is the Sun's corona? How far away is the Moon?",
+    "retrievedAt": "2026-10-08T10:52:04.410Z"
+  },
+  "reply": "{\"title\": \"Why the Tiny Moon Can Hide the Giant Sun\", \"summary\": \"A small Moon can block the enormous Sun during a total eclipse because distance, not size, governs how big each one looks from Earth, though this will not last forever.\", \"beats\": [\"A total solar eclipse happens when the Moon slides directly between Earth and the Sun, casting its shadow onto our planet and briefly cutting off the Sun's bright face.\", \"The Sun is roughly 400 times larger than the Moon, but the Sun is also about 400 times farther away, so the two appear almost exactly the same size in Earth's sky — close enough that the Moon can cover the Sun completely.\", \"Because nearby objects look larger than distant ones, that near-perfect match of apparent sizes is what lets the much smaller Moon plaster over the Sun's disk for a few dramatic minutes.\", \"Today this works thanks partly to a quirk: the Moon's orbit is not perfectly round, so on some passes it sits a bit too far from Earth to fully cover the Sun, leaving a glowing ring visible instead.\", \"Over the long haul, the Moon is steadily drifting outward by about 1.5 inches per year, and once it is roughly 14,600 miles farther away than today, total eclipses will vanish for good — though not for more than 600 million years.\"], \"concepts\": [{\"code\": \"astro.sun\", \"role\": \"primary\"}], \"claims\": [{\"statement\": \"The Moon can completely block the Sun during a total solar eclipse even though the Moon is about 400 times smaller than the Sun, because apparent size depends on distance.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun\", \"role\": \"subject\"}], \"quote\": \"Even though the Moon is 400 times smaller than the Sun, it's also about 400 times closer to Earth than the Sun is.\", \"supportKind\": \"supports\"}, {\"statement\": \"Total solar eclipses will eventually disappear once the Moon's growing orbit carries it about 14,600 miles farther from Earth than it is today.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun\", \"role\": \"context\"}], \"quote\": \"once the Moon's growing orbit takes it approximately 14,600 miles (23,500 km) farther away from Earth, it will always be too far away to completely cover the Sun.\", \"supportKind\": \"supports\"}, {\"statement\": \"Because the Moon's orbit is not perfectly round, there are already times when the Moon is too far away to fully cover the Sun, producing a ring-like effect instead of a total eclipse.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun\", \"role\": \"mechanism\"}], \"quote\": \"Sometimes the Moon is far enough away that it doesn't create a total solar eclipse. In this case, the Moon obscures most of the Sun, but a thin ring of the Sun remains visible around the Moon.\", \"supportKind\": \"qualifies\"}, {\"statement\": \"At the current rate of about 1.5 inches of orbital growth per year, it will take more than 600 million years for total solar eclipses to vanish entirely.\", \"truthState\": \"documented\", \"concepts\": [{\"code\": \"astro.sun\", \"role\": \"object\"}], \"quote\": \"If the Moon's orbit grows only 1.5 inches every year, it will take more than 600 million years for total solar eclipses to completely disappear!\", \"supportKind\": \"supports\"}]}",
+  "record": {
+    "transport": "minimax",
+    "model": "MiniMax-M3",
+    "inputBytes": 5048,
+    "usage": {
+      "inputTokens": 1135,
+      "outputTokens": 737,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "costMicroUsd": null
+    },
+    "versions": {
+      "prompt": "scroll-writing-prompt-v1",
+      "reply": "scroll-reply-v1",
+      "checks": "scroll-checks-v2",
+      "quoteDiagnosis": "quote-diagnosis-v1",
+      "hosts": "material-hosts-v1"
+    }
+  }
+}

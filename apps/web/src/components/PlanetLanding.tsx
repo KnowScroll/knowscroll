@@ -18,7 +18,7 @@ interface PlanetLandingProps {
   children?: ReactNode;
 }
 
-/** Landing on a world of a star (ADR-0049). The globe's cartography and light are illustration;
+/** Landing on a world of a star (ADR-0051). The globe's cartography and light are illustration;
  * the world itself, its relation and the Scrolls the action opens are the reader's recorded state. */
 export function PlanetLanding({ title, eyebrow, lead, actionLabel, backLabel = '← Universe', variant, onBack, onContinue, children }: PlanetLandingProps) {
   const heading = useRef<HTMLHeadingElement>(null);

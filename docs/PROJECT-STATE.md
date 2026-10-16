@@ -15,11 +15,11 @@ On the web app:
   stars. Approaching a star says why it looks that way, from what was recorded. Landing on a world
   and "Read from …" open Scrolls from that place. A new recorded change plays once. Saved Traces are
   small kept lights that open directly.
-- **Semantics** are ADR-0049 (accepted for web; perspective worlds stay a labelled preview).
+- **Semantics** are ADR-0051 (accepted for web; perspective worlds stay a labelled preview).
 
 Not yet: Android adopting the same drawing, physical-phone checks, and stars "under tension" or
-"lighting others" on real data (the current library cannot produce them). Migration 0045 is on main
-ahead of #199's 0042–0044 (dev/stage only): see the checkpoint before migrating any lasting database.
+"lighting others" on real data (the current library cannot produce them). Merged into `dev`; stage
+and live follow by promotion.
 
 ## 2026-09-25 Android: Idea Rooms, typed Relics, "more about this" and release readiness (#72)
 

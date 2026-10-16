@@ -1,4 +1,4 @@
-/* The reader's sky (ADR-0049). WebGL paints the bodies when it can (data-sky-mode="gl");
+/* The reader's sky (ADR-0051). WebGL paints the bodies when it can (data-sky-mode="gl");
    otherwise every body keeps the CSS drawing below. Buttons are always the real targets. */
 
 .visually-hidden {

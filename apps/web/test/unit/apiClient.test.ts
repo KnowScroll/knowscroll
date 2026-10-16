@@ -223,7 +223,7 @@ describe('ApiClient: whether a failed call may still have been applied (#135 rev
   });
 });
 
-describe('ApiClient.getFeed scoped to a place (ADR-0049)', () => {
+describe('ApiClient.getFeed scoped to a place (ADR-0051)', () => {
   const PLACE = '7f1c2d3e-4b5a-4c6d-8e9f-0a1b2c3d4e5f';
   const OPENED = '00000000-0000-4000-8000-000000000001';
   const empty = { decisionId: 'd1', universeId: 'u1', accountRevision: 0, privacyEpoch: 0, items: [] };

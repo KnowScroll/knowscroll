@@ -56,7 +56,7 @@ Canvas blocks measure their rendered width and redraw on resize; code samples sc
 own frame. The inline swipe cue and end-of-Scroll actions replace the floating action strip that
 had obscured reading text. Gesture navigation and keyboard controls remain available.
 
-## 2026-10-16 the opening and the star sky (ADR-0049)
+## 2026-10-16 the opening and the star sky (ADR-0051)
 
 `apps/web/src/cosmos/` holds the cosmic layer. `timeline.ts` is the opening as a pure function of
 time; `gl/OriginRenderer.ts` draws it with WebGL2; `gl/SkyRenderer.ts` paints the live Universe

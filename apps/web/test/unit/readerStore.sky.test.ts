@@ -39,7 +39,7 @@ function gateAtlas(api: FakeApi) {
   return pending;
 }
 
-describe('ReaderStore: the Universe sky (ADR-0049)', () => {
+describe('ReaderStore: the Universe sky (ADR-0051)', () => {
   let api: FakeApi;
   let storage: ReaderStorage;
   let store: ReaderStore;

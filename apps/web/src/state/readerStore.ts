@@ -41,7 +41,7 @@ export type ReaderOrigin =
   | { type: 'discovery' }
   | { type: 'saved-trace'; eventId: string }
   | { type: 'branch'; fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean }
-  /** ADR-0049: read from one of the reader's stars or worlds through the place-scoped feed. */
+  /** ADR-0051: read from one of the reader's stars or worlds through the place-scoped feed. */
   | { type: 'place'; placeId: string; name: string };
 
 export type BranchView =
@@ -86,7 +86,7 @@ export type AtlasView =
   | { status: 'loaded'; response: AtlasResponse; settingAside: string | null; error: string | null }
   | { status: 'unavailable'; message: string };
 
-/** ADR-0049: the reader's places as the Universe draws them, read beside the bootstrap. Never
+/** ADR-0051: the reader's places as the Universe draws them, read beside the bootstrap. Never
  * persisted across reload and never required for the Universe to render: a failure is shown as
  * "stars unavailable" with a retry, while every other Universe action keeps working. */
 export type SkyView =
@@ -188,7 +188,7 @@ export class ReaderStore {
   };
   /** The latest sky read; an older one that lands after a newer one is dropped. */
   private skyRequest = 0;
-  /** ADR-0049: the star or world this reading trip started from, kept until the reader returns to
+  /** ADR-0051: the star or world this reading trip started from, kept until the reader returns to
    * the Universe or chooses the general stream; every discovery in the trip asks within it. */
   private placeScope: { placeId: string; name: string } | null = null;
   private readonly listeners = new Set<Listener>();
@@ -310,7 +310,7 @@ export class ReaderStore {
     this.loadNext();
   }
 
-  /** ADR-0049: read from one of the reader's stars or worlds. The feed composes only within that
+  /** ADR-0051: read from one of the reader's stars or worlds. The feed composes only within that
    * place and the worlds beneath it; selection, exposure and Keep are the ordinary path. */
   enterPlace(placeId: string, name: string): void {
     if (this.busy || this.reconciling || !this.ready) return;
@@ -893,7 +893,7 @@ export class ReaderStore {
    * Opens the explanation of the encounter on screen: the feed decision that served it and its
    * Scroll (the same pair its exposure was recorded under). A saved Trace and a followed branch were
    * never chosen by the Composer, so they have nothing recorded to show and nothing is asked; an
-   * encounter read from a star or world was (ADR-0049: the scoped decision is a Composer decision). Nothing is read while the
+   * encounter read from a star or world was (ADR-0051: the scoped decision is a Composer decision). Nothing is read while the
    * reader is not ready -- signed out, failed closed or reconciling a privacy change.
    */
   openWhy(): void {

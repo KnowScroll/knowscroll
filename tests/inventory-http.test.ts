@@ -168,6 +168,11 @@ test('GET /v1/feed default excludes an eligible Reel; kinds=Scroll,Reel includes
     assert.equal(reelItem!.truthState, 'synthesis');
     assert.equal(reelItem!.generatedLabel, true);
     assert.equal(reelItem!.simulated, true);
+    assert.equal(
+      reelItem!.check,
+      null,
+      'a simulated Reel carries no engine check (#199)',
+    );
     assert.equal(reelItem!.mediaUrl, `/v1/media/${reel.mediaSha256}`);
     assert.equal(reelItem!.durationSeconds, 7.25);
     assert.equal(reelItem!.aspect, '1080:1920');

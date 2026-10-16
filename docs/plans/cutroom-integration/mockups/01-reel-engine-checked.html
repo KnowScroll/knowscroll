@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Engine-checked Reel</title>
+<!-- Gate 1 mockup: throwaway, no framework, no build step. Colours and wording follow the
+     existing apps/web/src/components/ReelPlayer.tsx and reel-player.css; only the
+     "Engine-checked" tag and the "How it was checked" section are new. -->
+<style>
+  :root {
+    --cream: #fffbf0; --ink: #111214; --muted: #35383b; --cobalt: #2c46e8;
+    --yellow: #ffe44d; --teal: #14c79b; --rust: #8d2d18; --stage: #090e14;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 48px; background: #e9e4d6; color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .intro { max-width: 70ch; color: var(--muted); margin: 0 0 24px; }
+  .row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .08em;
+               color: var(--muted); margin-bottom: 8px; }
+  .phone { width: 340px; max-width: 100%; background: var(--cream); border: 2px solid var(--ink);
+           border-radius: 22px; padding: 14px; box-shadow: 6px 6px 0 var(--ink); }
+  .top { font: 700 12px var(--mono); color: var(--cobalt); margin-bottom: 8px; }
+  .eyebrow { color: var(--cobalt); text-transform: uppercase; letter-spacing: .12em;
+             font: 700 11px var(--mono); margin: 0; }
+  .truth { background: var(--ink); color: var(--cream); padding: 1px 6px; border-radius: 4px;
+           margin-left: 6px; letter-spacing: .06em; }
+  h2 { font-size: 20px; line-height: 1.2; margin: 4px 0 6px; }
+  .prov { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .tag { font: 700 11px var(--mono); border: 1.5px solid var(--ink); border-radius: 999px;
+         padding: 2px 8px; background: #fff; }
+  .tag.new { background: var(--teal); }
+  .tag.new::after { content: " NEW"; font-size: 9px; vertical-align: super; }
+  .sim { color: var(--rust); font: 700 11px var(--mono); padding: 2px 0; }
+  .stage { aspect-ratio: 9 / 16; background: var(--stage); border-radius: 12px; position: relative;
+           overflow: hidden; display: flex; align-items: flex-end; }
+  .frame { position: absolute; inset: 0; background:
+           radial-gradient(circle at 50% 38%, #3b7bd6 0 18%, transparent 19%),
+           radial-gradient(circle at 50% 38%, #1d3d6b 0 34%, transparent 35%),
+           linear-gradient(#0b1a2e, #13304f 60%, #1f5c7a); }
+  .frame.sim-frame { background: repeating-linear-gradient(90deg, #555 0 40px, #777 40px 80px); }
+  .caption { position: relative; margin: 0 12px 52px; padding: 6px 8px; color: #fff;
+             background: rgb(0 0 0 / 72%); font-size: 13px; border-radius: 6px; }
+  .controls { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 8px;
+              align-items: center; padding: 8px 10px; background: rgb(0 0 0 / 72%);
+              color: var(--cream); font: 11px var(--mono); }
+  .bar { flex: 1; height: 4px; background: #555; border-radius: 2px; }
+  .bar i { display: block; width: 38%; height: 100%; background: var(--yellow); border-radius: 2px; }
+  .summary { color: var(--muted); font-size: 13px; margin: 10px 0; }
+  .actions { display: flex; gap: 8px; }
+  .actions span { flex: 1; text-align: center; font: 700 12px var(--mono); border: 1.5px solid var(--ink);
+                  border-radius: 8px; padding: 8px 4px; background: #fff; }
+  .actions span:first-child { background: var(--yellow); }
+  .actions span:nth-child(2) { background: var(--teal); }
+  .why { border: 1.5px solid var(--ink); border-radius: 12px; background: #fff; padding: 12px; }
+  .why h3 { font-size: 15px; margin: 0 0 8px; }
+  .why h4 { font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .08em;
+            color: var(--cobalt); margin: 14px 0 4px; }
+  .why p, .why li { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  .why ul { padding-left: 18px; margin: 0; }
+  .new-block { border-left: 4px solid var(--teal); padding-left: 10px; }
+  .note { max-width: 70ch; margin-top: 28px; color: var(--muted); font-size: 13px; }
+  .note b { color: var(--ink); }
+</style>
+</head>
+<body>
+  <h1>Engine-checked Reel: Gate 1 mockup</h1>
+  <p class="intro">This is the existing Reel player. The only new parts are the teal
+    <b>Engine-checked</b> tag and the <b>How it was checked</b> section in "Why this Reel
+    appeared". The simulated Reel on the right is how test footage already looks today.</p>
+
+  <div class="row">
+    <figure>
+      <figcaption>1 · Real Reel in the feed</figcaption>
+      <div class="phone">
+        <div class="top">‹ Universe</div>
+        <p class="eyebrow">Reel <span class="truth">Synthesis</span></p>
+        <h2>Why the tides follow the Moon</h2>
+        <div class="prov">
+          <span class="tag">Generated Reel</span>
+          <span class="tag new">Engine-checked</span>
+        </div>
+        <div class="stage">
+          <div class="frame"></div>
+          <p class="caption">The Moon's pull is strongest on the side of Earth that faces it.</p>
+          <div class="controls">❚❚ <span class="bar"><i></i></span> 0:15 / 0:40 🔊</div>
+        </div>
+        <p class="summary">A forty-second Reel made from the Scroll "Tides", narrated and captioned.</p>
+        <div class="actions"><span>Keep this Reel</span><span>Why this Reel?</span></div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>2 · "Why this Reel appeared", open</figcaption>
+      <div class="phone">
+        <div class="why">
+          <h3>Why this Reel appeared</h3>
+          <p>It continues the Scroll "Tides", which you kept.</p>
+          <p>Truth state: synthesis. This Reel is generated media.</p>
+
+          <div class="new-block">
+            <h4>How it was checked</h4>
+            <ul>
+              <li>Every sentence it says is tied to the sources of "Tides".</li>
+              <li>The video engine looked at each shot it shows and checked it against what that
+                shot had to show and must never show.</li>
+              <li>KnowScroll checked the video file, its labels, and that it doesn't repeat
+                another Reel.</li>
+            </ul>
+            <p><b>The shot check was done by the engine that made the Reel, not by an independent
+              reviewer.</b> That's what "Engine-checked" means.</p>
+          </div>
+
+          <h4>Made</h4>
+          <p>Up to 3 shots · narrated · captioned · 5 Oct 2026</p>
+        </div>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>3 · Simulated Reel (exists today)</figcaption>
+      <div class="phone">
+        <div class="top">‹ Universe</div>
+        <p class="eyebrow">Reel <span class="truth">Synthesis</span></p>
+        <h2>How seasons happen</h2>
+        <div class="prov">
+          <span class="tag">Generated Reel</span>
+          <span class="sim">Simulated media</span>
+        </div>
+        <div class="stage">
+          <div class="frame sim-frame"></div>
+          <div class="controls">▶ <span class="bar"><i style="width:0"></i></span> 0:00 / 0:12 🔇</div>
+        </div>
+        <p class="summary">Test footage, not a real Reel. It only exists in the test universe.</p>
+        <div class="actions"><span>Keep this Reel</span><span>Why this Reel?</span></div>
+      </div>
+    </figure>
+  </div>
+
+  <p class="note"><b>Android:</b> the native Reel screen shows the same two tags and the same
+    sheet text, in its own components. Exact wording is question 1 of Gate 1.</p>
+</body>
+</html>

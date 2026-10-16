@@ -1,6 +1,6 @@
 # Cosmic origin — the opening and the star sky
 
-Date: 2026-10-16. Branch `claude/220-cosmic-origin`. Semantics: [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md)
+Date: 2026-10-16. Branch `claude/220-cosmic-origin`. Semantics: [ADR-0051](../decisions/0051-stars-are-topics-worlds-form-from-their-material.md)
 (accepted for the web build at merge; §6 proposed). Derivation contract: [universe star view](../contracts/universe-star-view.md).
 
 ## What the owner asked for
@@ -29,7 +29,7 @@ claim that viewing changed a belief.
   state for faded attention, and target design 07 would archive places after long absence.
 
 So the owner's metaphor — topics as stars, worlds born from their material — inverts the current
-words, and "dormant" already meant absence. ADR-0049 reconciles this explicitly: stars are topics
+words, and "dormant" already meant absence. ADR-0051 reconciles this explicitly: stars are topics
 (top-level places), worlds are regions and rooms, sightings are possibilities, the foundation
 property becomes a **luminous** star, and "quiet" is structural, never a consequence of time away.
 
@@ -161,7 +161,7 @@ the device-pixel ratio is capped (1.5 / 1.75). Physical phones are not yet measu
 | Sky from `GET /v1/atlas`: stars, conditions, worlds, possibilities, kept lights, constellations, star system, world landing, change playback | implemented; reads existing state only |
 | Reading from a star or world | implemented: `GET /v1/feed?place=`, migration 0045 |
 | Luminous and tense stars in a real universe | supported by the derivation; not reachable with the current editorial library (see the preview stack notes) |
-| Perspective worlds released by a transformation (ADR-0049 §6) | **proposed only**, shown in the isolated preview |
+| Perspective worlds released by a transformation (ADR-0051 §6) | **proposed only**, shown in the isolated preview |
 | Android | unchanged; still draws places as planets |
 
 The **isolated preview** is `apps/web/origin-preview.html` (Vite dev only; the production build
@@ -181,11 +181,10 @@ argued room. Stopping the script drops its database.
 
 ## Coordination and risks
 
-- **Migration order.** 0045 skips 0042–0044, which exist on the dev/stage branches (#199). Those
-  must reach `main` before or together with this branch, or a database built from `main` cannot
-  migrate forward later.
+- **Migration order.** 0045 follows #199's 0042–0044; the work merged into `dev`, where those
+  already are, so every world applies them in order. Stage and main receive it by promotion.
 - **Owner-approved visuals changed.** Trace-as-planet bodies and the Trace → globe landing step
-  (2026-10-01 refinement) are retired by ADR-0049; the globe now belongs to worlds.
+  (2026-10-01 refinement) are retired by ADR-0051; the globe now belongs to worlds.
 - **Android parity.** The derivation contract is ready for Android; until it is adopted the two
   clients use different words for the same places.
 

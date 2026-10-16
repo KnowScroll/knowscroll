@@ -25,7 +25,8 @@
     "test": "./scripts/test.sh",
     "test:web": "pnpm --filter web test",
     "verify:journey": "tsx scripts/verify-journey.ts",
-    "state": "tsx scripts/state.ts"
+    "state": "tsx scripts/state.ts",
+    "build:release": "node scripts/build-release.mjs"
   },
   "dependencies": {
     "@knowscroll/contracts": "workspace:*",
@@ -39,6 +40,7 @@
     "@biomejs/biome": "2.5.14",
     "@types/node": "^22.18.0",
     "@types/pg": "^8.15.5",
+    "esbuild": "^0.28.2",
     "knip": "6.39.0",
     "sql-formatter": "15.9.0",
     "tsx": "^4.20.0",

@@ -56,6 +56,22 @@ describe('ReelPlayer', () => {
     expect(video).toHaveAttribute('src', item.mediaUrl);
   });
 
+  it('marks an engine-checked Reel and explains, in the why sheet, who checked it (#199)', () => {
+    const checked = { ...item, simulated: false, check: { by: 'engine' as const, policyVersion: 'publication-v2', shotsChecked: 9 } };
+    const why = { status: 'open' as const, assetId: item.assetId };
+    render(<ReelPlayer item={checked} active onOpenWhy={vi.fn()} onCloseWhy={vi.fn()} why={why as never} />);
+
+    expect(screen.getByText('Engine-checked')).toBeInTheDocument();
+    expect(screen.queryByText('Simulated media')).not.toBeInTheDocument();
+    const how = screen.getByRole('region', { name: 'How it was checked' });
+    expect(how).toHaveTextContent('not by an independent reviewer');
+  });
+
+  it('shows no engine check on a Reel without one', () => {
+    render(<ReelPlayer item={item} active />);
+    expect(screen.queryByText('Engine-checked')).not.toBeInTheDocument();
+  });
+
   it('reports visibility only while active and pauses and unloads when deactivated', () => {
     vi.useFakeTimers();
     vi.stubGlobal('IntersectionObserver', class {

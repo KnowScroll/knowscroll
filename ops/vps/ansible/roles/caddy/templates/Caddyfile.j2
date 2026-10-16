@@ -1,0 +1,70 @@
+# KnowScroll — managed by ops/vps/ansible (#201). Edits here are overwritten; change the template.
+# Every name gets HTTPS automatically. APIs listen on 127.0.0.1 only; Caddy is the only door.
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+(api_proxy) {
+	reverse_proxy {args[0]} {
+		# Hold requests briefly while a world restarts, so a deploy shows no errors.
+		lb_try_duration 5s
+		lb_try_interval 250ms
+	}
+}
+
+{% for host in ks_apex_hosts %}{{ host }}{% if not loop.last %}, {% endif %}{% endfor %} {
+	import security_headers
+	redir https://{{ ks_live_app_host }}{uri} 302
+}
+
+# Live: placeholders until the live slice lands.
+{{ ks_live_app_host }} {
+	import security_headers
+	root * /srv/knowscroll/placeholder/web
+	file_server
+}
+
+{{ ks_live_backend_host }} {
+	import security_headers
+	header Content-Type application/json
+	respond `{"status":"not-deployed","world":"live"}` 503
+}
+
+{% for w in ks_worlds %}
+# {{ w.name }}
+{{ w.app_host }} {
+	import security_headers
+	encode zstd gzip
+
+	handle /v1/* {
+		import api_proxy 127.0.0.1:{{ w.port }}
+	}
+	handle /health {
+		import api_proxy 127.0.0.1:{{ w.port }}
+	}
+	handle /assets/* {
+		root * /srv/knowscroll/{{ w.name }}/current/web
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+	handle {
+		root * /srv/knowscroll/{{ w.name }}/current/web
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{{ w.backend_host }} {
+	import security_headers
+	encode zstd gzip
+	import api_proxy 127.0.0.1:{{ w.port }}
+}
+
+{% endfor %}
