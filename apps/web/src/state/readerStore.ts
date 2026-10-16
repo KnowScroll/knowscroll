@@ -37,7 +37,12 @@ function randomUuid(): string {
   });
 }
 
-export type ReaderOrigin = { type: 'discovery' } | { type: 'saved-trace'; eventId: string } | { type: 'branch'; fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean };
+export type ReaderOrigin =
+  | { type: 'discovery' }
+  | { type: 'saved-trace'; eventId: string }
+  | { type: 'branch'; fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean }
+  /** ADR-0049: read from one of the reader's stars or worlds through the place-scoped feed. */
+  | { type: 'place'; placeId: string; name: string };
 
 export type BranchView =
   | { status: 'idle' }
@@ -76,6 +81,15 @@ export type SystemView =
   | { status: 'unavailable'; message: string };
 
 export type AtlasView =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'loaded'; response: AtlasResponse; settingAside: string | null; error: string | null }
+  | { status: 'unavailable'; message: string };
+
+/** ADR-0049: the reader's places as the Universe draws them, read beside the bootstrap. Never
+ * persisted across reload and never required for the Universe to render: a failure is shown as
+ * "stars unavailable" with a retry, while every other Universe action keeps working. */
+export type SkyView =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'loaded'; response: AtlasResponse; settingAside: string | null; error: string | null }
@@ -150,6 +164,7 @@ export interface ReaderState {
   scroll: ScrollView;
   system: SystemView;
   atlas: AtlasView;
+  sky: SkyView;
   branches: BranchView;
   privacy: PrivacyView;
   why: WhyView;
@@ -165,11 +180,17 @@ export class ReaderStore {
     scroll: { status: 'idle' },
     system: { status: 'idle' },
     atlas: { status: 'idle' },
+    sky: { status: 'idle' },
     branches: { status: 'idle' },
     privacy: { status: 'idle' },
     why: WHY_CLOSED,
     toast: null,
   };
+  /** The latest sky read; an older one that lands after a newer one is dropped. */
+  private skyRequest = 0;
+  /** ADR-0049: the star or world this reading trip started from, kept until the reader returns to
+   * the Universe or chooses the general stream; every discovery in the trip asks within it. */
+  private placeScope: { placeId: string; name: string } | null = null;
   private readonly listeners = new Set<Listener>();
   private session: ScrollSession | null = null;
   private branchTrail: ScrollSession[];
@@ -268,7 +289,8 @@ export class ReaderStore {
       this.loadTraceRevisit(pending);
     } else if (this.state.screen === 'revisit') {
       return;
-    } else if (this.previewLane !== 'default') {
+    } else if (this.previewLane !== 'default' || this.placeScope) {
+      // A failed read from a star or world retries within that same place.
       this.loadNext();
     } else {
       this.enterScroll();
@@ -279,12 +301,81 @@ export class ReaderStore {
     if (this.busy || this.reconciling || !this.ready) return;
     this.parkedScroll = null;
     this.previewLane = 'default';
+    this.placeScope = null;
     const current = this.session;
     if (current?.item.kind === 'Scroll' && current.keepJobId === '' && current.privacyEpoch === this.observedPrivacyEpoch) {
       this.show(current);
       return;
     }
     this.loadNext();
+  }
+
+  /** ADR-0049: read from one of the reader's stars or worlds. The feed composes only within that
+   * place and the worlds beneath it; selection, exposure and Keep are the ordinary path. */
+  enterPlace(placeId: string, name: string): void {
+    if (this.busy || this.reconciling || !this.ready) return;
+    this.parkedScroll = null;
+    this.previewLane = 'default';
+    this.placeScope = { placeId, name };
+    this.loadNext();
+  }
+
+  /** Reads the reader's places for the Universe sky. Read-only; fenced like the Atlas screen. */
+  loadSky(): void {
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    const request = ++this.skyRequest;
+    if (this.state.sky.status !== 'loaded') this.set({ sky: { status: 'loading' } });
+    this.api.getAtlas()
+      .then(response => {
+        if (request !== this.skyRequest || epoch !== this.observedPrivacyEpoch || universeId !== this.observedUniverseId) return;
+        this.set({ sky: { status: 'loaded', response, settingAside: null, error: null } });
+      })
+      .catch((error: unknown) => {
+        if (request !== this.skyRequest) return;
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else {
+          this.set({ sky: { status: 'unavailable', message: describeApiError(error) } });
+        }
+      });
+  }
+
+  retrySky(): void {
+    if (this.ready) this.loadSky();
+  }
+
+  /** Journey G from the sky: the same reader correction as the Atlas screen's "set aside". */
+  setAsideStar(placeId: string): void {
+    const sky = this.state.sky;
+    if (this.busy || this.reconciling || !this.ready || sky.status !== 'loaded') return;
+    if (!sky.response.places.some(place => place.placeId === placeId && place.kind !== 'sighting')) return;
+    const current = sky.response;
+    const version = this.navigationVersion;
+    const epoch = this.observedPrivacyEpoch;
+    const universeId = this.observedUniverseId;
+    const request = ++this.skyRequest;
+    this.busy = true;
+    this.set({ sky: { status: 'loaded', response: current, settingAside: placeId, error: null } });
+    this.api.rejectAtlasPlace(placeId, epoch)
+      .then(response => {
+        if (request !== this.skyRequest || epoch !== this.observedPrivacyEpoch || universeId !== this.observedUniverseId) return;
+        this.set({ sky: { status: 'loaded', response, settingAside: null, error: null } });
+      })
+      .catch((error: unknown) => {
+        if (invalidatesReader(error)) {
+          this.purgeForScope(universeId, epoch);
+          this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else if (request === this.skyRequest) {
+          this.set({ sky: { status: 'loaded', response: current, settingAside: null, error: describeApiError(error) }, toast: describeApiError(error) });
+        }
+      })
+      .finally(() => {
+        // Like the Atlas screen's set-aside: a reply that lands after a navigation must not release
+        // whatever the reader started since (that operation owns `busy` now).
+        if (version === this.navigationVersion) this.busy = false;
+      });
   }
 
   enterTestReels(): void {
@@ -436,6 +527,7 @@ export class ReaderStore {
     this.navigationVersion++;
     this.busy = false;
     this.set({ screen: 'universe', atlas: { status: 'idle' } });
+    this.loadSky();
   }
 
   setAsideAtlasPlace(placeId: string): void {
@@ -638,7 +730,9 @@ export class ReaderStore {
         this.visited.clear();
         this.pendingCorrections.clear();
         this.ready = false; // the calling session is revoked server-side; nothing else may act as it until re-authenticated
-        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, why: WHY_CLOSED });
+        this.placeScope = null;
+        this.skyRequest++;
+        this.set({ scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, sky: { status: 'idle' }, why: WHY_CLOSED });
         this.setPrivacyAction({ status: 'reset-complete', receipt });
       })
       .catch((error: unknown) => {
@@ -797,15 +891,16 @@ export class ReaderStore {
 
   /**
    * Opens the explanation of the encounter on screen: the feed decision that served it and its
-   * Scroll (the same pair its exposure was recorded under). A saved Trace was never chosen by the
-   * Composer, so it has nothing recorded to show and nothing is asked. Nothing is read while the
+   * Scroll (the same pair its exposure was recorded under). A saved Trace and a followed branch were
+   * never chosen by the Composer, so they have nothing recorded to show and nothing is asked; an
+   * encounter read from a star or world was (ADR-0049: the scoped decision is a Composer decision). Nothing is read while the
    * reader is not ready -- signed out, failed closed or reconciling a privacy change.
    */
   openWhy(): void {
     if (!this.ready || this.reconciling) return;
     const reading = this.state.scroll.status === 'reading' ? this.state.scroll : null;
     if (!reading) return;
-    if (reading.origin.type !== 'discovery') {
+    if (reading.origin.type === 'saved-trace' || reading.origin.type === 'branch') {
       this.set({ why: { status: 'open', decisionId: '', assetId: reading.item.assetId, availability: { status: 'unrecorded' }, sending: null, corrected: [], notice: null } });
       return;
     }
@@ -1023,14 +1118,20 @@ export class ReaderStore {
     const trip = tripExclude(this.visited, openedAssetId);
     const kinds = this.previewLane === 'reels' ? 'reelOnly' : this.previewLane === 'rich-scrolls' ? false : true;
     const preview = this.previewLane === 'rich-scrolls' ? 'authored-web-scrolls' : undefined;
+    const scope = preview ? null : this.placeScope;
     this.api
-      .getFeed(trip, kinds, preview)
+      .getFeed(trip, kinds, preview, scope?.placeId)
       .then((feed: FeedResponse) => {
         if (!this.operationIsCurrent(version, epoch)) return;
         const selection = selectDiscovery(feed, universeId, epoch, new Set(trip), undefined);
         if (selection.kind === 'invalid-scope') {
           this.purgeForScope(feed.universeId, feed.privacyEpoch);
           this.failClosed('Your session moved to a different universe or privacy state. Reconnect to continue.');
+        } else if (selection.kind === 'exhausted' && !reading && scope) {
+          // Nothing (more) to read from this place right now: say so where the reader chose it.
+          this.placeScope = null;
+          this.storage.writeScreen('universe');
+          this.set({ screen: 'universe', scroll: { status: 'idle' }, toast: `Nothing more to read from ${scope.name} right now.` });
         } else if (selection.kind === 'exhausted') {
           if (reading) {
             const current = this.state.scroll;
@@ -1051,6 +1152,7 @@ export class ReaderStore {
             keepJobId: '',
             keepEventId: '',
             readingPosition: 0,
+            ...(scope ? { placeFrom: scope } : {}),
           };
           if (this.session) {
             this.visited.add(this.session.item.assetId);
@@ -1067,6 +1169,10 @@ export class ReaderStore {
         if (invalidatesReader(error)) {
           this.purgeForScope(universeId, epoch);
           this.failClosed(describeApiError(error), isUnauthorized(error));
+        } else if (scope && error instanceof ApiException && error.error.kind === 'server' && error.error.statusCode === 404) {
+          // The place is no longer a live star or world (set aside here or on another device):
+          // retrying it can never succeed, so the trip within it ends where the reader chose it.
+          this.endPlaceTrip(scope);
         } else if (reading) {
           const current = this.state.scroll;
           if (current.status === 'reading') this.set({ scroll: { ...current, discovery: 'failed' } });
@@ -1077,6 +1183,20 @@ export class ReaderStore {
       .finally(() => {
         if (version === this.navigationVersion) this.busy = false;
       });
+  }
+
+  /** Ends a reading trip within a place that is no longer live and says so on the Universe. */
+  private endPlaceTrip(scope: { placeId: string; name: string }): void {
+    this.placeScope = null;
+    const session = this.session;
+    if (session?.placeFrom?.placeId === scope.placeId) {
+      const { placeFrom: _dropped, ...rest } = session;
+      this.session = rest;
+      this.storage.writeSession(rest);
+    }
+    this.storage.writeScreen('universe');
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, why: WHY_CLOSED, toast: `${scope.name} is no longer one of your stars, so there is nothing to read from it.` });
+    this.loadSky();
   }
 
   private show(value: ScrollSession): void {
@@ -1098,7 +1218,9 @@ export class ReaderStore {
         discovery: 'idle',
         origin: value.branchFrom
           ? { type: 'branch', ...value.branchFrom }
-          : { type: 'discovery' },
+          : value.placeFrom
+            ? { type: 'place', ...value.placeFrom }
+            : { type: 'discovery' },
       },
       branches: { status: 'idle' },
     });
@@ -1410,6 +1532,7 @@ export class ReaderStore {
   returnToUniverse(destination: 'universe' | 'keep' = 'universe'): void {
     this.navigationVersion++;
     this.previewLane = 'default';
+    this.placeScope = null;
     this.parkedScroll = null;
     if (this.state.screen === 'revisit') this.discardRevisit();
     this.visited.clear();
@@ -1469,12 +1592,14 @@ export class ReaderStore {
     this.observedPrivacyEpoch = this.storage.observePrivacyState(actual.universeId, actual.privacyEpoch);
     this.ready = true;
     this.set({ universe: { status: 'loaded', universe: actual } });
+    this.loadSky();
 
     const cached = restoreStoredScroll && this.storage.readScreen() === 'scroll' ? this.storage.readSession() : null;
     const cachedRevisit = restoreStoredScroll && this.storage.readScreen() === 'revisit' ? this.storage.readRevisit() : null;
     if (cached && cached.privacyEpoch === this.observedPrivacyEpoch && cached.universeId === this.observedUniverseId) {
       this.session = cached;
       this.previewLane = cached.item.kind === 'Reel' ? 'reels' : 'default';
+      this.placeScope = cached.placeFrom ?? null;
       this.show(cached);
     } else if (cachedRevisit && cachedRevisit.privacyEpoch === this.observedPrivacyEpoch && cachedRevisit.universeId === this.observedUniverseId) {
       this.revisit = cachedRevisit;
@@ -1497,7 +1622,9 @@ export class ReaderStore {
     this.parkedScroll = null;
     this.visited.clear();
     this.pendingCorrections.clear();
-    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, branches: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
+    this.placeScope = null;
+    this.skyRequest++;
+    this.set({ screen: 'universe', scroll: { status: 'idle' }, system: { status: 'idle' }, atlas: { status: 'idle' }, sky: { status: 'idle' }, branches: { status: 'idle' }, privacy: { status: 'idle' }, why: WHY_CLOSED });
   }
 
   /** `signedOut` (#135) is additive: every existing caller keeps landing on exactly the same
@@ -1512,11 +1639,14 @@ export class ReaderStore {
     this.branchTrail = [];
     this.pendingBranchExplore = null;
     if (signedOut) this.onSignedOut?.(null, true);
+    this.placeScope = null;
+    this.skyRequest++;
     this.set({
       screen: 'universe',
       scroll: { status: 'idle' },
       system: { status: 'idle' },
       atlas: { status: 'idle' },
+      sky: { status: 'idle' },
       branches: { status: 'idle' },
       privacy: { status: 'idle' },
       why: WHY_CLOSED,

@@ -16,7 +16,10 @@
  * one admin connection this disposable stack needs.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+// The cosmic-origin opening (ADR-0049 §5) plays for a browser that has never seen it; this journey
+// is about what comes after sign-in, so its fresh context records the opening as already seen.
+import { expect, test } from '../e2e/support/origin.ts';
 
 function requiredEnv(name: string): string {
   const value = process.env[name];

@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Trace, Universe } from '../api/types.ts';
-import type { UniverseView } from '../state/readerStore.ts';
+import type { SkyView, UniverseView } from '../state/readerStore.ts';
 import type { ReaderStorage } from '../state/storage.ts';
 import { CosmosBackground } from './CosmosBackground.tsx';
 import { PlanetLanding } from './PlanetLanding.tsx';
 import { TravelShip, type TravelDestination } from './TravelShip.tsx';
+import { SkySurface } from '../cosmos/SkySurface.tsx';
+import { StarSystem } from '../cosmos/StarSystem.tsx';
+import { keptSlots, STAR_RADIUS, starSlots } from '../cosmos/skyLayout.ts';
+import { CONDITION_LABEL, deriveSky, starCaption, type StarWorld, type Transformation, type UniverseSky } from '../cosmos/starView.ts';
+import '../cosmos/sky.css';
 
 export interface UniverseScreenProps {
   state: UniverseView;
   storage: ReaderStorage;
+  sky?: SkyView;
+  reducedMotion?: boolean;
   onEnterScroll: () => void;
   onEnterTestReels?: () => void;
   onEnterRichScrolls?: () => void;
@@ -17,11 +24,15 @@ export interface UniverseScreenProps {
   onOpenPrivacy: () => void;
   onOpenKeep?: () => void;
   onRetry: () => void;
+  onRetrySky?: () => void;
+  onReadFrom?: (placeId: string, name: string) => void;
+  onSetAside?: (placeId: string) => void;
+  onReplayOrigin?: () => void;
 }
 
-/** Atlas keeps saved Traces distinct from the source-backed worlds inside System.
- * Neither a save nor its age establishes semantic growth. */
-export function UniverseScreen({ state, storage, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetry }: UniverseScreenProps) {
+/** The Universe: the reader's stars (ADR-0049) on the far sky, their kept lights, and — before any
+ * star has formed — the unformed cloud the opening ends on, with the first discovery in reach. */
+export function UniverseScreen({ state, storage, sky = { status: 'idle' }, reducedMotion = false, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetry, onRetrySky, onReadFrom, onSetAside, onReplayOrigin }: UniverseScreenProps) {
   return (
     <main className="universe-screen" aria-label="Universe">
       {state.status !== 'loaded' && <CosmosBackground />}
@@ -52,6 +63,8 @@ export function UniverseScreen({ state, storage, onEnterScroll, onEnterTestReels
         <LoadedUniverse
           universe={state.universe}
           storage={storage}
+          sky={sky}
+          reducedMotion={reducedMotion}
           onEnterScroll={onEnterScroll}
           onEnterTestReels={onEnterTestReels}
           onEnterRichScrolls={onEnterRichScrolls}
@@ -59,149 +72,24 @@ export function UniverseScreen({ state, storage, onEnterScroll, onEnterTestReels
           onEnterSystem={onEnterSystem}
           onOpenPrivacy={onOpenPrivacy}
           onOpenKeep={onOpenKeep}
+          onRetrySky={onRetrySky}
+          onReadFrom={onReadFrom}
+          onSetAside={onSetAside}
+          onReplayOrigin={onReplayOrigin}
         />
       )}
     </main>
   );
 }
 
-/** Copy varies with collection size; these are not world-evolution stages. */
-type Stage = 'first' | 'few' | 'grown';
-const GROWN_THRESHOLD = 10;
-
-function stageFor(keptCount: number): Stage {
-  if (keptCount === 0) return 'first';
-  if (keptCount < GROWN_THRESHOLD) return 'few';
-  return 'grown';
-}
-
-/** Invitation copy uses only facts this client can support. */
-const STAGE_HEADING: Record<Stage, string> = {
-  first: 'Somewhere new starts here.',
-  few: 'Your curiosity leaves a trace.',
-  grown: 'Places worth returning to.',
-};
-const STAGE_SUBTITLE_FIRST = 'No topics to pick. Just something interesting.';
-const STAGE_SUBTITLE_FEW = 'Saved encounters below. Open your Atlas to see what has taken shape.';
-
-/* ---------- Body layout: a deterministic grid, never a continuous spiral ----------
- * The reference's own spiral placement let two bodies land close enough in
- * angle and radius that their labels collided at 13 kept Traces. Every
- * body's row/column -- and the character budget its label is allowed -- is
- * derived purely from its position among the real bodies being drawn, so two
- * labels can never physically overlap at any count this finite library can
- * produce (sec.5b/7). Rows are spaced far enough apart that two bodies in
- * different rows can never collide regardless of column; within a row, each
- * slot's label is capped to a character width that provably fits in that
- * slot's own share of the canvas at the smaller of the two fidelity-tested
- * widths (sec.7: 1024x768).
- */
-const CANVAS_LEFT = 12;
-const CANVAS_RIGHT = 88;
-const CANVAS_TOP = 8; // % of .universe-bodies, which is already inset clear of the title HUD
-const CANVAS_BOTTOM = 78; // leaves the last row's two-line label inside the inset canvas
-const MIN_ROW_GAP_PCT = 20; // vertical % between row centres; safe for a ~90px body + its label at 1024x768
-const MIN_SUPPORTED_WIDTH_PX = 1024; // the smaller fidelity-tested width (sec.7)
-const AVG_CHAR_PX = 8; // a deliberately wide estimate for 13px/700-weight text -- safer, not tighter
-const LABEL_GUTTER_CH = 3;
-const MIN_LABEL_CH = 8;
-const DEFAULT_LABEL_CH = 26; // styles.css's own default cap, used whenever a slot has room to spare
-const COMFORTABLE_LABEL_CH = 16; // below this, a second row is worth the extra vertical space it costs
-
-interface BodySlot {
-  left: number;
-  top: number;
-  labelCh: number;
-}
-
-function labelCharsForRow(count: number): number {
-  const usableWidth = CANVAS_RIGHT - CANVAS_LEFT;
-  const slotPct = count <= 1 ? usableWidth : usableWidth / count;
-  const slotPx = (slotPct / 100) * MIN_SUPPORTED_WIDTH_PX;
-  return Math.floor(slotPx / AVG_CHAR_PX) - LABEL_GUTTER_CH;
-}
-
-/**
- * Grows the row count only as far as it is actually needed: a handful of bodies stays on one
- * centred row (the shape every low count already had, and the one that stays clear of the title
- * HUD at a short window), and a second or third row is added only once a single row would pack
- * labels tighter than `COMFORTABLE_LABEL_CH` -- never merely because the count crossed some fixed
- * threshold. `maxRows` still bounds how many rows the vertical canvas can safely fit at all.
- */
-function planRowCounts(total: number): number[] {
-  if (total <= 0) return [];
-  const maxRows = Math.max(1, Math.floor((CANVAS_BOTTOM - CANVAS_TOP) / MIN_ROW_GAP_PCT) + 1);
-  let rows = 1;
-  while (rows < maxRows && labelCharsForRow(Math.ceil(total / rows)) < COMFORTABLE_LABEL_CH) {
-    rows++;
-  }
-  const counts: number[] = [];
-  let remaining = total;
-  for (let r = 0; r < rows; r++) {
-    const rowsLeft = rows - r;
-    const count = Math.ceil(remaining / rowsLeft);
-    counts.push(count);
-    remaining -= count;
-  }
-  return counts;
-}
-
-function layoutBodies(total: number): BodySlot[] {
-  const rowCounts = planRowCounts(total);
-  const rows = rowCounts.length;
-  const usableWidth = CANVAS_RIGHT - CANVAS_LEFT;
-  const slots: BodySlot[] = [];
-  rowCounts.forEach((count, r) => {
-    const top = rows === 1 ? (CANVAS_TOP + CANVAS_BOTTOM) / 2 : CANVAS_TOP + (r * (CANVAS_BOTTOM - CANVAS_TOP)) / (rows - 1);
-    const labelCh = Math.max(MIN_LABEL_CH, Math.min(DEFAULT_LABEL_CH, labelCharsForRow(count)));
-    for (let c = 0; c < count; c++) {
-      const left = count === 1 ? (CANVAS_LEFT + CANVAS_RIGHT) / 2 : CANVAS_LEFT + (c * usableWidth) / (count - 1);
-      slots.push({ left, top, labelCh });
-    }
-  });
-  return slots;
-}
-
-/* Equal-size saved-Trace markers. Colour is decorative, never a growth signal. */
-const BODY_PALETTE = [
-  { core: '#fff6cf', mid: '#ffd058', edge: '#a9791f', glow: 'rgba(255,208,88,.45)' }, // yellow
-  { core: '#e8fffb', mid: '#33c4b4', edge: '#0f5f57', glow: 'rgba(51,196,180,.45)' }, // teal
-  { core: '#eafff3', mid: '#64d47d', edge: '#1f7a3c', glow: 'rgba(100,212,125,.45)' }, // green
-  { core: '#fff0f6', mid: '#ed87b4', edge: '#8c3f63', glow: 'rgba(237,135,180,.45)' }, // pink
-] as const;
-
-function paletteFor(index: number) {
-  // Non-null: the modulo always lands inside BODY_PALETTE's fixed length.
-  return BODY_PALETTE[index % BODY_PALETTE.length]!;
-}
-
-function BodySurface({ sizePx, paletteIndex, idSeed }: { sizePx: number; paletteIndex: number; idSeed: string }) {
-  const palette = paletteFor(paletteIndex);
-  const gradientId = `body-grad-${idSeed}`;
-  return (
-    <svg viewBox="0 0 100 100" width={sizePx} height={sizePx} aria-hidden="true" focusable="false" className="body-surface">
-      <defs>
-        <radialGradient id={gradientId} cx="34%" cy="30%" r="75%">
-          <stop offset="0%" stopColor={palette.core} />
-          <stop offset="55%" stopColor={palette.mid} />
-          <stop offset="100%" stopColor={palette.edge} />
-        </radialGradient>
-      </defs>
-      <circle cx="50" cy="50" r="48" fill={`url(#${gradientId})`} />
-      {/* A soft terminator crescent, giving the sphere volume instead of a flat disc. */}
-      <path d="M 66 6 A 48 48 0 0 1 66 94 A 58 58 0 0 0 66 6 Z" fill={palette.edge} opacity="0.32" />
-
-    </svg>
-  );
-}
-
-function labelWidthStyle(ch: number): CSSProperties {
-  return { '--label-max': `${ch}ch` } as CSSProperties;
-}
+/** Copy varies with what has formed; these are descriptions of real state, not levels. */
+type Stage = 'first' | 'few' | 'stars';
 
 interface LoadedUniverseProps {
   universe: Universe;
   storage: ReaderStorage;
+  sky: SkyView;
+  reducedMotion: boolean;
   onEnterScroll: () => void;
   onEnterTestReels?: () => void;
   onEnterRichScrolls?: () => void;
@@ -209,63 +97,106 @@ interface LoadedUniverseProps {
   onEnterSystem: () => void;
   onOpenPrivacy: () => void;
   onOpenKeep?: () => void;
+  onRetrySky?: () => void;
+  onReadFrom?: (placeId: string, name: string) => void;
+  onSetAside?: (placeId: string) => void;
+  onReplayOrigin?: () => void;
 }
 
-interface LandingTarget {
-  title: string;
-  saved: boolean;
-  variant: number;
-  continue: () => void;
-}
+type Landing = { world: StarWorld; starId: string };
 
-function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep }: LoadedUniverseProps) {
+function LoadedUniverse({ universe, storage, sky, reducedMotion, onEnterScroll, onEnterTestReels, onEnterRichScrolls, onOpenTrace, onEnterSystem, onOpenPrivacy, onOpenKeep, onRetrySky, onReadFrom, onSetAside, onReplayOrigin }: LoadedUniverseProps) {
   const traces = universe.traces;
-  const empty = traces.length === 0;
-  const stage = stageFor(traces.length);
+  const derived: UniverseSky | null = useMemo(() => (sky.status === 'loaded' ? deriveSky(sky.response) : null), [sky]);
+  const stars = derived?.stars ?? [];
+  const stage: Stage = stars.length > 0 ? 'stars' : traces.length > 0 ? 'few' : 'first';
   const firstBodyRef = useRef<HTMLButtonElement | null>(null);
   const ctaRef = useRef<HTMLButtonElement | null>(null);
+  const bodiesRef = useRef<HTMLDivElement | null>(null);
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [dragging, setDragging] = useState(false);
   const [travel, setTravel] = useState<TravelDestination | null>(null);
-  const [landing, setLanding] = useState<LandingTarget | null>(null);
-  const pendingLanding = useRef<LandingTarget | null>(null);
+  const [skyMode, setSkyMode] = useState<'gl' | 'css'>('css');
+  const [selected, setSelected] = useState<{ starId: string; from: { x: number; y: number } | null } | null>(null);
+  const [landing, setLanding] = useState<Landing | null>(null);
+  const [portrait, setPortrait] = useState(() => typeof window !== 'undefined' && window.innerHeight > window.innerWidth);
+  const pendingAction = useRef<(() => void) | null>(null);
   const travelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number; moved: boolean } | null>(null);
   const suppressPointerClick = useRef(false);
   const suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    const resize = () => setPortrait(window.innerHeight > window.innerWidth);
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+
   useEffect(() => () => {
     if (travelTimer.current) clearTimeout(travelTimer.current);
     if (suppressTimer.current) clearTimeout(suppressTimer.current);
-    pendingLanding.current = null;
+    pendingAction.current = null;
   }, []);
 
   useEffect(() => {
     if (!travel) return undefined;
     travelTimer.current = setTimeout(() => {
-      const target = pendingLanding.current;
-      pendingLanding.current = null;
+      const action = pendingAction.current;
+      pendingAction.current = null;
       setTravel(null);
-      setLanding(target);
-    }, 1050);
+      action?.();
+    }, 950);
     return () => {
       if (travelTimer.current) clearTimeout(travelTimer.current);
       travelTimer.current = null;
     };
   }, [travel]);
 
-  const moveTo = (event: ReactMouseEvent<HTMLElement>, target: LandingTarget) => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setLanding(target);
+  // ADR-0049 §4: the newest recorded change this browser has not drawn yet plays once on its star.
+  // Which ids were drawn is local display memory in the reader's own (purged) storage, never
+  // evidence. A browser's first sight of this sky draws nothing: it cannot know what is recent.
+  const [event, setEvent] = useState<{ transformation: Transformation; startedAt: number } | null>(null);
+  useEffect(() => {
+    if (!derived) return undefined;
+    const known = storage.readSkyPlayed(universe.universeId);
+    const played = known ?? new Set<string>();
+    const fresh = known ? derived.transformations.find(item => item.starId !== null && item.kind !== 'quiet_change' && !played.has(item.id)) : undefined;
+    for (const item of derived.transformations) played.add(item.id);
+    storage.writeSkyPlayed(universe.universeId, played);
+    if (fresh) setEvent({ transformation: fresh, startedAt: performance.now() });
+    return undefined;
+  }, [derived, storage, universe.universeId]);
+  useEffect(() => {
+    if (!event) return undefined;
+    const timer = setTimeout(() => setEvent(null), 9000);
+    return () => clearTimeout(timer);
+  }, [event]);
+
+  // A star that was set aside, or a sky that changed underneath, closes what no longer exists.
+  useEffect(() => {
+    if (selected && !stars.some(star => star.placeId === selected.starId)) setSelected(null);
+  }, [selected, stars]);
+
+  /** Leaving a star returns focus to the star the reader approached. */
+  const closeSystem = useCallback(() => {
+    const id = selected?.starId;
+    setSelected(null);
+    if (id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-place-id="${id}"]`)?.focus());
+  }, [selected?.starId]);
+
+  /** The ship flies to what the reader chose, then the action runs (instantly under reduced motion). */
+  const flyTo = (event: ReactMouseEvent<HTMLElement>, action: () => void) => {
+    if (reducedMotion) {
+      action();
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    pendingLanding.current = target;
+    pendingAction.current = action;
     setTravel({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 });
   };
 
   const navigateNow = (action: () => void) => {
-    pendingLanding.current = null;
+    pendingAction.current = null;
     if (travelTimer.current) clearTimeout(travelTimer.current);
     setTravel(null);
     action();
@@ -320,61 +251,126 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
   };
 
   // The real why-this-appeared reason for the most recently kept Trace (never a fabricated
-  // growth claim -- sec.5c). Only trusted within the same universe/privacy scope as what is
-  // actually loaded right now, exactly like every other scoped read in this app.
+  // growth claim). Only trusted within the same universe/privacy scope as what is loaded.
   const growthNote = useMemo(() => {
+    if (stage === 'stars') {
+      const latest = derived?.transformations.find(item => item.kind !== 'quiet_change');
+      return latest ? latest.line : null;
+    }
     if (stage !== 'few') return null;
     const stored = storage.readLastKept();
     if (!stored || stored.universeId !== universe.universeId || stored.privacyEpoch !== universe.privacyEpoch) return null;
     const reason = stored.reason.trim();
     return reason.length > 0 ? reason : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, storage, universe.universeId, universe.privacyEpoch, traces.length]);
+  }, [stage, storage, universe.universeId, universe.privacyEpoch, traces.length, derived]);
 
-  // Traces plus one trailing slot for the "still unexplored" body -- laid out together so the
-  // unexplored body can never collide with the last row of real Traces either.
-  const slots = useMemo(() => (empty ? [] : layoutBodies(traces.length + 1)), [empty, traces.length]);
+  const starSlotList = useMemo(() => starSlots(stars.length, portrait), [stars.length, portrait]);
+  const keptSlotList = useMemo(() => keptSlots(traces.length, stars.length > 0), [traces.length, stars.length]);
+  const slotOf = useCallback((placeId: string) => {
+    const index = stars.findIndex(star => star.placeId === placeId);
+    return index >= 0 ? starSlotList[index] : undefined;
+  }, [stars, starSlotList]);
 
-  if (landing) {
+  const selectedStar = selected ? stars.find(star => star.placeId === selected.starId) ?? null : null;
+  const landingStar = landing ? stars.find(star => star.placeId === landing.starId) ?? null : null;
+
+  if (landing && landingStar) {
+    const world = landing.world;
+    const readPlace = world.kind === 'facet' ? { id: world.placeId, name: world.name } : { id: world.placeId, name: world.placeName };
     return <PlanetLanding
-      title={landing.title}
-      saved={landing.saved}
-      variant={landing.variant}
+      title={world.kind === 'facet' ? world.name : shorten(world.question, 110)}
+      eyebrow={world.kind === 'facet' ? `A world inside ${landingStar.name}` : `A question world in ${world.placeName}`}
+      lead={world.relation}
+      actionLabel={onReadFrom ? `Read from ${readPlace.name}` : 'Enter Scroll'}
+      backLabel={`‹ ${landingStar.name}`}
+      variant={world.kind === 'facet' ? 0 : 1}
       onBack={() => setLanding(null)}
       onContinue={() => {
         setLanding(null);
-        landing.continue();
+        if (onReadFrom) onReadFrom(readPlace.id, readPlace.name);
+        else onEnterScroll();
       }}
-    />;
+    >
+      {world.kind === 'question' && world.positions.length > 0 && (
+        <ul className="landing-positions">
+          {world.positions.map(position => (
+            <li key={position.role}><span>{position.label}</span>{position.claims.slice(0, 1).map(claim => <q key={claim.key}>{claim.statement}</q>)}</li>
+          ))}
+        </ul>
+      )}
+    </PlanetLanding>;
   }
+
+  if (selectedStar && derived) {
+    return <>
+      <CosmosBackground />
+      <StarSystem
+        star={selectedStar}
+        sky={derived}
+        reducedMotion={reducedMotion}
+        from={selected?.from ?? null}
+        settingAside={sky.status === 'loaded' && sky.settingAside === selectedStar.placeId}
+        onClose={closeSystem}
+        onOpenStar={placeId => setSelected({ starId: placeId, from: null })}
+        onLand={world => setLanding({ world, starId: selectedStar.placeId })}
+        onReadFrom={onReadFrom}
+        onSetAside={onSetAside}
+        onEnterScroll={onEnterScroll}
+      />
+    </>;
+  }
+
+  // Without the sky we cannot tell a new universe from one whose stars failed to load: say neither.
+  const skyMissing = sky.status === 'unavailable' && stage !== 'stars';
+  const heading = skyMissing
+    ? 'Your universe.'
+    : stage === 'first'
+    ? 'Somewhere new starts here.'
+    : stage === 'few'
+      ? 'Your curiosity leaves a trace.'
+      : stars.length === 1 ? `A first star: ${stars[0]!.name}.` : 'Your sky, so far.';
+  const subtitle = skyMissing
+    ? 'Everything else here still works: the Cable, Keep and your kept Scrolls.'
+    : stage === 'first'
+    ? 'No topics to pick. Just something interesting.'
+    : stage === 'few'
+      ? 'Stars form from topics you keep, ask about or follow on more than one day.'
+      : skySubtitle(derived!);
 
   return (
     <>
       <CosmosBackground camera={camera} />
       <div className="universe-title" aria-hidden="false">
         <p className="eyebrow">KNOWSCROLL</p>
-        <h1>{STAGE_HEADING[stage]}</h1>
-        <p className="universe-subtitle">
-          {stage === 'first' ? STAGE_SUBTITLE_FIRST : stage === 'few' ? STAGE_SUBTITLE_FEW : `${traces.length} kept ${traces.length === 1 ? 'Trace' : 'Traces'}.`}
-        </p>
-        {growthNote && <p className="growth-caption">{growthNote}</p>}
+        <h1>{heading}</h1>
+        <p className="universe-subtitle">{subtitle}</p>
+        {event ? (
+          <p className="growth-caption sky-event-caption" role="status">
+            <span className="sky-event-caption__kicker">Just changed</span> {event.transformation.line}
+          </p>
+        ) : growthNote && <p className="growth-caption">{growthNote}</p>}
+        {sky.status === 'unavailable' && (
+          <p className="sky-unavailable" role="status">
+            Your stars could not be loaded. <button type="button" className="sky-text-button" onClick={onRetrySky}>Try again</button>
+          </p>
+        )}
       </div>
 
-      {/* #119: reachable regardless of whether anything has been kept yet -- pausing, exporting
-          and resetting are all real capabilities of a universe that has recorded nothing just as
-          much as one that has recorded a great deal, so this is never conditioned on `empty` the
-          way the legend/map-tools below are. Neither Cosmos nor Living Observatory draws a
-          privacy control at all; this sits in Cosmos's own reserved-but-otherwise-unused top-right
-          status-pill slot (`.universe-title`'s own `right:150px` already clears this exact space)
-          rather than inventing a new frame position. */}
-      <button type="button" className="pill cream privacy-entry" onClick={() => navigateNow(onOpenPrivacy)} aria-label="Open privacy controls">
-        Privacy
-      </button>
+      <div className="universe-corner">
+        {onReplayOrigin && (
+          <button type="button" className="pill ghost origin-replay" onClick={() => navigateNow(onReplayOrigin)} aria-label="Replay the opening">
+            ↺ Opening
+          </button>
+        )}
+        <button type="button" className="pill cream privacy-entry" onClick={() => navigateNow(onOpenPrivacy)} aria-label="Open privacy controls">
+          Privacy
+        </button>
+      </div>
 
-      {/* Every body here is a real, focusable, labelled control (even the empty-state
-          invitation bodies, which trigger the same real discovery action as the CTA) --
-          never aria-hidden, which would strand a focusable control from assistive tech. */}
-      <div className={`universe-camera${dragging ? ' is-dragging' : ''}`} aria-label="Explore the starfield. Drag to move, use arrow keys or pan controls, and use plus or minus to zoom." onPointerDown={beginPan} onPointerMove={pan} onPointerUp={endPan} onPointerCancel={endPan} onClickCapture={blockDragClick} onKeyDown={event => {
+      <SkySurface anchors={bodiesRef} reducedMotion={reducedMotion} onMode={setSkyMode} className="universe-sky" />
+
+      <div className={`universe-camera${dragging ? ' is-dragging' : ''}`} data-sky-mode={skyMode} aria-label="Explore the starfield. Drag to move, use arrow keys or pan controls, and use plus or minus to zoom." onPointerDown={beginPan} onPointerMove={pan} onPointerUp={endPan} onPointerCancel={endPan} onClickCapture={blockDragClick} onKeyDown={event => {
         const step = event.shiftKey ? 120 : 60;
         if (event.key === 'ArrowLeft') setCamera(value => ({ ...value, x: Math.min(620, value.x + step) }));
         else if (event.key === 'ArrowRight') setCamera(value => ({ ...value, x: Math.max(-620, value.x - step) }));
@@ -383,152 +379,162 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
         else return;
         event.preventDefault();
       }} tabIndex={0}>
-      <div className="universe-bodies" style={{ transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})` }}>
-        {empty ? (
+      <div className="universe-bodies" ref={bodiesRef} style={{ transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})` }}>
+        {derived && derived.constellations.length > 0 && (
+          <svg className="sky-constellations" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            {derived.constellations.map(line => {
+              const a = slotOf(line.fromStarId);
+              const b = slotOf(line.toStarId);
+              if (!a || !b) return null;
+              return <line key={line.key} x1={a.left} y1={a.top} x2={b.left} y2={b.top} className={line.tension ? 'is-tension' : undefined} />;
+            })}
+          </svg>
+        )}
+
+        {stage !== 'stars' && (
           <>
             <button
               type="button"
-              className="body-button seed"
-              style={bodyStyle(50, 52, 84)}
-              onClick={event => moveTo(event, { title: 'A first possibility', saved: false, variant: 0, continue: onEnterScroll })}
+              className="body-button seed sky-body"
+              style={bodyStyle(50, 50, 132)}
+              data-sky="seed"
+              data-radius="70"
+              data-origin-target=""
+              onClick={event => flyTo(event, onEnterScroll)}
               aria-label="A first possibility: see what catches your curiosity"
-              ref={firstBodyRef}
+              ref={traces.length === 0 ? firstBodyRef : undefined}
             >
+              <span className="sky-body__css sky-body__css--seed" aria-hidden="true" />
               <span className="body-label">
                 <span className="body-name">A first possibility</span>
-                <span className="body-sub">See what catches your curiosity</span>
+                <span className="body-sub">{traces.length === 0 ? 'See what catches your curiosity' : 'Still gathering'}</span>
               </span>
             </button>
-            <button
-              type="button"
-              className="body-button dust"
-              style={bodyStyle(20, 34, 42)}
-              onClick={event => moveTo(event, { title: 'A different angle', saved: false, variant: 1, continue: onEnterScroll })}
-              aria-label="A different angle"
-            >
-              <span className="body-label">
-                <span className="body-name">A different angle</span>
-              </span>
-            </button>
-            <button
-              type="button"
-              className="body-button dust"
-              style={bodyStyle(80, 26, 40)}
-              onClick={event => moveTo(event, { title: 'A little surprise', saved: false, variant: 2, continue: onEnterScroll })}
-              aria-label="A little surprise"
-            >
-              <span className="body-label">
-                <span className="body-name">A little surprise</span>
-              </span>
-            </button>
-          </>
-        ) : (
-          <>
-            <nav aria-label="Saved Traces" className="universe-bodies-nav">
-              <ul>
-                {traces.map((trace, i) => {
-                  // Defensive fallback only: layoutBodies(traces.length + 1) always produces at
-                  // least one slot per Trace, so this never actually falls through in practice.
-                  const slot = slots[i] ?? { left: 50, top: 50, labelCh: DEFAULT_LABEL_CH };
-                  const sizePx = 56;
-                  const palette = paletteFor(i);
-                  return (
-                    <li key={trace.eventId}>
-                      <button
-                        type="button"
-                        className="body-button trace"
-                        style={{ ...bodyStyle(slot.left, slot.top, sizePx), boxShadow: `0 0 26px ${palette.glow}, inset 0 0 0 1px rgba(255,255,255,.18)` }}
-                        onClick={event => moveTo(event, { title: trace.title || 'Saved Scroll', saved: true, variant: i, continue: () => onOpenTrace(trace) })}
-                        aria-label={`Revisit the saved Trace: ${trace.title || 'Saved Scroll unavailable'}`}
-                        ref={i === 0 ? firstBodyRef : undefined}
-                      >
-                        <BodySurface sizePx={sizePx} paletteIndex={i} idSeed={trace.eventId} />
-                        <span className="body-label" style={labelWidthStyle(slot.labelCh)}>
-                          <span className="body-name">{trace.title || 'Saved Scroll unavailable'}</span>
-                          <span className="body-sub">{formatTraceDate(trace.createdAt)}</span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-            {/* The real unread remainder of the finite library. Its exact size is not
-                exposed by the bootstrap contract (the feed returns up to three bounded
-                candidates, never a total), so it is drawn honestly uncounted rather than
-                with an invented number -- see the evidence README's deviation note. Laid
-                out as the trailing slot of the same grid as the real Traces, so it can
-                never collide with them either. */}
-            {(() => {
-              const nebulaSlot = slots[traces.length] ?? { left: 88, top: 68, labelCh: DEFAULT_LABEL_CH };
-              return (
-                <button type="button" className="body-button nebula" style={bodyStyle(nebulaSlot.left, nebulaSlot.top, 46)} onClick={event => moveTo(event, { title: 'Still unexplored', saved: false, variant: traces.length, continue: onEnterScroll })} aria-label="Still unexplored">
-                  <span className="body-label" style={labelWidthStyle(nebulaSlot.labelCh)}>
-                    <span className="body-name">Still unexplored</span>
-                  </span>
+            {traces.length === 0 && (
+              <>
+                <button type="button" className="body-button dust sky-body" style={bodyStyle(20, 32, 40)} data-sky="frontier" data-radius="26" onClick={event => flyTo(event, onEnterScroll)} aria-label="A different angle">
+                  <span className="body-label"><span className="body-name">A different angle</span></span>
                 </button>
-              );
-            })()}
+                <button type="button" className="body-button dust sky-body" style={bodyStyle(80, 26, 36)} data-sky="frontier" data-radius="22" onClick={event => flyTo(event, onEnterScroll)} aria-label="A little surprise">
+                  <span className="body-label"><span className="body-name">A little surprise</span></span>
+                </button>
+              </>
+            )}
           </>
+        )}
+
+        {stars.length > 0 && (
+          <nav aria-label="Your stars" className="universe-bodies-nav">
+            <ul>
+              {stars.map((star, i) => {
+                const slot = starSlotList[i] ?? { left: 50, top: 50 };
+                const radius = STAR_RADIUS[star.condition] * (i === 0 ? 1.2 : 1);
+                return (
+                  <li key={star.placeId}>
+                    <button
+                      type="button"
+                      className={`body-button sky-star sky-body is-${star.condition}`}
+                      style={bodyStyle(slot.left, slot.top, radius * 2.6)}
+                      data-sky="star"
+                      data-place-id={star.placeId}
+                      data-condition={star.condition}
+                      data-radius={radius}
+                      data-seed={(0.17 + i * 0.31) % 1}
+                      data-worlds={star.worlds.length}
+                      data-motes={star.possibilities.length}
+                      data-emphasis={i === 0 ? '1' : '0'}
+                      data-event={!reducedMotion && event?.transformation.starId === star.placeId ? event.transformation.kind : undefined}
+                      data-event-at={!reducedMotion && event?.transformation.starId === star.placeId ? event.startedAt : undefined}
+                      ref={i === 0 ? firstBodyRef : undefined}
+                      onClick={event => {
+                        const bounds = event.currentTarget.getBoundingClientRect();
+                        setSelected({ starId: star.placeId, from: { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 } });
+                      }}
+                      aria-label={`${star.name}: ${CONDITION_LABEL[star.condition].toLowerCase()}. ${starCaption(star)}. Approach this star.`}
+                    >
+                      <span className="sky-body__css sky-body__css--star" data-condition={star.condition} aria-hidden="true" />
+                      <span className="body-label">
+                        <span className="body-name">{star.name}</span>
+                        <span className="body-sub">{starCaption(star)}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        )}
+
+        {traces.length > 0 && (
+          <nav aria-label="Saved Traces" className="universe-bodies-nav">
+            <ul>
+              {traces.map((trace, i) => {
+                const slot = keptSlotList[i] ?? { left: 50, top: 88 };
+                return (
+                  <li key={trace.eventId}>
+                    <button
+                      type="button"
+                      className={`body-button trace kept-light${stage === 'stars' ? ' is-quiet' : ''}`}
+                      style={bodyStyle(slot.left, slot.top, 22)}
+                      onClick={event => flyTo(event, () => onOpenTrace(trace))}
+                      aria-label={`Revisit the saved Trace: ${trace.title || 'Saved Scroll unavailable'}`}
+                      ref={stars.length === 0 && i === 0 ? firstBodyRef : undefined}
+                    >
+                      <span className="kept-light__spark" aria-hidden="true" />
+                      <span className="body-label">
+                        <span className="body-name">{trace.title || 'Saved Scroll unavailable'}</span>
+                        <span className="body-sub">{formatTraceDate(trace.createdAt)}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        )}
+
+        {stage === 'stars' && (
+          <button type="button" className="body-button nebula sky-body frontier" style={bodyStyle(portrait ? 82 : 90, portrait ? 74 : 70, 64)} data-sky="frontier" data-radius="56" onClick={event => flyTo(event, onEnterScroll)} aria-label="Still unexplored">
+            <span className="body-label">
+              <span className="body-name">Still unexplored</span>
+            </span>
+          </button>
         )}
       </div>
       </div>
 
-      {!empty && (
+      {(stage === 'stars' || traces.length > 0) && (
         <div className="universe-legend" aria-hidden="true">
-          <span>
-            <i className="legend-dot" /> Your paths
-          </span>
-          <span>
-            <i className="legend-ring" /> Still unexplored
-          </span>
+          {stage === 'stars' && <span><i className="legend-star" /> A topic of yours</span>}
+          {traces.length > 0 && <span><i className="legend-dot" /> Kept</span>}
+          <span><i className="legend-ring" /> Still unexplored</span>
         </div>
       )}
 
-      {(
-      <div className={`map-tools${empty ? '' : ' has-traces'}${camera.x !== 0 || camera.y !== 0 || camera.zoom !== 1 ? ' is-moved' : ''}`} aria-label="Map controls">
-          <div className="pan-controls" role="group" aria-label="Pan the universe">
-            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.min(620, value.y + 70) }))} aria-label="Pan up">↑</button>
-            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.min(620, value.x + 70) }))} aria-label="Pan left">←</button>
-            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.max(-620, value.y - 70) }))} aria-label="Pan down">↓</button>
-            <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.max(-620, value.x - 70) }))} aria-label="Pan right">→</button>
-          </div>
-          <button type="button" className="zoom-button" disabled={camera.zoom <= 0.7} onClick={() => adjustZoom(-0.15)} aria-label="Zoom out">
-            −
-          </button>
-          <button type="button" className="zoom-button" disabled={camera.zoom >= 1.8} onClick={() => adjustZoom(0.15)} aria-label="Zoom in">
-            +
-          </button>
-          <button type="button" className="zoom-button recenter" onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })} aria-label="Recenter the universe">
-            ⌖
-          </button>
-          {/* Living Observatory's own scale label (its `#scaleLabel`) names which of four
-              navigable depths ("PLANET"/"SYSTEM"/"GALAXY"/"UNIVERSE VIEW") the reader is at.
-              When this was written the build had exactly one real level, so the label said
-              "UNIVERSE VIEW" and said nothing else: naming a depth the build could not reach
-              would have claimed semantic geography that did not exist.
-
-              #116 built that depth for real. A system is now derived from recorded evidence
-              alone (ADR-0028) and served by `GET /v1/worlds`, so the second level named in
-              sec.5b exists and is reachable -- and the label becomes what the reference always
-              made it, a control that goes there. It still claims nothing: the system it opens
-              names only the worlds this reader's own reading has actually reached, and says so
-              plainly when that set is empty. */}
+      <div className={`map-tools${stage === 'first' ? '' : ' has-traces'}${camera.x !== 0 || camera.y !== 0 || camera.zoom !== 1 ? ' is-moved' : ''}`} aria-label="Map controls">
+        <div className="pan-controls" role="group" aria-label="Pan the universe">
+          <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.min(620, value.y + 70) }))} aria-label="Pan up">↑</button>
+          <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.min(620, value.x + 70) }))} aria-label="Pan left">←</button>
+          <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, y: Math.max(-620, value.y - 70) }))} aria-label="Pan down">↓</button>
+          <button type="button" className="zoom-button" onClick={() => setCamera(value => ({ ...value, x: Math.max(-620, value.x - 70) }))} aria-label="Pan right">→</button>
         </div>
-      )}
+        <button type="button" className="zoom-button" disabled={camera.zoom <= 0.7} onClick={() => adjustZoom(-0.15)} aria-label="Zoom out">−</button>
+        <button type="button" className="zoom-button" disabled={camera.zoom >= 1.8} onClick={() => adjustZoom(0.15)} aria-label="Zoom in">+</button>
+        <button type="button" className="zoom-button recenter" onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })} aria-label="Recenter the universe">⌖</button>
+      </div>
       {travel && <TravelShip destination={travel} />}
 
-      <p className="universe-hint">Drag to explore · Tap a planet to land</p>
+      <p className="universe-hint">{stage === 'stars' ? 'Drag to explore · Tap a star to approach it' : 'Drag to explore · Tap the cloud to begin'}</p>
 
       <div className="universe-cta-block">
         <button
           type="button"
-          className={empty ? 'pill yellow universe-cta' : 'pill teal universe-cta'}
+          className={stage === 'first' ? 'pill yellow universe-cta' : 'pill teal universe-cta'}
           onClick={() => navigateNow(onEnterScroll)}
           aria-label="Enter Scroll"
-          ref={empty ? undefined : ctaRef}
+          ref={stage === 'first' ? undefined : ctaRef}
         >
-          {empty ? 'Show me something ↗' : 'Enter Scroll'}
+          {stage === 'first' ? 'Show me something ↗' : 'Enter Scroll'}
         </button>
         {(onEnterRichScrolls || onEnterTestReels) && <details className="preview-menu">
           <summary>Try the preview</summary>
@@ -538,27 +544,21 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
           </div>
         </details>}
         <p className="cta-helper">
-          {empty ? 'Your world begins with what catches your curiosity.' : 'A familiar impulse. Somewhere new to go.'}
+          {stage === 'first' ? 'Your world begins with what catches your curiosity.' : 'A familiar impulse. Somewhere new to go.'}
         </p>
       </div>
 
       <nav className="universe-dock" aria-label="Main navigation">
         <button type="button" className="dock-button" onClick={() => navigateNow(onEnterScroll)} aria-label="Cable — read a Scroll">
-          <span className="dock-icon" aria-hidden="true">
-            〜
-          </span>
+          <span className="dock-icon" aria-hidden="true">〜</span>
           Cable
         </button>
         <button type="button" className="dock-button current" onClick={() => navigateNow(onEnterSystem)} aria-label="Atlas — open your places">
-          <span className="dock-icon" aria-hidden="true">
-            ◎
-          </span>
+          <span className="dock-icon" aria-hidden="true">◎</span>
           Atlas
         </button>
         <button type="button" className="dock-button" onClick={() => navigateNow(onOpenKeep ?? focusKeep)} aria-label="Keep — your saved Traces">
-          <span className="dock-icon" aria-hidden="true">
-            ▱
-          </span>
+          <span className="dock-icon" aria-hidden="true">▱</span>
           Keep
         </button>
       </nav>
@@ -566,8 +566,20 @@ function LoadedUniverse({ universe, storage, onEnterScroll, onEnterTestReels, on
   );
 }
 
-/** The real `createdAt` timestamp, rendered as Cosmos's own mono sub-label style
- *  ("3 STOPS") rather than a raw ISO string -- same data, legible presentation. */
+function skySubtitle(sky: UniverseSky): string {
+  const names = sky.stars.map(star => star.name);
+  const listed = names.length <= 3 ? joinNames(names) : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+  const lines = sky.constellations.length;
+  const connection = lines === 0 ? '' : lines === 1 ? ' One connection runs between them.' : ` ${lines} connections run between them.`;
+  return `${listed}.${connection}`;
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** The real `createdAt` timestamp as a short mono sub-label. */
 function formatTraceDate(createdAt: string): string {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return createdAt;
@@ -580,4 +592,8 @@ function bodyStyle(leftPct: number, topPct: number, sizePx: number): CSSProperti
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function shorten(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }

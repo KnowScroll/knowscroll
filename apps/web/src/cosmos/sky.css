@@ -1,0 +1,388 @@
+/* The reader's sky (ADR-0049). WebGL paints the bodies when it can (data-sky-mode="gl");
+   otherwise every body keeps the CSS drawing below. Buttons are always the real targets. */
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sky-surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.sky-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.universe-camera { z-index: 1; }
+.universe-sky { z-index: 1; }
+
+/* Bodies: transparent hit targets over the painted sky. */
+.universe-bodies .sky-body,
+.universe-bodies .kept-light {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.universe-bodies .sky-body:focus-visible,
+.universe-bodies .kept-light:focus-visible,
+.star-system__world:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 6px;
+}
+.sky-body__css {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+[data-sky-mode="gl"] .sky-body__css,
+.star-system[data-sky-mode="gl"] .sky-body__css { visibility: hidden; }
+
+/* CSS drawings, used only without WebGL. */
+.sky-body__css--seed {
+  inset: 12%;
+  background:
+    radial-gradient(circle at 50% 50%, rgb(255 236 190 / 95%) 0 4%, rgb(255 214 150 / 45%) 9%, transparent 22%),
+    radial-gradient(circle at 44% 56%, rgb(51 196 180 / 35%), transparent 58%),
+    radial-gradient(circle at 60% 42%, rgb(44 70 232 / 30%), transparent 62%);
+  filter: blur(1px);
+}
+.sky-body__css--star { inset: 28%; background: radial-gradient(circle at 42% 38%, #fffdf2, #ffd98a 45%, #e59a3a 72%, transparent 74%); box-shadow: 0 0 30px 8px rgb(255 214 140 / 40%); }
+.sky-body__css--star[data-condition="quiet"] { opacity: .85; }
+.sky-body__css--star[data-condition="tense"] { background: radial-gradient(circle at 42% 38%, #fff4e6, #ffb070 45%, #d9603a 72%, transparent 74%); box-shadow: 8px 0 34px 6px rgb(241 118 88 / 45%); }
+.sky-body__css--star[data-condition="luminous"] { background: radial-gradient(circle at 42% 38%, #ffffff, #dfe9ff 45%, #9fb7ff 72%, transparent 74%); box-shadow: 0 0 0 10px rgb(20 199 155 / 18%), 0 0 0 22px rgb(237 135 180 / 12%), 0 0 40px 10px rgb(220 232 255 / 45%); }
+.sky-body__css--world { inset: 18%; background: radial-gradient(circle at 35% 30%, #c9fff3, #14c79b 55%, #0b3d40 100%); }
+.sky-body__css--world[data-world="question"] { background: radial-gradient(circle at 35% 30%, #ffe3f0, #ed87b4 55%, #5a2440 100%); }
+
+/* Labels sit below the body as one flowing block. */
+.universe-bodies .sky-star .body-label { margin-top: 0; top: calc(100% - 6px); }
+.universe-bodies .sky-star .body-name { font-family: var(--font-display); font-weight: 800; font-size: 14px; letter-spacing: -0.01em; }
+.universe-bodies .sky-star.is-quiet .body-name { color: rgb(255 251 240 / 82%); }
+.universe-bodies .seed .body-label { top: calc(100% - 18px); }
+
+/* Kept lights: small cream sparks. Quiet beside stars; carrying their titles before any star. */
+.kept-light__spark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fffbf0;
+  box-shadow: 0 0 10px 3px rgb(255 228 77 / 45%), 0 0 2px #fff;
+}
+.universe-bodies .kept-light .body-label { margin-top: 4px; }
+.universe-bodies .kept-light .body-name { font-size: 11.5px; font-weight: 600; background: rgb(3 16 26 / 70%); }
+.universe-bodies .kept-light .body-sub { display: none; }
+.universe-bodies .kept-light.is-quiet .body-label { opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+.universe-bodies .kept-light.is-quiet:hover .body-label,
+.universe-bodies .kept-light.is-quiet:focus-visible .body-label { opacity: 1; }
+
+.universe-bodies .frontier { border: 1.5px dashed rgb(255 253 242 / 30%) !important; border-radius: 50%; }
+[data-sky-mode="gl"] .universe-bodies .frontier { border-color: rgb(255 253 242 / 14%) !important; }
+[data-sky-mode="gl"] .universe-bodies .dust { background-image: none !important; opacity: 1; }
+
+.sky-constellations {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.sky-constellations line {
+  stroke: rgb(255 251 240 / 30%);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+.sky-constellations line.is-tension { stroke: rgb(241 118 88 / 55%); stroke-dasharray: 6 4; }
+
+.universe-legend .legend-star {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -1px;
+  background: radial-gradient(circle, #fffdf2, #ffd98a 60%, transparent 70%);
+  box-shadow: 0 0 6px rgb(255 217 138 / 70%);
+}
+
+.universe-corner {
+  position: absolute;
+  z-index: 3;
+  top: 34px;
+  right: clamp(20px, 4vw, 48px);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.universe-corner .privacy-entry { position: static; }
+.pill.ghost.origin-replay { height: 44px; font-size: 12px; padding: 0 12px; color: var(--cream); border: 1px solid rgb(255 251 240 / 34%); background: rgb(5 11 25 / 62%); opacity: 1; }
+
+.sky-unavailable { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.sky-text-button { background: none; border: 0; color: var(--teal); font: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
+
+/* ---------- Approaching a star ---------- */
+.star-system {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 440px);
+  gap: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .star-system.is-approaching .star-system__orrery {
+    animation: star-approach .62s cubic-bezier(.2, .8, .2, 1) both;
+    transform-origin: var(--approach-x, 50%) var(--approach-y, 50%);
+  }
+  .star-system.is-approaching .star-sheet { animation: star-sheet-in .5s .12s cubic-bezier(.2, .8, .2, 1) both; }
+}
+@keyframes star-approach {
+  from { opacity: 0; transform: scale(.22); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes star-sheet-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+.star-system__orrery {
+  position: relative;
+  container-type: size;
+  min-height: 0;
+  overflow: hidden;
+}
+.star-system__field {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(100cqw, 100cqh, 860px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+.star-system__orbits {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.star-system__orbits ellipse {
+  fill: none;
+  stroke: rgb(255 251 240 / 16%);
+  stroke-width: .25;
+  vector-effect: non-scaling-stroke;
+}
+.star-system__orbits .star-system__halo { stroke: rgb(143 233 228 / 16%); stroke-dasharray: 1 3; }
+.star-system__star {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120px;
+  height: 120px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.star-system__star .sky-body__css { inset: 18%; }
+.star-system__world {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
+}
+.star-system__world .sky-label { top: calc(100% + 2px); }
+.star-system__possibility {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.star-system__mote {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px dashed rgb(143 233 228 / 70%);
+  background: rgb(143 233 228 / 14%);
+}
+.sky-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  max-width: 17ch;
+  pointer-events: none;
+}
+.sky-label__name {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--cream);
+  background: rgb(3 16 26 / 78%);
+  padding: 2px 7px;
+  border-radius: 7px;
+  text-align: center;
+  white-space: normal;
+}
+.sky-label__sub {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.sky-label--faint .sky-label__name { background: transparent; color: rgb(143 233 228 / 85%); font-weight: 600; font-size: 11.5px; }
+
+.star-sheet {
+  position: relative;
+  z-index: 3;
+  margin: 18px 18px 18px 0;
+  padding: 22px 24px 28px;
+  border-radius: 22px;
+  background: var(--cream);
+  color: var(--ink);
+  overflow-y: auto;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 45%);
+}
+.star-sheet__back { margin-bottom: 14px; }
+.star-sheet__condition {
+  display: inline-block;
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12px;
+  background: #f1ead5;
+}
+.star-sheet__condition.is-stirring { background: #d8f5ec; }
+.star-sheet__condition.is-tense { background: #fde0d6; }
+.star-sheet__condition.is-luminous { background: #e3e8ff; }
+.star-sheet h2 {
+  margin: 10px 0 6px;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+.star-sheet h2:focus { outline: none; }
+.star-sheet__description { margin: 0 0 16px; color: var(--ink-muted); line-height: 1.5; }
+.star-sheet__read { margin-bottom: 8px; }
+.star-sheet__section { margin-top: 22px; }
+.star-sheet__section h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.star-sheet ul,
+.star-sheet ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.star-sheet__reasons li {
+  padding-left: 14px;
+  border-left: 3px solid #d9cfb0;
+  line-height: 1.45;
+  font-size: 14px;
+}
+.star-sheet__reasons li[data-kind="tension"] { border-color: var(--orange); }
+.star-sheet__reasons li[data-kind="luminous"] { border-color: var(--blue); }
+.star-sheet__reasons li[data-kind="world"],
+.star-sheet__reasons li[data-kind="question"] { border-color: var(--teal); }
+.star-world-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1.5px solid #111214;
+}
+.star-world-card__kind { margin: 0; font-size: 12px; font-weight: 800; color: var(--ink-muted); }
+.star-world-card__name { margin: 4px 0; font-family: var(--font-display); font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+.star-world-card__relation { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-muted); }
+.star-world-card__positions { margin-top: 8px !important; }
+.star-world-card__positions li { display: grid; gap: 4px; font-size: 13px; }
+.star-world-card__positions span { font-weight: 800; }
+.star-world-card__positions q,
+.star-sheet q { color: var(--ink-muted); font-size: 13px; line-height: 1.45; }
+.star-world-card__actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.star-sheet__text-button {
+  min-height: 44px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 800;
+  font-size: 13.5px;
+  color: var(--blue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.star-sheet__possibilities li,
+.star-sheet__connections li { display: grid; gap: 2px; font-size: 14px; line-height: 1.4; }
+.star-sheet__possibilities span { color: var(--ink-muted); font-size: 13px; }
+.star-sheet__connections li.is-tension span { color: #a33a1c; }
+.star-sheet__links { display: flex; gap: 14px; flex-wrap: wrap; }
+.star-sheet__chronicle li { display: grid; grid-template-columns: 56px 1fr; gap: 8px; font-size: 13.5px; }
+.star-sheet__chronicle time { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); padding-top: 2px; }
+.star-sheet__set-aside {
+  margin-top: 26px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.landing-positions { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; max-width: 46ch; }
+.landing-positions li { display: grid; gap: 2px; font-size: 13.5px; }
+.landing-positions span { font-weight: 800; }
+.landing-positions q { color: var(--ink-muted, #43464a); }
+
+@media (max-width: 860px), (orientation: portrait) {
+  .star-system {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(260px, 44vh) 1fr;
+  }
+  .star-sheet { margin: 0 12px 12px; padding: 18px 18px 96px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .star-system.is-approaching .star-sheet { animation-name: star-sheet-up; }
+  }
+}
+@keyframes star-sheet-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 560px) {
+  .universe-corner { top: 22px; right: 16px; flex-direction: column; align-items: flex-end; }
+  .origin-replay { height: 44px; font-size: 11.5px; padding: 0 12px; }
+  .universe-bodies .sky-star .body-name { font-size: 13px; }
+}
+
+.sky-event-caption { color: var(--cream); border-left-color: var(--teal); }
+.sky-event-caption__kicker { display: block; color: var(--teal); font-weight: 700; margin-bottom: 2px; }
+.star-sheet__confirm { margin-top: 22px; padding: 12px 14px; border-radius: 14px; background: #fde9e1; font-size: 13.5px; line-height: 1.45; }
+.star-sheet__confirm p { margin: 0 0 4px; }
+.star-sheet__text-button.is-danger { color: #a33a1c; }

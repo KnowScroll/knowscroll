@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { CosmosBackground } from './CosmosBackground.tsx';
 import { WorldGlobe } from './WorldGlobe.tsx';
 import { ShipArtwork } from './TravelShip.tsx';
@@ -6,14 +6,21 @@ import './planet-landing.css';
 
 interface PlanetLandingProps {
   title: string;
-  saved: boolean;
+  /** What kind of world this is and where it sits ("A world inside Gravity"). */
+  eyebrow: string;
+  /** Its relationship to its star, in recorded terms. */
+  lead: string;
+  actionLabel: string;
+  backLabel?: string;
   variant: number;
   onBack: () => void;
   onContinue: () => void;
+  children?: ReactNode;
 }
 
-/** The surface is a navigational view of an encounter, not a new inferred world. */
-export function PlanetLanding({ title, saved, variant, onBack, onContinue }: PlanetLandingProps) {
+/** Landing on a world of a star (ADR-0049). The globe's cartography and light are illustration;
+ * the world itself, its relation and the Scrolls the action opens are the reader's recorded state. */
+export function PlanetLanding({ title, eyebrow, lead, actionLabel, backLabel = '← Universe', variant, onBack, onContinue, children }: PlanetLandingProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const world = useRef<HTMLButtonElement>(null);
   const rotation = useRef(variant % 2 === 0 ? 0 : 42);
@@ -90,7 +97,7 @@ export function PlanetLanding({ title, saved, variant, onBack, onContinue }: Pla
     <section className="planet-landing" aria-label="Planet landing">
       <CosmosBackground />
       <header className="planet-landing__top">
-        <button type="button" className="pill cream" onClick={onBack}>← Universe</button>
+        <button type="button" className="pill cream" onClick={onBack}>{backLabel}</button>
         <span className="eyebrow">KnowScroll / Landed</span>
       </header>
       <div className="planet-landing__scene">
@@ -126,11 +133,12 @@ export function PlanetLanding({ title, saved, variant, onBack, onContinue }: Pla
           <span className="planet-landing__light" aria-live="polite">{lightNames[light]}</span>
         </div>
         <div className="planet-landing__copy">
-          <p className="planet-landing__eyebrow">{saved ? 'A path you kept' : 'A first landing'}</p>
+          <p className="planet-landing__eyebrow">{eyebrow}</p>
           <h1 ref={heading} tabIndex={-1}>{title}</h1>
-          <p>{saved ? 'A familiar encounter is waiting on the surface.' : 'There is more here to discover.'}</p>
+          <p>{lead}</p>
+          {children}
           <button type="button" className="planet-landing__continue" onClick={onContinue}>
-            {saved ? 'Open saved Scroll' : 'Discover a Scroll'} <span aria-hidden="true">↗</span>
+            {actionLabel} <span aria-hidden="true">↗</span>
           </button>
           <span className="planet-landing__hint">Drag to turn · Tap the planet or moon to change the light</span>
         </div>

@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { expect, test as base } from './origin.ts';
 
 /**
  * Node-side test fixtures. `apiToken`/`apiBase` exist only in this test
@@ -6,6 +6,10 @@ import { test as base, expect } from '@playwright/test';
  * truth directly -- e.g. "exposure recorded exactly once" -- without
  * inventing a second source of truth. The fault-proxy control channel lets a
  * spec provoke a real transport failure against the real disposable API.
+ *
+ * Built on ./origin.ts, so these journeys also carry its `originSeen` option (default `true`):
+ * each fresh browser context records the cosmic-origin opening as already seen and starts at the
+ * Universe, as every journey here was written to.
  */
 export interface JourneyFixtures {
   faultProxyUrl: string;

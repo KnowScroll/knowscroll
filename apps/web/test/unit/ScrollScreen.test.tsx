@@ -39,6 +39,22 @@ describe('ScrollScreen', () => {
     expect(onReturnBranch).toHaveBeenCalledOnce();
   });
 
+  it('says which star an encounter was read from (ADR-0049)', () => {
+    render(
+      <ScrollScreen
+        state={readingState({ origin: { type: 'place', placeId: '00000000-0000-4000-8000-0000000000a1', name: 'Gravity' } })}
+        onVisible={vi.fn()}
+        onKeep={vi.fn()}
+        onNext={vi.fn()}
+        onReturn={vi.fn()}
+        onRetry={vi.fn()}
+        onReadingPosition={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('From Gravity · read from your sky')).toBeInTheDocument();
+    expect(screen.queryByText('Deliberate discovery · a new encounter')).not.toBeInTheDocument();
+  });
+
   it('shows the truth state, its meaning, and the blank-reason fallback for the Why panel', () => {
     render(
       <ScrollScreen

@@ -48,9 +48,8 @@ test.describe('the universe canvas keeps clear of the frame drawn over it', () =
   test('the keyboard help line is not hidden behind the centred dock', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto('/');
+    // ADR-0049: a kept Trace opens its saved Scroll directly (no landing step).
     await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
-    await expect(page.getByRole('region', { name: 'Planet landing' })).toBeVisible();
-    await page.getByRole('button', { name: 'Open saved Scroll', exact: true }).click();
     await expect(page.getByRole('article')).toBeVisible();
 
     const hidden = await page.evaluate(() => {
@@ -66,29 +65,14 @@ test.describe('the universe canvas keeps clear of the frame drawn over it', () =
   });
 });
 
-test('a landed planet turns and changes light before the saved Scroll opens', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await page.getByRole('button', { name: /Revisit the saved Trace/ }).first().click();
-  const landing = page.getByRole('region', { name: 'Planet landing' });
-  await expect(landing).toBeVisible();
-  const planet = landing.getByRole('button', { name: /Rotate planet/ });
-  const before = await planet.getAttribute('style');
-  const bounds = await planet.boundingBox();
-  expect(bounds).not.toBeNull();
-  await page.mouse.move(bounds!.x + bounds!.width * .35, bounds!.y + bounds!.height * .5);
-  await page.mouse.down();
-  await page.mouse.move(bounds!.x + bounds!.width * .65, bounds!.y + bounds!.height * .5, { steps: 5 });
-  await page.mouse.up();
-  expect(await planet.getAttribute('style')).not.toBe(before);
-  await expect(landing.getByText('Daylight')).toBeVisible();
-
-  await planet.click();
-  await expect(landing.getByText('Evening glow')).toBeVisible();
-  await landing.getByRole('button', { name: /Advance the moon/ }).click();
-  await expect(landing.getByText('Moonlit')).toBeVisible();
-  await expect(landing.getByRole('button', { name: 'Open saved Scroll' })).toBeInViewport();
-  await landing.getByRole('button', { name: 'Open saved Scroll' }).click();
-  await expect(page.getByRole('article')).toBeVisible();
-});
+/*
+ * "A landed planet turns and changes light" used to run here, on the landing a saved Trace opened.
+ * ADR-0049 retired that step: a Trace is now a kept light that opens its saved Scroll directly, and
+ * a planet landing exists only for a world inside a star -- which this fixture (a three-Scroll
+ * library with no substrate, so no places) can never form. The landing globe (drag turns it; a tap
+ * on it or the moon steps Daylight -> Evening glow -> Moonlit; the action stays in view) is covered
+ * by apps/web/test/unit/UniverseSpatial.test.tsx ("lets the reader turn a landed world and change
+ * its light without reading from it"), and in a real browser on a grown universe by
+ * apps/web/e2e-cosmos/grown.spec.ts ("land on Gravity's question world, turn it, change its light,
+ * then read from Gravity").
+ */
