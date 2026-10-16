@@ -141,7 +141,14 @@ describe('AtlasScreen', () => {
     const places = screen.getByLabelText('Places in your Atlas');
     expect(within(places).getByRole('heading', { name: 'Gravity' })).toBeInTheDocument();
     expect(within(places).getByRole('heading', { name: 'Orbits' })).toBeInTheDocument();
-    expect(within(places).getByRole('heading', { name: 'On the horizon' })).toBeInTheDocument();
+    expect(within(places).getByRole('heading', { name: 'At the edge, not met yet' })).toBeInTheDocument();
+    // ADR-0051 vocabulary: a top-level place is a star, a region a world, a sighting a possibility.
+    expect(screen.getByText('These stars, worlds and connections come from your reading.')).toBeInTheDocument();
+    for (const [name, kind] of [['Gravity', 'Star'], ['Orbits', 'World'], ['Star formation', 'Possibility']] as const) {
+      const article = within(places).getByRole('heading', { name }).closest('article') as HTMLElement;
+      expect(within(article).getByText(kind)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Lights others')).not.toBeInTheDocument();
     expect(screen.getAllByText('Gravity explains Orbits')).toHaveLength(2);
     expect(screen.getByText('Being written: more about Gravity.')).toBeInTheDocument();
     expect(screen.getByText(/Nothing more about Orbits for now/)).toBeInTheDocument();
@@ -150,6 +157,24 @@ describe('AtlasScreen', () => {
     expect(screen.getAllByText('Gravity became a place through your reading.')).toHaveLength(2);
     expect(screen.queryByText(/PRIVATE SOURCE TITLE/)).not.toBeInTheDocument();
     expect(screen.queryByText(/sourceFamilies|Scrolls? read|3 of 8/)).not.toBeInTheDocument();
+  });
+
+  it('marks a foundation as a star that lights others (ADR-0051 luminous), never as a score', () => {
+    const response = atlasResponse();
+    const places = response.places.map((place) => place.placeId === planetId
+      ? {
+          ...place,
+          foundation: {
+            holdsUp: [regionId],
+            relations: [{ kind: 'explains' as const, from: 'Gravity', to: 'Orbits', claim: { text: 'A connection supported by a claim.' }, bridge: null }],
+          },
+        }
+      : place);
+    renderAtlas({ status: 'loaded', response: { ...response, places } });
+    const gravity = screen.getByRole('heading', { name: 'Gravity' }).closest('article') as HTMLElement;
+    expect(within(gravity).getByText('Lights others')).toBeInTheDocument();
+    const orbits = screen.getByRole('heading', { name: 'Orbits' }).closest('article') as HTMLElement;
+    expect(within(orbits).queryByText('Lights others')).not.toBeInTheDocument();
   });
 
   it('names a bound Scroll from the live demand without exposing its source', () => {

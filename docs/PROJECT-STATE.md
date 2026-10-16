@@ -1,5 +1,26 @@
 # Project state
 
+## 2026-10-16 Web: the cosmic-origin opening and a star sky (#220, PR #221)
+
+On the web app:
+
+- **An opening on a first visit.** A short film: emptiness, an expansion, the first stars, one
+  star swelling and releasing a shell of material, a disk where worlds form, then your own
+  Universe. Cinema bars on wide screens and an optional score (tap for sound). Skip or Escape at any
+  time, still frames under reduced motion, a simpler version without WebGL, replay from the
+  Universe. A returning reader never sees it.
+- **Your places as stars.** The Universe draws each of your places as a star whose look says
+  something real: quiet, taking shape, under tension, or lighting others. Its worlds (narrower
+  places and Idea Rooms) orbit it, possibilities not yet met wait at its edge, connections join
+  stars. Approaching a star says why it looks that way, from what was recorded. Landing on a world
+  and "Read from …" open Scrolls from that place. A new recorded change plays once. Saved Traces are
+  small kept lights that open directly.
+- **Semantics** are ADR-0051 (accepted for web; perspective worlds stay a labelled preview).
+
+Not yet: Android adopting the same drawing, physical-phone checks, and stars "under tension" or
+"lighting others" on real data (the current library cannot produce them). Merged into `dev`; stage
+and live follow by promotion.
+
 ## 2026-09-25 Android: Idea Rooms, typed Relics, "more about this" and release readiness (#72)
 
 On the Android test app:

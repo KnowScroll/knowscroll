@@ -68,8 +68,8 @@ function Place({ place, response, settingAside, onSetAside }: {
   return (
     <article className={`atlas-place atlas-place-${place.kind}`}>
       <div className="atlas-place-heading">
-        <span className={`atlas-kind atlas-kind-${place.kind}`}>{place.kind === 'planet' ? 'Place' : place.kind === 'region' ? 'Region' : 'On the horizon'}</span>
-        {place.foundation && <span className="atlas-foundation">Holds other places up</span>}
+        <span className={`atlas-kind atlas-kind-${place.kind}`}>{place.kind === 'planet' ? 'Star' : place.kind === 'region' ? 'World' : 'Possibility'}</span>
+        {place.foundation && <span className="atlas-foundation">Lights others</span>}
         {place.rooms.length > 0 && <span className="atlas-room-mark" aria-label="Has an idea room">Room</span>}
       </div>
       <h2>{place.anchor.name}</h2>
@@ -188,7 +188,7 @@ export function AtlasScreen({ state, onReturn, onRetry, onSetAside }: AtlasScree
             <>
               {state.error && <p className="atlas-action-error" role="alert">{state.error}</p>}
               {state.settingAside && <p className="atlas-action-status" role="status">Setting this place aside…</p>}
-              <p className="atlas-intro">These places and connections come from your reading.</p>
+              <p className="atlas-intro">These stars, worlds and connections come from your reading.</p>
               <section className="atlas-place-list" aria-label="Places in your Atlas">
                 {state.response.places.filter((place) => place.kind !== 'sighting').map((place) => (
                   <Place key={place.placeId} place={place} response={state.response} settingAside={state.settingAside} onSetAside={onSetAside} />
@@ -196,7 +196,7 @@ export function AtlasScreen({ state, onReturn, onRetry, onSetAside }: AtlasScree
                 {state.response.places.some((place) => place.kind === 'sighting') && (
                   <section className="atlas-horizon" aria-labelledby="atlas-horizon-title">
                     <p className="atlas-overline">At the edge of places you reached</p>
-                    <h2 id="atlas-horizon-title">On the horizon</h2>
+                    <h2 id="atlas-horizon-title">At the edge, not met yet</h2>
                     {state.response.places.filter((place) => place.kind === 'sighting').map((place) => (
                       <Place key={place.placeId} place={place} response={state.response} settingAside={state.settingAside} onSetAside={onSetAside} />
                     ))}

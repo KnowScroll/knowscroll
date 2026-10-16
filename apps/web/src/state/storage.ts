@@ -29,6 +29,8 @@ export interface ScrollSession {
   keepEventId: string;
   readingPosition: number;
   branchFrom?: { fromAssetId: string; fromTitle: string; relationPhrase: string; recorded: boolean };
+  /** ADR-0051: the star or world this encounter was read from (the place-scoped feed). */
+  placeFrom?: { placeId: string; name: string };
 }
 
 export interface PendingBranch {
@@ -163,6 +165,17 @@ export class ReaderStorage {
   }
 
   /** Fail-closed purge: drop every private encounter/navigation artifact, keep the epoch fence monotonic. */
+  /** ADR-0051 §4: which recorded changes this browser's sky already drew, for one universe. Display
+   * memory only, never evidence; `null` means this browser has never seen this universe's sky. */
+  readSkyPlayed(universeId: string): Set<string> | null {
+    const stored = safeParse<{ universeId?: unknown; ids?: unknown }>(this.backend.getItem(key('skyPlayed')));
+    if (!stored || stored.universeId !== universeId || !Array.isArray(stored.ids)) return null;
+    return new Set(stored.ids.filter((id): id is string => typeof id === 'string'));
+  }
+  writeSkyPlayed(universeId: string, ids: Set<string>): void {
+    this.backend.setItem(key('skyPlayed'), JSON.stringify({ universeId, ids: [...ids].slice(-200) }));
+  }
+
   purgePrivateState(universeId: string, epoch: number): void {
     const observed = this.readObservedUniverseId() === universeId ? Math.max(this.readObservedPrivacyEpoch(), epoch) : epoch;
     this.backend.removeItem(key('session'));
@@ -171,6 +184,7 @@ export class ReaderStorage {
     this.backend.removeItem(key('lastKept'));
     this.backend.removeItem(key('pendingBranch'));
     this.backend.removeItem(key('branchTrail'));
+    this.backend.removeItem(key('skyPlayed'));
     this.backend.setItem(key('screen'), 'universe');
     this.backend.setItem(key('privacyUniverseId'), universeId);
     this.backend.setItem(key('privacyEpoch'), String(observed));

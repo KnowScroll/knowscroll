@@ -56,6 +56,22 @@ Canvas blocks measure their rendered width and redraw on resize; code samples sc
 own frame. The inline swipe cue and end-of-Scroll actions replace the floating action strip that
 had obscured reading text. Gesture navigation and keyboard controls remain available.
 
+## 2026-10-16 the opening and the star sky (ADR-0051)
+
+`apps/web/src/cosmos/` holds the cosmic layer. `timeline.ts` is the opening as a pure function of
+time; `gl/OriginRenderer.ts` draws it with WebGL2; `gl/SkyRenderer.ts` paints the live Universe
+with the same star, world and gas shaders at positions the DOM lays out (`SkySurface.tsx` reads
+`data-sky` buttons each frame, so every star stays a real, labelled, focusable control and CSS
+draws it when WebGL is unavailable). `starView.ts` derives stars, worlds, possibilities,
+constellations, conditions and transformations from `GET /v1/atlas` alone
+([contract](../contracts/universe-star-view.md)). The reader store loads the Atlas beside the
+Universe bootstrap (`sky`, fenced by universe and privacy epoch like every scoped read) and reads
+from a place with `GET /v1/feed?place=` (`enterPlace`, `placeFrom` on the session, origin
+`place`). `App` mounts `OriginExperience` above an `inert` app shell for a first visit only and
+releases every GPU and audio resource when it ends. Saved Traces now open directly from their
+kept light; the illustrated globe is the landing scene of a world. Design record:
+[cosmic origin](../design/2026-10-16-cosmic-origin.md).
+
 ## Checked web Scrolls
 
 Migration `0041` adds a nullable `asset.web_artifact`. When a checked model-written Scroll is admitted, the writer stores a version 1 declarative artifact in the same transaction as the Scroll and its fallback body. The artifact binds to the asset ID, revision and a hash of that body. It records checked-model provenance without revealing the internal source. The API validates the schema, byte limit, identity, body binding, integrity and diagram endpoints before returning the opt-in web response. An invalid or absent artifact becomes `null` and the existing body remains readable. Android and legacy feed callers keep their existing response shape.

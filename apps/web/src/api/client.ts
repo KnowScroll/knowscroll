@@ -141,8 +141,11 @@ const DEFAULT_DELAYS: [number, number] = [400, 1200];
 /** The subset of ApiClient the reader store depends on; lets tests inject a hand-written fake. */
 export interface ReaderApi {
   getUniverse(): Promise<Universe>;
-  /** `exclude`: what this discovery trip has on screen or already opened (#133). */
-  getFeed(exclude?: Iterable<string>, includeReels?: boolean | 'reelOnly', preview?: 'authored-web-scrolls'): Promise<FeedResponse>;
+  /** `exclude`: what this discovery trip has on screen or already opened (#133). `place`: one of the
+   * reader's live stars or worlds (an Atlas `placeId`); only that place and the worlds beneath it are
+   * composed from (ADR-0051). An empty `items` then means nothing more there right now; a place that is
+   * no longer live is a 404 `ApiException`. */
+  getFeed(exclude?: Iterable<string>, includeReels?: boolean | 'reelOnly', preview?: 'authored-web-scrolls', place?: string): Promise<FeedResponse>;
   postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse>;
   postInteraction(body: { clientEventId: string; exposureId: string; assetId: string; kind: 'keep' }): Promise<InteractionResponse>;
   getEvent(eventId: string): Promise<EventStatus>;
@@ -203,8 +206,8 @@ export class ApiClient implements ReaderApi {
     return this.request('GET', '/universe', undefined, [200], false, universe);
   }
 
-  async getFeed(exclude: Iterable<string> = [], includeReels: boolean | 'reelOnly' = false, preview?: 'authored-web-scrolls'): Promise<FeedResponse> {
-    return this.request('GET', feedPath(exclude, includeReels, preview), undefined, [200], false, feedResponse);
+  async getFeed(exclude: Iterable<string> = [], includeReels: boolean | 'reelOnly' = false, preview?: 'authored-web-scrolls', place?: string): Promise<FeedResponse> {
+    return this.request('GET', feedPath(exclude, includeReels, preview, place), undefined, [200], false, feedResponse);
   }
 
   async postExposure(body: { decisionId: string; assetId: string; clientExposureId: string }): Promise<ExposureResponse> {
@@ -525,13 +528,16 @@ export function isUnauthorized(error: unknown): boolean {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** `/feed`, with at most the 256 most recent opened ids of this trip (#133). */
-export function feedPath(exclude: Iterable<string>, includeReels: boolean | 'reelOnly' = false, preview?: 'authored-web-scrolls'): string {
+/** `/feed`, with at most the 256 most recent opened ids of this trip (#133), scoped to `place` when
+ * given (ADR-0051). The place id is sent as given: a malformed one is the server's 400, never a
+ * silently unscoped feed. */
+export function feedPath(exclude: Iterable<string>, includeReels: boolean | 'reelOnly' = false, preview?: 'authored-web-scrolls', place?: string): string {
   const ids = [...new Set([...exclude].filter(id => UUID.test(id)))].slice(-256);
   const params = new URLSearchParams();
   params.set('webArtifact', 'v1');
   if (includeReels) params.set('kinds', includeReels === 'reelOnly' ? 'Reel' : 'Scroll,Reel');
   if (preview) params.set('preview', preview);
+  if (place !== undefined) params.set('place', place);
   if (ids.length > 0) params.set('exclude', ids.join(','));
   const query = params.toString().replaceAll('%2C', ',');
   return query ? `/feed?${query}` : '/feed';

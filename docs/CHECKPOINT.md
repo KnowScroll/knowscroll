@@ -1,5 +1,45 @@
 # Shared delivery checkpoint
 
+## 2026-10-16 #220 cosmic-origin opening and the star sky (PR #221 into `dev`)
+
+Owner direction: a cinematic origin story (emptiness → expansion → first stars → one star's
+transformation → a disk where worlds form) that ends inside the real web Universe, and the same
+language in everyday use. [ADR-0051](decisions/0051-stars-are-topics-worlds-form-from-their-material.md)
+(**accepted for the web build** on merge; §6 proposed) reconciles it with the existing semantics before anything durable uses it: stars
+are topics (top-level places), worlds are regions and Idea Rooms, sightings are possibilities,
+ADR-0037 foundations are luminous stars, "quiet" never means absence, and transformations are drawn
+only from typed deltas. Perspective worlds released by a transformation are proposed, not built.
+
+- **Web** (`apps/web/src/cosmos/`): a deterministic WebGL2 opening (~28 s; Skip/Escape, optional
+  synthesised sound, reduced-motion stills, CSS fallback, replay; first visit only; resources
+  released on exit) whose last frame lands on the live Universe; the Universe drawn as a star sky
+  from `GET /v1/atlas` with one shared star/world/gas shader; star system with recorded reasons;
+  world landing (the globe now belongs to worlds, not Traces); kept Traces as small lights that
+  open directly; one-time playback of the newest recorded change; Atlas list vocabulary updated.
+  Isolated preview: `apps/web/origin-preview.html` (illustrative fixtures, labelled).
+- **API/db**: `GET /v1/feed?place=` scopes composition to a live star or world and its regions by
+  the Atlas's own membership rule; migration **0045** records `decision.scope_place_id`, after
+  #199's 0042–0044 on `dev`.
+- **Evidence**: [cosmic-origin evidence](journeys/evidence/cosmic-origin-2026-10-16/README.md);
+  walkthrough video kept outside Git. Design record:
+  [cosmic origin](design/2026-10-16-cosmic-origin.md).
+- **Checks** (local, final): full DB suite 1114/1114 (with the feed-scope tests); web unit 358/358;
+  root typecheck, lint, format, knip, contracts pass; web reader journeys 52 passed / 3 skipped in
+  Chromium and WebKit; web owner and why 1/1; new cosmos journeys 13/13 Chromium, 12 + 1 skipped
+  WebKit. An independent review's 12 findings were fixed (migration order remains a merge-order
+  constraint, below).
+- **Second pass (owner request, same day)**: cinematic treatment (cinema bars, bloom, streaks,
+  light shafts, shockwave, depth of field, camera life, grade) and a synthesised score (−18 LUFS,
+  synced to the timeline, "Tap anywhere for sound"); walkthrough re-recorded with sound. Web unit
+  379/379; cosmos journeys 13/13 Chromium, 12 + 1 skipped WebKit.
+- **Not proved**: physical phones; Android parity (still draws places as planets); luminous/tense
+  stars on real data (the editorial library cannot reach a foundation or an argued room).
+- **Merged into `dev`** (the integration branch; every PR lands there and a push deploys the dev
+  world). The ADR was renumbered 0049 → 0051 because `dev` already has ADR-0049 (environments) and
+  0050 (shared reel pool). Stage and main follow by the promoters' fast-forward promotion.
+- **Next**: the six questions in the design record; Android adopts `docs/contracts/universe-star-view.md`;
+  a physical-phone pass (frame time with the lens treatment, how the score sounds).
+
 ## 2026-10-07 #201 dev and stage on the VPS
 
 KnowScroll now runs outside the Mac. The Hostinger VPS (`187.126.119.96`, Ubuntu 26.04) hosts:

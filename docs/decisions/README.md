@@ -53,6 +53,8 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0049 — Three worlds on one VPS](0049-environments-on-one-vps.md): dev, stage and live on one VPS with native services, one release built once and promoted by fast-forward, server mode, world-pinned deploy keys, and bounded storage with a disk guard.
 - [ADR-0050 — One shared Reel pool for dev and stage](0050-shared-reel-pool.md): a script's identity is its wire content; one `knowscroll_pool` record claims each order once and holds the shared $5; other worlds receive the Reel at 0¢; Cutroom's own re-run is followed and summed; Cutroom re-pinned to `94ee04a`.
 
+- [ADR-0051 — Stars are topics; worlds form from their material](0051-stars-are-topics-worlds-form-from-their-material.md) (accepted for web, 2026-10-16; §6 proposed): the owner's cosmic-origin direction; topics as stars, regions and rooms as worlds, sightings as possibilities, foundations as luminous stars, quiet never means absence, transformations only from typed deltas; perspective worlds proposed, not built.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.

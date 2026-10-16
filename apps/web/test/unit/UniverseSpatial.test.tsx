@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UniverseScreen } from '../../src/components/UniverseScreen.tsx';
 import { MemoryStorageBackend, ReaderStorage } from '../../src/state/storage.ts';
 import { universeOf } from './fakeApi.ts';
+import { ids, twoStarSky } from './skyFixture.ts';
 
 const storage = new ReaderStorage(new MemoryStorageBackend());
 const loaded = { status: 'loaded' as const, universe: universeOf({ traces: [] }) };
@@ -11,6 +12,10 @@ function renderUniverse(onEnterScroll = vi.fn()) {
   const view = render(<UniverseScreen state={loaded} storage={storage} onEnterScroll={onEnterScroll} onOpenTrace={vi.fn()} onEnterSystem={vi.fn()} onOpenPrivacy={vi.fn()} onRetry={vi.fn()} />);
   return { ...view, onEnterScroll };
 }
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 afterEach(() => {
   vi.useRealTimers();
@@ -40,48 +45,49 @@ describe('Universe spatial navigation', () => {
     expect(onEnterScroll).not.toHaveBeenCalled();
   });
 
-  it('shows ship travel, then a visible surface before opening the Scroll', () => {
+  it('flies the ship to the first possibility, then opens a Scroll; under reduced motion it opens at once', () => {
     vi.useFakeTimers();
-    const matchMedia = vi.fn().mockReturnValue({ matches: false });
-    vi.stubGlobal('matchMedia', matchMedia);
-    const { onEnterScroll } = renderUniverse();
+    const { onEnterScroll, rerender } = renderUniverse();
     fireEvent.click(screen.getByRole('button', { name: /A first possibility/ }));
     expect(screen.getByRole('status', { name: 'Travelling to your destination' })).toBeInTheDocument();
     expect(onEnterScroll).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(1050); });
-    expect(screen.getByRole('region', { name: 'Planet landing' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Rotate planet A first possibility/ })).toBeInTheDocument();
-    expect(onEnterScroll).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
+    // The seed is a way into reading, not a world: no landing comes between the trip and the Scroll.
+    expect(screen.queryByRole('region', { name: 'Planet landing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Travelling to your destination' })).not.toBeInTheDocument();
     expect(onEnterScroll).toHaveBeenCalledTimes(1);
 
-    matchMedia.mockReturnValue({ matches: true });
+    rerender(<UniverseScreen state={loaded} storage={storage} reducedMotion onEnterScroll={onEnterScroll} onOpenTrace={vi.fn()} onEnterSystem={vi.fn()} onOpenPrivacy={vi.fn()} onRetry={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /A first possibility/ }));
-    expect(screen.getByRole('region', { name: 'Planet landing' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
+    expect(screen.queryByRole('status', { name: 'Travelling to your destination' })).not.toBeInTheDocument();
     expect(onEnterScroll).toHaveBeenCalledTimes(2);
   });
 
-  it('lands on visible continents before reopening a saved Trace', () => {
+  it('flies the ship to a kept light, then reopens the saved Trace directly (a Trace is not a world)', () => {
     vi.useFakeTimers();
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
     const trace = { eventId: 'trace-1', assetId: 'asset-1', title: 'A rhythm the ocean keeps', createdAt: '2026-09-30T10:00:00Z' };
     const onOpenTrace = vi.fn();
     render(<UniverseScreen state={{ status: 'loaded', universe: universeOf({ traces: [trace] }) }} storage={storage} onEnterScroll={vi.fn()} onOpenTrace={onOpenTrace} onEnterSystem={vi.fn()} onOpenPrivacy={vi.fn()} onRetry={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: /Revisit the saved Trace/ }));
-    act(() => { vi.advanceTimersByTime(1050); });
-    expect(screen.getByRole('region', { name: 'Planet landing' }).querySelector('.world-globe')).toBeInTheDocument();
+    const kept = within(screen.getByRole('navigation', { name: 'Saved Traces' })).getByRole('button', { name: 'Revisit the saved Trace: A rhythm the ocean keeps' });
+    fireEvent.click(kept);
+    expect(screen.getByRole('status', { name: 'Travelling to your destination' })).toBeInTheDocument();
     expect(onOpenTrace).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Open saved Scroll' }));
+    act(() => { vi.advanceTimersByTime(1050); });
+    expect(screen.queryByRole('region', { name: 'Planet landing' })).not.toBeInTheDocument();
+    expect(onOpenTrace).toHaveBeenCalledTimes(1);
     expect(onOpenTrace).toHaveBeenCalledWith(trace);
   });
 
-  it('lets the reader turn the landed planet and change its light without opening the Scroll', () => {
+  it('lets the reader turn a landed world and change its light without reading from it', () => {
     vi.useFakeTimers();
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
-    const { onEnterScroll } = renderUniverse();
-    fireEvent.click(screen.getByRole('button', { name: /A first possibility/ }));
-    const planet = screen.getByRole('button', { name: /Rotate planet A first possibility/ });
+    const onReadFrom = vi.fn();
+    const onEnterScroll = vi.fn();
+    render(<UniverseScreen state={loaded} sky={{ status: 'loaded', response: twoStarSky(), settingAside: null, error: null }} storage={storage} onEnterScroll={onEnterScroll} onReadFrom={onReadFrom} onOpenTrace={vi.fn()} onEnterSystem={vi.fn()} onOpenPrivacy={vi.fn()} onRetry={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Gravity: / }));
+    fireEvent.click(screen.getByRole('button', { name: 'Land on Orbits, a world inside Gravity' }));
+    expect(screen.getByRole('region', { name: 'Planet landing' }).querySelector('.world-globe')).toBeInTheDocument();
+    const planet = screen.getByRole('button', { name: /Rotate planet Orbits/ });
     expect(screen.getByText('Daylight')).toBeInTheDocument();
 
     fireEvent.pointerDown(planet, { pointerId: 1, button: 0, clientX: 100 });
@@ -90,16 +96,20 @@ describe('Universe spatial navigation', () => {
     fireEvent.click(planet);
     expect(planet.style.getPropertyValue('--surface-shift')).not.toBe('0px');
     expect(screen.getByText('Daylight')).toBeInTheDocument();
-    expect(onEnterScroll).not.toHaveBeenCalled();
 
     fireEvent.click(planet);
     expect(screen.getByText('Evening glow')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Advance the moon/ }));
     expect(screen.getByText('Moonlit')).toBeInTheDocument();
+    const before = planet.style.getPropertyValue('--surface-shift');
     fireEvent.keyDown(planet, { key: 'ArrowLeft' });
+    expect(planet.style.getPropertyValue('--surface-shift')).not.toBe(before);
+    expect(onReadFrom).not.toHaveBeenCalled();
     expect(onEnterScroll).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Discover a Scroll' }));
-    expect(onEnterScroll).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Read from Orbits' }));
+    expect(onReadFrom).toHaveBeenCalledTimes(1);
+    expect(onReadFrom).toHaveBeenCalledWith(ids.orbits, 'Orbits');
   });
 
   it('cancels an in-flight trip on privacy navigation and unmount', () => {

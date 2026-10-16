@@ -35,7 +35,7 @@ says what is well formed.
 
 1. `src/primitives.ts`: the shared `uuid` and `privacyEpoch` types.
 2. `src/ledger.ts`: exposure, Keep and Scroll asset shapes, the smallest complete example.
-3. `src/inventory.ts`: the feed items and `parseFeedKinds`.
+3. `src/inventory.ts`: the feed items, `parseFeedKinds` and `parseFeedPlace`.
 4. `src/reasoning.ts`, then `src/reasoning-context.ts`: the job lifecycle and the sealed context.
 5. `src/generation.ts` and `src/publication.ts`: editorial briefs and publication gates.
 

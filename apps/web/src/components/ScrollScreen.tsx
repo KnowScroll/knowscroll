@@ -390,7 +390,9 @@ function ReadingStage({
     ? 'Saved Trace · revisiting a kept Scroll'
     : state.origin.type === 'branch'
       ? `${state.origin.recorded ? 'Connection' : 'Unrecorded connection'} · ${state.origin.relationPhrase} from ${state.origin.fromTitle}`
-      : 'Deliberate discovery · a new encounter';
+      : state.origin.type === 'place'
+        ? `From ${state.origin.name} · read from your sky`
+        : 'Deliberate discovery · a new encounter';
   const unrecordedBranch = state.origin.type === 'branch' && !state.origin.recorded;
   const truthMeaning = TRUTH_STATE_MEANING[item.truthState] ?? 'No documented meaning is defined for this truth state.';
   const contextAfter = import.meta.env.DEV && new URLSearchParams(window.location.search).get('webVariant') === 'context-after';

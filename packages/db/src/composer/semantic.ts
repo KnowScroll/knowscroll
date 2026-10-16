@@ -526,7 +526,8 @@ export type ComposedFeed = {
 };
 
 /** Compose and record one semantic decision (v3, or v4 when configured). The caller holds the
- * universe lock (authenticateAndLock). */
+ * universe lock (authenticateAndLock). `placeId` is the place the reader asked from (ADR-0051),
+ * recorded on the decision; the caller has already scoped `eligible` to it. */
 export async function composeAndRecordV3(
   client: pg.PoolClient,
   scope: AuthScope,
@@ -534,6 +535,7 @@ export async function composeAndRecordV3(
   accountRevision: number,
   excluded: ReadonlySet<string> = new Set(),
   version: SemanticPolicyVersion = COMPOSER_SEMANTIC_V3,
+  placeId: string | null = null,
 ): Promise<ComposedFeed> {
   const nowMs = (
     await client.query<{ now: Date }>('SELECT clock_timestamp() AS now')
@@ -574,10 +576,11 @@ export async function composeAndRecordV3(
           policy_version,
           candidates,
           privacy_epoch,
-          ranking_version
+          ranking_version,
+          scope_place_id
         )
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7)
+        ($1, $2, $3, $4, $5, $6, $7, $8)
     `,
     [
       decisionId,
@@ -587,6 +590,7 @@ export async function composeAndRecordV3(
       JSON.stringify(items),
       scope.privacyEpoch,
       policy.version,
+      placeId,
     ],
   );
   await client.query(

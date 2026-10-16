@@ -222,3 +222,33 @@ describe('ApiClient: whether a failed call may still have been applied (#135 rev
       .rejects.toMatchObject({ error: { kind: 'server', statusCode: 401 }, earlierAttemptMayHaveLanded: false });
   });
 });
+
+describe('ApiClient.getFeed scoped to a place (ADR-0051)', () => {
+  const PLACE = '7f1c2d3e-4b5a-4c6d-8e9f-0a1b2c3d4e5f';
+  const OPENED = '00000000-0000-4000-8000-000000000001';
+  const empty = { decisionId: 'd1', universeId: 'u1', accountRevision: 0, privacyEpoch: 0, items: [] };
+
+  it('sends the place with the trip and kinds, and an empty place is an ordinary empty feed', async () => {
+    const { calls, fetchImpl } = fakeFetch(() => jsonResponse(200, empty));
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0] });
+    await expect(client.getFeed([OPENED], true, undefined, PLACE)).resolves.toEqual(empty);
+    expect(String(calls[0]!.input)).toBe(`/v1/feed?webArtifact=v1&kinds=Scroll,Reel&place=${PLACE}&exclude=${OPENED}`);
+    await client.getFeed([], false, undefined, PLACE);
+    expect(String(calls[1]!.input)).toBe(`/v1/feed?webArtifact=v1&place=${PLACE}`);
+  });
+
+  it('without a place the request is exactly what it was', async () => {
+    const { calls, fetchImpl } = fakeFetch(() => jsonResponse(200, empty));
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0] });
+    await client.getFeed([OPENED]);
+    expect(String(calls[0]!.input)).toBe(`/v1/feed?webArtifact=v1&exclude=${OPENED}`);
+  });
+
+  it('a place that is no longer live is a 404, asked once and never retried as an unscoped feed', async () => {
+    const { calls, fetchImpl } = fakeFetch(() => jsonResponse(404, { error: 'Place not found' }));
+    const client = new ApiClient({ fetchImpl, delaysMs: [0, 0], maxAttempts: 2 });
+    await expect(client.getFeed([], false, undefined, PLACE)).rejects.toMatchObject({ error: { kind: 'server', statusCode: 404 } });
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0]!.input)).toContain(`place=${PLACE}`);
+  });
+});

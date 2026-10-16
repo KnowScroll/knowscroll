@@ -78,9 +78,17 @@ export class FakeApi implements ReaderApi {
     return this.take(this.universeQueue, 'getUniverse');
   }
   feedExcludes: string[][] = [];
-  async getFeed(exclude: Iterable<string> = []): Promise<FeedResponse> {
+  /** The `place` each `getFeed` call scoped to (ADR-0051); `undefined` for the whole universe. */
+  feedPlaces: Array<string | undefined> = [];
+  async getFeed(
+    exclude: Iterable<string> = [],
+    _includeReels?: boolean | 'reelOnly',
+    _preview?: 'authored-web-scrolls',
+    place?: string,
+  ): Promise<FeedResponse> {
     this.feedCalls++;
     this.feedExcludes.push([...exclude]);
+    this.feedPlaces.push(place);
     return this.take(this.feedQueue, 'getFeed');
   }
   /** When set, `postExposure` stays in flight until this resolves (an exposure still being recorded). */
@@ -104,7 +112,10 @@ export class FakeApi implements ReaderApi {
     this.worldsCalls++;
     return this.take(this.worldsQueue, 'getWorlds');
   }
+  /** Every Atlas read, including the Universe sky's own (ADR-0051). */
+  atlasCalls = 0;
   async getAtlas(): Promise<AtlasResponse> {
+    this.atlasCalls++;
     return this.take(this.atlasQueue, 'getAtlas');
   }
   async getBranches(_assetId: string): Promise<WebEncounterBranchesResponse> {

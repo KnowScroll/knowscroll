@@ -1,0 +1,157 @@
+/* The origin opening. Text and controls are live interface over the drawn scene. */
+.origin {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #010306;
+  color: var(--cream);
+  overflow: hidden;
+  isolation: isolate;
+}
+.origin--dissolve,
+.origin--leaving {
+  opacity: 0 !important;
+  transition: opacity .45s ease;
+  pointer-events: none;
+}
+.origin--quick { transition-duration: .2s !important; }
+.origin--handed { pointer-events: none; }
+.origin--handed .origin-controls { pointer-events: auto; }
+.origin--holding .origin-controls,
+.origin--holding .origin-copy { visibility: hidden; }
+.origin-stage {
+  position: absolute;
+  inset: 0;
+}
+.origin-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.origin-copy {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(96px, 17vh, 168px);
+  transform: translateX(-50%);
+  width: min(92vw, 760px);
+  text-align: center;
+  pointer-events: none;
+}
+.origin-caption {
+  margin: 0;
+  min-height: 1.2em;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(24px, 3.4vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  color: #fffbf0;
+  text-shadow: 0 2px 24px rgb(1 3 6 / 85%), 0 0 2px rgb(1 3 6 / 60%);
+  /* A film-title reveal: the line sharpens and settles its tracking as it fades in. */
+  opacity: var(--o, 0);
+  filter: blur(calc((1 - var(--o, 0)) * 7px));
+  letter-spacing: calc(-0.02em + (1 - var(--o, 0)) * 0.09em);
+}
+/* With cinema bars, the caption is a subtitle in the lower bar and the controls sit in the upper. */
+.origin--bars .origin-copy {
+  bottom: calc(var(--bar) / 2);
+  transform: translate(-50%, 50%);
+}
+.origin--bars .origin-caption {
+  font-size: min(clamp(22px, 2.6vw, 38px), calc(var(--bar) * 0.42));
+  font-weight: 600;
+  letter-spacing: calc(0.005em + (1 - var(--o, 0)) * 0.09em);
+}
+.origin--bars .origin-controls {
+  top: max(12px, calc(var(--bar) / 2 - 22px));
+}
+.origin-controls {
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+}
+.origin-control {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 251 240 / 26%);
+  background: rgb(5 11 25 / 58%);
+  color: var(--cream);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.origin-control:hover { background: rgb(255 251 240 / 14%); }
+.origin-control:focus-visible { outline: none; }
+.origin--keyboard .origin-control:focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; }
+.origin-control[aria-pressed="true"] { border-color: rgb(20 199 155 / 70%); }
+.origin-skip { background: var(--cream); color: var(--ink); border-color: transparent; }
+.origin-skip:hover { background: #fff; }
+
+.origin--stills .origin-copy { bottom: clamp(110px, 20vh, 190px); }
+.origin--stills .origin-caption { transition: opacity .3s ease, filter .3s ease; }
+
+/* The CSS version for browsers without WebGL2: a cloud gathering around a warm core. */
+.origin-fallback-cloud {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(70vmin, 520px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgb(255 230 170 / 90%) 0 3%, rgb(255 210 140 / 35%) 7%, transparent 16%),
+    radial-gradient(circle at 46% 54%, rgb(51 196 180 / 30%), transparent 52%),
+    radial-gradient(circle at 58% 42%, rgb(44 70 232 / 28%), transparent 58%),
+    radial-gradient(circle at 50% 50%, rgb(237 135 180 / 12%), transparent 70%);
+  filter: blur(2px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .origin-fallback-cloud { animation: origin-gather 7.6s cubic-bezier(.3, .1, .2, 1) both; }
+  .origin--fallback .origin-caption { transition: opacity .6s ease, filter .6s ease; }
+}
+@keyframes origin-gather {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+  40% { opacity: 1; }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(.42); }
+}
+
+@media (max-width: 560px) {
+  .origin-copy { bottom: clamp(120px, 22vh, 200px); }
+  .origin-control { padding: 0 14px; }
+}
+
+.origin-sound { display: inline-flex; align-items: center; gap: 7px; }
+.origin-sound__icon { width: 16px; height: 16px; flex: none; }
+.origin-sound[aria-pressed="true"] .origin-sound__icon { color: var(--teal); }
+.origin-sound-hint {
+  position: absolute;
+  z-index: 2;
+  top: calc(max(18px, env(safe-area-inset-top)) + 52px);
+  right: max(16px, env(safe-area-inset-right));
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: rgb(255 251 240 / 72%);
+  pointer-events: none;
+}
+.origin--bars .origin-sound-hint { top: calc(var(--bar) + 12px); }
+@media (prefers-reduced-motion: no-preference) {
+  .origin-sound-hint { animation: origin-hint 7.5s ease both; }
+}
+@keyframes origin-hint {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.origin-stage { cursor: default; }
