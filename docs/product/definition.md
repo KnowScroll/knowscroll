@@ -241,7 +241,7 @@ hold attention violates the product even when its subject appears intellectual.
 
 ## 4. The cosmic grammar
 
-> **Proposed amendment, 2026-10-16 (owner's cosmic-origin direction, [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md)).**
+> **Amendment, 2026-10-16 (owner's cosmic-origin direction, [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md), accepted for the web build).**
 > A **Star** is a topic with personal relevance (a reader's top-level place); a quiet star holds
 > possibilities that have not unfolded, and quiet never means absence. **Worlds** form inside a
 > star's system: facets (regions), questions (Idea Rooms) and, once accepted, perspectives released
@@ -1152,8 +1152,8 @@ Use these words consistently:
 
 - **World Engine**: the persistent observe–infer–research–create loop.
 - **Universe**: one person's emergent intellectual possibility space.
-- **Star** (proposed, ADR-0049): a topic with personal relevance; *quiet* when nothing inside it has unfolded yet, *luminous* when it holds other places up.
-- **World**: a domain instance inside that universe. Under ADR-0049 (proposed), a world forms inside a star's system: a facet, a question or a perspective.
+- **Star** (ADR-0049): a topic with personal relevance; *quiet* when nothing inside it has unfolded yet, *luminous* when it holds other places up.
+- **World**: a domain instance inside that universe. Under ADR-0049, a world forms inside a star's system: a facet, a question or a perspective.
 - **Epistemic substrate**: shared sources, claims, concepts, and relationships beneath personal geography.
 - **Reel**: short branchable audiovisual encounter.
 - **Scroll**: interactive explorable document.

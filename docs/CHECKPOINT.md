@@ -1,11 +1,11 @@
 # Shared delivery checkpoint
 
-## 2026-10-16 #220 cosmic-origin opening and the star sky (draft PR #221, branch `claude/220-cosmic-origin`, unmerged)
+## 2026-10-16 #220 cosmic-origin opening and the star sky (PR #221, merged by the owner's decision)
 
 Owner direction: a cinematic origin story (emptiness → expansion → first stars → one star's
 transformation → a disk where worlds form) that ends inside the real web Universe, and the same
 language in everyday use. [ADR-0049](decisions/0049-stars-are-topics-worlds-form-from-their-material.md)
-(**proposed**) reconciles it with the existing semantics before anything durable uses it: stars
+(**accepted for the web build** on merge; §6 proposed) reconciles it with the existing semantics before anything durable uses it: stars
 are topics (top-level places), worlds are regions and Idea Rooms, sightings are possibilities,
 ADR-0037 foundations are luminous stars, "quiet" never means absence, and transformations are drawn
 only from typed deltas. Perspective worlds released by a transformation are proposed, not built.
@@ -34,8 +34,16 @@ only from typed deltas. Perspective worlds released by a transformation are prop
   379/379; cosmos journeys 13/13 Chromium, 12 + 1 skipped WebKit.
 - **Not proved**: physical phones; Android parity (still draws places as planets); luminous/tense
   stars on real data (the editorial library cannot reach a foundation or an argued room).
-- **Next**: owner reviews ADR-0049 and the six questions in the design record. **Do not merge or
-  deploy before #199's 0042–0044 are on main**; then rebase (renumber 0045 if needed).
+- **Migration order (read before migrating anything).** The owner chose to merge this before #199.
+  Main now has 0041 then 0045; #199's 0042–0044 live only on `dev`/`stage` (deployed from those
+  branches, whose databases already ran them). Nothing migrates on start. Until #199 reaches main:
+  **do not run `pnpm db:migrate` from main against any lasting database** (the owner's local dev
+  database, a future production one): it would apply 0045 without 0042–0044 and could not migrate
+  forward afterwards. Disposable test and preview databases are fine. When #199 lands on main, list
+  0042, 0043, 0044 before 0045 in `packages/db/migrations/RELEASED.txt` (valid because no lasting
+  database has applied 0045 from main); merging main into `dev`/`stage` applies 0045 after them.
+- **Next**: the six questions in the design record; Android adopts `docs/contracts/universe-star-view.md`;
+  a physical-phone pass (frame time with the lens treatment, how the score sounds).
 
 
 ## 2026-10-05 #196 behavior-preserving backend refactor

@@ -1,7 +1,7 @@
 # Cosmic origin — the opening and the star sky
 
 Date: 2026-10-16. Branch `claude/220-cosmic-origin`. Semantics: [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md)
-(proposed). Derivation contract: [universe star view](../contracts/universe-star-view.md).
+(accepted for the web build at merge; §6 proposed). Derivation contract: [universe star view](../contracts/universe-star-view.md).
 
 ## What the owner asked for
 

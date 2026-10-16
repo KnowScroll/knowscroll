@@ -1,6 +1,6 @@
 # Universe star view — how a client draws the reader's places as stars
 
-Status: **proposed** with [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md)
+Status: **accepted for the web build** with [ADR-0049](../decisions/0049-stars-are-topics-worlds-form-from-their-material.md)
 (2026-10-16). Implemented for the web Universe in `apps/web/src/cosmos/starView.ts`; Android still
 draws places as planets and should adopt this before both clients ship together. This is a
 presentation contract over the existing `GET /v1/atlas` response (`packages/contracts/src/atlas.ts`,

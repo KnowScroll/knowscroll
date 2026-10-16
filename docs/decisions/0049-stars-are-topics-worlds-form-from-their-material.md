@@ -1,8 +1,11 @@
 # ADR-0049 — Stars are topics; worlds form from their material
 
-Date: 2026-10-16. Status: **proposed** under the owner's cosmic-origin direction (2026-10-16, [#220](https://github.com/KnowScroll/knowscroll/issues/220)), for
-owner review. The presentation rules in §3–§5 are implemented in the web Universe on branch
-`claude/220-cosmic-origin` and read only existing state; nothing in §6 is implemented. Amends the
+Date: 2026-10-16. Status: **accepted for the web build** — the owner approved merging the
+implementation (#221) on 2026-10-16 under the cosmic-origin direction
+([#220](https://github.com/KnowScroll/knowscroll/issues/220)). §6 (perspective worlds) stays
+**proposed**; Android adoption and the design record's open questions remain. The presentation
+rules in §3–§5 are implemented in the web Universe (first on branch
+`claude/220-cosmic-origin`) and read only existing state; nothing in §6 is implemented. Amends the
 cosmic grammar in [definition §4](../product/definition.md#4-the-cosmic-grammar) and the renderer
 wording in [ADR-0037](0037-foundation-stars.md) §3; leaves [ADR-0036](0036-reader-places-cartographer.md)'s
 data, deltas and thresholds unchanged.
