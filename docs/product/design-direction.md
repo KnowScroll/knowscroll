@@ -1,5 +1,17 @@
 # Product behavior and visual direction
 
+## 2026-10-16 cosmic origin (proposed, ADR-0049)
+
+The owner asked for a cinematic opening told as the formation of the physical universe, ending in
+the real Universe, and for the same language in everyday use: stars are topics, worlds form from
+their material, change is drawn only from recorded deltas. The web build follows the dark spatial
+register above (space ground, teal/cobalt/cream, angular globes) and adds one shared WebGL star,
+world and gas language for both the opening and the live sky; the emission colours of the
+transformation (teal inside, pink outside) are the existing palette. Saved Traces become small kept
+lights instead of planets; the illustrated globe becomes the landing scene of a world. Design
+record: [cosmic origin](../design/2026-10-16-cosmic-origin.md); contract:
+[universe star view](../contracts/universe-star-view.md). Android has not adopted it yet.
+
 ## September23 direct exploration refinement
 
 The six references in `artifacts/android-living/next-session` supersede the prior

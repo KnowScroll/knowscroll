@@ -310,6 +310,24 @@ sec.6 already requires. The map-key legend, and Living Observatory's own real-co
 (a kept Trace's title standing in for a node's label, its date for its sub-label), are the two
 pieces of real structure this product keeps as literal contracts, covered in sec.5b's table.
 
+## 5d. The cosmic origin and the star sky (proposed, ADR-0049, 2026-10-16)
+
+The opening and the everyday Universe are one surface. Values below are the web build's; they
+extend §1–§5c and change none of them.
+
+- **Opening.** Full-screen WebGL scene over the mounted Universe; captions in Bricolage 700,
+  `clamp(24px, 3.4vw, 44px)`, centred above the lower third; Skip (cream pill) and Sound (dark pill,
+  `aria-pressed`) top-right, ≥ 44 px. Reduced motion: still frames with Next. No WebGL: a CSS cloud
+  with the same captions. First visit only; "↺ Opening" on the Universe replays it.
+- **Stars** are the reader's top-level places, drawn by condition (quiet, taking shape, under
+  tension, lights others) with a name label and a mono caption of real counts. **Worlds** are small
+  planets on their star's orbits; **possibilities** are faint dashed motes; **constellation lines**
+  are dashed cream (warm when a contradiction). **Kept lights** (Traces) are 7 px cream sparks.
+- **Star system.** Orrery left, cream sheet right (bottom sheet in portrait): condition chip, star
+  name, description, one teal "Read from …" action, "Why it looks like this", worlds, possibilities,
+  connections, chronicle, "Set this star aside".
+- **Never** a level, percentage, streak, progress ring or "you were away" line on any of these.
+
 ## 6. What the interface may show today
 
 Only these have data: the honest empty universe, saved Traces, entering a Scroll, reading with

@@ -51,6 +51,8 @@ Read the relevant decision before changing its boundary. These choices were made
 - [ADR-0030 — Privacy lifecycle: pause, export and reset](0030-privacy-lifecycle-pause-export-reset.md): contract only; extends ADR-0009/0010 with a database-enforced recording pause, a live non-destructive export, and a reset that erases like Clear plus ends every session; no route or client yet.
 - [ADR-0031 — Semantic substrate and validated bridges](0031-semantic-substrate-and-validated-bridges.md): source-backed immutable claims, bridges admitted only by a deterministic validator with replayable read sets, correction by revalidation, private branch/feedback history.
 
+- [ADR-0049 — Stars are topics; worlds form from their material](0049-stars-are-topics-worlds-form-from-their-material.md) (proposed): the owner's cosmic-origin direction; topics as stars, regions and rooms as worlds, sightings as possibilities, foundations as luminous stars, quiet never means absence, transformations only from typed deltas; perspective worlds proposed, not built.
+
 ## Process
 
 Use Context, Decision, Alternatives and why, Consequences, Status, and Sources/verification. A new decision may supersede an earlier ADR; keep the earlier record and add a superseded link. Routine implementation details do not need an ADR.
