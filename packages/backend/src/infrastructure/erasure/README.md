@@ -8,7 +8,8 @@ The complete list is `src/erasure-registry.ts`.
 |---|---|
 | `erasureRegistry(modules)` | Builds the registry; refuses a table or store declared twice. |
 | `eraseUniverse(scope, registry)` | Runs every eraser for the scope's universe, in registry order, inside the locked personal scope. Each reports `completed`, `pending` or `failed` and is safe to retry. |
-| `checkErasureInventory(db, registry)` | Schema inventory: every base table with a `universe_id` column must be declared, and every declared table must have one. CI runs it against the migrated schema. |
+| `checkErasureInventory(db, registry)` | Schema inventory: every base table with a `universe_id` column is declared and every declared table has one; every declared table references `identity.universes` from `universe_id` with `ON DELETE RESTRICT`; every account-linked column (`account_id`, `*_account_id`) outside identity is declared by its module. CI runs it against the migrated schema. |
+| `checkQueuePayloadStores(queues, registry)` | Every declared queue whose payload carries `universeId` is declared as the non-row store `pgboss/<queue>` with an eraser. CI runs it against `releaseQueues`. |
 
 Not in the registry because they hold no per-universe rows: `identity.accounts` and
 `identity.universes` (the personal root; account deletion is its own lifecycle, S1.x privacy work)

@@ -67,18 +67,37 @@ describe('process configuration', () => {
   });
 
   it('refuses the test-only caller adapter unless NODE_ENV=test in a ci or local world', () => {
-    const problemsOf = (env: Record<string, string>) => configurationError(() => readApiConfig({ DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer', ...env })).problems;
+    const problemsOf = (env: Record<string, string>) =>
+      configurationError(() =>
+        readApiConfig({ DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer', ...env }),
+      ).problems;
     expect(problemsOf({ NODE_ENV: 'production', ...release })).toContain('KS_AUTH_ADAPTER: refused_outside_test');
     expect(problemsOf({ NODE_ENV: 'development' })).toContain('KS_AUTH_ADAPTER: refused_outside_test');
-    for (const world of ['dev', 'stage', 'live']) expect(problemsOf({ NODE_ENV: 'test', KS_WORLD: world })).toEqual(['KS_AUTH_ADAPTER: refused_in_this_world']);
+    for (const world of ['dev', 'stage', 'live'])
+      expect(problemsOf({ NODE_ENV: 'test', KS_WORLD: world })).toEqual(['KS_AUTH_ADAPTER: refused_in_this_world']);
     for (const world of ['ci', 'local']) {
-      expect(readApiConfig({ NODE_ENV: 'test', KS_WORLD: world, DATABASE_URL: secretUrl, PORT: '4330', KS_AUTH_ADAPTER: 'test-bearer' }).authAdapter).toBe('test-bearer');
+      expect(
+        readApiConfig({
+          NODE_ENV: 'test',
+          KS_WORLD: world,
+          DATABASE_URL: secretUrl,
+          PORT: '4330',
+          KS_AUTH_ADAPTER: 'test-bearer',
+        }).authAdapter,
+      ).toBe('test-bearer');
     }
   });
 
   it('requires the personal-scope lock wait to end before the statement timeout', () => {
     for (const read of [readApiConfig, readWorkerConfig]) {
-      const error = configurationError(() => read({ DATABASE_URL: secretUrl, PORT: '4330', KS_SCOPE_LOCK_TIMEOUT_MS: '20000', KS_DB_STATEMENT_TIMEOUT_MS: '15000' }));
+      const error = configurationError(() =>
+        read({
+          DATABASE_URL: secretUrl,
+          PORT: '4330',
+          KS_SCOPE_LOCK_TIMEOUT_MS: '20000',
+          KS_DB_STATEMENT_TIMEOUT_MS: '15000',
+        }),
+      );
       expect(error.problems).toEqual(['KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout']);
     }
   });

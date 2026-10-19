@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import { transactionOf, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { applyActionEvidenceQueue } from '@knowscroll/backend/modules/evidence';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { experienceUseCases } from '../support/experience.js';
@@ -30,6 +30,16 @@ describe('experience applyAction with real adapters (real database)', () => {
       receipts: await count('receipts.personal_commands'),
       saved: await count('experience.saved_items'),
     };
+  }
+
+  async function universeRevision(universeId: string): Promise<number> {
+    return (
+      await database.db
+        .selectFrom('identity.universes')
+        .select('revision')
+        .where('id', '=', universeId)
+        .executeTakeFirstOrThrow()
+    ).revision;
   }
 
   async function jobCount(universeId: string): Promise<number> {
@@ -64,6 +74,42 @@ describe('experience applyAction with real adapters (real database)', () => {
       expect(second).toEqual({ ...first, replayed: true });
       expect(await jobCount(person.universeId)).toBe(1);
       expect(await counts(person.universeId)).toMatchObject({ actions: 1, receipts: 1, saved: 1 });
+      // The command advanced the universe revision once, in its own transaction; the replay did not.
+      expect(first).toMatchObject({ outcome: { revision: 1 } });
+      expect(await universeRevision(person.universeId)).toBe(1);
+    } finally {
+      await useCases.close();
+    }
+  });
+
+  it('applies concurrent identical commands once: one applies, the other replays', async () => {
+    const person = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    try {
+      const command = {
+        commandId: randomUUID(),
+        kind: 'save' as const,
+        target: { assetId: asset.assetId, assetRevision: asset.revision },
+      };
+      const results = await Promise.all([
+        useCases.applyAction(person.authority, command),
+        useCases.applyAction(person.authority, command),
+        useCases.applyAction(person.authority, command),
+      ]);
+      expect(results.map((result) => (result.kind === 'applied' ? result.replayed : 'refused')).sort()).toEqual([
+        false,
+        true,
+        true,
+      ]);
+      const [first] = results;
+      for (const result of results)
+        expect(result.kind === 'applied' ? result.outcome : result).toEqual(
+          first?.kind === 'applied' ? first.outcome : undefined,
+        );
+      expect(await counts(person.universeId)).toMatchObject({ actions: 1, receipts: 1, saved: 1 });
+      expect(await jobCount(person.universeId)).toBe(1);
+      expect(await universeRevision(person.universeId)).toBe(1);
     } finally {
       await useCases.close();
     }
@@ -120,10 +166,18 @@ describe('experience applyAction with real adapters (real database)', () => {
 
   it('rolls back the receipt, the effect and the enqueued job together when the command fails after enqueueing', async () => {
     const person = await seedPerson(database.db);
+    let jobsSeenInside = -1;
     const asset = await seedAsset(database.db);
     const useCases = await experienceUseCases(database, {
       wrapEnqueue: (enqueue) => async (scope, queue, payload) => {
         await enqueue(scope, queue, payload);
+        // The job is visible inside the command's own transaction before the failure.
+        const inside = await sql<{
+          n: number;
+        }>`select count(*)::int as n from pgboss.job where name = ${queue.name} and data ->> 'universeId' = ${person.universeId}`.execute(
+          transactionOf(scope),
+        );
+        jobsSeenInside = inside.rows[0]?.n ?? -1;
         throw new Error('failure after the job was written');
       },
     });
@@ -135,8 +189,10 @@ describe('experience applyAction with real adapters (real database)', () => {
           target: { assetId: asset.assetId, assetRevision: 1 },
         }),
       ).rejects.toThrow('failure after the job was written');
+      expect(jobsSeenInside).toBe(1);
       expect(await counts(person.universeId)).toMatchObject({ actions: 0, receipts: 0, saved: 0 });
       expect(await jobCount(person.universeId)).toBe(0);
+      expect(await universeRevision(person.universeId)).toBe(0);
     } finally {
       await useCases.close();
     }

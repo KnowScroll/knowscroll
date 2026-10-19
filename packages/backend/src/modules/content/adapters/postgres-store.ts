@@ -1,11 +1,6 @@
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-
-/** The facts an action command needs about its target asset. */
-export interface AssetForAction {
-  readonly revision: number;
-  readonly admitted: boolean;
-}
+import type { AssetForAction } from '../public.js';
 
 /**
  * Reads one asset inside the caller's personal transaction (no lock: assets are shared and

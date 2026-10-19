@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { ConfigurationError, PortSchema, PostgresUrlSchema, checkEnvironment, combineChecks, positiveInteger, type Environment } from './environment.js';
+import {
+  ConfigurationError,
+  PortSchema,
+  PostgresUrlSchema,
+  checkEnvironment,
+  combineChecks,
+  positiveInteger,
+  type Environment,
+} from './environment.js';
 import { checkReleaseIdentity, type ReleaseIdentity } from './release.js';
 
 /** Connection settings for one process's PostgreSQL pool. `url` is a credential: never log it. */
@@ -110,9 +118,15 @@ export function readApiConfig(env: Environment): ApiConfig {
     ),
   );
   crossChecks([
-    [parsed.KS_SCOPE_LOCK_TIMEOUT_MS >= parsed.KS_DB_STATEMENT_TIMEOUT_MS, 'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout'],
+    [
+      parsed.KS_SCOPE_LOCK_TIMEOUT_MS >= parsed.KS_DB_STATEMENT_TIMEOUT_MS,
+      'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
+    ],
     [parsed.KS_AUTH_ADAPTER === 'test-bearer' && release.nodeEnv !== 'test', 'KS_AUTH_ADAPTER: refused_outside_test'],
-    [parsed.KS_AUTH_ADAPTER === 'test-bearer' && !TEST_ADAPTER_WORLDS.includes(release.world), 'KS_AUTH_ADAPTER: refused_in_this_world'],
+    [
+      parsed.KS_AUTH_ADAPTER === 'test-bearer' && !TEST_ADAPTER_WORLDS.includes(release.world),
+      'KS_AUTH_ADAPTER: refused_in_this_world',
+    ],
   ]);
   return {
     ...release,
@@ -142,10 +156,21 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
         KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
       }),
-      pick(env, ['DATABASE_URL', 'KS_DB_STATEMENT_TIMEOUT_MS', 'KS_DB_POOL_MAX', 'KS_SHUTDOWN_GRACE_SECONDS', 'KS_SCOPE_LOCK_TIMEOUT_MS']),
+      pick(env, [
+        'DATABASE_URL',
+        'KS_DB_STATEMENT_TIMEOUT_MS',
+        'KS_DB_POOL_MAX',
+        'KS_SHUTDOWN_GRACE_SECONDS',
+        'KS_SCOPE_LOCK_TIMEOUT_MS',
+      ]),
     ),
   );
-  crossChecks([[parsed.KS_SCOPE_LOCK_TIMEOUT_MS >= parsed.KS_DB_STATEMENT_TIMEOUT_MS, 'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout']]);
+  crossChecks([
+    [
+      parsed.KS_SCOPE_LOCK_TIMEOUT_MS >= parsed.KS_DB_STATEMENT_TIMEOUT_MS,
+      'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
+    ],
+  ]);
   return {
     ...release,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),

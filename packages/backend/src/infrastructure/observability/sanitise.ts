@@ -27,7 +27,14 @@ export function sanitiseError(value: unknown, depth = 0): SanitisedError {
   if (!(value instanceof Error)) {
     const kind =
       value === null ? 'null' : typeof value === 'object' ? 'NonErrorObject' : `Non${capitalise(typeof value)}`;
-    return { errorClass: kind, frames: [] };
+    // Some libraries emit plain objects copied from an error (pg-boss `error` events): keep the code.
+    const plainCode: unknown =
+      typeof value === 'object' && value !== null ? (value as { code?: unknown }).code : undefined;
+    return {
+      errorClass: kind,
+      ...(typeof plainCode === 'string' && codePattern.test(plainCode) ? { code: plainCode } : {}),
+      frames: [],
+    };
   }
   const rawCode: unknown = (value as { code?: unknown }).code;
   const code = typeof rawCode === 'string' && codePattern.test(rawCode) ? rawCode : undefined;

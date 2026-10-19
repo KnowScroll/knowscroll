@@ -1,24 +1,13 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import type { AccountUniverse, UniverseAccess } from '../public.js';
 
-/** An account with its personal universe, as authentication resolves a caller. */
-export interface AccountUniverse {
-  readonly accountId: string;
-  readonly accountStatus: string;
-  readonly universeId: string;
-  readonly universeStatus: string;
-  readonly privacyEpoch: number;
-}
-
-/**
- * Reads an account and its universe (read-only, no lock). Callers resolved from it are claims:
- * `withPersonalScope` rechecks them under the lock. Returns `undefined` when either is missing.
- */
+/** Reads an account and its universe (read-only, no lock). One universe per account (unique). */
 export async function readAccountUniverse(
   db: Kysely<Database>,
   accountId: string,
 ): Promise<AccountUniverse | undefined> {
-  const row = await db
+  return db
     .selectFrom('identity.accounts as account')
     .innerJoin('identity.universes as universe', 'universe.account_id', 'account.id')
     .select([
@@ -29,8 +18,26 @@ export async function readAccountUniverse(
       'universe.privacy_epoch as privacyEpoch',
     ])
     .where('account.id', '=', accountId)
-    .orderBy('universe.created_at')
-    .limit(1)
     .executeTakeFirst();
-  return row;
+}
+
+/** Reads one universe's access state for its owner (read-only, no lock). */
+export async function readUniverseAccess(
+  db: Kysely<Database>,
+  accountId: string,
+  universeId: string,
+): Promise<UniverseAccess | undefined> {
+  const row = await db
+    .selectFrom('identity.universes as universe')
+    .innerJoin('identity.accounts as account', 'account.id', 'universe.account_id')
+    .select(['universe.revision', 'universe.privacy_epoch', 'universe.status', 'account.status as account_status'])
+    .where('universe.id', '=', universeId)
+    .where('universe.account_id', '=', accountId)
+    .executeTakeFirst();
+  if (row === undefined) return undefined;
+  return {
+    revision: row.revision,
+    privacyEpoch: row.privacy_epoch,
+    active: row.status === 'active' && row.account_status === 'active',
+  };
 }

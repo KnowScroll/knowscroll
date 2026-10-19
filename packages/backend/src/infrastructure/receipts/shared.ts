@@ -1,5 +1,5 @@
-import type { Transaction } from 'kysely';
-import type { Database } from '../postgres/database.js';
+import type { SharedScopeTx } from '../../modules/identity/public.js';
+import { sharedTransactionOf } from '../postgres/personal-scope.js';
 import type { CanonicalJson } from './canonical.js';
 import type { ReceiptLookup } from './personal.js';
 
@@ -7,60 +7,62 @@ import type { ReceiptLookup } from './personal.js';
  * Identity of a command on a shared scope (conversation, room, exploration). The actor, the
  * destination scope and the operation are part of the key, so the same client command ID used by
  * another person, against another scope or for another operation is a different command
- * (blueprint §19). Used inside the transaction that holds the shared root lock, which is taken
- * after the actor's personal root.
+ * (blueprint §19). The scope comes from the locked `SharedScopeTx`, never from the client.
  */
 export interface SharedCommandKey {
-  readonly scopeKind: string;
-  readonly scopeId: string;
   readonly actorAccountId: string;
   readonly operation: string;
   readonly commandId: string;
   readonly requestHash: string;
+  readonly outcomeVersion: number;
 }
 
-function whereKey(trx: Transaction<Database>, key: SharedCommandKey) {
-  return trx
+/**
+ * Shared-scope counterpart of `findPersonalReceipt`. Requires the shared root to be locked after
+ * the actor's personal root (`enterSharedRoot`), which the `SharedScopeTx` capability proves.
+ */
+export async function findSharedReceipt(shared: SharedScopeTx, key: SharedCommandKey): Promise<ReceiptLookup> {
+  const existing = await sharedTransactionOf(shared)
     .selectFrom('receipts.shared_commands')
-    .where('scope_kind', '=', key.scopeKind)
-    .where('scope_id', '=', key.scopeId)
+    .select(['request_hash', 'outcome', 'outcome_version'])
+    .where('scope_kind', '=', shared.root.kind)
+    .where('scope_id', '=', shared.root.id)
     .where('actor_account_id', '=', key.actorAccountId)
     .where('operation', '=', key.operation)
-    .where('command_id', '=', key.commandId);
-}
-
-export async function findSharedReceipt(trx: Transaction<Database>, key: SharedCommandKey): Promise<ReceiptLookup> {
-  const existing = await whereKey(trx, key).select(['request_hash', 'outcome']).executeTakeFirst();
+    .where('command_id', '=', key.commandId)
+    .executeTakeFirst();
   if (existing === undefined) return { kind: 'new' };
   if (existing.request_hash !== key.requestHash) return { kind: 'key_reused' };
+  if (existing.outcome_version !== key.outcomeVersion) return { kind: 'outcome_version_unsupported' };
   if (existing.outcome === null) throw new Error('Receipt without outcome outside its own transaction');
   return { kind: 'replay', outcome: existing.outcome };
 }
 
-export async function insertSharedReceipt(trx: Transaction<Database>, key: SharedCommandKey): Promise<void> {
-  await trx
+export async function insertSharedReceipt(shared: SharedScopeTx, key: SharedCommandKey): Promise<void> {
+  await sharedTransactionOf(shared)
     .insertInto('receipts.shared_commands')
     .values({
-      scope_kind: key.scopeKind,
-      scope_id: key.scopeId,
+      scope_kind: shared.root.kind,
+      scope_id: shared.root.id,
       actor_account_id: key.actorAccountId,
       operation: key.operation,
       command_id: key.commandId,
       request_hash: key.requestHash,
+      outcome_version: key.outcomeVersion,
     })
     .execute();
 }
 
 export async function completeSharedReceipt(
-  trx: Transaction<Database>,
+  shared: SharedScopeTx,
   key: SharedCommandKey,
   outcome: { readonly [key: string]: CanonicalJson },
 ): Promise<void> {
-  const result = await trx
+  const result = await sharedTransactionOf(shared)
     .updateTable('receipts.shared_commands')
     .set({ outcome: JSON.stringify(outcome) })
-    .where('scope_kind', '=', key.scopeKind)
-    .where('scope_id', '=', key.scopeId)
+    .where('scope_kind', '=', shared.root.kind)
+    .where('scope_id', '=', shared.root.id)
     .where('actor_account_id', '=', key.actorAccountId)
     .where('operation', '=', key.operation)
     .where('command_id', '=', key.commandId)

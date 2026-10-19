@@ -59,6 +59,7 @@ describe('the deployed release', () => {
       commit: fixtureCommit,
       artifact: fixtureArtifact,
       migration: latestMigration,
+      relay: 'listening',
     });
 
     const missing = await fetch(`http://127.0.0.1:${port}/no-such-route`);

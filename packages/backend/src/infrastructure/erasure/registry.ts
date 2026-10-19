@@ -8,6 +8,17 @@ export interface PersonalTable {
 }
 
 /**
+ * A column that links rows to an account (outside the identity schema). Account deletion has to
+ * handle these explicitly (they reference the account with `ON DELETE RESTRICT`), so each is
+ * declared by the module that owns it.
+ */
+export interface AccountColumn {
+  readonly schema: string;
+  readonly table: string;
+  readonly column: string;
+}
+
+/**
  * A personal store that SQL introspection cannot find (job payloads, media, caches, model
  * artifacts, diagnostic exports). Each is declared by name with the eraser that clears it.
  */
@@ -32,6 +43,8 @@ export interface ModuleErasure {
   readonly module: string;
   readonly tables: readonly PersonalTable[];
   readonly nonRowStores: readonly PersonalNonRowStore[];
+  /** Account-linked columns this module owns (handled by the account-deletion lifecycle). */
+  readonly accountColumns?: readonly AccountColumn[];
   /** Erasers run in registry order; list dependants (rows referencing others) first. */
   erase(scope: PersonalScopeTx): Promise<ErasureReport>;
 }

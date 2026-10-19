@@ -3,10 +3,12 @@ export { applyQueueDeclarations, createBoss, type BossDiagnostics, type BossRole
 export {
   InvalidJobPayloadError,
   drainConsumers,
+  jobFailureOutput,
   jobConsumer,
   startConsumers,
   type JobConsumer,
   type JobDelivery,
+  type JobFailureOutput,
 } from './consumers.js';
 export {
   DEAD_LETTER_RETENTION_SECONDS,

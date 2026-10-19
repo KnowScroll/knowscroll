@@ -79,7 +79,10 @@ describe('the outcome → RFC 9457 mapping', () => {
     const { events, logEvent } = recordingLog();
     for (const code of ['SCOPE_BUSY', '55P03', '57014', '40P01', '40001']) {
       const wrapped = new Error('kysely wrapper', { cause: Object.assign(new Error('driver says no'), { code }) });
-      expect(problemFromOrpcError(new ORPCError('INTERNAL_SERVER_ERROR', { cause: wrapped }), logEvent)).toMatchObject({ status: 503, code: 'SERVICE_UNAVAILABLE' });
+      expect(problemFromOrpcError(new ORPCError('INTERNAL_SERVER_ERROR', { cause: wrapped }), logEvent)).toMatchObject({
+        status: 503,
+        code: 'SERVICE_UNAVAILABLE',
+      });
     }
     expect(events).toEqual([]);
   });

@@ -4,6 +4,7 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { ActionKind, SavedState } from '../domain/actions.js';
 import type { ActionRecord, ListSavedPorts } from '../application/ports.js';
+import type { ActionForEvidence } from '../public.js';
 
 /** Saved state of one asset, read inside the locked scope. */
 export async function readSavedState(scope: PersonalScopeTx, assetId: string): Promise<SavedState> {
@@ -61,15 +62,6 @@ export async function recordAction(scope: PersonalScopeTx, action: ActionRecord)
       created_at: action.at,
     })
     .execute();
-}
-
-/** An action as the evidence module reads it. */
-export interface ActionForEvidence {
-  readonly id: string;
-  readonly kind: ActionKind;
-  readonly assetId: string;
-  readonly assetRevision: number;
-  readonly privacyEpoch: number;
 }
 
 /**

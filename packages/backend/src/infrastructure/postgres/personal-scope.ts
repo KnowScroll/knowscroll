@@ -3,6 +3,7 @@ import type {
   PersonalAuthority,
   PersonalScopeTx,
   ScopeOutcome,
+  SharedScopeTx,
   WithPersonalScope,
 } from '../../modules/identity/public.js';
 import type { Database } from './database.js';
@@ -21,6 +22,8 @@ export class ScopeBusyError extends Error {
 }
 
 const openScopes = new WeakMap<PersonalScopeTx, Transaction<Database>>();
+const sharedRoots = new WeakMap<PersonalScopeTx, SharedScopeTx>();
+const openSharedScopes = new WeakMap<SharedScopeTx, PersonalScopeTx>();
 
 export interface PersonalScopeOptions {
   /** Longest wait for the personal root lock before `ScopeBusyError`. */
@@ -76,12 +79,22 @@ export function makeWithPersonalScope(db: Kysely<Database>, options: PersonalSco
             .executeTakeFirst();
           if (account?.status !== 'active') return { kind: 'refused', refusal: { kind: 'universe_suspended' } };
         }
-        const scope = { authority, revisionAtEntry: universe.revision } as unknown as PersonalScopeTx;
+        // A frozen copy: callers cannot change which universe or epoch the scope writes for.
+        const frozen: PersonalAuthority = Object.freeze({
+          universeId: authority.universeId,
+          privacyEpoch: authority.privacyEpoch,
+          actor: Object.freeze({ ...authority.actor }),
+        });
+        const scope = Object.freeze({
+          authority: frozen,
+          revisionAtEntry: universe.revision,
+        }) as unknown as PersonalScopeTx;
         openScopes.set(scope, trx);
         try {
           return { kind: 'entered', value: await work(scope) };
         } finally {
           openScopes.delete(scope);
+          sharedRoots.delete(scope);
         }
       }),
     );
@@ -109,4 +122,66 @@ export async function advanceScopeRevision(scope: PersonalScopeTx): Promise<numb
     .returning('revision')
     .executeTakeFirstOrThrow();
   return row.revision;
+}
+
+/**
+ * How to lock one shared root (conversation, room, exploration). The owning module provides it:
+ * `lock` takes the root's row lock in the given transaction and reports whether the root exists.
+ */
+export interface SharedRootLock {
+  readonly kind: string;
+  readonly id: string;
+  lock(trx: Transaction<Database>): Promise<boolean>;
+}
+
+/** Raised when the lock order would be broken: a second shared root in one personal scope. */
+export class LockOrderError extends Error {
+  override readonly name = 'LockOrderError';
+  readonly code = 'LOCK_ORDER_VIOLATION';
+}
+
+/**
+ * Takes the lock of at most one shared root *after* the personal root, in the same transaction
+ * (blueprint §19 lock order: personal root → this universe's rows → one shared root → its
+ * subordinate rows). Returns the `SharedScopeTx` capability shared-scope ports require, or
+ * `undefined` when the root does not exist. A second call in the same personal scope throws
+ * `LockOrderError`: work that needs several shared roots is split into durable steps.
+ * Membership and access checks stay with the caller; this only orders the locks.
+ */
+export async function enterSharedRoot(
+  scope: PersonalScopeTx,
+  root: SharedRootLock,
+): Promise<SharedScopeTx | undefined> {
+  const trx = transactionOf(scope);
+  if (sharedRoots.has(scope)) throw new LockOrderError('A personal scope may lock at most one shared root');
+  const shared = Object.freeze({
+    personal: scope,
+    root: Object.freeze({ kind: root.kind, id: root.id }),
+  }) as unknown as SharedScopeTx;
+  sharedRoots.set(scope, shared);
+  if (!(await root.lock(trx))) return undefined;
+  openSharedScopes.set(shared, scope);
+  return shared;
+}
+
+/** The transaction behind an open shared scope, for adapters only. Throws `ScopeClosedError` after it ended. */
+export function sharedTransactionOf(shared: SharedScopeTx): Transaction<Database> {
+  const personal = openSharedScopes.get(shared);
+  if (personal === undefined || sharedRoots.get(personal) !== shared)
+    throw new ScopeClosedError('Shared scope used after its transaction ended');
+  return transactionOf(personal);
+}
+
+/**
+ * A short guarded transaction that holds no personal root lock, for bookkeeping that must not
+ * depend on current personal authority (for example the attempt ledger settling an outcome). It
+ * is marked like a personal scope, so network adapters refuse to run inside it and nesting is
+ * refused. Purpose names the caller in the refusal message.
+ */
+export function withTransaction<T>(
+  db: Kysely<Database>,
+  purpose: string,
+  work: (trx: Transaction<Database>) => Promise<T>,
+): Promise<T> {
+  return runMarkedTransaction(purpose, () => db.transaction().execute(work));
 }

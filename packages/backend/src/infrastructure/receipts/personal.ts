@@ -9,26 +9,37 @@ export interface PersonalCommandKey {
   readonly operation: string;
   /** `requestHash(operation, validatedRequest)`. */
   readonly requestHash: string;
+  /** Version of the outcome shape the caller stores and can read back. */
+  readonly outcomeVersion: number;
 }
 
 /** What the receipt table says about a command key, read under the scope lock. */
 export type ReceiptLookup =
-  { readonly kind: 'new' } | { readonly kind: 'replay'; readonly outcome: unknown } | { readonly kind: 'key_reused' };
+  | { readonly kind: 'new' }
+  | { readonly kind: 'replay'; readonly outcome: unknown }
+  | { readonly kind: 'key_reused' }
+  | { readonly kind: 'epoch_mismatch' }
+  | { readonly kind: 'outcome_version_unsupported' };
 
 /**
  * Looks up `(universe_id, command_id)` inside the locked personal scope (blueprint §19 step 2).
  * `replay` carries the stored outcome of an identical request; `key_reused` means the same key
- * arrived with a different operation or request hash (→ `COMMAND_KEY_REUSED`, 422). Read-only.
+ * arrived with a different operation or request hash (→ `COMMAND_KEY_REUSED`, 422);
+ * `epoch_mismatch` means the receipt belongs to an earlier privacy epoch, whose results are never
+ * replayed after a reset; `outcome_version_unsupported` means the stored outcome has a shape the
+ * caller cannot parse. Read-only.
  */
 export async function findPersonalReceipt(scope: PersonalScopeTx, key: PersonalCommandKey): Promise<ReceiptLookup> {
   const existing = await transactionOf(scope)
     .selectFrom('receipts.personal_commands')
-    .select(['operation', 'request_hash', 'outcome'])
+    .select(['operation', 'request_hash', 'outcome', 'outcome_version', 'privacy_epoch'])
     .where('universe_id', '=', scope.authority.universeId)
     .where('command_id', '=', key.commandId)
     .executeTakeFirst();
   if (existing === undefined) return { kind: 'new' };
   if (existing.operation !== key.operation || existing.request_hash !== key.requestHash) return { kind: 'key_reused' };
+  if (existing.privacy_epoch !== scope.authority.privacyEpoch) return { kind: 'epoch_mismatch' };
+  if (existing.outcome_version !== key.outcomeVersion) return { kind: 'outcome_version_unsupported' };
   if (existing.outcome === null) throw new Error('Receipt without outcome outside its own transaction');
   return { kind: 'replay', outcome: existing.outcome };
 }
@@ -46,6 +57,7 @@ export async function insertPersonalReceipt(scope: PersonalScopeTx, key: Persona
       command_id: key.commandId,
       operation: key.operation,
       request_hash: key.requestHash,
+      outcome_version: key.outcomeVersion,
       privacy_epoch: scope.authority.privacyEpoch,
     })
     .execute();

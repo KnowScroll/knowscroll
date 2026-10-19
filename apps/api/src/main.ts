@@ -5,7 +5,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ConfigurationError, readApiConfig, worldForDiagnostics } from '@knowscroll/backend/infrastructure/config';
 import { createBoss, makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { runProcess } from '@knowscroll/backend/infrastructure/lifecycle';
-import { ScopeNoticeRelay } from '@knowscroll/backend/infrastructure/notices';
+import { ScopeNoticeRelay, type ScopeNotice, type ScopeNoticeSink } from '@knowscroll/backend/infrastructure/notices';
 import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { AppModule } from './app.module.js';
@@ -48,8 +48,22 @@ async function main(): Promise<void> {
         onWarning: (reasonCode) => logEvent('jobs.warning', { reasonCode }),
       });
       await boss.start();
+      // The relay exists before Nest (its state feeds /health); it starts once the gateway exists.
+      const target: { gateway?: ScopeNoticeSink } = {};
+      const sink: ScopeNoticeSink = {
+        onNotice: (notice: ScopeNotice) => target.gateway?.onNotice(notice),
+        onResync: (reason) => target.gateway?.onResync(reason),
+        onAccessRevoked: (accountId) => target.gateway?.onAccessRevoked(accountId),
+      };
+      const relay = new ScopeNoticeRelay({ database: config.database, sink, logEvent });
       const app = await NestFactory.create<NestExpressApplication>(
-        AppModule.forRoot({ config, db: database.db, enqueueJob: makeEnqueueJob(boss), logEvent }),
+        AppModule.forRoot({
+          config,
+          db: database.db,
+          enqueueJob: makeEnqueueJob(boss),
+          logEvent,
+          relayState: () => relay.state,
+        }),
         {
           bodyParser: false,
           logger: new FrameworkLogAdapter(logEvent),
@@ -63,7 +77,7 @@ async function main(): Promise<void> {
       app.useBodyParser('json', { limit: config.bodyLimitBytes });
       app.use(bodyErrorMiddleware(logEvent));
       await app.init();
-      const relay = new ScopeNoticeRelay({ database: config.database, sink: app.get(ScopeGateway), logEvent });
+      target.gateway = app.get(ScopeGateway);
       await relay.start();
       await app.listen(config.listen.port, config.listen.host);
       return {

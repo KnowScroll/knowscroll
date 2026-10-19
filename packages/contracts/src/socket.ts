@@ -11,6 +11,7 @@ export const socketEvents = {
   unsubscribeScope: 'unsubscribe_scope',
   scopeChanged: 'scope_changed',
   scopeResync: 'scope_resync',
+  scopeRevoked: 'scope_revoked',
 } as const;
 
 /** The socket path on the API origin (proxied by Caddy, D-008). */
@@ -23,7 +24,7 @@ export const SubscribeScopeRequestSchema = z.object({ scope: ScopeRefSchema });
 /** Acknowledgement of `subscribe_scope`: access is checked on every subscribe. */
 export const SubscribeScopeAckSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), revision: z.number().int().min(0) }),
-  z.object({ ok: z.literal(false), code: z.enum(['INVALID_REQUEST', 'UNAUTHENTICATED', 'FORBIDDEN']) }),
+  z.object({ ok: z.literal(false), code: z.enum(['INVALID_REQUEST', 'UNAUTHENTICATED', 'FORBIDDEN', 'UNAVAILABLE']) }),
 ]);
 
 /** A committed change to a subscribed scope. `revision` only grows; duplicates are possible. */
@@ -36,7 +37,11 @@ export const ScopeChangedHintSchema = z.object({
 /** Hints may have been lost (relay reconnected): refetch every subscribed scope. */
 export const ScopeResyncHintSchema = z.object({ reason: z.enum(['listening', 'reconnected']) });
 
+/** Access to a subscribed scope no longer holds: the subscription was dropped; stop showing it. */
+export const ScopeRevokedHintSchema = z.object({ scope: ScopeRefSchema });
+
 export type ScopeRef = z.infer<typeof ScopeRefSchema>;
+export type ScopeRevokedHint = z.infer<typeof ScopeRevokedHintSchema>;
 export type SubscribeScopeAck = z.infer<typeof SubscribeScopeAckSchema>;
 export type ScopeChangedHint = z.infer<typeof ScopeChangedHintSchema>;
 export type ScopeResyncHint = z.infer<typeof ScopeResyncHintSchema>;

@@ -3,27 +3,22 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { applyActionEvidenceQueue, type ApplyActionEvidence } from '@knowscroll/backend/modules/evidence';
-import { APPLY_ACTION_EVIDENCE, evidenceProviders } from '@knowscroll/backend/modules/evidence/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { experienceUseCases } from '../support/experience.js';
 import { seedAsset, seedPerson } from '../support/fixtures.js';
-import { buildFromProviders } from '../support/providers.js';
+import { evidenceUseCase } from '../support/evidence.js';
 
 const silent: LogEvent = () => undefined;
-const SCOPE = Symbol('test.withPersonalScope');
+const secret = 'canary-job-secret-Xq19';
 
 describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
   let database: TestDatabase<Database>;
   let applyActionEvidence: ApplyActionEvidence;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('evidence');
-    applyActionEvidence = buildFromProviders(
-      evidenceProviders({ withPersonalScope: SCOPE }),
-      APPLY_ACTION_EVIDENCE,
-      new Map([[SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })]]),
-    ) as ApplyActionEvidence;
+    applyActionEvidence = evidenceUseCase(database);
   });
   afterAll(async () => {
     await database.drop();
@@ -61,9 +56,10 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
     const person = await seedPerson(database.db);
     const actionId = await saveOnce(person);
     const payload = { v: 1 as const, universeId: person.universeId, privacyEpoch: 1, actionId };
-    expect(await applyActionEvidence(payload)).toMatchObject({ kind: 'applied', revision: 1 });
+    // The save advanced the revision to 1 in its own transaction; the evidence job advances it again.
+    expect(await applyActionEvidence(payload)).toMatchObject({ kind: 'applied', revision: 2 });
     expect(await applyActionEvidence(payload)).toEqual({ kind: 'skipped', reason: 'already_applied' });
-    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 1 });
+    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 2 });
   });
 
   it('is harmless when the worker crashes after committing and pg-boss redelivers the job', async () => {
@@ -80,8 +76,13 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
           // Other tests in this file leave their own jobs in the queue; observe this person's only.
           if (payload.universeId !== person.universeId) return;
           deliveries.push(delivery.retryCount);
-          // Simulated crash after the effects committed but before pg-boss recorded completion.
-          if (delivery.retryCount === 0) throw new Error('simulated crash after commit');
+          // Simulated crash after the effects committed but before pg-boss recorded completion. The
+          // error carries secret-shaped text: pg-boss must store none of it.
+          if (delivery.retryCount === 0)
+            throw Object.assign(new Error(`simulated crash after commit postgres://u:${secret}@db`), {
+              detail: secret,
+              code: 'FIXTURE_CRASH',
+            });
         }),
       ],
       silent,
@@ -104,7 +105,54 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
       await drainConsumers(worker, 1, 5_000, silent);
     }
     expect(deliveries).toEqual([0, 1]);
-    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 1 });
+    const outputs = await sql<{
+      output: unknown;
+    }>`select output from pgboss.job where name = ${applyActionEvidenceQueue.name} and data ->> 'universeId' = ${person.universeId}`.execute(
+      database.db,
+    );
+    const stored = JSON.stringify(outputs.rows);
+    expect(stored).not.toContain(secret);
+    expect(stored).not.toContain('simulated crash');
+    expect(stored).not.toContain('stack');
+    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 1, revision: 2 });
+  });
+
+  it('dead-letters a job whose payload does not match its queue at once, with a code-only output', async () => {
+    const worker = createBoss(database.settings, 'consumer', { onError: () => undefined, onWarning: () => undefined });
+    await worker.start();
+    const handled: unknown[] = [];
+    await startConsumers(
+      worker,
+      [jobConsumer(applyActionEvidenceQueue, (payload) => Promise.resolve(void handled.push(payload)))],
+      silent,
+    );
+    const marker = randomUUID();
+    const id = await worker.send(applyActionEvidenceQueue.name, { v: 99, universeId: marker, note: secret });
+    try {
+      await expect
+        .poll(async () => (await worker.findJobs(applyActionEvidenceQueue.name, { id: id ?? '' }))[0]?.state, {
+          timeout: 20_000,
+          interval: 250,
+        })
+        .toBe('failed');
+      const [job] = await worker.findJobs(applyActionEvidenceQueue.name, { id: id ?? '' });
+      expect(job?.retryCount).toBe(0);
+      expect(job?.output).toEqual({
+        failure: 'invalid_payload',
+        errorClass: 'InvalidJobPayloadError',
+        code: 'INVALID_JOB_PAYLOAD',
+      });
+      await expect
+        .poll(
+          async () =>
+            (await worker.findJobs(`${applyActionEvidenceQueue.name}.dead`, { data: { universeId: marker } })).length,
+          { timeout: 10_000 },
+        )
+        .toBe(1);
+      expect(handled).toEqual([]);
+    } finally {
+      await drainConsumers(worker, 1, 5_000, silent);
+    }
   });
 
   it('skips work from an older privacy epoch instead of applying it', async () => {
@@ -119,6 +167,7 @@ describe('evidence.apply-action consumer (real database, real pg-boss)', () => {
       kind: 'skipped',
       reason: 'epoch_changed',
     });
-    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 0, revision: 0 });
+    // The save's own revision (1) stands; the stale evidence work changes nothing.
+    expect(await evidenceAndRevision(person.universeId)).toEqual({ events: 0, revision: 1 });
   });
 });

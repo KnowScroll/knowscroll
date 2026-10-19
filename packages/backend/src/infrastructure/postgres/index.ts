@@ -9,11 +9,16 @@ export {
   type RegisteredMigration,
 } from './migrator.js';
 export {
+  LockOrderError,
   ScopeBusyError,
   ScopeClosedError,
   advanceScopeRevision,
+  enterSharedRoot,
   makeWithPersonalScope,
+  sharedTransactionOf,
   transactionOf,
+  withTransaction,
+  type SharedRootLock,
   type PersonalScopeOptions,
 } from './personal-scope.js';
 export {

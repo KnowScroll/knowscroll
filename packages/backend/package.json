@@ -56,10 +56,20 @@
       "types": "./dist/infrastructure/receipts/index.d.ts",
       "default": "./dist/infrastructure/receipts/index.js"
     },
+    "./job-queues": {
+      "@knowscroll/source": "./src/job-queues.ts",
+      "types": "./dist/job-queues.d.ts",
+      "default": "./dist/job-queues.js"
+    },
     "./modules/content": {
       "@knowscroll/source": "./src/modules/content/public.ts",
       "types": "./dist/modules/content/public.d.ts",
       "default": "./dist/modules/content/public.js"
+    },
+    "./modules/content/nest-providers": {
+      "@knowscroll/source": "./src/modules/content/adapters/nest-providers.ts",
+      "types": "./dist/modules/content/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/content/adapters/nest-providers.js"
     },
     "./modules/evidence": {
       "@knowscroll/source": "./src/modules/evidence/public.ts",
@@ -86,10 +96,20 @@
       "types": "./dist/modules/identity/public.d.ts",
       "default": "./dist/modules/identity/public.js"
     },
+    "./modules/identity/nest-providers": {
+      "@knowscroll/source": "./src/modules/identity/adapters/nest-providers.ts",
+      "types": "./dist/modules/identity/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/identity/adapters/nest-providers.js"
+    },
     "./reasoning": {
       "@knowscroll/source": "./src/reasoning/public.ts",
       "types": "./dist/reasoning/public.d.ts",
       "default": "./dist/reasoning/public.js"
+    },
+    "./reasoning/nest-providers": {
+      "@knowscroll/source": "./src/reasoning/adapters/nest-providers.ts",
+      "types": "./dist/reasoning/adapters/nest-providers.d.ts",
+      "default": "./dist/reasoning/adapters/nest-providers.js"
     }
   },
   "files": [

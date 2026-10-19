@@ -13,15 +13,17 @@ POST /v1/actions {commandId, kind: save|unsave, target: {assetId, assetRevision}
       receipts: lookup (replay | COMMAND_KEY_REUSED) → content: asset admitted at revision
       receipts: insert pending → experience.saved_items / experience.actions
       jobs: enqueue evidence.apply-action  (boss.send … { db: fromKysely(trx) })
+      identity.universes.revision += 1; pg_notify (the command's own watermark)
       receipts: store outcome
     COMMIT  (receipt + effects + job, or nothing)
-  ← 200 {…, replayed}
+  ← 200 {…, revision, replayed}
 apps/worker  evidence.apply-action consumer (non-transactional)
   evidence.applyActionEvidence: withPersonalScope(system actor, payload epoch)
-    insert evidence.action_events (unique per action) → advance universe revision → pg_notify
+    insert evidence.action_events (unique per action) → advance universe revision again → pg_notify
   COMMIT
-apps/api  ScopeNoticeRelay (LISTEN, own connection) → ScopeGateway → room scope:universe:<id>
-  → Socket.IO scope_changed {scope, revision, eventId}
+apps/api  ScopeNoticeRelay (LISTEN, own connection, reconnects for as long as needed)
+  → ScopeGateway → each socket in room scope:universe:<id>, re-authorised (≤ 30 s cache)
+  → Socket.IO scope_changed {scope, revision, eventId}   (or scope_revoked, and leave the room)
 client  GET /v1/saved → {revision, items}
 ```
 
@@ -33,11 +35,16 @@ client  GET /v1/saved → {revision, items}
 | Same key, different request → `COMMAND_KEY_REUSED` (422 problem) | `modules/apply-action.test.ts`, `infrastructure/receipts.test.ts`, `release/spike-journey.test.ts` |
 | Second connection waits for the universe lock, then sees the new epoch/revision | `infrastructure/personal-scope.test.ts` |
 | Rollback removes the enqueued job (and receipt and effects) | `modules/apply-action.test.ts` |
-| Relay restart → re-LISTEN → resync, then hints flow again | `infrastructure/notices.test.ts` |
+| Relay restart → re-LISTEN → resync, then hints flow again; also through an outage in which the database refuses all connections | `infrastructure/notices.test.ts` |
+| Subscriptions are revoked: re-authorisation on relay, account revocation notice | `release/spike-journey.test.ts` |
+| Concurrent identical commands apply once | `modules/apply-action.test.ts` |
+| Concurrent deliveries send a model step once; a late answer after `unknown` is `reconciled`; authority lost mid-call → outcome recorded, output withheld | `modules/reasoning-attempts.test.ts` |
+| Failed jobs store code-only outputs; invalid payloads dead-letter at once | `modules/apply-action-evidence.test.ts` |
+| Release trees install exactly the lockfile's versions | `release/lockfile.test.ts` |
 | Worker crash after commit + pg-boss redelivery → one evidence row, one revision | `modules/apply-action-evidence.test.ts` |
 | Crash after dispatch leaves `unknown`; redelivery never re-sends | `modules/reasoning-attempts.test.ts` |
 | No network call inside a transaction | `infrastructure/transaction-guard.test.ts` |
-| Every `universe_id` table is in the erasure registry; erasers clear one universe only | `infrastructure/erasure.test.ts` |
+| Every `universe_id` table and account-linked column is declared, with RESTRICT references; every queue carrying `universeId` has an eraser; erasers clear one universe only and keep open attempt liability | `infrastructure/erasure.test.ts` |
 | Secrets never reach logs | `packages/backend/src/infrastructure/observability/canary.test.ts`, `release/spike-journey.test.ts` |
 | Production build boots, serves `/health`, refuses the test caller adapter | `release/boot.test.ts`, `release/spike-journey.test.ts` |
 | Generated Kysely types match the migrated schema | `checks.yml` build job (`kysely-codegen --verify`) |
@@ -46,10 +53,12 @@ client  GET /v1/saved → {revision, items}
 
 - Personal writes need a `PersonalScopeTx`, which only `withPersonalScope` creates and which dies
   with its transaction. Workers recheck authority themselves under the same lock.
-- Receipt, effects and required pg-boss work commit together; NOTIFY/Socket.IO hints are
-  disposable and carry no private content.
+- Receipt, effects, the revision watermark and required pg-boss work commit together;
+  NOTIFY/Socket.IO hints are disposable and carry no private content.
+- Every transaction is opened by `infrastructure/postgres` (ESLint), so the network guard sees it;
+  shared roots are locked only after the personal root (`enterSharedRoot`).
 - Model/provider/media adapters refuse to run inside a transaction; the attempt ledger decides
-  whether anything may be sent.
+  whether anything may be sent, and settles outcomes without depending on current authority.
 - One `logEvent` catalogue, no free text in logs, personal-linkable IDs withheld from the journal.
 - One outcome → HTTP mapping (`apps/api/src/http/problems.ts`): typed refusals become RFC 9457
   problems with stable codes; anything else is logged once and answered as `INTERNAL`.

@@ -1,15 +1,6 @@
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { readActionForEvidence } from '../../experience/public.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { ActionToRecord } from '../application/ports.js';
-
-/** Reads the action through experience's public surface (experience owns the row). */
-export async function loadAction(scope: PersonalScopeTx, actionId: string): Promise<ActionToRecord | undefined> {
-  const action = await readActionForEvidence(scope, actionId);
-  return action === undefined
-    ? undefined
-    : { id: action.id, kind: action.kind, assetId: action.assetId, assetRevision: action.assetRevision };
-}
 
 /** Inserts one evidence action event; `false` when the action already has one. */
 export async function insertActionEvent(

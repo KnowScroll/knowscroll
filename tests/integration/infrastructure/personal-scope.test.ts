@@ -154,6 +154,21 @@ describe('withPersonalScope (real database)', () => {
     await holding;
   });
 
+  it('gives the work a frozen copy of the authority', async () => {
+    const person = await seedPerson(database.db);
+    const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    const authority = { ...person.authority, actor: { ...person.authority.actor } };
+    const outcome = await withPersonalScope(authority, (scope) => {
+      expect(Object.isFrozen(scope.authority)).toBe(true);
+      expect(Object.isFrozen(scope.authority.actor)).toBe(true);
+      expect(() => {
+        (scope.authority as { universeId: string }).universeId = '00000000-0000-4000-8000-000000000000';
+      }).toThrow(TypeError);
+      return Promise.resolve(scope.authority.universeId);
+    });
+    expect(outcome).toEqual({ kind: 'entered', value: person.universeId });
+  });
+
   it('refuses a nested guarded transaction and a scope used after its transaction', async () => {
     const person = await seedPerson(database.db);
     const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });

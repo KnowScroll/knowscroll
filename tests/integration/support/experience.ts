@@ -1,6 +1,7 @@
 import type { PgBoss } from 'pg-boss';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import type { ApplyAction, ListSaved } from '@knowscroll/backend/modules/experience';
 import { APPLY_ACTION, LIST_SAVED, experienceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import type { TestDatabase } from './database.js';
@@ -8,8 +9,8 @@ import { buildFromProviders } from './providers.js';
 
 /**
  * Builds experience's real use cases from its real providers (the same factories the API's
- * composition root uses), without Nest. `wrapEnqueue` lets a test inject a failure after the job
- * is written, to prove rollback.
+ * composition root uses, including content's asset lookup), without Nest. `wrapEnqueue` lets a
+ * test inject a failure after the job is written, to prove rollback.
  */
 export async function experienceUseCases(
   database: TestDatabase<Database>,
@@ -27,6 +28,7 @@ export async function experienceUseCases(
     [DATABASE_TOKEN, database.db],
     [SCOPE_TOKEN, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
     [ENQUEUE_TOKEN, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
+    ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
   ]);
   const providers = experienceProviders({
     database: DATABASE_TOKEN,

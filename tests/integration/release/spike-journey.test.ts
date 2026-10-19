@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScopeChangedHintSchema, SOCKET_PATH, socketEvents, type ScopeChangedHint } from '@knowscroll/contracts';
+import { revokeAccountSockets } from '@knowscroll/backend/infrastructure/notices';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
 import { apiClient } from '../support/api-client.js';
 import { createEmptyDatabase } from '../support/empty-database.js';
@@ -51,11 +52,13 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     const port = await freePort();
     baseUrl = `http://127.0.0.1:${port}`;
     const shared = { NODE_ENV: 'test', KS_WORLD: 'ci', DATABASE_URL: database.url, KS_SHUTDOWN_GRACE_SECONDS: '10' };
+    // KS_SOCKET_AUTH_CACHE_MS=0: every relayed hint re-reads access, so revocation shows at once.
     api = startReleaseProcess('api', 'main', {
       ...shared,
       PORT: String(port),
       KS_AUTH_ADAPTER: 'test-bearer',
       KS_BODY_LIMIT_BYTES: '2048',
+      KS_SOCKET_AUTH_CACHE_MS: '0',
     });
     worker = startReleaseProcess('worker', 'main', shared);
     await Promise.all([api.waitForEvent('process.started'), worker.waitForEvent('process.started')]);
@@ -81,7 +84,15 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     });
   }
 
-  it('saves an item, hints the subscriber after the worker applies evidence, and the catch-up read shows it', async () => {
+  it('reports the relay as listening in /health', async () => {
+    expect(await (await fetch(`${baseUrl}/health`)).json()).toMatchObject({
+      status: 'ok',
+      world: 'ci',
+      relay: 'listening',
+    });
+  });
+
+  it('saves an item, hints the subscriber for the command and again after the worker applies evidence, and the catch-up read shows it', async () => {
     const socket = connect(`test.${person.accountId}`);
     const hints: ScopeChangedHint[] = [];
     socket.on(socketEvents.scopeChanged, (hint: unknown) => hints.push(ScopeChangedHintSchema.parse(hint)));
@@ -103,14 +114,15 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
       assetId: asset.assetId,
       saved: true,
       changed: true,
+      revision: 1,
       replayed: false,
     });
 
-    await expect
-      .poll(() => hints, { timeout: 20_000 })
-      .toEqual([expect.objectContaining({ scope: { kind: 'universe', id: person.universeId }, revision: 1 })]);
+    // Revision 1 is the command's own commit; revision 2 is the evidence job's.
+    await expect.poll(() => hints.map((hint) => hint.revision), { timeout: 20_000 }).toEqual([1, 2]);
+    expect(hints.every((hint) => hint.scope.id === person.universeId)).toBe(true);
     const list = await client.experience.listSaved({});
-    expect(list.revision).toBe(1);
+    expect(list.revision).toBe(2);
     expect(list.items).toEqual([expect.objectContaining({ assetId: asset.assetId, assetRevision: asset.revision })]);
 
     // A retried command returns the stored outcome and causes no second effect or hint.
@@ -121,7 +133,7 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     });
     expect(replay).toEqual({ ...saved, replayed: true });
     await new Promise((resolve) => setTimeout(resolve, 1_500));
-    expect(hints).toHaveLength(1);
+    expect(hints).toHaveLength(2);
     const evidence = await handle.db
       .selectFrom('evidence.action_events')
       .select('id')
@@ -192,6 +204,48 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     await expect(connected(anonymous)).rejects.toThrow('UNAUTHENTICATED');
   });
 
+  it('drops a subscription whose access no longer holds when it relays the next hint', async () => {
+    const owner = await seedPerson(handle.db);
+    const socket = connect(`test.${owner.accountId}`);
+    const changed: ScopeChangedHint[] = [];
+    const revoked: unknown[] = [];
+    socket.on(socketEvents.scopeChanged, (hint: unknown) => changed.push(ScopeChangedHintSchema.parse(hint)));
+    socket.on(socketEvents.scopeRevoked, (hint: unknown) => revoked.push(hint));
+    await connected(socket);
+    expect(
+      await socket.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'universe', id: owner.universeId } }),
+    ).toEqual({ ok: true, revision: 0 });
+    // A privacy reset elsewhere: the socket's authorisation (epoch 1) no longer holds.
+    await handle.db
+      .updateTable('identity.universes')
+      .set({ privacy_epoch: 2 })
+      .where('id', '=', owner.universeId)
+      .execute();
+    const client = apiClient(baseUrl, `Bearer test.${owner.accountId}`);
+    await client.experience.applyAction({
+      commandId: randomUUID(),
+      kind: 'save',
+      target: { assetId: asset.assetId, assetRevision: asset.revision },
+    });
+    await expect
+      .poll(() => revoked, { timeout: 20_000 })
+      .toEqual([{ scope: { kind: 'universe', id: owner.universeId } }]);
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    expect(changed).toEqual([]);
+  });
+
+  it('disconnects every socket of an account when its access is revoked', async () => {
+    const owner = await seedPerson(handle.db);
+    const socket = connect(`test.${owner.accountId}`);
+    await connected(socket);
+    expect(
+      await socket.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'universe', id: owner.universeId } }),
+    ).toEqual({ ok: true, revision: 0 });
+    const disconnected = new Promise<string>((resolve) => socket.once('disconnect', resolve));
+    await handle.db.transaction().execute((trx) => revokeAccountSockets(trx, owner.accountId));
+    expect(await disconnected).toBe('io server disconnect');
+  });
+
   it('never writes secrets from URLs, headers or bodies to its output', async () => {
     await fetch(`${baseUrl}/v1/saved?token=${canaries.token}&password=${canaries.password}`, {
       headers: { authorization: `Bearer ${canaries.bearer}`, cookie: `session=${canaries.cookie}` },
@@ -215,6 +269,27 @@ describe('the spike journey through the built API, worker and Socket.IO', () => 
     for (const socket of sockets) socket.close();
     const [apiExit, workerExit] = await Promise.all([api.stop('SIGTERM'), worker.stop('SIGTERM')]);
     expect({ apiExit, workerExit }).toEqual({ apiExit: 0, workerExit: 0 });
+  });
+});
+
+describe('the test-only caller adapter outside CI', () => {
+  it('is refused in a dev world even with NODE_ENV=test', async () => {
+    const database = await createEmptyDatabase('release_refuse_world');
+    try {
+      const api = startReleaseProcess('api', 'main', {
+        NODE_ENV: 'test',
+        KS_WORLD: 'dev',
+        DATABASE_URL: database.url,
+        PORT: String(await freePort()),
+        KS_AUTH_ADAPTER: 'test-bearer',
+      });
+      expect(await api.exited()).toBe(1);
+      expect(api.records).toEqual([
+        expect.objectContaining({ event: 'config.invalid', problems: ['KS_AUTH_ADAPTER: refused_in_this_world'] }),
+      ]);
+    } finally {
+      await database.drop();
+    }
   });
 });
 

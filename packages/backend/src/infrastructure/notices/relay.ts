@@ -1,6 +1,7 @@
 import pg from 'pg';
 import type { DatabaseSettings } from '../config/index.js';
 import type { LogEvent } from '../observability/index.js';
+import { ACCESS_REVOKED_CHANNEL, AccessRevokedNoticeSchema } from './access-revocation.js';
 import { SCOPE_NOTICE_CHANNEL, ScopeNoticeSchema, type ScopeNotice } from './scope-notices.js';
 
 /** Where the relay delivers: currently-connected subscribers in this API process. */
@@ -12,7 +13,12 @@ export interface ScopeNoticeSink {
    * subscriber must refetch its scopes. Also called after the first LISTEN at startup.
    */
   onResync(reason: 'listening' | 'reconnected'): void;
+  /** An account's access changed (sign-out, session revocation, epoch change): drop its sockets. */
+  onAccessRevoked(accountId: string): void;
 }
+
+/** Whether the relay currently holds a working LISTEN connection (reported by `/health`). */
+export type RelayState = 'listening' | 'reconnecting';
 
 export interface ScopeNoticeRelayOptions {
   readonly database: DatabaseSettings;
@@ -23,11 +29,15 @@ export interface ScopeNoticeRelayOptions {
   readonly maxReconnectDelayMs?: number;
   /** How often the LISTEN connection is probed, so a silently dropped connection is replaced. */
   readonly heartbeatMs?: number;
+  /** A probe that has not answered within this time counts as a lost connection. */
+  readonly heartbeatTimeoutMs?: number;
 }
 
 /**
  * The API's LISTEN relay (blueprint §4): one dedicated connection per API process, outside the
- * pool. On any connection loss it reconnects with backoff, re-issues LISTEN, and then tells the
+ * pool, listening on the scope-change and access-revocation channels. On any loss (error, end,
+ * failed or overdue heartbeat) it keeps retrying with capped exponential backoff for as long as
+ * it takes (a database restart or outage of any length), re-issues LISTEN, and then tells the
  * sink to resynchronise, because notices sent while it was away are gone for good.
  */
 export class ScopeNoticeRelay {
@@ -37,20 +47,33 @@ export class ScopeNoticeRelay {
   private heartbeatTimer: NodeJS.Timeout | undefined;
   private attempt = 0;
   private hasListened = false;
+  private firstListen: { promise: Promise<void>; resolve: () => void } | undefined;
 
   constructor(private readonly options: ScopeNoticeRelayOptions) {}
 
-  /** Connects and LISTENs; resolves once the first LISTEN succeeded. Retries until then. */
+  /** `listening` while a LISTEN connection is up, otherwise `reconnecting`. */
+  get state(): RelayState {
+    return this.client === undefined ? 'reconnecting' : 'listening';
+  }
+
+  /** Starts connecting; resolves once the first LISTEN succeeded (retrying until then). */
   async start(): Promise<void> {
     this.stopped = false;
-    await this.connect();
+    let resolve!: () => void;
+    const promise = new Promise<void>((done) => {
+      resolve = done;
+    });
+    this.firstListen = { promise, resolve };
+    this.connectNow();
+    await promise;
   }
 
   /** Stops reconnecting and closes the connection. */
   async stop(): Promise<void> {
     this.stopped = true;
+    this.firstListen?.resolve();
     if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer);
-    if (this.heartbeatTimer !== undefined) clearInterval(this.heartbeatTimer);
+    this.stopHeartbeat();
     const client = this.client;
     this.client = undefined;
     if (client !== undefined) await client.end().catch(() => undefined);
@@ -62,32 +85,37 @@ export class ScopeNoticeRelay {
     return result?.rows[0]?.pid;
   }
 
+  private connectNow(): void {
+    this.connect().catch((error: unknown) => {
+      // connect() handles its own failures; anything reaching here is a sink or logger fault.
+      this.options.logEvent('relay.disconnected', { reasonCode: 'relay_fault', error });
+      this.retryLater();
+    });
+  }
+
   private async connect(): Promise<void> {
+    if (this.stopped) return;
     const { database, logEvent } = this.options;
     const client = new pg.Client({
       connectionString: database.url,
       application_name: `${database.applicationName}-relay`,
       keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
     });
     client.on('notification', (message) => this.deliver(message));
-    client.on('error', (error) => {
-      logEvent('relay.disconnected', { error });
-      this.scheduleReconnect(client);
-    });
-    client.on('end', () => this.scheduleReconnect(client));
+    client.on('error', (error) => this.lost(client, 'connection_error', error));
+    client.on('end', () => this.lost(client, 'connection_ended'));
     try {
       await client.connect();
       await client.query(`listen ${SCOPE_NOTICE_CHANNEL}`);
+      await client.query(`listen ${ACCESS_REVOKED_CHANNEL}`);
     } catch (error) {
-      logEvent('relay.disconnected', { error });
+      logEvent('relay.disconnected', { reasonCode: 'connect_failed', error });
+      client.removeAllListeners();
+      client.on('error', () => undefined);
       await client.end().catch(() => undefined);
-      if (!this.hasListened) {
-        // First start: keep trying, but surface each failure.
-        await new Promise((resolve) => setTimeout(resolve, this.nextDelay()));
-        if (!this.stopped) await this.connect();
-        return;
-      }
-      this.scheduleReconnect(client);
+      this.retryLater();
       return;
     }
     if (this.stopped) {
@@ -100,52 +128,72 @@ export class ScopeNoticeRelay {
     const reason = this.hasListened ? 'reconnected' : 'listening';
     this.hasListened = true;
     logEvent('relay.listening', { reasonCode: reason });
+    this.firstListen?.resolve();
     this.options.sink.onResync(reason);
   }
 
+  /** The current connection is gone: forget it and schedule a new attempt. Ignores stale clients. */
+  private lost(client: pg.Client, reasonCode: string, error?: unknown): void {
+    if (this.stopped || this.client !== client) return;
+    this.client = undefined;
+    this.stopHeartbeat();
+    this.options.logEvent('relay.disconnected', { reasonCode, ...(error === undefined ? {} : { error }) });
+    client.removeAllListeners('notification');
+    client.removeAllListeners('end');
+    void client.end().catch(() => undefined);
+    this.retryLater();
+  }
+
+  /** Schedules the next connection attempt (capped exponential backoff), for as long as needed. */
+  private retryLater(): void {
+    if (this.stopped || this.reconnectTimer !== undefined) return;
+    const base = this.options.reconnectDelayMs ?? 250;
+    const max = this.options.maxReconnectDelayMs ?? 5_000;
+    const delay = Math.min(max, base * 2 ** Math.min(this.attempt, 16));
+    this.attempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.connectNow();
+    }, delay);
+  }
+
   private startHeartbeat(client: pg.Client): void {
-    if (this.heartbeatTimer !== undefined) clearInterval(this.heartbeatTimer);
+    this.stopHeartbeat();
+    const timeoutMs = this.options.heartbeatTimeoutMs ?? 5_000;
     this.heartbeatTimer = setInterval(() => {
-      client.query('select 1').catch((error: unknown) => {
-        this.options.logEvent('relay.disconnected', { reasonCode: 'heartbeat_failed', error });
-        this.scheduleReconnect(client);
+      let timer: NodeJS.Timeout | undefined;
+      const overdue = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('relay heartbeat overdue')), timeoutMs);
       });
+      Promise.race([client.query('select 1'), overdue])
+        .catch((error: unknown) => this.lost(client, 'heartbeat_failed', error))
+        .finally(() => clearTimeout(timer));
     }, this.options.heartbeatMs ?? 15_000);
     this.heartbeatTimer.unref();
   }
 
-  private scheduleReconnect(client: pg.Client): void {
-    if (this.stopped || this.client !== client) return;
-    this.client = undefined;
+  private stopHeartbeat(): void {
     if (this.heartbeatTimer !== undefined) clearInterval(this.heartbeatTimer);
-    client.removeAllListeners('notification');
-    void client.end().catch(() => undefined);
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      if (!this.stopped) void this.connect();
-    }, this.nextDelay());
-  }
-
-  private nextDelay(): number {
-    const base = this.options.reconnectDelayMs ?? 250;
-    const max = this.options.maxReconnectDelayMs ?? 5_000;
-    const delay = Math.min(max, base * 2 ** this.attempt);
-    this.attempt += 1;
-    return delay;
+    this.heartbeatTimer = undefined;
   }
 
   private deliver(message: pg.Notification): void {
-    if (message.channel !== SCOPE_NOTICE_CHANNEL || message.payload === undefined) return;
-    let parsed;
+    if (message.payload === undefined) return;
+    let payload: unknown;
     try {
-      parsed = ScopeNoticeSchema.safeParse(JSON.parse(message.payload));
+      payload = JSON.parse(message.payload);
     } catch {
-      parsed = undefined;
-    }
-    if (parsed === undefined || !parsed.success) {
       this.options.logEvent('relay.notice_rejected', { reasonCode: 'invalid_payload' });
       return;
     }
-    this.options.sink.onNotice(parsed.data);
+    if (message.channel === SCOPE_NOTICE_CHANNEL) {
+      const parsed = ScopeNoticeSchema.safeParse(payload);
+      if (parsed.success) this.options.sink.onNotice(parsed.data);
+      else this.options.logEvent('relay.notice_rejected', { reasonCode: 'invalid_payload' });
+    } else if (message.channel === ACCESS_REVOKED_CHANNEL) {
+      const parsed = AccessRevokedNoticeSchema.safeParse(payload);
+      if (parsed.success) this.options.sink.onAccessRevoked(parsed.data.accountId);
+      else this.options.logEvent('relay.notice_rejected', { reasonCode: 'invalid_payload' });
+    }
   }
 }

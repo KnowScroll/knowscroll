@@ -93,7 +93,8 @@ export const diagnosticCatalogue = {
   'relay.disconnected': { severity: 'warn', module: 'notices', fields: ['reasonCode', 'error'] },
   'relay.notice_rejected': { severity: 'warn', module: 'notices', fields: ['reasonCode'] },
   'realtime.connection_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
-  'realtime.subscription_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode'] },
+  'realtime.subscription_refused': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.access_revoked': { severity: 'info', module: 'realtime', fields: ['count'] },
   'reasoning.attempt_settled': {
     severity: 'info',
     module: 'reasoning',

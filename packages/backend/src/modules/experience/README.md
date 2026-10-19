@@ -4,9 +4,9 @@ Owns: `experience.saved_items`, `experience.actions` (migration `0004_experience
 
 | Operation | Route | Authority, effects, failure |
 |---|---|---|
-| `applyAction(authority, {commandId, kind, target})` | `POST /v1/actions` | Caller's account + universe at its privacy epoch, rechecked under the personal lock. One transaction: receipt lookup (replay/`COMMAND_KEY_REUSED`) → asset admitted at `assetRevision` (`ASSET_NOT_FOUND` 404 / `ASSET_REVISION_STALE` 409) → receipt → saved-state change (`decideActionEffect`) → action row → `evidence.apply-action` job → outcome. All or nothing; refusals write nothing. |
+| `applyAction(authority, {commandId, kind, target})` | `POST /v1/actions` | Caller's account + universe at its privacy epoch, rechecked under the personal lock. One transaction: receipt lookup (replay / `COMMAND_KEY_REUSED` / older epoch → `PRIVACY_EPOCH_CHANGED`) → asset admitted at `assetRevision` (`ASSET_NOT_FOUND` 404 / `ASSET_REVISION_STALE` 409) → receipt → saved-state change (`decideActionEffect`) → action row → `evidence.apply-action` job → universe revision advanced and notified (the command's own watermark, returned as `revision`) → outcome. All or nothing; refusals write nothing. |
 | `listSaved(authority, limit)` | `GET /v1/saved` | Rechecks the universe (no lock) and reads ≤ 100 items newest first, with the universe revision they were read at. |
-| `readActionForEvidence(scope, actionId)` | — | Public read for the evidence job, inside the job's own locked scope. |
+| `ReadActionForEvidence` (token `READ_ACTION_FOR_EVIDENCE`) | — | Read port for the evidence job, inside the job's own locked scope; bound in the worker by `experienceEvidenceReadProviders()`. |
 
 Domain rule (`domain/actions.ts`, property-tested): Save/Unsave results depend only on the current
 state and the action; repeating an action is an accepted no-op (`changed: false`). Every accepted

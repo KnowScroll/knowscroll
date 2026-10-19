@@ -1,9 +1,10 @@
-import { guardedModelPort, type ModelPort, type ModelRequest, type ModelResponse } from '@knowscroll/backend/reasoning';
+import type { ModelPort, ModelRequest, ModelResponse } from '@knowscroll/backend/reasoning';
+import { guardedModelPort } from '@knowscroll/backend/reasoning/nest-providers';
 
 /**
  * CI fixture model: a labelled stand-in for a hosted model (real providers arrive in S2.2). It
- * counts calls so tests can prove the attempt ledger never re-sends, and it is wrapped by the same
- * transaction guard as a real transport.
+ * counts the calls that actually reach it (after the transaction guard), so tests can prove the
+ * attempt ledger never re-sends, and it is wrapped by the same guard as a real transport.
  */
 export interface FixtureModel extends ModelPort {
   readonly calls: readonly ModelRequest[];
@@ -22,5 +23,19 @@ export function fixtureModel(
       return respond(request);
     },
   });
-  return { ...port, invoke: (request, signal) => port.invoke(request, signal), calls };
+  return {
+    provider: port.provider,
+    model: port.model,
+    invoke: (request, signal) => port.invoke(request, signal),
+    calls,
+  };
+}
+
+/** A promise the test resolves by hand, to hold a fixture call in flight. */
+export function gate<T = void>(): { readonly promise: Promise<T>; open(value: T): void } {
+  let open!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    open = resolve;
+  });
+  return { promise, open };
 }

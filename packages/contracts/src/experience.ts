@@ -21,6 +21,8 @@ export const ApplyActionResponseSchema = z.object({
   assetRevision: z.number().int().min(1),
   saved: z.boolean(),
   changed: z.boolean(),
+  /** The universe revision this command committed (its catch-up watermark; compare with hints). */
+  revision: z.number().int().min(1),
   /** True when this response is the stored outcome of an earlier identical request. */
   replayed: z.boolean(),
 });
