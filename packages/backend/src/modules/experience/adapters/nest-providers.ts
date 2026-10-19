@@ -10,7 +10,6 @@ import {
   findPersonalReceipt,
   insertPersonalReceipt,
   requestHash,
-  type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
 import { makeApplyAction } from '../application/apply-action.js';
 import { makeListSaved } from '../application/list-saved.js';
@@ -39,11 +38,10 @@ export function experienceProviders(tokens: ExperienceDependencyTokens) {
       useFactory: (withPersonalScope: WithPersonalScope, enqueueJob: EnqueueJob) =>
         makeApplyAction({
           withPersonalScope,
-          hashRequest: (operation, request) => requestHash(operation, request as CanonicalJson),
+          hashRequest: (operation, request) => requestHash(operation, request),
           findReceipt: findPersonalReceipt,
           insertReceipt: insertPersonalReceipt,
-          completeReceipt: (scope, commandId, outcome) =>
-            completePersonalReceipt(scope, commandId, outcome as { readonly [key: string]: CanonicalJson }),
+          completeReceipt: (scope, commandId, outcome) => completePersonalReceipt(scope, commandId, outcome),
           findAsset: findAssetForAction,
           readSavedState,
           writeSavedState,

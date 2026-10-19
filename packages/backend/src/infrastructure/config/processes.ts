@@ -89,7 +89,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     ]),
   );
   if (parsed.KS_AUTH_ADAPTER === 'test-bearer' && release.nodeEnv !== 'test') {
-    throw new ConfigurationError(['KS_AUTH_ADAPTER: test-bearer is refused unless NODE_ENV=test']);
+    throw new ConfigurationError(['KS_AUTH_ADAPTER: refused_outside_test']);
   }
   return {
     ...release,

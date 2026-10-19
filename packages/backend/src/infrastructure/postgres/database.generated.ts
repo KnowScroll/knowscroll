@@ -3,10 +3,11 @@
  * Please do not edit it manually.
  */
 
-import type { ColumnType } from 'kysely';
+import type { ColumnType } from "kysely";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U> ? ColumnType<S, I | undefined, U> : ColumnType<T, T | undefined, T>;
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
 export type Json = JsonValue;
 
@@ -125,14 +126,14 @@ export interface ReceiptsSharedCommands {
 }
 
 export interface DB {
-  'content.assets': ContentAssets;
-  'evidence.action_events': EvidenceActionEvents;
-  'experience.actions': ExperienceActions;
-  'experience.saved_items': ExperienceSavedItems;
-  'identity.accounts': IdentityAccounts;
-  'identity.universes': IdentityUniverses;
-  'reasoning.business_runs': ReasoningBusinessRuns;
-  'reasoning.external_attempts': ReasoningExternalAttempts;
-  'receipts.personal_commands': ReceiptsPersonalCommands;
-  'receipts.shared_commands': ReceiptsSharedCommands;
+  "content.assets": ContentAssets;
+  "evidence.action_events": EvidenceActionEvents;
+  "experience.actions": ExperienceActions;
+  "experience.saved_items": ExperienceSavedItems;
+  "identity.accounts": IdentityAccounts;
+  "identity.universes": IdentityUniverses;
+  "reasoning.business_runs": ReasoningBusinessRuns;
+  "reasoning.external_attempts": ReasoningExternalAttempts;
+  "receipts.personal_commands": ReceiptsPersonalCommands;
+  "receipts.shared_commands": ReceiptsSharedCommands;
 }

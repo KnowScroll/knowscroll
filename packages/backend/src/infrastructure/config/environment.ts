@@ -16,7 +16,7 @@ export type Environment = Readonly<Record<string, string | undefined>>;
 
 /**
  * Parses the named variables with `schema` and throws one {@link ConfigurationError} that lists
- * every problem. Issue messages come from our own schemas and never contain the input value.
+ * every problem. Each problem is `VARIABLE: kind_code` and never contains the input value.
  */
 export function parseEnvironment<T extends z.ZodType>(
   schema: T,
@@ -24,17 +24,25 @@ export function parseEnvironment<T extends z.ZodType>(
 ): z.infer<T> {
   const result = schema.safeParse(variables);
   if (result.success) return result.data;
-  const problems = result.error.issues.map((issue) => {
-    const variable = issue.path.map(String).join('.') || '(environment)';
-    const kind =
-      issue.code === 'invalid_type'
-        ? 'missing or wrong type'
-        : issue.code === 'invalid_value'
-          ? 'not an allowed value'
-          : issue.message;
-    return `${variable}: ${kind}`;
-  });
+  const problems = result.error.issues.map(
+    (issue) => `${issue.path.map(String).join('_') || 'ENVIRONMENT'}: ${problemKind(issue.code)}`,
+  );
   throw new ConfigurationError(problems);
+}
+
+/** Problem kinds are codes, so a configuration problem can be logged without any free text. */
+function problemKind(code: string): string {
+  switch (code) {
+    case 'invalid_type':
+      return 'missing_or_wrong_type';
+    case 'invalid_value':
+      return 'not_allowed';
+    case 'too_small':
+    case 'too_big':
+      return 'out_of_range';
+    default:
+      return 'invalid_format';
+  }
 }
 
 export const NodeEnvSchema = z.enum(['production', 'test', 'development']);

@@ -11,15 +11,14 @@
     "test:release": "vitest run --config vitest.release.config.ts"
   },
   "devDependencies": {
-    "@fast-check/vitest": "catalog:",
     "@knowscroll/backend": "workspace:*",
     "@knowscroll/contracts": "workspace:*",
     "@knowscroll/migrations": "workspace:*",
     "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@orpc/openapi-client": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
-    "fast-check": "catalog:",
     "kysely": "catalog:",
     "pg": "catalog:",
     "pg-boss": "catalog:",

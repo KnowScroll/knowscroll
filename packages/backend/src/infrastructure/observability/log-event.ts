@@ -6,7 +6,7 @@ import {
   type FieldName,
   type Severity,
 } from './catalogue.js';
-import { sanitiseError, scrubText } from './sanitise.js';
+import { sanitiseError } from './sanitise.js';
 
 /**
  * Writes one catalogued diagnostic event. The only application logging path (blueprint §26).
@@ -32,6 +32,7 @@ const idPattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const codeLikePattern = /^[A-Za-z0-9_.:-]{1,64}$/;
 const routePattern = /^\/[A-Za-z0-9/_:.{}*-]{0,199}$|^unmatched$/;
 const methodPattern = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/;
+const problemPattern = /^[A-Z][A-Z0-9_]{0,63}: [a-z_]{1,40}$/;
 
 type Validator = (value: unknown) => unknown;
 const REJECTED = Symbol('rejected');
@@ -40,10 +41,6 @@ const asId: Validator = (value) => (typeof value === 'string' && idPattern.test(
 const asCode: Validator = (value) => (typeof value === 'string' && codeLikePattern.test(value) ? value : REJECTED);
 const asCount: Validator = (value) =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : REJECTED;
-const asText =
-  (limit: number): Validator =>
-  (value) =>
-    typeof value === 'string' ? scrubText(value).slice(0, limit) : REJECTED;
 
 const validators: Record<FieldName, Validator> = {
   operationId: asId,
@@ -81,10 +78,9 @@ const validators: Record<FieldName, Validator> = {
   pid: asCount,
   nodeVersion: (value) => (typeof value === 'string' && /^v\d+\.\d+\.\d+$/.test(value) ? value : REJECTED),
   context: (value) => (typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(value) ? value : REJECTED),
-  message: asText(300),
   problems: (value) =>
     Array.isArray(value)
-      ? value.slice(0, 20).map((item) => (typeof item === 'string' ? scrubText(item).slice(0, 200) : '[invalid]'))
+      ? value.slice(0, 20).map((item) => (typeof item === 'string' && problemPattern.test(item) ? item : '[invalid]'))
       : REJECTED,
   error: (value) => sanitiseError(value),
 };
@@ -114,7 +110,6 @@ export const JOURNAL_FIELDS: ReadonlySet<FieldName> = new Set<FieldName>([
   'pid',
   'nodeVersion',
   'context',
-  'message',
   'problems',
   'error',
 ]);

@@ -113,7 +113,6 @@
     "@fast-check/vitest": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
-    "fast-check": "catalog:",
     "kysely-codegen": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

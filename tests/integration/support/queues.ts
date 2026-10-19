@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { defineQueue, queueRegistry } from '@knowscroll/backend/infrastructure/jobs';
+import { applyActionEvidenceQueue } from '@knowscroll/backend/modules/evidence';
 
-/** A queue that exists only in the integration template, labelled as a test fixture. */
+/** CI fixture queue: exercises consumer registration and graceful drain. */
 export const fixtureQueue = defineQueue({
   name: 'fixture.slow-task',
   purpose: 'CI fixture: exercises consumer registration and graceful drain.',
@@ -18,5 +19,22 @@ export const fixtureQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 0.5 },
 });
 
-/** Queues the template database declares, in addition to the release's own (none yet). */
-export const testQueues = queueRegistry([fixtureQueue]);
+/** CI fixture queue: a worker job that runs one model step through the attempt ledger. */
+export const fixtureModelQueue = defineQueue({
+  name: 'fixture.model-step',
+  purpose: 'CI fixture: a worker job that runs one fixture model step through the attempt ledger.',
+  payload: z.object({ v: z.literal(1), universeId: z.uuid(), privacyEpoch: z.number().int().min(1), runId: z.uuid() }),
+  policy: {
+    expireInSeconds: 60,
+    retryLimit: 3,
+    retryDelaySeconds: 1,
+    retryBackoff: false,
+    retentionSeconds: 3_600,
+    deleteAfterSeconds: 3_600,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 0.5 },
+});
+
+/** Every queue the template database declares: the release's own plus the fixtures above. */
+export const testQueues = queueRegistry([applyActionEvidenceQueue, fixtureQueue, fixtureModelQueue]);

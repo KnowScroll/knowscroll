@@ -45,7 +45,7 @@ export interface FieldTypes {
   pid: number;
   nodeVersion: string;
   context: string;
-  message: string;
+  /** Configuration problems as `VARIABLE: kind_code`, never values. */
   problems: readonly string[];
   /** Any thrown value; `logEvent` sanitises it to class, code and frames. */
   error: unknown;
@@ -66,7 +66,11 @@ export const diagnosticCatalogue = {
   'process.start_failed': { severity: 'fatal', module: 'process', fields: ['reasonCode', 'error'] },
   'process.stop_failed': { severity: 'error', module: 'process', fields: ['reasonCode', 'error'] },
   'config.invalid': { severity: 'fatal', module: 'config', fields: ['problems'] },
-  'framework.message': { severity: 'by-call', module: 'framework', fields: ['context', 'message', 'error'] },
+  'framework.message': {
+    severity: 'by-call',
+    module: 'framework',
+    fields: ['context', 'reasonCode', 'route', 'method', 'error'],
+  },
   'http.request_completed': {
     severity: 'info',
     module: 'http',

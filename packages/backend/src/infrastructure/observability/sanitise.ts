@@ -25,7 +25,8 @@ const MAX_FRAME_LENGTH = 300;
  */
 export function sanitiseError(value: unknown, depth = 0): SanitisedError {
   if (!(value instanceof Error)) {
-    const kind = value === null ? 'null' : typeof value === 'object' ? 'NonErrorObject' : `Non${capitalise(typeof value)}`;
+    const kind =
+      value === null ? 'null' : typeof value === 'object' ? 'NonErrorObject' : `Non${capitalise(typeof value)}`;
     return { errorClass: kind, frames: [] };
   }
   const rawCode: unknown = (value as { code?: unknown }).code;
@@ -35,8 +36,14 @@ export function sanitiseError(value: unknown, depth = 0): SanitisedError {
     .filter((line) => framePattern.test(line))
     .slice(0, MAX_FRAMES)
     .map((line) => scrubText(shortenPaths(line.trim())).slice(0, MAX_FRAME_LENGTH));
-  const cause = depth < MAX_CAUSE_DEPTH && value.cause !== undefined ? sanitiseError(value.cause, depth + 1) : undefined;
-  return { errorClass: errorClassOf(value), ...(code === undefined ? {} : { code }), frames, ...(cause === undefined ? {} : { cause }) };
+  const cause =
+    depth < MAX_CAUSE_DEPTH && value.cause !== undefined ? sanitiseError(value.cause, depth + 1) : undefined;
+  return {
+    errorClass: errorClassOf(value),
+    ...(code === undefined ? {} : { code }),
+    frames,
+    ...(cause === undefined ? {} : { cause }),
+  };
 }
 
 /** The most specific valid class name: the constructor (drivers often set `name` to "error"). */
@@ -87,6 +94,8 @@ const textScrubbers: readonly (readonly [RegExp, string])[] = [
     /([?&;](?:[\w.-]*?(?:token|secret|password|passwd|key|signature|sig|auth|credential|session|code|ticket|nonce)|x-amz-[\w-]+|expires)=)[^&\s"'<>]*/gi,
     '$1[redacted]',
   ],
+  // Cookie and session header values
+  [/\b((?:set-)?cookie|session|sid)(\s*[:=]\s*)[^\s;,]+/gi, '$1$2[redacted]'],
   // Authorization header values
   [/\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [redacted]'],
   // JSON web tokens

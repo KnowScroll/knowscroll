@@ -25,7 +25,7 @@ module.exports = {
       name: 'domain-is-pure',
       comment: 'domain/ imports only its own domain code, Zod and public ID types from contracts.',
       severity: 'error',
-      from: { path: `${layered}/domain/` },
+      from: { path: `${layered}/domain/`, pathNot: '\\.test\\.ts$' },
       to: {
         pathNot: ['^packages/backend/src/$1/domain/', 'node_modules/zod/', '^packages/contracts/src/ids\\.ts$'],
       },
@@ -47,9 +47,15 @@ module.exports = {
     },
     {
       name: 'nest-providers-only-in-composition-roots',
-      comment: "Only the apps' composition roots select concrete implementations through a module's nest-providers.",
+      comment:
+        "Only the apps' composition roots (and integration tests, which compose real adapters the same way) select concrete implementations through a module's nest-providers.",
       severity: 'error',
-      from: { pathNot: '^apps/(?:api/src/(?:app\\.module|modules/)|worker/src/(?:worker\\.module|jobs))' },
+      from: {
+        pathNot: [
+          '^apps/(?:api/src/(?:app\\.module|modules/)|worker/src/(?:worker\\.module|jobs))',
+          '^tests/integration/',
+        ],
+      },
       to: { path: '/adapters/nest-providers\\.ts$' },
     },
     {
