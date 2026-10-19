@@ -103,6 +103,28 @@ const probes = [
       [`${B}/modules/zz-probe-geography/adapters/nest-providers.ts`, 'nest-providers-only-in-composition-roots'],
     ],
   },
+  // S2.1: Scroll provenance and the producer contract stay backend-only; scroll-model stays portable.
+  {
+    file: 'apps/client/theme/zz-probe-scroll.ts',
+    source:
+      "import { ScrollProvenance } from '../../../packages/scroll-model/src/internal/index.js';\nexport const p = ScrollProvenance;\n",
+    expect: [['packages/scroll-model/src/internal/index.ts', 'clients-never-import-scroll-internals']],
+  },
+  {
+    file: 'packages/contracts/src/zz-probe.ts',
+    source: "import { honestyIssues } from '@knowscroll/scroll-model/internal';\nexport const p = honestyIssues;\n",
+    expect: [['packages/scroll-model/src/internal/index.ts', 'contracts-are-wire-only']],
+  },
+  {
+    file: 'packages/scroll-model/src/zz-probe.ts',
+    source:
+      "import { readFileSync } from 'node:fs';\nimport fc from 'fast-check';\nimport { compileDraft } from './producer/index.js';\nexport const p = [readFileSync, fc, compileDraft];\n",
+    expect: [
+      ['node:fs', 'scroll-model-is-portable'],
+      ['fast-check', 'scroll-model-depends-on-zod-only'],
+      ['packages/scroll-model/src/producer/index.ts', 'scroll-model-public-entry-is-self-contained'],
+    ],
+  },
   // Apps never import each other; no cycles.
   {
     file: 'apps/api/src/zz-probe-cross-app.ts',
@@ -197,6 +219,7 @@ try {
   for (const probe of probes) rmSync(probe.file, { force: true });
   for (const directory of createdDirectories) rmSync(directory, { recursive: true, force: true });
   rmSync('apps/client/theme/zz-probe.ts', { force: true });
+  rmSync('apps/client/theme/zz-probe-scroll.ts', { force: true });
 }
 if (failed) process.exit(1);
 console.log(

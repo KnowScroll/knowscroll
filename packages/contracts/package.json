@@ -21,6 +21,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@knowscroll/scroll-model": "workspace:*",
     "@orpc/contract": "catalog:",
     "zod": "catalog:"
   },

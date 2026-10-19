@@ -129,16 +129,50 @@ module.exports = {
     {
       name: 'contracts-are-wire-only',
       comment:
-        'packages/contracts holds JSON-native wire schemas: Zod and oRPC contract definitions, and re-exports of the canonical scroll-model/scene-core schemas (blueprint §22).',
+        "packages/contracts holds JSON-native wire schemas: Zod and oRPC contract definitions, and re-exports of the canonical scroll-model/scene-core schemas (blueprint §22) — never scroll-model's internal provenance or producer contract.",
       severity: 'error',
       from: { path: '^packages/contracts/src/', pathNot: testFile },
       to: {
         pathNot: [
           '^packages/contracts/src/',
-          '^packages/(?:scroll-model|scene-core)/src/',
+          '^packages/scroll-model/src/(?!internal/|producer/)',
+          '^packages/scene-core/src/',
           'node_modules/(?:zod|@orpc/contract)/',
         ],
       },
+    },
+    {
+      name: 'clients-never-import-scroll-internals',
+      comment:
+        "Scroll provenance (claims, sources, checks) and the producer contract are backend-only: the client app and client packages never import scroll-model's internal or producer entries.",
+      severity: 'error',
+      from: { path: '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scene-core))/' },
+      to: { path: '^packages/scroll-model/src/(?:internal|producer)/' },
+    },
+    {
+      name: 'scroll-model-public-entry-is-self-contained',
+      comment:
+        "scroll-model's public modules never reach its internal or producer code, so a client cannot get them transitively.",
+      severity: 'error',
+      from: {
+        path: '^packages/scroll-model/src/',
+        pathNot: ['^packages/scroll-model/src/(?:internal|producer)/', testFile, '/test-support/'],
+      },
+      to: { path: '^packages/scroll-model/src/(?:internal|producer)/' },
+    },
+    {
+      name: 'scroll-model-is-portable',
+      comment: 'scroll-model runs unchanged on the server, the web and React Native: no Node built-ins outside tests.',
+      severity: 'error',
+      from: { path: '^packages/scroll-model/src/', pathNot: [testFile, '/test-support/'] },
+      to: { dependencyTypes: ['core'] },
+    },
+    {
+      name: 'scroll-model-depends-on-zod-only',
+      comment: 'scroll-model is pure TypeScript and Zod (no React, no SDKs) outside tests.',
+      severity: 'error',
+      from: { path: '^packages/scroll-model/src/', pathNot: [testFile, '/test-support/'] },
+      to: { path: 'node_modules/', pathNot: 'node_modules/zod/' },
     },
     {
       name: 'clients-never-import-backend',

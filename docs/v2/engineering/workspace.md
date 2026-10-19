@@ -10,6 +10,7 @@ How the monorepo is laid out, built, checked and packaged. Architecture: bluepri
 | `apps/worker` | `@knowscroll/worker` | `nest build` (tsc) | `dist/main.js` (pg-boss consumers, no listener) |
 | `apps/client` | `@knowscroll/client` | `expo export --platform web` | `dist/` static SPA (`web.output: "single"`) |
 | `packages/contracts` | `@knowscroll/contracts` | tsc | `dist/` |
+| `packages/scroll-model` | `@knowscroll/scroll-model` | tsc | `dist/` (entries `.`, `./producer`, `./internal`) |
 | `packages/backend` | `@knowscroll/backend` | tsc | `dist/` |
 | `migrations` | `@knowscroll/migrations` | tsc | `dist/` + the reviewed `*.sql` files |
 | `packages/design-tokens` | `@knowscroll/design-tokens` | (sources only) | tokens and the bundled fonts |
@@ -17,8 +18,8 @@ How the monorepo is laid out, built, checked and packaged. Architecture: bluepri
 | `packages/client-core` | `@knowscroll/client-core` | (sources only) | typed API client, query client |
 | `tests/integration` | `@knowscroll/integration-tests` | (not built) | real-PostgreSQL and release tests |
 
-Packages are created only when code needs them; the blueprint's other packages (`scroll-model`,
-`scene-core`) arrive with their first code.
+Packages are created only when code needs them; the blueprint's other packages (`scene-core`)
+arrive with their first code.
 
 Client-only packages (`design-tokens`, `ui`, `client-core`, proposed in S1.4 #227) export their
 TypeScript sources directly (`"."` → `src/index.ts`; `client-core` also `"./query-client"`, so
@@ -98,7 +99,10 @@ building and using the product by hand.
 | `apps-reach-modules-through-public-or-wiring` | apps use a module only through `public.ts` or (from a composition root) `nest-providers.ts` |
 | `cross-module-through-public` | a module imports another module only through its `public.ts` |
 | `infrastructure-below-modules` | infrastructure never imports modules (identity's public types excepted) or apps |
-| `contracts-are-wire-only` | contracts import Zod, `@orpc/contract` and the `scroll-model`/`scene-core` sources they re-export |
+| `contracts-are-wire-only` | contracts import Zod, `@orpc/contract` and the `scroll-model` (public entry only)/`scene-core` sources they re-export |
+| `clients-never-import-scroll-internals` | the client app and client packages never import scroll-model's `internal/` or `producer/` |
+| `scroll-model-public-entry-is-self-contained` | scroll-model's public modules never reach its `internal/` or `producer/` code |
+| `scroll-model-is-portable`, `scroll-model-depends-on-zod-only` | scroll-model uses no Node built-ins and no third party but Zod outside tests |
 | `clients-never-import-backend` | `apps/client` and the client packages (`client-core`, `ui`, `design-tokens`, `scroll-model`, `scene-core`) never import backend code, apps or migrations |
 | `apps-never-import-each-other`, `packages-never-import-apps` | as named |
 | `no-circular` | no import cycles |

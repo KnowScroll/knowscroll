@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "scroll-draft-provenance.v1",
+  "publication": {
+    "assetId": "fixture-spring-neap-tides",
+    "revision": 1,
+    "language": "en",
+    "explanationUnitId": "fixture-eu-spring-neap",
+    "template": "editorial",
+    "theme": {
+      "family": "worlds"
+    },
+    "kicker": "Essay · Earth and Moon",
+    "framing": {
+      "kind": "factual"
+    },
+    "corrections": [],
+    "targetMinutes": [1, 5]
+  },
+  "claims": [
+    {
+      "claimId": "clm-tide-bulges",
+      "statement": "The Moon's gravitational pull causes the oceans to bulge on both the side closest to the Moon and the side farthest from it, creating high tides.",
+      "quote": "On Earth, the Moon’s gravitational pull causes the oceans to bulge out on both the side closest to the Moon and the side farthest from the Moon. These bulges create high tides.",
+      "sourceId": "src-nasa-tides",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-tide-sun-ratio",
+      "statement": "The Sun contributes a little less than half of the Moon's tide-generating force, producing spring tides when aligned and neap tides at right angles.",
+      "quote": "But it’s a distant gorilla, about 390 times farther away than the Moon, which gives it a little less than half of the Moon’s tide-generating force.",
+      "sourceId": "src-nasa-tides",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-nasa-tides",
+      "title": "Tides - NASA Science",
+      "url": "https://science.nasa.gov/moon/tides/",
+      "snapshotSha256": "1aca9029bc975179a4a508a3d4b3af416e7fc4f5dac394309279d70f55a5b858",
+      "retrievedAt": "2026-10-08T10:46:02.075Z"
+    }
+  ],
+  "material": [],
+  "offeredMedia": [],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests; claims are from the frozen v1 library pack 1aca9029bc97"
+  }
+}

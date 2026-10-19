@@ -10,14 +10,15 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
+| `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
 
 Rules:
 
 - A problem code never changes meaning; a new meaning gets a new code. Codes double as
   `reasonCode` in diagnostics.
 - Job payloads, model outputs and internal projections are backend-local and never live here.
-- Allowed imports: `zod` and `@orpc/contract` only (enforced by dependency-cruiser,
-  `contracts-are-wire-only`).
+- Allowed imports: `zod`, `@orpc/contract` and the public entry of `@knowscroll/scroll-model`
+  only (enforced by dependency-cruiser, `contracts-are-wire-only`).
 - `src/openapi.test.ts` proves the contract generates an OpenAPI document with RFC 9457 errors.
 
 Build: `tsc -p tsconfig.build.json` → `dist/`. Inside the workspace, TypeScript, Vitest and

@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "scroll-provenance.v1",
+  "assetId": "fixture-weight-other-worlds",
+  "revision": 1,
+  "documentSha256": "d78cc24ee049b9a67f5943f430c3fe139b93a5e091c20f563eb592a1330f96fb",
+  "claims": [
+    {
+      "claimId": "clm-gravity-moon",
+      "statement": "Surface gravity on the Moon is about 0.165 of Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: lunar surface gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-gravity-mars",
+      "statement": "Surface gravity on Mars is about 0.38 of Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: martian surface gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "clm-gravity-jupiter",
+      "statement": "Gravity at Jupiter's cloud tops is about 2.53 times Earth's.",
+      "quote": "FIXTURE PLACEHOLDER: jovian cloud-top gravity ratio.",
+      "sourceId": "src-fixture-gravity",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "src-fixture-gravity",
+      "title": "Fixture source (not a real document)",
+      "url": "https://fixture.invalid/src-fixture-gravity",
+      "snapshotSha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+      "retrievedAt": "2026-10-19T00:00:00Z"
+    }
+  ],
+  "bindings": [
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-moon",
+      "blockId": "weight-sim",
+      "constantKey": "gMoon"
+    },
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-mars",
+      "blockId": "weight-sim",
+      "constantKey": "gMars"
+    },
+    {
+      "kind": "constant",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "weight-sim",
+      "constantKey": "gJupiter"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-moon",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-mars",
+      "blockId": "gravity-chart"
+    },
+    {
+      "kind": "block",
+      "claimId": "clm-gravity-jupiter",
+      "blockId": "gravity-chart"
+    }
+  ],
+  "checks": [
+    {
+      "name": "envelope",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "schema",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "structure",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "computation",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "evidence",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "brief",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    },
+    {
+      "name": "publish",
+      "version": "scroll-checks.v1",
+      "verdict": "pass",
+      "reasonCodes": []
+    }
+  ],
+  "production": {
+    "kind": "fixture",
+    "label": "scroll-model fixture: authored example for tests, not product content"
+  }
+}
