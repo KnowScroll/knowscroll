@@ -119,7 +119,8 @@ describe('validateDocument: typed outcomes', () => {
     const document = fixture('attention-slowly').document;
     expect(codes(validateDocument({ ...document, title: 'Attention, quickly' }))).toEqual(['integrity_mismatch']);
     const measures = { ...document.measures, readingMinutes: document.measures.readingMinutes + 5 };
-    expect(codes(validateDocument({ ...document, measures }))).toEqual(['measures_mismatch']);
+    // Changing the measures also changes what the integrity hash covers, so both are reported.
+    expect(codes(validateDocument({ ...document, measures }))).toEqual(['measures_mismatch', 'integrity_mismatch']);
     const flipped = structuredClone(document);
     const diagram = flipped.sections[0]?.blocks[2];
     if (diagram !== undefined) diagram.gesture = 'none';
