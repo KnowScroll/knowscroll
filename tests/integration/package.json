@@ -1,0 +1,24 @@
+{
+  "name": "@knowscroll/integration-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Real-PostgreSQL integration tests: one template-derived database per test file.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:release": "vitest run --config vitest.release.config.ts"
+  },
+  "devDependencies": {
+    "@knowscroll/backend": "workspace:*",
+    "@knowscroll/migrations": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "kysely": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

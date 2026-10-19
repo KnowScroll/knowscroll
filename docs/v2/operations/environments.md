@@ -38,7 +38,7 @@ A v2 release is `release-<commit>.tar` (plain tar) whose root holds exactly:
 |---|---|
 | `release.json` | `{"schema": "ks-release.v2", "commit", "builtAt", "node", "programs": {"api": {"cwd": "api", "exec": ["node", "--enable-source-maps", "dist/main.js"]}, "worker": {…}}, "migrate": {"cwd": "api", "exec": ["node", "dist/migrate.js"]}, "web": "web", "migrations": [names]}` |
 | `files.sha256` | one line per file **and link** except itself, `<sha256>  <path>`: a file's hash is of its content, a link's is `sha256("symlink:" + target)` (so `sha256sum -c` cannot check link lines; `ks` and the smoke test do) |
-| `api/`, `worker/` | `pnpm --filter @knowscroll/<app> deploy --prod --legacy` output (`package.json`, `dist/`, `node_modules/`) |
+| `api/`, `worker/` | `pnpm --config.inject-workspace-packages=true --filter @knowscroll/<app> deploy --prod` output (`package.json`, `dist/`, `node_modules/`, the deployed `pnpm-lock.yaml`; installed from the workspace lockfile, D-014) |
 | `web/` | `expo export --platform web` output of `apps/client` |
 
 A `release.json` without `schema` is a v1 release and is handled exactly as before. Any other

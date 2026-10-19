@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "KnowScroll",
+    "slug": "knowscroll",
+    "scheme": "knowscroll",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "updates": {
+      "enabled": false
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "knowscroll",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=22.23.0 <23",
+    "pnpm": "10.34.7"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint --max-warnings 0 .",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
+    "boundaries": "depcruise --config .dependency-cruiser.cjs apps packages migrations tests",
+    "knip": "knip",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "boundaries:probe": "node tests/integration/boundaries/probe-boundaries.mjs",
+    "boundaries:manifests": "node tests/integration/boundaries/check-workspace-dependencies.mjs"
+  },
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "catalog:",
+    "@eslint/js": "catalog:",
+    "@types/node": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "globals": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

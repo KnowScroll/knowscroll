@@ -1,0 +1,30 @@
+{
+  "name": "@knowscroll/worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "KnowScroll background worker: a Nest application context with an explicit pg-boss consumer registry.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/main.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "nest build",
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@knowscroll/backend": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "kysely": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
