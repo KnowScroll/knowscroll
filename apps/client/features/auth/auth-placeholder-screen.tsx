@@ -1,8 +1,10 @@
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Ellipse } from 'react-native-svg';
 import { layout, space, spacing } from '@knowscroll/design-tokens';
-import { Banner, Text } from '@knowscroll/ui';
+import { Banner, Button, Text } from '@knowscroll/ui';
+import { useDocumentTitle } from '../../platform/document-title';
 
 /** A01's ground: one calm star with its glow rings and a hairline orbit. */
 function CalmStar() {
@@ -18,13 +20,18 @@ function CalmStar() {
 
 /**
  * The `(auth)` routes (`/welcome`, `/signin`, `/signin/link`, `/recover`) are reserved here and
- * filled by S1.3 (#226). Until sign-in exists they show the A01 ground and say that sign-in is
- * not available, with no buttons that would lead nowhere.
+ * filled by S1.3 (#226). Until sign-in exists they show the A01 ground, say plainly that sign-in
+ * is not available (a notice, not an error), and offer the one thing that works: Explore.
  */
-export function AuthPlaceholderScreen() {
+export function AuthPlaceholderScreen({ pageTitle }: { pageTitle: string }) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  useDocumentTitle(pageTitle);
   return (
-    <View style={[styles.ground, { paddingTop: insets.top + spacing[12], paddingBottom: insets.bottom + spacing[8] }]}>
+    <View
+      role="main"
+      style={[styles.ground, { paddingTop: insets.top + spacing[12], paddingBottom: insets.bottom + spacing[8] }]}
+    >
       <View style={styles.column}>
         <View aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <CalmStar />
@@ -35,7 +42,15 @@ export function AuthPlaceholderScreen() {
         <Text variant="body" color={space.label}>
           Thoughtful Reels and Scrolls. A universe that grows from what you explore.
         </Text>
-        <Banner kind="accessEnded" lead="Sign-in isn't available yet." message="This build has no accounts." />
+        <Banner kind="info" lead="Sign-in isn't available yet." message="This build has no accounts." />
+        <Button
+          label="Go to Explore"
+          variant="space"
+          role="link"
+          href="/explore"
+          icon="explore"
+          onPress={() => router.replace('/explore')}
+        />
         <Text variant="meta" color={space.label2}>
           No questions to answer first. Your universe starts quiet.
         </Text>
@@ -49,6 +64,7 @@ const styles = StyleSheet.create({
   column: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'flex-start',
     gap: spacing[5],
     maxWidth: layout.entryCard,
     width: '100%',

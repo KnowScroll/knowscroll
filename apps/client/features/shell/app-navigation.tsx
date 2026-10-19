@@ -15,6 +15,18 @@ export function usesRail(breakpoint: Breakpoint): boolean {
   return breakpoint === 'tablet' || breakpoint === 'desktop';
 }
 
+/** The rail's width at this size, or 0 where the floating tab bar is used. */
+export function railWidth(breakpoint: Breakpoint): number {
+  if (breakpoint === 'desktop') return layout.railDesktop;
+  if (breakpoint === 'tablet') return layout.railTablet;
+  return 0;
+}
+
+/** The address of a destination: a real link target on the web (Enter, middle-click, new tab). */
+export function destinationHref(destination: Destination): `/${Destination}` {
+  return `/${destination}`;
+}
+
 /**
  * The tabs navigator's bar, by size (V01): the floating pill on phones (icon-only ≤ 360), the
  * 76 px rail on tablets, the 88 px rail with the account avatar on desktops. The account stack
@@ -32,14 +44,22 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
   };
 
   if (usesRail(breakpoint)) {
+    // The rail comes after the screens in the document (tab order: content, then navigation,
+    // V01) and is drawn over the left edge, which the screens leave free (`sceneStyle`).
     return (
-      <View style={[styles.rail, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View
+        style={[
+          styles.rail,
+          { width: railWidth(breakpoint) + insets.left, paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
+      >
         <NavRail
           active={active}
           onSelect={select}
+          hrefFor={destinationHref}
           size={breakpoint === 'desktop' ? 'desktop' : 'tablet'}
           tone={tone}
-          account={{ onPress: () => router.navigate('/account'), current: routeName === 'account' }}
+          account={{ onPress: () => router.navigate('/account'), href: '/account', current: routeName === 'account' }}
         />
       </View>
     );
@@ -49,12 +69,20 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
       pointerEvents="box-none"
       style={[styles.slot, { height: layout.tabBarSlot + insets.bottom, paddingBottom: insets.bottom }]}
     >
-      <TabBar active={active} onSelect={select} tone={tone} />
+      <TabBar active={active} onSelect={select} hrefFor={destinationHref} tone={tone} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  rail: { backgroundColor: content.nav, flexDirection: 'row' },
+  rail: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: content.nav,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
   slot: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
 });

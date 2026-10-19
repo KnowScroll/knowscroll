@@ -1,5 +1,5 @@
 import { AuthPlaceholderScreen } from '../../../features/auth/auth-placeholder-screen';
 
 export default function SignInLink() {
-  return <AuthPlaceholderScreen />;
+  return <AuthPlaceholderScreen pageTitle="Check your email" />;
 }

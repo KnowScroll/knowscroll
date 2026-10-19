@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
   panel: {
     gap: spacing[3],
     padding: spacing[5],
-    borderRadius: radius.xl,
+    borderRadius: radius.panel,
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
     backgroundColor: content.paper,

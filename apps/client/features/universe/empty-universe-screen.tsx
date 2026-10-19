@@ -14,6 +14,7 @@ export function EmptyUniverseScreen() {
     <ScreenFrame
       tone="space"
       title="Your universe"
+      pageTitle="Universe"
       titleVariant="heading"
       backdrop={<UniverseBackdrop />}
       bodyPlacement="center"
@@ -29,6 +30,7 @@ export function EmptyUniverseScreen() {
             icon: 'explore',
             variant: 'space',
             role: 'link',
+            href: '/explore',
             onPress: () => router.navigate('/explore'),
           },
         ]}

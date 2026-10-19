@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
-import { content } from '@knowscroll/design-tokens';
+import { content, dimension } from '@knowscroll/design-tokens';
 import { StateBlock } from '@knowscroll/ui';
 import { ScreenFrame } from '../shell/screen-frame';
 
@@ -34,14 +34,20 @@ function TwoBubbles() {
 export function EmptyTalkScreen() {
   const router = useRouter();
   return (
-    <ScreenFrame tone="paper" title="Talk">
+    <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
       <StateBlock
         illustration={<TwoBubbles />}
         title="No conversations yet"
         body="Share a Reel or Scroll with a friend and the conversation starts here."
         actionLayout="stretch"
         actions={[
-          { label: 'Share something', variant: 'primary', role: 'link', onPress: () => router.navigate('/explore') },
+          {
+            label: 'Share something',
+            variant: 'primary',
+            role: 'link',
+            href: '/explore',
+            onPress: () => router.navigate('/explore'),
+          },
         ]}
       />
     </ScreenFrame>

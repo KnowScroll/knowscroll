@@ -28,6 +28,7 @@ import {
   type EncounterFormat,
   type IconName,
 } from '@knowscroll/ui';
+import { useDocumentTitle } from '../../platform/document-title';
 import { HealthPanel } from '../diagnostics/health-panel';
 
 /** Marker the web-export check looks for: it must never appear in a production export. */
@@ -147,10 +148,12 @@ const iconNames = Object.keys(iconShapes) as IconName[];
  */
 export function GalleryScreen() {
   const insets = useSafeAreaInsets();
+  useDocumentTitle('Component gallery');
   const [format, setFormat] = useState<EncounterFormat>('reel');
   return (
     <ScrollView
       testID={galleryMarker}
+      role="main"
       style={styles.ground}
       contentContainerStyle={[
         styles.content,
@@ -183,6 +186,21 @@ export function GalleryScreen() {
           <Button label="Send" variant="primary" icon="send" />
           <Button label="Send" variant="primary" disabled />
           <Button label="Send" variant="primary" busy busyLabel="Sending" />
+        </Row>
+      </Section>
+
+      <Section
+        title="Pressed toggles"
+        note="Like · Save pressed: cobalt on paper, cream over media · never yellow (D-006 b)"
+      >
+        <Row>
+          <IconButton icon="like" label="Like" pressed={false} />
+          <IconButton icon="like" label="Like" pressed />
+          <IconButton icon="save" label="Save" pressed />
+          <View style={styles.mediaChip}>
+            <IconButton icon="save" label="Save" variant="onMedia" pressed />
+          </View>
+          <Button label="Save" variant="primary" toggled />
         </Row>
       </Section>
 
@@ -315,7 +333,7 @@ const styles = StyleSheet.create({
   section: {
     gap: spacing[4],
     padding: spacing[6],
-    borderRadius: radius.xl,
+    borderRadius: radius.panel,
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
     backgroundColor: content.paper,
@@ -325,6 +343,7 @@ const styles = StyleSheet.create({
   column: { gap: spacing[3], alignItems: 'flex-start' },
   inkStrip: { alignSelf: 'flex-start', padding: spacing[3], borderRadius: radius.md, backgroundColor: content.ink },
   media: { padding: spacing[3], borderRadius: radius.lg, backgroundColor: content.accent },
+  mediaChip: { padding: spacing[2], borderRadius: radius.card, backgroundColor: space.s1 },
   navStage: { padding: spacing[4], borderRadius: radius.lg, backgroundColor: content.paper2, alignSelf: 'stretch' },
   navStageSpace: { backgroundColor: space.s0 },
   railStage: { height: 460, borderRadius: radius.lg, overflow: 'hidden' },

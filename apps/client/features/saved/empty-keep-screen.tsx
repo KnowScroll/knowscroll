@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { borderWidth, content, radius } from '@knowscroll/design-tokens';
+import { borderWidth, content, dimension, radius } from '@knowscroll/design-tokens';
 import { Icon, StateBlock, Text } from '@knowscroll/ui';
 import { ScreenFrame } from '../shell/screen-frame';
 
@@ -31,7 +31,13 @@ export function EmptyKeepScreen() {
           </>
         }
         actions={[
-          { label: 'Go to Explore', variant: 'primary', role: 'link', onPress: () => router.navigate('/explore') },
+          {
+            label: 'Go to Explore',
+            variant: 'primary',
+            role: 'link',
+            href: '/explore',
+            onPress: () => router.navigate('/explore'),
+          },
         ]}
       />
     </ScreenFrame>
@@ -40,9 +46,9 @@ export function EmptyKeepScreen() {
 
 const styles = StyleSheet.create({
   tile: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.xl,
+    width: dimension.stateTile,
+    height: dimension.stateTile,
+    borderRadius: radius.panel,
     borderWidth: borderWidth.regular,
     borderStyle: 'dashed',
     borderColor: content.ink,

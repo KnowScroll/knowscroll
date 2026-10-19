@@ -3,14 +3,17 @@ import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { content, layout, space, spacing, type Breakpoint } from '@knowscroll/design-tokens';
+import { content, dimension, layout, space, spacing, type Breakpoint } from '@knowscroll/design-tokens';
 import { AccountButton, TopBar, useDisplay } from '@knowscroll/ui';
+import { useDocumentTitle } from '../../platform/document-title';
 import { usesRail } from './app-navigation';
 
 export interface ScreenFrameProps {
   /** `paper` for content screens; `space` for the universe and the first-arrival ground. */
   readonly tone: 'paper' | 'space';
   readonly title?: string;
+  /** The page's name in the browser tab and history ("Keep · KnowScroll"); defaults to `title`. */
+  readonly pageTitle?: string;
   readonly titleVariant?: 'page' | 'heading';
   readonly leading?: ReactNode;
   /** The account avatar in the header (D-006 c). On desktops it lives in the rail instead. */
@@ -19,6 +22,11 @@ export interface ScreenFrameProps {
   readonly backdrop?: ReactNode;
   /** How the body sits below the header. */
   readonly bodyPlacement?: 'start' | 'center' | 'end';
+  /**
+   * With `start` on phones: how far the body starts below the header, as the screen's frame draws
+   * it (`dimension.stateOffsetPhone`). Tablets and desktops use the V01 spacing.
+   */
+  readonly bodyOffset?: number;
   readonly children: ReactNode;
   readonly testID?: string;
 }
@@ -37,11 +45,13 @@ function gutterFor(breakpoint: Breakpoint): number {
 export function ScreenFrame({
   tone,
   title,
+  pageTitle,
   titleVariant = 'page',
   leading,
   showAccount = true,
   backdrop,
   bodyPlacement = 'start',
+  bodyOffset = dimension.stateOffsetPhone.keep,
   children,
   testID,
 }: ScreenFrameProps) {
@@ -50,6 +60,7 @@ export function ScreenFrame({
   const { breakpoint } = useDisplay();
   const railed = usesRail(breakpoint);
   const accountInHeader = showAccount && breakpoint !== 'desktop';
+  useDocumentTitle(pageTitle ?? title ?? 'KnowScroll');
 
   useFocusEffect(
     useCallback(() => {
@@ -82,19 +93,28 @@ export function ScreenFrame({
             accountInHeader ? (
               <AccountButton
                 onPress={() => router.navigate('/account')}
+                href="/account"
                 surface={tone === 'space' ? 'dark' : 'light'}
               />
             ) : undefined
           }
         />
-        <View style={[styles.body, placements[bodyPlacement]]}>{children}</View>
+        <View
+          style={[
+            styles.body,
+            placements[bodyPlacement],
+            bodyPlacement === 'start' ? { paddingTop: railed ? spacing[24] : bodyOffset } : null,
+          ]}
+        >
+          {children}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const placements = StyleSheet.create({
-  start: { justifyContent: 'flex-start', paddingTop: spacing[24] },
+  start: { justifyContent: 'flex-start' },
   center: { justifyContent: 'center' },
   end: { justifyContent: 'flex-end' },
 });

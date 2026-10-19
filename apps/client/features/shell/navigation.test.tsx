@@ -64,8 +64,22 @@ describe('navigation shell', () => {
     expect(screen.getByText("You're not signed in")).toBeOnTheScreen();
     expect(screen.queryByRole('tab', { selected: true })).toBeNull();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    // Back names where it goes (the tab the person came from).
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Keep' }));
     expect(app.getPathname()).toBe('/saved');
+  });
+
+  it('names Back after the tab the account was opened from, and Explore when opened directly', async () => {
+    const app = await renderApp('/conversations');
+    await fireEvent.press(await screen.findByRole('link', { name: 'Account and settings' }));
+    expect(screen.getByRole('button', { name: 'Back to Talk' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Talk' }));
+    expect(app.getPathname()).toBe('/conversations');
+
+    await app.unmount();
+    const direct = await renderApp('/account');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Back to Explore' }));
+    expect(direct.getPathname()).toBe('/explore');
   });
 
   it('goes to Explore from the empty universe', async () => {
@@ -83,6 +97,22 @@ describe('navigation shell', () => {
     expect(screen.queryByText('Invite a friend')).toBeNull();
     expect(screen.queryByRole('button', { name: 'New message' })).toBeNull();
   });
+
+  it.each([390, 834, 1440])(
+    'puts the navigation after the content in reading and focus order at %i px (V01)',
+    async (width) => {
+      await renderApp('/saved', width);
+      await screen.findByText('Nothing kept yet');
+      // Queries return elements in tree order, which is the order assistive technology and Tab use.
+      const order = screen
+        .getAllByRole(/^(header|link|tab)$/)
+        .map((element) => String(element.props.accessibilityLabel ?? element.props['aria-label'] ?? 'heading'));
+      const firstTab = order.findIndex((name) => ['Explore', 'Universe', 'Talk', 'Keep'].includes(name));
+      expect(order.indexOf('Go to Explore')).toBeGreaterThanOrEqual(0);
+      expect(order.indexOf('Go to Explore')).toBeLessThan(firstTab);
+      expect(order.slice(firstTab, firstTab + 4)).toEqual(['Explore', 'Universe', 'Talk', 'Keep']);
+    },
+  );
 
   it('uses the rail on tablets with the avatar still in the header', async () => {
     await renderApp('/saved', 834);
@@ -110,9 +140,18 @@ describe('navigation shell', () => {
     expect(screen.queryByText('Components')).toBeNull();
   });
 
-  it('reserves the sign-in routes for S1.3 without buttons that lead nowhere', async () => {
-    await renderApp('/welcome');
+  it('reserves the sign-in routes for S1.3 with a plain notice and a way on to Explore', async () => {
+    const app = await renderApp('/welcome');
     expect(await screen.findByText("Sign-in isn't available yet. This build has no accounts.")).toBeOnTheScreen();
-    expect(screen.queryAllByRole(/^(button|link)$/)).toHaveLength(0);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+
+    await fireEvent.press(screen.getByRole('link', { name: 'Go to Explore' }));
+    expect(app.getPathname()).toBe('/explore');
+  });
+
+  it('leads from an unknown address back to Explore', async () => {
+    const app = await renderApp('/nowhere');
+    await fireEvent.press(await screen.findByRole('link', { name: 'Go to Explore' }));
+    expect(app.getPathname()).toBe('/explore');
   });
 });
