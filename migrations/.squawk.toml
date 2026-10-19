@@ -1,0 +1,4 @@
+# squawk lints the reviewed migrations for locking and rollout hazards. PostgreSQL 16 is the
+# production major (dependency-matrix.md).
+pg_version = "16.0"
+assume_in_transaction = true

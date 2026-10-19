@@ -2,9 +2,11 @@
 # contract: deploy.yml and scripts/promote.sh wait for a successful `checks.yml` run on the exact
 # commit before deploying or promoting it.
 #
-# Phase 0 checks only what exists: the main-update hook and the integrity of the vendored
-# design and Cutroom snapshots. Build, lint, typecheck and test jobs are added with the
-# workspace in S1.1; never remove a job to get a green run.
+# Jobs: `integrity` (main-update hook, vendored design and Cutroom snapshots), `static` (format,
+# lint, typecheck, import boundaries, unused code, migration lint), `backend` (unit tests and
+# real-PostgreSQL integration tests), `build` (production builds, the `pnpm deploy` release
+# trees, and those trees booted against PostgreSQL) and `client` (jest-expo tests and the Expo web
+# export). Never remove, skip or weaken a job to get a green run.
 name: checks
 on: [push, pull_request]
 permissions:
@@ -41,3 +43,134 @@ jobs:
             if (failed) process.exit(1);
             console.log(`${manifest.files.length} files match ${manifest.repository}@${manifest.revision}`);
           '
+
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Format
+        run: pnpm format:check
+      - name: Lint (typed)
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Import boundaries (dependency-cruiser)
+        run: pnpm boundaries
+      - name: Unused files, exports and dependencies (knip)
+        run: pnpm knip
+      - name: Migration hazards (squawk)
+        run: pnpm --filter @knowscroll/migrations lint:sql
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Production major (dependency-matrix.md). Disposable: the job's container is discarded.
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      KS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: PostgreSQL server version
+        run: psql "$KS_TEST_DATABASE_URL" --no-psqlrc --tuples-only --command 'select version()'
+      - name: Unit tests (contracts, backend, migrations)
+        run: pnpm --filter @knowscroll/contracts --filter @knowscroll/backend --filter @knowscroll/migrations test
+      - name: Integration tests (real PostgreSQL, one template-derived database per file)
+        run: pnpm --filter @knowscroll/integration-tests test
+
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Production major (dependency-matrix.md). Disposable: the job's container is discarded.
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      KS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Build packages, API and worker (nest build)
+        run: pnpm --filter '!@knowscroll/client' --filter '!@knowscroll/integration-tests' build
+      - name: Deploy release trees (pnpm deploy --prod --legacy)
+        run: |
+          release="$RUNNER_TEMP/release"
+          pnpm --filter @knowscroll/api deploy --prod --legacy "$release/api"
+          pnpm --filter @knowscroll/worker deploy --prod --legacy "$release/worker"
+          for path in api/package.json api/dist/main.js api/dist/migrate.js api/node_modules worker/package.json worker/dist/main.js worker/node_modules; do
+            test -e "$release/$path" || { echo "missing $path in the release tree"; exit 1; }
+          done
+          echo "KS_RELEASE_DIR=$release" >> "$GITHUB_ENV"
+      - name: Boot the deployed release against PostgreSQL
+        run: pnpm --filter @knowscroll/integration-tests test:release
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Component tests (jest-expo)
+        run: pnpm --filter @knowscroll/client test
+      - name: Web export (expo export --platform web)
+        run: |
+          pnpm --filter @knowscroll/client build
+          test -f apps/client/dist/index.html

@@ -1,0 +1,82 @@
+# KnowScroll v2 workspace. Every third-party version is pinned exactly in the catalog below and
+# recorded, with peers, licences and what CI proves, in docs/v2/operations/dependency-matrix.md.
+# Change a version only together with that document.
+packages:
+  - apps/*
+  - packages/*
+  - migrations
+  - tests/integration
+
+# Write exact versions when a dependency is added; never a range.
+savePrefix: ''
+# Every workspace manifest must take third-party versions from the catalog.
+catalogMode: strict
+# Fail installs on peer-dependency conflicts instead of warning.
+strictPeerDependencies: true
+# Only these packages may run install scripts.
+onlyBuiltDependencies:
+  - squawk-cli
+  - unrs-resolver
+# Ship prebuilt binaries through optional dependencies; their install scripts are fallbacks.
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+
+catalog:
+  # Toolchain
+  typescript: 6.0.3
+  '@types/node': 22.20.5
+  eslint: 10.13.0
+  '@eslint/js': 10.0.1
+  '@eslint-community/eslint-plugin-eslint-comments': 4.8.1
+  typescript-eslint: 8.71.2
+  eslint-config-prettier: 10.1.8
+  eslint-plugin-react-hooks: 7.1.1
+  globals: 17.13.0
+  prettier: 3.9.10
+  dependency-cruiser: 18.6.0
+  knip: 6.42.0
+  # Backend runtime
+  '@nestjs/common': 12.1.3
+  '@nestjs/core': 12.1.3
+  '@nestjs/platform-express': 12.1.3
+  '@nestjs/cli': 12.0.8
+  '@orpc/contract': 1.15.7
+  '@orpc/server': 1.15.7
+  '@orpc/nest': 1.15.7
+  '@orpc/openapi': 1.15.7
+  '@orpc/zod': 1.15.7
+  zod: 4.6.7
+  kysely: 0.29.7
+  pg: 8.23.1
+  '@types/pg': 8.23.1
+  pg-boss: 12.38.0
+  pino: 10.4.0
+  rxjs: 7.8.2
+  reflect-metadata: 0.2.2
+  express: 5.2.1
+  '@types/express': 5.0.6
+  # Backend verification
+  vitest: 4.1.12
+  squawk-cli: 2.70.0
+  # Client (Expo SDK 58: versions from expo@58.0.14 bundledNativeModules.json)
+  expo: 58.0.14
+  expo-constants: 58.0.12
+  expo-font: 58.0.8
+  expo-linking: 58.0.13
+  expo-router: 58.0.23
+  expo-status-bar: 58.0.3
+  '@expo/metro-runtime': 58.0.14
+  react: 19.3.0
+  react-dom: 19.3.0
+  react-native: 0.88.0
+  react-native-web: 0.21.4
+  react-native-safe-area-context: 5.10.1
+  react-native-screens: 4.30.0
+  '@types/react': 19.3.0
+  # Client verification
+  jest: 30.5.2
+  jest-expo: 58.0.11
+  '@react-native/jest-preset': 0.88.0
+  '@testing-library/react-native': 14.1.0
+  test-renderer: 1.3.0
+  '@types/jest': 30.0.0

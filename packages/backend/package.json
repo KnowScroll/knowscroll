@@ -1,0 +1,56 @@
+{
+  "name": "@knowscroll/backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-free backend modules and infrastructure adapters used by the API and worker applications.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./infrastructure/config": {
+      "@knowscroll/source": "./src/infrastructure/config/index.ts",
+      "types": "./dist/infrastructure/config/index.d.ts",
+      "default": "./dist/infrastructure/config/index.js"
+    },
+    "./infrastructure/jobs": {
+      "@knowscroll/source": "./src/infrastructure/jobs/index.ts",
+      "types": "./dist/infrastructure/jobs/index.d.ts",
+      "default": "./dist/infrastructure/jobs/index.js"
+    },
+    "./infrastructure/lifecycle": {
+      "@knowscroll/source": "./src/infrastructure/lifecycle/index.ts",
+      "types": "./dist/infrastructure/lifecycle/index.d.ts",
+      "default": "./dist/infrastructure/lifecycle/index.js"
+    },
+    "./infrastructure/observability": {
+      "@knowscroll/source": "./src/infrastructure/observability/index.ts",
+      "types": "./dist/infrastructure/observability/index.d.ts",
+      "default": "./dist/infrastructure/observability/index.js"
+    },
+    "./infrastructure/postgres": {
+      "@knowscroll/source": "./src/infrastructure/postgres/index.ts",
+      "types": "./dist/infrastructure/postgres/index.d.ts",
+      "default": "./dist/infrastructure/postgres/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "kysely": "catalog:",
+    "pg": "catalog:",
+    "pg-boss": "catalog:",
+    "pino": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

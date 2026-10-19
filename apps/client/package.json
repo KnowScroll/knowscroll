@@ -1,0 +1,46 @@
+{
+  "name": "@knowscroll/client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The KnowScroll Expo application for Android, iOS and the web.",
+  "license": "UNLICENSED",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "build": "expo export --platform web --output-dir dist --clear",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "jest --ci"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "catalog:",
+    "expo": "catalog:",
+    "expo-constants": "catalog:",
+    "expo-font": "catalog:",
+    "expo-linking": "catalog:",
+    "expo-router": "catalog:",
+    "expo-status-bar": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-native": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-screens": "catalog:",
+    "react-native-web": "catalog:"
+  },
+  "devDependencies": {
+    "@react-native/jest-preset": "catalog:",
+    "@testing-library/react-native": "catalog:",
+    "@types/jest": "catalog:",
+    "@types/react": "catalog:",
+    "jest": "catalog:",
+    "jest-expo": "catalog:",
+    "test-renderer": "catalog:",
+    "typescript": "catalog:"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/features/**/*.test.tsx",
+      "<rootDir>/theme/**/*.test.ts"
+    ]
+  }
+}

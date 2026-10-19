@@ -1,0 +1,19 @@
+# Prettier formats the v2 workspace code and its configuration only. Documents, frozen content,
+# the design export, ops (owned elsewhere) and the vendored Cutroom wire schema are not formatted.
+/*
+!/apps/
+!/packages/
+!/migrations/
+!/tests/
+!/package.json
+!/pnpm-workspace.yaml
+!/tsconfig.base.json
+!/eslint.config.js
+!/.dependency-cruiser.cjs
+!/knip.json
+!/.prettierrc.json
+packages/backend/src/modules/content/adapters/cutroom/wire-v1/
+packages/design-tokens/
+**/*.md
+**/dist/
+**/node_modules/
