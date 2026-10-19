@@ -1,8 +1,9 @@
 # v2 in the existing dev and stage worlds (#228, D-004, docs/v2/operations/environments.md).
-# Adds, per world in ks_v2_worlds: a database and role of its own, a root-only database secret
-# generated on the server, a non-secret settings file, a media folder, and the ks2-* units. Nothing
-# here touches a v1 database, role, env file, media folder or unit, and nothing is started or
-# enabled: `ks deploy` enables ks2-world@<world>.target when it deploys a v2 release to the world.
+# Adds, per world in ks_v2_worlds: a service user of its own (ks2-<world>), a database and role of
+# its own, a root-only database secret generated on the server, a root-only settings file, a media
+# folder, and the ks2-* units. Nothing here touches a v1 database, role, env file, media folder or
+# unit, and nothing is started or enabled: `ks deploy` enables ks2-world@<world>.target when it
+# deploys a v2 release to the world.
 
 - name: V2 is only for dev and stage (live is owner-only)
   ansible.builtin.assert:
@@ -13,6 +14,31 @@
 - name: The v2 worlds, with their v1 settings (port, host, OOM score)
   ansible.builtin.set_fact:
     ks_v2_world_list: "{{ ks_worlds | selectattr('name', 'in', ks_v2_worlds) | list }}"
+
+# #226 review m6: v2 programs run as their own user, never v1's ks-<world>, so they cannot read
+# v1's settings (/etc/knowscroll/<world>.env is 0640 root:ks-<world> and embeds the AgentMail key
+# and v1's database password), v1's media or anything else ks-<world> may read. Not in ks-pool:
+# v2 does not reach the shared Reel pool.
+- name: V2 service groups
+  ansible.builtin.group:
+    name: ks2-{{ item.name }}
+    system: true
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: ks2-{{ item.name }}
+
+- name: V2 service users (no login, no home of their own, in no other group)
+  ignore_errors: "{{ ansible_check_mode }}"  # a preview never creates the group
+  ansible.builtin.user:
+    name: ks2-{{ item.name }}
+    group: ks2-{{ item.name }}
+    system: true
+    shell: /usr/sbin/nologin
+    home: /srv/knowscroll/{{ item.name }}
+    create_home: false
+  loop: "{{ ks_v2_world_list }}"
+  loop_control:
+    label: ks2-{{ item.name }}
 
 - name: V2 secret folders (root only)
   ansible.builtin.file:
@@ -114,13 +140,14 @@
   no_log: true
   when: not ansible_check_mode
 
-- name: V2 settings (no secrets; the world's user may read them)
-  ignore_errors: "{{ ansible_check_mode }}"  # a preview may not know the group yet
+# Root only (#226 review m6): systemd and ks read it as root and hand the programs its values as
+# their environment; no service user reads files under /etc/knowscroll.
+- name: V2 settings (no secrets; root only)
   ansible.builtin.copy:
     dest: /etc/knowscroll/{{ item.name }}.v2.env
     owner: root
-    group: ks-{{ item.name }}
-    mode: "0640"
+    group: root
+    mode: "0600"
     content: |
       # KnowScroll v2 settings for world {{ item.name }} — managed by ops/vps/ansible (#228).
       # No secrets here: DATABASE_URL is in /etc/knowscroll/secrets/v2-{{ item.name }}/database.env.
@@ -130,21 +157,24 @@
       KS_MEDIA_ROOT=/srv/knowscroll/{{ item.name }}/media-v2
       KS_PUBLIC_ORIGIN=https://{{ item.app_host }}
       # Sign-in (S1.3, D-007): mail through AgentMail (the key is in secrets/shared/agentmail.env,
-      # read by the API unit only), and operator links for disposable test accounts. This role
-      # serves dev and stage only; the API refuses KS_ALLOW_OPERATOR_SIGN_IN in live.
+      # read by systemd for the API unit only), and operator links for disposable test accounts,
+      # only for addresses matching the pattern (checked when a link is issued and when it is
+      # redeemed). This role serves dev and stage only; the API and the operator command refuse
+      # operator sign-in in every world but dev, stage, ci and local.
       KS_MAIL_SENDER=agentmail
       KS_ALLOW_OPERATOR_SIGN_IN=1
+      KS_OPERATOR_SIGN_IN_PATTERN={{ ks_v2_operator_sign_in_pattern }}
   loop: "{{ ks_v2_world_list }}"
   loop_control:
     label: "{{ item.name }}.v2.env"
 
-- name: V2 media folders (KS_MEDIA_ROOT), private to the world; v1 media is left alone
+- name: V2 media folders (KS_MEDIA_ROOT), private to the world's v2 user; v1 media is left alone
   ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.file:
     path: /srv/knowscroll/{{ item.name }}/media-v2
     state: directory
-    owner: ks-{{ item.name }}
-    group: ks-{{ item.name }}
+    owner: ks2-{{ item.name }}
+    group: ks2-{{ item.name }}
     mode: "0750"
   loop: "{{ ks_v2_world_list }}"
   loop_control:

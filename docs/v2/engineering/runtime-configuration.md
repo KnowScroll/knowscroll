@@ -33,7 +33,16 @@ print them.
 | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | required for `agentmail` | credentials (server: `/etc/knowscroll/secrets/shared/agentmail.env`, read by the API unit only). Never logged |
 | `AGENTMAIL_TIMEOUT_MS` | 10000 (max 30000) | one send's whole exchange, response body included |
 | `AGENTMAIL_BASE_URL` | `https://api.agentmail.to` | a different base only outside production (tests with a fake AgentMail); production refuses it |
-| `KS_ALLOW_OPERATOR_SIGN_IN` | unset | exactly `1` lets operator-minted links (`dist/operator.js`) be redeemed (dev and stage); any other value is refused, and so is `1` when `KS_WORLD=live` |
+| `KS_ALLOW_OPERATOR_SIGN_IN` | unset | exactly `1` lets operator-minted links (`dist/operator.js`) be redeemed; any other value is refused, and so is `1` in every world but `dev`, `stage`, `ci` and `local` (an allow-list: a production world under any name is refused) |
+| `KS_OPERATOR_SIGN_IN_PATTERN` | required with `KS_ALLOW_OPERATOR_SIGN_IN=1` | the disposable addresses operator links may open, as one address with at most one `*` in the local part and a literal domain (dev and stage: `*@test.knowscroll.space`); an operator link for any other address is refused when redeemed |
+
+Every account request (`/v1/*`) must carry `X-KS-Scope: <accountId>:<privacyEpoch>` and every
+Socket.IO handshake the same value in `auth.scope`; a claim that is missing or names another
+account or an older epoch than the presented session's is refused with `409 SCOPE_MISMATCH`
+(handshake: `SCOPE_MISMATCH`). Every API answer carries `Content-Security-Policy: default-src
+'none'; frame-ancestors 'none'; base-uri 'none'`, `X-Frame-Options: DENY`,
+`X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`; the web app's own policy is
+set by Caddy (`ops/vps/ansible/roles/caddy/files/app-content-security-policy.txt`).
 
 The API also opens one dedicated LISTEN connection (`application_name` `knowscroll-api-<world>-relay`)
 and serves Socket.IO on `/socket.io` on the same port (D-008: Caddy proxies `/socket.io/*` with
@@ -49,15 +58,17 @@ failure (lock wait, timeout, deadlock, serialisation) answers 503 with `Retry-Af
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `KS_WORLD` | required | refused when `live` |
+| `KS_WORLD` | required | only `dev`, `stage`, `ci` or `local`; any other world is refused |
 | `KS_ALLOW_OPERATOR_SIGN_IN` | required, exactly `1` | anything else is refused (checked at startup and again just before issuing) |
+| `KS_OPERATOR_SIGN_IN_PATTERN` | required | as for the API; an address it does not match is refused (`address_not_allowed`) |
 | `DATABASE_URL` | required | the world's database (credential) |
 | `KS_PUBLIC_ORIGIN` | required | the origin the printed link points at |
 | `KS_DB_STATEMENT_TIMEOUT_MS`, `KS_SCOPE_LOCK_TIMEOUT_MS` | 15000, 5000 | as for the API |
 
 Prints the one-time link on stdout; diagnostic records go to stderr. Exit 0 issued, 1 refused or
 failed, 2 usage. It creates or reuses a **disposable** account and refuses an address that signed up
-by mail. Running it on a world: `docs/v2/operations/environments.md`.
+by mail (`not_disposable`). Each issue writes an audit row in `ops.operator_sign_ins` (world, time,
+`cli:<SUDO_USER or USER>`, account). Running it on a world: `docs/v2/operations/environments.md`.
 
 ## Worker (`node dist/main.js` in the `worker/` tree)
 

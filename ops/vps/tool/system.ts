@@ -170,11 +170,13 @@ function worldPort(world: World, generation: Generation): string | undefined {
     : parseEnvFile(readFileSync(V2_ENV(world), 'utf8')).PORT;
 }
 
-function serviceUser(world: World): { uid: number; gid: number } {
+/** The user a world's programs run as: `ks-<world>` for v1, `ks2-<world>` for v2 (#226 review m6). */
+function serviceUser(world: World, generation: Generation = 'v1'): { uid: number; gid: number } {
+  const name = generation === 'v1' ? `ks-${world}` : `ks2-${world}`;
   const line = readFileSync('/etc/passwd', 'utf8')
     .split('\n')
-    .find((l) => l.startsWith(`ks-${world}:`));
-  if (!line) throw new Refusal(`no service user ks-${world}`);
+    .find((l) => l.startsWith(`${name}:`));
+  if (!line) throw new Refusal(`no service user ${name}`);
   const [, , uid, gid] = line.split(':');
   return { uid: Number(uid), gid: Number(gid) };
 }
@@ -576,7 +578,7 @@ function predeployDump(world: World, commit: string): string {
   return name;
 }
 
-/** #228: runs a v2 release's own migrate command (from its release.json) as the world's user,
+/** #228: runs a v2 release's own migrate command (from its release.json) as the world's v2 user,
  * with the world's v2 settings and database secret, never seeded. m10: the migrate session gets
  * its own statement timeout through the connection options; the role's 30 s stays for the rest. */
 function migrateV2(world: World, release: string, manifest: V2Manifest): void {
@@ -597,7 +599,7 @@ function migrateV2(world: World, release: string, manifest: V2Manifest): void {
       NODE_ENV: 'production',
       KS_WORLD: world,
     },
-    ...serviceUser(world),
+    ...serviceUser(world, 'v2'),
     stdio: ['ignore', 'inherit', 'inherit'],
     timeout: 20 * 60_000,
   });

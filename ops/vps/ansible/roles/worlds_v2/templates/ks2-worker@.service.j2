@@ -11,8 +11,9 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-User=ks-%i
-Group=ks-%i
+# Its own user (#226 review m6): not v1's ks-%i, so nothing of v1 is readable to it.
+User=ks2-%i
+Group=ks2-%i
 Slice=ks-%i.slice
 WorkingDirectory=/srv/knowscroll/%i/current
 EnvironmentFile=/etc/knowscroll/%i.v2.env
@@ -40,6 +41,10 @@ RestrictSUIDSGID=yes
 RestrictNamespaces=yes
 LockPersonality=yes
 ReadWritePaths=/srv/knowscroll/%i/media-v2
+# Nothing under /etc/knowscroll and nothing of v1's media is visible to the program: systemd reads
+# the EnvironmentFile= lines above before the sandbox applies (#226 review m6).
+InaccessiblePaths=/etc/knowscroll
+InaccessiblePaths=-/srv/knowscroll/%i/media
 
 [Install]
 WantedBy=ks2-world@%i.target
