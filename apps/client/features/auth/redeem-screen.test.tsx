@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { Slot } from 'expo-router';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import type { ReactNode } from 'react';
 import { Text } from 'react-native';
@@ -62,12 +63,18 @@ async function renderRedeem(auth: AuthClient) {
     newQueryClient: () => new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } }),
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-      <AccountScopeProvider manager={manager}>{children}</AccountScopeProvider>
-    </DisplayProvider>
+    <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>{children}</DisplayProvider>
+  );
+  // As in the app's root layout: the provider sits inside the router, so a new scope remounts the
+  // screens but keeps the navigation state.
+  const Layout = () => (
+    <AccountScopeProvider manager={manager}>
+      <Slot />
+    </AccountScopeProvider>
   );
   return renderRouter(
     {
+      _layout: Layout,
       redeem: () => <RedeemScreen />,
       explore: () => <Text>Explore</Text>,
       recover: () => <Text>Recover</Text>,
