@@ -10,7 +10,7 @@ import { identityUseCases, operatorSignInUseCase } from '@knowscroll/backend/mod
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 
 /**
- * Identity's sign-in use cases against a real PostgreSQL 16 database (S1.3 #226, D-018), built
+ * Identity's sign-in use cases against a real PostgreSQL 16 database (S1.3 #226, D-022), built
  * from the same factories as the API's composition root. Mail goes to an in-test fixture sender;
  * every address is a fixture under `.test`. Evidence label: CI fixture + real database.
  */

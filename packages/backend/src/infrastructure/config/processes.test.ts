@@ -173,7 +173,7 @@ describe('process configuration', () => {
     expect(error.problems.length).toBeGreaterThan(0);
   });
 
-  describe('sign-in settings (D-007, D-018)', () => {
+  describe('sign-in settings (D-007, D-022)', () => {
     const local = { NODE_ENV: 'test', KS_WORLD: 'ci', DATABASE_URL: secretUrl, PORT: '4330' };
     const problemsOf = (env: Record<string, string>) => configurationError(() => readApiConfig(env)).problems;
 

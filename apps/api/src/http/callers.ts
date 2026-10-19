@@ -22,7 +22,7 @@ export interface Caller {
 
 /**
  * The AuthenticatedCaller port. In production it is the session adapter below: the identity
- * module's sessions (D-007, D-018), re-read on every request. CI may run the test-only adapter.
+ * module's sessions (D-007, D-022), re-read on every request. CI may run the test-only adapter.
  */
 export interface AuthenticatedCallers {
   /**

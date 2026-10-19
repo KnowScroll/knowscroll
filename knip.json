@@ -13,14 +13,25 @@
       "project": ["src/**/*.ts"]
     },
     "apps/client": {
-      "entry": ["app/**/*.tsx"],
-      "project": ["app/**/*.tsx", "features/**/*.{ts,tsx}", "theme/**/*.ts"]
+      "entry": ["app/**/*.tsx", "platform/**/*.web.ts", "e2e/*.spec.ts"],
+      "project": ["app/**/*.tsx", "features/**/*.{ts,tsx}", "platform/**/*.ts", "theme/**/*.ts", "e2e/**/*.{ts,mjs}"],
+      "ignoreDependencies": ["babel-jest"]
     },
     "packages/backend": {
       "project": ["src/**/*.ts"],
       "ignore": ["src/modules/content/adapters/cutroom/wire-v1/**"]
     },
     "packages/contracts": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/design-tokens": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/ui": {
+      "entry": ["src/**/*.web.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/client-core": {
       "project": ["src/**/*.ts"]
     },
     "migrations": {

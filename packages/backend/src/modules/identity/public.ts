@@ -142,7 +142,7 @@ export type ReadUniverseAccess = (accountId: string, universeId: string) => Prom
 export const READ_ACCOUNT_UNIVERSE = Symbol('identity.readAccountUniverse');
 export const READ_UNIVERSE_ACCESS = Symbol('identity.readUniverseAccess');
 
-// ── Sign-in and sessions (S1.3, D-018) ──────────────────────────────────────────────────────
+// ── Sign-in and sessions (S1.3, D-022) ──────────────────────────────────────────────────────
 // The use cases are implemented in `application/` and built by `adapters/nest-providers.ts`.
 
 export { SESSION_TTL_DAYS, SIGN_IN_LINK_TTL_MINUTES } from './domain/policy.js';

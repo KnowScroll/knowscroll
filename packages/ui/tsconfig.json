@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "customConditions": ["@knowscroll/source", "react-native"],
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM"],
+    "types": ["jest"]
+  },
+  "include": ["src"]
+}

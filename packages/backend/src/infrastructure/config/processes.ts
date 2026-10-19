@@ -44,7 +44,7 @@ export type MailSettings =
     }
   | { readonly sender: 'fixture'; readonly outboxFile: string | undefined };
 
-/** Sign-in settings of the API (D-007, D-018). */
+/** Sign-in settings of the API (D-007, D-022). */
 export interface IdentitySettings {
   /** The world's own origin (`KS_PUBLIC_ORIGIN`): links point here and browser requests must come from it. */
   readonly publicOrigin: string;
@@ -225,7 +225,7 @@ function checkPublicOrigin(
 }
 
 /**
- * The API's sign-in variables (D-007, D-018), checked together so every problem is reported:
+ * The API's sign-in variables (D-007, D-022), checked together so every problem is reported:
  * - `KS_PUBLIC_ORIGIN` (see {@link checkPublicOrigin});
  * - `KS_MAIL_SENDER` (default `agentmail`): `agentmail` needs `AGENTMAIL_API_KEY` and
  *   `AGENTMAIL_INBOX_ID` (credentials), takes `AGENTMAIL_TIMEOUT_MS` (default 10000, at most

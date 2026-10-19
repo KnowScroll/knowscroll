@@ -20,7 +20,7 @@ import {
 } from '../support/processes.js';
 
 /**
- * Sign-in through the deployed release trees (S1.3 #226, D-018): email links (fixture mail
+ * Sign-in through the deployed release trees (S1.3 #226, D-022): email links (fixture mail
  * sender, and AgentMail against a local fake), web cookies with origin checks, native bearer
  * tokens, sockets, sign-out, the operator command and the production refusals.
  *

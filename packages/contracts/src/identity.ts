@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { CommandIdSchema, UniverseIdSchema, UuidSchema } from './ids.js';
 
 /**
- * Sign-in and sessions (D-007, D-018): email magic links, a session cookie on the web and a bearer
+ * Sign-in and sessions (D-007, D-022): email magic links, a session cookie on the web and a bearer
  * token on native. Every route lives under `/auth` on the world's own origin (D-008).
  *
  * Token shapes: a sign-in link token is `ksl_` + 43 base64url characters, a session token `kss_` +

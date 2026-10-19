@@ -1,5 +1,5 @@
 /**
- * Identity's fixed limits (D-007, D-018). They are code, not configuration: changing one is a
+ * Identity's fixed limits (D-007, D-022). They are code, not configuration: changing one is a
  * reviewed decision, and the database checks the two lifetimes as well.
  */
 

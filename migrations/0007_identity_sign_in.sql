@@ -1,4 +1,4 @@
--- 0007_identity_sign_in: email addresses, single-use sign-in links and sessions (S1.3 #226, D-018).
+-- 0007_identity_sign_in: email addresses, single-use sign-in links and sessions (S1.3 #226, D-022).
 --
 -- Owner: identity module. Authoritative.
 -- Reads: address → account (redeem, operator sign-in); link by token hash (redeem); links of one

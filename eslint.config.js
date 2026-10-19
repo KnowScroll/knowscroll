@@ -14,6 +14,10 @@ import tseslint from 'typescript-eslint';
 export default defineConfig(
   globalIgnores([
     '**/dist/**',
+    // The client's gallery export and the web smoke's output (generated, never committed).
+    'apps/client/dist-gallery/**',
+    'apps/client/test-results/**',
+    'apps/client/playwright-report/**',
     '**/node_modules/**',
     '**/.expo/**',
     // Vendored byte-for-byte from Cutroom (CF-61); integrity is checked by the `integrity` job.
@@ -31,7 +35,7 @@ export default defineConfig(
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ['*.js', '*.cjs', 'apps/client/*.js'] },
+        projectService: { allowDefaultProject: ['*.js', '*.cjs', 'apps/client/*.js', 'apps/client/e2e/*.mjs'] },
         tsconfigRootDir: import.meta.dirname,
       },
       globals: { ...globals.node },
@@ -86,18 +90,22 @@ export default defineConfig(
     },
   },
   {
-    // Command-line check scripts report to the terminal.
-    files: ['tests/integration/boundaries/*.mjs'],
+    // Command-line check scripts and the web smoke's static server report to the terminal.
+    files: ['tests/integration/boundaries/*.mjs', 'apps/client/e2e/*.mjs'],
     rules: { 'no-console': 'off' },
   },
   {
-    files: ['apps/client/**/*.{ts,tsx}'],
+    files: ['apps/client/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/client-core/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.recommended.rules,
     languageOptions: { globals: { ...globals.browser } },
   },
   {
-    files: ['apps/client/**/*.test.{ts,tsx}'],
+    files: [
+      'apps/client/**/*.test.{ts,tsx}',
+      'packages/ui/**/*.test.{ts,tsx}',
+      '{apps/client,packages/ui}/jest.setup.js',
+    ],
     languageOptions: { globals: { ...globals.jest } },
   },
   prettier,

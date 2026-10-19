@@ -47,7 +47,7 @@ function requestIdField(): { readonly requestId?: string } {
 }
 
 /**
- * `/auth/*`: sign-in by email link, sessions and sign-out (D-007, D-018). Thin handlers over the
+ * `/auth/*`: sign-in by email link, sessions and sign-out (D-007, D-022). Thin handlers over the
  * identity use cases; cookies, origin and client-address limits are HTTP concerns and stay here.
  * Every answer is `Cache-Control: no-store` (`noStoreForAuth`).
  */

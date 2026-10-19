@@ -8,11 +8,17 @@
   "scripts": {
     "start": "expo start",
     "build": "expo export --platform web --output-dir dist --clear",
+    "build:gallery": "EXPO_PUBLIC_KS_GALLERY=1 expo export --platform web --output-dir dist-gallery --clear",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "jest --ci"
+    "test": "jest --ci",
+    "test:web": "playwright test -c e2e/playwright.config.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "catalog:",
+    "@knowscroll/client-core": "workspace:*",
+    "@knowscroll/design-tokens": "workspace:*",
+    "@knowscroll/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-font": "catalog:",
@@ -24,23 +30,19 @@
     "react-native": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
+    "react-native-svg": "catalog:",
     "react-native-web": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@react-native/jest-preset": "catalog:",
     "@testing-library/react-native": "catalog:",
     "@types/jest": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "jest": "catalog:",
     "jest-expo": "catalog:",
     "test-renderer": "catalog:",
     "typescript": "catalog:"
-  },
-  "jest": {
-    "preset": "jest-expo",
-    "testMatch": [
-      "<rootDir>/features/**/*.test.tsx",
-      "<rootDir>/theme/**/*.test.ts"
-    ]
   }
 }

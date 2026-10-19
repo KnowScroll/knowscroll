@@ -1,7 +1,7 @@
 # modules/identity
 
 Who a person is and how they sign in: accounts, their personal universe roots, email addresses,
-single-use sign-in links and sessions (D-007, decided as the first-party implementation in D-018).
+single-use sign-in links and sessions (D-007, decided as the first-party implementation in D-022).
 
 ## Tables
 
