@@ -58,6 +58,12 @@ export interface IdentitySettings {
    * redeemed here, for addresses the pattern matches only. `undefined` everywhere else.
    */
   readonly operatorSignIn: { readonly pattern: string } | undefined;
+  /**
+   * `KS_NATIVE_SIGN_IN_BINDING=1`: native apps may bind their links with a code challenge.
+   * Off by default on every world until the native app ships (re-review N1): while off, a
+   * request carrying a challenge is refused (422).
+   */
+  readonly nativeSignInBinding: boolean;
 }
 
 /** The real AgentMail API; a different base URL is accepted only outside production (tests). */
@@ -239,7 +245,8 @@ function checkPublicOrigin(
  *   30000) and, outside production only, `AGENTMAIL_BASE_URL`; `fixture` (with an optional
  *   `KS_FIXTURE_MAIL_FILE`) is refused unless `NODE_ENV=test` in a `ci` or `local` world;
  * - `KS_ALLOW_OPERATOR_SIGN_IN`: unset, or exactly `1`, and then only in an allow-listed world
- *   (`dev`, `stage`, `ci`, `local`) with a valid `KS_OPERATOR_SIGN_IN_PATTERN`.
+ *   (`dev`, `stage`, `ci`, `local`) with a valid `KS_OPERATOR_SIGN_IN_PATTERN`;
+ * - `KS_NATIVE_SIGN_IN_BINDING`: unset (off) or exactly `1`.
  * Production therefore cannot start without AgentMail fully configured.
  */
 function checkIdentitySettings(
@@ -282,6 +289,9 @@ function checkIdentitySettings(
   }
   const operator = checkOperatorSignIn(env, release.world);
   problems.push(...operator.problems);
+  const binding = env['KS_NATIVE_SIGN_IN_BINDING'];
+  if (binding !== undefined && binding !== '' && binding !== '1')
+    problems.push('KS_NATIVE_SIGN_IN_BINDING: not_allowed');
   if (problems.length > 0 || origin.origin === undefined || mail === undefined)
     return { ok: false, problems: problems.length > 0 ? problems : ['KS_PUBLIC_ORIGIN: invalid_format'] };
   return {
@@ -291,6 +301,7 @@ function checkIdentitySettings(
       secureCookies: origin.origin.startsWith('https:'),
       mail,
       operatorSignIn: operator.pattern === undefined ? undefined : { pattern: operator.pattern },
+      nativeSignInBinding: binding === '1',
     },
   };
 }

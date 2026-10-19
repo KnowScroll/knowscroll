@@ -71,7 +71,10 @@ export interface AccountScopeManager {
   readonly requestLink: (email: string) => Promise<RequestLinkOutcome>;
   /** The address the last link was requested for (memory only, for "We sent a link to …"). */
   readonly pendingEmail: string | undefined;
-  /** Whose account a link opens, masked; asked before redeeming it (review m8). */
+  /**
+   * Whose account a link opens, asked before redeeming it (review m8): the full address of a web
+   * link; a native link answers only with this app's verifier, and masked.
+   */
   readonly peek: (token: string) => Promise<PeekOutcome>;
   /**
    * Redeems a link. The current scope ends before the redemption is sent (review M1), so nothing
@@ -138,7 +141,15 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
   let signedOutClient = newQueryClient();
   let pendingEmail: string | undefined;
   let disposed = false;
-  let refreshing: Promise<void> | undefined;
+  /**
+   * The credential generation (re-review N5). It moves on whenever this device's credential may
+   * change: a redemption starts and when it signs in, a sign-out starts, the session is dropped.
+   * A session reread remembers the generation and the credential it was sent with, and an answer
+   * that arrives for an older generation is ignored: it mounts nothing, signs nobody out and wipes
+   * nothing from the secure store.
+   */
+  let generation = 0;
+  let refreshing: { readonly generation: number; readonly done: Promise<void> } | undefined;
 
   function set(next: AccountScopeState): void {
     if (disposed) return;
@@ -181,6 +192,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
   }
 
   async function signedOut(reason: 'none' | 'signed_out' | 'session_ended'): Promise<void> {
+    generation += 1;
     endCurrentScope();
     // Whatever any earlier scope left behind on this device goes too.
     purgeStorage(options.store, SCOPED_STORAGE_PREFIX);
@@ -194,10 +206,14 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
   }
 
   async function refresh(): Promise<void> {
+    const sentWith = generation;
+    // The credential this reread presents (the auth client reads `token` as it sends).
+    const credential = options.platform === 'native' ? token : undefined;
     const outcome = await auth.session();
+    if (sentWith !== generation) return;
     switch (outcome.kind) {
       case 'signed_in':
-        mount(outcome.account, options.platform === 'native' ? token : undefined);
+        mount(outcome.account, credential);
         return;
       case 'signed_out':
         await signedOut(state.status === 'signed_in' ? 'session_ended' : 'none');
@@ -211,12 +227,21 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     }
   }
 
-  /** One reread at a time: a burst of refused requests (`SCOPE_MISMATCH`) asks once. */
+  /**
+   * One reread at a time per credential generation: a burst of refused requests
+   * (`SCOPE_MISMATCH`) asks once; a reread of an older generation is never reused.
+   */
   function refreshOnce(): Promise<void> {
-    refreshing ??= refresh().finally(() => {
-      refreshing = undefined;
-    });
-    return refreshing;
+    if (refreshing?.generation !== generation) {
+      const entry = {
+        generation,
+        done: refresh().finally(() => {
+          if (refreshing === entry) refreshing = undefined;
+        }),
+      };
+      refreshing = entry;
+    }
+    return refreshing.done;
   }
 
   /** The server dropped the account's sockets: still signed in → reconnect; else end the scope. */
@@ -265,12 +290,23 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       if (outcome.kind === 'requested') pendingEmail = email.trim();
       return outcome;
     },
-    peek: (linkToken) => auth.peek({ token: linkToken, client: options.platform }),
+    async peek(linkToken) {
+      // A native link answers only to its verifier (re-review nit).
+      const codeVerifier =
+        options.platform === 'native' ? await options.signInBinding?.verifier().catch(() => undefined) : undefined;
+      return auth.peek({
+        token: linkToken,
+        client: options.platform,
+        ...(codeVerifier === undefined ? {} : { codeVerifier }),
+      });
+    },
     async redeem(request) {
       const switching = state.status === 'signed_in';
       // The fence comes first (review M1): from here on, the current scope's requests are refused
       // here, before the answer can replace this device's credential (native: the new bearer
-      // token being written to the secure store; web: the cookie the answer sets).
+      // token being written to the secure store; web: the cookie the answer sets). Rereads in
+      // flight belong to the old generation and are ignored when they answer (re-review N5).
+      generation += 1;
       endCurrentScope();
       let codeVerifier: string | undefined;
       if (options.platform === 'native') codeVerifier = await options.signInBinding?.verifier().catch(() => undefined);
@@ -284,6 +320,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
         return outcome;
       }
       const { session, account } = outcome.response;
+      generation += 1;
       let credential: string | undefined;
       if (session.kind === 'bearer') {
         credential = session.token;
@@ -296,6 +333,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
       return outcome;
     },
     async signOut(signOutOptions = {}) {
+      generation += 1;
       const answer = await auth.signOut({ everywhere: signOutOptions.everywhere === true });
       if (answer === 'unavailable' && options.platform === 'web') return 'unavailable';
       await signedOut('signed_out');

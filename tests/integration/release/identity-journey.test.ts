@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SOCKET_PATH, socketEvents } from '@knowscroll/contracts';
+import { SOCKET_PATH, UNSCOPED_V1_ROUTES, apiContract, socketEvents } from '@knowscroll/contracts';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { seedAsset } from '../support/fixtures.js';
@@ -90,6 +90,8 @@ describe('sign-in through the built API', () => {
       KS_FIXTURE_MAIL_FILE: outboxFile,
       KS_ALLOW_OPERATOR_SIGN_IN: '1',
       KS_OPERATOR_SIGN_IN_PATTERN: '*@operator.test',
+      // The native app's journeys need it; every world's default is off (re-review N1).
+      KS_NATIVE_SIGN_IN_BINDING: '1',
       KS_SOCKET_AUTH_CACHE_MS: '0',
       KS_SHUTDOWN_GRACE_SECONDS: '10',
     });
@@ -258,13 +260,13 @@ describe('sign-in through the built API', () => {
     }
   });
 
-  it('peeks at a link without consuming it, showing only the masked address (review m8)', async () => {
+  it('peeks at a link without consuming it: the full address for a web link (review m8, re-review N6)', async () => {
     const address = freshAddress();
     const token = await requestLink(address);
     const peek = await post('/auth/peek', { token, client: 'web' });
     expect(peek.status).toBe(200);
     expect(peek.headers.get('cache-control')).toBe('no-store');
-    expect(await peek.json()).toEqual({ maskedEmail: `r•••@${address.split('@')[1] ?? ''}` });
+    expect(await peek.json()).toEqual({ email: address });
     const link = await handle.db
       .selectFrom('identity.sign_in_links')
       .select('consumed_at')
@@ -348,6 +350,60 @@ describe('sign-in through the built API', () => {
     await connected(connect({ cookie: web.cookie, origin: baseUrl, scope: scopeOf({ ...web, privacyEpoch: 2 }) }));
   });
 
+  it('guards every authenticated /v1 route of the contract with the scope claim, and every handshake (re-review N3)', async () => {
+    /** Every route of the contract, found by walking it: a new route is covered without editing this test. */
+    const routesOf = (node: unknown): { method: string; path: string }[] => {
+      if (typeof node !== 'object' || node === null) return [];
+      const route = (node as { '~orpc'?: { route?: { method?: string; path?: string } } })['~orpc']?.route;
+      if (route?.path !== undefined) return [{ method: route.method ?? 'POST', path: route.path }];
+      return Object.values(node).flatMap(routesOf);
+    };
+    const scoped = routesOf(apiContract).filter(
+      (route) => route.path.startsWith('/v1/') && !UNSCOPED_V1_ROUTES.includes(route.path),
+    );
+    expect(scoped.map((route) => `${route.method} ${route.path}`).sort()).toEqual(
+      expect.arrayContaining(['GET /v1/saved', 'POST /v1/actions']) as unknown,
+    );
+    const web = await webSignIn();
+    const native = await nativeSignIn();
+    for (const route of scoped) {
+      const url = `${baseUrl}${route.path.replace(/\{[^}]+\}/g, randomUUID())}`;
+      const body = route.method === 'GET' ? {} : { body: '{}' };
+      const credentials: Record<string, string>[] = [
+        { cookie: web.cookie, origin: baseUrl },
+        { authorization: `Bearer ${native.token}` },
+      ];
+      for (const credential of credentials) {
+        const headers: Record<string, string> = {
+          'content-type': 'application/json',
+          'x-forwarded-for': freshClient(),
+          ...credential,
+        };
+        await expectProblem(await fetch(url, { method: route.method, headers, ...body }), 409, 'SCOPE_MISMATCH');
+        await expectProblem(
+          await fetch(url, {
+            method: route.method,
+            headers: { ...headers, 'x-ks-scope': `${randomUUID()}:1` },
+            ...body,
+          }),
+          409,
+          'SCOPE_MISMATCH',
+        );
+      }
+      // Without a credential the guard answers first, whatever the body.
+      await expectProblem(
+        await fetch(url, { method: route.method, headers: { 'content-type': 'application/json' }, ...body }),
+        401,
+        'UNAUTHENTICATED',
+      );
+    }
+    // Every handshake, cookie or bearer, names its scope.
+    await expect(connected(connect({ cookie: web.cookie, origin: baseUrl }))).rejects.toThrow('SCOPE_MISMATCH');
+    await expect(connected(connect({ token: native.token }))).rejects.toThrow('SCOPE_MISMATCH');
+    await expect(connected(connect({ token: native.token, scope: scopeOf(web) }))).rejects.toThrow('SCOPE_MISMATCH');
+    await connected(connect({ token: native.token, scope: scopeOf(native) }));
+  });
+
   it('refuses cookie-authenticated changes that do not come from this origin, and web redemption from elsewhere', async () => {
     const { cookie } = await webSignIn();
     const action = () => ({
@@ -428,6 +484,11 @@ describe('sign-in through the built API', () => {
       400,
       'SIGN_IN_LINK_INVALID',
     );
+    // A native link's peek answers only to its verifier, and masked (re-review nit).
+    await expectProblem(await post('/auth/peek', { token: bound, client: 'native' }), 400, 'SIGN_IN_LINK_INVALID');
+    const nativePeek = await post('/auth/peek', { token: bound, client: 'native', codeVerifier: device.verifier });
+    expect(nativePeek.status).toBe(200);
+    expect(await nativePeek.json()).toEqual({ email: expect.stringMatching(/^r•••@d\d+\.identity\.test$/) as unknown });
     const redeemed = await post('/auth/redeem', {
       token: bound,
       commandId: randomUUID(),
@@ -817,12 +878,24 @@ describe('sign-in mail through AgentMail (fake AgentMail on loopback)', () => {
     });
     await api.waitForEvent('process.started');
     await waitForHttp(`${baseUrl}/health`);
-    const signIn = (email: string) =>
+    const signIn = (email: string, codeChallenge?: string) =>
       fetch(`${baseUrl}/auth/sign-in`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, ...(codeChallenge === undefined ? {} : { codeChallenge }) }),
       });
+
+    // Native sign-in binding is off here, as on every world by default (re-review N1, probe p15):
+    // a request carrying a challenge is refused before anything is written or sent.
+    for (let index = 0; index < 3; index += 1) {
+      const bound = await signIn('delivered@identity.test', nativeDevice().challenge);
+      expect(bound.status).toBe(422);
+      expect(await bound.json()).toMatchObject({
+        code: 'UNPROCESSABLE_REQUEST',
+        issues: [{ path: ['codeChallenge'], code: 'not_enabled' }],
+      });
+    }
+    expect(received).toHaveLength(0);
 
     respond = (response) => {
       response.writeHead(200, { 'content-type': 'application/json' });

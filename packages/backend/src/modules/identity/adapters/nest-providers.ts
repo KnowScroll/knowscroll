@@ -137,6 +137,7 @@ export function identityUseCases(deps: {
       secrets: cryptoSecrets,
       logEvent: deps.logEvent,
       now: () => performance.now(),
+      nativeBinding: deps.settings.nativeSignInBinding,
     }),
     peekSignInLink: makePeekSignInLink({
       readLink: (tokenHash) => readLink(deps.db, tokenHash),

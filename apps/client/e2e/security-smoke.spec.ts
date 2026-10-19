@@ -29,22 +29,29 @@ test('every page runs under the Content-Security-Policy with no violation, and r
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ maskedEmail: 'm•••@example.test' }),
+      body: JSON.stringify({ email: 'mary@example.test' }),
     }),
   );
 
   const response = await page.goto('/welcome');
   const headers = response?.headers() ?? {};
-  const policy = headers['content-security-policy'] ?? '';
-  for (const directive of [
-    "default-src 'self'",
-    "script-src 'self'",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    "base-uri 'none'",
-  ])
-    expect(policy).toContain(directive);
-  expect(policy).not.toContain('unsafe-eval');
+  // Parsed, so a source added to a directive cannot hide behind a substring match.
+  const policy = new Map(
+    (headers['content-security-policy'] ?? '')
+      .split(';')
+      .map((directive) => directive.trim().split(/\s+/))
+      .filter((parts) => parts[0] !== undefined && parts[0] !== '')
+      .map(([name = '', ...sources]) => [name, sources.sort()] as const),
+  );
+  expect(policy.get('default-src')).toEqual(["'self'"]);
+  // Scripts only from this origin: no inline script, no eval.
+  expect(policy.get('script-src')).toEqual(["'self'"]);
+  // React Native Web and expo-font write their styles into <style> elements at run time.
+  expect(policy.get('style-src')).toEqual(["'self'", "'unsafe-inline'"].sort());
+  expect(policy.get('frame-ancestors')).toEqual(["'none'"]);
+  expect(policy.get('object-src')).toEqual(["'none'"]);
+  expect(policy.get('base-uri')).toEqual(["'none'"]);
+  for (const [name, sources] of policy) expect(sources, name).not.toContain("'unsafe-eval'");
   expect(headers['x-frame-options']).toBe('DENY');
   expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
   await expect(page.getByRole('heading', { name: 'KnowScroll', level: 1 })).toBeVisible();
@@ -55,7 +62,7 @@ test('every page runs under the Content-Security-Policy with no violation, and r
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
   }
   await page.goto(`/redeem#token=${fixtureToken}`);
-  await expect(page.getByRole('button', { name: 'Continue as m•••@example.test' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue as mary@example.test' })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   expect(violations).toEqual([]);

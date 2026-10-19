@@ -115,6 +115,11 @@ describe('clientAddress', () => {
     expect(clientKey('2001:db8:1:2:3:4:192.0.2.1')).toBe('2001:db8:1:2::/64');
     expect(clientKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
     expect(clientKey('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(clientKey('::ffff:cb00:7109')).toBe('203.0.113.9');
+    expect(clientKey('0:0:0:0:0:FFFF:CB00:7109')).toBe('203.0.113.9');
+    expect(clientKey('::1')).toBe('::1');
+    expect(clientKey('::')).toBe('::');
+    expect(clientKey('::2')).toBe('0:0:0:0::/64');
     expect(clientKey('203.0.113.9')).toBe('203.0.113.9');
     expect(clientKey('unknown')).toBe('unknown');
     // Every address of one /64, however written, shares one budget.

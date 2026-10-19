@@ -16,7 +16,7 @@ import { RedeemScreen } from './redeem-screen';
 
 /**
  * The redeem page's confirmation (review m8): a link is checked first and redeemed only after the
- * person taps "Continue as m•••@domain". Over a fixture auth client (no network, no API);
+ * person taps "Continue as <address>" (the full address on the web, re-review N6; masked on native). Over a fixture auth client (no network, no API);
  * accounts and addresses are fixtures.
  */
 const accountB = {
@@ -86,7 +86,7 @@ async function renderRedeem(auth: AuthClient) {
 
 describe('the redeem page', () => {
   it('shows whose account the link opens and redeems only after "Continue as …" is tapped', async () => {
-    const auth = fixtureAuth({ kind: 'usable', maskedEmail: 'b•••@scope.test' });
+    const auth = fixtureAuth({ kind: 'usable', email: 'b•••@scope.test' });
     const app = await renderRedeem(auth);
     await fireEvent.changeText(await screen.findByLabelText('Sign-in link'), link);
     const proceed = await screen.findByRole('button', { name: 'Continue as b•••@scope.test' });

@@ -21,8 +21,9 @@ type Peeked = { readonly token: string; readonly outcome: PeekOutcome };
 /**
  * `/redeem`: where a sign-in link lands (`/redeem#token=…`; the token never reached a server), and
  * the paste path behind "I have a sign-in link". Opening the link signs nobody in. The page first
- * asks whose account the link opens and shows it masked; the person then confirms with one tap,
- * "Continue as m•••@example.com", which POSTs the token (review m8: a link someone else sent to
+ * asks whose account the link opens and shows it (the full address on the web, re-review N6; masked
+ * on native); the person then confirms with one tap, "Continue as mary@example.com", which POSTs
+ * the token (review m8: a link someone else sent to
  * sign you into their account says so before anything happens; a mail scanner that fetches or
  * renders the page consumes nothing). One command ID per token, reused if the answer is lost, so a
  * retry replays instead of failing. An expired or used link goes to A02 "This link didn't work".
@@ -89,7 +90,7 @@ export function RedeemScreen() {
     failure ??
     (peek?.kind === 'rate_limited' ? peek : peek?.kind === 'unavailable' ? { kind: 'unavailable' } : undefined);
   const checkFailed = peek !== undefined && peek.kind !== 'usable';
-  const masked = peek?.kind === 'usable' ? peek.maskedEmail : undefined;
+  const address = peek?.kind === 'usable' ? peek.email : undefined;
   const title = fromLink === undefined ? 'Use your sign-in link' : 'Finish signing in';
 
   return (
@@ -116,11 +117,11 @@ export function RedeemScreen() {
           />
         </>
       ) : null}
-      {masked === undefined ? null : (
+      {address === undefined ? null : (
         <Text variant="body" color={space.label}>
           {switching
-            ? `You're signed in as ${state.scope.account.email}. This link signs you in as ${masked} instead.`
-            : `This link signs you in as ${masked}. Continue only if that's your email.`}
+            ? `You're signed in as ${state.scope.account.email}. This link signs you in as ${address} instead.`
+            : `This link signs you in as ${address}. Continue only if that's your email.`}
         </Text>
       )}
       {shown?.kind === 'rate_limited' ? (
@@ -142,10 +143,10 @@ export function RedeemScreen() {
         />
       ) : (
         <Button
-          label={masked === undefined ? 'Continue' : `Continue as ${masked}`}
-          busyLabel={masked === undefined ? 'Checking the link…' : 'Signing in…'}
+          label={address === undefined ? 'Continue' : `Continue as ${address}`}
+          busyLabel={address === undefined ? 'Checking the link…' : 'Signing in…'}
           busy={busy || (token !== undefined && peek === undefined)}
-          disabled={masked === undefined}
+          disabled={address === undefined}
           variant="space"
           surface="dark"
           fullWidth

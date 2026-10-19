@@ -95,7 +95,13 @@ export class AuthController {
           void result.delivery;
           return { status: 'requested' as const };
         case 'refused':
-          throw problem('UNPROCESSABLE_REQUEST', { issues: [{ path: ['email'], code: 'invalid_format' }] });
+          throw problem(
+            'UNPROCESSABLE_REQUEST',
+            result.reason === 'invalid_address'
+              ? { issues: [{ path: ['email'], code: 'invalid_format' }] }
+              : // Native sign-in binding is off on this world (re-review N1).
+                { issues: [{ path: ['codeChallenge'], code: 'not_enabled' }] },
+          );
         case 'rate_limited':
           response.setHeader('retry-after', String(result.retryAfterSeconds));
           throw problem('TOO_MANY_REQUESTS');
@@ -104,8 +110,9 @@ export class AuthController {
   }
 
   /**
-   * `POST /auth/peek`: whose account a link opens, masked, without consuming it (review m8). The
-   * redeem page asks this first and redeems only after the person confirms the address.
+   * `POST /auth/peek`: whose account a link opens, without consuming it (review m8): the full
+   * address for a web link, the masked one for a native link with its verifier (re-review N6).
+   * The redeem page asks this first and redeems only after the person confirms the address.
    */
   @Implement(apiContract.identity.peekSignIn)
   peekSignInRoute(@Req() request: Request) {
@@ -115,9 +122,13 @@ export class AuthController {
         responseOf(request).setHeader('retry-after', String(wait));
         throw problem('TOO_MANY_REQUESTS');
       }
-      const result = await this.peekSignInLink({ token: input.token, client: input.client });
+      const result = await this.peekSignInLink({
+        token: input.token,
+        client: input.client,
+        ...(input.codeVerifier === undefined ? {} : { codeVerifier: input.codeVerifier }),
+      });
       if (result.kind === 'link_invalid') throw problem('SIGN_IN_LINK_INVALID');
-      return { maskedEmail: result.maskedEmail };
+      return { email: result.email };
     });
   }
 

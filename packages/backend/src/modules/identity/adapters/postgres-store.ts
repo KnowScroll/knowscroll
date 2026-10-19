@@ -64,7 +64,7 @@ export async function readUniverseAccess(
   };
 }
 
-// ── Sign-in: identity's lock order is address → (world budget) → sign-in link → personal root. ──
+// ── Sign-in: identity's lock order is address → (domain, world budget) → link → personal root. ──
 
 /**
  * Identity's first lock: a transaction-scoped advisory lock on one address. Everything that reads
@@ -213,8 +213,12 @@ export async function markAddressProved(tx: RootResolutionTx, accountId: string)
 
 const linkLifetime = sql<Date>`now() + make_interval(mins => ${SIGN_IN_LINK_TTL_MINUTES})`;
 
-/** The world-wide budget's own lock, always taken after the address lock (one order everywhere). */
+/**
+ * The budgets' own locks (re-review N4): a domain's, then the world's, always after the address
+ * lock, so concurrent requests for different addresses cannot both count the same last slot.
+ */
 const WORLD_BUDGET_LOCK = 'identity.world-sign-in-budget';
+const domainBudgetLock = (domain: string) => `identity.domain:${domain}`;
 
 /**
  * The ages (seconds) of the newest email links a budget counts, at most `max` of them: enough to
@@ -238,8 +242,9 @@ async function budgetAges(
 }
 
 /**
- * One short transaction: the address lock; each budget in order (address, then domain, then,
- * under the world budget's own lock, world-wide), counting only email links already issued; the
+ * One short transaction: the address lock; each budget in order (address, then, under the
+ * domain's own lock, domain, then, under the world's, world-wide), counting only email links
+ * already issued; the
  * first full one refuses with nothing written; otherwise the new link. Old links are removed by
  * the scheduled sweep, never here.
  */
@@ -255,6 +260,10 @@ export function makeCreateEmailLink(db: Kysely<Database>, options: { readonly lo
       await sql`select set_config('lock_timeout', ${`${options.lockTimeoutMs}ms`}, true)`.execute(trx);
       await lockAddressIn(trx, request.address);
       for (const check of request.budgets) {
+        if (check.budget === 'domain')
+          await sql`select pg_advisory_xact_lock(hashtextextended(${domainBudgetLock(request.domain)}, 0))`.execute(
+            trx,
+          );
         if (check.budget === 'world')
           await sql`select pg_advisory_xact_lock(hashtextextended(${WORLD_BUDGET_LOCK}, 0))`.execute(trx);
         const admission = admitLink(await budgetAges(trx, check.budget, request, check), check.limit);

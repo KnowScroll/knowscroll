@@ -34,12 +34,14 @@ print them.
 | `AGENTMAIL_TIMEOUT_MS` | 10000 (max 30000) | one send's whole exchange, response body included |
 | `AGENTMAIL_BASE_URL` | `https://api.agentmail.to` | a different base only outside production (tests with a fake AgentMail); production refuses it |
 | `KS_ALLOW_OPERATOR_SIGN_IN` | unset | exactly `1` lets operator-minted links (`dist/operator.js`) be redeemed; any other value is refused, and so is `1` in every world but `dev`, `stage`, `ci` and `local` (an allow-list: a production world under any name is refused) |
+| `KS_NATIVE_SIGN_IN_BINDING` | unset (off) | exactly `1` lets native apps bind their links with a code challenge; off on every world until the native app ships, and while off `POST /auth/sign-in` with `codeChallenge` answers 422 (re-review N1; what must change before enabling it: `modules/identity/README.md`) |
 | `KS_OPERATOR_SIGN_IN_PATTERN` | required with `KS_ALLOW_OPERATOR_SIGN_IN=1` | the disposable addresses operator links may open, as one address with at most one `*` in the local part and a literal domain (dev and stage: `*@test.knowscroll.space`); an operator link for any other address is refused when redeemed |
 
-Every account request (`/v1/*`) must carry `X-KS-Scope: <accountId>:<privacyEpoch>` and every
-Socket.IO handshake the same value in `auth.scope`; a claim that is missing or names another
-account or an older epoch than the presented session's is refused with `409 SCOPE_MISMATCH`
-(handshake: `SCOPE_MISMATCH`). Every API answer carries `Content-Security-Policy: default-src
+Every account request (`/v1/*`, checked by one guard in front of every route; opt-outs only through
+`UNSCOPED_V1_ROUTES` in the contracts) must carry `X-KS-Scope: <accountId>:<privacyEpoch>` and every
+Socket.IO handshake the same value in `auth.scope`; no credential is `401 UNAUTHENTICATED`, and a
+claim that is missing or names another account or an older epoch than the presented session's is
+refused with `409 SCOPE_MISMATCH` (handshake: `SCOPE_MISMATCH`). Every API answer carries `Content-Security-Policy: default-src
 'none'; frame-ancestors 'none'; base-uri 'none'`, `X-Frame-Options: DENY`,
 `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`; the web app's own policy is
 set by Caddy (`ops/vps/ansible/roles/caddy/files/app-content-security-policy.txt`).

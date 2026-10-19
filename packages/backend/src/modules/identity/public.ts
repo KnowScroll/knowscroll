@@ -201,7 +201,11 @@ export type RequestSignInResult =
        */
       readonly delivery: Promise<MailDelivery>;
     }
-  | { readonly kind: 'refused'; readonly reason: 'invalid_address' }
+  /**
+   * `invalid_address`: outside the accepted grammar. `binding_not_enabled`: a native challenge
+   * while native sign-in binding is off on this world (re-review N1).
+   */
+  | { readonly kind: 'refused'; readonly reason: 'invalid_address' | 'binding_not_enabled' }
   | { readonly kind: 'rate_limited'; readonly budget: SignInBudget; readonly retryAfterSeconds: number };
 
 /** Use case: mail a single-use sign-in link (`application/request-sign-in.ts`). */
@@ -211,11 +215,15 @@ export type RequestSignIn = (input: {
   readonly codeChallenge?: string;
 }) => Promise<RequestSignInResult>;
 
-/** Use case: which address a link signs into, masked, without consuming it (review m8). */
+/**
+ * Use case: which address a link signs into, without consuming it (review m8, re-review N6): the
+ * full address for a web link, the masked one for a native link and only with its verifier.
+ */
 export type PeekSignInLink = (request: {
   readonly token: string;
   readonly client: SessionClient;
-}) => Promise<{ readonly kind: 'usable'; readonly maskedEmail: string } | { readonly kind: 'link_invalid' }>;
+  readonly codeVerifier?: string;
+}) => Promise<{ readonly kind: 'usable'; readonly email: string } | { readonly kind: 'link_invalid' }>;
 
 export interface RedeemSignInCommand {
   /** The link token as presented (its shape is checked by the wire contract). */

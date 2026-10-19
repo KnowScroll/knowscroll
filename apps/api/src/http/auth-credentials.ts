@@ -133,18 +133,20 @@ function ipv6Groups(address: string): readonly number[] {
 
 /**
  * The key one client is limited under (review M2): an IPv4 address as it is (an IPv4-mapped IPv6
- * address as its IPv4), an IPv6 address by its /64 prefix, because one subscriber usually holds a
- * whole /64 and could otherwise rotate through 2^64 addresses.
+ * address, in dotted or hex form, as its IPv4), an IPv6 address by its /64 prefix, because one
+ * subscriber usually holds a whole /64 and could otherwise rotate through 2^64 addresses.
  */
 export function clientKey(address: string): string {
-  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address);
-  if (mapped?.[1] !== undefined) return mapped[1];
   if (isIPv4(address) || !isIPv6(address)) return address;
-  const prefix = ipv6Groups(address)
-    .slice(0, 4)
-    .map((group) => group.toString(16))
-    .join(':');
-  return `${prefix}::/64`;
+  const groups = ipv6Groups(address);
+  const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] = groups;
+  // An IPv4-mapped address in any spelling (`::ffff:1.2.3.4`, `::ffff:0102:0304`) is that IPv4.
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff)
+    return `${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`;
+  // The loopback and unspecified addresses are not someone's /64.
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0 && g6 === 0 && g7 <= 1)
+    return g7 === 1 ? '::1' : '::';
+  return `${[g0, g1, g2, g3].map((group) => group.toString(16)).join(':')}::/64`;
 }
 
 /**

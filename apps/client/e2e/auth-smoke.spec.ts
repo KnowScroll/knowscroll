@@ -48,12 +48,12 @@ test('opening a sign-in link consumes nothing: the token leaves the address bar,
     if (path === '/auth/peek') peeks.push(request);
     if (path === '/auth/redeem') redemptions.push(request);
   });
-  // The API's answer to the peek (review m8): whose account the link opens, masked.
+  // The API's answer to the peek (review m8): whose account the link opens, in full on the web (re-review N6).
   await page.route('**/auth/peek', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ maskedEmail: 'm•••@example.test' }),
+      body: JSON.stringify({ email: 'mary@example.test' }),
     }),
   );
   await page.goto(`/redeem#token=${fixtureToken}`);
@@ -62,14 +62,14 @@ test('opening a sign-in link consumes nothing: the token leaves the address bar,
   expect(new URL(page.url()).hash).toBe('');
   expect(await page.evaluate(() => window.location.href)).not.toContain(fixtureToken);
   await expect(
-    page.getByText("This link signs you in as m•••@example.test. Continue only if that's your email."),
+    page.getByText("This link signs you in as mary@example.test. Continue only if that's your email."),
   ).toBeVisible();
   expect(peeks).toHaveLength(1);
   expect(JSON.parse(peeks[0]?.postData() ?? '{}')).toEqual({ token: fixtureToken, client: 'web' });
   await page.waitForTimeout(500);
   expect(redemptions).toHaveLength(0);
 
-  await page.getByRole('button', { name: 'Continue as m•••@example.test' }).click();
+  await page.getByRole('button', { name: 'Continue as mary@example.test' }).click();
   await expect.poll(() => redemptions.length).toBe(1);
   const [redemption] = redemptions;
   expect(redemption?.method()).toBe('POST');

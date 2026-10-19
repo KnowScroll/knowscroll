@@ -79,6 +79,7 @@ What the v2 programs need at runtime, and where each comes from on the server (c
 | `PORT` | api | `<world>.v2.env` (4330 dev, 4320 stage) |
 | `KS_PUBLIC_ORIGIN` | api (sign-in links, `Origin` checks, cookie name) and the operator command | `<world>.v2.env` |
 | `KS_MEDIA_ROOT` | not read yet; provided for media | `<world>.v2.env` |
+| `KS_NATIVE_SIGN_IN_BINDING` | api: stays **unset** (off) on dev and stage until the native app ships (#226 re-review N1) | not set anywhere |
 | `KS_MAIL_SENDER=agentmail`, `KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN=*@test.knowscroll.space` | api and the operator command (S1.3: production refuses to start without AgentMail; operator links on dev/stage only, only for the pattern's addresses) | `<world>.v2.env` (`ks_v2_operator_sign_in_pattern` in `group_vars/all.yml`) |
 | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | api only (never the worker) | `/etc/knowscroll/secrets/shared/agentmail.env` (root only; copied once from the owner's Mac, CF-40; dev and stage share the inbox), an extra `EnvironmentFile=` of `ks2-api@` |
 
@@ -103,7 +104,7 @@ embeds the AgentMail key and v1's database password) or v1's media. The v2 setti
 (`<world>.v2.env`) and secrets are `0600 root`: systemd reads them as root (`EnvironmentFile=`)
 and hands the values to the program as its environment, and the units make `/etc/knowscroll` and
 v1's media folder invisible to the program (`InaccessiblePaths=`). The v2 media folder
-(`media-v2`) belongs to `ks2-<world>`. Only `ks2-api@` gets the AgentMail file.
+(`media-v2`, recursively) belongs to `ks2-<world>`. Only `ks2-api@` gets the AgentMail file.
 
 ### The web app's headers (#226 review m7)
 

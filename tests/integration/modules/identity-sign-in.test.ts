@@ -46,6 +46,8 @@ function settings(overrides: Partial<IdentitySettings> = {}): IdentitySettings {
     secureCookies: true,
     mail: { sender: 'fixture', outboxFile: undefined },
     operatorSignIn: undefined,
+    // On for these tests (native redemptions); the default on every world is off (re-review N1).
+    nativeSignInBinding: true,
     ...overrides,
   };
 }
@@ -334,8 +336,16 @@ describe('sign-in, sessions and operator links (real database)', () => {
         reason: 'link_invalid',
       });
     expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
+    // A native link answers only to its own verifier, and masked (re-review nit).
     expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'link_invalid' });
-    expect(await identity.peekSignInLink({ token, client: 'native' })).toMatchObject({ kind: 'usable' });
+    expect(await identity.peekSignInLink({ token, client: 'native' })).toEqual({ kind: 'link_invalid' });
+    expect(await identity.peekSignInLink({ token, client: 'native', codeVerifier: device().verifier })).toEqual({
+      kind: 'link_invalid',
+    });
+    expect(await identity.peekSignInLink({ token, client: 'native', codeVerifier: phone.verifier })).toEqual({
+      kind: 'usable',
+      email: 'p•••@identity.test',
+    });
     signedIn(await redeemNative(token, randomUUID(), phone));
 
     // A link asked for without a challenge (the web's) is never redeemed by a native client.
@@ -346,13 +356,10 @@ describe('sign-in, sessions and operator links (real database)', () => {
     });
   });
 
-  it('peeks at a link without consuming it, showing only the masked address (review m8)', async () => {
+  it('peeks at a web link without consuming it, showing the full address (review m8, re-review N6)', async () => {
     const address = freshAddress();
     const token = await linkFor(address);
-    expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({
-      kind: 'usable',
-      maskedEmail: `p•••@identity.test`,
-    });
+    expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'usable', email: address });
     expect(await linkRow(token)).toEqual({ consumed_at: null, consumed_command_id: null });
     signedIn(await identity.redeemSignIn({ token, commandId: randomUUID(), client: 'web' }));
     expect(await identity.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'link_invalid' });
@@ -572,6 +579,36 @@ describe('sign-in, sessions and operator links (real database)', () => {
       await identity.signOut({ sessionId: first.session.id, accountId: first.outcome.accountId, everywhere: true }),
     ).toEqual({ revoked: 3 });
     for (const session of sessions) expect(await identity.resolveSession(session.session.token)).toBeUndefined();
+  });
+
+  it('refuses native challenges while binding is off, so nobody can lock an address out with them (re-review N1, probe p15)', async () => {
+    const off = identityUseCases({
+      db: database.db,
+      settings: settings({ nativeSignInBinding: false }),
+      lockTimeoutMs: 5_000,
+      logEvent: silent,
+      mailSender: mail.send,
+    });
+    const victim = freshAddress();
+    const sentBefore = mail.sent.length;
+    // The attacker asks three links for the victim, each bound to a challenge only it holds.
+    for (let index = 0; index < 3; index += 1)
+      expect(await off.requestSignIn({ email: victim, codeChallenge: device().challenge })).toEqual({
+        kind: 'refused',
+        reason: 'binding_not_enabled',
+      });
+    expect(mail.sent).toHaveLength(sentBefore);
+    expect(
+      await database.db
+        .selectFrom('identity.sign_in_links')
+        .select('token_hash')
+        .where('address', '=', victim)
+        .execute(),
+    ).toEqual([]);
+    // The victim's own request still gets a link, and it works on the web.
+    const token = await linkFor(victim, undefined, off);
+    expect(await off.peekSignInLink({ token, client: 'web' })).toEqual({ kind: 'usable', email: victim });
+    signedIn(await off.redeemSignIn({ token, commandId: randomUUID(), client: 'web' }));
   });
 
   it('issues operator links only for the world pattern and disposable accounts, audited, and checks the pattern again at redemption (review m2, m9)', async () => {
@@ -839,5 +876,22 @@ describe('sign-in, sessions and operator links (real database)', () => {
         .where('created_at', '>', sql<Date>`now() - interval '15 minutes'`)
         .execute();
     }
+  });
+
+  it('holds the domain budget exactly under concurrent requests for different addresses (re-review N4, probe p11)', async () => {
+    const domain = `race-${Date.now()}.test`;
+    const sentBefore = mail.sent.length;
+    const results = await Promise.all(
+      Array.from({ length: 100 }, (_, index) => identity.requestSignIn({ email: `u${index}@${domain}` })),
+    );
+    expect(results.filter((result) => result.kind === 'requested')).toHaveLength(60);
+    expect(results.filter((result) => result.kind === 'rate_limited' && result.budget === 'domain')).toHaveLength(40);
+    const links = await database.db
+      .selectFrom('identity.sign_in_links')
+      .select('token_hash')
+      .where('domain', '=', domain)
+      .execute();
+    expect(links).toHaveLength(60);
+    await expect.poll(() => mail.sent.length - sentBefore).toBe(60);
   });
 });

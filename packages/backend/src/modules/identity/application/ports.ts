@@ -125,8 +125,9 @@ export interface BudgetCheck {
 export interface RequestSignInPorts {
   /**
    * In one short transaction: the address lock; then, in order, each budget (address, recipient
-   * domain, world-wide), counting only email links already issued; the first that is full refuses
-   * and nothing is written; otherwise the new link (15 minutes, database clock).
+   * domain under the domain's advisory lock, world-wide under the world's), counting only email
+   * links already issued; the first that is full refuses and nothing is written; otherwise the
+   * new link (15 minutes, database clock).
    */
   readonly createEmailLink: (request: {
     readonly address: string;
@@ -145,6 +146,8 @@ export interface RequestSignInPorts {
   readonly logEvent: LogEvent;
   /** Milliseconds, for durations and the once-per-window budget alert. */
   readonly now: () => number;
+  /** `KS_NATIVE_SIGN_IN_BINDING=1`: native code challenges are accepted (re-review N1). */
+  readonly nativeBinding: boolean;
 }
 
 export interface PeekSignInPorts {

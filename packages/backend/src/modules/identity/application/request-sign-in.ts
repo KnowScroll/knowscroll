@@ -15,9 +15,10 @@ const budgets: readonly BudgetCheck[] = [
  * Authority: none; anyone may ask for a link for any address. The answer is the same whether or
  *   not an account exists, and no account is created here: the account is created when a link is
  *   redeemed (no accounts for addresses nobody confirmed).
- * Steps: accept the address (strict RFC 5321 subset, `domain/addresses.ts`) → one short
- *   transaction under the address lock: the address, recipient-domain and world-wide budgets in
- *   that order, each counting only links already issued, so malformed or refused requests spend
+ * Steps: refuse a native code challenge unless native sign-in binding is on (re-review N1) →
+ *   accept the address (strict RFC 5321 subset, `domain/addresses.ts`) → one short transaction
+ *   under the address lock: the address, recipient-domain and world-wide budgets in that order
+ *   (each but the address one under its own advisory lock), each counting only links already issued, so malformed or refused requests spend
  *   none of them (review M2); the first full budget refuses (Retry-After) and writes nothing;
  *   otherwise store the new link's hash with a 15-minute expiry (database clock) → after commit,
  *   start the one mail delivery and log its outcome once. A domain or world budget that fills is
@@ -43,6 +44,12 @@ export function makeRequestSignIn(ports: RequestSignInPorts): RequestSignIn {
   }
 
   return async function requestSignIn(input): Promise<RequestSignInResult> {
+    // Re-review N1: until the native app ships, a challenge is refused, so nobody can bind a
+    // person's links to a verifier only they hold and lock the address out of its own budget.
+    if (input.codeChallenge !== undefined && !ports.nativeBinding) {
+      ports.logEvent('identity.sign_in_requested', { outcome: 'binding_not_enabled' });
+      return { kind: 'refused', reason: 'binding_not_enabled' };
+    }
     const address = parseAddress(input.email);
     if (address === undefined) {
       ports.logEvent('identity.sign_in_requested', { outcome: 'invalid_address' });

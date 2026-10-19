@@ -124,7 +124,7 @@ describe('an account scope', () => {
 function fakeAuth(sessions: { current: typeof accountA | undefined }) {
   return {
     requestLink: vi.fn((_email: string, _challenge?: string) => Promise.resolve({ kind: 'requested' as const })),
-    peek: vi.fn(() => Promise.resolve({ kind: 'usable' as const, maskedEmail: 'b•••@scope.test' })),
+    peek: vi.fn(() => Promise.resolve({ kind: 'usable' as const, email: 'b@scope.test' })),
     redeem: vi.fn((request: { token: string; codeVerifier?: string }) => {
       const account = request.token.endsWith('B') ? accountB : accountA;
       sessions.current = account;
@@ -482,5 +482,101 @@ describe('the account scope manager', () => {
     });
     await web.requestLink('a@scope.test');
     expect(webAuth.requestLink).toHaveBeenCalledWith('a@scope.test', undefined);
+  });
+
+  /** The review's stale-refresh probes: a reread sent with A's credential answers after a switch to B. */
+  function staleReread(lateAnswer: 'A' | 'signed_out') {
+    const seen: { authorization: string | null; scope: string | null }[] = [];
+    let stored: string | undefined = 'kss_a@scope.test';
+    const tokens: SessionTokenStore = {
+      read: () => Promise.resolve(stored),
+      write: (value) => {
+        stored = value;
+        return Promise.resolve();
+      },
+      clear: () => {
+        stored = undefined;
+        return Promise.resolve();
+      },
+    };
+    let sessionCalls = 0;
+    const releases: (() => void)[] = [];
+    const auth = {
+      ...fakeAuth({ current: accountA }),
+      session: vi.fn(() => {
+        sessionCalls += 1;
+        const signedInA = {
+          kind: 'signed_in' as const,
+          account: accountA,
+          client: 'native' as const,
+          expiresAt: '2026-11-18T00:00:00.000Z',
+        };
+        if (sessionCalls === 1) return Promise.resolve(signedInA);
+        return new Promise<typeof signedInA | { kind: 'signed_out' }>((resolve) => {
+          releases.push(() => resolve(lateAnswer === 'A' ? signedInA : { kind: 'signed_out' }));
+        });
+      }),
+    };
+    const manager = createAccountScopeManager({
+      baseUrl: 'https://app.scope.test',
+      platform: 'native',
+      fetch: (request) => {
+        seen.push({ authorization: request.headers.get('authorization'), scope: request.headers.get('x-ks-scope') });
+        return Promise.resolve(saved(0));
+      },
+      tokens,
+      store: memoryStore(),
+      auth,
+    });
+    return {
+      manager,
+      seen,
+      stored: () => stored,
+      release: () => {
+        for (const release of releases.splice(0)) release();
+      },
+    };
+  }
+
+  it('ignores a session reread that answers for the account before a switch (re-review N5, stale-refresh)', async () => {
+    const probe = staleReread('A');
+    await probe.manager.start();
+    const rereading = probe.manager.refresh();
+    await probe.manager.redeem({ token: 'ksl_B', commandId: '0199c000-0000-7000-8000-000000000007' });
+    const switched = probe.manager.getState();
+    if (switched.status !== 'signed_in') throw new Error('not signed in');
+    probe.release();
+    await rereading;
+    const after = probe.manager.getState();
+    if (after.status !== 'signed_in') throw new Error('not signed in');
+    // B's scope stays: the late answer for A mounted nothing.
+    expect(after.scope).toBe(switched.scope);
+    expect(after.scope.id).toBe(scopeIdOf(accountB));
+    await after.scope.api.experience.listSaved({});
+    expect(probe.seen.at(-1)).toEqual({ authorization: 'Bearer kss_b@scope.test', scope: scopeIdOf(accountB) });
+  });
+
+  it('ignores a late "signed out" for the replaced session: no sign-out, no secure-store wipe (re-review N5, stale-refresh-401)', async () => {
+    const probe = staleReread('signed_out');
+    await probe.manager.start();
+    const rereading = probe.manager.refresh();
+    await probe.manager.redeem({ token: 'ksl_B', commandId: '0199c000-0000-7000-8000-000000000008' });
+    probe.release();
+    await rereading;
+    const state = probe.manager.getState();
+    expect(state.status).toBe('signed_in');
+    if (state.status === 'signed_in') expect(state.scope.id).toBe(scopeIdOf(accountB));
+    expect(probe.stored()).toBe('kss_b@scope.test');
+  });
+
+  it('a reread after the switch is a new one, not the stale one in flight', async () => {
+    const probe = staleReread('A');
+    await probe.manager.start();
+    const stale = probe.manager.refresh();
+    await probe.manager.redeem({ token: 'ksl_B', commandId: '0199c000-0000-7000-8000-000000000009' });
+    const fresh = probe.manager.refresh();
+    expect(fresh).not.toBe(stale);
+    probe.release();
+    await Promise.all([stale, fresh]);
   });
 });

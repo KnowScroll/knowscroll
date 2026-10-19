@@ -39,6 +39,7 @@ describe('process configuration', () => {
         secureCookies: true,
         mail: { sender: 'agentmail', baseUrl: 'https://api.agentmail.to', timeoutMs: 10_000 },
         operatorSignIn: undefined,
+        nativeSignInBinding: false,
       },
     });
     expect(config.database.applicationName).toBe('knowscroll-api-dev');
@@ -227,6 +228,16 @@ describe('process configuration', () => {
     });
 
     const pattern = { KS_OPERATOR_SIGN_IN_PATTERN: '*@test.knowscroll.space' };
+
+    it('keeps native sign-in binding off unless it is exactly 1 (re-review N1)', () => {
+      const env = { ...local, ...agentMail };
+      expect(readApiConfig(env).identity.nativeSignInBinding).toBe(false);
+      expect(readApiConfig({ ...env, KS_NATIVE_SIGN_IN_BINDING: '1' }).identity.nativeSignInBinding).toBe(true);
+      for (const value of ['true', 'yes', '0', ' 1'])
+        expect(problemsOf({ ...env, KS_NATIVE_SIGN_IN_BINDING: value })).toEqual([
+          'KS_NATIVE_SIGN_IN_BINDING: not_allowed',
+        ]);
+    });
 
     it('accepts operator sign-in only as exactly 1, with a disposable pattern, in an allow-listed world', () => {
       const env = { ...local, ...agentMail };

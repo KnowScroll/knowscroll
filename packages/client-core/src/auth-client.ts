@@ -2,6 +2,7 @@ import {
   PROBLEM_MEDIA_TYPE,
   PeekSignInResponseSchema,
   ProblemDetailsSchema,
+  type ProblemDetails,
   RedeemSignInResponseSchema,
   SessionResponseSchema,
   type RedeemSignInResponse,
@@ -19,9 +20,12 @@ export type RequestLinkOutcome =
   | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
   | { readonly kind: 'unavailable' };
 
-/** Whose account a link opens, masked, asked before redeeming it (review m8). */
+/**
+ * Whose account a link opens, asked before redeeming it (review m8): the full address of a web
+ * link, the masked one of a native link (re-review N6).
+ */
 export type PeekOutcome =
-  | { readonly kind: 'usable'; readonly maskedEmail: string }
+  | { readonly kind: 'usable'; readonly email: string }
   | { readonly kind: 'link_invalid' }
   | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
   | { readonly kind: 'unavailable' };
@@ -55,7 +59,12 @@ export type SessionOutcome =
 export interface AuthClient {
   /** `codeChallenge`: native only, the S256 challenge of the app's verifier (review m10). */
   requestLink(email: string, codeChallenge?: string): Promise<RequestLinkOutcome>;
-  peek(request: { readonly token: string; readonly client: SessionClient }): Promise<PeekOutcome>;
+  /** `codeVerifier`: native only; a native link answers only to its verifier. */
+  peek(request: {
+    readonly token: string;
+    readonly client: SessionClient;
+    readonly codeVerifier?: string;
+  }): Promise<PeekOutcome>;
   redeem(request: {
     readonly token: string;
     readonly commandId: string;
@@ -76,10 +85,14 @@ export interface AuthClientOptions {
   readonly timeoutMs?: number;
 }
 
-async function problemCode(response: Response): Promise<string | undefined> {
+async function problemOf(response: Response): Promise<ProblemDetails | undefined> {
   if (!(response.headers.get('content-type') ?? '').startsWith(PROBLEM_MEDIA_TYPE)) return undefined;
   const parsed = ProblemDetailsSchema.safeParse(await response.json().catch(() => undefined));
-  return parsed.success ? parsed.data.code : undefined;
+  return parsed.success ? parsed.data : undefined;
+}
+
+async function problemCode(response: Response): Promise<string | undefined> {
+  return (await problemOf(response))?.code;
 }
 
 function retryAfter(response: Response): number | undefined {
@@ -124,9 +137,13 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
       if (response === undefined) return { kind: 'unavailable' };
       if (response.status === 202) return { kind: 'requested' };
       if (response.status === 429) return { kind: 'rate_limited', retryAfterSeconds: retryAfter(response) };
-      const code = await problemCode(response);
+      const problem = await problemOf(response);
+      // 422 on `codeChallenge`: native sign-in is not enabled on this world (re-review N1); the
+      // app cannot sign in here, which reads as the API being unavailable.
+      if (problem?.issues?.some((issue) => issue.path[0] === 'codeChallenge') === true) return { kind: 'unavailable' };
       // 422: outside the accepted address grammar; 400: not even a string of the right length.
-      if (code === 'UNPROCESSABLE_REQUEST' || code === 'INVALID_REQUEST') return { kind: 'invalid_address' };
+      if (problem?.code === 'UNPROCESSABLE_REQUEST' || problem?.code === 'INVALID_REQUEST')
+        return { kind: 'invalid_address' };
       return { kind: 'unavailable' };
     },
 
@@ -136,7 +153,7 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
       if (response.status === 429) return { kind: 'rate_limited', retryAfterSeconds: retryAfter(response) };
       if (response.ok) {
         const parsed = PeekSignInResponseSchema.safeParse(await response.json().catch(() => undefined));
-        return parsed.success ? { kind: 'usable', maskedEmail: parsed.data.maskedEmail } : { kind: 'unavailable' };
+        return parsed.success ? { kind: 'usable', email: parsed.data.email } : { kind: 'unavailable' };
       }
       const code = await problemCode(response);
       if (code === 'SIGN_IN_LINK_INVALID' || code === 'INVALID_REQUEST') return { kind: 'link_invalid' };

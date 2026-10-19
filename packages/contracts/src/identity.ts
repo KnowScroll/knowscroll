@@ -25,7 +25,8 @@ export type SessionClient = z.infer<typeof SessionClientSchema>;
  * A native link's device binding (review m10, PKCE-style, RFC 7636 S256): the app keeps a random
  * verifier in its secure store, asks for the link with `codeChallenge` = base64url(SHA-256(verifier)),
  * and redeems it only with `codeVerifier`. A link asked for with a challenge is redeemed by that
- * native app only; a link asked for without one, by the web only.
+ * native app only; a link asked for without one, by the web only. Off on every world until the
+ * native app ships (`KS_NATIVE_SIGN_IN_BINDING`, re-review N1): until then a challenge is refused.
  */
 export const CODE_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 export const CODE_VERIFIER_PATTERN = /^[A-Za-z0-9._~-]{43,128}$/;
@@ -46,6 +47,14 @@ export function scopeClaimOf(account: { readonly accountId: string; readonly pri
 }
 
 /**
+ * The `/v1` routes served without a scope claim (path templates, `{param}` for a segment): routes
+ * that act for no account, such as a future public share preview. Every other `/v1` route, present
+ * or future, requires the claim: the API checks it in one guard in front of all of them (re-review
+ * N3), and a CI test walks `apiContract` to prove it. Adding a route here is a security review item.
+ */
+export const UNSCOPED_V1_ROUTES: readonly string[] = [];
+
+/**
  * `POST /auth/sign-in`: mail a sign-in link. The answer is `202 {status: "requested"}` for every
  * acceptable address, whether or not an account exists or the mail could be delivered (no address
  * oracle). `UNPROCESSABLE_REQUEST` (422, issue path `email`) for an address outside the accepted
@@ -53,7 +62,8 @@ export function scopeClaimOf(account: { readonly accountId: string; readonly pri
  * all). `TOO_MANY_REQUESTS` (429, with `Retry-After`) when this client, the address, its domain or
  * the whole world asked too often; only links actually issued count against the address, domain
  * and world budgets. The address is normalised server-side (trimmed, lower-cased). Native apps
- * send `codeChallenge`; the web never does.
+ * send `codeChallenge`; the web never does. While native sign-in binding is off on the world
+ * (the default), a request carrying `codeChallenge` is refused: 422 with issue path `codeChallenge`.
  */
 export const RequestSignInSchema = z.object({
   email: z.string().min(1).max(320),
@@ -117,16 +127,24 @@ export const RedeemSignInResponseSchema = z.object({
 export type RedeemSignInResponse = z.infer<typeof RedeemSignInResponseSchema>;
 
 /**
- * `POST /auth/peek`: whose account a link opens, masked (`m•••@example.com`), without consuming
- * it (review m8). The redeem page shows "Continue as m•••@example.com" and redeems only after the
- * person taps it. `SIGN_IN_LINK_INVALID` (400) exactly when redeeming it from this client would be.
+ * `POST /auth/peek`: whose account a link opens, without consuming it (review m8). The redeem page
+ * shows "Continue as <email>" and redeems only after the person taps it. A web link answers the
+ * full address (its holder could redeem it and read the address anyway; a look-alike cannot hide
+ * behind a mask: re-review N6). A native link answers only with its verifier, and then masked
+ * (`m•••@example.com`). `SIGN_IN_LINK_INVALID` (400) exactly when redeeming it from this client
+ * would be.
  */
 export const PeekSignInSchema = z.object({
   token: z.string().regex(SIGN_IN_TOKEN_PATTERN),
   client: SessionClientSchema,
+  /** Native only: the verifier the link was asked for with. */
+  codeVerifier: z.string().regex(CODE_VERIFIER_PATTERN).optional(),
 });
 
-export const PeekSignInResponseSchema = z.object({ maskedEmail: z.string() });
+export const PeekSignInResponseSchema = z.object({
+  /** The full address (web) or the masked one (native). */
+  email: z.string(),
+});
 
 export type PeekSignInResponse = z.infer<typeof PeekSignInResponseSchema>;
 

@@ -1,10 +1,12 @@
 /**
  * In-process request limits for the unauthenticated sign-in routes, keyed by client (`clientKey`:
- * an IPv4 address, or an IPv6 /64). They keep one client from flooding the database; they are
- * taken before anything else, so a client's junk spends only its own budget. The budgets that
- * protect the mail inbox (per address, per recipient domain, world-wide) count links actually
- * issued and live durably in the identity module (review M2), so refused and malformed requests
- * spend none of them.
+ * an IPv4 address, or an IPv6 /64). A first-line flood brake for the database, taken before
+ * anything else so a client's junk spends only its own budget, and **not** a source of truth:
+ * the counts live in this process's memory, start empty after a restart, and when more than
+ * 10,000 clients are being counted the one counted longest ago is forgotten, so a client spread
+ * over more addresses than that can recycle its budget (re-review nit). What protects the mail
+ * inbox and the people it mails are the durable budgets in the identity module (per address,
+ * per recipient domain, world-wide; counting only links actually issued: review M2).
  */
 export interface WindowLimit {
   readonly max: number;

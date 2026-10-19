@@ -40,8 +40,8 @@ universe leaves identity alone.
 
 | Use case | Route | Authority, effects, failure |
 |---|---|---|
-| `requestSignIn({email, codeChallenge?})` | `POST /auth/sign-in` | None. Accept the address only in a strict RFC 5321 subset (`domain/addresses.ts`: printable ASCII, one `@`, dot-atom local part ≤ 64, LDH domain with ≥ 2 labels and a non-numeric TLD, ≤ 254 in all; trimmed and lower-cased) or `refused` (422). One short transaction under the address lock: the address (3), recipient-domain (60) and, under its own lock, world-wide (300) budgets per 15 minutes in that order, each counting only email links **already issued** (so malformed or refused requests spend none: review M2); the first full one → `rate_limited` (429 with `Retry-After`; a filled domain or world budget is logged once per window as `identity.sign_in_budget_full`), else insert the link hash (15 minutes, database clock) with the native app's challenge if any. After commit, one AgentMail send is started and **not awaited**: the answer is 202 for every acceptable address whether or not an account exists or the mail is delivered. No account is created. |
-| `peekSignInLink({token, client})` | `POST /auth/peek` | Possession of the link. Read-only: the masked address it opens (`m•••@example.com`), or `link_invalid` exactly when redeeming it from this client would be. The redeem page shows "Continue as …" before it redeems (review m8). |
+| `requestSignIn({email, codeChallenge?})` | `POST /auth/sign-in` | None. A `codeChallenge` while native sign-in binding is off (`KS_NATIVE_SIGN_IN_BINDING`, the default on every world) → `refused: binding_not_enabled` (422, issue path `codeChallenge`; re-review N1). Accept the address only in a strict RFC 5321 subset (`domain/addresses.ts`: printable ASCII, one `@`, dot-atom local part ≤ 64, LDH domain with ≥ 2 labels and a non-numeric TLD, ≤ 254 in all; trimmed and lower-cased) or `refused` (422). One short transaction under the address lock: the address (3), and, each under its own advisory lock, recipient-domain (60) and world-wide (300) budgets per 15 minutes in that order, each counting only email links **already issued** (so malformed or refused requests spend none: review M2); the first full one → `rate_limited` (429 with `Retry-After`; a filled domain or world budget is logged once per window as `identity.sign_in_budget_full`), else insert the link hash (15 minutes, database clock) with the native app's challenge if any. After commit, one AgentMail send is started and **not awaited**: the answer is 202 for every acceptable address whether or not an account exists or the mail is delivered. No account is created. |
+| `peekSignInLink({token, client, codeVerifier?})` | `POST /auth/peek` | Possession of the link. Read-only: for a web link the **full** address it opens (a mask such as `m•••@gmail.com` reads the same for a look-alike, and the holder could redeem the link and read the address anyway: re-review N6); for a native link the masked address, and only with its verifier; else `link_invalid`, exactly when redeeming it from this client would be. The redeem page shows "Continue as …" before it redeems (review m8). |
 | `redeemSignIn({token, commandId, client, codeVerifier?})` | `POST /auth/redeem` | Possession of an unexpired, unconsumed link, and for a native link its verifier. One transaction (below). Unknown, expired, consumed-by-another-command, bound to another client (a native link needs its verifier; the web redeems only links without a challenge), operator links this world refuses (no operator sign-in, or an address outside its pattern), or a replay whose session has ended → `link_invalid` (400 `SIGN_IN_LINK_INVALID`, one answer for each). A suspended account → `account_unavailable`. Every refusal rolls everything back: a refused redemption consumes nothing (review m1). |
 | `resolveSession(token)` | every authenticated request | Session unrevoked and unexpired, account and universe active; returns the account, its universe and the **current** privacy epoch (re-read every time, never remembered from sign-in). |
 | `sessionValid({sessionId, accountId})` | sockets | The same session checks for a socket's session, on every subscribe and re-authorisation. |
@@ -93,7 +93,8 @@ then the root. Every wait is bounded by the personal-scope lock timeout (a timeo
 2. **Open.** The link opens the client's redeem page (`/redeem`, served as the static web export;
    `/auth/*` is the API's). The page reads the fragment, removes it from the address bar, asks
    `POST /auth/peek` whose account it opens, and asks the person to confirm with one tap:
-   "Continue as m•••@example.com" (a link someone sent to sign you into *their* account says so).
+   "Continue as mary@example.com" (a link someone sent to sign you into *their* account says so;
+   native shows the masked address).
    Nothing is consumed by opening the link: a mail scanner or prefetcher that fetches or even
    renders the page signs nobody in. A native app asked for its link with the S256 challenge of a
    verifier in its secure store, and redeems with that verifier.
@@ -111,9 +112,12 @@ then the root. Every wait is bounded by the personal-scope lock timeout (a timeo
    Every account request also names its scope, `X-KS-Scope: <accountId>:<privacyEpoch>` (a
    socket: `auth.scope`); the API refuses any other claim than the presented session's account
    and current epoch with `409 SCOPE_MISMATCH`, so a tab whose cookie another tab replaced, or a
-   scope from before a privacy reset, is never served (review M1, m11). The client's AccountScope
-   owns its own credential, ends before a switching redemption is sent, and rereads the session
-   on `SCOPE_MISMATCH`.
+   scope from before a privacy reset, is never served (review M1, m11). One guard in front of
+   every `/v1` route checks it (`apps/api/src/http/scope-guard.ts`; opt-outs only through the
+   reviewed `UNSCOPED_V1_ROUTES` in the contracts; a release test walks `apiContract`: re-review
+   N3), and handlers take the caller it admitted. The client's AccountScope owns its own
+   credential, ends before a switching redemption is sent, rereads the session on
+   `SCOPE_MISMATCH`, and ignores a reread that answers after the credential changed (re-review N5).
 5. **Sign out.** `POST /auth/sign-out` revokes the session (or every session) and drops the
    account's sockets; the next request with that credential is 401.
 
@@ -157,9 +161,43 @@ refused outside `NODE_ENV=test` in a `ci`/`local` world.
 - A lost access-revocation notice: the gateway rechecks `sessionValid` on every subscribe and
   relayed hint and makes every socket authenticate again after a relay reconnect.
 - Rate limits: per API process 10 sign-in requests and 30 peeks or redemptions per client per 15
-  minutes (an IPv6 client is its /64; in memory, taken first, so a client's junk spends only its
-  own budget); then, durably and counting only links issued, 3 per address, 60 per recipient
-  domain and 300 per world per 15 minutes.
+  minutes (an IPv6 client is its /64, an IPv4-mapped address its IPv4); taken first, so a
+  client's junk spends only its own budget. That limiter is a flood brake, not a source of truth:
+  it lives in memory, starts empty after a restart, and forgets the client counted longest ago
+  once it counts 10,000, so a client spread over more addresses than that recycles its budget.
+  What caps mail are the durable budgets, counting only links issued: 3 per address, 60 per
+  recipient domain and 300 per world per 15 minutes (the domain and world ones each serialised
+  by an advisory lock, so they hold exactly under concurrency: re-review N4).
+
+## Before native sign-in binding is enabled (`KS_NATIVE_SIGN_IN_BINDING=1`; re-review N1)
+
+It stays off on every world until the native app ships. With it on as built, anyone can ask three
+links for a known address bound to a challenge only they hold: the person's mailbox fills with
+links neither the web nor their app can redeem, and the per-address budget then refuses the
+person's own requests for 15 minutes, repeatably. Before turning it on, one of:
+
+- count the address budget per binding (`address, code_challenge`), so bound links never spend
+  the budget the mailbox owner's own requests need; or
+- let the web redeem a bound link with a short out-of-band code printed in the mail body (never in
+  the URL), so whoever reads the mail can always sign in, while an interceptor of the URL alone
+  still gets nothing.
+
+Either needs its own tests (the review's probe p15 must stay a refusal for the attacker and a
+working link for the owner).
+
+## Before live (re-review N2, owner decision)
+
+Fine for dev and stage (a handful of people). Junk no longer spends the budgets, but valid
+addresses do and their mail goes out: about 30 IPv4 addresses per 15 minutes can fill the world
+budget (300) and switch sign-in off for everyone, mailing strangers from the shared inbox; 6
+addresses and 20 `@gmail.com` recipients fill one domain's budget (60). Options to decide before
+live:
+
+- at saturation keep answering 202 but send only to addresses that have an account, from a
+  reserved budget (the answer stays identical, so no oracle);
+- at saturation put a challenge or proof of work in front of `/auth/sign-in`;
+- aggregate the per-client limit by IPv4 /24 and IPv6 /48 and count only links issued per client
+  (durably, not in this process's memory).
 
 ## Not here yet
 

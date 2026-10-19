@@ -161,6 +161,7 @@
       # only for addresses matching the pattern (checked when a link is issued and when it is
       # redeemed). This role serves dev and stage only; the API and the operator command refuse
       # operator sign-in in every world but dev, stage, ci and local.
+      # KS_NATIVE_SIGN_IN_BINDING stays unset (off) until the native app ships (#226 re-review N1).
       KS_MAIL_SENDER=agentmail
       KS_ALLOW_OPERATOR_SIGN_IN=1
       KS_OPERATOR_SIGN_IN_PATTERN={{ ks_v2_operator_sign_in_pattern }}
@@ -168,14 +169,16 @@
   loop_control:
     label: "{{ item.name }}.v2.env"
 
+# Recursive: media written before the move to ks2-<world> (if any) moves with the folder.
 - name: V2 media folders (KS_MEDIA_ROOT), private to the world's v2 user; v1 media is left alone
   ignore_errors: "{{ ansible_check_mode }}"
   ansible.builtin.file:
     path: /srv/knowscroll/{{ item.name }}/media-v2
     state: directory
+    recurse: true
     owner: ks2-{{ item.name }}
     group: ks2-{{ item.name }}
-    mode: "0750"
+    mode: "u=rwX,g=rX,o="
   loop: "{{ ks_v2_world_list }}"
   loop_control:
     label: "{{ item.name }}"
