@@ -13,8 +13,8 @@
       "project": ["src/**/*.ts"]
     },
     "apps/client": {
-      "entry": ["app/**/*.tsx"],
-      "project": ["app/**/*.tsx", "features/**/*.{ts,tsx}", "platform/**/*.ts", "theme/**/*.ts"],
+      "entry": ["app/**/*.tsx", "platform/**/*.web.ts", "e2e/*.spec.ts"],
+      "project": ["app/**/*.tsx", "features/**/*.{ts,tsx}", "platform/**/*.ts", "theme/**/*.ts", "e2e/**/*.{ts,mjs}"],
       "ignoreDependencies": ["babel-jest"]
     },
     "packages/backend": {
