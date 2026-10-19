@@ -2,39 +2,44 @@
 
 Coordinator-owned. Hard cap ~120 lines: older detail moves to the tracker and issues. Verify Git, CI and deployed revisions before acting on anything here.
 
-**Updated:** 2026-10-19 · **Phase:** 0 → 1 · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
+**Updated:** 2026-10-19 17:00 UTC · **Phase:** 1 · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222)
 
 ## Where things are
 
 | Item | Value |
 |---|---|
-| Integration branch | `codex/release-knowscroll-v2` (worktree `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release`) |
+| Integration branch | `codex/release-knowscroll-v2` @ `3905327c` (worktree `/Volumes/Mrigesh SSD/knowscroll-worktrees/v2-release`) |
 | Legacy marker | tag `legacy/v1-final` → `106c4701` |
-| Architecture snapshot source | branch `codex/72-personal-universe-architecture` @ `2a302917` |
-| dev world | v1 at `106c4701` (`knowscroll_test_dev`); v2 not deployed yet |
-| stage world | v1 at `8982391f`; v2 not deployed yet |
+| dev world | **v2** `3905327c`, artifact `74e09279…`, DB `knowscroll_v2_dev` (no product migrations yet). v1 kept: `knowscroll_test_dev`, rollback target `106c4701` |
+| stage world | v1 `8982391f` (v2 promotion planned after Phase 2 journeys pass on dev) |
 | live | not deployed (placeholder); owner-only |
-| SSD work area | `/Volumes/Mrigesh SSD/knowscroll-dev/v2/` (discovery, evidence, design renders, caches, tmp) |
+| VPS ops | Ansible applied from `9acf2ab6` (ks v2 manifests, v2 units, Caddy paths, nightly backup 02:23 UTC, weekly restore check Sun) |
+| SSD work area | `/Volumes/Mrigesh SSD/knowscroll-dev/v2/` (discovery, evidence, design renders, agent scratch, coordinator scripts in `agents/coordinator/`) |
 
-## Phase status
+## Done
 
-- **Phase 0 (#223):** discovery done (reports in `docs/v2/discovery/`); tracker #222 + sub-issues #223–#250 created as native sub-issues; v1 code/docs removed on the integration branch; new instructions, decision log (D-001…D-011) and carried-forward facts committed. Remaining: green `checks` on the pushed head.
-- **Phase 1 (#224–#229):** next. Start with S1.1 (workspace + pinned matrix + CI), then S1.2/S1.3/S1.4 in parallel worktrees, S1.5 infrastructure, S1.6 thin journey.
+- Phase 0 (#223). S1.1 workspace + CI (#224, PR #252). S1.5 infrastructure (#228, PRs #251 + #256): release built once in `checks`, deployed to dev by `deploy.yml`, rollback v2↔v1 exercised, backups + restore check verified.
+
+## Open PRs / active agents (each in its own SSD worktree)
+
+| PR | Sub-issue | State |
+|---|---|---|
+| #253 `codex/225-backend-foundation` | S1.2 backend foundation + spike | review → fixes → re-review approve-with-fixes; final small fixes in progress |
+| #254 `codex/230-scroll-model` | S2.1 part 1 `scroll-document.v1` | review BLOCK (4 findings) → fixes in progress |
+| #255 `codex/227-client-foundation` | S1.4 client foundation | under independent review |
+
+Queued (briefs ready in `agents/coordinator/`): S1.3 identity (`prompt-s13-identity.md`) and S2.2 harness (`prompt-s22-harness.md`) after #253 merges; S2.1 part 2 renderers after #254 + #255.
 
 ## Owner decisions open (details on #222)
 
-1. Cutroom budget for a new commission (pool has 83¢ of $7). 2. Mobile builds in CI / physical device. 3. Required `checks` on `dev`. 4. Personal-context model roles beyond test accounts. Defaults are stated on the tracker; work continues.
-
-## Active agents
-
-None.
+1. Cutroom budget for a new commission (pool 83¢ of $7). 2. Mobile builds in CI / physical device. 3. Required `checks` on `dev`. 4. Personal-context model roles beyond test accounts.
 
 ## Known gaps / cautions
 
 - The main-update hook only loads for sessions started inside a checkout; a session started from `~/Desktop` is not protected by it.
-- `ks` cleanup deletes releases it does not know; v2 must be taught to it before the first v2 deploy (S1.5).
-- No database backups exist on the VPS today (S1.5 adds them for v2).
+- `ks`: if killed between switching `current` and the health check, the old release is unreferenced and a later cleanup could delete it (accepted edge case).
+- Socket.IO through Caddy is unproven until #253's gateway is deployed.
 
 ## Next action
 
-Push Phase 0, confirm `checks` green, then begin S1.1 with the verified dependency matrix.
+Merge #253 after its final fixes (green CI on the exact head), launch S1.3 + S2.2, review/merge #254 and #255, then S1.6 thin journey on dev.
