@@ -88,7 +88,15 @@ published on 2026-10-19 and is not adopted the same day).
 | react-native-web | 0.21.4 | 2026-10-08 | MIT |
 | react-native-safe-area-context | 5.10.1 | 2026-09-29 | MIT |
 | react-native-screens | 4.30.0 | 2026-10-13 | MIT |
+| react-native-svg | 15.16.0 | 2026-10-15 | MIT (S1.4: icons, illustrations, pending stripe; the version in `bundledNativeModules.json`) |
 | @types/react | 19.3.0 | 2026-09-09 | MIT |
+
+Client data (S1.4, #227; not part of Expo's bundled modules):
+
+| Package | Version | Published | Licence | Peer notes |
+|---|---|---|---|---|
+| @orpc/client, @orpc/openapi-client | 1.15.7 (lockstep with the server's oRPC) | 2026-10-14 | MIT | ES modules only: the client's Jest config sends `.mjs` through jest-expo's Babel transform |
+| @tanstack/react-query | 5.104.4 | 2026-10-17 | MIT | react ^18‖^19, @types/react ^18‖^19; brings @tanstack/query-core 5.104.4 |
 
 | Client verification | Version | Published | Licence | Peer notes |
 |---|---|---|---|---|
@@ -98,6 +106,11 @@ published on 2026-10-19 and is not adopted the same day).
 | @testing-library/react-native | 14.1.0 | 2026-10-08 | MIT | needs test-renderer ^1 (replaces react-test-renderer) |
 | test-renderer | 1.3.0 | 2026-09-17 | MIT | the version jest-expo 58.0.11 depends on |
 | @types/jest | 30.0.0 | 2025-06-16 | MIT | |
+| @playwright/test | 1.64.1 | 2026-10-14 | Apache-2.0 | brings playwright and playwright-core 1.64.1; no install script runs (browsers are fetched only by `playwright install --with-deps chromium` in the `client` CI job, never on a developer machine) |
+
+The client also takes `@types/node` (the root's 22.20.5) for its one Node-side test,
+`features/shell/route-map.test.ts`, which references the types itself; the app's own
+`tsconfig.json` keeps `types: ["jest"]`.
 
 Expo specifics: `web.output: "single"` (static SPA; SDK 58 defaults to `server`), `updates.enabled:
 false` (no OTA updates yet). pnpm's default isolated `node_modules` works with SDK 58; no
@@ -110,7 +123,7 @@ false` (no OTA updates yet). pnpm's default isolated `node_modules` works with S
 | `static` | `pnpm install --frozen-lockfile` resolves the whole matrix with `strictPeerDependencies`; Prettier, typed ESLint (no-floating-promises, no-misused-promises, await-thenable, consistent-type-imports, switch-exhaustiveness-check, no-explicit-any), `tsc` per package, dependency-cruiser boundaries plus the probe that every forbidden probe import is rejected, the workspace-dependency manifest check, knip, the squawk binary (`squawk --version`; S1.1 has no migrations to lint yet) | CI fixture (source) |
 | `backend` | Vitest unit and property tests (canonical request hash, Save/Unsave rule, attempt state machine, UUIDv7, secret canary); real-PostgreSQL 16 integration tests, one template-derived database per file: migrator, pg-boss queues and drain, `withPersonalScope` refusals and the two-connection lock race, receipts (replay, key reuse, shared binding, rollback), relay (commit-only delivery, restart → resync), transaction network guard, erasure registry + schema inventory, applyAction (replay, 422, refusals, rollback removes the job), evidence consumer (crash after commit + pg-boss redelivery → one event), reasoning attempt ledger (crash after dispatch → `unknown`, never re-sent) | real database; fixture model |
 | `build` | `nest build` (tsc) of API and worker; `pnpm deploy --prod` with injected workspace packages produces runnable `api/` and `worker/` trees whose installed versions match `pnpm-lock.yaml`; `kysely-codegen --verify` against the migrated schema; those trees run `dist/migrate.js` on an empty database (twice), serve `GET /health` in production mode through oRPC on Nest 12 + Express 5, answer RFC 9457 problems, refuse to start without release identity or with the test-only caller adapter in production, and stop with exit 0 on SIGTERM (worker drains). The S1.2 spike journey runs through them: `POST /v1/actions` (oRPC + `@orpc/nest` with a JSON body and request-derived caller) → personal-scope lock + receipt + saved item + pg-boss job in one Kysely transaction (`fromKysely`) → worker consumer → evidence + revision + `pg_notify` → LISTEN relay → Socket.IO `scope_changed` (Nest gateway on the Express server) → typed oRPC OpenAPI client `GET /v1/saved` | real database; accounts, universes, assets and caller tokens are CI fixtures |
-| `client` | jest-expo + React Native Testing Library component tests; `expo export --platform web` produces `apps/client/dist/index.html` with the bundled fonts | CI fixture |
+| `client` | Vitest unit tests of `design-tokens` (contrast, spacing, breakpoints, type scaling, motion) and `client-core` (API origin, oRPC client and RFC 9457 problems over a labelled `fetch` double, query retry rules, `/health` query); jest-expo + React Native Testing Library tests of `ui` and of the app's route tree (`expo-router/testing-library`), and jest-expo/web (jsdom) tests of the `.web.ts` modules (links, ARIA semantics, focus ring, overlay history, page titles); `expo export --platform web` produces `apps/client/dist/index.html` with the bundled fonts, after `@knowscroll/contracts` is built; a gallery export (`EXPO_PUBLIC_KS_GALLERY=1`) carries the gallery marker and the production export does not; a Playwright smoke in Chromium over both exports (anchors with `href`, Tab + Enter between tabs, Ctrl/Cmd-click opens a new tab, per-route page titles, focus order at 834 and 1440 px, `/gallery` absent in production; the sheet closes on Esc and on browser Back with focus returned, the format switch's arrow keys, pressed toggles never yellow) | CI fixture; static exports served locally, no API (`/health` answers 502) |
 
 ## Not proved by CI
 

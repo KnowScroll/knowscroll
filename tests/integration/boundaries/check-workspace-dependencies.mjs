@@ -6,7 +6,17 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const packages = ['apps/api', 'apps/worker', 'apps/client', 'packages/backend', 'packages/contracts', 'migrations'];
+const packages = [
+  'apps/api',
+  'apps/worker',
+  'apps/client',
+  'packages/backend',
+  'packages/contracts',
+  'packages/client-core',
+  'packages/design-tokens',
+  'packages/ui',
+  'migrations',
+];
 const testFile = /\.test\.tsx?$/;
 const workspaceImport = /from\s+'(@knowscroll\/[a-z-]+)(?:\/[^']*)?'/g;
 
@@ -29,7 +39,7 @@ let problems = 0;
 for (const folder of packages) {
   const manifest = JSON.parse(readFileSync(join(folder, 'package.json'), 'utf8'));
   const declared = new Set(Object.keys(manifest.dependencies ?? {}));
-  const roots = folder === 'apps/client' ? ['app', 'features', 'theme'] : ['src'];
+  const roots = folder === 'apps/client' ? ['app', 'features', 'platform', 'theme'] : ['src'];
   for (const file of roots.flatMap((root) => sourceFiles(join(folder, root)))) {
     for (const match of readFileSync(file, 'utf8').matchAll(workspaceImport)) {
       const name = match[1];

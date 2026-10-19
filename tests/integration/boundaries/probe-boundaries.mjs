@@ -36,9 +36,10 @@ const probes = [
     source: "import { shared } from '../shared/index.js';\nexport const common = shared;\n",
     expect: [['packages/shared/index.ts', 'no-generic-folders']],
   },
-  // M3: a client package importing backend code.
+  // M3: a client package importing backend code (client-core exists since S1.4, so the probe is a
+  // new file inside it rather than the whole package).
   {
-    file: 'packages/client-core/src/index.ts',
+    file: 'packages/client-core/src/zz-probe-backend.ts',
     source:
       "import { readApiConfig } from '../../backend/src/infrastructure/config/index.js';\nexport const c = readApiConfig;\n",
     expect: [[`${B}/infrastructure/config/index.ts`, 'clients-never-import-backend']],
@@ -127,7 +128,6 @@ const createdDirectories = [
   `${B}/infrastructure/zz-probe-cycle`,
   'packages/shared',
   'packages/common',
-  'packages/client-core',
 ];
 
 for (const probe of probes) {

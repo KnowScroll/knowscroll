@@ -12,10 +12,22 @@ How the monorepo is laid out, built, checked and packaged. Architecture: bluepri
 | `packages/contracts` | `@knowscroll/contracts` | tsc | `dist/` |
 | `packages/backend` | `@knowscroll/backend` | tsc | `dist/` |
 | `migrations` | `@knowscroll/migrations` | tsc | `dist/` + the reviewed `*.sql` files |
+| `packages/design-tokens` | `@knowscroll/design-tokens` | (sources only) | tokens and the bundled fonts |
+| `packages/ui` | `@knowscroll/ui` | (sources only) | React Native / Web primitives |
+| `packages/client-core` | `@knowscroll/client-core` | (sources only) | typed API client, query client |
 | `tests/integration` | `@knowscroll/integration-tests` | (not built) | real-PostgreSQL and release tests |
 
-Packages are created only when code needs them; the blueprint's other packages (`client-core`,
-`ui`, `scroll-model`, `scene-core`, `design-tokens` as a package) arrive with their first code.
+Packages are created only when code needs them; the blueprint's other packages (`scroll-model`,
+`scene-core`) arrive with their first code.
+
+Client-only packages (`design-tokens`, `ui`, `client-core`, proposed in S1.4 #227) export their
+TypeScript sources directly (`"."` → `src/index.ts`; `client-core` also `"./query-client"`, so
+the app's root layout can take the query client without the API client): their only consumer is
+the Expo app, whose
+bundler (Metro) and test runner (jest-expo) compile workspace sources anyway, so a `dist/` would
+never be read. Packages shared with the server keep the three-condition map below; the Expo
+bundle reads `@knowscroll/contracts` from its `dist/` (build it first), while the client's Jest
+config maps it to its sources.
 
 ## Sources inside the workspace, `dist/` outside it
 
