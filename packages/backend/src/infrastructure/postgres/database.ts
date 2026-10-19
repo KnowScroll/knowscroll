@@ -1,6 +1,10 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import type { DatabaseSettings } from '../config/index.js';
+import type { DB } from './database.generated.js';
+
+/** The workspace's database schema, generated from the migrated database by kysely-codegen. */
+export type Database = DB;
 
 /** A process's database access: the Kysely instance, its pool, and one way to close both. */
 export interface DatabaseHandle<DB> {

@@ -1,11 +1,14 @@
+export { makeEnqueueJob, type EnqueueJob } from './enqueue.js';
 export { applyQueueDeclarations, createBoss, type BossDiagnostics, type BossRole } from './boss.js';
 export {
   InvalidJobPayloadError,
   drainConsumers,
+  jobFailureOutput,
   jobConsumer,
   startConsumers,
   type JobConsumer,
   type JobDelivery,
+  type JobFailureOutput,
 } from './consumers.js';
 export {
   DEAD_LETTER_RETENTION_SECONDS,
@@ -17,3 +20,4 @@ export {
   type QueueDefinition,
   type QueuePolicy,
 } from './queues.js';
+export { deleteJobPayloads } from './erasure.js';

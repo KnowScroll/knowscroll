@@ -24,24 +24,45 @@ const MAX_FRAME_LENGTH = 300;
  * are dropped: messages from drivers and SDKs can embed SQL, URLs, prompts or credentials.
  */
 export function sanitiseError(value: unknown, depth = 0): SanitisedError {
-  if (!(value instanceof Error))
+  if (!(value instanceof Error)) {
+    const kind =
+      value === null ? 'null' : typeof value === 'object' ? 'NonErrorObject' : `Non${capitalise(typeof value)}`;
+    // Some libraries emit plain objects copied from an error (pg-boss `error` events): keep the code.
+    const plainCode: unknown =
+      typeof value === 'object' && value !== null ? (value as { code?: unknown }).code : undefined;
     return {
-      errorClass:
-        value === null ? 'null' : typeof value === 'object' ? 'NonErrorObject' : `Non${capitalise(typeof value)}`,
+      errorClass: kind,
+      ...(typeof plainCode === 'string' && codePattern.test(plainCode) ? { code: plainCode } : {}),
       frames: [],
     };
-  const name = typeof value.name === 'string' && classPattern.test(value.name) ? value.name : value.constructor.name;
-  const errorClass = classPattern.test(name) ? name : 'Error';
+  }
   const rawCode: unknown = (value as { code?: unknown }).code;
   const code = typeof rawCode === 'string' && codePattern.test(rawCode) ? rawCode : undefined;
   const frames = (value.stack ?? '')
     .split('\n')
     .filter((line) => framePattern.test(line))
     .slice(0, MAX_FRAMES)
-    .map((line) => scrubText(line.trim()).slice(0, MAX_FRAME_LENGTH));
+    .map((line) => scrubText(shortenPaths(line.trim())).slice(0, MAX_FRAME_LENGTH));
   const cause =
     depth < MAX_CAUSE_DEPTH && value.cause !== undefined ? sanitiseError(value.cause, depth + 1) : undefined;
-  return { errorClass, ...(code === undefined ? {} : { code }), frames, ...(cause === undefined ? {} : { cause }) };
+  return {
+    errorClass: errorClassOf(value),
+    ...(code === undefined ? {} : { code }),
+    frames,
+    ...(cause === undefined ? {} : { cause }),
+  };
+}
+
+/** The most specific valid class name: the constructor (drivers often set `name` to "error"). */
+function errorClassOf(error: Error): string {
+  const constructorName = error.constructor.name;
+  if (classPattern.test(constructorName) && constructorName !== 'Error') return constructorName;
+  return typeof error.name === 'string' && classPattern.test(error.name) ? error.name : 'Error';
+}
+
+/** Keeps only the last two segments of file paths in a stack frame (no install paths or user names). */
+function shortenPaths(frame: string): string {
+  return frame.replace(/(?:file:\/\/)?(?:\/[^\s():/]+)*\/([^\s():/]+\/[^\s():/]+:\d+:\d+)/g, '$1');
 }
 
 function capitalise(text: string): string {
@@ -80,6 +101,8 @@ const textScrubbers: readonly (readonly [RegExp, string])[] = [
     /([?&;](?:[\w.-]*?(?:token|secret|password|passwd|key|signature|sig|auth|credential|session|code|ticket|nonce)|x-amz-[\w-]+|expires)=)[^&\s"'<>]*/gi,
     '$1[redacted]',
   ],
+  // Cookie and session header values
+  [/\b((?:set-)?cookie|session|sid)(\s*[:=]\s*)[^\s;,]+/gi, '$1$2[redacted]'],
   // Authorization header values
   [/\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [redacted]'],
   // JSON web tokens
@@ -94,8 +117,8 @@ const textScrubbers: readonly (readonly [RegExp, string])[] = [
     /\b((?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret)["']?\s*[:=]\s*["']?)[^\s"',;&]+/gi,
     '$1[redacted]',
   ],
-  // Long opaque strings: likely tokens or keys
-  [/\b[A-Za-z0-9+/_=-]{40,}\b/g, '[redacted-opaque]'],
+  // Long opaque strings: likely tokens or keys (paths are shortened before this runs)
+  [/[A-Za-z0-9+_=-]{40,}/g, '[redacted-opaque]'],
 ];
 
 /** Removes credential-shaped substrings from free text (framework messages, stack frames). */

@@ -11,7 +11,8 @@
 # Jobs: `integrity` (main-update hook, vendored design and Cutroom snapshots), `static` (format,
 # lint, typecheck, import boundaries, unused code, migration lint), `backend` (unit tests and
 # real-PostgreSQL integration tests), `build` (production builds, the `pnpm deploy` release
-# trees, and those trees booted against PostgreSQL) and `client` (jest-expo tests and the Expo web
+# trees, generated database types, and those trees booted against PostgreSQL through the S1.2
+# spike journey) and `client` (jest-expo tests and the Expo web
 # export). Never remove, skip or weaken a job to get a green run.
 name: checks
 on: [push, pull_request]
@@ -79,6 +80,8 @@ jobs:
         run: pnpm boundaries:probe
       - name: Workspace imports in production code are declared dependencies
         run: pnpm boundaries:manifests
+      - name: The unmarked-transaction lint rule rejects every direct form (probe)
+        run: pnpm lint:probe
       - name: Unused files, exports and dependencies (knip)
         run: pnpm knip
       - name: Migration hazards (squawk)
@@ -165,7 +168,13 @@ jobs:
             test -e "$release/$path" || { echo "missing $path in the release tree"; exit 1; }
           done
           echo "KS_RELEASE_DIR=$release" >> "$GITHUB_ENV"
-      - name: Boot the deployed release against PostgreSQL
+      - name: Generated database types match the migrated schema (kysely-codegen --verify)
+        run: |
+          psql "$KS_TEST_DATABASE_URL" --no-psqlrc --quiet --command 'create database knowscroll_types'
+          types_url="postgres://postgres:postgres@localhost:5432/knowscroll_types"
+          (cd "$KS_RELEASE_DIR/api" && KS_WORLD=ci DATABASE_URL="$types_url" node dist/migrate.js)
+          DATABASE_URL="$types_url" pnpm --filter @knowscroll/backend db:types:verify
+      - name: Boot the deployed release against PostgreSQL (health, refusals, spike journey)
         run: pnpm --filter @knowscroll/integration-tests test:release
 
   client:

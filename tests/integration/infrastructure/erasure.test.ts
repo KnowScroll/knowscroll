@@ -1,0 +1,195 @@
+import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { personalStores } from '@knowscroll/backend/erasure-registry';
+import {
+  checkErasureInventory,
+  checkQueuePayloadStores,
+  eraseUniverse,
+  erasureRegistry,
+} from '@knowscroll/backend/infrastructure/erasure';
+import { defineQueue } from '@knowscroll/backend/infrastructure/jobs';
+import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { releaseQueues } from '@knowscroll/backend/job-queues';
+import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
+import { z } from 'zod';
+import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { evidenceUseCase } from '../support/evidence.js';
+import { experienceUseCases } from '../support/experience.js';
+import { seedAsset, seedPerson, type FixturePerson } from '../support/fixtures.js';
+
+/** Rows per registered personal table for one universe. */
+async function personalRowCountsIn(
+  db: TestDatabase<Database>['db'],
+  universeId: string,
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const declaration of personalStores) {
+    for (const table of declaration.tables) {
+      const result = await sql<{
+        n: number;
+      }>`select count(*)::int as n from ${sql.table(`${table.schema}.${table.table}`)} where universe_id = ${universeId}`.execute(
+        db,
+      );
+      counts[`${table.schema}.${table.table}`] = result.rows[0]?.n ?? 0;
+    }
+  }
+  return counts;
+}
+
+describe('the erasure registry (real database)', () => {
+  let database: TestDatabase<Database>;
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('erasure');
+  });
+  afterAll(async () => {
+    await database.drop();
+  });
+
+  const personalRowCounts = (universeId: string) => personalRowCountsIn(database.db, universeId);
+
+  it('declares every personal table, account-linked column and queue payload store, with RESTRICT references to the root', async () => {
+    expect(await checkErasureInventory(database.db, personalStores)).toEqual([]);
+    expect(checkQueuePayloadStores(releaseQueues, personalStores)).toEqual([]);
+  });
+
+  it('fails the inventory for an unregistered personal table, a cascading reference and an undeclared account link', async () => {
+    await sql`create table experience.forgotten_personal (universe_id uuid not null references identity.universes (id) on delete cascade, owner_account_id uuid)`.execute(
+      database.db,
+    );
+    try {
+      expect(await checkErasureInventory(database.db, personalStores)).toEqual([
+        'experience.forgotten_personal has a universe_id column but no module declares it in the erasure registry',
+        'experience.forgotten_personal.owner_account_id links to an account but no module declares it',
+      ]);
+      const declared = erasureRegistry([
+        ...personalStores,
+        {
+          module: 'fixture',
+          tables: [{ schema: 'experience', table: 'forgotten_personal', ownerColumn: 'universe_id' }],
+          nonRowStores: [],
+          erase: () => Promise.reject(new Error('unused')),
+        },
+      ]);
+      expect(await checkErasureInventory(database.db, declared)).toContain(
+        'experience.forgotten_personal does not reference identity.universes from universe_id with ON DELETE RESTRICT',
+      );
+    } finally {
+      await sql`drop table experience.forgotten_personal`.execute(database.db);
+    }
+  });
+
+  it('fails when a queue carrying universeId has no declared payload store', () => {
+    const queue = defineQueue({
+      name: 'fixture.personal-payload',
+      purpose: 'CI fixture',
+      payload: z.object({ v: z.literal(1), universeId: z.uuid() }),
+      policy: {
+        expireInSeconds: 60,
+        retryLimit: 0,
+        retryDelaySeconds: 1,
+        retryBackoff: false,
+        retentionSeconds: 60,
+        deleteAfterSeconds: 60,
+        deadLetter: false,
+      },
+      consumer: { localConcurrency: 1, pollingIntervalSeconds: 1 },
+    });
+    expect(checkQueuePayloadStores([queue], personalStores)).toEqual([
+      'queue fixture.personal-payload carries universeId in its payload but no module declares the store pgboss/fixture.personal-payload',
+    ]);
+  });
+
+  it('refuses a table declared by two modules', () => {
+    const [first] = personalStores;
+    if (first === undefined) throw new Error('empty registry');
+    expect(() => erasureRegistry([first, { ...first, module: 'duplicate' }])).toThrow('declared by two modules');
+  });
+
+  it('erases one universe from every registered store and leaves another universe untouched', async () => {
+    const erased = await seedPerson(database.db);
+    const kept = await seedPerson(database.db);
+    const asset = await seedAsset(database.db);
+    const useCases = await experienceUseCases(database);
+    const applyEvidence = evidenceUseCase(database);
+    const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    const ledger = makeAttemptLedger(database.db);
+    const seed = async (person: FixturePerson) => {
+      const saved = await useCases.applyAction(person.authority, {
+        commandId: randomUUID(),
+        kind: 'save',
+        target: { assetId: asset.assetId, assetRevision: 1 },
+      });
+      if (saved.kind !== 'applied') throw new Error('fixture save refused');
+      await applyEvidence({ v: 1, universeId: person.universeId, privacyEpoch: 1, actionId: saved.outcome.actionId });
+      await withPersonalScope(person.authority, async (scope) => {
+        const runId = randomUUID();
+        await ledger.admitRun(scope, { id: runId, ownerModule: 'fixture', purpose: 'fixture' });
+        await ledger.reserve(scope, {
+          id: randomUUID(),
+          runId,
+          step: 'step',
+          provider: 'fixture',
+          model: 'fixture',
+          requestHash: 'a'.repeat(64),
+        });
+      });
+    };
+    try {
+      await seed(erased);
+      await seed(kept);
+      const before = {
+        erased: await personalRowCounts(erased.universeId),
+        kept: await personalRowCounts(kept.universeId),
+      };
+      expect(Object.values(before.erased).every((count) => count > 0)).toBe(true);
+      const reports = await withPersonalScope(erased.authority, (scope) => eraseUniverse(scope, personalStores));
+      expect(reports.kind === 'entered' && reports.value.every((report) => report.status === 'completed')).toBe(true);
+      const after = {
+        erased: await personalRowCounts(erased.universeId),
+        kept: await personalRowCounts(kept.universeId),
+      };
+      expect(Object.values(after.erased).every((count) => count === 0)).toBe(true);
+      expect(after.kept).toEqual(before.kept);
+    } finally {
+      await useCases.close();
+    }
+    const jobs = async (universeId: string) =>
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int as n from pgboss.job where data ->> 'universeId' = ${universeId}`.execute(database.db)
+      ).rows[0]?.n;
+    expect(await jobs(erased.universeId)).toBe(0);
+    expect(await jobs(kept.universeId)).toBeGreaterThan(0);
+  });
+
+  it('keeps attempts whose outcome is still open, and reports the erasure as pending', async () => {
+    const person = await seedPerson(database.db);
+    const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    const ledger = makeAttemptLedger(database.db);
+    const attemptId = randomUUID();
+    await withPersonalScope(person.authority, async (scope) => {
+      const runId = randomUUID();
+      await ledger.admitRun(scope, { id: runId, ownerModule: 'fixture', purpose: 'fixture' });
+      await ledger.reserve(scope, {
+        id: attemptId,
+        runId,
+        step: 'step',
+        provider: 'fixture',
+        model: 'fixture',
+        requestHash: 'b'.repeat(64),
+      });
+      await ledger.commitDispatch(scope, attemptId);
+    });
+    const reports = await withPersonalScope(person.authority, (scope) => eraseUniverse(scope, personalStores));
+    expect(
+      reports.kind === 'entered' ? reports.value.find((report) => report.module === 'reasoning') : undefined,
+    ).toMatchObject({ status: 'pending' });
+    const left = await personalRowCounts(person.universeId);
+    expect({ attempts: left['reasoning.external_attempts'], runs: left['reasoning.business_runs'] }).toEqual({
+      attempts: 1,
+      runs: 1,
+    });
+  });
+});

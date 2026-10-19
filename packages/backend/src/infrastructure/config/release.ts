@@ -13,8 +13,10 @@ import {
 
 /**
  * Release identity shared by every process: which world it serves, which commit it was built
- * from and which release artifact it came from. Production refuses placeholders so a deployed
- * process can always be traced to its release; development and test default to `unknown`.
+ * from and which release artifact it came from. `KS_WORLD` is required in every `NODE_ENV` (a
+ * missing world never silently becomes `local`, which would allow test-only adapters). Production
+ * refuses placeholders so a deployed process can always be traced to its release; development
+ * and test default the commit and artifact to `unknown`.
  */
 export interface ReleaseIdentity {
   readonly nodeEnv: NodeEnv;
@@ -32,7 +34,7 @@ const productionSchema = z.object({
 
 const nonProductionSchema = z.object({
   NODE_ENV: z.enum(['test', 'development']).default('development'),
-  KS_WORLD: WorldSchema.default('local'),
+  KS_WORLD: WorldSchema,
   KS_COMMIT: CommitSchema.or(z.literal('unknown')).default('unknown'),
   KS_ARTIFACT_SHA256: Sha256Schema.or(z.literal('unknown')).default('unknown'),
 });

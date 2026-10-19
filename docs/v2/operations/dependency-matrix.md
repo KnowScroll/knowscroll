@@ -5,7 +5,7 @@ Versions are pinned **exactly** in the `catalog:` of `pnpm-workspace.yaml` (`cat
 strict`, `savePrefix: ''`, `strictPeerDependencies: true`) and in `pnpm-lock.yaml`. Change a
 version only together with this file.
 
-Recorded 2026-10-19 (S1.1, #224). Registry facts (versions, dates, licences, peers) were read from
+Recorded 2026-10-19 (S1.1, #224; extended by S1.2, #225). Registry facts (versions, dates, licences, peers) were read from
 registry.npmjs.org and the installed packages on that date. Research notes:
 `/Volumes/Mrigesh SSD/knowscroll-dev/v2/discovery/compat-matrix.md`.
 
@@ -20,7 +20,7 @@ permissive. Review the licence list again when a dependency is added.
 |---|---|---|---|
 | Node | 22.23.0 (CI, `.nvmrc`); engines `>=22.23.0 <23` | `.nvmrc`, `package.json` `engines`, `checks.yml` | VPS runs 22.23.3; Node 22 LTS until 2027-04-30; Expo SDK 58 / RN 0.88 need ≥22.13, pg-boss ≥22.12. Moving to Node 24 is a separate change. |
 | pnpm | 10.34.7 | `package.json` `packageManager`, `engines` | Stable maintenance line. pnpm 11 replaces `onlyBuiltDependencies` with `allowBuilds` and adds release-age gates; pnpm 12 shipped 14 minors in 7 weeks and now errors on unknown workspace keys. Neither offers something this workspace needs yet. |
-| PostgreSQL | 16 (CI `postgres:16` service; production major) | `checks.yml` | Production major on the VPS. pg-boss needs ≥13. The CI log prints the exact server version. |
+| PostgreSQL | 16 (CI `postgres:16` service; production major) | `checks.yml` | Production major on the VPS. pg-boss needs ≥13. The CI log prints the exact server version: 16.15 on 2026-10-19. |
 
 ## Toolchain
 
@@ -46,11 +46,13 @@ permissive. Review the licence list again when a dependency is added.
 |---|---|---|---|---|
 | @nestjs/common, @nestjs/core, @nestjs/platform-express | 12.1.3 | 2026-10-12 | MIT | **Not 12.2.0** (released 2026-10-19 with behaviour changes: IoAdapter message cap, Express parser limits, express 5.3.0). platform-express 12.1.3 pins express 5.2.1. |
 | @nestjs/cli | 12.0.8 | 2026-09-28 | MIT | Builds with `builder: tsc` (no webpack/SWC/Rspack peers installed). |
+| @nestjs/websockets, @nestjs/platform-socket.io | 12.1.3 | 2026-10-12 | MIT | platform-socket.io 12.1.3 depends on socket.io 4.8.4 exactly. |
+| socket.io | 4.8.4 | 2026-09-25 | MIT | The version platform-socket.io pins (one copy); imported for `Server`/`Socket` types. |
 | express | 5.2.1 | 2025-12-01 | MIT | The exact version platform-express 12.1.3 depends on (one copy in the tree). |
 | @types/express | 5.0.6 | 2025-12-01 | MIT | Types for the Express request/response objects used by the API's middleware. |
 | reflect-metadata | 0.2.2 | 2024-03-29 | Apache-2.0 | |
 | rxjs | 7.8.2 | 2025-02-22 | Apache-2.0 | |
-| @orpc/contract, @orpc/server, @orpc/nest, @orpc/openapi, @orpc/zod | 1.15.7 (lockstep) | 2026-10-14 | MIT | @orpc/nest peers `@nestjs/* >=11`, `express >=5`. oRPC's 1.x CI tests Nest 11 only; Nest 12 compatibility is proven by this workspace's CI (below). |
+| @orpc/contract, @orpc/server, @orpc/nest, @orpc/openapi, @orpc/zod, @orpc/client, @orpc/openapi-client | 1.15.7 (lockstep) | 2026-10-14 | MIT | @orpc/nest peers `@nestjs/* >=11`, `express >=5`. oRPC's 1.x CI tests Nest 11 only; Nest 12.1.3 compatibility is proven by this workspace's CI (S1.2 spike, below). |
 | zod | 4.6.7 | 2026-10-12 | MIT | @orpc/zod needs >=3.25. |
 | kysely | 0.29.7 | 2026-10-17 | MIT | `Migrator` moved to `kysely/migration` in 0.29. |
 | pg | 8.23.1 | 2026-09-30 | MIT | pg-boss depends on ^8.23.1 (one copy). |
@@ -62,7 +64,10 @@ permissive. Review the licence list again when a dependency is added.
 
 | Package | Version | Published | Licence | Notes |
 |---|---|---|---|---|
-| vitest | 4.1.12 | 2026-10-15 | MIT | Nest 12's template line (vitest 5 is newer but not needed). Resolves workspace sources through the `@knowscroll/source` condition. |
+| vitest | 4.1.12 | 2026-10-15 | MIT | Nest 12's template line (vitest 5 is newer but not needed). Resolves workspace sources through `vitest.workspace-sources.ts` (the `@knowscroll/source` export condition). |
+| @fast-check/vitest | 0.5.0 | 2026-09-11 | MIT | peers vitest ^4.1‖^5; brings fast-check 4.x for property tests. |
+| kysely-codegen | 0.20.0 | 2026-02-16 | MIT | peers kysely >=0.27 <1, pg >=8.8 <9. Weakest maintenance signal in the DB layer (last release Feb 2026); only used to generate and verify types, never at runtime. |
+| socket.io-client | 4.8.4 | 2026-09-25 | MIT | Release tests' Socket.IO client. |
 
 ## Client (Expo SDK 58)
 
@@ -103,8 +108,8 @@ false` (no OTA updates yet). pnpm's default isolated `node_modules` works with S
 | Job | Proves | Evidence label |
 |---|---|---|
 | `static` | `pnpm install --frozen-lockfile` resolves the whole matrix with `strictPeerDependencies`; Prettier, typed ESLint (no-floating-promises, no-misused-promises, await-thenable, consistent-type-imports, switch-exhaustiveness-check, no-explicit-any), `tsc` per package, dependency-cruiser boundaries plus the probe that every forbidden probe import is rejected, the workspace-dependency manifest check, knip, the squawk binary (`squawk --version`; S1.1 has no migrations to lint yet) | CI fixture (source) |
-| `backend` | Vitest unit tests; real-PostgreSQL 16 integration tests (migrator, pg-boss queue declarations, consumer drain), one template-derived database per file | real database |
-| `build` | `nest build` (tsc) of API and worker; `pnpm deploy --prod` with injected workspace packages produces runnable `api/` and `worker/` trees whose installed versions match `pnpm-lock.yaml`; those trees run `dist/migrate.js` on an empty database (twice), serve `GET /health` in production mode through oRPC on Nest 12 + Express 5, answer RFC 9457 problems, refuse to start without release identity, and stop with exit 0 on SIGTERM (worker drains) | real database, CI fixture (commit/artifact values) |
+| `backend` | Vitest unit and property tests (canonical request hash, Save/Unsave rule, attempt state machine, UUIDv7, secret canary); real-PostgreSQL 16 integration tests, one template-derived database per file: migrator, pg-boss queues and drain, `withPersonalScope` refusals and the two-connection lock race, receipts (replay, key reuse, shared binding, rollback), relay (commit-only delivery, restart → resync), transaction network guard, erasure registry + schema inventory, applyAction (replay, 422, refusals, rollback removes the job), evidence consumer (crash after commit + pg-boss redelivery → one event), reasoning attempt ledger (crash after dispatch → `unknown`, never re-sent) | real database; fixture model |
+| `build` | `nest build` (tsc) of API and worker; `pnpm deploy --prod` with injected workspace packages produces runnable `api/` and `worker/` trees whose installed versions match `pnpm-lock.yaml`; `kysely-codegen --verify` against the migrated schema; those trees run `dist/migrate.js` on an empty database (twice), serve `GET /health` in production mode through oRPC on Nest 12 + Express 5, answer RFC 9457 problems, refuse to start without release identity or with the test-only caller adapter in production, and stop with exit 0 on SIGTERM (worker drains). The S1.2 spike journey runs through them: `POST /v1/actions` (oRPC + `@orpc/nest` with a JSON body and request-derived caller) → personal-scope lock + receipt + saved item + pg-boss job in one Kysely transaction (`fromKysely`) → worker consumer → evidence + revision + `pg_notify` → LISTEN relay → Socket.IO `scope_changed` (Nest gateway on the Express server) → typed oRPC OpenAPI client `GET /v1/saved` | real database; accounts, universes, assets and caller tokens are CI fixtures |
 | `client` | jest-expo + React Native Testing Library component tests; `expo export --platform web` produces `apps/client/dist/index.html` with the bundled fonts | CI fixture |
 
 ## Not proved by CI
@@ -112,3 +117,5 @@ false` (no OTA updates yet). pnpm's default isolated `node_modules` works with S
 - Native Android/iOS builds of the Expo app (no CI mobile builds; owner decision CF-31).
 - Behaviour on the VPS (Node 22.23.3 there; CI uses 22.23.0): proved by dev deployment (S1.5).
 - Long-running pg-boss maintenance, real traffic, and Socket.IO behaviour behind Caddy.
+- Real authentication (S1.3), a real model provider (S2.2), Socket.IO revocation of existing
+  subscriptions, and client-side catch-up (the client app does not call the API yet).
